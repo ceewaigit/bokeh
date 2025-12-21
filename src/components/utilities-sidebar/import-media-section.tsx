@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Film, Music, FolderOpen, Loader2, Check, X, FileAudio, FileVideo, FileBox } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn, formatTime } from '@/lib/utils'
@@ -69,6 +69,7 @@ export function ImportMediaSection() {
     const [importQueue, setImportQueue] = useState<ImportedMedia[]>([])
     const [isImporting, setIsImporting] = useState(false)
     const [showRecordingPicker, setShowRecordingPicker] = useState(false)
+    const [recordingSearch, setRecordingSearch] = useState('')
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const currentProject = useProjectStore((s) => s.currentProject)
@@ -76,6 +77,25 @@ export function ImportMediaSection() {
     const libraryRecordings = useRecordingsLibraryStore((s) => s.allRecordings)
     const setAllRecordings = useRecordingsLibraryStore((s) => s.setAllRecordings)
     const updateRecording = useRecordingsLibraryStore((s) => s.updateRecording)
+
+    const visibleRecordings = useMemo(() => {
+        const term = recordingSearch.trim().toLowerCase()
+        return libraryRecordings
+            .filter(rec => rec.path !== currentProject?.filePath)
+            .filter(rec => {
+                if (!term) return true
+                const name = rec.projectInfo?.name || rec.name.replace(PROJECT_EXTENSION_REGEX, '')
+                return name.toLowerCase().includes(term) || rec.name.toLowerCase().includes(term)
+            })
+    }, [currentProject?.filePath, libraryRecordings, recordingSearch])
+
+    const loadThumbnailFromDisk = useCallback(async (projectDir: string) => {
+        if (!window.electronAPI?.fileExists || !window.electronAPI?.loadImageAsDataUrl) return null
+        const thumbnailPath = `${projectDir}/thumbnail.jpg`
+        const exists = await window.electronAPI.fileExists(thumbnailPath)
+        if (!exists) return null
+        return await window.electronAPI.loadImageAsDataUrl(thumbnailPath)
+    }, [])
 
     // Ensure recordings are loaded if store is empty (e.g. direct load into project)
     useEffect(() => {
@@ -110,6 +130,7 @@ export function ImportMediaSection() {
                         if (!window.electronAPI?.readLocalFile) return
 
                         try {
+                            const updates: Partial<LibraryRecording> = {}
                             const result = await window.electronAPI.readLocalFile(rec.path)
                             if (result?.success && result.data) {
                                 const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
@@ -123,8 +144,19 @@ export function ImportMediaSection() {
                                     height: project.recordings?.[0]?.height || 0,
                                     recordingCount: project.recordings?.length || 0
                                 }
+                                updates.projectInfo = info
+                            }
 
-                                updateRecording(rec.path, { projectInfo: info })
+                            if (!rec.thumbnailUrl) {
+                                const projectDir = rec.path.substring(0, rec.path.lastIndexOf('/'))
+                                const thumbnailUrl = await loadThumbnailFromDisk(projectDir)
+                                if (thumbnailUrl) {
+                                    updates.thumbnailUrl = thumbnailUrl
+                                }
+                            }
+
+                            if (Object.keys(updates).length > 0) {
+                                updateRecording(rec.path, updates)
                             }
                         } catch (e) {
                             console.warn('Failed to hydrate', rec.name, e)
@@ -143,7 +175,7 @@ export function ImportMediaSection() {
         if (libraryRecordings.length === 0) {
             loadAndHydrate()
         }
-    }, [libraryRecordings.length, setAllRecordings, updateRecording])
+    }, [libraryRecordings.length, loadThumbnailFromDisk, setAllRecordings, updateRecording])
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault()
@@ -772,57 +804,81 @@ export function ImportMediaSection() {
 
             {/* Recording Picker Dialog */}
             <Dialog open={showRecordingPicker} onOpenChange={setShowRecordingPicker}>
-                <DialogContent className="max-w-lg max-h-[70vh] overflow-hidden flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle>Import Recording</DialogTitle>
-                    </DialogHeader>
-                    <div className="flex-1 overflow-y-auto space-y-2 py-2">
+                <DialogContent className="max-w-xl max-h-[72vh] overflow-hidden flex flex-col p-0 border-border/60 shadow-2xl">
+                    <div className="px-5 py-4 border-b border-border/60 bg-background">
+                        <DialogHeader>
+                            <DialogTitle className="text-base tracking-tight">Import recording</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Pick a recording from your library to bring it into the current project.
+                        </p>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-background">
+                        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-3">
+                            <div className="flex items-center gap-2">
+                                <input
+                                    value={recordingSearch}
+                                    onChange={(e) => setRecordingSearch(e.target.value)}
+                                    placeholder="Search recordings…"
+                                    className={cn(
+                                        "h-9 w-full rounded-md border border-input bg-background px-3 text-sm",
+                                        "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    )}
+                                />
+                                <div className="text-[11px] text-muted-foreground shrink-0">
+                                    {visibleRecordings.length} {visibleRecordings.length === 1 ? 'item' : 'items'}
+                                </div>
+                            </div>
+                        </div>
+
                         {libraryRecordings.length === 0 ? (
-                            <p className="text-center text-muted-foreground text-sm py-8">
+                            <div className="text-center text-muted-foreground text-sm py-10 rounded-xl border border-dashed border-border/60 bg-muted/30">
                                 No recordings in library
-                            </p>
+                            </div>
+                        ) : visibleRecordings.length === 0 ? (
+                            <div className="text-center text-muted-foreground text-sm py-10 rounded-xl border border-dashed border-border/60 bg-muted/30">
+                                No matches. Try a different search.
+                            </div>
                         ) : (
-                            libraryRecordings
-                                .filter(rec => rec.path !== currentProject?.filePath) // Don't show current project
-                                .map(rec => (
-                                    <button
-                                        key={rec.path}
-                                        onClick={() => handleSelectLibraryRecording(rec)}
-                                        className={cn(
-                                            "w-full flex items-center gap-3 p-2 rounded-lg text-left",
-                                            "bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border",
-                                            "transition-all duration-150 group"
+                            visibleRecordings.map(rec => (
+                                <button
+                                    key={rec.path}
+                                    onClick={() => handleSelectLibraryRecording(rec)}
+                                    className={cn(
+                                        "w-full flex items-center gap-3 rounded-xl text-left",
+                                        "bg-muted/20 hover:bg-muted/40 border border-border/50 hover:border-border",
+                                        "transition-all duration-150 group shadow-sm hover:shadow-md"
+                                    )}
+                                >
+                                    <div className="w-28 h-16 rounded-lg overflow-hidden bg-muted/60 shrink-0 relative m-2 border border-border/40">
+                                        {rec.thumbnailUrl ? (
+                                            <img
+                                                src={rec.thumbnailUrl}
+                                                alt={rec.name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-150"
+                                            />
+                                        ) : (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <Film className="w-6 h-6 text-muted-foreground/30" />
+                                            </div>
                                         )}
-                                    >
-                                        {/* Thumbnail */}
-                                        <div className="w-24 h-14 rounded-md overflow-hidden bg-muted/50 shrink-0 relative">
-                                            {rec.thumbnailUrl ? (
-                                                <img
-                                                    src={rec.thumbnailUrl}
-                                                    alt={rec.name}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-150"
-                                                />
-                                            ) : (
-                                                <div className="absolute inset-0 flex items-center justify-center">
-                                                    <Film className="w-6 h-6 text-muted-foreground/30" />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium truncate text-sm">
-                                                {rec.projectInfo?.name || rec.name.replace(PROJECT_EXTENSION_REGEX, '')}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {rec.projectInfo?.duration
-                                                    ? `${(rec.projectInfo.duration / 1000).toFixed(1)}s`
-                                                    : 'Unknown duration'}
-                                                {rec.projectInfo?.width && rec.projectInfo?.height
-                                                    ? ` • ${rec.projectInfo.width}×${rec.projectInfo.height}`
-                                                    : ''}
-                                            </p>
-                                        </div>
-                                    </button>
-                                ))
+                                    </div>
+                                    <div className="flex-1 min-w-0 pr-3 py-3">
+                                        <p className="font-medium truncate text-sm text-foreground/95">
+                                            {rec.projectInfo?.name || rec.name.replace(PROJECT_EXTENSION_REGEX, '')}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {rec.projectInfo?.duration
+                                                ? `${(rec.projectInfo.duration / 1000).toFixed(1)}s`
+                                                : 'Unknown duration'}
+                                            {rec.projectInfo?.width && rec.projectInfo?.height
+                                                ? ` • ${rec.projectInfo.width}×${rec.projectInfo.height}`
+                                                : ''}
+                                        </p>
+                                    </div>
+                                </button>
+                            ))
                         )}
                     </div>
                 </DialogContent>
@@ -830,4 +886,3 @@ export function ImportMediaSection() {
         </div>
     )
 }
-
