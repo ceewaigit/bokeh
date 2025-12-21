@@ -1,0 +1,1074 @@
+/**
+ * SharedVideoController.tsx
+ *
+ * Central video orchestration component for the Remotion composition.
+ * Manages video clip rendering, transforms, and visual effects for both
+ * preview playback and export rendering modes.
+ *
+ * Key responsibilities:
+ * - Determines which clips to render based on current frame position
+ * - Calculates and applies zoom, crop, and 3D screen transforms
+ * - Handles memory-efficient clip rendering (only active + boundary clips)
+ * - Manages camera motion blur during zoom transitions
+ * - Coordinates between PreviewVideoRenderer (interactive) and VideoClipRenderer (export)
+ *
+ * Memory Optimization Strategy:
+ * - Preview mode: Only renders clips within a small window (prev/current/next)
+ * - Export mode: Renders all clips needed for correctness
+ * - Prevents VTDecoderXPCService from accumulating decoded frames for ALL clips
+ *
+ * @see VideoClipRenderer for Remotion Sequence-based export rendering
+ * @see PreviewVideoRenderer for interactive preview rendering
+ * @see GeneratedClipRenderer for plugin-generated clips
+ */
+
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
+import { useTimeContext } from '../context/TimeContext';
+import { VideoPositionProvider } from '../context/VideoPositionContext';
+import { calculateVideoPosition } from './utils/video-position';
+import {
+  calculateZoomTransform,
+  getZoomTransformString,
+  createMotionBlurSvg,
+  getMotionBlurConfig,
+} from './utils/zoom-transform';
+import { calculateCameraMotionBlur } from './utils/camera-motion-blur';
+import { calculateScreenTransform } from './utils/screen-transform';
+import { calculateCropTransform, getCropTransformString } from './utils/crop-transform';
+import { EffectType } from '@/types/project';
+import type { CropEffectData } from '@/types/project';
+import type { SharedVideoControllerProps } from '@/types';
+import { EffectsFactory } from '@/lib/effects/effects-factory';
+import type { Recording } from '@/types/project';
+import {
+  buildFrameLayout,
+  findActiveFrameLayoutIndex,
+  getBoundaryOverlapState,
+  getVisibleFrameLayout,
+  type FrameLayoutItem,
+} from '@/lib/timeline/frame-layout';
+import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
+import { usePrecomputedCameraPath } from '@/remotion/hooks/usePrecomputedCameraPath';
+import { useRecordingMetadata } from '@/remotion/hooks/useRecordingMetadata';
+import { getMaxZoomScale } from '@/remotion/hooks/useVideoUrl';
+import { useRenderDelay } from '@/remotion/hooks/useRenderDelay';
+import { SafeVideo } from '@/remotion/components/video-helpers';
+import { PreviewVideoRenderer } from './renderers/PreviewVideoRenderer';
+import { VideoClipRenderer } from './renderers/VideoClipRenderer';
+import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
+import { MockupLayer } from './layers/MockupLayer';
+import { calculateMockupPosition, type MockupPositionResult } from '@/lib/mockups/mockup-transform';
+import { PreviewGuides } from '@/components/preview-guides';
+
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
+/**
+ * Props for the SharedVideoController component.
+ */
+/**
+ * Internal state for tracking preview video across generated clip transitions.
+ */
+type PreviewVideoState = {
+  recording: Recording;
+  clip: any;
+  layoutItem: FrameLayoutItem;
+  sourceTimeMs: number;
+};
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+/**
+ * Central video orchestration component for the Remotion composition.
+ *
+ * This component serves as the main controller for video rendering, managing:
+ * - Which clips are currently visible and should be rendered
+ * - All visual transforms (zoom, crop, 3D screen effects)
+ * - Memory optimization by limiting concurrent video decoders
+ * - Camera motion blur calculations for smooth zoom transitions
+ *
+ * The component operates in two modes:
+ * 1. **Preview mode** (isRendering=false): Uses PreviewVideoRenderer with native
+ *    HTML video for responsive scrubbing, only renders active clip
+ * 2. **Export mode** (isRendering=true): Uses VideoClipRenderer with Remotion
+ *    Sequences for frame-accurate rendering of all visible clips
+ *
+ * @remarks
+ * - Uses frame layout system to determine clip visibility and timing
+ * - Precomputes camera path for smooth zoom transitions
+ * - Implements sophisticated memory optimization to prevent VTDecoder leaks
+ */
+export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
+  videoWidth,
+  videoHeight,
+  sourceVideoWidth,
+  sourceVideoHeight,
+  preferOffthreadVideo = true,
+  effects,
+  videoUrls,
+  videoUrlsHighRes,
+  videoFilePaths,
+  metadataUrls,
+  enhanceAudio,
+  children,
+  isGlowMode = false,
+  isEditingCrop = false,
+  cameraSettings,
+  isHighQualityPlaybackEnabled = false,
+  isPlaying = false,
+  isScrubbing = false,
+  previewMuted = false,
+  previewVolume = 1,
+}) => {
+  // ==========================================================================
+  // REMOTION HOOKS & CONTEXT
+  // ==========================================================================
+  const currentFrame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const { fps, clips, getRecording, recordingsMap } = useTimeContext();
+  const { isRendering } = getRemotionEnvironment();
+  const isPreview = !isRendering;
+
+  // ==========================================================================
+  // TIMELINE & FRAME LAYOUT
+  // ==========================================================================
+  const currentTimeMs = (currentFrame / fps) * 1000;
+
+  /** Clips sorted by start time for consistent processing */
+  const sortedClips = useMemo(() => [...clips].sort((a, b) => a.startTime - b.startTime), [clips]);
+
+  /** Pre-computed frame layout for all clips (grouping, timing, etc.) */
+  const frameLayout = useMemo(() => buildFrameLayout(sortedClips, fps), [sortedClips, fps]);
+
+  /** Quick lookup: clip ID -> layout index */
+  const layoutIndexByClipId = useMemo(() => {
+    const map = new Map<string, number>();
+    frameLayout.forEach((item, index) => {
+      map.set(item.clip.id, index);
+    });
+    return map;
+  }, [frameLayout]);
+
+  /** Total composition duration in frames */
+  const totalDurationFrames = useMemo(() => {
+    if (frameLayout.length === 0) return 0;
+    return frameLayout[frameLayout.length - 1].endFrame;
+  }, [frameLayout]);
+
+  // ==========================================================================
+  // ACTIVE CLIP DETECTION
+  // ==========================================================================
+  /** Data for the clip at the current frame (clip, recording, timing, effects) */
+  const activeClipData = useMemo(() => {
+    return getActiveClipDataAtFrame({ frame: currentFrame, frameLayout, fps, effects, getRecording });
+  }, [currentFrame, effects, fps, frameLayout, getRecording]);
+
+  const activeRecording = activeClipData?.recording ?? null;
+
+  // ==========================================================================
+  // METADATA LOADING (lazy, for mouse events etc.)
+  // ==========================================================================
+  const { metadata: lazyMetadata } = useRecordingMetadata({
+    recordingId: activeRecording?.id || '',
+    folderPath: activeRecording?.folderPath,
+    metadataChunks: activeRecording?.metadataChunks,
+    metadataUrls,
+    inlineMetadata: activeRecording?.metadata,
+  });
+
+  const loadedMetadata = useMemo(() => {
+    if (!activeRecording?.id || !lazyMetadata) return undefined;
+    return new Map([[activeRecording.id, lazyMetadata]]);
+  }, [activeRecording?.id, lazyMetadata]);
+
+  // ==========================================================================
+  // ZOOM & RESOLUTION
+  // ==========================================================================
+  /** Maximum zoom scale across all zoom effects (for resolution selection) */
+  const memoizedMaxZoomScale = useMemo(() => getMaxZoomScale(effects), [effects]);
+
+  // ==========================================================================
+  // LAYOUT ITEM NAVIGATION
+  // ==========================================================================
+  const activeLayoutIndex = useMemo(() => findActiveFrameLayoutIndex(frameLayout, currentFrame), [frameLayout, currentFrame]);
+  const activeLayoutItem = activeLayoutIndex >= 0 ? frameLayout[activeLayoutIndex] : null;
+  const prevLayoutItem = activeLayoutIndex > 0 ? frameLayout[activeLayoutIndex - 1] : null;
+  const nextLayoutItem = activeLayoutIndex >= 0 && activeLayoutIndex < frameLayout.length - 1 ? frameLayout[activeLayoutIndex + 1] : null;
+
+  // ==========================================================================
+  // BOUNDARY OVERLAP STATE
+  // ==========================================================================
+  /**
+   * Determines when to show overlapping clips during transitions.
+   * Memory optimizations:
+   * - Skip overlap during normal playback to reduce decoder count
+   * - Shorter overlap for high-res source videos
+   * - Disable overlap entirely during scrubbing
+   */
+  const boundaryState = useMemo(() => {
+    // During normal playback, skip boundary overlap to keep only 1 decoder active
+    if (!isRendering && isPlaying && !isScrubbing) {
+      return {
+        isNearBoundaryStart: false,
+        isNearBoundaryEnd: false,
+        shouldHoldPrevFrame: false,
+        overlapFrames: 0,
+      };
+    }
+    return getBoundaryOverlapState({
+      currentFrame, fps, isRendering, activeLayoutItem, prevLayoutItem, nextLayoutItem,
+      sourceWidth: sourceVideoWidth, sourceHeight: sourceVideoHeight,
+      isScrubbing,
+    });
+  }, [currentFrame, fps, isRendering, isPlaying, isScrubbing, activeLayoutItem, prevLayoutItem, nextLayoutItem, sourceVideoWidth, sourceVideoHeight]);
+
+  const { isNearBoundaryStart, isNearBoundaryEnd, shouldHoldPrevFrame, overlapFrames } = boundaryState;
+
+  // MEMORY FIX: Scrub keep-alive disabled - was causing VTDecoder leak (3.5GB+)
+  const keepVideoWarmOnScrub = false;
+  const scrubKeepAliveFrames = 0;
+
+  // STABILITY: Track previous renderable items to prevent unnecessary remounts
+  const prevRenderableIdsRef = useRef<string>('');
+  const prevRenderableItemsRef = useRef<FrameLayoutItem[]>([]);
+
+  // ==========================================================================
+  // RENDERABLE ITEMS CALCULATION
+  // ==========================================================================
+  /**
+   * Determines which clips to render based on current mode:
+   * - Preview: Only active clip + neighbors when active is generated
+   * - Export: Active clip + boundary overlap clips for smooth transitions
+   */
+  const renderableItems = useMemo(() => {
+    // Helper: Check if a layout item is a generated (non-video) clip
+    const isGeneratedItem = (item: FrameLayoutItem | null) => {
+      if (!item) return false;
+      return recordingsMap.get(item.clip.recordingId)?.sourceType === 'generated';
+    };
+
+    // Helper: Find previous non-generated clip
+    const findPrevVideo = (startIndex: number) => {
+      for (let i = startIndex - 1; i >= 0; i -= 1) {
+        const candidate = frameLayout[i];
+        if (!isGeneratedItem(candidate)) return candidate;
+      }
+      return null;
+    };
+
+    // Helper: Find next non-generated clip
+    const findNextVideo = (startIndex: number) => {
+      for (let i = startIndex + 1; i < frameLayout.length; i += 1) {
+        const candidate = frameLayout[i];
+        if (!isGeneratedItem(candidate)) return candidate;
+      }
+      return null;
+    };
+
+    // PREVIEW MODE: Optimize to minimize concurrent decoders
+    if (!isRendering && activeLayoutItem) {
+      const itemsByGroupId = new Map<string, FrameLayoutItem>();
+      const activeIsGenerated = isGeneratedItem(activeLayoutItem);
+      const shouldIncludePrevVideo = keepVideoWarmOnScrub || activeIsGenerated;
+      const shouldIncludeNextVideo = keepVideoWarmOnScrub || activeIsGenerated;
+
+      // Include prev video clip if needed (for warm transition from generated)
+      if (shouldIncludePrevVideo) {
+        const prevVideo = findPrevVideo(activeLayoutIndex);
+        if (prevVideo && !itemsByGroupId.has(prevVideo.groupId)) {
+          itemsByGroupId.set(prevVideo.groupId, prevVideo);
+        }
+      }
+
+      // Include next video clip if needed (for warm transition to generated)
+      if (shouldIncludeNextVideo) {
+        const nextVideo = findNextVideo(activeLayoutIndex);
+        if (nextVideo && !itemsByGroupId.has(nextVideo.groupId)) {
+          itemsByGroupId.set(nextVideo.groupId, nextVideo);
+        }
+      }
+
+      // Active clip always wins when sharing group with neighbors
+      itemsByGroupId.set(activeLayoutItem.groupId, activeLayoutItem);
+
+      return Array.from(itemsByGroupId.values())
+        .sort((a, b) => a.startFrame - b.startFrame);
+    }
+
+    // EXPORT MODE: Use full visibility calculation for correctness
+    const items = getVisibleFrameLayout({
+      frameLayout,
+      currentFrame,
+      fps,
+      isRendering,
+      prevLayoutItem,
+      nextLayoutItem,
+      activeLayoutItem,
+      shouldHoldPrevFrame,
+      isNearBoundaryEnd,
+    });
+
+    // Deduplicate by groupId (O(N) with Map vs O(N²) with filter)
+    const uniqueItems = new Map<string, FrameLayoutItem>();
+    for (const item of items) {
+      if (!uniqueItems.has(item.groupId)) {
+        uniqueItems.set(item.groupId, item);
+      }
+    }
+
+    const sortedItems = Array.from(uniqueItems.values())
+      .sort((a, b) => a.startFrame - b.startFrame);
+
+    // STABILITY FIX: Return previous array reference if groupIds haven't changed
+    // This prevents VideoClipRenderer remounts when only play/pause state changes
+    const currentIds = sortedItems.map(i => i.groupId).join(',');
+    if (currentIds === prevRenderableIdsRef.current) {
+      return prevRenderableItemsRef.current;
+    }
+
+    // GroupIds changed - update refs and return new array
+    prevRenderableIdsRef.current = currentIds;
+    prevRenderableItemsRef.current = sortedItems;
+    return sortedItems;
+  }, [
+    frameLayout,
+    currentFrame,
+    fps,
+    isRendering,
+    isPlaying,
+    isScrubbing,
+    keepVideoWarmOnScrub,
+    activeLayoutIndex,
+    prevLayoutItem,
+    nextLayoutItem,
+    activeLayoutItem,
+    shouldHoldPrevFrame,
+    isNearBoundaryEnd,
+    recordingsMap,
+  ]);
+
+  // ==========================================================================
+  // RENDER DELAY (for export synchronization)
+  // ==========================================================================
+  const { markRenderReady, handleVideoReady } = useRenderDelay(isRendering);
+
+  // ==========================================================================
+  // PRECOMPUTED CAMERA PATH (zoom animations)
+  // ==========================================================================
+  const precomputedCamera = usePrecomputedCameraPath({
+    enabled: true, isRendering, currentFrame, frameLayout, fps, videoWidth, videoHeight,
+    sourceVideoWidth, sourceVideoHeight, effects, getRecording, loadedMetadata,
+  });
+
+  const calculatedZoomBlock = precomputedCamera?.activeZoomBlock;
+  const calculatedZoomCenter = precomputedCamera?.zoomCenter ?? { x: 0.5, y: 0.5 };
+
+  // ==========================================================================
+  // RENDER DATA COMPUTATION
+  // ==========================================================================
+  /**
+   * Computes all rendering data for the current frame:
+   * - Background styling (padding, corner radius, shadow)
+   * - Video positioning and dimensions
+   * - Zoom, crop, and 3D transforms
+   */
+  const computedRenderData = useMemo(() => {
+    let effectiveClipData = activeClipData;
+
+    // Handle boundary cases: get clip data from adjacent clips when near transitions
+    if (!effectiveClipData && !isRendering) {
+      if (isNearBoundaryStart && prevLayoutItem) {
+        effectiveClipData = getActiveClipDataAtFrame({
+          frame: activeLayoutItem!.startFrame - 1, frameLayout, fps, effects, getRecording,
+        });
+      } else if (isNearBoundaryEnd && nextLayoutItem) {
+        effectiveClipData = getActiveClipDataAtFrame({
+          frame: nextLayoutItem.startFrame, frameLayout, fps, effects, getRecording,
+        });
+      }
+    }
+    if (!effectiveClipData) return null;
+
+    const { clip, recording, sourceTimeMs, effects: clipEffects } = effectiveClipData;
+
+    // Extract background effect data
+    const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
+    const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
+    const padding = backgroundData?.padding || 0;
+
+    // Scale factor relative to 1920x1080 reference
+    const REFERENCE_WIDTH = 1920;
+    const REFERENCE_HEIGHT = 1080;
+    const scaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
+    const paddingScaled = padding * scaleFactor;
+    const cornerRadius = (backgroundData?.cornerRadius || 0) * scaleFactor;
+    const shadowIntensity = backgroundData?.shadowIntensity || 0;
+
+    // Source dimensions
+    const activeSourceWidth = recording.width || sourceVideoWidth || videoWidth;
+    const activeSourceHeight = recording.height || sourceVideoHeight || videoHeight;
+
+    // Calculate video positioning within canvas
+    const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
+      width, height, activeSourceWidth, activeSourceHeight, paddingScaled
+    );
+
+    // Calculate mockup position if mockup is enabled
+    const mockupData = backgroundData?.mockup;
+    const mockupEnabled = mockupData?.enabled ?? false;
+    let mockupPosition: MockupPositionResult | null = null;
+
+    if (mockupEnabled && mockupData) {
+      mockupPosition = calculateMockupPosition(
+        width,
+        height,
+        mockupData,
+        activeSourceWidth,
+        activeSourceHeight,
+        paddingScaled
+      );
+    }
+
+    const zoomDrawWidth = mockupEnabled && mockupPosition ? mockupPosition.mockupWidth : drawWidth;
+    const zoomDrawHeight = mockupEnabled && mockupPosition ? mockupPosition.mockupHeight : drawHeight;
+    const zoomCenterForMockup = mockupEnabled && mockupPosition ? {
+      x: (mockupPosition.videoX + calculatedZoomCenter.x * mockupPosition.videoWidth - mockupPosition.mockupX) / mockupPosition.mockupWidth,
+      y: (mockupPosition.videoY + calculatedZoomCenter.y * mockupPosition.videoHeight - mockupPosition.mockupY) / mockupPosition.mockupHeight,
+    } : calculatedZoomCenter;
+
+    // Calculate zoom transform
+    const fillScale = zoomDrawWidth > 0 && zoomDrawHeight > 0 ? Math.max(width / zoomDrawWidth, height / zoomDrawHeight) : 1;
+    const zoomOverrideScale = calculatedZoomBlock?.autoScale === 'fill' ? fillScale : undefined;
+
+    const zoomTransform = calculateZoomTransform(
+      calculatedZoomBlock,
+      currentTimeMs,
+      zoomDrawWidth,
+      zoomDrawHeight,
+      zoomCenterForMockup,
+      zoomOverrideScale,
+      paddingScaled,
+      calculatedZoomBlock?.autoScale === 'fill',
+      Boolean(mockupEnabled)
+    );
+    const zoomTransformStr = getZoomTransformString(zoomTransform);
+
+    // Calculate crop transform
+    const cropEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Crop, currentTimeMs);
+    const cropData = isEditingCrop ? null : cropEffect ? (cropEffect.data as CropEffectData) : null;
+    const cropTransform = calculateCropTransform(cropData, zoomDrawWidth, zoomDrawHeight);
+    const cropTransformStr = getCropTransformString(cropTransform);
+
+    // Calculate 3D screen transform
+    const extra3DTransform = calculateScreenTransform(clipEffects, currentTimeMs);
+
+    return {
+      clip, recording, sourceTimeMs, clipEffects, backgroundData, padding, cornerRadius, shadowIntensity,
+      scaleFactor, activeSourceWidth, activeSourceHeight, drawWidth, drawHeight, offsetX, offsetY,
+      outerTransform: zoomTransformStr, cropTransformStr, extra3DTransform, zoomTransform, cropTransform,
+      mockupEnabled, mockupData, mockupPosition,
+    };
+  }, [activeClipData, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight, calculatedZoomBlock, calculatedZoomCenter, currentTimeMs, isEditingCrop, isNearBoundaryStart, isNearBoundaryEnd, prevLayoutItem, nextLayoutItem, activeLayoutItem, frameLayout, fps, effects, getRecording, isRendering]);
+
+  // Keep last valid render data for stability during transitions
+  const lastRenderDataRef = useRef<typeof computedRenderData | null>(null);
+  useEffect(() => { if (computedRenderData) lastRenderDataRef.current = computedRenderData; }, [computedRenderData]);
+  const renderData = computedRenderData ?? lastRenderDataRef.current;
+
+  // Track last video state for generated clip transitions
+  const lastVideoStateRef = useRef<PreviewVideoState | null>(null);
+
+  // ==========================================================================
+  // MOTION BLUR CALCULATION
+  // ==========================================================================
+  /** Previous pan position for delta-based motion blur (preview mode) */
+  const prevPanRef = useRef<{ panX: number; panY: number } | null>(null);
+  const blurConfig = getMotionBlurConfig(cameraSettings);
+
+  /**
+   * Calculates camera motion blur based on pan/zoom velocity.
+   * Preview mode uses simple delta from previous frame.
+   * Export mode uses precomputed camera path for accuracy.
+   */
+  const motionBlur = useMemo(() => {
+    return calculateCameraMotionBlur({
+      blurConfig,
+      renderData,
+      currentFrame,
+      fps,
+      outputWidth: width,
+      outputHeight: height,
+      isRendering,
+      isNearBoundaryStart,
+      isNearBoundaryEnd,
+      shouldHoldPrevFrame,
+      precomputedPath: precomputedCamera?.path,
+      calculatedZoomCenter,
+      calculatedZoomBlock,
+      prevPanRef: prevPanRef.current,
+    });
+  }, [
+    blurConfig,
+    renderData,
+    currentFrame,
+    fps,
+    width,
+    height,
+    isRendering,
+    isNearBoundaryStart,
+    isNearBoundaryEnd,
+    shouldHoldPrevFrame,
+    precomputedCamera?.path,
+    calculatedZoomCenter,
+    calculatedZoomBlock,
+  ]);
+
+  // Update previous pan ref for next frame's delta calculation
+  useEffect(() => {
+    if (!isRendering && renderData?.zoomTransform) {
+      prevPanRef.current = { panX: renderData.zoomTransform.panX, panY: renderData.zoomTransform.panY };
+    }
+  }, [isRendering, renderData?.zoomTransform]);
+
+  // ==========================================================================
+  // EARLY RETURN: No clips to render
+  // ==========================================================================
+  if (!renderData || sortedClips.length === 0) {
+    return <AbsoluteFill style={{ backgroundColor: '#000' }} />;
+  }
+
+  // ==========================================================================
+  // DESTRUCTURE RENDER DATA
+  // ==========================================================================
+  const {
+    clip, recording, sourceTimeMs, padding, cornerRadius, shadowIntensity, scaleFactor, activeSourceWidth, activeSourceHeight,
+    drawWidth, drawHeight, offsetX, offsetY, outerTransform, cropTransformStr, extra3DTransform, zoomTransform,
+    mockupEnabled, mockupData, mockupPosition,
+  } = renderData;
+
+  const renderLayoutIndex = layoutIndexByClipId.get(clip.id);
+  const renderLayoutItem = renderLayoutIndex === undefined ? activeLayoutItem : frameLayout[renderLayoutIndex];
+  const isActiveGenerated = recording?.sourceType === 'generated';
+
+  // Track last video state for generated clip transitions
+  if (!isActiveGenerated && recording && renderLayoutItem) {
+    lastVideoStateRef.current = {
+      recording,
+      clip,
+      layoutItem: renderLayoutItem,
+      sourceTimeMs,
+    };
+  }
+
+  // Determine preview video state (use last video state when on generated clip)
+  const previewVideoState = isActiveGenerated ? lastVideoStateRef.current : (recording && renderLayoutItem
+    ? {
+      recording,
+      clip,
+      layoutItem: renderLayoutItem,
+      sourceTimeMs,
+    }
+    : null);
+  const previewVideoVisible = !isActiveGenerated;
+
+  // ==========================================================================
+  // TRANSFORM STRINGS
+  // ==========================================================================
+  const combinedTransform = `${outerTransform}${extra3DTransform}`.trim();
+  const contentTransform = `translate3d(0,0,0) ${combinedTransform} ${cropTransformStr}`.trim();
+
+  // ==========================================================================
+  // DROP SHADOW
+  // ==========================================================================
+  const shadowOpacity = (shadowIntensity / 100) * 0.5;
+  const baseShadowBlur = 25 + (shadowIntensity / 100) * 25;
+  const shadowBlur = baseShadowBlur * scaleFactor;
+  const dropShadow = shadowIntensity > 0
+    ? `drop-shadow(0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0, 0, 0, ${shadowOpacity})) drop-shadow(0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px rgba(0, 0, 0, ${shadowOpacity * 0.8}))`
+    : '';
+
+  // ==========================================================================
+  // MOTION BLUR SVG FILTER
+  // ==========================================================================
+  const motionBlurFilterId = 'camera-motion-blur';
+  const hasMotionBlur = blurConfig.enabled && motionBlur.blurRadius > 0.2;
+  const motionBlurSvg = createMotionBlurSvg(motionBlur.blurRadius, motionBlurFilterId);
+
+  // ==========================================================================
+  // VIDEO POSITION CONTEXT VALUE
+  // ==========================================================================
+  // When mockup is enabled, overlay positions need to account for mockup screen region
+  const effectiveOffsetX = mockupEnabled && mockupPosition ? mockupPosition.videoX : offsetX;
+  const effectiveOffsetY = mockupEnabled && mockupPosition ? mockupPosition.videoY : offsetY;
+  const effectiveDrawWidth = mockupEnabled && mockupPosition ? mockupPosition.videoWidth : drawWidth;
+  const effectiveDrawHeight = mockupEnabled && mockupPosition ? mockupPosition.videoHeight : drawHeight;
+
+  const videoPositionValue = {
+    offsetX: effectiveOffsetX,
+    offsetY: effectiveOffsetY,
+    drawWidth: effectiveDrawWidth,
+    drawHeight: effectiveDrawHeight,
+    zoomTransform,
+    contentTransform,
+    padding,
+    videoWidth: activeSourceWidth,
+    videoHeight: activeSourceHeight,
+    cameraMotionBlur: { enabled: hasMotionBlur, angle: motionBlur.angle, filterId: motionBlurFilterId },
+    mockupEnabled,
+    mockupPosition,
+  };
+
+  const lastReportedVideoPositionRef = useRef<{
+    offsetX: number;
+    offsetY: number;
+    drawWidth: number;
+    drawHeight: number;
+    compWidth: number;
+    compHeight: number;
+  } | null>(null);
+
+  const VIDEO_POSITION_MESSAGE = 'screenstudio:video-position';
+  useEffect(() => {
+    if (typeof window === 'undefined' || isRendering || !isEditingCrop) return;
+
+    const payload = {
+      offsetX: videoPositionValue.offsetX,
+      offsetY: videoPositionValue.offsetY,
+      drawWidth: videoPositionValue.drawWidth,
+      drawHeight: videoPositionValue.drawHeight,
+      compWidth: width,
+      compHeight: height,
+    };
+
+    const previous = lastReportedVideoPositionRef.current;
+    const hasChanged = !previous
+      || previous.offsetX !== payload.offsetX
+      || previous.offsetY !== payload.offsetY
+      || previous.drawWidth !== payload.drawWidth
+      || previous.drawHeight !== payload.drawHeight
+      || previous.compWidth !== payload.compWidth
+      || previous.compHeight !== payload.compHeight;
+
+    if (!hasChanged) return;
+    lastReportedVideoPositionRef.current = payload;
+
+    window.parent?.postMessage({ type: VIDEO_POSITION_MESSAGE, payload }, '*');
+  }, [height, isEditingCrop, isRendering, videoPositionValue, width]);
+
+  // ==========================================================================
+  // VIDEO COMPONENT SELECTION
+  // ==========================================================================
+  const VideoComponent = (isRendering && preferOffthreadVideo) ? OffthreadVideo : (isRendering ? SafeVideo : Video);
+
+  // ==========================================================================
+  // RENDER
+  // ==========================================================================
+  return (
+    <VideoPositionProvider value={videoPositionValue}>
+      {/* Preview Guides - Rendered only during preview */}
+
+      {/* SVG filter definition for motion blur */}
+      {motionBlurSvg}
+
+      <AbsoluteFill style={{
+        zIndex: 10,
+        filter: hasMotionBlur ? `url(#${motionBlurFilterId})` : undefined,
+        transform: hasMotionBlur ? `rotate(${motionBlur.angle}deg)` : undefined,
+        transformOrigin: '50% 50%',
+      }}>
+        {/* Counter-rotate wrapper to apply blur at correct angle */}
+        <div style={{
+          transform: hasMotionBlur ? `rotate(${-motionBlur.angle}deg)` : undefined,
+          transformOrigin: '50% 50%', width: '100%', height: '100%',
+        }}>
+          {/* ========== MOCKUP MODE RENDERING ========== */}
+          {mockupEnabled && mockupPosition && mockupData ? (
+            <div style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: '100%',
+              height: '100%',
+              overflow: zoomTransform && zoomTransform.scale > 1.001 ? 'visible' : 'hidden',
+              transform: `translate3d(0,0,0) ${combinedTransform}`,
+              transformOrigin: '50% 50%',
+              willChange: 'transform',
+              backfaceVisibility: 'hidden' as const,
+            }}>
+              <MockupLayer
+                mockupData={mockupData}
+                mockupPosition={mockupPosition}
+                screenFillColor={mockupData.screenFillColor}
+              >
+                {/* Video content inside mockup screen */}
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  overflow: 'hidden',
+                  borderRadius: `${mockupPosition.screenCornerRadius}px`,
+                  filter: (cameraSettings?.refocusBlurEnabled !== false && zoomTransform?.refocusBlur > 0.01)
+                    ? `blur(${zoomTransform.refocusBlur * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
+                    : undefined,
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    transform: cropTransformStr || undefined,
+                    transformOrigin: '50% 50%',
+                  }}>
+                    {isPreview ? (
+                      <>
+                        <PreviewVideoRenderer
+                          recording={previewVideoState?.recording}
+                          clipForVideo={previewVideoState?.clip}
+                          startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
+                          durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
+                          sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
+                          currentFrame={currentFrame}
+                          fps={fps}
+                          cornerRadius={0}
+                          drawWidth={mockupPosition.videoWidth}
+                          drawHeight={mockupPosition.videoHeight}
+                          compositionWidth={width}
+                          compositionHeight={height}
+                          maxZoomScale={memoizedMaxZoomScale}
+                          currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+                          mockupEnabled={mockupEnabled}
+                          videoUrls={videoUrls}
+                          videoUrlsHighRes={videoUrlsHighRes}
+                          videoFilePaths={videoFilePaths}
+                          isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+                          isPlaying={isPlaying}
+                          isGlowMode={isGlowMode}
+                          enhanceAudio={previewVideoVisible ? enhanceAudio : false}
+                          previewMuted={previewMuted}
+                          previewVolume={previewVolume}
+                          visible={previewVideoVisible}
+                        />
+                        {isActiveGenerated && renderLayoutItem && recording ? (
+                          <GeneratedClipRenderer
+                            key={renderLayoutItem.groupId}
+                            clipForVideo={renderLayoutItem.clip}
+                            recording={recording}
+                            startFrame={renderLayoutItem.startFrame}
+                            durationFrames={renderLayoutItem.durationFrames}
+                            groupStartFrame={renderLayoutItem.groupStartFrame}
+                            groupDuration={renderLayoutItem.groupDuration}
+                            currentFrame={currentFrame}
+                            fps={fps}
+                            isRendering={isRendering}
+                            drawWidth={mockupPosition.videoWidth}
+                            drawHeight={mockupPosition.videoHeight}
+                            compositionWidth={width}
+                            compositionHeight={height}
+                            isGlowMode={isGlowMode}
+                            activeLayoutItem={activeLayoutItem}
+                            prevLayoutItem={prevLayoutItem}
+                            nextLayoutItem={nextLayoutItem}
+                            shouldHoldPrevFrame={shouldHoldPrevFrame}
+                            isNearBoundaryEnd={isNearBoundaryEnd}
+                            overlapFrames={overlapFrames}
+                          />
+                        ) : null}
+                      </>
+                    ) : (
+                      renderableItems.map((item) => {
+                        const rec = recordingsMap.get(item.clip.recordingId);
+                        if (rec?.sourceType === 'generated') {
+                          return (
+                            <GeneratedClipRenderer
+                              key={item.groupId}
+                              clipForVideo={item.clip}
+                              recording={rec}
+                              startFrame={item.startFrame}
+                              durationFrames={item.durationFrames}
+                              groupStartFrame={item.groupStartFrame}
+                              groupDuration={item.groupDuration}
+                              currentFrame={currentFrame}
+                              fps={fps}
+                              isRendering={isRendering}
+                              drawWidth={mockupPosition.videoWidth}
+                              drawHeight={mockupPosition.videoHeight}
+                              compositionWidth={width}
+                              compositionHeight={height}
+                              isGlowMode={isGlowMode}
+                              activeLayoutItem={activeLayoutItem}
+                              prevLayoutItem={prevLayoutItem}
+                              nextLayoutItem={nextLayoutItem}
+                              shouldHoldPrevFrame={shouldHoldPrevFrame}
+                              isNearBoundaryEnd={isNearBoundaryEnd}
+                              overlapFrames={overlapFrames}
+                            />
+                          );
+                        }
+                        const groupStartFrame = item.groupStartFrame;
+                        const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
+                        return (
+                          <VideoClipRenderer
+                            key={item.groupId}
+                            clipForVideo={item.clip}
+                            recording={rec}
+                            startFrame={item.startFrame}
+                            durationFrames={item.durationFrames}
+                            groupStartFrame={groupStartFrame}
+                            renderStartFrom={renderStartFrom}
+                            groupDuration={item.groupDuration}
+                            currentFrame={currentFrame}
+                            fps={fps}
+                            isRendering={isRendering}
+                            cornerRadius={0}
+                            drawWidth={mockupPosition.videoWidth}
+                            drawHeight={mockupPosition.videoHeight}
+                            preferOffthreadVideo={preferOffthreadVideo}
+                            videoUrls={videoUrls}
+                            videoUrlsHighRes={videoUrlsHighRes}
+                            videoFilePaths={videoFilePaths}
+                            compositionWidth={width}
+                            compositionHeight={height}
+                            maxZoomScale={memoizedMaxZoomScale}
+                            currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+                            mockupEnabled={mockupEnabled}
+                            enhanceAudio={item.clip.id === activeLayoutItem?.clip.id ? enhanceAudio : false}
+                            isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+                            isPlaying={isPlaying}
+                            isGlowMode={isGlowMode}
+                            activeLayoutItem={activeLayoutItem}
+                            prevLayoutItem={prevLayoutItem}
+                            nextLayoutItem={nextLayoutItem}
+                            shouldHoldPrevFrame={shouldHoldPrevFrame}
+                            isNearBoundaryEnd={isNearBoundaryEnd}
+                            overlapFrames={overlapFrames}
+                            markRenderReady={markRenderReady}
+                            handleVideoReady={handleVideoReady}
+                            VideoComponent={VideoComponent}
+                            premountFor={0}
+                            postmountFor={0}
+                          />
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </MockupLayer>
+            </div>
+          ) : (
+            /* ========== NORMAL MODE RENDERING (no mockup) ========== */
+            <div style={{
+              position: 'absolute', left: offsetX, top: offsetY, width: drawWidth, height: drawHeight,
+              overflow: zoomTransform && zoomTransform.scale > 1.001 ? 'visible' : 'hidden',
+              transform: `translate3d(0,0,0) ${combinedTransform}`,
+              transformOrigin: '50% 50%', filter: dropShadow || undefined,
+              willChange: 'transform, filter', backfaceVisibility: 'hidden' as const,
+            }}>
+              {/* Clipping container with corner radius and refocus blur */}
+              <div style={{
+                position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: `${cornerRadius}px`,
+                filter: (cameraSettings?.refocusBlurEnabled !== false && zoomTransform?.refocusBlur > 0.01)
+                  ? `blur(${zoomTransform.refocusBlur * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
+                  : undefined,
+                transition: undefined, // No transition - must be frame-deterministic
+              }}>
+                {/* Crop transform container */}
+                <div style={{
+                  position: 'absolute', inset: 0, transform: cropTransformStr || undefined,
+                  transformOrigin: '50% 50%', willChange: cropTransformStr ? 'transform' : undefined,
+                  backfaceVisibility: 'hidden' as const,
+                }}>
+                  {/* ========== PREVIEW MODE RENDERING ========== */}
+                  {isPreview ? (
+                    <>
+                      {/* Native video element for responsive preview */}
+                      <PreviewVideoRenderer
+                        recording={previewVideoState?.recording}
+                        clipForVideo={previewVideoState?.clip}
+                        startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
+                        durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
+                        sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
+                        currentFrame={currentFrame}
+                        fps={fps}
+                        cornerRadius={cornerRadius}
+                        drawWidth={drawWidth}
+                        drawHeight={drawHeight}
+                        compositionWidth={width}
+                        compositionHeight={height}
+                        maxZoomScale={memoizedMaxZoomScale}
+                        currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+                        mockupEnabled={mockupEnabled}
+                        videoUrls={videoUrls}
+                        videoUrlsHighRes={videoUrlsHighRes}
+                        videoFilePaths={videoFilePaths}
+                        isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+                        isPlaying={isPlaying}
+                        isGlowMode={isGlowMode}
+                        enhanceAudio={previewVideoVisible ? enhanceAudio : false}
+                        previewMuted={previewMuted}
+                        previewVolume={previewVolume}
+                        visible={previewVideoVisible}
+                      />
+                      {/* Generated clip overlay (blank clips, plugins) */}
+                      {isActiveGenerated && renderLayoutItem && recording ? (
+                        <GeneratedClipRenderer
+                          key={renderLayoutItem.groupId}
+                          clipForVideo={renderLayoutItem.clip}
+                          recording={recording}
+                          startFrame={renderLayoutItem.startFrame}
+                          durationFrames={renderLayoutItem.durationFrames}
+                          groupStartFrame={renderLayoutItem.groupStartFrame}
+                          groupDuration={renderLayoutItem.groupDuration}
+                          currentFrame={currentFrame}
+                          fps={fps}
+                          isRendering={isRendering}
+                          drawWidth={drawWidth}
+                          drawHeight={drawHeight}
+                          compositionWidth={width}
+                          compositionHeight={height}
+                          isGlowMode={isGlowMode}
+                          activeLayoutItem={activeLayoutItem}
+                          prevLayoutItem={prevLayoutItem}
+                          nextLayoutItem={nextLayoutItem}
+                          shouldHoldPrevFrame={shouldHoldPrevFrame}
+                          isNearBoundaryEnd={isNearBoundaryEnd}
+                          overlapFrames={overlapFrames}
+                        />
+                      ) : null}
+                    </>
+                  ) : (
+                    /* ========== EXPORT MODE RENDERING ========== */
+                    <>
+                      {/*
+                     * Z-ORDER: Render clips chronologically (prev → current → next)
+                     * so current clip is visible on top during transitions.
+                     * STABILITY: Use groupId as key to prevent remounting when
+                     * transitioning between contiguous clips of the same recording.
+                     */}
+                      {renderableItems.map((item) => {
+                        const isPrev = item.clip.id === prevLayoutItem?.clip.id;
+                        const isNext = item.clip.id === nextLayoutItem?.clip.id;
+                        const isActive = item.clip.id === activeLayoutItem?.clip.id;
+
+                        // Determine if this group should be rendered
+                        const isGroupActive = activeLayoutItem && item.groupId === activeLayoutItem.groupId;
+                        const isGroupPrev = prevLayoutItem && item.groupId === prevLayoutItem.groupId;
+                        const isGroupNext = nextLayoutItem && item.groupId === nextLayoutItem.groupId;
+
+                        const shouldRender = isRendering
+                          ? ((isGroupActive) ||
+                            (isGroupPrev && shouldHoldPrevFrame) ||
+                            (isGroupNext && isNearBoundaryEnd))
+                          : true;
+
+                        if (!shouldRender) return null;
+
+                        const groupStartFrame = item.groupStartFrame;
+                        const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
+
+                        const recording = recordingsMap.get(item.clip.recordingId);
+
+                        // Render generated clips with GeneratedClipRenderer
+                        if (recording?.sourceType === 'generated') {
+                          return (
+                            <GeneratedClipRenderer
+                              key={item.groupId}
+                              clipForVideo={item.clip}
+                              recording={recording}
+                              startFrame={item.startFrame}
+                              durationFrames={item.durationFrames}
+                              groupStartFrame={groupStartFrame}
+                              groupDuration={item.groupDuration}
+                              currentFrame={currentFrame}
+                              fps={fps}
+                              isRendering={isRendering}
+                              drawWidth={drawWidth}
+                              drawHeight={drawHeight}
+                              compositionWidth={width}
+                              compositionHeight={height}
+                              isGlowMode={isGlowMode}
+                              activeLayoutItem={activeLayoutItem}
+                              prevLayoutItem={prevLayoutItem}
+                              nextLayoutItem={nextLayoutItem}
+                              shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
+                              isNearBoundaryEnd={isNearBoundaryEnd}
+                              overlapFrames={overlapFrames}
+                            />
+                          );
+                        }
+
+                        // Render video clips with VideoClipRenderer
+                        const clipIndex = layoutIndexByClipId.get(item.clip.id);
+                        const shouldExtendSequence = keepVideoWarmOnScrub && clipIndex !== undefined;
+                        const premountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
+                        const postmountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
+
+                        return (
+                          <VideoClipRenderer
+                            key={item.groupId}
+                            clipForVideo={item.clip}
+                            recording={recording}
+                            startFrame={item.startFrame}
+                            durationFrames={item.durationFrames}
+                            groupStartFrame={groupStartFrame}
+                            renderStartFrom={renderStartFrom}
+                            groupDuration={item.groupDuration}
+                            currentFrame={currentFrame}
+                            fps={fps}
+                            isRendering={isRendering}
+                            cornerRadius={cornerRadius}
+                            drawWidth={drawWidth}
+                            drawHeight={drawHeight}
+                            preferOffthreadVideo={preferOffthreadVideo}
+                            videoUrls={videoUrls}
+                            videoUrlsHighRes={videoUrlsHighRes}
+                            videoFilePaths={videoFilePaths}
+                            compositionWidth={width}
+                            compositionHeight={height}
+                            maxZoomScale={memoizedMaxZoomScale}
+                            currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+                            mockupEnabled={mockupEnabled}
+                            enhanceAudio={isActive ? enhanceAudio : false}
+                            isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+                            isPlaying={isPlaying}
+                            isGlowMode={isGlowMode}
+                            activeLayoutItem={activeLayoutItem}
+                            prevLayoutItem={prevLayoutItem}
+                            nextLayoutItem={nextLayoutItem}
+                            shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
+                            isNearBoundaryEnd={isNearBoundaryEnd}
+                            overlapFrames={overlapFrames}
+                            markRenderReady={markRenderReady}
+                            handleVideoReady={handleVideoReady}
+                            VideoComponent={VideoComponent}
+                            premountFor={premountFor}
+                            postmountFor={postmountFor}
+                          />
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </AbsoluteFill>
+
+      {/* Children layer (overlays, effects UI) */}
+      <AbsoluteFill style={{ zIndex: 20 }}>{children}</AbsoluteFill>
+
+      {/* Preview Guides - Rendered on top of everything */}
+      {!isRendering && isActiveGenerated === false && (
+        <PreviewGuides
+          rect={{
+            x: effectiveOffsetX,
+            y: effectiveOffsetY,
+            width: effectiveDrawWidth,
+            height: effectiveDrawHeight,
+          }}
+        />
+      )}
+    </VideoPositionProvider>
+  );
+};

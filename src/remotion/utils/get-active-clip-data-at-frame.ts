@@ -1,0 +1,94 @@
+import type { Clip, Effect, Recording } from '@/types/project'
+import type { ActiveClipDataAtFrame } from '@/types'
+import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
+import { findActiveFrameLayoutIndex } from '@/lib/timeline/frame-layout'
+
+// Cache timeline-space effect overlap per (effects array ref, frameLayout array ref, clip.id).
+// This dramatically reduces per-frame allocations during playback and during camera path precompute.
+const timelineEffectsByClipCache: WeakMap<
+  Effect[],
+  WeakMap<FrameLayoutItem[], Map<string, Effect[]>>
+> = new WeakMap()
+
+function getTimelineEffectsForClip(args: {
+  effects: Effect[]
+  frameLayout: FrameLayoutItem[]
+  clip: Clip
+}): Effect[] {
+  const { effects, frameLayout, clip } = args
+
+  let byLayout = timelineEffectsByClipCache.get(effects)
+  if (!byLayout) {
+    byLayout = new WeakMap()
+    timelineEffectsByClipCache.set(effects, byLayout)
+  }
+
+  let byClipId = byLayout.get(frameLayout)
+  if (!byClipId) {
+    byClipId = new Map()
+    byLayout.set(frameLayout, byClipId)
+  }
+
+  const cached = byClipId.get(clip.id)
+  if (cached) return cached
+
+  const clipStart = clip.startTime
+  const clipEnd = clip.startTime + clip.duration
+  const timelineEffects = effects.filter(effect => effect.startTime < clipEnd && effect.endTime > clipStart)
+
+  byClipId.set(clip.id, timelineEffects)
+  return timelineEffects
+}
+
+export function getActiveClipDataAtFrame(args: {
+  frame: number
+  frameLayout: FrameLayoutItem[]
+  fps: number
+  effects: Effect[]
+  getRecording: (recordingId: string) => Recording | null | undefined
+}): ActiveClipDataAtFrame | null {
+  const { frame, frameLayout, fps, effects, getRecording } = args
+  if (!frameLayout || frameLayout.length === 0) return null
+
+  const layoutIndex = findActiveFrameLayoutIndex(frameLayout, frame)
+  if (layoutIndex < 0) return null
+  const layoutItem = frameLayout[layoutIndex]
+
+  const clip = layoutItem.clip
+  const recording = getRecording(clip.recordingId)
+  if (!recording) return null
+
+  const clipStartFrame = layoutItem.startFrame ?? Math.round((clip.startTime / 1000) * fps)
+  const clipDurationFrames = layoutItem.durationFrames ?? Math.max(1, Math.round((clip.duration / 1000) * fps))
+  // Clamp elapsed frames: for the last frame, allow reaching the full duration
+  // This ensures the video shows its final frame at the end of the timeline
+  const clipElapsedFrames = Math.max(0, Math.min(frame - clipStartFrame, clipDurationFrames - 1))
+  const clipElapsedMs = (clipElapsedFrames / fps) * 1000
+  const sourceTimeMs = (clip.sourceIn || 0) + clipElapsedMs * (clip.playbackRate || 1)
+
+  const timelineEffects = getTimelineEffectsForClip({ effects, frameLayout, clip })
+
+  // Recording-scoped effects are stored in source space on Recording.effects.
+  // They should be resolved by sourceTimeMs, not timeline overlap.
+  const sourceEffects = (recording.effects || []).filter(effect => {
+    return effect.enabled && sourceTimeMs >= effect.startTime && sourceTimeMs <= effect.endTime
+  })
+
+  // OPTIMIZATION: Use Map for O(N) deduplication instead of O(N^2) filter+findIndex
+  const uniqueEffects = new Map<string, Effect>();
+
+  // Process timeline effects first
+  for (const effect of timelineEffects) {
+    if (effect.id) uniqueEffects.set(effect.id, effect);
+  }
+
+  // Process source effects (overwriting if same ID, though usually they are distinct sets)
+  for (const effect of sourceEffects) {
+    if (effect.id) uniqueEffects.set(effect.id, effect);
+  }
+
+  const mergedEffects = Array.from(uniqueEffects.values())
+    .sort((a, b) => a.startTime - b.startTime);
+
+  return { clip, recording, sourceTimeMs, effects: mergedEffects }
+}

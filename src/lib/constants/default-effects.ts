@@ -1,0 +1,131 @@
+import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ParallaxLayer } from '@/types/project'
+import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset } from '@/types/project'
+
+// Re-export schema helpers for gradual migration
+export { getEffectDefaults, getEffectSchema, getParamConstraints } from '@/lib/effects/config/effect-schemas'
+
+
+// Default parallax layers (hill images with depth-based factors)
+// Smaller factor = more movement (foreground), larger factor = less movement (background)
+export const DEFAULT_PARALLAX_LAYERS: ParallaxLayer[] = [
+  { image: '/parallax/hill/6.png', factor: 50, zIndex: 1 },  // Farthest background
+  { image: '/parallax/hill/5.png', factor: 40, zIndex: 2 },
+  { image: '/parallax/hill/4.png', factor: 30, zIndex: 3 },
+  { image: '/parallax/hill/3.png', factor: 20, zIndex: 4 },
+  { image: '/parallax/hill/2.png', factor: 10, zIndex: 5 },  // Closest foreground
+]
+
+// Default background effect data
+export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
+  type: BackgroundType.Wallpaper,
+  gradient: {
+    colors: ['#2D3748', '#1A202C'],
+    angle: 135
+  },
+  wallpaper: undefined,
+  padding: 60,
+  cornerRadius: 15,
+  shadowIntensity: 85,
+  parallaxLayers: DEFAULT_PARALLAX_LAYERS
+}
+
+// Default screen effect presets
+export const SCREEN_EFFECT_PRESETS: Record<string, { tiltX: number; tiltY: number; perspective: number }> = {
+  [ScreenEffectPreset.Subtle]: { tiltX: -2, tiltY: 4, perspective: 1000 },
+  [ScreenEffectPreset.Medium]: { tiltX: -4, tiltY: 8, perspective: 900 },
+  [ScreenEffectPreset.Dramatic]: { tiltX: -8, tiltY: 14, perspective: 800 },
+  [ScreenEffectPreset.Window]: { tiltX: -3, tiltY: 12, perspective: 700 },
+  [ScreenEffectPreset.Cinematic]: { tiltX: -5, tiltY: 10, perspective: 850 },
+  [ScreenEffectPreset.Hero]: { tiltX: -10, tiltY: 16, perspective: 760 },
+  [ScreenEffectPreset.Isometric]: { tiltX: -25, tiltY: 25, perspective: 950 },
+  [ScreenEffectPreset.Flat]: { tiltX: 0, tiltY: 0, perspective: 1200 },
+  [ScreenEffectPreset.TiltLeft]: { tiltX: -6, tiltY: -10, perspective: 900 },
+  [ScreenEffectPreset.TiltRight]: { tiltX: -6, tiltY: 10, perspective: 900 }
+}
+
+// Default cursor effect data
+export const DEFAULT_CURSOR_DATA: CursorEffectData = {
+  style: CursorStyle.MacOS,
+  size: 4.0,
+  color: '#ffffff',
+  clickEffects: true,
+  clickEffectStyle: 'none',
+  clickEffectAnimation: 'expand',
+  clickEffectDurationMs: 300,
+  clickEffectMaxRadius: 50,
+  clickEffectLineWidth: 2,
+  clickEffectColor: '#ffffff',
+  clickTextWords: ['click!'],
+  clickTextMode: 'random',
+  clickTextAnimation: 'float',
+  clickTextSize: 16,
+  clickTextColor: '#ffffff',
+  clickTextOffsetY: -12,
+  clickTextRise: 24,
+  motionBlur: true,
+  directionalTilt: true,
+  directionalTiltMaxDeg: 6,
+  hideOnIdle: true,
+  fadeOnIdle: true,
+  idleTimeout: 3000,
+  gliding: true,
+  // NOTE: `speed` is "responsiveness" (how tightly the cursor follows the recorded path),
+  // not literal cursor velocity. Lower values feel more "icy"/Bokeh-like.
+  speed: 0.03,
+  smoothness: 0.95,
+  glide: 0.9
+}
+
+// Default keystroke effect data
+export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
+  fontSize: 14,
+  fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
+  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  textColor: '#ffffff',
+  borderColor: 'rgba(255, 255, 255, 0.15)',
+  borderRadius: 15,
+  padding: 10,
+  fadeOutDuration: 400,
+  displayDuration: 2000,
+  position: KeystrokePosition.BottomCenter,
+  maxWidth: 400,
+  stylePreset: 'glass',
+  showModifierSymbols: true,
+  scale: 1.0
+}
+
+// Store for default wallpaper once loaded
+let defaultWallpaper: string | undefined = undefined
+let wallpaperInitialized = false
+
+export function setDefaultWallpaper(wallpaper: string) {
+  defaultWallpaper = wallpaper
+  DEFAULT_BACKGROUND_DATA.wallpaper = wallpaper
+}
+
+export function getDefaultWallpaper(): string | undefined {
+  return defaultWallpaper
+}
+
+// Initialize default wallpaper on app startup
+export async function initializeDefaultWallpaper() {
+  // Skip if already initialized
+  if (wallpaperInitialized) {
+    return
+  }
+
+  wallpaperInitialized = true
+
+  if (typeof window === 'undefined' || !window.electronAPI?.loadWallpaperImage) {
+    return
+  }
+
+  try {
+    const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
+    if (dataUrl) {
+      setDefaultWallpaper(dataUrl)
+    }
+  } catch (error) {
+    // Silently fail - will use gradient background
+  }
+}

@@ -1,0 +1,109 @@
+import React from 'react'
+import { Line, Text, Rect, Group } from 'react-konva'
+import { TimelineConfig } from '@/lib/timeline/config'
+import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { useTimelineColors } from '@/lib/timeline/colors'
+import { formatTime } from '@/lib/utils'
+
+interface TimelineRulerProps {
+  duration: number
+  stageWidth: number
+  zoom: number
+  pixelsPerMs: number
+  onSeek?: (time: number) => void
+}
+
+export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPerMs, onSeek }: TimelineRulerProps) => {
+  const colors = useTimelineColors()
+  const { major, minor } = TimeConverter.getRulerIntervals(zoom)
+  const marks: React.ReactNode[] = []
+
+  // Handle click on ruler to seek
+  const handleRulerClick = (e: any) => {
+    if (!onSeek) return
+
+    const stage = e.target.getStage()
+    const pointerPos = stage?.getPointerPosition()
+    if (!pointerPos) return
+
+    const x = pointerPos.x - TimelineConfig.TRACK_LABEL_WIDTH
+    if (x > 0) {
+      const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
+      const maxTime = duration
+      const targetTime = Math.max(0, Math.min(time, maxTime))
+      onSeek(targetTime)
+    }
+  }
+
+  // Background for ruler - now clickable
+  marks.push(
+    <Rect
+      key="ruler-bg"
+      x={0}
+      y={0}
+      width={stageWidth}
+      height={TimelineConfig.RULER_HEIGHT}
+      opacity={0.9}
+      onClick={handleRulerClick}
+      onTap={handleRulerClick}
+      style={{ cursor: onSeek ? 'pointer' : 'default' }}
+    />
+  )
+
+  // Bottom border - subtle separator
+  marks.push(
+    <Rect
+      key="ruler-border"
+      x={0}
+      y={TimelineConfig.RULER_HEIGHT - 1}
+      width={stageWidth}
+      height={1}
+      fill={colors.border}
+      opacity={0.15}
+    />
+  )
+
+  // Calculate the maximum time we need to render marks for based on stage width
+  const maxTimeForStage = TimeConverter.pixelsToMs(stageWidth - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+  const maxTime = Math.max(duration, maxTimeForStage)
+
+  for (let time = 0; time <= maxTime; time += minor) {
+    const isMajor = time % major === 0
+    const x = TimeConverter.msToPixels(time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+
+    // Only render marks that are within the stage width
+    if (x > stageWidth) break
+
+    // Cleaner tick marks
+    marks.push(
+      <Line
+        key={`mark-${time}`}
+        points={[x, TimelineConfig.RULER_HEIGHT - (isMajor ? 8 : 4), x, TimelineConfig.RULER_HEIGHT]}
+        stroke={colors.mutedForeground}
+        strokeWidth={1}
+        opacity={isMajor ? 0.5 : 0.25}
+        lineCap="round"
+        listening={false}
+      />
+    )
+
+    if (isMajor) {
+      marks.push(
+        <Text
+          key={`label-${time}`}
+          x={x + 5}
+          y={6}
+          text={formatTime(time, true)}
+          fontSize={10}
+          fill={colors.mutedForeground}
+          fontFamily="system-ui, -apple-system, BlinkMacSystemFont"
+          fontStyle="normal"
+          opacity={0.6}
+          listening={false}
+        />
+      )
+    }
+  }
+
+  return <>{marks}</>
+})
