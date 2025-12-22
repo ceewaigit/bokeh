@@ -166,6 +166,8 @@ const electronAPI = {
   // System information
   getPlatform: (): Promise<NodeJS.Platform> =>
     ipcRenderer.invoke('get-platform'),
+  getBokehProcesses: () =>
+    ipcRenderer.invoke('get-bokeh-processes'),
 
   // macOS wallpapers
   getMacOSWallpapers: (): Promise<{ wallpapers: any[], gradients: any[] }> =>
@@ -419,9 +421,9 @@ const electronAPI = {
   // Native recorder API (macOS 12.3+ with ScreenCaptureKit)
   nativeRecorder: {
     isAvailable: () => ipcRenderer.invoke('native-recorder:available'),
-    startDisplay: (displayId: number, bounds?: { x: number; y: number; width: number; height: number }, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean }) =>
+    startDisplay: (displayId: number, bounds?: { x: number; y: number; width: number; height: number }, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean; useMacOSDefaults?: boolean; framerate?: number }) =>
       ipcRenderer.invoke('native-recorder:start-display', displayId, bounds, options),
-    startWindow: (windowId: number, options?: { lowMemory?: boolean }) =>
+    startWindow: (windowId: number, options?: { lowMemory?: boolean; useMacOSDefaults?: boolean; framerate?: number }) =>
       ipcRenderer.invoke('native-recorder:start-window', windowId, options),
     stop: () => ipcRenderer.invoke('native-recorder:stop'),
     pause: () => ipcRenderer.invoke('native-recorder:pause'),

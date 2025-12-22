@@ -48,7 +48,11 @@ export class NativeRecordingStrategy implements RecordingStrategy {
       }
 
       logger.info(`[NativeStrategy] Recording window ID: ${windowId}`)
-      result = await this.bridge.nativeRecorderStartWindow(windowId, { lowMemory: config.lowMemoryEncoder })
+      result = await this.bridge.nativeRecorderStartWindow(windowId, {
+        lowMemory: config.lowMemoryEncoder,
+        useMacOSDefaults: config.useMacOSDefaults,
+        framerate: config.framerate
+      })
     } else {
       // Screen or area capture
       const displayId = config.displayId ?? parseScreenDisplayId(config.sourceId)
@@ -71,7 +75,9 @@ export class NativeRecordingStrategy implements RecordingStrategy {
       result = await this.bridge.nativeRecorderStartDisplay(displayId, cropBounds, {
         onlySelf: config.onlySelf,
         lowMemory: config.lowMemoryEncoder,
-        includeAppWindows: config.includeAppWindows
+        includeAppWindows: config.includeAppWindows,
+        useMacOSDefaults: config.useMacOSDefaults,
+        framerate: config.framerate
       })
     }
 

@@ -139,6 +139,25 @@ export interface ElectronAPI {
 
   // Platform-specific features
   getPlatform?: () => Promise<{ platform: string; arch: string; version: string }>
+  getBokehProcesses?: () => Promise<{
+    timestamp: number
+    appName: string
+    totalCpu: number
+    totalMemRssBytes: number
+    gpu: {
+      vramTotalBytes: number | null
+      vramUsedBytes: number | null
+    }
+    processes: Array<{
+      pid: number
+      ppid: number | null
+      type: string
+      name: string
+      command: string | null
+      cpu: number
+      memRss: number | null
+    }>
+  }>
   getMacOSWallpapers?: () => Promise<{
     wallpapers: Array<{ name: string; path: string; thumbnail?: string }>
     gradients: Array<{ name: string; path: string; colors: string[] }>
@@ -236,8 +255,8 @@ export interface ElectronAPI {
   // Native recorder API (macOS 12.3+ with ScreenCaptureKit)
   nativeRecorder?: {
     isAvailable: () => Promise<boolean>
-    startDisplay: (displayId: number, bounds?: { x: number; y: number; width: number; height: number }, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean }) => Promise<{ outputPath: string }>
-    startWindow: (windowId: number, options?: { lowMemory?: boolean }) => Promise<{ outputPath: string }>
+    startDisplay: (displayId: number, bounds?: { x: number; y: number; width: number; height: number }, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean; useMacOSDefaults?: boolean; framerate?: number }) => Promise<{ outputPath: string }>
+    startWindow: (windowId: number, options?: { lowMemory?: boolean; useMacOSDefaults?: boolean; framerate?: number }) => Promise<{ outputPath: string }>
     stop: () => Promise<{ outputPath: string }>
     pause: () => Promise<{ success: boolean }>
     resume: () => Promise<{ success: boolean }>

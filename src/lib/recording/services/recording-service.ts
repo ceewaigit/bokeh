@@ -397,7 +397,9 @@ export class RecordingService {
       displayId,
       onlySelf: settings.onlySelf,
       includeAppWindows: settings.includeAppWindows,
-      lowMemoryEncoder: settings.lowMemoryEncoder
+      lowMemoryEncoder: settings.lowMemoryEncoder ?? false,
+      useMacOSDefaults: settings.useMacOSDefaults ?? true,
+      framerate: settings.framerate
     }
   }
 }

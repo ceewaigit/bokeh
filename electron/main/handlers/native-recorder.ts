@@ -78,7 +78,7 @@ export function setupNativeRecorder() {
   })
 
   // Start recording
-  ipcMain.handle('native-recorder:start-display', async (event, displayId: number, bounds?: { x: number; y: number; width: number; height: number }, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean }) => {
+  ipcMain.handle('native-recorder:start-display', async (event, displayId: number, bounds?: { x: number; y: number; width: number; height: number }, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean; useMacOSDefaults?: boolean; framerate?: number }) => {
     if (!nativeRecorder) {
       throw new Error('Native recorder not available')
     }
@@ -89,8 +89,10 @@ export function setupNativeRecorder() {
     const onlySelf = options?.onlySelf ?? false
     const lowMemory = options?.lowMemory ?? false
     const includeAppWindows = options?.includeAppWindows ?? false
+    const useMacOSDefaults = options?.useMacOSDefaults ?? true
+    const framerate = options?.framerate ?? 60
 
-    console.log(`[NativeRecorder] Starting display recording: displayId=${displayId}, bounds=${JSON.stringify(bounds)}, onlySelf=${onlySelf}, includeAppWindows=${includeAppWindows}`)
+    console.log(`[NativeRecorder] Starting display recording: displayId=${displayId}, bounds=${JSON.stringify(bounds)}, onlySelf=${onlySelf}, includeAppWindows=${includeAppWindows}, useMacOSDefaults=${useMacOSDefaults}, framerate=${framerate}`)
 
     return new Promise((resolve, reject) => {
       // If bounds provided, pass to native recorder (for region capture)
@@ -101,7 +103,7 @@ export function setupNativeRecorder() {
           } else {
             resolve({ outputPath })
           }
-        }, onlySelf, lowMemory, includeAppWindows)
+        }, onlySelf, lowMemory, includeAppWindows, useMacOSDefaults, framerate)
       } else {
         nativeRecorder.startRecording(displayId, outputPath, (err: Error | null) => {
           if (err) {
@@ -109,7 +111,7 @@ export function setupNativeRecorder() {
           } else {
             resolve({ outputPath })
           }
-        }, onlySelf, lowMemory)
+        }, onlySelf, lowMemory, includeAppWindows, useMacOSDefaults, framerate)
       }
     })
   })
@@ -173,7 +175,7 @@ export function setupNativeRecorder() {
   })
 
   // Start recording a specific window
-  ipcMain.handle('native-recorder:start-window', async (event, windowId: number, options?: { lowMemory?: boolean }) => {
+  ipcMain.handle('native-recorder:start-window', async (event, windowId: number, options?: { lowMemory?: boolean; useMacOSDefaults?: boolean; framerate?: number }) => {
     if (!nativeRecorder) {
       throw new Error('Native recorder not available')
     }
@@ -182,8 +184,10 @@ export function setupNativeRecorder() {
     const timestamp = Date.now()
     const outputPath = path.join(tempDir, `bokeh-native-window-${timestamp}.mov`)
     const lowMemory = options?.lowMemory ?? false
+    const useMacOSDefaults = options?.useMacOSDefaults ?? true
+    const framerate = options?.framerate ?? 60
 
-    console.log(`Starting window recording for window ID: ${windowId}`)
+    console.log(`Starting window recording for window ID: ${windowId}, useMacOSDefaults=${useMacOSDefaults}, framerate=${framerate}`)
 
     return new Promise((resolve, reject) => {
       nativeRecorder.startRecordingWindow(windowId, outputPath, (err: Error | null) => {
@@ -194,7 +198,7 @@ export function setupNativeRecorder() {
           console.log('Window recording started:', outputPath)
           resolve({ outputPath })
         }
-      }, lowMemory)
+      }, lowMemory, useMacOSDefaults, framerate)
     })
   })
 }

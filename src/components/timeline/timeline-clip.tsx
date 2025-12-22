@@ -72,7 +72,6 @@ export const TimelineClip = React.memo(({
   onContextMenu,
   onOpenSpeedUpSuggestion
 }: TimelineClipProps) => {
-  const [thumbnail, setThumbnail] = useState<HTMLImageElement | null>(null)
   const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isValidPosition, setIsValidPosition] = useState(true)
@@ -192,129 +191,83 @@ export const TimelineClip = React.memo(({
     return recording.filePath
   }, [recording?.filePath, recording?.folderPath])
 
-  // Load single cached thumbnail for video clips - optimized for performance
+  // Multiple thumbnails at evenly spaced source positions for video clips
+  // Max 10 thumbnails per clip to balance visual variety vs performance
+  const MAX_THUMBNAILS_PER_CLIP = 10
+  const [thumbnails, setThumbnails] = useState<HTMLImageElement[]>([])
+
   useEffect(() => {
     if (trackType !== 'video' || !resolvedVideoPath || isGeneratedClip || !recording) return
 
     let cancelled = false
 
-    const loadThumbnail = async () => {
+    const loadThumbnails = async () => {
       try {
-        // Use ThumbnailGenerator for cached, efficient thumbnail generation
         const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
         const sourceAspectRatio = recording.width && recording.height
           ? recording.width / recording.height
           : 16 / 9
         const thumbWidth = Math.max(1, Math.round(thumbHeight * sourceAspectRatio))
 
-        // Cache key includes recording ID and source position to allow re-use
-        const cacheKey = `${recording.id}_${clip.sourceIn}_${thumbWidth}x${thumbHeight}`
+        // Calculate tile count based on clip's source duration (not pixel width)
+        // Approximately one thumbnail per 5 seconds of source video
+        const sourceDurationSec = (clip.sourceOut - clip.sourceIn) / 1000
+        const tileCount = Math.min(MAX_THUMBNAILS_PER_CLIP, Math.max(1, Math.ceil(sourceDurationSec / 5)))
+        const sourceDuration = clip.sourceOut - clip.sourceIn
 
-        const dataUrl = await ThumbnailGenerator.generateThumbnail(
-          resolvedVideoPath,
-          cacheKey,
-          {
-            width: thumbWidth,
-            height: thumbHeight,
-            timestamp: clip.sourceIn / 1000 / (recording.duration || 1) // Convert to percentage
+        const loadedThumbs: HTMLImageElement[] = new Array(tileCount)
+
+        // Load all thumbnails in parallel for speed
+        const loadPromises = Array.from({ length: tileCount }, async (_, i) => {
+          if (cancelled) return
+
+          // Calculate source timestamp for this tile position
+          const tileProgress = tileCount > 1 ? i / (tileCount - 1) : 0.5
+          const sourceTime = clip.sourceIn + sourceDuration * tileProgress
+          const timestamp = sourceTime / (recording.duration || 1)
+
+          const cacheKey = `${clip.id}_${recording.id}_t${i}_${Math.round(sourceTime)}_${thumbWidth}x${thumbHeight}`
+
+          const dataUrl = await ThumbnailGenerator.generateThumbnail(
+            resolvedVideoPath,
+            cacheKey,
+            {
+              width: thumbWidth,
+              height: thumbHeight,
+              timestamp
+            }
+          )
+
+          if (cancelled || !dataUrl) return
+
+          const img = document.createElement('img')
+          img.src = dataUrl
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve()
+            img.onerror = reject
+          })
+
+          if (!cancelled) {
+            loadedThumbs[i] = img
           }
-        )
-
-        if (cancelled || !dataUrl) return
-
-        // Create image element from data URL
-        const img = document.createElement('img')
-        img.src = dataUrl
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve()
-          img.onerror = reject
         })
 
+        await Promise.all(loadPromises)
+
         if (!cancelled) {
-          setThumbnail(img)
+          setThumbnails([...loadedThumbs.filter(Boolean)])
         }
       } catch (error) {
-        // Failed to load thumbnail - will show placeholder
+        // Failed to load thumbnails - will show placeholder
       }
     }
 
-    loadThumbnail()
+    loadThumbnails()
 
     return () => {
       cancelled = true
     }
-  }, [recording, resolvedVideoPath, clip.sourceIn, trackHeight, trackType])
-
-
-  // Handle applying a single speed-up period
-  const handleApplySpeedUp = async (period: SpeedUpPeriod) => {
-    try {
-      const context = new DefaultCommandContext(useProjectStore)
-      const command = new ApplySpeedUpCommand(context, clip.id, [period], [period.type])
-
-      // Execute through command manager for undo/redo support
-      const manager = CommandManager.getInstance(context)
-      const result = await manager.execute(command)
-
-      if (result.success) {
-        // Remove from local state
-        if (period.type === 'typing') {
-          setTypingPeriods(prev => prev.filter(p =>
-            !(p.startTime === period.startTime && p.endTime === period.endTime)
-          ))
-        } else {
-          setIdlePeriods(prev => prev.filter(p =>
-            !(p.startTime === period.startTime && p.endTime === period.endTime)
-          ))
-        }
-        toast.success(`Applied ${period.type} speed-up`)
-      } else {
-        console.error('[TimelineClip] Failed to apply speed-up:', result.error)
-        toast.error(typeof result.error === 'string' ? result.error : 'Failed to apply speed-up')
-      }
-    } catch (error: any) {
-      console.error('[TimelineClip] Exception applying speed-up:', error)
-      toast.error(error?.message || 'Failed to apply speed-up')
-    }
-  }
-
-  // Handle applying ALL speed-ups (typing + idle) to ALL clips
-  const handleApplyAllSpeedUps = async () => {
-    try {
-      const context = new DefaultCommandContext(useProjectStore)
-      const command = new ApplyAllSpeedUpsCommand(context, { applyTyping: true, applyIdle: true })
-
-      // Execute through command manager for undo/redo support
-      const manager = CommandManager.getInstance(context)
-      const result = await manager.execute(command)
-
-      if (result.success) {
-        const clipsProcessed = command.getClipsProcessed()
-        setTypingPeriods([])
-        setIdlePeriods([])
-        toast.success(`Applied speed-ups to ${clipsProcessed} clip${clipsProcessed !== 1 ? 's' : ''}`)
-      } else {
-        console.error('[TimelineClip] Failed to apply all speed-ups:', result.error)
-        toast.error(typeof result.error === 'string' ? result.error : 'Failed to apply speed-ups')
-      }
-    } catch (error: any) {
-      console.error('[TimelineClip] Exception applying all speed-ups:', error)
-      toast.error(error?.message || 'Failed to apply speed-ups')
-    }
-  }
-
-  // Handle removing a suggestion from UI (dismiss without applying)
-  const handleRemoveSuggestion = (period: SpeedUpPeriod) => {
-    if (period.type === 'typing') {
-      setTypingPeriods(prev => prev.filter(p =>
-        !(p.startTime === period.startTime && p.endTime === period.endTime)
-      ))
-    } else {
-      setIdlePeriods(prev => prev.filter(p =>
-        !(p.startTime === period.startTime && p.endTime === period.endTime)
-      ))
-    }
-  }
+  }, [recording, resolvedVideoPath, clip.id, clip.sourceIn, clip.sourceOut, trackHeight, trackType, isGeneratedClip])
 
   return (
     <Group
@@ -418,7 +371,7 @@ export const TimelineClip = React.memo(({
         width={clipWidth}
         height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
         fill={
-          trackType === TrackType.Video && thumbnail
+          trackType === TrackType.Video && thumbnails.length > 0
             ? 'transparent'
             : trackType === TrackType.Video
               ? (isGeneratedClip ? colors.muted : colors.info)
@@ -440,7 +393,7 @@ export const TimelineClip = React.memo(({
         shadowOffsetY={3}
       />
 
-      {isGeneratedClip && !thumbnail && (
+      {isGeneratedClip && thumbnails.length === 0 && (
         <Group
           clipFunc={(ctx) => {
             ctx.beginPath()
@@ -494,33 +447,41 @@ export const TimelineClip = React.memo(({
         </Group>
       )}
 
-      {/* Video thumbnail - single frame tiled across clip */}
-      {trackType === TrackType.Video && thumbnail && (
+      {/* Video thumbnails - multiple frames distributed across clip */}
+      {trackType === TrackType.Video && thumbnails.length > 0 && (
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
           ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 24)
           ctx.closePath()
         }}>
-          {/* Tile the single thumbnail across the clip width */}
+          {/* Distribute thumbnails across clip width */}
           {(() => {
             const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
-            const aspectRatio = thumbnail.width / thumbnail.height
+            const firstThumb = thumbnails[0]
+            if (!firstThumb) return null
+            const aspectRatio = firstThumb.width / firstThumb.height
             const thumbWidth = Math.floor(thumbHeight * aspectRatio)
             const tileCount = Math.max(1, Math.ceil(clipWidth / thumbWidth))
 
-            return Array.from({ length: tileCount }, (_, i) => (
-              // eslint-disable-next-line jsx-a11y/alt-text
-              <Image
-                key={i}
-                image={thumbnail}
-                x={i * thumbWidth}
-                y={0}
-                width={thumbWidth}
-                height={thumbHeight}
-                opacity={0.95}
-              />
-            ))
+            return Array.from({ length: tileCount }, (_, i) => {
+              // Distribute available thumbnails across tile positions
+              const thumbIndex = Math.floor((i / tileCount) * thumbnails.length)
+              const thumb = thumbnails[thumbIndex] || thumbnails[0]
+              if (!thumb) return null
+              return (
+                // eslint-disable-next-line jsx-a11y/alt-text
+                <Image
+                  key={i}
+                  image={thumb}
+                  x={i * thumbWidth}
+                  y={0}
+                  width={thumbWidth}
+                  height={thumbHeight}
+                  opacity={0.95}
+                />
+              )
+            })
           })()}
           {/* Gradient overlay for text visibility */}
           <Rect
@@ -549,8 +510,8 @@ export const TimelineClip = React.memo(({
             ctx.beginPath()
             const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
             const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
-            // Rounded bottom corners only
-            ctx.roundRect(0, 0, clipWidth, stripHeight, 4)
+            // Rounded bottom corners only - match clip's 24px radius
+            ctx.roundRect(0, 0, clipWidth, stripHeight, [0, 0, 24, 24])
             ctx.closePath()
           }}
         >
@@ -584,7 +545,7 @@ export const TimelineClip = React.memo(({
                   height={stripHeight}
                   fill="rgba(0,0,0,0.2)"
                   opacity={1}
-                  cornerRadius={4}
+                  cornerRadius={[0, 0, 24, 24]}
                   listening={false}
                 />
                 {peaks.length > 0 && peaks.map((peak, i) => {

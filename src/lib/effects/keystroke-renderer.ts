@@ -11,6 +11,8 @@ interface KeystrokeSegment {
   endTime: number
   isShortcut: boolean
   charTimestamps: number[]
+  // For combined shortcuts: individual parts with their timestamps
+  shortcutParts?: { text: string; timestamp: number }[]
 }
 
 export type KeystrokeDrawRect = {
@@ -70,6 +72,7 @@ export class KeystrokeRenderer {
   private computeSegments(events: KeyboardEvent[]): KeystrokeSegment[] {
     const segments: KeystrokeSegment[] = []
     const BUFFER_TIMEOUT = 800
+    const SHORTCUT_COMBINE_THRESHOLD = 1000 // Combine shortcuts within 1 second
     const displayDuration = this.options.displayDuration || 2000
 
     let currentBuffer: {
@@ -98,6 +101,32 @@ export class KeystrokeRenderer {
       currentBuffer = null
     }
 
+    // Helper to add a shortcut, combining with previous if within threshold
+    const addShortcut = (keyDisplay: string, timestamp: number) => {
+      const lastSeg = segments[segments.length - 1]
+      // Combine if previous segment is also a shortcut and within threshold
+      if (lastSeg && lastSeg.isShortcut && (timestamp - lastSeg.charTimestamps[lastSeg.charTimestamps.length - 1]) <= SHORTCUT_COMBINE_THRESHOLD) {
+        // Combine with previous shortcut - store parts for progressive reveal
+        if (!lastSeg.shortcutParts) {
+          // Convert existing single shortcut to parts format
+          lastSeg.shortcutParts = [{ text: lastSeg.text, timestamp: lastSeg.startTime }]
+        }
+        lastSeg.shortcutParts.push({ text: keyDisplay, timestamp })
+        lastSeg.text = lastSeg.shortcutParts.map(p => p.text).join(' + ')
+        lastSeg.endTime = timestamp + displayDuration
+        lastSeg.charTimestamps.push(timestamp)
+      } else {
+        // Create new shortcut segment
+        segments.push({
+          text: keyDisplay,
+          startTime: timestamp,
+          endTime: timestamp + displayDuration,
+          isShortcut: true,
+          charTimestamps: [timestamp]
+        })
+      }
+    }
+
     for (const event of events) {
       const key = event.key
       if (isStandaloneModifierKey(key)) continue
@@ -111,22 +140,10 @@ export class KeystrokeRenderer {
 
       if (shortcut) {
         const keyDisplay = this.formatModifierKey(key, event.modifiers)
-        segments.push({
-          text: keyDisplay,
-          startTime: event.timestamp,
-          endTime: event.timestamp + displayDuration,
-          isShortcut: true,
-          charTimestamps: [event.timestamp]
-        })
+        addShortcut(keyDisplay, event.timestamp)
       } else if (isSpecialKey) {
         const keyDisplay = this.formatSpecialKey(key)
-        segments.push({
-          text: keyDisplay,
-          startTime: event.timestamp,
-          endTime: event.timestamp + displayDuration,
-          isShortcut: true,
-          charTimestamps: [event.timestamp]
-        })
+        addShortcut(keyDisplay, event.timestamp)
       } else if (key === 'Backspace' || key === 'Delete') {
         if (currentBuffer && currentBuffer.text.length > 0) {
           currentBuffer.text = currentBuffer.text.slice(0, -1)
@@ -177,7 +194,15 @@ export class KeystrokeRenderer {
       if (segment.startTime > timestamp || fadeEnd < timestamp) continue
 
       if (segment.isShortcut) {
-        displayText = segment.text
+        // For combined shortcuts, progressively reveal parts based on their timestamps
+        if (segment.shortcutParts && segment.shortcutParts.length > 1) {
+          const visibleParts = segment.shortcutParts.filter(p => p.timestamp <= timestamp)
+          if (visibleParts.length === 0) continue
+          displayText = visibleParts.map(p => p.text).join(' + ')
+          isMidTyping = visibleParts.length < segment.shortcutParts.length
+        } else {
+          displayText = segment.text
+        }
         activeSegment = segment
         break
       }

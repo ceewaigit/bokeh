@@ -164,11 +164,10 @@ export function PreviewAreaRemotion({
     const videoHeight = timelineMetadata.height;
     const videoAspectRatio = videoWidth / videoHeight;
 
-    // Scale up max dimensions on Retina displays for crisp text/UI rendering
-    // Use 4K max to reduce blur on keystrokes and other UI overlays
-    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
-    const maxWidth = dpr >= 2 ? 3840 : 1920;
-    const maxHeight = dpr >= 2 ? 2160 : 1080;
+    // Preview resolution: 1440p is sufficient for most displays
+    // High-quality toggle in settings can enable full resolution if needed
+    const maxWidth = 2560;
+    const maxHeight = 1440;
 
     const scaleByWidth = maxWidth / videoWidth;
     const scaleByHeight = maxHeight / videoHeight;

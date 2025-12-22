@@ -29,6 +29,7 @@ import { setupExportHandler, cleanupBundleCache } from './handlers/export'
 import { setupThumbnailHandler } from './handlers/thumbnail'
 import { killRemotionChromiumProcesses } from './utils/remotion-chromium-cleanup'
 import { registerAssetHandlers } from './handlers/assets'
+import { registerBokehProcessHandlers } from './handlers/system-stats'
 
 // Helper functions for MIME type detection
 const guessMimeType = (filePath: string): string => {
@@ -321,6 +322,7 @@ function registerAllHandlers(): void {
   registerWindowControlHandlers()
   registerWindowAppearanceHandlers()
   registerAssetHandlers()
+  registerBokehProcessHandlers()
   setupNativeRecorder()
   setupExportHandler()
   setupThumbnailHandler()

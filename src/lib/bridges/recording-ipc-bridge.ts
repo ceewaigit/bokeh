@@ -74,8 +74,8 @@ export interface MetadataReadResult {
 export interface RecordingIpcBridge extends IpcBridge {
     // Native recorder operations
     nativeRecorderAvailable(): Promise<boolean>
-    nativeRecorderStartDisplay(displayId: number, bounds?: Rect, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean }): Promise<{ outputPath: string }>
-    nativeRecorderStartWindow(windowId: number, options?: { lowMemory?: boolean }): Promise<{ outputPath: string }>
+    nativeRecorderStartDisplay(displayId: number, bounds?: Rect, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean; useMacOSDefaults?: boolean; framerate?: number }): Promise<{ outputPath: string }>
+    nativeRecorderStartWindow(windowId: number, options?: { lowMemory?: boolean; useMacOSDefaults?: boolean; framerate?: number }): Promise<{ outputPath: string }>
     nativeRecorderStop(): Promise<{ outputPath: string | null }>
     nativeRecorderPause(): Promise<void>
     nativeRecorderResume(): Promise<void>
@@ -153,14 +153,14 @@ export class ElectronRecordingBridge implements RecordingIpcBridge {
         }
     }
 
-    async nativeRecorderStartDisplay(displayId: number, bounds?: Rect, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean }): Promise<{ outputPath: string }> {
+    async nativeRecorderStartDisplay(displayId: number, bounds?: Rect, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean; useMacOSDefaults?: boolean; framerate?: number }): Promise<{ outputPath: string }> {
         if (!window.electronAPI?.nativeRecorder?.startDisplay) {
             throw new Error('Native recorder not available')
         }
         return window.electronAPI.nativeRecorder.startDisplay(displayId, bounds, options)
     }
 
-    async nativeRecorderStartWindow(windowId: number, options?: { lowMemory?: boolean }): Promise<{ outputPath: string }> {
+    async nativeRecorderStartWindow(windowId: number, options?: { lowMemory?: boolean; useMacOSDefaults?: boolean; framerate?: number }): Promise<{ outputPath: string }> {
         if (!window.electronAPI?.nativeRecorder?.startWindow) {
             throw new Error('Native recorder not available')
         }

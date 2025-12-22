@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #import <AVFoundation/AVFoundation.h>
+#import <VideoToolbox/VideoToolbox.h>
 #import <napi.h>
 #import <CoreGraphics/CoreGraphics.h>
 
@@ -12,7 +13,6 @@
 @property (nonatomic, strong) AVAssetWriter *assetWriter;
 @property (nonatomic, strong) AVAssetWriterInput *videoInput;
 @property (nonatomic, strong) AVAssetWriterInput *audioInput;
-@property (nonatomic, strong) AVAssetWriterInputPixelBufferAdaptor *adaptor;
 @property (nonatomic, strong) NSString *outputPath;
 @property (nonatomic, assign) BOOL isRecording;
 @property (nonatomic, assign) CMTime startTime;
@@ -24,9 +24,9 @@
 @property (nonatomic, assign) CMTime pauseStartTime;  // When pause began
 @property (nonatomic, assign) CMTime totalPausedDuration;  // Accumulated pause time
 
-- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory completion:(void (^)(NSError *))completion;
-- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory completion:(void (^)(NSError *))completion;
-- (void)startRecordingWindow:(CGWindowID)windowID outputPath:(NSString *)path lowMemory:(BOOL)lowMemory completion:(void (^)(NSError *))completion;
+- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion;
+- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion;
+- (void)startRecordingWindow:(CGWindowID)windowID outputPath:(NSString *)path lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion;
 - (void)stopRecording:(void (^)(NSString *, NSError *))completion;
 - (void)pauseRecording;
 - (void)resumeRecording;
@@ -34,17 +34,17 @@
 
 @implementation ScreenRecorder
 
-- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory completion:(void (^)(NSError *))completion {
+- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion {
     // Default to excluding app windows (includeAppWindows = NO)
-    [self startRecordingDisplay:displayID outputPath:path sourceRect:CGRectNull onlySelf:onlySelf includeAppWindows:NO lowMemory:lowMemory completion:completion];
+    [self startRecordingDisplay:displayID outputPath:path sourceRect:CGRectNull onlySelf:onlySelf includeAppWindows:NO lowMemory:lowMemory useMacOSDefaults:useMacOSDefaults framerate:framerate completion:completion];
 }
 
-- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory completion:(void (^)(NSError *))completion {
+- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion {
     // Default to excluding app windows (includeAppWindows = NO)
-    [self startRecordingDisplay:displayID outputPath:path sourceRect:rect onlySelf:onlySelf includeAppWindows:NO lowMemory:lowMemory completion:completion];
+    [self startRecordingDisplay:displayID outputPath:path sourceRect:rect onlySelf:onlySelf includeAppWindows:NO lowMemory:lowMemory useMacOSDefaults:useMacOSDefaults framerate:framerate completion:completion];
 }
 
-- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect onlySelf:(BOOL)onlySelf includeAppWindows:(BOOL)includeAppWindows lowMemory:(BOOL)lowMemory completion:(void (^)(NSError *))completion {
+- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect onlySelf:(BOOL)onlySelf includeAppWindows:(BOOL)includeAppWindows lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion {
     if (@available(macOS 12.3, *)) {
         self.outputPath = path;
         self.hasStartedSession = NO;
@@ -53,6 +53,9 @@
         self.isPaused = NO;
         self.pauseStartTime = kCMTimeInvalid;
         self.totalPausedDuration = kCMTimeZero;
+
+        const int targetFps = framerate > 0 ? framerate : 60;
+        const BOOL encoderDefaults = useMacOSDefaults ? YES : NO;
         
         // Get shareable content
         [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
@@ -162,32 +165,43 @@
                 backingScale = (fabs(sx - sy) < 0.01) ? sx : sx;
             }
             
+            const size_t basePointWidth = pointWidth > 0 ? pointWidth : (size_t)targetDisplay.width;
+            const size_t basePointHeight = pointHeight > 0 ? pointHeight : (size_t)targetDisplay.height;
+
             if (pixelWidth == 0 || pixelHeight == 0) {
-                // Fallback to reported width/height
-                pixelWidth = (size_t)targetDisplay.width;
-                pixelHeight = (size_t)targetDisplay.height;
+                // Fallback to derived width/height
+                pixelWidth = (size_t)llround((CGFloat)basePointWidth * backingScale);
+                pixelHeight = (size_t)llround((CGFloat)basePointHeight * backingScale);
             }
+
+            // Reduce capture resolution on HiDPI displays when lowMemory is enabled.
+            const CGFloat captureScale = (lowMemory && backingScale > 1.0) ? 1.0 : backingScale;
+            const OSType pixelFormat = encoderDefaults
+                ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+                : (lowMemory ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_32BGRA);
+            size_t targetWidth = (size_t)llround((CGFloat)basePointWidth * captureScale);
+            size_t targetHeight = (size_t)llround((CGFloat)basePointHeight * captureScale);
             
             // Apply source rect if specified (for region capture)
             if (!CGRectIsNull(self.sourceRect)) {
                 CGRect sourceRectPx = CGRectMake(
-                    self.sourceRect.origin.x * backingScale,
-                    self.sourceRect.origin.y * backingScale,
-                    self.sourceRect.size.width * backingScale,
-                    self.sourceRect.size.height * backingScale
+                    self.sourceRect.origin.x * captureScale,
+                    self.sourceRect.origin.y * captureScale,
+                    self.sourceRect.size.width * captureScale,
+                    self.sourceRect.size.height * captureScale
                 );
 
-                config.width = (size_t)sourceRectPx.size.width;
-                config.height = (size_t)sourceRectPx.size.height;
+                targetWidth = (size_t)llround((CGFloat)self.sourceRect.size.width * captureScale);
+                targetHeight = (size_t)llround((CGFloat)self.sourceRect.size.height * captureScale);
                 // ScreenCaptureKit expects sourceRect in points (display space).
                 config.sourceRect = self.sourceRect;
-                NSLog(@"Region capture (points): %@ -> (pixels): %@", NSStringFromRect(NSRectFromCGRect(self.sourceRect)), NSStringFromRect(NSRectFromCGRect(sourceRectPx)));
-            } else {
-                config.width = pixelWidth;
-                config.height = pixelHeight;
+                NSLog(@"Region capture (points): %@ -> (scaled pixels): %@", NSStringFromRect(NSRectFromCGRect(self.sourceRect)), NSStringFromRect(NSRectFromCGRect(sourceRectPx)));
             }
-            config.minimumFrameInterval = CMTimeMake(1, 60); // 60 fps
-            config.pixelFormat = kCVPixelFormatType_32BGRA;
+
+            config.width = targetWidth;
+            config.height = targetHeight;
+            config.minimumFrameInterval = CMTimeMake(1, targetFps);
+            config.pixelFormat = pixelFormat;
             config.showsCursor = NO;  // THIS IS THE KEY - Hide cursor!
             config.backgroundColor = NSColor.clearColor.CGColor;
             config.scalesToFit = NO;
@@ -203,7 +217,7 @@
                 config.channelCount = 2;
             }
             
-            NSLog(@"Screen recording configured: %zux%zu with audio capture enabled, lowMemory=%@", pixelWidth, pixelHeight, lowMemory ? @"YES" : @"NO");
+            NSLog(@"Screen recording configured: %zux%zu (scale: %.2f, backing: %.2f) fps=%d, macosDefaults=%@, lowMemory=%@", targetWidth, targetHeight, captureScale, backingScale, targetFps, encoderDefaults ? @"YES" : @"NO", lowMemory ? @"YES" : @"NO");
             
             // Setup asset writer
             NSError *writerError = nil;
@@ -214,20 +228,37 @@
                 return;
             }
             
-            NSMutableDictionary *videoCompressionProperties = [@{
-                AVVideoAverageBitRateKey: @(5000000),
-                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
-            } mutableCopy];
+            NSMutableDictionary *videoCompressionProperties = [NSMutableDictionary dictionary];
+            NSString *videoCodec = AVVideoCodecTypeH264;
 
-            if (lowMemory) {
-                // Reduce encoder buffering and latency (smaller VTEncoderService footprint).
-                videoCompressionProperties[AVVideoAllowFrameReorderingKey] = @NO;
-                videoCompressionProperties[AVVideoExpectedSourceFrameRateKey] = @60;
-                videoCompressionProperties[AVVideoMaxKeyFrameIntervalKey] = @60;
+            if (encoderDefaults) {
+                if (@available(macOS 10.13, *)) {
+                    videoCodec = AVVideoCodecTypeHEVC;
+                }
+                videoCompressionProperties[(NSString *)kVTCompressionPropertyKey_RealTime] = @YES;
+                videoCompressionProperties[AVVideoExpectedSourceFrameRateKey] = @(targetFps);
+                videoCompressionProperties[AVVideoMaxKeyFrameIntervalKey] = @(targetFps);
+                if (lowMemory) {
+                    videoCompressionProperties[AVVideoAllowFrameReorderingKey] = @NO;
+                }
+                if ([videoCodec isEqualToString:AVVideoCodecTypeHEVC]) {
+                    videoCompressionProperties[AVVideoProfileLevelKey] = (__bridge NSString *)kVTProfileLevel_HEVC_Main_AutoLevel;
+                } else {
+                    videoCompressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel;
+                }
+            } else {
+                videoCompressionProperties[AVVideoAverageBitRateKey] = @(5000000);
+                videoCompressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel;
+                if (lowMemory) {
+                    // Reduce encoder buffering and latency (smaller VTEncoderService footprint).
+                    videoCompressionProperties[AVVideoAllowFrameReorderingKey] = @NO;
+                    videoCompressionProperties[AVVideoExpectedSourceFrameRateKey] = @(targetFps);
+                    videoCompressionProperties[AVVideoMaxKeyFrameIntervalKey] = @(targetFps);
+                }
             }
 
             NSDictionary *videoSettings = @{
-                AVVideoCodecKey: AVVideoCodecTypeH264,
+                AVVideoCodecKey: videoCodec,
                 AVVideoWidthKey: @(config.width),
                 AVVideoHeightKey: @(config.height),
                 AVVideoCompressionPropertiesKey: videoCompressionProperties
@@ -235,14 +266,6 @@
             
             self.videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo outputSettings:videoSettings];
             self.videoInput.expectsMediaDataInRealTime = YES;
-            
-            NSDictionary *sourcePixelBufferAttributes = @{
-                (NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
-                (NSString *)kCVPixelBufferWidthKey: @(config.width),
-                (NSString *)kCVPixelBufferHeightKey: @(config.height)
-            };
-            
-            self.adaptor = [[AVAssetWriterInputPixelBufferAdaptor alloc] initWithAssetWriterInput:self.videoInput sourcePixelBufferAttributes:sourcePixelBufferAttributes];
             
             [self.assetWriter addInput:self.videoInput];
             
@@ -322,7 +345,7 @@
     }
 }
 
-- (void)startRecordingWindow:(CGWindowID)windowID outputPath:(NSString *)path lowMemory:(BOOL)lowMemory completion:(void (^)(NSError *))completion {
+- (void)startRecordingWindow:(CGWindowID)windowID outputPath:(NSString *)path lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion {
     if (@available(macOS 12.3, *)) {
         self.outputPath = path;
         self.hasStartedSession = NO;
@@ -331,6 +354,9 @@
         self.isPaused = NO;
         self.pauseStartTime = kCMTimeInvalid;
         self.totalPausedDuration = kCMTimeZero;
+
+        const int targetFps = framerate > 0 ? framerate : 60;
+        const BOOL encoderDefaults = useMacOSDefaults ? YES : NO;
         
         // Get shareable content to find the window
         [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
@@ -415,13 +441,17 @@
                 }
             }
 
-            const size_t windowPixelWidth = (size_t)llround(windowWidth * backingScale);
-            const size_t windowPixelHeight = (size_t)llround(windowHeight * backingScale);
+            const CGFloat captureScale = (lowMemory && backingScale > 1.0) ? 1.0 : backingScale;
+            const OSType pixelFormat = encoderDefaults
+                ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
+                : (lowMemory ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_32BGRA);
+            const size_t windowTargetWidth = (size_t)llround(windowWidth * captureScale);
+            const size_t windowTargetHeight = (size_t)llround(windowHeight * captureScale);
             
-            config.width = windowPixelWidth;
-            config.height = windowPixelHeight;
-            config.minimumFrameInterval = CMTimeMake(1, 60); // 60 fps
-            config.pixelFormat = kCVPixelFormatType_32BGRA;
+            config.width = windowTargetWidth;
+            config.height = windowTargetHeight;
+            config.minimumFrameInterval = CMTimeMake(1, targetFps);
+            config.pixelFormat = pixelFormat;
             config.showsCursor = NO;  // Hide cursor
             config.backgroundColor = NSColor.clearColor.CGColor;
             config.scalesToFit = NO;
@@ -435,7 +465,7 @@
                 config.channelCount = 2;
             }
             
-            NSLog(@"Window recording configured: %.0fx%.0f pts -> %zux%zu px (scale: %.2f), lowMemory=%@", windowWidth, windowHeight, windowPixelWidth, windowPixelHeight, backingScale, lowMemory ? @"YES" : @"NO");
+            NSLog(@"Window recording configured: %.0fx%.0f pts -> %zux%zu px (scale: %.2f, backing: %.2f) fps=%d, macosDefaults=%@, lowMemory=%@", windowWidth, windowHeight, windowTargetWidth, windowTargetHeight, captureScale, backingScale, targetFps, encoderDefaults ? @"YES" : @"NO", lowMemory ? @"YES" : @"NO");
             
             // Setup asset writer (reuse the same setup as display recording)
             NSError *writerError = nil;
@@ -446,20 +476,37 @@
                 return;
             }
             
-            NSMutableDictionary *videoCompressionProperties = [@{
-                AVVideoAverageBitRateKey: @(5000000),
-                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
-            } mutableCopy];
+            NSMutableDictionary *videoCompressionProperties = [NSMutableDictionary dictionary];
+            NSString *videoCodec = AVVideoCodecTypeH264;
 
-            if (lowMemory) {
-                // Reduce encoder buffering and latency (smaller VTEncoderService footprint).
-                videoCompressionProperties[AVVideoAllowFrameReorderingKey] = @NO;
-                videoCompressionProperties[AVVideoExpectedSourceFrameRateKey] = @60;
-                videoCompressionProperties[AVVideoMaxKeyFrameIntervalKey] = @60;
+            if (encoderDefaults) {
+                if (@available(macOS 10.13, *)) {
+                    videoCodec = AVVideoCodecTypeHEVC;
+                }
+                videoCompressionProperties[(NSString *)kVTCompressionPropertyKey_RealTime] = @YES;
+                videoCompressionProperties[AVVideoExpectedSourceFrameRateKey] = @(targetFps);
+                videoCompressionProperties[AVVideoMaxKeyFrameIntervalKey] = @(targetFps);
+                if (lowMemory) {
+                    videoCompressionProperties[AVVideoAllowFrameReorderingKey] = @NO;
+                }
+                if ([videoCodec isEqualToString:AVVideoCodecTypeHEVC]) {
+                    videoCompressionProperties[AVVideoProfileLevelKey] = (__bridge NSString *)kVTProfileLevel_HEVC_Main_AutoLevel;
+                } else {
+                    videoCompressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel;
+                }
+            } else {
+                videoCompressionProperties[AVVideoAverageBitRateKey] = @(5000000);
+                videoCompressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel;
+                if (lowMemory) {
+                    // Reduce encoder buffering and latency (smaller VTEncoderService footprint).
+                    videoCompressionProperties[AVVideoAllowFrameReorderingKey] = @NO;
+                    videoCompressionProperties[AVVideoExpectedSourceFrameRateKey] = @(targetFps);
+                    videoCompressionProperties[AVVideoMaxKeyFrameIntervalKey] = @(targetFps);
+                }
             }
 
             NSDictionary *videoSettings = @{
-                AVVideoCodecKey: AVVideoCodecTypeH264,
+                AVVideoCodecKey: videoCodec,
                 AVVideoWidthKey: @(config.width),
                 AVVideoHeightKey: @(config.height),
                 AVVideoCompressionPropertiesKey: videoCompressionProperties
@@ -467,14 +514,6 @@
             
             self.videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo outputSettings:videoSettings];
             self.videoInput.expectsMediaDataInRealTime = YES;
-            
-            NSDictionary *sourcePixelBufferAttributes = @{
-                (NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
-                (NSString *)kCVPixelBufferWidthKey: @(config.width),
-                (NSString *)kCVPixelBufferHeightKey: @(config.height)
-            };
-            
-            self.adaptor = [[AVAssetWriterInputPixelBufferAdaptor alloc] initWithAssetWriterInput:self.videoInput sourcePixelBufferAttributes:sourcePixelBufferAttributes];
             
             [self.assetWriter addInput:self.videoInput];
             
@@ -560,12 +599,7 @@
             // Drop frame if writer is not ready
             return;
         }
-        
-        CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        if (!pixelBuffer) {
-            return;
-        }
-        
+
         CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
         
         // Adjust time by subtracting total paused duration
@@ -578,8 +612,29 @@
             self.hasStartedSession = YES;
             self.startTime = presentationTime;
         }
-        
-        [self.adaptor appendPixelBuffer:pixelBuffer withPresentationTime:presentationTime];
+
+        CMSampleBufferRef adjustedSample = sampleBuffer;
+        if (!CMSampleBufferGetImageBuffer(sampleBuffer)) {
+            return;
+        }
+
+        CMSampleBufferRef copied = NULL;
+        CMSampleTimingInfo timingInfo;
+        timingInfo.duration = CMSampleBufferGetDuration(sampleBuffer);
+        timingInfo.presentationTimeStamp = presentationTime;
+        timingInfo.decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(sampleBuffer);
+        CMSampleBufferCreateCopyWithNewTiming(NULL, sampleBuffer, 1, &timingInfo, &copied);
+        if (copied) {
+            adjustedSample = copied;
+        }
+
+        if (![self.videoInput appendSampleBuffer:adjustedSample]) {
+            NSLog(@"Failed to append video sample buffer");
+        }
+
+        if (copied) {
+            CFRelease(copied);
+        }
         
     } else if (@available(macOS 13.0, *)) {
         // SCStreamOutputTypeAudio is only available on macOS 13.0+
@@ -727,7 +782,7 @@ private:
         }
         
         if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsString() || !info[2].IsFunction()) {
-            Napi::TypeError::New(env, "Expected (displayID: number, outputPath: string, callback: function, [onlySelf: boolean], [lowMemory: boolean])")
+            Napi::TypeError::New(env, "Expected (displayID: number, outputPath: string, callback: function, [onlySelf: boolean], [lowMemory: boolean], [includeAppWindows: boolean], [useMacOSDefaults: boolean], [framerate: number])")
                 .ThrowAsJavaScriptException();
             return env.Undefined();
         }
@@ -738,11 +793,23 @@ private:
         
         BOOL onlySelf = NO;
         BOOL lowMemory = NO;
+        BOOL includeAppWindows = NO;
+        BOOL useMacOSDefaults = YES;
+        int framerate = 60;
         if (info.Length() > 3 && info[3].IsBoolean()) {
             onlySelf = info[3].As<Napi::Boolean>().Value();
         }
         if (info.Length() > 4 && info[4].IsBoolean()) {
             lowMemory = info[4].As<Napi::Boolean>().Value();
+        }
+        if (info.Length() > 5 && info[5].IsBoolean()) {
+            includeAppWindows = info[5].As<Napi::Boolean>().Value();
+        }
+        if (info.Length() > 6 && info[6].IsBoolean()) {
+            useMacOSDefaults = info[6].As<Napi::Boolean>().Value();
+        }
+        if (info.Length() > 7 && info[7].IsNumber()) {
+            framerate = info[7].As<Napi::Number>().Int32Value();
         }
         
         Napi::ThreadSafeFunction tsfn = Napi::ThreadSafeFunction::New(
@@ -756,7 +823,7 @@ private:
         NSString* path = [NSString stringWithUTF8String:outputPath.c_str()];
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            [recorder startRecordingDisplay:displayID outputPath:path onlySelf:onlySelf lowMemory:lowMemory completion:^(NSError *error) {
+            [recorder startRecordingDisplay:displayID outputPath:path sourceRect:CGRectNull onlySelf:onlySelf includeAppWindows:includeAppWindows lowMemory:lowMemory useMacOSDefaults:useMacOSDefaults framerate:framerate completion:^(NSError *error) {
                 auto callback = [error](Napi::Env env, Napi::Function jsCallback) {
                     if (error) {
                         jsCallback.Call({Napi::Error::New(env, [[error localizedDescription] UTF8String]).Value()});
@@ -780,11 +847,11 @@ private:
             return env.Undefined();
         }
         
-        // Args: displayID, outputPath, x, y, width, height, callback, [onlySelf], [lowMemory], [includeAppWindows]
+        // Args: displayID, outputPath, x, y, width, height, callback, [onlySelf], [lowMemory], [includeAppWindows], [useMacOSDefaults], [framerate]
         if (info.Length() < 7 || !info[0].IsNumber() || !info[1].IsString() || 
             !info[2].IsNumber() || !info[3].IsNumber() || !info[4].IsNumber() || 
             !info[5].IsNumber() || !info[6].IsFunction()) {
-            Napi::TypeError::New(env, "Expected (displayID: number, outputPath: string, x: number, y: number, width: number, height: number, callback: function, [onlySelf: boolean], [lowMemory: boolean], [includeAppWindows: boolean])")
+            Napi::TypeError::New(env, "Expected (displayID: number, outputPath: string, x: number, y: number, width: number, height: number, callback: function, [onlySelf: boolean], [lowMemory: boolean], [includeAppWindows: boolean], [useMacOSDefaults: boolean], [framerate: number])")
                 .ThrowAsJavaScriptException();
             return env.Undefined();
         }
@@ -800,6 +867,8 @@ private:
         BOOL onlySelf = NO;
         BOOL lowMemory = NO;
         BOOL includeAppWindows = NO;
+        BOOL useMacOSDefaults = YES;
+        int framerate = 60;
         if (info.Length() > 7 && info[7].IsBoolean()) {
             onlySelf = info[7].As<Napi::Boolean>().Value();
         }
@@ -808,6 +877,12 @@ private:
         }
         if (info.Length() > 9 && info[9].IsBoolean()) {
             includeAppWindows = info[9].As<Napi::Boolean>().Value();
+        }
+        if (info.Length() > 10 && info[10].IsBoolean()) {
+            useMacOSDefaults = info[10].As<Napi::Boolean>().Value();
+        }
+        if (info.Length() > 11 && info[11].IsNumber()) {
+            framerate = info[11].As<Napi::Number>().Int32Value();
         }
         
         Napi::ThreadSafeFunction tsfn = Napi::ThreadSafeFunction::New(
@@ -822,7 +897,7 @@ private:
         CGRect sourceRect = CGRectMake(x, y, width, height);
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            [recorder startRecordingDisplay:displayID outputPath:path sourceRect:sourceRect onlySelf:onlySelf includeAppWindows:includeAppWindows lowMemory:lowMemory completion:^(NSError *error) {
+            [recorder startRecordingDisplay:displayID outputPath:path sourceRect:sourceRect onlySelf:onlySelf includeAppWindows:includeAppWindows lowMemory:lowMemory useMacOSDefaults:useMacOSDefaults framerate:framerate completion:^(NSError *error) {
                 auto callback = [error](Napi::Env env, Napi::Function jsCallback) {
                     if (error) {
                         jsCallback.Call({Napi::Error::New(env, [[error localizedDescription] UTF8String]).Value()});
@@ -846,9 +921,9 @@ private:
             return env.Undefined();
         }
         
-        // Args: windowID, outputPath, callback, [lowMemory]
+        // Args: windowID, outputPath, callback, [lowMemory], [useMacOSDefaults], [framerate]
         if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsString() || !info[2].IsFunction()) {
-            Napi::TypeError::New(env, "Expected (windowID: number, outputPath: string, callback: function, [lowMemory: boolean])")
+            Napi::TypeError::New(env, "Expected (windowID: number, outputPath: string, callback: function, [lowMemory: boolean], [useMacOSDefaults: boolean], [framerate: number])")
                 .ThrowAsJavaScriptException();
             return env.Undefined();
         }
@@ -866,12 +941,20 @@ private:
         NSString* path = [NSString stringWithUTF8String:outputPath.c_str()];
         
         BOOL lowMemory = NO;
+        BOOL useMacOSDefaults = YES;
+        int framerate = 60;
         if (info.Length() > 3 && info[3].IsBoolean()) {
             lowMemory = info[3].As<Napi::Boolean>().Value();
         }
+        if (info.Length() > 4 && info[4].IsBoolean()) {
+            useMacOSDefaults = info[4].As<Napi::Boolean>().Value();
+        }
+        if (info.Length() > 5 && info[5].IsNumber()) {
+            framerate = info[5].As<Napi::Number>().Int32Value();
+        }
 
         dispatch_async(dispatch_get_main_queue(), ^{
-            [recorder startRecordingWindow:windowID outputPath:path lowMemory:lowMemory completion:^(NSError *error) {
+            [recorder startRecordingWindow:windowID outputPath:path lowMemory:lowMemory useMacOSDefaults:useMacOSDefaults framerate:framerate completion:^(NSError *error) {
                 auto callback = [error](Napi::Env env, Napi::Function jsCallback) {
                     if (error) {
                         jsCallback.Call({Napi::Error::New(env, [[error localizedDescription] UTF8String]).Value()});

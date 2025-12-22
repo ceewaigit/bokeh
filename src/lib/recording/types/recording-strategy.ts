@@ -30,6 +30,10 @@ export interface RecordingConfig {
   includeAppWindows?: boolean
   /** Reduce encoder buffering to lower memory usage */
   lowMemoryEncoder?: boolean
+  /** Match macOS recorder defaults (codec/pixel format/realtime) */
+  useMacOSDefaults?: boolean
+  /** Target capture framerate */
+  framerate?: number
 }
 
 /**

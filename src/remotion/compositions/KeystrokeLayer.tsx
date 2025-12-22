@@ -53,6 +53,8 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
   const lastDrawRectRef = useRef<KeystrokeDrawRect | null>(null);
   // Track settings version to force re-render when they change
   const settingsVersionRef = useRef(0);
+  // Use fixed DPR of 2 for crisp rendering regardless of source
+  const dpr = 2;
 
   const shouldRender = !!activeEffect && keystrokeEvents.length > 0;
 
@@ -65,6 +67,7 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
 
     // Always create a fresh renderer when settings change to ensure they're applied
     rendererRef.current = new KeystrokeRenderer(settings);
+    rendererRef.current.setDPR(dpr);
     settingsVersionRef.current++;
 
     if (canvasRef.current) {
@@ -72,7 +75,7 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     }
 
     rendererRef.current.setKeyboardEvents(keystrokeEvents);
-  }, [shouldRender, settings, keystrokeEvents]);
+  }, [shouldRender, settings, keystrokeEvents, dpr]);
 
   // Render keystrokes
   useEffect(() => {
@@ -103,13 +106,13 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
       <canvas
         ref={canvasRef}
-        width={width}
-        height={height}
+        width={width * dpr}
+        height={height * dpr}
         style={{
           width: '100%',
           height: '100%',
           pointerEvents: 'none',
-          // Force GPU compositing for potentially crisper rendering
+          // Force GPU compositing for crisp rendering
           transform: 'translateZ(0)',
           willChange: 'transform',
           backfaceVisibility: 'hidden',

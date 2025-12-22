@@ -38,7 +38,8 @@ const defaultSettings: RecordingSettings = {
   format: ExportFormat.WEBM,
   sourceId: undefined,
   includeAppWindows: false,
-  lowMemoryEncoder: true
+  lowMemoryEncoder: false,
+  useMacOSDefaults: true
 }
 
 export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({

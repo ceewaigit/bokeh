@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react'
-import { Magnet, Activity, ArrowRightLeft, Clock, Info, RefreshCw, AlertTriangle, ChevronRight } from 'lucide-react'
+import React, { useState } from 'react'
+import { Info, RefreshCw, AlertTriangle, ChevronRight } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { useProjectStore } from '@/stores/project-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
@@ -296,47 +295,6 @@ export function EditingSection() {
                 </p>
             </div>
 
-            {/* High-Quality Playback */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Label htmlFor="high-quality-playback" className="text-xs text-muted-foreground">
-                        High-Quality Playback
-                    </Label>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="left">Plays full-resolution video during playback when needed for sharp zoom. Uses more memory.</TooltipContent>
-                    </Tooltip>
-                </div>
-                <Switch
-                    id="high-quality-playback"
-                    checked={useWorkspaceStore((s) => s.isHighQualityPlaybackEnabled)}
-                    onCheckedChange={(c) => useWorkspaceStore.getState().setHighQualityPlaybackEnabled(c)}
-                    className="scale-75 origin-right"
-                />
-            </div>
-
-            {/* Glow Effect Toggle - for memory testing */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Label htmlFor="glow-effect" className="text-xs text-muted-foreground">
-                        Ambient Glow
-                    </Label>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="left">Adds a soft glow behind the video. Uses more computer memory.</TooltipContent>
-                    </Tooltip>
-                </div>
-                <Switch
-                    id="glow-effect"
-                    checked={useWorkspaceStore((s) => s.isGlowEnabled)}
-                    onCheckedChange={(c) => useWorkspaceStore.getState().setGlowEnabled(c)}
-                    className="scale-75 origin-right"
-                />
-            </div>
         </div>
     )
 }

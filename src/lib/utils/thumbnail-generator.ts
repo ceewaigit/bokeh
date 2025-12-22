@@ -25,8 +25,8 @@ export class ThumbnailGenerator {
   // Keep thumbnails cached for fast navigation - they're small (~25KB each)
   private static readonly MAX_CACHE_SIZE = 50
 
-  // Video element pool - 4 concurrent decoders for fast thumbnail generation
-  private static readonly POOL_SIZE = 4
+  // Video element pool - 2 concurrent decoders (reduced from 4 to save memory)
+  private static readonly POOL_SIZE = 2
   private static videoPool: PooledVideo[] = []
   private static poolInitialized = false
   private static pendingRequests: Array<() => void> = []
@@ -217,26 +217,7 @@ export class ThumbnailGenerator {
         finish(null)
       }
 
-      // Get video URL from Electron API
-      try {
-        if (!window.electronAPI?.getVideoUrl) {
-          handleError()
-          return
-        }
-
-        const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
-        if (!videoUrl) {
-          handleError()
-          return
-        }
-
-        video.src = videoUrl
-      } catch (error) {
-        handleError()
-        return
-      }
-
-      // One-time event listeners for this specific operation
+      // One-time event listeners - MUST be added before loading
       const onMetadata = () => {
         const seekTime = this.resolveSeekTime(video.duration, timestamp)
         video.currentTime = seekTime
@@ -285,13 +266,35 @@ export class ThumbnailGenerator {
         handleError()
       }
 
-      // Add listeners
-      video.addEventListener('loadedmetadata', onMetadata, { once: true })
-      video.addEventListener('seeked', onSeeked, { once: true })
-      video.addEventListener('error', onError, { once: true })
+      // Get video URL from Electron API
+      try {
+        if (!window.electronAPI?.getVideoUrl) {
+          handleError()
+          return
+        }
 
-      // Start loading only metadata
-      video.load()
+        const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
+        if (!videoUrl) {
+          handleError()
+          return
+        }
+
+        // CRITICAL: Clear any existing src first
+        video.removeAttribute('src')
+        video.load() // Force decoder release
+
+        // Add listeners BEFORE setting src to avoid race condition
+        video.addEventListener('loadedmetadata', onMetadata, { once: true })
+        video.addEventListener('seeked', onSeeked, { once: true })
+        video.addEventListener('error', onError, { once: true })
+
+        // Now set src and trigger load
+        video.src = videoUrl
+        video.load()
+      } catch (error) {
+        handleError()
+        return
+      }
 
       // Timeout after 5 seconds to prevent hanging the pool
       setTimeout(() => {

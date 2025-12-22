@@ -28,6 +28,7 @@ export interface RecordingSettings {
   onlySelf?: boolean // Only record the application's own windows
   includeAppWindows?: boolean // Keep app windows visible during recording
   lowMemoryEncoder?: boolean // Reduce encoder buffering to lower memory usage
+  useMacOSDefaults?: boolean // Use hardware-friendly encoder settings (HEVC + YUV + realtime)
 }
 
 // Re-export from project.ts
