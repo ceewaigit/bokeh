@@ -26,6 +26,7 @@ export class KeystrokeRenderer {
   private keyHistory: KeyboardEvent[] = []
   private segments: KeystrokeSegment[] = []
   private options: Required<KeystrokeEffectData>
+  private dpr: number = 1  // Device pixel ratio for Retina support
 
   constructor(initialOptions: KeystrokeEffectData = {}) {
     this.options = {
@@ -44,6 +45,14 @@ export class KeystrokeRenderer {
   setCanvas(canvas: HTMLCanvasElement) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
+  }
+
+  /**
+   * Set the device pixel ratio for Retina display support.
+   * When set, the renderer will apply a scale transform for crisp rendering.
+   */
+  setDPR(dpr: number) {
+    this.dpr = dpr
   }
 
   setKeyboardEvents(events: KeyboardEvent[]) {
@@ -145,9 +154,16 @@ export class KeystrokeRenderer {
   render(timestamp: number, videoWidth: number, videoHeight: number): KeystrokeDrawRect | null {
     if (!this.canvas || !this.ctx || this.segments.length === 0) return null
 
+    const ctx = this.ctx
     const displayDuration = this.options.displayDuration || 2000
     const fadeOutDuration = this.options.fadeOutDuration || 400
     const fadeInDuration = 120
+
+    // Apply DPR scale transform for crisp Retina rendering
+    // This must be done before any drawing operations
+    if (this.dpr !== 1) {
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    }
 
     let activeSegment: KeystrokeSegment | null = null
     let displayText: string | null = null

@@ -26,6 +26,7 @@ export const getTimelineColors = () => {
   }
 
   return {
+    isDark: document.documentElement.classList.contains('dark'),
     // Background colors
     background: getCSSVar('--background'),
     foreground: getCSSVar('--foreground'),
@@ -70,6 +71,7 @@ export const getTimelineColors = () => {
 
 // Default colors for SSR/fallback
 const getDefaultColors = () => ({
+  isDark: true,
   background: 'hsl(240, 10%, 3.9%)',
   foreground: 'hsl(0, 0%, 98%)',
   card: 'hsl(240, 10%, 3.9%)',

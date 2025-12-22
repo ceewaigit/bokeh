@@ -51,6 +51,13 @@ export class RecordingStorage {
   // Public: store metadata in memory with LRU eviction
   static setMetadata(recordingId: string, metadata: any): void {
     try {
+      const safeMetadata = (() => {
+        if (!metadata || typeof metadata !== 'object') return metadata
+        if (Object.isExtensible(metadata)) return metadata
+        if (Array.isArray(metadata)) return [...metadata]
+        return { ...(metadata as Record<string, unknown>) }
+      })()
+
       // LRU management
       if (this.metadataCache.has(recordingId)) {
         // Move to end (most recently used)
@@ -64,7 +71,7 @@ export class RecordingStorage {
         }
       }
       this.metadataCacheOrder.push(recordingId)
-      this.metadataCache.set(recordingId, metadata)
+      this.metadataCache.set(recordingId, safeMetadata)
       logger.debug(`Cached metadata for recording ${recordingId} (${this.metadataCacheOrder.length}/${this.MAX_METADATA_CACHE_SIZE})`)
     } catch (error) {
       logger.error(`Failed to cache metadata for recording ${recordingId}:`, error)

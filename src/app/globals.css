@@ -84,10 +84,10 @@
   --ring: 221.2 83.2% 53.3%;
 
   /* App specific colors */
-  --timeline-bg: 220 13% 18%;
-  --timeline-track: 220 13% 22%;
-  --timeline-ruler: 220 13% 14%;
-  --timeline-playhead: 221.2 83.2% 53.3%;
+  --timeline-bg: 220 20% 97%;
+  --timeline-track: 220 18% 92%;
+  --timeline-ruler: 220 20% 94%;
+  --timeline-playhead: 263 70% 55%;
   --recording-active: 0 84.2% 60.2%;
   --recording-inactive: 215.4 16.3% 46.9%;
 }

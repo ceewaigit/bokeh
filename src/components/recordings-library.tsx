@@ -678,7 +678,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
             </div>
             <HeaderButton
               variant="outline"
-              className="bg-muted/20 hover:bg-muted/40 border border-border/40"
+              className="shadow-sm"
               onClick={() => loadRecordings(true)}
               tooltip="Refresh Library"
               icon={RefreshCw}
@@ -706,7 +706,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
             </HeaderButton>
             <HeaderButton
               variant="outline"
-              className="bg-muted/20 hover:bg-muted/40 border border-border/40"
+              className="shadow-sm"
               onClick={() => setSettingsOpen(true)}
               tooltip="Settings"
               icon={Settings2}

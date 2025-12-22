@@ -248,7 +248,16 @@ export class EffectGenerationService {
 
         // Regenerate effects for each recording
         for (const recording of project.recordings) {
-            const effectiveMetadata = metadataByRecordingId?.get(recording.id) ?? recording.metadata
+            const metadataFromMap = metadataByRecordingId?.get(recording.id)
+            let effectiveMetadata = metadataFromMap ?? recording.metadata
+            if (effectiveMetadata && !Object.isExtensible(effectiveMetadata)) {
+                effectiveMetadata = { ...(effectiveMetadata as Record<string, unknown>) } as any
+                if (metadataFromMap) {
+                    metadataByRecordingId?.set(recording.id, effectiveMetadata)
+                } else if (recording.metadata) {
+                    recording.metadata = effectiveMetadata
+                }
+            }
             // Clear cached idle periods so they get re-detected with new config
             if (effectiveMetadata) {
                 delete effectiveMetadata.detectedIdlePeriods

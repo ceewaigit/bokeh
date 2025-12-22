@@ -120,7 +120,9 @@ export function RecordButtonDock() {
 
       const filteredSources = mappedSources.filter(source => {
         const n = source.name.toLowerCase()
-        return !n.includes('dock') && !n.includes('menubar') && !n.includes('notification') && !n.includes('bokeh')
+        if (n.includes('dock') || n.includes('menubar') || n.includes('notification')) return false
+        if (!includeAppWindows && n.includes('bokeh')) return false
+        return true
       })
 
       const allSources: Source[] = [
@@ -134,7 +136,7 @@ export function RecordButtonDock() {
     } catch (error) {
       logger.error('Failed to load sources:', error)
     }
-  }, [])
+  }, [includeAppWindows])
 
   useEffect(() => { loadSources() }, [loadSources])
   useEffect(() => { updateSettings({ audioInput: audioEnabled ? AudioInput.System : AudioInput.None }) }, [audioEnabled, updateSettings])
@@ -415,9 +417,9 @@ export function RecordButtonDock() {
                           ? "bg-blue-500/20 border-blue-500/50 text-blue-200"
                           : "bg-transparent border-white/10 text-white/40 hover:text-white/70"
                       )}
-                      title="Keep Screenstudio windows visible during recording"
+                      title="Show Bokeh windows in the list"
                     >
-                      Include App Windows
+                      Own App Window
                     </button>
 
                     {/* Hide Desktop Toggle */}

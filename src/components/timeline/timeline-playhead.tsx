@@ -189,7 +189,7 @@ export const TimelinePlayhead = React.memo(({
           fontSize={11}
           fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display'"
           fontStyle="600"
-          fill="white"
+          fill={colors.primaryForeground}
           align="center"
           listening={false}
         />
@@ -217,6 +217,9 @@ export const TimelinePlayhead = React.memo(({
         // Let's keep it simple: it appears when active.
         if (!isActive) return null
 
+        // Using primary/foreground based colors for grip dots to ensure visibility on all backgrounds
+        const dotFill = colors.isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.8)'
+
         return (
           <Group listening={false}>
             <Rect
@@ -232,19 +235,19 @@ export const TimelinePlayhead = React.memo(({
               x={0}
               y={gripY + gripHeight / 2 - gripDotSpacing}
               radius={gripDotRadius}
-              fill="rgba(0,0,0,0.35)"
+              fill={dotFill}
             />
             <Circle
               x={0}
               y={gripY + gripHeight / 2}
               radius={gripDotRadius}
-              fill="rgba(0,0,0,0.35)"
+              fill={dotFill}
             />
             <Circle
               x={0}
               y={gripY + gripHeight / 2 + gripDotSpacing}
               radius={gripDotRadius}
-              fill="rgba(0,0,0,0.35)"
+              fill={dotFill}
             />
           </Group>
         );

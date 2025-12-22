@@ -22,6 +22,7 @@ import { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 import { globalBlobManager } from '@/lib/security/blob-url-manager';
 import { CropOverlay } from '@/components/crop-overlay/CropOverlay';
+import { useTheme } from '@/contexts/theme-context';
 import type { CropEffectData, Recording } from '@/types/project';
 type VideoPositionMessagePayload = {
   offsetX: number;
@@ -46,14 +47,29 @@ const GLOW_CONFIG = {
   height: 36,
   // Glow extends beyond video for elegant spread
   spread: 50,
-  // Softer blur for smooth edges
-  blur: 50,
-  // More visible but still subtle
-  opacity: 0.35,
-  // Gentle brightness
-  brightness: 0.55,
-  // Rich saturation for vibrant colors
-  saturation: 1.4,
+};
+
+const GLOW_VISUALS = {
+  dark: {
+    // Softer blur for smooth edges
+    blur: 50,
+    // More visible but still subtle
+    opacity: 0.35,
+    // Gentle brightness
+    brightness: 0.55,
+    // Rich saturation for vibrant colors
+    saturation: 1.4,
+  },
+  light: {
+    // Slightly larger blur for airy glow on light surfaces
+    blur: 70,
+    // Lower opacity to avoid muddy halos
+    opacity: 0.18,
+    // Lift brightness so glow reads on white
+    brightness: 1.1,
+    // Gentle saturation to avoid neon on light mode
+    saturation: 1.1,
+  }
 };
 
 // Scrub throttle configuration (reduces video decode pressure)
@@ -124,6 +140,8 @@ export function PreviewAreaRemotion({
   const cameraSettings = useProjectStore((s) => s.settings.camera);
   const isHighQualityPlaybackEnabled = useWorkspaceStore((s) => s.isHighQualityPlaybackEnabled);
   const isGlowEnabled = useWorkspaceStore((s) => s.isGlowEnabled);
+  const { resolvedTheme } = useTheme();
+  const glowVisuals = resolvedTheme === 'light' ? GLOW_VISUALS.light : GLOW_VISUALS.dark;
 
   // Calculate timeline metadata (total duration, fps, dimensions)
   const timelineMetadata = useTimelineMetadata(project);
@@ -137,7 +155,8 @@ export function PreviewAreaRemotion({
     cameraSettings
   );
 
-  // Calculate composition size for preview (720p default for performance)
+  // Calculate composition size for preview
+  // On Retina displays (DPR >= 2), use higher resolution for crisp keystroke rendering
   const compositionSize = useMemo(() => {
     if (!timelineMetadata) return { width: 1280, height: 720 };
 
@@ -145,8 +164,11 @@ export function PreviewAreaRemotion({
     const videoHeight = timelineMetadata.height;
     const videoAspectRatio = videoWidth / videoHeight;
 
-    const maxWidth = 1280;
-    const maxHeight = 720;
+    // Scale up max dimensions on Retina displays for crisp text/UI rendering
+    // Use 4K max to reduce blur on keystrokes and other UI overlays
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    const maxWidth = dpr >= 2 ? 3840 : 1920;
+    const maxHeight = dpr >= 2 ? 2160 : 1080;
 
     const scaleByWidth = maxWidth / videoWidth;
     const scaleByHeight = maxHeight / videoHeight;
@@ -696,12 +718,13 @@ export function PreviewAreaRemotion({
                   width: `calc(100% + ${GLOW_CONFIG.spread * 2}px)`,
                   height: `calc(100% + ${GLOW_CONFIG.spread * 2}px)`,
                   transform: 'translate(-50%, -50%) translateZ(0)',
-                  filter: `blur(${GLOW_CONFIG.blur}px) brightness(${GLOW_CONFIG.brightness}) saturate(${GLOW_CONFIG.saturation})`,
-                  opacity: GLOW_CONFIG.opacity,
+                  filter: `blur(${glowVisuals.blur}px) brightness(${glowVisuals.brightness}) saturate(${glowVisuals.saturation})`,
+                  opacity: glowVisuals.opacity,
                   zIndex: 0,
                   borderRadius: 32,
                   overflow: 'hidden',
                   pointerEvents: 'none',
+                  mixBlendMode: resolvedTheme === 'light' ? 'screen' : 'normal',
                 }}
               >
                 <Player

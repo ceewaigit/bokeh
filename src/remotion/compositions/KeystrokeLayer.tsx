@@ -74,7 +74,7 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     rendererRef.current.setKeyboardEvents(keystrokeEvents);
   }, [shouldRender, settings, keystrokeEvents]);
 
-  // Render keystrokes - includes settingsVersionRef to force re-render
+  // Render keystrokes
   useEffect(() => {
     if (!shouldRender) return;
     if (!canvasRef.current || !rendererRef.current) return;
@@ -83,7 +83,6 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     if (!ctx) return;
 
     // Clear only the region we drew last frame instead of the full canvas.
-    // Full-canvas clears at 1080p can be surprisingly expensive during preview playback.
     const prev = lastDrawRectRef.current;
     if (prev) {
       ctx.clearRect(prev.x, prev.y, prev.width, prev.height);
@@ -109,9 +108,14 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
         style={{
           width: '100%',
           height: '100%',
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          // Force GPU compositing for potentially crisper rendering
+          transform: 'translateZ(0)',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
         }}
       />
     </AbsoluteFill>
   );
 };
+

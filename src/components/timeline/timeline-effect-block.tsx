@@ -59,6 +59,7 @@ export const TimelineEffectBlock = React.memo(({
   onUpdate
 }: TimelineEffectBlockProps) => {
   const colors = useTimelineColors()
+  const isDarkMode = colors.isDark
   const [isDragging, setIsDragging] = useState(false)
   const [isTransforming, setIsTransforming] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
@@ -67,6 +68,54 @@ export const TimelineEffectBlock = React.memo(({
   const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const baseStroke = fillColor || colors.zoomBlock
+  const handleWidth = 6
+  const handleHeight = 14
+
+  // Helper to apply alpha to token colors (which might be simple strings or hsl(a))
+  const withAlpha = (color: string, alpha: number): string => {
+    if (!color) return ''
+    if (color.startsWith('hsla') || color.startsWith('rgba')) return color
+
+    // Handle HSL format
+    if (color.startsWith('hsl(')) {
+      // Remove 'hsl(' and ')'
+      let content = color.substring(4, color.length - 1)
+
+      // If modern space-separated syntax, convert to comma-separated
+      if (!content.includes(',')) {
+        content = content.replace(/\s+/g, ', ')
+      }
+
+      return `hsla(${content}, ${alpha})`
+    }
+
+    // Handle RGB format
+    if (color.startsWith('rgb(')) {
+      let content = color.substring(4, color.length - 1)
+      // If modern space-separated syntax, convert to comma-separated
+      if (!content.includes(',')) {
+        content = content.replace(/\s+/g, ', ')
+      }
+      return `rgba(${content}, ${alpha})`
+    }
+
+    return color
+  }
+
+  // Define colors using tokens
+  const lightFill = withAlpha(baseStroke, isSelected ? 0.16 : 0.08)
+  const darkFill = withAlpha(baseStroke, isSelected ? 0.25 : 0.15)
+  const blockFill = isDarkMode ? darkFill : lightFill
+
+  const labelFill = isEnabled
+    ? colors.foreground
+    : withAlpha(colors.foreground, 0.5)
+
+  const curveStroke = withAlpha(colors.foreground, isEnabled ? (isDarkMode ? 0.9 : 0.7) : 0.35)
+
+  const handleFill = colors.foreground // handles usually contrast well against block fill or bg
+  const labelShadowColor = isDarkMode ? colors.background : colors.background // Shadow usually opposite or bg color
 
   // Debounced hover handlers to prevent flickering when moving between Group and Transformer
   const handleMouseEnter = () => {
@@ -112,12 +161,12 @@ export const TimelineEffectBlock = React.memo(({
       new Konva.Tween({
         node,
         duration: 0.1,
-        x: -currentWidth * 0.01,
-        y: -height * 0.01,
-        scaleX: 1.02,
-        scaleY: 1.02,
-        shadowBlur: 12,
-        shadowOpacity: 0.3,
+        x: 0,
+        y: 0,
+        scaleX: 1,
+        scaleY: 1,
+        shadowBlur: 10,
+        shadowOpacity: 0.28,
         easing: Konva.Easings.EaseOut
       }).play()
     } else {
@@ -307,12 +356,12 @@ export const TimelineEffectBlock = React.memo(({
           y={0}
           width={currentWidth}
           height={height}
-          fill={isSelected ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.5)"}
-          stroke={fillColor || colors.zoomBlock || '#3B82F6'}
+          fill={blockFill}
+          stroke={baseStroke}
           strokeWidth={isSelected ? 2.5 : 2}
           cornerRadius={10}
           opacity={!isEnabled ? 0.35 : (isDragging ? 0.85 : 1)}
-          shadowColor={isSelected ? (fillColor || colors.zoomBlock || '#3B82F6') : undefined}
+          shadowColor={isSelected ? baseStroke : undefined}
           shadowBlur={isSelected ? 8 : 0}
           shadowOpacity={isSelected ? 0.25 : 0}
           listening={true}
@@ -329,7 +378,12 @@ export const TimelineEffectBlock = React.memo(({
               height={(height - 4) / 2}
               fillLinearGradientStartPoint={{ x: 0, y: 0 }}
               fillLinearGradientEndPoint={{ x: 0, y: (height - 4) / 2 }}
-              fillLinearGradientColorStops={[0, 'rgba(255,255,255,0.06)', 1, 'rgba(255,255,255,0)']}
+              fillLinearGradientColorStops={[
+                0,
+                withAlpha(colors.foreground, 0.1),
+                1,
+                withAlpha(colors.foreground, 0)
+              ]}
               cornerRadius={[8, 8, 0, 0]}
               listening={false}
             />
@@ -340,21 +394,21 @@ export const TimelineEffectBlock = React.memo(({
         {(isHovering || isSelected) && (
           <>
             <Rect
-              x={4}
-              y={height / 2 - 6}
-              width={4}
-              height={12}
-              fill="white"
-              cornerRadius={2}
+              x={-handleWidth / 2}
+              y={height / 2 - handleHeight / 2}
+              width={handleWidth}
+              height={handleHeight}
+              fill={handleFill}
+              cornerRadius={Math.min(handleWidth / 2, 3)}
               listening={false}
             />
             <Rect
-              x={currentWidth - 8}
-              y={height / 2 - 6}
-              width={4}
-              height={12}
-              fill="white"
-              cornerRadius={2}
+              x={currentWidth - handleWidth / 2}
+              y={height / 2 - handleHeight / 2}
+              width={handleWidth}
+              height={handleHeight}
+              fill={handleFill}
+              cornerRadius={Math.min(handleWidth / 2, 3)}
               listening={false}
             />
           </>
@@ -365,7 +419,7 @@ export const TimelineEffectBlock = React.memo(({
           <>
             <Line
               points={curvePoints}
-              stroke={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "rgba(255, 255, 255, 0.9)"}
+              stroke={curveStroke}
               strokeWidth={2}
               lineCap="round"
               lineJoin="round"
@@ -381,14 +435,14 @@ export const TimelineEffectBlock = React.memo(({
             y={isCompact ? height / 2 - 5 : 8}
             text={label}
             fontSize={isCompact ? 10 : 11}
-            fill={!isEnabled ? "rgba(255, 255, 255, 0.5)" : "white"}
+            fill={labelFill}
             fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
             fontStyle="600"
             align={isCompact ? "center" : "left"}
             offsetX={isCompact ? (label.length * 3) : 0}
-            shadowColor="black"
-            shadowBlur={4}
-            shadowOpacity={0.4}
+            shadowColor={labelShadowColor}
+            shadowBlur={isDarkMode ? 4 : 2}
+            shadowOpacity={isDarkMode ? 0.4 : 0.2}
             listening={false}
           />
         )}
@@ -418,7 +472,7 @@ export const TimelineEffectBlock = React.memo(({
         anchorFill="transparent"
         anchorStroke="transparent"
         anchorStrokeWidth={0}
-        anchorSize={32}
+        anchorSize={28}
         anchorCornerRadius={0}
         keepRatio={false}
         ignoreStroke={true}

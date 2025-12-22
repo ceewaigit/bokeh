@@ -120,9 +120,14 @@ export class EffectsFactory {
       project.timeline.effects.push(this.createDefaultCursorEffect())
     }
 
-    // Keep keystroke effects aligned with the current clip layout (trim/split/speed changes).
-    // Also detects and replaces old-style global keystroke effects.
-    this.syncKeystrokeEffects(project)
+    // Only generate keystroke effects if none exist yet.
+    // This avoids overwriting user-tuned keystroke settings on project load.
+    const hasKeystrokes = project.timeline.effects.some(e => e.type === EffectType.Keystroke)
+    if (!hasKeystrokes) {
+      // Keep keystroke effects aligned with the current clip layout (trim/split/speed changes).
+      // Also detects and replaces old-style global keystroke effects.
+      this.syncKeystrokeEffects(project)
+    }
   }
 
   /**
@@ -150,6 +155,13 @@ export class EffectsFactory {
     const MIN_DURATION_MS = 100
 
     const existingKeystrokes = project.timeline.effects.filter(e => e.type === EffectType.Keystroke)
+    const hasAnyLoadedMetadata = Boolean(metadataByRecordingId && metadataByRecordingId.size > 0) ||
+      (project.recordings || []).some(r => r.metadata && Object.prototype.hasOwnProperty.call(r.metadata, 'keyboardEvents'))
+
+    // If metadata isn't loaded yet, keep existing managed keystrokes to avoid resetting user settings.
+    if (!hasAnyLoadedMetadata && existingKeystrokes.length > 0) {
+      return
+    }
 
     const isOldStyleGlobalEffect = (e: Effect): boolean => {
       return e.type === EffectType.Keystroke &&
