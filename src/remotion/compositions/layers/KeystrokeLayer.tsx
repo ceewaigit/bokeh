@@ -3,9 +3,9 @@ import { AbsoluteFill, useVideoConfig, useCurrentFrame } from 'remotion';
 import { KeystrokeRenderer, type KeystrokeDrawRect } from '@/lib/effects/keystroke-renderer';
 import type { KeystrokeEffectData } from '@/types/project';
 import type { KeystrokeLayerProps } from '@/types';
-import { useClipContext } from '../context/ClipContext';
-import { useSourceTime } from '../hooks/useTimeCoordinates';
-import { useTimeContext } from '../context/TimeContext';
+import { useClipContext } from '../../context/ClipContext';
+import { useSourceTime } from '../../hooks/useTimeCoordinates';
+import { useTimeContext } from '../../context/TimeContext';
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects';
 
 export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({

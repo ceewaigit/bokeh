@@ -7,16 +7,16 @@ import {
   CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
   getCursorImagePath
-} from '../../lib/effects/cursor-types';
-import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../../lib/effects/utils/cursor-calculator';
-import { normalizeClickEvents, normalizeMouseEvents } from './utils/event-normalizer';
-import { useVideoPosition } from '../context/VideoPositionContext';
-import { useTimeContext } from '../context/TimeContext';
+} from '../../../lib/effects/cursor-types';
+import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../../../lib/effects/utils/cursor-calculator';
+import { normalizeClickEvents, normalizeMouseEvents } from '../utils/event-normalizer';
+import { useVideoPosition } from '../../context/VideoPositionContext';
+import { useTimeContext } from '../../context/TimeContext';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
-import { applyCssTransformToPoint } from './utils/transform-point';
+import { applyCssTransformToPoint } from '../utils/transform-point';
 import { buildFrameLayout } from '@/lib/timeline/frame-layout';
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
-import { useRecordingMetadata } from '../hooks/useRecordingMetadata';
+import { useRecordingMetadata } from '../../hooks/useRecordingMetadata';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -86,12 +86,14 @@ class CursorImagePreloader {
   }
 }
 
-export const CursorLayer: React.FC<CursorLayerProps> = ({
+// MEMOIZATION: Prevent re-renders when parent (SharedVideoController) updates but props/context are stable.
+// This works with VideoPositionContext optimization to allow "static" cursor frames during video playback.
+export const CursorLayer = React.memo(({
   effects,
   videoWidth,
   videoHeight,
   metadataUrls,
-}) => {
+}: CursorLayerProps) => {
   const { fps, clips, getRecording } = useTimeContext();
   const { isRendering } = getRemotionEnvironment();
 
@@ -769,4 +771,4 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       )}
     </AbsoluteFill>
   );
-};
+});

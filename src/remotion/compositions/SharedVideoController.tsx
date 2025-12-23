@@ -154,12 +154,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     return map;
   }, [frameLayout]);
 
-  /** Total composition duration in frames */
-  const totalDurationFrames = useMemo(() => {
-    if (frameLayout.length === 0) return 0;
-    return frameLayout[frameLayout.length - 1].endFrame;
-  }, [frameLayout]);
-
   // ==========================================================================
   // ACTIVE CLIP DETECTION
   // ==========================================================================
@@ -853,7 +847,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const effectiveDrawWidth = mockupEnabled && mockupPosition ? mockupPosition.videoWidth : drawWidth;
   const effectiveDrawHeight = mockupEnabled && mockupPosition ? mockupPosition.videoHeight : drawHeight;
 
-  const videoPositionValue = {
+  // MEMOIZATION: Prevent context value from updating every frame unless transform actually changes.
+  // This is critical for preventing CursorLayer / MockupLayer re-renders during static playback.
+  const videoPositionValue = useMemo(() => ({
     offsetX: effectiveOffsetX,
     offsetY: effectiveOffsetY,
     drawWidth: effectiveDrawWidth,
@@ -866,7 +862,16 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     cameraMotionBlur: { enabled: hasMotionBlur, angle: motionBlur.angle, filterId: motionBlurFilterId },
     mockupEnabled,
     mockupPosition,
-  };
+  }), [
+    effectiveOffsetX, effectiveOffsetY, effectiveDrawWidth, effectiveDrawHeight,
+    // Decompose zoomTransform to primitives to ignore reference changes
+    zoomTransform?.scale, zoomTransform?.panX, zoomTransform?.panY, zoomTransform?.refocusBlur,
+    contentTransform, padding, activeSourceWidth, activeSourceHeight,
+    hasMotionBlur, motionBlur.angle, motionBlurFilterId,
+    mockupEnabled,
+    // Decompose mockupPosition to primitives
+    mockupPosition?.videoX, mockupPosition?.videoY, mockupPosition?.videoWidth, mockupPosition?.videoHeight
+  ]);
 
   // ==========================================================================
   // RENDER
@@ -895,7 +900,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               top: 0,
               width: '100%',
               height: '100%',
-              overflow: zoomTransform && zoomTransform.scale > 1.001 ? 'visible' : 'hidden',
+              // CRITICAL PERFORMANCE FIX: Always enforce overflow hidden.
+              // Previous logic enabled 'visible' during zoom, causing WindowServer to 
+              // allocate massive textures (e.g. 8000x8000) for zoomed content.
+              overflow: 'hidden',
               transform: `translate3d(0,0,0) ${combinedTransform}`,
               transformOrigin: '50% 50%',
               willChange: 'transform',
@@ -912,7 +920,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                   inset: 0,
                   overflow: 'hidden',
                   borderRadius: `${mockupPosition.screenCornerRadius}px`,
-                  filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01)
+                  // PERFORMANCE: Only apply refocus blur when paused, exporting, or if High Quality Playback is enabled
+                  filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01 && (isRendering || isHighQualityPlaybackEnabled || (!isPlaying && !isScrubbing)))
                     ? `blur(${(zoomTransform?.refocusBlur ?? 0) * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
                     : undefined,
                 }}>
@@ -1050,15 +1059,21 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             /* ========== NORMAL MODE RENDERING (no mockup) ========== */
             <div style={{
               position: 'absolute', left: offsetX, top: offsetY, width: drawWidth, height: drawHeight,
-              overflow: zoomTransform && zoomTransform.scale > 1.001 ? 'visible' : 'hidden',
+              // CRITICAL PERFORMANCE FIX: Always enforce overflow hidden.
+              // Prevents massive texture allocation during zoom (was 'visible' when scale > 1).
+              overflow: 'hidden',
               transform: `translate3d(0,0,0) ${combinedTransform}`,
-              transformOrigin: '50% 50%', filter: dropShadow || undefined,
+              transformOrigin: '50% 50%',
+              // PERFORMANCE: Only apply drop shadow when paused, exporting, or if High Quality Playback is enabled.
+              // During playback/scrubbing, the cost of recomposing large layers is too high unless user opts in.
+              filter: (isRendering || isHighQualityPlaybackEnabled || (!isPlaying && !isScrubbing)) ? (dropShadow || undefined) : undefined,
               willChange: 'transform, filter', backfaceVisibility: 'hidden' as const,
             }}>
               {/* Clipping container with corner radius and refocus blur */}
               <div style={{
                 position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: `${cornerRadius}px`,
-                filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01)
+                // PERFORMANCE: Only apply refocus blur when paused, exporting, or if High Quality Playback is enabled
+                filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01 && (isRendering || isHighQualityPlaybackEnabled || (!isPlaying && !isScrubbing)))
                   ? `blur(${(zoomTransform?.refocusBlur ?? 0) * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
                   : undefined,
                 transition: undefined, // No transition - must be frame-deterministic

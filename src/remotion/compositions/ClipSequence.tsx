@@ -14,8 +14,8 @@ import React from 'react';
 import { Sequence } from 'remotion';
 import type { ClipSequenceProps } from '@/types';
 import { ClipProvider, useClipContext } from '../context/ClipContext';
-import { BackgroundLayer } from './BackgroundLayer';
-import { KeystrokeLayer } from './KeystrokeLayer';
+import { BackgroundLayer } from './layers/BackgroundLayer';
+import { KeystrokeLayer } from './layers/KeystrokeLayer';
 
 /**
  * Inner component that renders layers - must be inside ClipProvider

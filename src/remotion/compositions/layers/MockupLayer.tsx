@@ -35,12 +35,12 @@ export interface MockupLayerProps {
  * content positioned within the device's screen region. The zoom transform is applied
  * by the parent component (SharedVideoController), so the entire mockup zooms as a unit.
  */
-export const MockupLayer: React.FC<MockupLayerProps> = ({
+export const MockupLayer = React.memo(({
   mockupData,
   mockupPosition,
   screenFillColor = '#000000',
   children
-}) => {
+}: MockupLayerProps) => {
   // Get device metadata
   const deviceMetadata = useMemo(() => {
     return resolveMockupMetadata(mockupData)
@@ -122,7 +122,7 @@ export const MockupLayer: React.FC<MockupLayerProps> = ({
       />
     </div>
   )
-}
+})
 
 /**
  * Device frame component that renders the SVG mockup.

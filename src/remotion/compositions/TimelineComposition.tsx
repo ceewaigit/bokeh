@@ -20,8 +20,8 @@ import { TimeProvider } from '../context/TimeContext';
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
 import { buildFrameLayout, findActiveFrameLayoutIndex, findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
-import { CursorLayer } from './CursorLayer';
-import { PluginLayer } from './PluginLayer';
+import { CursorLayer } from './layers/CursorLayer';
+import { PluginLayer } from './layers/PluginLayer';
 import { CropEditingLayer } from './layers/CropEditingLayer';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 

@@ -154,5 +154,15 @@ export function calculateCameraMotionBlur(params: {
     : blurCurrent;
 
   const zoomStrength = Math.max(0, Math.min(1, (renderData.zoomTransform.scale - 1) / 0.5));
-  return { ...rawBlur, blurRadius: rawBlur.blurRadius * zoomStrength };
+  const smoothBlur = rawBlur.blurRadius * zoomStrength;
+
+  // QUANTIZATION: Round to nearest 0.5px to reduce SVG filter updates and GPU thrashing
+  // WindowServer usage drops significantly when filter attributes are stable
+  const quantizedBlur = Math.round(smoothBlur * 2) / 2;
+
+  // Only update angle if blur is visible to avoid unnecessary rotations
+  const effectiveAngle = quantizedBlur > 0.5 ? rawBlur.angle : 0;
+  const effectiveVelocity = quantizedBlur > 0.5 ? rawBlur.velocity : 0;
+
+  return { ...rawBlur, blurRadius: quantizedBlur, angle: effectiveAngle, velocity: effectiveVelocity };
 }

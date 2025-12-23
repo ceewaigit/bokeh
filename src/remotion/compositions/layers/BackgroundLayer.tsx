@@ -3,7 +3,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { BackgroundEffectData } from '@/types/project';
 import type { BackgroundLayerProps } from '@/types';
 import { BackgroundType } from '@/types/project';
-import { useClipContext } from '../context/ClipContext';
+import { useClipContext } from '../../context/ClipContext';
 import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-interpolation';
 import { ParallaxBackgroundLayer } from './ParallaxBackgroundLayer';
 import { DEFAULT_PARALLAX_LAYERS } from '@/lib/constants/default-effects';
