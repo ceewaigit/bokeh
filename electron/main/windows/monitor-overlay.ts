@@ -4,16 +4,28 @@ import * as path from 'path'
 let overlayWindow: BrowserWindow | null = null
 let recordingOverlayWindow: BrowserWindow | null = null
 
+function resolveTargetDisplay(displayId?: number): Display {
+  const displays = screen.getAllDisplays()
+  if (typeof displayId === 'number') {
+    let target = displays.find(d => d.id === displayId)
+    if (!target) {
+      if (displayId >= 0 && displayId < displays.length) {
+        target = displays[displayId]
+      } else if (displayId > 0 && displayId - 1 < displays.length) {
+        target = displays[displayId - 1]
+      }
+    }
+    if (target) {
+      return target
+    }
+    console.warn(`[MonitorOverlay] Display ID ${displayId} not found; falling back to primary display.`)
+  }
+  return screen.getPrimaryDisplay()
+}
+
 export function createMonitorOverlay(displayId?: number): BrowserWindow {
   // Get the target display
-  const displays = screen.getAllDisplays()
-  const targetDisplay = displayId
-    ? displays.find(d => d.id === displayId)
-    : screen.getPrimaryDisplay()
-
-  if (!targetDisplay) {
-    throw new Error(`Display with ID ${displayId} not found`)
-  }
+  const targetDisplay = resolveTargetDisplay(displayId)
 
   // Destroy existing overlay if any
   if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -203,10 +215,7 @@ export function showMonitorOverlay(displayId?: number, customLabel?: string): vo
   const overlay = createMonitorOverlay(displayId)
 
   // Get display info for the overlay
-  const displays = screen.getAllDisplays()
-  const targetDisplay = displayId
-    ? displays.find(d => d.id === displayId)
-    : screen.getPrimaryDisplay()
+  const targetDisplay = resolveTargetDisplay(displayId)
 
   const displayName = customLabel || getDisplayName(targetDisplay)
   const statusText = customLabel ? 'Ready to Record' : 'Ready to Record'

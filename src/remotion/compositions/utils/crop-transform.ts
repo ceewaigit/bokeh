@@ -32,60 +32,45 @@ export function isFullFrameCrop(cropData: CropEffectData): boolean {
 }
 
 /**
- * Calculate the crop transformation to fill canvas with cropped region
- *
- * The transform scales up the video and translates it so that the cropped
- * region fills the entire draw area (auto-fill behavior).
- *
- * @param cropData - Normalized crop region (0-1 coordinates)
- * @param drawWidth - Width of the video draw area in pixels
- * @param drawHeight - Height of the video draw area in pixels
- * @returns CropTransform with scale and translation values
+ * Calculate crop transformation to fill canvas with cropped region.
+ * Uses uniform scaling to preserve aspect ratio of cropped content.
+ * Uses MIN scale to ensure the ENTIRE selected region is visible (may letterbox).
+ * Includes clipPath to hide non-cropped areas.
  */
 export function calculateCropTransform(
   cropData: CropEffectData | null | undefined,
   drawWidth: number,
   drawHeight: number
 ): CropTransform {
-  // If no crop or full frame, return identity transform
   if (!cropData || isFullFrameCrop(cropData)) {
-    return {
-      scale: 1,
-      translateX: 0,
-      translateY: 0,
-      isActive: false,
-    };
+    return { scale: 1, translateX: 0, translateY: 0, isActive: false };
   }
 
-  // Ensure valid crop dimensions (prevent division by zero)
   const cropWidth = Math.max(0.01, Math.min(1, cropData.width));
   const cropHeight = Math.max(0.01, Math.min(1, cropData.height));
   const cropX = Math.max(0, Math.min(1 - cropWidth, cropData.x));
   const cropY = Math.max(0, Math.min(1 - cropHeight, cropData.y));
 
-  // Calculate scale to fill canvas with cropped region
-  // We use the larger scale factor to ensure the cropped area fills the canvas
+  // Use MIN scale so the ENTIRE cropped region fits (no clipping of selection)
   const scaleX = 1 / cropWidth;
   const scaleY = 1 / cropHeight;
-  const scale = Math.max(scaleX, scaleY);
+  const scale = Math.min(scaleX, scaleY);
 
-  // Calculate translation to position the cropped region at the canvas center
-  // The crop region's center should align with the canvas center
+  // Move crop center to canvas center
   const cropCenterX = cropX + cropWidth / 2;
   const cropCenterY = cropY + cropHeight / 2;
-
-  // Translation moves the crop center to the canvas center
-  // Since scale is applied from the center (transformOrigin: 50% 50%),
-  // we need to account for the scaled position
   const translateX = (0.5 - cropCenterX) * drawWidth * scale;
   const translateY = (0.5 - cropCenterY) * drawHeight * scale;
 
-  return {
-    scale,
-    translateX,
-    translateY,
-    isActive: true,
-  };
+  // Generate clip-path to mask non-cropped areas (in original content coordinates)
+  // inset(top right bottom left) - percentages from each edge
+  const clipTop = cropY * 100;
+  const clipRight = (1 - cropX - cropWidth) * 100;
+  const clipBottom = (1 - cropY - cropHeight) * 100;
+  const clipLeft = cropX * 100;
+  const clipPath = `inset(${clipTop.toFixed(2)}% ${clipRight.toFixed(2)}% ${clipBottom.toFixed(2)}% ${clipLeft.toFixed(2)}%)`;
+
+  return { scale, translateX, translateY, isActive: true, clipPath };
 }
 
 /**

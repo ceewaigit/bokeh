@@ -23,22 +23,8 @@ import { useWorkspaceStore } from '@/stores/workspace-store';
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 import { globalBlobManager } from '@/lib/security/blob-url-manager';
-import { CropOverlay } from '@/components/crop-overlay/CropOverlay';
 import { useTheme } from '@/contexts/theme-context';
 import type { CropEffectData, Recording } from '@/types/project';
-type VideoPositionMessagePayload = {
-  offsetX: number;
-  offsetY: number;
-  drawWidth: number;
-  drawHeight: number;
-  compWidth: number;
-  compHeight: number;
-};
-import { buildFrameLayout } from '@/lib/timeline/frame-layout';
-import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
-import { EffectsFactory } from '@/lib/effects/effects-factory';
-import { EffectType } from '@/types/project';
-import { calculateVideoPosition } from '@/remotion/compositions/utils/video-position';
 
 type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
 
@@ -134,9 +120,6 @@ export function PreviewAreaRemotion({
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const aspectContainerRef = useRef<HTMLDivElement>(null);
 
-  // Track video rect for crop overlay positioning
-  const [videoRect, setVideoRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
-
   // Throttle state for scrub optimization
   const lastSeekTimeRef = useRef<number>(0);
   const pendingSeekRef = useRef<number | null>(null);
@@ -213,171 +196,6 @@ export function PreviewAreaRemotion({
 
     return { width, height };
   }, [timelineMetadata]);
-
-  // Refs to avoid recreating ResizeObserver on every currentTime change
-  const currentTimeForCropRef = useRef(currentTime);
-  const timelineMetadataForCropRef = useRef(timelineMetadata);
-  const playerConfigForCropRef = useRef(playerConfig);
-  const compositionSizeForCropRef = useRef(compositionSize);
-  const updateVideoRectRef = useRef<(() => void) | null>(null);
-  const compositionVideoPositionRef = useRef<VideoPositionMessagePayload | null>(null);
-  const VIDEO_POSITION_MESSAGE = 'screenstudio:video-position';
-
-  // Keep refs in sync
-  useEffect(() => {
-    currentTimeForCropRef.current = currentTime;
-  }, [currentTime]);
-
-  useEffect(() => {
-    timelineMetadataForCropRef.current = timelineMetadata;
-  }, [timelineMetadata]);
-
-  useEffect(() => {
-    playerConfigForCropRef.current = playerConfig;
-  }, [playerConfig]);
-
-  useEffect(() => {
-    compositionSizeForCropRef.current = compositionSize;
-  }, [compositionSize]);
-
-  useEffect(() => {
-    if (!isEditingCrop) return;
-
-    const handler = (event: MessageEvent) => {
-      const data = event.data as { type?: string; payload?: VideoPositionMessagePayload };
-      if (!data || data.type !== VIDEO_POSITION_MESSAGE || !data.payload) return;
-
-      compositionVideoPositionRef.current = data.payload;
-      if (updateVideoRectRef.current) {
-        updateVideoRectRef.current();
-      }
-    };
-
-    window.addEventListener('message', handler);
-    return () => {
-      window.removeEventListener('message', handler);
-    };
-  }, [isEditingCrop]);
-
-  // Track the *actual* rendered video rect for crop overlay positioning.
-  // The renderer applies background padding + aspect-fit math; the crop UI must use the same
-  // inner draw rect (not the full player container), otherwise the crop numbers won't match.
-  useEffect(() => {
-    if (!aspectContainerRef.current || !isEditingCrop) return;
-
-    const updateVideoRect = () => {
-      const container = aspectContainerRef.current;
-      if (!container) return;
-
-      const meta = timelineMetadataForCropRef.current;
-      const config = playerConfigForCropRef.current;
-      const compSize = compositionSizeForCropRef.current;
-      const time = currentTimeForCropRef.current;
-
-      if (!meta || !config) return;
-
-      // DOM size of the player container (what the user sees).
-      const rect = container.getBoundingClientRect();
-      const domWidth = rect.width;
-      const domHeight = rect.height;
-
-      const compositionVideoPosition = compositionVideoPositionRef.current;
-
-      // Composition size used by Remotion Player (logical pixels).
-      const compWidth = compositionVideoPosition?.compWidth ?? compSize.width;
-      const compHeight = compositionVideoPosition?.compHeight ?? compSize.height;
-
-      if (compWidth <= 0 || compHeight <= 0 || domWidth <= 0 || domHeight <= 0) return;
-
-      let drawWidth = compWidth;
-      let drawHeight = compHeight;
-      let offsetX = 0;
-      let offsetY = 0;
-
-      if (compositionVideoPosition) {
-        drawWidth = compositionVideoPosition.drawWidth;
-        drawHeight = compositionVideoPosition.drawHeight;
-        offsetX = compositionVideoPosition.offsetX;
-        offsetY = compositionVideoPosition.offsetY;
-      } else {
-        // Resolve the active clip/effects at the current preview time so we can apply
-        // the same background padding math used by the renderer.
-        const sortedClips = [...config.clips].sort((a, b) => a.startTime - b.startTime);
-        const frameLayout = buildFrameLayout(sortedClips, meta.fps);
-        const currentFrame = Math.round((time / 1000) * meta.fps);
-        const active = getActiveClipDataAtFrame({
-          frame: currentFrame,
-          frameLayout,
-          fps: meta.fps,
-          effects: config.effects,
-          getRecording: (recordingId) => config.recordings.find((r: any) => r.id === recordingId),
-        });
-
-        // Background padding is resolved in source-time space (matching SharedVideoController).
-        const backgroundEffect = active
-          ? EffectsFactory.getActiveEffectAtTime(active.effects, EffectType.Background, active.sourceTimeMs)
-          : undefined;
-        const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
-        const padding = backgroundData?.padding || 0;
-
-        // RESOLUTION-AGNOSTIC: Match SharedVideoController's 1080p reference scaling.
-        const REFERENCE_WIDTH = 1920;
-        const REFERENCE_HEIGHT = 1080;
-        const scaleFactor = Math.min(compWidth / REFERENCE_WIDTH, compHeight / REFERENCE_HEIGHT);
-        const paddingScaled = padding * scaleFactor;
-
-        const activeSourceWidth = active?.recording.width ?? meta.width;
-        const activeSourceHeight = active?.recording.height ?? meta.height;
-
-        // Compute the renderer's draw rect inside the composition coordinate space.
-        const position = calculateVideoPosition(
-          compWidth,
-          compHeight,
-          activeSourceWidth,
-          activeSourceHeight,
-          paddingScaled
-        );
-        drawWidth = position.drawWidth;
-        drawHeight = position.drawHeight;
-        offsetX = position.offsetX;
-        offsetY = position.offsetY;
-      }
-
-      // Map composition coordinates to DOM pixels.
-      const scaleX = domWidth / compWidth;
-      const scaleY = domHeight / compHeight;
-
-      setVideoRect({
-        x: offsetX * scaleX,
-        y: offsetY * scaleY,
-        width: drawWidth * scaleX,
-        height: drawHeight * scaleY,
-      });
-    };
-
-    // Store ref so we can call it from other effects
-    updateVideoRectRef.current = updateVideoRect;
-
-    updateVideoRect();
-
-    const resizeObserver = new ResizeObserver(updateVideoRect);
-    resizeObserver.observe(aspectContainerRef.current);
-
-    window.addEventListener('resize', updateVideoRect);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', updateVideoRect);
-      updateVideoRectRef.current = null;
-    };
-  }, [isEditingCrop]); // Only recreate on isEditingCrop change, not currentTime
-
-  // Update video rect when time/metadata changes (but don't recreate observer)
-  useEffect(() => {
-    if (isEditingCrop && updateVideoRectRef.current) {
-      updateVideoRectRef.current();
-    }
-  }, [currentTime, isEditingCrop, timelineMetadata, playerConfig, compositionSize.width, compositionSize.height]);
 
   // Ensure all videos are loaded
   useEffect(() => {
@@ -700,12 +518,16 @@ export function PreviewAreaRemotion({
   const mainPlayerInputProps = useMemo(() => ({
     ...playerConfig,
     isEditingCrop: Boolean(isEditingCrop),
+    cropData,
+    onCropChange,
+    onCropConfirm,
+    onCropReset,
     isHighQualityPlaybackEnabled,
     isScrubbing,
     isPlaying,
     previewMuted: muted,
     previewVolume: Math.min(volume / 100, 1),
-  }), [playerConfig, isEditingCrop, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
+  }), [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
 
   const glowPlayerInputProps = useMemo(() => ({
     ...playerConfig,
@@ -856,16 +678,7 @@ export function PreviewAreaRemotion({
             </div>
 
 
-            {/* Crop Overlay */}
-            {isEditingCrop && cropData && onCropChange && onCropConfirm && onCropReset && (
-              <CropOverlay
-                cropData={cropData}
-                onCropChange={onCropChange}
-                onConfirm={onCropConfirm}
-                onReset={onCropReset}
-                videoRect={videoRect}
-              />
-            )}
+            {/* Crop editing is now handled inside the Remotion composition via CropEditingLayer */}
           </div>
         )}
       </div>

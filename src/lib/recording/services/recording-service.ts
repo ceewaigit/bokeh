@@ -242,20 +242,28 @@ export class RecordingService {
 
     logger.info(`[RecordingService] Using source: ${primarySource.name} (${primarySource.id})`)
 
+    const rawDisplayId =
+      typeof (primarySource as any).display_id === 'string'
+        ? Number((primarySource as any).display_id)
+        : (primarySource as any).display_id
+    const displayInfoId = (primarySource as any).displayInfo?.id
+
     // Get source bounds (in Electron display coordinates)
     if (window.electronAPI?.getSourceBounds) {
       const rawBounds = await window.electronAPI.getSourceBounds(primarySource.id)
       if (rawBounds) {
         let bounds = rawBounds
         let scaleFactor = 1
+        const resolvedDisplayId =
+          Number.isFinite(rawDisplayId) ? rawDisplayId : (typeof displayInfoId === 'number' ? displayInfoId : undefined)
 
         // Get display scale factor for screen sources
         if (primarySource.id.startsWith('screen:') && window.electronAPI?.getScreens) {
           try {
             const screens = await window.electronAPI.getScreens()
             const parts = primarySource.id.split(':')
-            const displayId = parseInt(parts[1])
-            const displayInfo = screens?.find((d: { id: number; scaleFactor?: number }) => d.id === displayId)
+            const displayIdFromSource = resolvedDisplayId ?? parseInt(parts[1])
+            const displayInfo = screens?.find((d: { id: number; scaleFactor?: number }) => d.id === displayIdFromSource)
             if (displayInfo?.scaleFactor && displayInfo.scaleFactor > 0) {
               scaleFactor = displayInfo.scaleFactor
             }
@@ -335,7 +343,9 @@ export class RecordingService {
     }
 
     const parsedDisplayId =
-      typeof (primarySource as any).display_id === 'string' ? Number((primarySource as any).display_id) : undefined
+      Number.isFinite(rawDisplayId)
+        ? rawDisplayId
+        : (typeof displayInfoId === 'number' ? displayInfoId : undefined)
 
     return {
       sourceId: primarySource.id,

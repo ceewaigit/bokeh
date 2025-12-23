@@ -35,7 +35,6 @@ type HandlePosition =
   | 'left'
 
 const HANDLE_SIZE = 12
-const MIN_CROP_SIZE = 0.05 // 5% minimum
 
 export function CropOverlay({
   cropData,

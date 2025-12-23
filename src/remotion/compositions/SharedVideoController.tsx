@@ -458,10 +458,24 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const zoomTransformStr = getZoomTransformString(zoomTransform);
 
     // Calculate crop transform
+    // The transform is applied inside a container that's already positioned at (offsetX, offsetY)
+    // with size (drawWidth, drawHeight), so we only need the draw dimensions here.
     const cropEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Crop, currentTimeMs);
     const cropData = isEditingCrop ? null : cropEffect ? (cropEffect.data as CropEffectData) : null;
-    const cropTransform = calculateCropTransform(cropData, zoomDrawWidth, zoomDrawHeight);
+    const cropBaseDrawWidth = mockupEnabled && mockupPosition ? mockupPosition.videoWidth : drawWidth;
+    const cropBaseDrawHeight = mockupEnabled && mockupPosition ? mockupPosition.videoHeight : drawHeight;
+    const cropTransform = calculateCropTransform(
+      cropData,
+      cropBaseDrawWidth,
+      cropBaseDrawHeight
+    );
     const cropTransformStr = getCropTransformString(cropTransform);
+
+    // Bake corner radius into the clip-path if present
+    // We must divide by scale because the clip-path is applied to the element BEFORE it is scaled up by the transform
+    const cropClipPath = cropTransform.isActive && cropTransform.clipPath && cornerRadius > 0
+      ? `${cropTransform.clipPath.slice(0, -1)} round ${cornerRadius / cropTransform.scale}px)`
+      : cropTransform.clipPath;
 
     // Calculate 3D screen transform
     const extra3DTransform = calculateScreenTransform(clipEffects, currentTimeMs);
@@ -469,7 +483,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     return {
       clip, recording, sourceTimeMs, clipEffects, backgroundData, padding, cornerRadius, shadowIntensity,
       scaleFactor, activeSourceWidth, activeSourceHeight, drawWidth, drawHeight, offsetX, offsetY,
-      outerTransform: zoomTransformStr, cropTransformStr, extra3DTransform, zoomTransform, cropTransform,
+      // Disable zoom/3D transforms during crop editing so overlay matches video
+      outerTransform: isEditingCrop ? '' : zoomTransformStr,
+      cropTransformStr,
+      extra3DTransform: isEditingCrop ? '' : extra3DTransform,
+      zoomTransform: isEditingCrop ? null : zoomTransform,
+      cropTransform,
+      cropClipPath,
       mockupEnabled, mockupData, mockupPosition,
     };
   }, [activeClipData, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight, calculatedZoomBlock, calculatedZoomCenter, currentTimeMs, isEditingCrop, isNearBoundaryStart, isNearBoundaryEnd, prevLayoutItem, nextLayoutItem, activeLayoutItem, frameLayout, fps, effects, getRecording, isRendering]);
@@ -546,7 +566,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   const {
     clip, recording, sourceTimeMs, padding, cornerRadius, shadowIntensity, scaleFactor, activeSourceWidth, activeSourceHeight,
-    drawWidth, drawHeight, offsetX, offsetY, outerTransform, cropTransformStr, extra3DTransform, zoomTransform,
+    drawWidth, drawHeight, offsetX, offsetY, outerTransform, cropTransformStr, extra3DTransform, zoomTransform, cropTransform,
+    cropClipPath,
     mockupEnabled, mockupData, mockupPosition,
   } = renderData;
 
@@ -574,6 +595,174 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     }
     : null);
   const previewVideoVisible = !isActiveGenerated;
+  const videoContent = isPreview ? (
+    <>
+      {/* Native video element for responsive preview */}
+      <PreviewVideoRenderer
+        recording={previewVideoState?.recording}
+        clipForVideo={previewVideoState?.clip}
+        startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
+        durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
+        sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
+        currentFrame={currentFrame}
+        fps={fps}
+        cornerRadius={cornerRadius}
+        drawWidth={drawWidth}
+        drawHeight={drawHeight}
+        compositionWidth={width}
+        compositionHeight={height}
+        maxZoomScale={memoizedMaxZoomScale}
+        currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+        mockupEnabled={mockupEnabled}
+        videoUrls={videoUrls}
+        videoUrlsHighRes={videoUrlsHighRes}
+        videoFilePaths={videoFilePaths}
+        isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+        isPlaying={isPlaying}
+        isGlowMode={isGlowMode}
+        enhanceAudio={previewVideoVisible ? enhanceAudio : false}
+        previewMuted={previewMuted}
+        previewVolume={previewVolume}
+        visible={previewVideoVisible}
+      />
+      {/* Generated clip overlay (blank clips, plugins) */}
+      {isActiveGenerated && renderLayoutItem && recording ? (
+        <GeneratedClipRenderer
+          key={renderLayoutItem.groupId}
+          clipForVideo={renderLayoutItem.clip}
+          recording={recording}
+          startFrame={renderLayoutItem.startFrame}
+          durationFrames={renderLayoutItem.durationFrames}
+          groupStartFrame={renderLayoutItem.groupStartFrame}
+          groupDuration={renderLayoutItem.groupDuration}
+          currentFrame={currentFrame}
+          fps={fps}
+          isRendering={isRendering}
+          drawWidth={drawWidth}
+          drawHeight={drawHeight}
+          compositionWidth={width}
+          compositionHeight={height}
+          isGlowMode={isGlowMode}
+          activeLayoutItem={activeLayoutItem}
+          prevLayoutItem={prevLayoutItem}
+          nextLayoutItem={nextLayoutItem}
+          shouldHoldPrevFrame={shouldHoldPrevFrame}
+          isNearBoundaryEnd={isNearBoundaryEnd}
+          overlapFrames={overlapFrames}
+        />
+      ) : null}
+    </>
+  ) : (
+    <>
+      {/*
+       * Z-ORDER: Render clips chronologically (prev → current → next)
+       * so current clip is visible on top during transitions.
+       * STABILITY: Use groupId as key to prevent remounting when
+       * transitioning between contiguous clips of the same recording.
+       */}
+      {renderableItems.map((item) => {
+        const isPrev = item.clip.id === prevLayoutItem?.clip.id;
+        const isNext = item.clip.id === nextLayoutItem?.clip.id;
+        const isActive = item.clip.id === activeLayoutItem?.clip.id;
+
+        // Determine if this group should be rendered
+        const isGroupActive = activeLayoutItem && item.groupId === activeLayoutItem.groupId;
+        const isGroupPrev = prevLayoutItem && item.groupId === prevLayoutItem.groupId;
+        const isGroupNext = nextLayoutItem && item.groupId === nextLayoutItem.groupId;
+
+        const shouldRender = isRendering
+          ? ((isGroupActive) ||
+            (isGroupPrev && shouldHoldPrevFrame) ||
+            (isGroupNext && isNearBoundaryEnd))
+          : true;
+
+        if (!shouldRender) return null;
+
+        const groupStartFrame = item.groupStartFrame;
+        const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
+
+        const recording = recordingsMap.get(item.clip.recordingId);
+
+        // Render generated clips with GeneratedClipRenderer
+        if (recording?.sourceType === 'generated') {
+          return (
+            <GeneratedClipRenderer
+              key={item.groupId}
+              clipForVideo={item.clip}
+              recording={recording}
+              startFrame={item.startFrame}
+              durationFrames={item.durationFrames}
+              groupStartFrame={groupStartFrame}
+              groupDuration={item.groupDuration}
+              currentFrame={currentFrame}
+              fps={fps}
+              isRendering={isRendering}
+              drawWidth={drawWidth}
+              drawHeight={drawHeight}
+              compositionWidth={width}
+              compositionHeight={height}
+              isGlowMode={isGlowMode}
+              activeLayoutItem={activeLayoutItem}
+              prevLayoutItem={prevLayoutItem}
+              nextLayoutItem={nextLayoutItem}
+              shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
+              isNearBoundaryEnd={isNearBoundaryEnd}
+              overlapFrames={overlapFrames}
+            />
+          );
+        }
+
+        // Render video clips with VideoClipRenderer
+        const clipIndex = layoutIndexByClipId.get(item.clip.id);
+        const shouldExtendSequence = keepVideoWarmOnScrub && clipIndex !== undefined;
+        const premountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
+        const postmountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
+
+        return (
+          <VideoClipRenderer
+            key={item.groupId}
+            clipForVideo={item.clip}
+            recording={recording}
+            startFrame={item.startFrame}
+            durationFrames={item.durationFrames}
+            groupStartFrame={groupStartFrame}
+            renderStartFrom={renderStartFrom}
+            groupDuration={item.groupDuration}
+            currentFrame={currentFrame}
+            fps={fps}
+            isRendering={isRendering}
+            cornerRadius={cornerRadius}
+            drawWidth={drawWidth}
+            drawHeight={drawHeight}
+            preferOffthreadVideo={preferOffthreadVideo}
+            videoUrls={videoUrls}
+            videoUrlsHighRes={videoUrlsHighRes}
+            videoFilePaths={videoFilePaths}
+            compositionWidth={width}
+            compositionHeight={height}
+            maxZoomScale={memoizedMaxZoomScale}
+            currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+            mockupEnabled={mockupEnabled}
+            enhanceAudio={isActive ? enhanceAudio : false}
+            isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+            isPlaying={isPlaying}
+            isGlowMode={isGlowMode}
+            activeLayoutItem={activeLayoutItem}
+            prevLayoutItem={prevLayoutItem}
+            nextLayoutItem={nextLayoutItem}
+            shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
+            isNearBoundaryEnd={isNearBoundaryEnd}
+            overlapFrames={overlapFrames}
+            markRenderReady={markRenderReady}
+            handleVideoReady={handleVideoReady}
+            VideoComponent={VideoComponent}
+            premountFor={premountFor}
+            postmountFor={postmountFor}
+          />
+        );
+      })}
+    </>
+  );
 
   // ==========================================================================
   // TRANSFORM STRINGS
@@ -590,6 +779,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const dropShadow = shadowIntensity > 0
     ? `drop-shadow(0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0, 0, 0, ${shadowOpacity})) drop-shadow(0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px rgba(0, 0, 0, ${shadowOpacity * 0.8}))`
     : '';
+
 
   // ==========================================================================
   // MOTION BLUR SVG FILTER
@@ -622,43 +812,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     mockupPosition,
   };
 
-  const lastReportedVideoPositionRef = useRef<{
-    offsetX: number;
-    offsetY: number;
-    drawWidth: number;
-    drawHeight: number;
-    compWidth: number;
-    compHeight: number;
-  } | null>(null);
-
-  const VIDEO_POSITION_MESSAGE = 'screenstudio:video-position';
-  useEffect(() => {
-    if (typeof window === 'undefined' || isRendering || !isEditingCrop) return;
-
-    const payload = {
-      offsetX: videoPositionValue.offsetX,
-      offsetY: videoPositionValue.offsetY,
-      drawWidth: videoPositionValue.drawWidth,
-      drawHeight: videoPositionValue.drawHeight,
-      compWidth: width,
-      compHeight: height,
-    };
-
-    const previous = lastReportedVideoPositionRef.current;
-    const hasChanged = !previous
-      || previous.offsetX !== payload.offsetX
-      || previous.offsetY !== payload.offsetY
-      || previous.drawWidth !== payload.drawWidth
-      || previous.drawHeight !== payload.drawHeight
-      || previous.compWidth !== payload.compWidth
-      || previous.compHeight !== payload.compHeight;
-
-    if (!hasChanged) return;
-    lastReportedVideoPositionRef.current = payload;
-
-    window.parent?.postMessage({ type: VIDEO_POSITION_MESSAGE, payload }, '*');
-  }, [height, isEditingCrop, isRendering, videoPositionValue, width]);
-
   // ==========================================================================
   // VIDEO COMPONENT SELECTION
   // ==========================================================================
@@ -669,8 +822,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   return (
     <VideoPositionProvider value={videoPositionValue}>
-      {/* Preview Guides - Rendered only during preview */}
-
       {/* SVG filter definition for motion blur */}
       {motionBlurSvg}
 
@@ -710,8 +861,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                   inset: 0,
                   overflow: 'hidden',
                   borderRadius: `${mockupPosition.screenCornerRadius}px`,
-                  filter: (cameraSettings?.refocusBlurEnabled !== false && zoomTransform?.refocusBlur > 0.01)
-                    ? `blur(${zoomTransform.refocusBlur * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
+                  filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01)
+                    ? `blur(${(zoomTransform?.refocusBlur ?? 0) * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
                     : undefined,
                 }}>
                   <div style={{
@@ -719,6 +870,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                     inset: 0,
                     transform: cropTransformStr || undefined,
                     transformOrigin: '50% 50%',
+                    clipPath: cropClipPath || undefined,
                   }}>
                     {isPreview ? (
                       <>
@@ -867,8 +1019,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               {/* Clipping container with corner radius and refocus blur */}
               <div style={{
                 position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: `${cornerRadius}px`,
-                filter: (cameraSettings?.refocusBlurEnabled !== false && zoomTransform?.refocusBlur > 0.01)
-                  ? `blur(${zoomTransform.refocusBlur * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
+                filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01)
+                  ? `blur(${(zoomTransform?.refocusBlur ?? 0) * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
                   : undefined,
                 transition: undefined, // No transition - must be frame-deterministic
               }}>
@@ -877,177 +1029,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                   position: 'absolute', inset: 0, transform: cropTransformStr || undefined,
                   transformOrigin: '50% 50%', willChange: cropTransformStr ? 'transform' : undefined,
                   backfaceVisibility: 'hidden' as const,
+                  clipPath: cropClipPath || undefined,
                 }}>
-                  {/* ========== PREVIEW MODE RENDERING ========== */}
-                  {isPreview ? (
-                    <>
-                      {/* Native video element for responsive preview */}
-                      <PreviewVideoRenderer
-                        recording={previewVideoState?.recording}
-                        clipForVideo={previewVideoState?.clip}
-                        startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
-                        durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
-                        sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
-                        currentFrame={currentFrame}
-                        fps={fps}
-                        cornerRadius={cornerRadius}
-                        drawWidth={drawWidth}
-                        drawHeight={drawHeight}
-                        compositionWidth={width}
-                        compositionHeight={height}
-                        maxZoomScale={memoizedMaxZoomScale}
-                        currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
-                        mockupEnabled={mockupEnabled}
-                        videoUrls={videoUrls}
-                        videoUrlsHighRes={videoUrlsHighRes}
-                        videoFilePaths={videoFilePaths}
-                        isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-                        isPlaying={isPlaying}
-                        isGlowMode={isGlowMode}
-                        enhanceAudio={previewVideoVisible ? enhanceAudio : false}
-                        previewMuted={previewMuted}
-                        previewVolume={previewVolume}
-                        visible={previewVideoVisible}
-                      />
-                      {/* Generated clip overlay (blank clips, plugins) */}
-                      {isActiveGenerated && renderLayoutItem && recording ? (
-                        <GeneratedClipRenderer
-                          key={renderLayoutItem.groupId}
-                          clipForVideo={renderLayoutItem.clip}
-                          recording={recording}
-                          startFrame={renderLayoutItem.startFrame}
-                          durationFrames={renderLayoutItem.durationFrames}
-                          groupStartFrame={renderLayoutItem.groupStartFrame}
-                          groupDuration={renderLayoutItem.groupDuration}
-                          currentFrame={currentFrame}
-                          fps={fps}
-                          isRendering={isRendering}
-                          drawWidth={drawWidth}
-                          drawHeight={drawHeight}
-                          compositionWidth={width}
-                          compositionHeight={height}
-                          isGlowMode={isGlowMode}
-                          activeLayoutItem={activeLayoutItem}
-                          prevLayoutItem={prevLayoutItem}
-                          nextLayoutItem={nextLayoutItem}
-                          shouldHoldPrevFrame={shouldHoldPrevFrame}
-                          isNearBoundaryEnd={isNearBoundaryEnd}
-                          overlapFrames={overlapFrames}
-                        />
-                      ) : null}
-                    </>
-                  ) : (
-                    /* ========== EXPORT MODE RENDERING ========== */
-                    <>
-                      {/*
-                     * Z-ORDER: Render clips chronologically (prev → current → next)
-                     * so current clip is visible on top during transitions.
-                     * STABILITY: Use groupId as key to prevent remounting when
-                     * transitioning between contiguous clips of the same recording.
-                     */}
-                      {renderableItems.map((item) => {
-                        const isPrev = item.clip.id === prevLayoutItem?.clip.id;
-                        const isNext = item.clip.id === nextLayoutItem?.clip.id;
-                        const isActive = item.clip.id === activeLayoutItem?.clip.id;
-
-                        // Determine if this group should be rendered
-                        const isGroupActive = activeLayoutItem && item.groupId === activeLayoutItem.groupId;
-                        const isGroupPrev = prevLayoutItem && item.groupId === prevLayoutItem.groupId;
-                        const isGroupNext = nextLayoutItem && item.groupId === nextLayoutItem.groupId;
-
-                        const shouldRender = isRendering
-                          ? ((isGroupActive) ||
-                            (isGroupPrev && shouldHoldPrevFrame) ||
-                            (isGroupNext && isNearBoundaryEnd))
-                          : true;
-
-                        if (!shouldRender) return null;
-
-                        const groupStartFrame = item.groupStartFrame;
-                        const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
-
-                        const recording = recordingsMap.get(item.clip.recordingId);
-
-                        // Render generated clips with GeneratedClipRenderer
-                        if (recording?.sourceType === 'generated') {
-                          return (
-                            <GeneratedClipRenderer
-                              key={item.groupId}
-                              clipForVideo={item.clip}
-                              recording={recording}
-                              startFrame={item.startFrame}
-                              durationFrames={item.durationFrames}
-                              groupStartFrame={groupStartFrame}
-                              groupDuration={item.groupDuration}
-                              currentFrame={currentFrame}
-                              fps={fps}
-                              isRendering={isRendering}
-                              drawWidth={drawWidth}
-                              drawHeight={drawHeight}
-                              compositionWidth={width}
-                              compositionHeight={height}
-                              isGlowMode={isGlowMode}
-                              activeLayoutItem={activeLayoutItem}
-                              prevLayoutItem={prevLayoutItem}
-                              nextLayoutItem={nextLayoutItem}
-                              shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
-                              isNearBoundaryEnd={isNearBoundaryEnd}
-                              overlapFrames={overlapFrames}
-                            />
-                          );
-                        }
-
-                        // Render video clips with VideoClipRenderer
-                        const clipIndex = layoutIndexByClipId.get(item.clip.id);
-                        const shouldExtendSequence = keepVideoWarmOnScrub && clipIndex !== undefined;
-                        const premountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
-                        const postmountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
-
-                        return (
-                          <VideoClipRenderer
-                            key={item.groupId}
-                            clipForVideo={item.clip}
-                            recording={recording}
-                            startFrame={item.startFrame}
-                            durationFrames={item.durationFrames}
-                            groupStartFrame={groupStartFrame}
-                            renderStartFrom={renderStartFrom}
-                            groupDuration={item.groupDuration}
-                            currentFrame={currentFrame}
-                            fps={fps}
-                            isRendering={isRendering}
-                            cornerRadius={cornerRadius}
-                            drawWidth={drawWidth}
-                            drawHeight={drawHeight}
-                            preferOffthreadVideo={preferOffthreadVideo}
-                            videoUrls={videoUrls}
-                            videoUrlsHighRes={videoUrlsHighRes}
-                            videoFilePaths={videoFilePaths}
-                            compositionWidth={width}
-                            compositionHeight={height}
-                            maxZoomScale={memoizedMaxZoomScale}
-                            currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
-                            mockupEnabled={mockupEnabled}
-                            enhanceAudio={isActive ? enhanceAudio : false}
-                            isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-                            isPlaying={isPlaying}
-                            isGlowMode={isGlowMode}
-                            activeLayoutItem={activeLayoutItem}
-                            prevLayoutItem={prevLayoutItem}
-                            nextLayoutItem={nextLayoutItem}
-                            shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
-                            isNearBoundaryEnd={isNearBoundaryEnd}
-                            overlapFrames={overlapFrames}
-                            markRenderReady={markRenderReady}
-                            handleVideoReady={handleVideoReady}
-                            VideoComponent={VideoComponent}
-                            premountFor={premountFor}
-                            postmountFor={postmountFor}
-                          />
-                        );
-                      })}
-                    </>
-                  )}
+                  {videoContent}
                 </div>
               </div>
             </div>

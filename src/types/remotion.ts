@@ -11,6 +11,7 @@ import type {
   ScrollEvent,
   KeyboardEvent,
   DeviceMockupData,
+  CropEffectData,
 } from './project';
 import type { MockupPositionResult } from '@/lib/mockups/mockup-transform';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
@@ -146,6 +147,8 @@ export interface CropTransform {
   translateX: number;
   translateY: number;
   isActive: boolean;
+  /** CSS clip-path to mask content outside the crop region */
+  clipPath?: string;
 }
 
 export interface FadeOpacityOptions {
@@ -245,6 +248,10 @@ export interface TimelineCompositionProps {
   enhanceAudio?: boolean;
   isGlowMode?: boolean;
   isEditingCrop?: boolean;
+  cropData?: CropEffectData | null;
+  onCropChange?: (cropData: CropEffectData) => void;
+  onCropConfirm?: () => void;
+  onCropReset?: () => void;
   cameraSettings?: CameraSettings;
   isHighQualityPlaybackEnabled?: boolean;
   isPlaying?: boolean;
@@ -268,6 +275,10 @@ export interface SharedVideoControllerProps {
   children?: ReactNode;
   isGlowMode?: boolean;
   isEditingCrop?: boolean;
+  cropData?: CropEffectData | null;
+  onCropChange?: (cropData: CropEffectData) => void;
+  onCropConfirm?: () => void;
+  onCropReset?: () => void;
   cameraSettings?: CameraSettings;
   isHighQualityPlaybackEnabled?: boolean;
   isPlaying?: boolean;

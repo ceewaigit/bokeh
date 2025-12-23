@@ -22,6 +22,7 @@ import { SharedVideoController } from './SharedVideoController';
 import { buildFrameLayout, findActiveFrameLayoutIndex, findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
 import { CursorLayer } from './CursorLayer';
 import { PluginLayer } from './PluginLayer';
+import { CropEditingLayer } from './layers/CropEditingLayer';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 
 /**
@@ -79,6 +80,10 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   enhanceAudio,
   isGlowMode = false,
   isEditingCrop = false,
+  cropData,
+  onCropChange,
+  onCropConfirm,
+  onCropReset,
   cameraSettings,
   isHighQualityPlaybackEnabled = false,
   isPlaying = false,
@@ -249,6 +254,15 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
 
           {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
           {!isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={metadataUrls} />}
+
+          {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
+          <CropEditingLayer
+            isEditingCrop={isEditingCrop}
+            cropData={cropData ?? null}
+            onCropChange={onCropChange}
+            onCropConfirm={onCropConfirm}
+            onCropReset={onCropReset}
+          />
         </SharedVideoController>
 
         {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}

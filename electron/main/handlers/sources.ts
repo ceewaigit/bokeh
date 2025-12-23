@@ -287,29 +287,43 @@ export function registerSourceHandlers(): void {
           if (source.id.startsWith('screen:')) {
             // For screen sources, get display information
             const screenIdMatch = source.id.match(/screen:(\d+):/)
-            if (screenIdMatch) {
-              const screenId = parseInt(screenIdMatch[1])
-              const display = displays.find(d => d.id === screenId)
-              if (display) {
-                bounds = display.bounds
-                displayInfo = {
-                  id: display.id,
-                  isPrimary: display.id === primaryDisplay.id,
-                  isInternal: display.internal,
-                  bounds: display.bounds,
-                  workArea: display.workArea,
-                  scaleFactor: display.scaleFactor
-                }
+            const screenId = screenIdMatch ? parseInt(screenIdMatch[1]) : undefined
+            const rawDisplayId = typeof source.display_id === 'string' ? Number(source.display_id) : source.display_id
 
-                // Create better display names
-                if (display.id === primaryDisplay.id) {
-                  source.name = 'Primary Display'
-                } else if (display.internal) {
-                  source.name = 'Built-in Display'
-                } else {
-                  const index = displays.findIndex(d => d.id === display.id)
-                  source.name = `Display ${index + 1}`
-                }
+            let display =
+              Number.isFinite(rawDisplayId) ? displays.find(d => d.id === rawDisplayId) : undefined
+
+            if (!display && typeof screenId === 'number') {
+              display = displays.find(d => d.id === screenId)
+            }
+
+            if (!display && typeof screenId === 'number') {
+              if (screenId >= 0 && screenId < displays.length) {
+                display = displays[screenId]
+              } else if (screenId > 0 && screenId - 1 < displays.length) {
+                display = displays[screenId - 1]
+              }
+            }
+
+            if (display) {
+              bounds = display.bounds
+              displayInfo = {
+                id: display.id,
+                isPrimary: display.id === primaryDisplay.id,
+                isInternal: display.internal,
+                bounds: display.bounds,
+                workArea: display.workArea,
+                scaleFactor: display.scaleFactor
+              }
+
+              // Create better display names
+              if (display.id === primaryDisplay.id) {
+                source.name = 'Primary Display'
+              } else if (display.internal) {
+                source.name = 'Built-in Display'
+              } else {
+                const index = displays.findIndex(d => d.id === display.id)
+                source.name = `Display ${index + 1}`
               }
             }
           } else {
@@ -370,7 +384,15 @@ export function registerSourceHandlers(): void {
         const screenIdMatch = sourceId.match(/screen:(\d+):/)
         if (screenIdMatch) {
           const screenId = parseInt(screenIdMatch[1])
-          const display = screen.getAllDisplays().find(d => d.id === screenId)
+          const allDisplays = screen.getAllDisplays()
+          let display = allDisplays.find(d => d.id === screenId)
+          if (!display) {
+            if (screenId >= 0 && screenId < allDisplays.length) {
+              display = allDisplays[screenId]
+            } else if (screenId > 0 && screenId - 1 < allDisplays.length) {
+              display = allDisplays[screenId - 1]
+            }
+          }
           if (display) {
             return {
               x: display.bounds.x,
