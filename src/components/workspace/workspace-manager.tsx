@@ -21,10 +21,13 @@ import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { Effect, ZoomBlock, CropEffectData } from '@/types/project'
+import { useCropManager } from '@/hooks/useCropManager'
 import { EffectType } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand, registerAllCommands } from '@/lib/commands'
 import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
+import { buildFrameLayout } from '@/lib/timeline/frame-layout'
+import { calculateFullCameraPath } from '@/lib/effects/utils/camera-path-calculator'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
@@ -62,6 +65,44 @@ async function loadProjectRecording(
 
     // Set the project ONCE after all recordings are processed
     useProjectStore.getState().setProject(project)
+
+    // Pre-compute camera path for smooth playback
+    setLoadingMessage('Optimizing playback...')
+
+    // We need to build the frame layout first (same logic as SharedVideoController)
+    // Flatten clips from all video tracks for layout building
+    const videoTracks = project.timeline.tracks.filter(t => t.type === 'video')
+    const allClips = videoTracks.flatMap(t => t.clips).sort((a, b) => a.startTime - b.startTime)
+    const fps = project.settings.frameRate
+    const frameLayout = buildFrameLayout(allClips, fps)
+
+    // Create a lookup for recordings
+    const metadataMap = new Map()
+    // Pre-load metadata if available (it should be loaded by ProjectIOService above)
+    // ProjectIOService loads metadata into the Recording objects themselves primarily.
+    // However, the calculator expects a separate loadedMetadata map for some lookups if not on recording object.
+    // The current Project structure attaches metadata to the recording object.
+
+    const projectStore = useProjectStore.getState()
+
+    // Run the heavy calculation
+    const cameraPath = calculateFullCameraPath({
+      frameLayout,
+      fps,
+      videoWidth: project.settings.resolution.width,
+      videoHeight: project.settings.resolution.height,
+      effects: project.timeline.effects || [], // Global timeline effects
+      // Mock getRecording to find from project
+      getRecording: (id) => project.recordings.find(r => r.id === id),
+      // We can pass null for loadedMetadata map because our recordings already have per-instance metadata attached
+      // by the loader (ProjectIOService).
+      loadedMetadata: undefined
+    })
+
+    // Store in cache
+    if (cameraPath) {
+      projectStore.setCameraPathCache(cameraPath)
+    }
 
     // Calculate adaptive zoom limits based on zoom blocks
     const viewportWidth = window.innerWidth
@@ -151,11 +192,6 @@ export function WorkspaceManager() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const isResizingUtilitiesRef = useRef(false)
 
-  // Crop editing state
-  const [isEditingCrop, setIsEditingCrop] = useState(false)
-  const [editingCropData, setEditingCropData] = useState<CropEffectData | null>(null)
-  const [editingCropEffectId, setEditingCropEffectId] = useState<string | null>(null)
-
   // Command manager for undo/redo support
   const commandManagerRef = useRef<CommandManager | null>(null)
   const commandContextRef = useRef<DefaultCommandContext | null>(null)
@@ -215,15 +251,7 @@ export function WorkspaceManager() {
     return effects
   }, [currentProject, playheadRecording, selectedClip])
 
-  useEffect(() => {
-    if (!editingCropEffectId) return
-    const stillExists = contextEffects.some(effect => effect.id === editingCropEffectId)
-    if (!stillExists) {
-      setIsEditingCrop(false)
-      setEditingCropData(null)
-      setEditingCropEffectId(null)
-    }
-  }, [contextEffects, editingCropEffectId])
+
 
   // Effects for preview are derived per-clip inside PreviewAreaRemotion
   const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
@@ -336,7 +364,7 @@ export function WorkspaceManager() {
         clearInterval(playbackIntervalRef.current)
       }
     }
-  }, [isPlaying, playheadClip, handlePause, isExporting]) // REMOVED currentTime - read from store instead
+  }, [isPlaying, playheadClip, handlePause, isExporting])
 
   // Centralized playback control - no selection required for playback
   const handlePlay = useCallback(() => {
@@ -529,129 +557,20 @@ export function WorkspaceManager() {
     })
   }, [contextEffects])
 
-  // Crop handling callbacks
-  const handleAddCrop = useCallback(() => {
-    if (!selectedClip || !currentProject) return
+  // Crop editing state managed by hook
+  const {
+    isEditingCrop,
+    editingCropData,
+    handleAddCrop,
+    handleRemoveCrop,
+    handleUpdateCrop,
+    handleStartEditCrop,
+    handleCropConfirm,
+    handleCropReset,
+    handleCropChange
+  } = useCropManager(contextEffects, selectedClip)
 
-    const commandManager = commandManagerRef.current
-    if (!commandManager) return
 
-    const currentTime = useProjectStore.getState().currentTime
-    const activeCrop = EffectsFactory.getActiveEffectAtTime(contextEffects, EffectType.Crop, currentTime)
-
-    if (activeCrop) {
-      const cropData = EffectsFactory.getCropData(activeCrop)
-      if (cropData) {
-        setEditingCropEffectId(activeCrop.id)
-        setEditingCropData(cropData)
-        setIsEditingCrop(true)
-        return
-      }
-    }
-
-    // Create a default crop effect for the selected clip
-    const cropEffect = EffectsFactory.createCropEffect({
-      clipId: selectedClip.id,
-      startTime: selectedClip.startTime,
-      endTime: selectedClip.startTime + selectedClip.duration,
-      cropData: { x: 0, y: 0, width: 1, height: 1 }, // Default to full-frame (no crop)
-    })
-
-    commandManager.executeByName('AddEffect', cropEffect)
-
-    // Start editing immediately
-    setEditingCropEffectId(cropEffect.id)
-    setEditingCropData(cropEffect.data as CropEffectData)
-    setIsEditingCrop(true)
-  }, [selectedClip, currentProject, contextEffects])
-
-  const handleRemoveCrop = useCallback((effectId: string) => {
-    const commandManager = commandManagerRef.current
-    if (!commandManager) return
-
-    commandManager.executeByName('RemoveEffect', effectId)
-
-    // Clear editing state if we were editing this effect
-    if (editingCropEffectId === effectId) {
-      setIsEditingCrop(false)
-      setEditingCropData(null)
-      setEditingCropEffectId(null)
-    }
-  }, [editingCropEffectId])
-
-  const handleUpdateCrop = useCallback((effectId: string, updates: Partial<CropEffectData>) => {
-    const commandManager = commandManagerRef.current
-    if (!commandManager) return
-
-    const effect = contextEffects.find(e => e.id === effectId)
-    if (!effect) return
-
-    commandManager.executeByName('UpdateEffect', effectId, {
-      data: {
-        ...effect.data,
-        ...updates,
-      },
-    })
-
-    // Update local editing state if we're editing this effect
-    if (editingCropEffectId === effectId && editingCropData) {
-      setEditingCropData({
-        ...editingCropData,
-        ...updates,
-      })
-    }
-  }, [contextEffects, editingCropEffectId, editingCropData])
-
-  const handleStartEditCrop = useCallback(() => {
-    if (!selectedClip) return
-
-    // This ensures we edit exactly what the user sees, even if clips were trimmed/moved
-    // and effect start times are slightly misaligned with clip start times.
-    const currentTime = useProjectStore.getState().currentTime
-    let cropEffect = EffectsFactory.getActiveEffectAtTime(contextEffects, EffectType.Crop, currentTime)
-
-    // Fallback: Use clip-scoped match if no active effect found (e.g. playhead outside range)
-    if (!cropEffect) {
-      cropEffect = EffectsFactory.getCropEffectForClip(contextEffects, selectedClip)
-    }
-
-    if (!cropEffect) return
-
-    const cropData = EffectsFactory.getCropData(cropEffect)
-    if (!cropData) return
-
-    setEditingCropEffectId(cropEffect.id)
-    setEditingCropData(cropData)
-    setIsEditingCrop(true)
-  }, [selectedClip, contextEffects])
-
-  const handleCropConfirm = useCallback(() => {
-    // Save current crop data to the effect
-    if (editingCropEffectId && editingCropData) {
-      handleUpdateCrop(editingCropEffectId, editingCropData)
-    }
-
-    // Exit editing mode
-    setIsEditingCrop(false)
-    setEditingCropData(null)
-    setEditingCropEffectId(null)
-  }, [editingCropEffectId, editingCropData, handleUpdateCrop])
-
-  const handleCropReset = useCallback(() => {
-    // Remove the crop effect entirely
-    if (editingCropEffectId) {
-      handleRemoveCrop(editingCropEffectId)
-    }
-
-    // Exit editing mode
-    setIsEditingCrop(false)
-    setEditingCropData(null)
-    setEditingCropEffectId(null)
-  }, [editingCropEffectId, handleRemoveCrop])
-
-  const handleCropChange = useCallback((cropData: CropEffectData) => {
-    setEditingCropData(cropData)
-  }, [])
 
   // Show loading screen when processing
   if (isLoading) {
@@ -757,8 +676,6 @@ export function WorkspaceManager() {
 
                   // Memory cleanup: clear HEAVY data only (not thumbnails - those are small and should persist)
                   RecordingStorage.clearMetadataCache()
-
-
 
                   // Clean up stores
                   useProjectStore.getState().cleanupProject()

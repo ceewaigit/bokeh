@@ -9,6 +9,7 @@ import type { CameraPathFrame } from '@/types'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import { calculateMockupPosition } from '@/lib/mockups/mockup-transform'
+import { calculateFullCameraPath } from '@/lib/effects/utils/camera-path-calculator'
 
 type CameraVideoArea = {
   drawWidth: number
@@ -70,6 +71,7 @@ export function usePrecomputedCameraPath(args: {
   effects: Effect[]
   getRecording: (recordingId: string) => Recording | null | undefined
   loadedMetadata?: Map<string, RecordingMetadata>
+  cachedPath?: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
 }): (CameraPathFrame & { path?: CameraPathFrame[] }) | null {
   const {
     enabled,
@@ -84,6 +86,7 @@ export function usePrecomputedCameraPath(args: {
     effects,
     getRecording,
     loadedMetadata,
+    cachedPath,
   } = args
 
   // Check if there are any enabled zoom effects - skip heavy computation if not
@@ -102,135 +105,40 @@ export function usePrecomputedCameraPath(args: {
   const hasCameraTracking = hasZoomEffects || hasMockupEffects
 
   // Precomputing a full camera path in preview is expensive and can make the UI lag.
-  // We only precompute during render/export (where frames may be requested out-of-order).
-  const shouldPrecompute = enabled && isRendering && hasCameraTracking
+  // We only precompute during render/export OR if we have a cache ready (workspace load).
+  const shouldPrecompute = (enabled && isRendering && hasCameraTracking) || (cachedPath != null)
 
   const frames = useMemo(() => {
-    if (!shouldPrecompute) return null
-    if (!frameLayout || frameLayout.length === 0) return null
+    // 1. Use Cache if available (fastest)
+    if (cachedPath) return cachedPath
 
-    const totalFrames = frameLayout[frameLayout.length - 1].endFrame
+    // 2. Otherwise only compute if needed (render mode)
+    if (!enabled || !isRendering || !hasCameraTracking) return null
 
-    // OPTIMIZATION: If no camera tracking, skip heavy camera path computation
-    // Just return default center coordinates for all frames
-    if (!hasCameraTracking) {
-      const defaultResult = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 } }
-      const out = new Array(totalFrames).fill(defaultResult)
-      return out
-    }
-
-    const physics: CameraPhysicsState = {
-      x: 0.5,
-      y: 0.5,
-      vx: 0,
-      vy: 0,
-      lastTimeMs: 0,
-      lastSourceTimeMs: 0,
-    }
-
-    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number } }[] = new Array(totalFrames)
-
-    for (let f = 0; f < totalFrames; f++) {
-      const tMs = (f / fps) * 1000
-      const clipData = getActiveClipDataAtFrame({ frame: f, frameLayout, fps, effects, getRecording })
-      if (!clipData) {
-        out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 } }
-        continue
-      }
-
-      const { recording, sourceTimeMs, effects: clipEffects } = clipData
-      const metadata = recording ? loadedMetadata?.get(recording.id) : undefined
-      const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs)
-      const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null
-      const padding = backgroundData?.padding || 0
-
-      // Use stable videoWidth/videoHeight for camera calculation
-      // This ensures preview and export compute identical camera positions
-      const activeSourceWidth = recording?.width || sourceVideoWidth || videoWidth
-      const activeSourceHeight = recording?.height || sourceVideoHeight || videoHeight
-      const mockupData = backgroundData?.mockup
-      const mockupEnabled = mockupData?.enabled ?? false
-      const mockupPosition = mockupEnabled && mockupData
-        ? calculateMockupPosition(
-          videoWidth,
-          videoHeight,
-          mockupData,
-          activeSourceWidth,
-          activeSourceHeight,
-          padding
-        )
-        : null
-
-      const videoArea: CameraVideoArea = mockupEnabled && mockupPosition
-        ? {
-          drawWidth: mockupPosition.videoWidth,
-          drawHeight: mockupPosition.videoHeight,
-          offsetX: mockupPosition.videoX,
-          offsetY: mockupPosition.videoY,
-        }
-        : (() => {
-          const position = calculateVideoPosition(
-            videoWidth,
-            videoHeight,
-            activeSourceWidth,
-            activeSourceHeight,
-            padding
-          )
-          return {
-            drawWidth: position.drawWidth,
-            drawHeight: position.drawHeight,
-            offsetX: position.offsetX,
-            offsetY: position.offsetY,
-          }
-        })()
-
-      const { outputWidth, outputHeight, overscan } = getCameraOutputParams({
-        canvasWidth: videoWidth,
-        canvasHeight: videoHeight,
-        videoArea,
-        mockupPosition,
-      })
-      const mockupScreenPosition = mockupEnabled && mockupPosition
-        ? {
-          x: 0,
-          y: 0,
-          width: outputWidth,
-          height: outputHeight,
-        }
-        : undefined
-
-      const computed = computeCameraState({
-        effects: clipEffects,
-        timelineMs: tMs,
-        sourceTimeMs,
-        recording,
-        metadata,
-        outputWidth,
-        outputHeight,
-        overscan,
-        mockupScreenPosition,
-        forceFollowCursor: Boolean(mockupEnabled && mockupPosition),
-        physics,
-        // We simulate sequentially into a lookup table, so stateful physics is safe here.
-        deterministic: false,
-      })
-
-      Object.assign(physics, computed.physics)
-      out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter }
-    }
-
-    return out
+    return calculateFullCameraPath({
+      frameLayout,
+      fps,
+      videoWidth,
+      videoHeight,
+      sourceVideoWidth,
+      sourceVideoHeight,
+      effects,
+      getRecording,
+      loadedMetadata
+    })
   }, [
-    shouldPrecompute,
+    cachedPath,
+    enabled,
+    isRendering,
+    hasCameraTracking,
     frameLayout,
     fps,
+    videoWidth,
+    videoHeight,
+    sourceVideoWidth,
+    sourceVideoHeight,
     effects,
     getRecording,
-    sourceVideoHeight,
-    sourceVideoWidth,
-    videoHeight,
-    videoWidth,
-    hasCameraTracking,
     loadedMetadata,
   ])
 

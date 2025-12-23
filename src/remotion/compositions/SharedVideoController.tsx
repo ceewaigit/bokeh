@@ -25,6 +25,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import { useTimeContext } from '../context/TimeContext';
+import { useProjectStore } from '@/stores/project-store';
 import { VideoPositionProvider } from '../context/VideoPositionContext';
 import { calculateVideoPosition } from './utils/video-position';
 import {
@@ -136,6 +137,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // TIMELINE & FRAME LAYOUT
   // ==========================================================================
   const currentTimeMs = (currentFrame / fps) * 1000;
+  const cameraPathCache = useProjectStore((s) => s.cameraPathCache)
 
   /** Clips sorted by start time for consistent processing */
   const sortedClips = useMemo(() => [...clips].sort((a, b) => a.startTime - b.startTime), [clips]);
@@ -361,6 +363,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const precomputedCamera = usePrecomputedCameraPath({
     enabled: true, isRendering, currentFrame, frameLayout, fps, videoWidth, videoHeight,
     sourceVideoWidth, sourceVideoHeight, effects, getRecording, loadedMetadata,
+    cachedPath: cameraPathCache
   });
 
   const calculatedZoomBlock = precomputedCamera?.activeZoomBlock;

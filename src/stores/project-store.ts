@@ -4,6 +4,7 @@ import type { Clip, Effect, Project, Recording, Track } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import type { ClipboardEffect } from '@/types/stores'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
+import type { CameraPathFrame } from '@/types'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 
 // Import new services
@@ -56,6 +57,9 @@ interface ProjectStore {
     clip?: Clip
     effect?: ClipboardEffect
   }
+
+  // Performance Cache
+  cameraPathCache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
 
   // Settings
   settings: {
@@ -147,6 +151,10 @@ interface ProjectStore {
   // Cleanup
   cleanupProject: () => void
 
+  // Cache Management
+  setCameraPathCache: (cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null) => void
+  invalidateCameraPathCache: () => void
+
   // Effects Management (timeline-global)
   addEffect: (effect: Effect) => void
   removeEffect: (effectId: string) => void
@@ -210,14 +218,6 @@ const updatePlayheadState = (state: any) => {
   state.nextRecording = newState.nextRecording
 }
 
-// Default metadata structure for recordings
-const DEFAULT_METADATA = {
-  mouseEvents: [],
-  keyboardEvents: [],
-  clickEvents: [],
-  screenEvents: []
-}
-
 // Helper: Reset selection and zoom state when switching projects
 // Used by newProject, setProject, and openProject to maintain consistent behavior
 function resetSelectionState(state: any): void {
@@ -248,6 +248,9 @@ export const useProjectStore = create<ProjectStore>()(
     selectedClips: [],
     selectedEffectLayer: null,
     clipboard: {},
+
+    // Performance Cache
+    cameraPathCache: null,
 
     // Settings
     settings: {
@@ -424,6 +427,9 @@ export const useProjectStore = create<ProjectStore>()(
           if (recording?.hasAudio) {
             state.settings.editing.showWaveforms = true
           }
+
+          // Invalidate cache on clip add
+          state.cameraPathCache = null
         }
       })
     },
@@ -475,6 +481,9 @@ export const useProjectStore = create<ProjectStore>()(
         project.timeline.duration = calculateTimelineDuration(project)
         project.modifiedAt = new Date().toISOString()
 
+        // Invalidate cache
+        state.cameraPathCache = null
+
         EffectsFactory.syncKeystrokeEffects(project)
 
         state.selectedClipId = clip.id
@@ -519,6 +528,9 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
 
+        // Invalidate cache
+        state.cameraPathCache = null
+
         // Sync effects
         EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
@@ -556,6 +568,9 @@ export const useProjectStore = create<ProjectStore>()(
 
           // Always clean up clip-specific resources
           ProjectCleanupService.cleanupClipResources(clipId)
+
+          // Invalidate cache on clip removal
+          state.cameraPathCache = null
         }
       })
     },
@@ -576,6 +591,9 @@ export const useProjectStore = create<ProjectStore>()(
 
         // Clip timing/position can change (drag/trim/etc); keep derived keystroke blocks aligned.
         EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
+        // Invalidate cache
+        state.cameraPathCache = null
 
         // Maintain playhead relative position inside the edited clip
         const updatedResult = findClipById(state.currentProject, clipId)
@@ -684,6 +702,9 @@ export const useProjectStore = create<ProjectStore>()(
         // Split changes clip boundaries; rebuild derived keystroke blocks.
         EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
+        // Invalidate cache
+        state.cameraPathCache = null
+
         const { firstClip } = result
 
         // Select the left clip to keep focus at the split point
@@ -748,6 +769,9 @@ export const useProjectStore = create<ProjectStore>()(
         // Duplicated clips should get matching derived keystroke blocks.
         EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
+        // Invalidate cache
+        state.cameraPathCache = null
+
         // Select the duplicated clip
         state.selectedClipId = newClip.id
         state.selectedClips = [newClip.id]
@@ -787,6 +811,9 @@ export const useProjectStore = create<ProjectStore>()(
             // Update timeline duration
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
             state.currentProject.modifiedAt = new Date().toISOString()
+
+            // Invalidate cache
+            state.cameraPathCache = null
 
             // Update playhead state to reflect new clip positions
             updatePlayheadState(state)
@@ -909,7 +936,16 @@ export const useProjectStore = create<ProjectStore>()(
     addEffect: (effect) => {
       set((state) => {
         if (!state.currentProject) return
-        EffectsFactory.addEffectToProject(state.currentProject, effect)
+
+        if (!state.currentProject.timeline.effects) {
+          state.currentProject.timeline.effects = []
+        }
+        state.currentProject.timeline.effects.push(effect)
+        state.currentProject.modifiedAt = new Date().toISOString()
+
+        // Invalidate cache
+        state.cameraPathCache = null
+
         // Update playhead state to refresh recording references
         updatePlayheadState(state)
       })
@@ -917,8 +953,16 @@ export const useProjectStore = create<ProjectStore>()(
 
     removeEffect: (effectId) => {
       set((state) => {
-        if (!state.currentProject) return
-        EffectsFactory.removeEffectFromProject(state.currentProject, effectId)
+        if (!state.currentProject?.timeline.effects) return
+
+        const index = state.currentProject.timeline.effects.findIndex(e => e.id === effectId)
+        if (index !== -1) {
+          state.currentProject.timeline.effects.splice(index, 1)
+          state.currentProject.modifiedAt = new Date().toISOString()
+
+          // Invalidate cache
+          state.cameraPathCache = null
+        }
         // Update playhead state to refresh recording references
         updatePlayheadState(state)
       })
@@ -926,11 +970,16 @@ export const useProjectStore = create<ProjectStore>()(
 
     updateEffect: (effectId, updates) => {
       set((state) => {
-        if (!state.currentProject) return
+        if (!state.currentProject?.timeline.effects) return
 
-        // With Immer middleware, we can directly mutate the draft state
-        // Immer will handle creating the immutable copy for us
-        EffectsFactory.updateEffectInProject(state.currentProject, effectId, updates)
+        const effect = state.currentProject.timeline.effects.find(e => e.id === effectId)
+        if (effect) {
+          Object.assign(effect, updates)
+          state.currentProject.modifiedAt = new Date().toISOString()
+
+          // Invalidate cache
+          state.cameraPathCache = null
+        }
 
         // Update playhead state to refresh recording references
         updatePlayheadState(state)
@@ -1100,7 +1149,21 @@ export const useProjectStore = create<ProjectStore>()(
         if (state.currentProject) {
           EffectGenerationService.regenerateAllEffects(state.currentProject, config, metadataByRecordingId)
           updatePlayheadState(state)
+
+          // Invalidate cache
+          state.cameraPathCache = null
         }
+      })
+    },
+    setCameraPathCache: (cache) => {
+      set((state) => {
+        state.cameraPathCache = cache
+      })
+    },
+
+    invalidateCameraPathCache: () => {
+      set((state) => {
+        state.cameraPathCache = null
       })
     }
   }))

@@ -744,9 +744,6 @@ export function PreviewAreaRemotion({
                 }}
               />
             </div>
-
-
-            {/* Crop editing is now handled inside the Remotion composition via CropEditingLayer */}
           </div>
         )}
       </div>
