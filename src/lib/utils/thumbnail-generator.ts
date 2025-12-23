@@ -23,7 +23,8 @@ export class ThumbnailGenerator {
   private static cache = new Map<string, string>()
   private static generating = new Set<string>()
   // Keep thumbnails cached for fast navigation - they're small (~25KB each)
-  private static readonly MAX_CACHE_SIZE = 50
+  // PERF: Reduced from 50 to 20 (~500KB max) - matches typical project size
+  private static readonly MAX_CACHE_SIZE = 20
 
   // Video element pool - 2 concurrent decoders (reduced from 4 to save memory)
   private static readonly POOL_SIZE = 2

@@ -6,9 +6,9 @@ import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, Effect } from '@/types/project'
+import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, CursorMotionPreset, Effect } from '@/types/project'
 import { EffectType } from '@/types'
-import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
+import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 
 interface CursorTabProps {
@@ -23,8 +23,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const fadeOnIdle = cursorData?.fadeOnIdle ?? DEFAULT_CURSOR_DATA.fadeOnIdle
   const clickEffectsEnabled = cursorData?.clickEffects ?? DEFAULT_CURSOR_DATA.clickEffects
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showFineTune, setShowFineTune] = useState(false)
 
   const [size, setSize] = useState(cursorData?.size ?? DEFAULT_CURSOR_DATA.size)
+  const [motionPreset, setMotionPreset] = useState<CursorMotionPreset>(cursorData?.motionPreset ?? DEFAULT_CURSOR_DATA.motionPreset ?? 'cinematic')
   const [idleTimeoutSec, setIdleTimeoutSec] = useState((cursorData?.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout) / 1000)
   const [speed, setSpeed] = useState(cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed)
   const [smoothness, setSmoothness] = useState(cursorData?.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
@@ -51,6 +53,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   useEffect(() => {
     setIdleTimeoutSec((cursorData?.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout) / 1000)
   }, [cursorData?.idleTimeout])
+
+  useEffect(() => {
+    setMotionPreset(cursorData?.motionPreset ?? DEFAULT_CURSOR_DATA.motionPreset ?? 'cinematic')
+  }, [cursorData?.motionPreset])
 
   useEffect(() => {
     setSpeed(cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed)
@@ -193,62 +199,118 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
           {showAdvanced && (
             <div className="p-3 bg-background/40 rounded-lg space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
-              {/* Speed slider */}
+              {/* Motion Style Preset */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <label className="text-xs font-medium text-muted-foreground">Responsiveness</label>
-                    <InfoTooltip content="Adjusts how much the cursor moves." />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{speed.toFixed(2)}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <label className="text-xs font-medium text-muted-foreground">Motion Style</label>
+                  <InfoTooltip content="Controls how smoothly the cursor glides across the screen." />
                 </div>
-                <Slider
-                  value={[speed]}
-                  onValueChange={([value]) => setSpeed(value)}
-                  onValueCommit={([value]) => onUpdateCursor({ speed: value })}
-                  min={0.01}
-                  max={1}
-                  step={0.01}
-                  className="w-full"
-                />
+                <Select
+                  value={motionPreset}
+                  onValueChange={(value) => {
+                    const preset = value as CursorMotionPreset
+                    setMotionPreset(preset)
+                    if (preset !== 'custom') {
+                      const presetValues = CURSOR_MOTION_PRESETS[preset]
+                      setSpeed(presetValues.speed)
+                      setSmoothness(presetValues.smoothness)
+                      setGlide(presetValues.glide)
+                      onUpdateCursor({
+                        motionPreset: preset,
+                        speed: presetValues.speed,
+                        smoothness: presetValues.smoothness,
+                        glide: presetValues.glide
+                      })
+                    } else {
+                      onUpdateCursor({ motionPreset: preset })
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cinematic">Cinematic</SelectItem>
+                    <SelectItem value="smooth">Smooth</SelectItem>
+                    <SelectItem value="balanced">Balanced</SelectItem>
+                    <SelectItem value="responsive">Responsive</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Smoothness slider */}
-              <div className="border-t border-border/30 pt-2.5 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-muted-foreground">Smoothness</label>
-                  <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{smoothness.toFixed(2)}</span>
-                </div>
-                <Slider
-                  value={[smoothness]}
-                  onValueChange={([value]) => setSmoothness(value)}
-                  onValueCommit={([value]) => onUpdateCursor({ smoothness: value })}
-                  min={0.1}
-                  max={1}
-                  step={0.05}
-                  className="w-full"
-                />
-              </div>
+              {/* Fine-tune Section */}
+              <button
+                onClick={() => setShowFineTune(!showFineTune)}
+                className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-medium text-muted-foreground/70 hover:text-muted-foreground bg-background/20 hover:bg-background/30 rounded transition-colors"
+              >
+                <span>Fine-tune</span>
+                <ChevronRight className={cn("w-2.5 h-2.5 transition-transform duration-200", showFineTune && "rotate-90")} />
+              </button>
 
-              {/* Glide slider */}
-              <div className="border-t border-border/30 pt-2.5 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <label className="text-xs font-medium text-muted-foreground">Glide</label>
-                    <InfoTooltip content="Adds a slight delay to the cursor for a smoother feel." />
+              {showFineTune && (
+                <div className="pl-2 space-y-2.5 border-l-2 border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
+                  {/* Speed/Responsiveness slider */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-medium text-muted-foreground/80">Responsiveness</label>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono tabular-nums">{speed.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[speed]}
+                      onValueChange={([value]) => setSpeed(value)}
+                      onValueCommit={([value]) => {
+                        setMotionPreset('custom')
+                        onUpdateCursor({ speed: value, motionPreset: 'custom' })
+                      }}
+                      min={0.01}
+                      max={1}
+                      step={0.01}
+                      className="w-full"
+                    />
                   </div>
-                  <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{glide.toFixed(2)}</span>
+
+                  {/* Smoothness slider */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-medium text-muted-foreground/80">Smoothness</label>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono tabular-nums">{smoothness.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[smoothness]}
+                      onValueChange={([value]) => setSmoothness(value)}
+                      onValueCommit={([value]) => {
+                        setMotionPreset('custom')
+                        onUpdateCursor({ smoothness: value, motionPreset: 'custom' })
+                      }}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Glide slider */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-medium text-muted-foreground/80">Glide</label>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono tabular-nums">{glide.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[glide]}
+                      onValueChange={([value]) => setGlide(value)}
+                      onValueCommit={([value]) => {
+                        setMotionPreset('custom')
+                        onUpdateCursor({ glide: value, motionPreset: 'custom' })
+                      }}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      className="w-full"
+                    />
+                  </div>
                 </div>
-                <Slider
-                  value={[glide]}
-                  onValueChange={([value]) => setGlide(value)}
-                  onValueCommit={([value]) => onUpdateCursor({ glide: value })}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  className="w-full"
-                />
-              </div>
+              )}
 
               {/* Click Animation */}
               <div className="border-t border-border/30 pt-2.5 space-y-2">

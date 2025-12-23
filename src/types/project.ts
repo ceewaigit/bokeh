@@ -448,6 +448,9 @@ export type ClickEffectAnimation = 'expand' | 'pulse'
 export type ClickTextMode = 'random' | 'sequence' | 'single'
 export type ClickTextAnimation = 'float' | 'pop'
 
+// Cursor motion presets for smooth movement
+export type CursorMotionPreset = 'cinematic' | 'smooth' | 'balanced' | 'responsive' | 'custom'
+
 // New: Effect-specific data types for independent effects
 export interface ZoomEffectData {
   scale: number
@@ -505,6 +508,11 @@ export interface CursorEffectData {
    * Optional for backward compatibility with existing projects.
    */
   glide?: number
+  /**
+   * Motion preset for cursor smoothing (cinematic, smooth, balanced, responsive, custom).
+   * When set to anything other than 'custom', speed/smoothness/glide are derived from preset.
+   */
+  motionPreset?: CursorMotionPreset
 }
 
 export interface KeystrokeEffectData {

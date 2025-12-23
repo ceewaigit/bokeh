@@ -14,13 +14,66 @@ import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 type OneEuroSmoothingState = { x: number; y: number; dx: number; dy: number }
 
 const smoothingCache = new Map<string, OneEuroSmoothingState>()
-const MAX_SMOOTHING_CACHE_SIZE = 1000
+// PERF: Reduced from 1000 to 300 (~5 seconds at 60fps)
+// Pre-computation covers first 5 seconds, so this handles scrubbing/seeking
+const MAX_SMOOTHING_CACHE_SIZE = 300
 
 /**
  * Clear the smoothing cache - call when switching projects or recordings
  */
 export function clearCursorCalculatorCache(): void {
   smoothingCache.clear()
+}
+
+/**
+ * Pre-compute cursor smoothing cache for the first N seconds of a recording.
+ * This eliminates the lag when first rendering cursor effects by warming the cache
+ * during project load instead of on first render.
+ *
+ * @param mouseEvents - Mouse events from recording metadata
+ * @param cursorData - Cursor effect settings
+ * @param durationMs - Duration to precompute (default 5000ms = 5 seconds)
+ * @param fps - Frame rate for sampling (default 30fps for efficiency)
+ */
+export function precomputeCursorSmoothingCache(
+  mouseEvents: MouseEvent[],
+  cursorData: CursorEffectData,
+  durationMs: number = 5000,
+  fps: number = 30
+): void {
+  if (!mouseEvents || mouseEvents.length === 0 || !cursorData.gliding) {
+    return
+  }
+
+  const frameInterval = 1000 / fps
+  const startTime = mouseEvents[0]?.timestamp ?? 0
+  const endTime = Math.min(startTime + durationMs, mouseEvents[mouseEvents.length - 1]?.timestamp ?? startTime)
+
+  let previousState: CursorState | undefined = undefined
+
+  // Simulate frame-by-frame to build up cache
+  for (let t = startTime; t <= endTime; t += frameInterval) {
+    const rawPosition = interpolateMousePosition(mouseEvents, t)
+    if (!rawPosition) continue
+
+    // This will populate the smoothingCache
+    const result = simulateSmoothingWithHistory(mouseEvents, t, rawPosition, cursorData, fps)
+
+    // Build up previousState for sequential frame processing
+    if (result.smoothingState) {
+      previousState = {
+        visible: true,
+        x: result.position.x,
+        y: result.position.y,
+        type: CursorType.ARROW,
+        scale: cursorData.size ?? DEFAULT_CURSOR_DATA.size,
+        opacity: 1,
+        clickEffects: [],
+        timestamp: t,
+        smoothingState: result.smoothingState
+      }
+    }
+  }
 }
 
 export interface CursorState {

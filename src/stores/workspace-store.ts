@@ -173,7 +173,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     {
       name: 'workspace-storage',
       version: 2,
-  migrate: (persistedState: any) => {
+      migrate: (persistedState: any) => {
         if (!persistedState) return persistedState
 
         // Migrate old utility tabs into the new "advanced" bucket.

@@ -1394,3 +1394,30 @@ export function computeCameraState({
     physics: nextPhysics,
   }
 }
+
+/**
+ * Pre-warm camera caches during project load to eliminate first-frame lag.
+ * Call this after metadata is loaded but before first render.
+ *
+ * @param mouseEvents - Mouse events from recording metadata
+ * @param effects - Effects array (for zoom block parsing)
+ * @param videoWidth - Video width for motion cluster analysis
+ * @param videoHeight - Video height for motion cluster analysis
+ */
+export function precomputeCameraCaches(
+  mouseEvents: MouseEvent[],
+  effects: Effect[],
+  videoWidth: number,
+  videoHeight: number
+): void {
+  // 1. Pre-parse zoom blocks (populates zoomBlocksCache WeakMap)
+  // Note: WeakMap is keyed by array reference, so this only helps if
+  // the same effects array is used during rendering
+  parseZoomBlocks(effects)
+
+  // 2. Pre-compute motion clusters (populates motionClusterCache Map)
+  // This is the most expensive operation - O(n) over all mouse events
+  if (mouseEvents && mouseEvents.length > 0 && videoWidth > 0 && videoHeight > 0) {
+    getMotionClusters(mouseEvents, videoWidth, videoHeight)
+  }
+}

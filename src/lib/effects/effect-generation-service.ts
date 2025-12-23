@@ -251,7 +251,7 @@ export class EffectGenerationService {
             const metadataFromMap = metadataByRecordingId?.get(recording.id)
             let effectiveMetadata = metadataFromMap ?? recording.metadata
             if (effectiveMetadata && !Object.isExtensible(effectiveMetadata)) {
-                effectiveMetadata = { ...(effectiveMetadata as Record<string, unknown>) } as any
+                effectiveMetadata = { ...effectiveMetadata } as RecordingMetadata
                 if (metadataFromMap) {
                     metadataByRecordingId?.set(recording.id, effectiveMetadata)
                 } else if (recording.metadata) {

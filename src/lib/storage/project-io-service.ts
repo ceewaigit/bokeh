@@ -1,9 +1,12 @@
-import type { Project, Recording } from '@/types/project'
+import type { Project, Recording, CursorEffectData, MouseEvent } from '@/types/project'
 import { RecordingStorage } from './recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { migrationRunner } from '@/lib/migrations'
 import { getVideoMetadata } from '@/lib/utils/video-metadata'
 import { PROJECT_EXTENSION } from '@/lib/storage/recording-storage'
+import { precomputeCursorSmoothingCache } from '@/lib/effects/utils/cursor-calculator'
+import { precomputeCameraCaches } from '@/lib/effects/utils/camera-calculator'
+import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 
 /**
  * Options for loadProjectFromRecording
@@ -94,6 +97,13 @@ export class ProjectIOService {
 
     // Deep clone the project to allow mutations (JSON objects are frozen/read-only)
     project = structuredClone(project)
+
+    // Clear stale temp proxy URLs that won't exist after restarts
+    // The proxy service will regenerate them fresh during load
+    for (const rec of project.recordings) {
+      delete (rec as any).previewProxyUrl
+      delete (rec as any).glowProxyUrl
+    }
 
     // Apply migrations
     onProgress?.('Applying migrations...')
@@ -421,12 +431,17 @@ export class ProjectIOService {
   static async saveProject(project: Project): Promise<void> {
     // Deep copy to avoid mutating frozen Immer objects.
     // Zoom effects live only in timeline.effects; recording.effects are non-zoom.
+    // Strip temp proxy URLs (they live in /tmp and won't exist after restarts)
     const projectToSave: Project = this.relativizePaths({
       ...project,
-      recordings: project.recordings.map(r => ({
-        ...r,
-        effects: (r.effects || []).filter(e => e.type !== 'zoom')
-      })),
+      recordings: project.recordings.map(r => {
+        // Destructure to omit temp proxy URLs from saved project
+        const { previewProxyUrl, glowProxyUrl, ...rest } = r as any
+        return {
+          ...rest,
+          effects: (r.effects || []).filter(e => e.type !== 'zoom')
+        }
+      }),
       timeline: {
         ...project.timeline,
         effects: project.timeline.effects || []
@@ -535,6 +550,27 @@ export class ProjectIOService {
           recording.effects = []
         }
         EffectsFactory.createInitialEffectsForRecording(recording)
+      }
+
+      // PRE-COMPUTE EFFECT CACHES: Warm up expensive caches during load
+      // This eliminates the lag when first rendering cursor/camera effects
+      if (recording.metadata) {
+        const mouseEvents = (recording.metadata as any)?.mouseEvents as MouseEvent[] | undefined
+        if (mouseEvents && mouseEvents.length > 0) {
+          onProgress?.(`Pre-computing effects for recording ${i + 1}...`)
+
+          // Get cursor settings from effects or use defaults
+          const cursorEffect = recording.effects?.find(e => e.type === 'cursor')
+          const cursorData = (cursorEffect?.data as CursorEffectData) ?? DEFAULT_CURSOR_DATA
+
+          // Pre-compute cursor smoothing cache (first 5 seconds at 30fps)
+          precomputeCursorSmoothingCache(mouseEvents, cursorData, 5000, 30)
+
+          // Pre-compute camera motion clusters
+          const videoWidth = recording.width ?? 1920
+          const videoHeight = recording.height ?? 1080
+          precomputeCameraCaches(mouseEvents, recording.effects ?? [], videoWidth, videoHeight)
+        }
       }
     }
 

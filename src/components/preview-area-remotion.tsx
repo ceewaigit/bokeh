@@ -9,6 +9,8 @@
  * PERFORMANCE OPTIMIZATIONS:
  * - Throttled scrubbing: limits seek updates to 8fps during rapid scrubbing
  * - This reduces VTDecoderXPCService memory pressure from continuous decoding
+ * - Subscribes directly to project store (not via props) to avoid parent re-renders
+ * - Visibility-based pause: stops rendering when window loses focus
  */
 
 'use client';
@@ -76,8 +78,6 @@ const GLOW_VISUALS = {
 const SCRUB_THROTTLE_MS = 125; // Max 8 seeks per second during scrubbing
 
 interface PreviewAreaRemotionProps {
-  currentTime: number;
-  isPlaying: boolean;
   // Crop editing props
   isEditingCrop?: boolean;
   cropData?: CropEffectData | null;
@@ -89,15 +89,46 @@ interface PreviewAreaRemotionProps {
 import { useExportStore } from '@/stores/export-store';
 
 export function PreviewAreaRemotion({
-  currentTime,
-  isPlaying,
   isEditingCrop,
   cropData,
   onCropChange,
   onCropConfirm,
   onCropReset,
 }: PreviewAreaRemotionProps) {
+  // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders
+  const currentTime = useProjectStore((s) => s.currentTime);
+  const storeIsPlaying = useProjectStore((s) => s.isPlaying);
+  const storePause = useProjectStore((s) => s.pause);
   const isExporting = useExportStore((s) => s.isExporting);
+
+  // PERFORMANCE: Track document visibility - pause when window not focused
+  const isDocumentVisible = useRef(true);
+  const wasPlayingBeforeHidden = useRef(false);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState === 'visible';
+
+      if (!visible && storeIsPlaying) {
+        // Window hidden while playing - remember and pause
+        wasPlayingBeforeHidden.current = true;
+        storePause();
+      } else if (visible && wasPlayingBeforeHidden.current) {
+        // Window visible again - resume if we were playing
+        wasPlayingBeforeHidden.current = false;
+        // Don't auto-resume - user might have switched apps intentionally
+        // They can press play again
+      }
+
+      isDocumentVisible.current = visible;
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [storeIsPlaying, storePause]);
+
+  // Derive effective isPlaying - pause if document hidden
+  const isPlaying = storeIsPlaying && isDocumentVisible.current;
   const playerRef = useRef<PlayerRef>(null);
   const glowPlayerRef = useRef<PlayerRef>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);

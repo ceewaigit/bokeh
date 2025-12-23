@@ -26,6 +26,22 @@ export class PlayheadService {
     if (!project || currentTime === undefined) {
       return state
     }
+
+    // BATTERY OPTIMIZATION: If the playhead is still within the same clip,
+    // skip the expensive findClipAtTime calculation. This is the common case
+    // during playback (30-60fps updates) where we're usually in the same clip.
+    if (prevState?.playheadClip) {
+      const prevClip = prevState.playheadClip
+      const clipStart = prevClip.startTime
+      const clipEnd = prevClip.startTime + prevClip.duration
+
+      // Check if still within the same clip (with small tolerance for boundaries)
+      if (currentTime >= clipStart && currentTime < clipEnd - 1) {
+        // Still in same clip - reuse previous state without expensive recalculation
+        return prevState
+      }
+    }
+
     const currentClipResult = this.findClipAtTime(project, currentTime)
     if (currentClipResult) {
       state.playheadClip = currentClipResult.clip

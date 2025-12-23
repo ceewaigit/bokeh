@@ -8,52 +8,13 @@ import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-in
 import { ParallaxBackgroundLayer } from './ParallaxBackgroundLayer';
 import { DEFAULT_PARALLAX_LAYERS } from '@/lib/constants/default-effects';
 
-export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
-  backgroundEffect,
-  videoWidth,
-  videoHeight
-}) => {
-  const backgroundData = backgroundEffect?.data as BackgroundEffectData | undefined;
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-
-  // Get clip context for mouse events - this component is always rendered inside ClipProvider
-  const { cursorEvents, clip } = useClipContext();
-
-  if (!backgroundData?.type) {
-    return null;
-  }
-
-  // Handle Parallax type separately with its own component
-  if (backgroundData.type === BackgroundType.Parallax) {
-    // Calculate current source time for mouse interpolation
-    // frame is relative to the Sequence start (clip start), not timeline
-    const frameTimeMs = (frame / fps) * 1000;
-    const sourceTimeMs = (clip.sourceIn ?? 0) + frameTimeMs;
-
-    // Get normalized mouse position (0-1)
-    const mousePos = interpolateMousePositionNormalized(cursorEvents, sourceTimeMs);
-    const mouseX = mousePos?.x ?? 0.5;
-    const mouseY = mousePos?.y ?? 0.5;
-
-    // Use configured layers or defaults
-    const layers = backgroundData.parallaxLayers?.length
-      ? backgroundData.parallaxLayers
-      : DEFAULT_PARALLAX_LAYERS;
-
-    // Get intensity (default 50)
-    const intensity = backgroundData.parallaxIntensity ?? 50;
-
-    return (
-      <ParallaxBackgroundLayer
-        layers={layers}
-        mouseX={mouseX}
-        mouseY={mouseY}
-        intensity={intensity}
-      />
-    );
-  }
-
+/**
+ * BATTERY OPTIMIZATION: Static background component that doesn't use useCurrentFrame.
+ * This prevents 30-60fps re-renders for backgrounds that don't need frame data.
+ */
+const StaticBackgroundLayer: React.FC<{
+  backgroundData: BackgroundEffectData;
+}> = React.memo(({ backgroundData }) => {
   let backgroundStyle: React.CSSProperties = {};
 
   switch (backgroundData.type) {
@@ -71,8 +32,6 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
 
         // Layer wallpaper on top if available
         if (backgroundData.wallpaper) {
-          // We'll need to return a more complex structure for layered backgrounds
-          // For now, just use wallpaper when available
           backgroundStyle = {
             backgroundImage: `url(${backgroundData.wallpaper})`,
             backgroundSize: 'cover',
@@ -122,4 +81,66 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   }
 
   return <AbsoluteFill style={{ ...backgroundStyle, zIndex: 5, pointerEvents: 'none' }} />;
+});
+
+StaticBackgroundLayer.displayName = 'StaticBackgroundLayer';
+
+/**
+ * BATTERY OPTIMIZATION: Parallax background component that needs useCurrentFrame.
+ * Only this component re-renders every frame - and only when Parallax is active.
+ */
+const ParallaxBackgroundWrapper: React.FC<{
+  backgroundData: BackgroundEffectData;
+}> = ({ backgroundData }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const { cursorEvents, clip } = useClipContext();
+
+  // Calculate current source time for mouse interpolation
+  const frameTimeMs = (frame / fps) * 1000;
+  const sourceTimeMs = (clip.sourceIn ?? 0) + frameTimeMs;
+
+  // Get normalized mouse position (0-1)
+  const mousePos = interpolateMousePositionNormalized(cursorEvents, sourceTimeMs);
+  const mouseX = mousePos?.x ?? 0.5;
+  const mouseY = mousePos?.y ?? 0.5;
+
+  // Use configured layers or defaults
+  const layers = backgroundData.parallaxLayers?.length
+    ? backgroundData.parallaxLayers
+    : DEFAULT_PARALLAX_LAYERS;
+
+  // Get intensity (default 50)
+  const intensity = backgroundData.parallaxIntensity ?? 50;
+
+  return (
+    <ParallaxBackgroundLayer
+      layers={layers}
+      mouseX={mouseX}
+      mouseY={mouseY}
+      intensity={intensity}
+    />
+  );
+};
+
+/**
+ * Main BackgroundLayer component - delegates to optimized sub-components.
+ * Static backgrounds don't re-render on frame changes (major battery savings).
+ */
+export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
+  backgroundEffect,
+}) => {
+  const backgroundData = backgroundEffect?.data as BackgroundEffectData | undefined;
+
+  if (!backgroundData?.type) {
+    return null;
+  }
+
+  // BATTERY OPTIMIZATION: Only Parallax needs frame-by-frame updates
+  if (backgroundData.type === BackgroundType.Parallax) {
+    return <ParallaxBackgroundWrapper backgroundData={backgroundData} />;
+  }
+
+  // Static backgrounds don't need useCurrentFrame - avoids 30-60fps re-renders
+  return <StaticBackgroundLayer backgroundData={backgroundData} />;
 };

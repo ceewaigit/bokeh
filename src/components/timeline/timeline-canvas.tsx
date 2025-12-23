@@ -52,8 +52,6 @@ import {
 interface TimelineCanvasProps {
   className?: string
   currentProject: Project | null
-  currentTime: number
-  isPlaying: boolean
   zoom: number
   onPlay: () => void
   onPause: () => void
@@ -66,8 +64,6 @@ interface TimelineCanvasProps {
 export function TimelineCanvas({
   className = "h-full w-full",
   currentProject,
-  currentTime,
-  isPlaying,
   zoom,
   onPlay,
   onPause,
@@ -76,6 +72,10 @@ export function TimelineCanvas({
   onZoomChange,
   onZoomBlockUpdate
 }: TimelineCanvasProps) {
+  // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders every frame
+  const currentTime = useProjectStore((s) => s.currentTime)
+  const isPlaying = useProjectStore((s) => s.isPlaying)
+
   const {
     selectedClips,
     selectedEffectLayer,

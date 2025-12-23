@@ -1,4 +1,4 @@
-import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ParallaxLayer } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, CursorMotionPreset, KeystrokeEffectData, ParallaxLayer } from '@/types/project'
 import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset } from '@/types/project'
 
 // Re-export schema helpers for gradual migration
@@ -43,6 +43,14 @@ export const SCREEN_EFFECT_PRESETS: Record<string, { tiltX: number; tiltY: numbe
   [ScreenEffectPreset.TiltRight]: { tiltX: -6, tiltY: 10, perspective: 900 }
 }
 
+// Cursor motion presets - maps preset name to speed/smoothness/glide values
+export const CURSOR_MOTION_PRESETS: Record<Exclude<CursorMotionPreset, 'custom'>, { speed: number; smoothness: number; glide: number }> = {
+  cinematic: { speed: 0.01, smoothness: 1.0, glide: 1.0 },    // Ultra-smooth, maximum lag - like Screen Studio
+  smooth: { speed: 0.05, smoothness: 0.9, glide: 0.85 },      // Very smooth, slight response
+  balanced: { speed: 0.15, smoothness: 0.7, glide: 0.6 },     // Middle ground
+  responsive: { speed: 0.5, smoothness: 0.4, glide: 0.3 }     // Snappy, tight following
+}
+
 // Default cursor effect data
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   style: CursorStyle.MacOS,
@@ -69,11 +77,12 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   fadeOnIdle: true,
   idleTimeout: 3000,
   gliding: true,
-  // NOTE: `speed` is "responsiveness" (how tightly the cursor follows the recorded path),
-  // not literal cursor velocity. Lower values feel more "icy"/Bokeh-like.
-  speed: 0.03,
-  smoothness: 0.95,
-  glide: 0.9
+  // Motion preset controls cursor smoothing behavior
+  motionPreset: 'cinematic',
+  // Values derived from cinematic preset - ultra-smooth like Screen Studio
+  speed: 0.01,
+  smoothness: 1.0,
+  glide: 1.0
 }
 
 // Default keystroke effect data

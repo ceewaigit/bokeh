@@ -96,13 +96,13 @@ async function loadProjectRecording(
 
 export function WorkspaceManager() {
   // Store hooks - using reactive state from single source of truth
+  // NOTE: currentTime and isPlaying are NOT subscribed here - children (PreviewAreaRemotion,
+  // TimelineCanvas) subscribe directly to avoid re-rendering entire workspace every frame
   const {
     currentProject,
     newProject,
     selectedClipId,
     selectedEffectLayer,
-    currentTime,
-    isPlaying,
     playheadClip,
     playheadRecording,
     play: storePlay,
@@ -117,8 +117,6 @@ export function WorkspaceManager() {
       newProject: s.newProject,
       selectedClipId: s.selectedClipId,
       selectedEffectLayer: s.selectedEffectLayer,
-      currentTime: s.currentTime,
-      isPlaying: s.isPlaying,
       playheadClip: s.playheadClip,
       playheadRecording: s.playheadRecording,
       play: s.play,
@@ -301,6 +299,9 @@ export function WorkspaceManager() {
   // Playhead recording now comes directly from store's reactive state
   // No need to calculate - store maintains this
 
+  // Subscribe to isPlaying only where needed (e.g., clip boundary monitoring)
+  // This is a "hot" subscription but only causes re-render when isPlaying changes (rare)
+  const isPlaying = useProjectStore((s) => s.isPlaying)
 
   // Define handlePause first since it's used in useEffect
   const handlePause = useCallback(() => {
@@ -311,11 +312,16 @@ export function WorkspaceManager() {
   useEffect(() => {
     if (!playheadClip || !isPlaying || isExporting) return
 
+    // BATTERY OPTIMIZATION: Use longer interval (250ms vs 100ms) since frame-accurate 
+    // boundary detection isn't critical - we just need to stop at clip end
     const syncInterval = setInterval(() => {
       if (!isPlaying || !playheadClip) return
 
+      // Get fresh currentTime from store to avoid stale closure
+      const freshCurrentTime = useProjectStore.getState().currentTime
+
       // Convert timeline time to source time using the shared converter (respects playbackRate + remaps).
-      const sourceTimeMs = timelineToSource(currentTime, playheadClip)
+      const sourceTimeMs = timelineToSource(freshCurrentTime, playheadClip)
       const sourceOutMs =
         playheadClip.sourceOut ??
         ((playheadClip.sourceIn || 0) + getSourceDuration(playheadClip))
@@ -323,7 +329,7 @@ export function WorkspaceManager() {
       if (sourceTimeMs > sourceOutMs) {
         handlePause()
       }
-    }, 100)
+    }, 250) // Increased from 100ms to 250ms for battery savings
 
     playbackIntervalRef.current = syncInterval
 
@@ -332,7 +338,7 @@ export function WorkspaceManager() {
         clearInterval(playbackIntervalRef.current)
       }
     }
-  }, [isPlaying, currentTime, playheadClip, handlePause, isExporting])
+  }, [isPlaying, playheadClip, handlePause, isExporting]) // REMOVED currentTime - read from store instead
 
   // Centralized playback control - no selection required for playback
   const handlePlay = useCallback(() => {
@@ -793,8 +799,6 @@ export function WorkspaceManager() {
                 {/* Preview Area */}
                 <div className="flex-1 overflow-hidden relative min-w-0">
                   <PreviewAreaRemotion
-                    currentTime={currentTime}
-                    isPlaying={isPlaying}
                     isEditingCrop={isEditingCrop}
                     cropData={editingCropData}
                     onCropChange={handleCropChange}
@@ -833,8 +837,6 @@ export function WorkspaceManager() {
                 <TimelineCanvas
                   className="h-full w-full"
                   currentProject={currentProject}
-                  currentTime={currentTime}
-                  isPlaying={isPlaying}
                   zoom={zoom}
                   onPlay={handlePlay}
                   onPause={handlePause}
