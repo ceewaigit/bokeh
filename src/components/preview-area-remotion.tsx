@@ -82,7 +82,8 @@ export function PreviewAreaRemotion({
   onCropReset,
 }: PreviewAreaRemotionProps) {
   // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders
-  const currentTime = useProjectStore((s) => s.currentTime);
+  // WARNING: Do NOT subscribe to currentTime here. It updates 60fps and will re-render this entire tree.
+  // Instead, read it directly from the store ref during sync intervals.
   const storeIsPlaying = useProjectStore((s) => s.isPlaying);
   const storePause = useProjectStore((s) => s.pause);
   const isExporting = useExportStore((s) => s.isExporting);
@@ -129,7 +130,9 @@ export function PreviewAreaRemotion({
   const lastIsPlayingRef = useRef<boolean>(false);
   const playbackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const glowPlaybackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const currentTimeRef = useRef<number>(currentTime);
+
+  // No longer tracking currentTime via prop to avoid re-renders.
+  // Access it directly from store when needed.
   const timelineMetadataRef = useRef<TimelineMetadata | null>(null);
   const lastGlowIsPlayingRef = useRef<boolean>(false);
 
@@ -231,11 +234,6 @@ export function PreviewAreaRemotion({
     return Math.round((timeMs / 1000) * timelineMetadata.fps);
   };
 
-  // Keep refs in sync for interval callbacks (avoid stale closures causing seeks to old frames).
-  useEffect(() => {
-    currentTimeRef.current = currentTime;
-  }, [currentTime]);
-
   useEffect(() => {
     timelineMetadataRef.current = timelineMetadata;
   }, [timelineMetadata]);
@@ -282,31 +280,33 @@ export function PreviewAreaRemotion({
   }, []);
 
   // Detect scrubbing state and clean up timeouts
+  // We infer scrubbing if NOT playing but time is changing - need to hook into time changes from store
   useEffect(() => {
+    // Poll for scrub state based on rapid time changes
+    // This is less efficient than the previous direct prop, but saves the massive re-renders.
+    // Actually, simple "is playing" check is usually enough for the UI toggle.
     if (isPlaying) {
       setIsScrubbing(false);
       return;
     }
 
-    // Mark as scrubbing
-    setIsScrubbing(true);
-
-    // Clear previous end timeout
-    if (scrubEndTimeoutRef.current) {
-      clearTimeout(scrubEndTimeoutRef.current);
-    }
-
-    // Set timeout to mark end of scrubbing (longer delay to avoid glow player flickering)
-    scrubEndTimeoutRef.current = setTimeout(() => {
-      setIsScrubbing(false);
-    }, 500);
+    const unsubscribe = useProjectStore.subscribe((state, prevState) => {
+      if (state.isPlaying) return;
+      if (state.currentTime !== prevState.currentTime) {
+        setIsScrubbing(true);
+        // Debounce reset
+        if (scrubEndTimeoutRef.current) clearTimeout(scrubEndTimeoutRef.current);
+        scrubEndTimeoutRef.current = setTimeout(() => {
+          setIsScrubbing(false);
+        }, 500);
+      }
+    });
 
     return () => {
-      if (scrubEndTimeoutRef.current) {
-        clearTimeout(scrubEndTimeoutRef.current);
-      }
+      unsubscribe();
+      if (scrubEndTimeoutRef.current) clearTimeout(scrubEndTimeoutRef.current);
     };
-  }, [currentTime, isPlaying]);
+  }, [isPlaying]);
 
   // Main player sync effect with throttled scrubbing
   useEffect(() => {
@@ -323,7 +323,9 @@ export function PreviewAreaRemotion({
       return; // Skip all other sync logic
     }
 
-    const targetFrame = clampFrame(timeToFrame(currentTime));
+    // Direct store access
+    const currentTimeMs = useProjectStore.getState().currentTime;
+    const targetFrame = clampFrame(timeToFrame(currentTimeMs));
 
     if (isPlaying) {
       // Critical performance behavior:
@@ -331,7 +333,10 @@ export function PreviewAreaRemotion({
       // Only seek once when entering play, then periodically correct drift (if any).
       if (!lastIsPlayingRef.current) {
         try {
-          playerRef.current.seekTo(targetFrame);
+          // Sync start position
+          const currentStoreTime = useProjectStore.getState().currentTime;
+          const startFrame = clampFrame(timeToFrame(currentStoreTime));
+          playerRef.current.seekTo(startFrame);
         } catch (e) {
           console.warn('Failed to seek before play:', e);
         }
@@ -361,7 +366,8 @@ export function PreviewAreaRemotion({
 
           try {
             const currentFrame = player.getCurrentFrame();
-            const desiredFrame = Math.max(0, Math.min(meta.durationInFrames - 1, Math.round((currentTimeRef.current / 1000) * meta.fps)));
+            const currentStoreTime = useProjectStore.getState().currentTime;
+            const desiredFrame = Math.max(0, Math.min(meta.durationInFrames - 1, Math.round((currentStoreTime / 1000) * meta.fps)));
             const drift = desiredFrame - currentFrame;
 
             // Allow small drift to avoid fighting the player.
@@ -391,9 +397,30 @@ export function PreviewAreaRemotion({
       console.warn('Failed to pause:', e);
     }
 
-    // Throttled seek during scrubbing
+    // Need to subscribe to time updates manually since we removed the prop
+    const unsubscribe = useProjectStore.subscribe((state) => {
+      if (!state.isPlaying && !isExporting) {
+        const time = state.currentTime;
+        const frame = clampFrame(timeToFrame(time));
+        throttledSeek(frame);
+        // Also sync glow player manually here if regular sync loop isn't running
+        if (isGlowEnabled && glowPlayerRef.current) {
+          // Debounce glow updates even more
+          const glowFrame = clampFrame(timeToFrame(time));
+          try {
+            glowPlayerRef.current.seekTo(glowFrame);
+          } catch { }
+        }
+      }
+    });
+
+    // Initial seek to current time
     throttledSeek(targetFrame);
-  }, [currentTime, isPlaying, timelineMetadata, throttledSeek, isExporting]);
+
+    return () => {
+      unsubscribe();
+    }
+  }, [isPlaying, timelineMetadata, throttledSeek, isExporting, isGlowEnabled]); // Removed currentTime
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -430,7 +457,9 @@ export function PreviewAreaRemotion({
       return;
     }
 
-    const targetFrame = clampFrame(timeToFrame(currentTime));
+    // Direct store access
+    const currentTimeMs = useProjectStore.getState().currentTime;
+    const targetFrame = clampFrame(timeToFrame(currentTimeMs));
 
     try {
       if (isPlaying) {
@@ -447,7 +476,8 @@ export function PreviewAreaRemotion({
 
             try {
               const currentFrame = player.getCurrentFrame();
-              const desiredFrame = Math.max(0, Math.min(meta.durationInFrames - 1, Math.round((currentTimeRef.current / 1000) * meta.fps)));
+              const currentStoreTime = useProjectStore.getState().currentTime;
+              const desiredFrame = Math.max(0, Math.min(meta.durationInFrames - 1, Math.round((currentStoreTime / 1000) * meta.fps)));
               const drift = desiredFrame - currentFrame;
               if (drift >= 6) player.seekTo(desiredFrame);
             } catch {
@@ -463,12 +493,13 @@ export function PreviewAreaRemotion({
         }
         lastGlowIsPlayingRef.current = false;
         glowPlayerRef.current.pause();
+        // Seek handled by the main effect subscription now
         glowPlayerRef.current.seekTo(targetFrame);
       }
     } catch {
       // Glow player errors are non-critical
     }
-  }, [currentTime, isPlaying, timelineMetadata, isScrubbing]);
+  }, [isPlaying, timelineMetadata, isScrubbing]); // Removed currentTime
 
   // Sync volume/mute changes
   useEffect(() => {
@@ -487,10 +518,12 @@ export function PreviewAreaRemotion({
   }, [volume, muted]);
 
   // Calculate initial frame
+  // Only needs to run once or when metadata changes
   const initialFrame = useMemo(() => {
     if (!timelineMetadata) return 0;
-    return clampFrame(timeToFrame(currentTime));
-  }, [currentTime, timelineMetadata]);
+    const storeTime = useProjectStore.getState().currentTime;
+    return clampFrame(timeToFrame(storeTime));
+  }, [timelineMetadata]); // Removed currentTime
 
   // Player key for re-render on clip changes
   const playerKey = useMemo(() => {
@@ -512,22 +545,24 @@ export function PreviewAreaRemotion({
     );
   }
 
-  // CRITICAL FIX: Memoize inputProps to prevent Remotion from re-mounting composition tree
+  // Memoize inputProps to prevent Remotion from re-mounting composition tree
   // Previously, spreading playerConfig with new values created new object reference every render,
   // causing VideoClipRenderer to unmount/remount on every state change (VTDecoder memory leak)
-  const mainPlayerInputProps = useMemo(() => ({
-    ...playerConfig,
-    isEditingCrop: Boolean(isEditingCrop),
-    cropData,
-    onCropChange,
-    onCropConfirm,
-    onCropReset,
-    isHighQualityPlaybackEnabled,
-    isScrubbing,
-    isPlaying,
-    previewMuted: muted,
-    previewVolume: Math.min(volume / 100, 1),
-  }), [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
+  const mainPlayerInputProps = useMemo(() => {
+    return {
+      ...playerConfig,
+      isEditingCrop: Boolean(isEditingCrop),
+      cropData,
+      onCropChange,
+      onCropConfirm,
+      onCropReset,
+      isHighQualityPlaybackEnabled,
+      isScrubbing,
+      isPlaying,
+      previewMuted: muted,
+      previewVolume: Math.min(volume / 100, 1),
+    }
+  }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
 
   const glowPlayerInputProps = useMemo(() => ({
     ...playerConfig,
@@ -622,8 +657,7 @@ export function PreviewAreaRemotion({
               .__remotion-player {
                 border-radius: 12px !important;
                 overflow: hidden !important;
-                mask-image: radial-gradient(white, black);
-                -webkit-mask-image: -webkit-radial-gradient(white, black);
+                transform: translateZ(0); /* Force GPU layer */
               }
             `}} />
               <Player

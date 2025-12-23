@@ -337,6 +337,8 @@ export const useProjectStore = create<ProjectStore>()(
       const { currentProject, settings } = get()
       if (!currentProject) return
 
+      console.log('[ProjectStore] saveCurrentProject called');
+
       try {
         // Persist store-level settings that affect rendering/export into the project payload.
         // We do this at save-time to avoid making the entire app re-render on every UI slider tick.

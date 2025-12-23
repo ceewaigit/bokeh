@@ -370,6 +370,33 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   // RENDER DATA COMPUTATION
   // ==========================================================================
+  // ==========================================================================
+  // RENDER DATA COMPUTATION
+  // ==========================================================================
+
+  // FREEZE LOGIC: Capture layout dimensions when entering crop mode to prevent drift
+  // during playback (due to animated padding, resolution changes, etc).
+  // We track the *last* valid geometry to use as the frozen state.
+  interface FrozenLayout {
+    drawWidth: number;
+    drawHeight: number;
+    offsetX: number;
+    offsetY: number;
+    padding: number;
+    scaleFactor: number;
+    activeSourceWidth: number;
+    activeSourceHeight: number;
+    mockupPosition: MockupPositionResult | null;
+  }
+  const frozenLayoutRef = useRef<FrozenLayout | null>(null);
+
+  // Clear frozen state when not editing
+  useEffect(() => {
+    if (!isEditingCrop) {
+      frozenLayoutRef.current = null;
+    }
+  }, [isEditingCrop]);
+
   /**
    * Computes all rendering data for the current frame:
    * - Background styling (padding, corner radius, shadow)
@@ -398,41 +425,69 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     // Extract background effect data
     const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
     const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
-    const padding = backgroundData?.padding || 0;
 
-    // Scale factor relative to 1920x1080 reference
+    // Calculate LIVE values first
+    const livePadding = backgroundData?.padding || 0;
+
     const REFERENCE_WIDTH = 1920;
     const REFERENCE_HEIGHT = 1080;
-    const scaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
+    const liveScaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
+    const liveActiveSourceWidth = recording.width || sourceVideoWidth || videoWidth;
+    const liveActiveSourceHeight = recording.height || sourceVideoHeight || videoHeight;
+
+    // FREEZE LOGIC APPLIED HERE
+    // If we have a frozen layout and we are editing crop, use it.
+    // Otherwise calculate fresh.
+    let layout: FrozenLayout;
+
+    if (isEditingCrop && frozenLayoutRef.current) {
+      layout = frozenLayoutRef.current;
+    } else {
+      // Compute fresh layout
+      const paddingScaled = livePadding * liveScaleFactor;
+      const vidPos = calculateVideoPosition(
+        width, height, liveActiveSourceWidth, liveActiveSourceHeight, paddingScaled
+      );
+
+      let mockupPosition: MockupPositionResult | null = null;
+      if (backgroundData?.mockup?.enabled) {
+        mockupPosition = calculateMockupPosition(
+          width, height, backgroundData.mockup, liveActiveSourceWidth, liveActiveSourceHeight, paddingScaled
+        );
+      }
+
+      layout = {
+        drawWidth: Math.round(vidPos.drawWidth),
+        drawHeight: Math.round(vidPos.drawHeight),
+        offsetX: Math.round(vidPos.offsetX),
+        offsetY: Math.round(vidPos.offsetY),
+        padding: livePadding,
+        scaleFactor: liveScaleFactor,
+        activeSourceWidth: liveActiveSourceWidth,
+        activeSourceHeight: liveActiveSourceHeight,
+        mockupPosition
+      };
+
+      // If we are editing, capture this as the frozen state (first frame only)
+      if (isEditingCrop && !frozenLayoutRef.current) {
+        frozenLayoutRef.current = layout;
+      }
+    }
+
+    // Destructure the authoritative layout
+    const {
+      drawWidth, drawHeight, offsetX, offsetY, padding, scaleFactor,
+      activeSourceWidth, activeSourceHeight, mockupPosition
+    } = layout;
+
+    // Derive dependent values from authoritative layout
     const paddingScaled = padding * scaleFactor;
     const cornerRadius = (backgroundData?.cornerRadius || 0) * scaleFactor;
     const shadowIntensity = backgroundData?.shadowIntensity || 0;
-
-    // Source dimensions
-    const activeSourceWidth = recording.width || sourceVideoWidth || videoWidth;
-    const activeSourceHeight = recording.height || sourceVideoHeight || videoHeight;
-
-    // Calculate video positioning within canvas
-    const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
-      width, height, activeSourceWidth, activeSourceHeight, paddingScaled
-    );
-
-    // Calculate mockup position if mockup is enabled
     const mockupData = backgroundData?.mockup;
     const mockupEnabled = mockupData?.enabled ?? false;
-    let mockupPosition: MockupPositionResult | null = null;
 
-    if (mockupEnabled && mockupData) {
-      mockupPosition = calculateMockupPosition(
-        width,
-        height,
-        mockupData,
-        activeSourceWidth,
-        activeSourceHeight,
-        paddingScaled
-      );
-    }
-
+    // Zoom/Crop Logic (using authorized dimensions)
     const zoomDrawWidth = mockupEnabled && mockupPosition ? mockupPosition.mockupWidth : drawWidth;
     const zoomDrawHeight = mockupEnabled && mockupPosition ? mockupPosition.mockupHeight : drawHeight;
     const zoomCenterForMockup = mockupEnabled && mockupPosition ? {
@@ -458,21 +513,22 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const zoomTransformStr = getZoomTransformString(zoomTransform);
 
     // Calculate crop transform
-    // The transform is applied inside a container that's already positioned at (offsetX, offsetY)
-    // with size (drawWidth, drawHeight), so we only need the draw dimensions here.
     const cropEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Crop, currentTimeMs);
     const cropData = isEditingCrop ? null : cropEffect ? (cropEffect.data as CropEffectData) : null;
+
+    // IMPORTANT: Crop uses the VIDEO dimensions, derived from the frozen/live layout
     const cropBaseDrawWidth = mockupEnabled && mockupPosition ? mockupPosition.videoWidth : drawWidth;
     const cropBaseDrawHeight = mockupEnabled && mockupPosition ? mockupPosition.videoHeight : drawHeight;
+
     const cropTransform = calculateCropTransform(
       cropData,
       cropBaseDrawWidth,
       cropBaseDrawHeight
     );
+
     const cropTransformStr = getCropTransformString(cropTransform);
 
     // Bake corner radius into the clip-path if present
-    // We must divide by scale because the clip-path is applied to the element BEFORE it is scaled up by the transform
     const cropClipPath = cropTransform.isActive && cropTransform.clipPath && cornerRadius > 0
       ? `${cropTransform.clipPath.slice(0, -1)} round ${cornerRadius / cropTransform.scale}px)`
       : cropTransform.clipPath;
@@ -483,13 +539,19 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     return {
       clip, recording, sourceTimeMs, clipEffects, backgroundData, padding, cornerRadius, shadowIntensity,
       scaleFactor, activeSourceWidth, activeSourceHeight, drawWidth, drawHeight, offsetX, offsetY,
-      // Disable zoom/3D transforms during crop editing so overlay matches video
+
+      // CRITICAL: Disable all transforms when editing crop to prevent drift
       outerTransform: isEditingCrop ? '' : zoomTransformStr,
       cropTransformStr,
       extra3DTransform: isEditingCrop ? '' : extra3DTransform,
+
+      // Force zoomTransform to null when editing crop so VideoPositionContext consumers 
+      // see the raw, un-zoomed dimensions/coordinates.
       zoomTransform: isEditingCrop ? null : zoomTransform,
+
       cropTransform,
       cropClipPath,
+      cropEffectId: cropEffect?.id,
       mockupEnabled, mockupData, mockupPosition,
     };
   }, [activeClipData, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight, calculatedZoomBlock, calculatedZoomCenter, currentTimeMs, isEditingCrop, isNearBoundaryStart, isNearBoundaryEnd, prevLayoutItem, nextLayoutItem, activeLayoutItem, frameLayout, fps, effects, getRecording, isRendering]);
@@ -785,8 +847,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // MOTION BLUR SVG FILTER
   // ==========================================================================
   const motionBlurFilterId = 'camera-motion-blur';
-  const hasMotionBlur = blurConfig.enabled && motionBlur.blurRadius > 0.2;
-  const motionBlurSvg = createMotionBlurSvg(motionBlur.blurRadius, motionBlurFilterId);
+  const hasMotionBlur = blurConfig.enabled && motionBlur.blurRadius > 0.2 && !isEditingCrop;
+  // PERFORMANCE FIX: Only generate SVG if blur is active to avoid re-rendering/DOM thrashing
+  const motionBlurSvg = hasMotionBlur ? createMotionBlurSvg(motionBlur.blurRadius, motionBlurFilterId) : null;
 
   // ==========================================================================
   // VIDEO POSITION CONTEXT VALUE
@@ -1025,12 +1088,14 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 transition: undefined, // No transition - must be frame-deterministic
               }}>
                 {/* Crop transform container */}
-                <div style={{
-                  position: 'absolute', inset: 0, transform: cropTransformStr || undefined,
-                  transformOrigin: '50% 50%', willChange: cropTransformStr ? 'transform' : undefined,
-                  backfaceVisibility: 'hidden' as const,
-                  clipPath: cropClipPath || undefined,
-                }}>
+                <div
+                  key={renderData?.cropEffectId || 'no-crop'}
+                  style={{
+                    position: 'absolute', inset: 0, transform: cropTransformStr || undefined,
+                    transformOrigin: '50% 50%', willChange: cropTransformStr ? 'transform' : undefined,
+                    backfaceVisibility: 'hidden' as const,
+                    clipPath: cropClipPath || undefined,
+                  }}>
                   {videoContent}
                 </div>
               </div>

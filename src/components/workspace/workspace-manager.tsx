@@ -17,11 +17,9 @@ import { EffectsSidebar } from '../effects-sidebar'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
 import { UtilitiesSidebar } from '../utilities-sidebar'
-import { PreviewGuides } from '../preview-guides'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
-import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { Effect, ZoomBlock, CropEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand, registerAllCommands } from '@/lib/commands'
@@ -538,6 +536,19 @@ export function WorkspaceManager() {
     const commandManager = commandManagerRef.current
     if (!commandManager) return
 
+    const currentTime = useProjectStore.getState().currentTime
+    const activeCrop = EffectsFactory.getActiveEffectAtTime(contextEffects, EffectType.Crop, currentTime)
+
+    if (activeCrop) {
+      const cropData = EffectsFactory.getCropData(activeCrop)
+      if (cropData) {
+        setEditingCropEffectId(activeCrop.id)
+        setEditingCropData(cropData)
+        setIsEditingCrop(true)
+        return
+      }
+    }
+
     // Create a default crop effect for the selected clip
     const cropEffect = EffectsFactory.createCropEffect({
       clipId: selectedClip.id,
@@ -552,7 +563,7 @@ export function WorkspaceManager() {
     setEditingCropEffectId(cropEffect.id)
     setEditingCropData(cropEffect.data as CropEffectData)
     setIsEditingCrop(true)
-  }, [selectedClip, currentProject])
+  }, [selectedClip, currentProject, contextEffects])
 
   const handleRemoveCrop = useCallback((effectId: string) => {
     const commandManager = commandManagerRef.current
@@ -594,7 +605,16 @@ export function WorkspaceManager() {
   const handleStartEditCrop = useCallback(() => {
     if (!selectedClip) return
 
-    const cropEffect = EffectsFactory.getCropEffectForClip(contextEffects, selectedClip)
+    // This ensures we edit exactly what the user sees, even if clips were trimmed/moved
+    // and effect start times are slightly misaligned with clip start times.
+    const currentTime = useProjectStore.getState().currentTime
+    let cropEffect = EffectsFactory.getActiveEffectAtTime(contextEffects, EffectType.Crop, currentTime)
+
+    // Fallback: Use clip-scoped match if no active effect found (e.g. playhead outside range)
+    if (!cropEffect) {
+      cropEffect = EffectsFactory.getCropEffectForClip(contextEffects, selectedClip)
+    }
+
     if (!cropEffect) return
 
     const cropData = EffectsFactory.getCropData(cropEffect)
@@ -798,6 +818,10 @@ export function WorkspaceManager() {
 
                 {/* Preview Area */}
                 <div className="flex-1 overflow-hidden relative min-w-0">
+                  {/* DEBUGPROP: Check WorkspaceManager state */}
+                  {(() => {
+                    return null;
+                  })()}
                   <PreviewAreaRemotion
                     isEditingCrop={isEditingCrop}
                     cropData={editingCropData}

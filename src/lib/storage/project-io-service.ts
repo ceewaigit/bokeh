@@ -245,6 +245,59 @@ export class ProjectIOService {
 
     // Ensure global background/cursor effects exist
     const { EffectsFactory } = await import('../effects/effects-factory')
+
+    // DEDUPLICATE CROP EFFECTS: Fix for multiple overlapping crop effects causing glitches
+    if (project.timeline.effects) {
+      const otherEffects: typeof project.timeline.effects = [];
+
+      // Sort by modification time (or ID timestamp if available) to keep the newest one
+      // IDs are like 'crop-UUID-TIMESTAMP'
+      const getTimestampFromId = (id: string) => {
+        const parts = id.split('-');
+        const result = parseInt(parts[parts.length - 1]);
+        return isNaN(result) ? 0 : result;
+      };
+
+      // Extract Clip ID from Effect ID (crop-CLIPID-TIMESTAMP)
+      const getClipIdFromEffectId = (id: string) => {
+        const lastDash = id.lastIndexOf('-');
+        if (lastDash === -1) return 'unknown';
+        // prefix 'crop-' is 5 chars
+        if (!id.startsWith('crop-')) return 'unknown';
+        return id.substring(5, lastDash);
+      };
+
+      const cropEffects = project.timeline.effects.filter(e => e.type === 'crop');
+      const nonCropEffects = project.timeline.effects.filter(e => e.type !== 'crop');
+
+      if (cropEffects.length > 1) {
+        // Group by CLIP ID to ensure we only deduplicate effects targeting the SAME clip
+        const groups = new Map<string, (typeof project.timeline.effects)[number][]>();
+
+        cropEffects.forEach(e => {
+          // Use Clip ID as the grouping key. 
+          // If we can't parse it, fallback to time-range (risky, but handles legacy)
+          let key = getClipIdFromEffectId(e.id);
+          if (key === 'unknown') {
+            key = `time-${e.startTime}-${e.endTime}`;
+          }
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key)!.push(e);
+        });
+
+        groups.forEach((group, key) => {
+          if (group.length > 1) {
+            group.sort((a, b) => getTimestampFromId(b.id) - getTimestampFromId(a.id)); // Newest first
+            otherEffects.push(group[0]); // Keep newest
+          } else {
+            otherEffects.push(group[0]);
+          }
+        });
+
+        project.timeline.effects = [...nonCropEffects, ...otherEffects];
+      }
+    }
+
     EffectsFactory.ensureGlobalEffects(project)
 
     return project
@@ -258,22 +311,14 @@ export class ProjectIOService {
     recording: Recording,
     onProgress?: (message: string) => void
   ): Promise<void> {
-    console.log('[ProjectIO] 🔍 ensurePreviewProxy called for:', recording.id, {
-      filePath: recording.filePath,
-      hasCheckProxy: !!window.electronAPI?.checkPreviewProxy,
-      hasGenerateProxy: !!window.electronAPI?.generatePreviewProxy,
-    })
 
     if (!recording.filePath || !window.electronAPI?.checkPreviewProxy) {
-      console.log('[ProjectIO] ⚠️ Skipping proxy check - no filePath or IPC unavailable')
       return
     }
 
     try {
       // First check if proxy exists or is needed
-      console.log('[ProjectIO] 📡 Calling checkPreviewProxy IPC...')
       const checkResult = await window.electronAPI.checkPreviewProxy(recording.filePath)
-      console.log('[ProjectIO] 📡 checkPreviewProxy result:', checkResult)
 
       if (checkResult.existingProxyUrl) {
         // Use existing proxy
@@ -305,7 +350,6 @@ export class ProjectIOService {
 
       if (window.electronAPI.generatePreviewProxy) {
         const result = await window.electronAPI.generatePreviewProxy(recording.filePath)
-        console.log('[ProjectIO] 🔄 generatePreviewProxy result:', result)
 
         if (result.success && result.proxyUrl) {
           try {
@@ -399,6 +443,8 @@ export class ProjectIOService {
           if (needsDimensionsFix) {
             recording.width = metadata.width
             recording.height = metadata.height
+            recording.width = metadata.width
+            recording.height = metadata.height
           }
 
           // Fix clip durations if recording duration was updated
@@ -448,6 +494,10 @@ export class ProjectIOService {
       },
       modifiedAt: new Date().toISOString()
     })
+
+    // Use Electron's file system API to write the file
+
+    // Use Electron's file system API to write the file
 
     await RecordingStorage.saveProject(projectToSave)
   }

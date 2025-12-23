@@ -48,7 +48,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
 }) => {
     const { isRendering } = getRemotionEnvironment()
 
-    // Get video position from the SSOT (VideoPositionContext)
+    // Get video position from the SSOT (VideoPositionContext) (Moved up)
     const videoPosition = useVideoPosition()
 
     const overlayRef = useRef<HTMLDivElement>(null)

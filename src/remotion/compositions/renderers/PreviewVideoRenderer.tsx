@@ -14,7 +14,7 @@
  *
  * @see VideoClipRenderer for the Remotion Sequence-based export counterpart
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { PreviewVideoRendererProps } from '@/types';
 import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/useVideoUrl';
 import { AudioEnhancerWrapper } from '@/remotion/components/video-helpers';
@@ -63,6 +63,11 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
   const lastIsPlayingRef = useRef<boolean>(false);
   /** Tracks current playing state for seek tolerance calculation without triggering effect re-runs */
   const isPlayingRef = useRef<boolean>(isPlaying);
+
+  // ==========================================================================
+  // VIDEO READY STATE - Prevents crop misalignment before metadata loads
+  // ==========================================================================
+  const [isVideoReady, setIsVideoReady] = useState(false);
 
   // ==========================================================================
   // VIDEO URL RESOLUTION
@@ -117,6 +122,9 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
     const prevUrl = lastSrcRef.current;
 
     if (prevUrl !== videoUrl) {
+      // Reset video ready state when URL changes
+      setIsVideoReady(false);
+
       // Cleanup OLD video decoder before setting new URL
       if (prevUrl) {
         try {
@@ -136,8 +144,21 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
       lastIsPlayingRef.current = false; // Reset play state for new source
     }
 
+    // Track when video metadata is loaded - needed for objectFit to work correctly
+    const handleLoadedMetadata = () => {
+      setIsVideoReady(true);
+    };
+
+    // If video already has metadata (can happen with cached videos), mark as ready
+    if (video.readyState >= 1) {
+      setIsVideoReady(true);
+    }
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+
     // Cleanup on unmount
     return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       try {
         video.pause();
         video.removeAttribute('src');
@@ -199,12 +220,16 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
    * 1. The sourceTimeMs actually changes (scrubbing, frame advance)
    * 2. The video URL changes (switching clips)
    * 3. Visibility changes (coming back into view)
+   * 4. Video becomes ready (initial load)
    */
-  const lastSeekSourceTimeMsRef = useRef<number>(sourceTimeMs);
+  // BUGFIX: Initialize to -1 so the FIRST seek always triggers (was causing crop misalignment)
+  const lastSeekSourceTimeMsRef = useRef<number>(-1);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoUrl || !visible) return;
+    // BUGFIX: Also require video to be ready before seeking (ensures metadata is loaded)
+    if (!isVideoReady) return;
 
     const desiredTime = Math.max(0, sourceTimeMs / 1000);
     const currentVideoTime = video.currentTime;
@@ -229,7 +254,7 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
     }
 
     lastSeekSourceTimeMsRef.current = sourceTimeMs;
-  }, [sourceTimeMs, videoUrl, visible, fps]); // Removed isPlaying from deps - seek on time change only
+  }, [sourceTimeMs, videoUrl, visible, fps, isVideoReady]); // Added isVideoReady dependency
 
   // ==========================================================================
   // SIZING CALCULATIONS
@@ -256,7 +281,8 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
   // ==========================================================================
   const isPreloading = currentFrame < startFrame;
   const baseOpacity = isPreloading ? 0 : (needsFade ? fadeOpacity : 1);
-  const effectiveOpacity = visible && hasSource ? baseOpacity : 0;
+  // CROP FIX: Hide video until metadata is loaded to prevent objectFit misalignment
+  const effectiveOpacity = visible && hasSource && isVideoReady ? baseOpacity : 0;
 
   // ==========================================================================
   // RENDER

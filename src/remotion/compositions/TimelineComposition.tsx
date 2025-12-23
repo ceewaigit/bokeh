@@ -13,7 +13,7 @@
  */
 
 import React from 'react';
-import { AbsoluteFill, Audio, Sequence, getRemotionEnvironment, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Sequence, getRemotionEnvironment, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { Recording } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
 import { TimeProvider } from '../context/TimeContext';
@@ -93,6 +93,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { isRendering } = getRemotionEnvironment();
+  const { width } = useVideoConfig();
 
   // Sort clips by start time for consistent rendering
   const sortedClips = React.useMemo(() => {
@@ -172,7 +173,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   }, [frameLayout, fps, frame]);
 
   return (
-    <TimeProvider clips={sortedClips} recordings={recordings} fps={fps}>
+    <TimeProvider clips={sortedClips} recordings={recordings} fps={fps} >
       <AbsoluteFill
         style={{
           backgroundColor: backgroundColor ?? '#000',
@@ -256,13 +257,16 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
           {!isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={metadataUrls} />}
 
           {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
-          <CropEditingLayer
-            isEditingCrop={isEditingCrop}
-            cropData={cropData ?? null}
-            onCropChange={onCropChange}
-            onCropConfirm={onCropConfirm}
-            onCropReset={onCropReset}
-          />
+          {/* Only render on main player (large width) to avoid thumbnail instance conflicts */}
+          {useVideoConfig().width > 300 && (
+            <CropEditingLayer
+              isEditingCrop={isEditingCrop}
+              cropData={cropData ?? null}
+              onCropChange={onCropChange}
+              onCropConfirm={onCropConfirm}
+              onCropReset={onCropReset}
+            />
+          )}
         </SharedVideoController>
 
         {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
@@ -301,6 +305,6 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
           );
         })}
       </AbsoluteFill>
-    </TimeProvider>
+    </TimeProvider >
   );
 };
