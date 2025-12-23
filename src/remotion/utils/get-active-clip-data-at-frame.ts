@@ -90,5 +90,35 @@ export function getActiveClipDataAtFrame(args: {
   const mergedEffects = Array.from(uniqueEffects.values())
     .sort((a, b) => a.startTime - b.startTime);
 
+  // OPTIMIZATION: Return stable array reference if contents match previous call (Last-Value Caching)
+  // This is critical for keeping usePrecomputedCameraPath from re-running heavy physics
+  const cacheKey = `${clip.id}-${layoutItem.startFrame}`;
+  const prev = activeEffectsCache.get(cacheKey);
+
+  // Check if IDs and enabled states match exactly
+  if (prev && areEffectsSemanticallyEqual(prev, mergedEffects)) {
+    return { clip, recording, sourceTimeMs, effects: prev };
+  }
+
+  activeEffectsCache.set(cacheKey, mergedEffects);
+
+  // Prune cache to avoid memory leaks (simple random eviction if too large)
+  if (activeEffectsCache.size > 100) {
+    const keyToDelete = activeEffectsCache.keys().next().value;
+    if (keyToDelete) activeEffectsCache.delete(keyToDelete);
+  }
+
   return { clip, recording, sourceTimeMs, effects: mergedEffects }
+}
+
+// Global cache for effect stability checks (Module-scoped)
+const activeEffectsCache = new Map<string, Effect[]>();
+
+function areEffectsSemanticallyEqual(prev: Effect[], next: Effect[]): boolean {
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i++) {
+    // We care about identity + enabled state stability
+    if (prev[i] !== next[i]) return false;
+  }
+  return true;
 }

@@ -21,10 +21,10 @@ export const CAMERA_CONFIG = {
     cinematicSamples: 8,
     /** Time delta threshold in ms to consider a seek (skip vs normal playback) */
     seekThresholdMs: 100,
-    /** Spring tension - higher = faster response */
-    springTension: 120,
-    /** Spring friction - higher = less oscillation */
-    springFriction: 25,
+    /** Spring tension - lower = smoother but less responsive (was 120) */
+    springTension: 70,
+    /** Spring friction - higher = less oscillation/jitter (was 25) */
+    springFriction: 35,
 } as const
 
 // =============================================================================

@@ -429,21 +429,23 @@ export const TimelineEffectBlock = React.memo(({
         )}
 
         {/* Label - centered in compact mode, top-left otherwise */}
-        {label && (
+        {/* Label - centered in compact mode, top-left otherwise */}
+        {(label && currentWidth > 32) && (
           <Text
-            x={isCompact ? currentWidth / 2 : 10}
+            x={isCompact ? 0 : 10}
             y={isCompact ? height / 2 - 5 : 8}
+            width={isCompact ? currentWidth : currentWidth - 20}
             text={label}
             fontSize={isCompact ? 10 : 11}
             fill={labelFill}
             fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
             fontStyle="600"
             align={isCompact ? "center" : "left"}
-            offsetX={isCompact ? (label.length * 3) : 0}
+            wrap="none"
+            listening={false}
             shadowColor={labelShadowColor}
             shadowBlur={isDarkMode ? 4 : 2}
             shadowOpacity={isDarkMode ? 0.4 : 0.2}
-            listening={false}
           />
         )}
       </Group>

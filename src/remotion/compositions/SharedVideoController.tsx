@@ -920,8 +920,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                   inset: 0,
                   overflow: 'hidden',
                   borderRadius: `${mockupPosition.screenCornerRadius}px`,
-                  // PERFORMANCE: Only apply refocus blur when paused, exporting, or if High Quality Playback is enabled
-                  filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01 && (isRendering || isHighQualityPlaybackEnabled || (!isPlaying && !isScrubbing)))
+                  // PERFORMANCE: Only apply refocus blur when paused AND strictly not interacting. 
+                  // Disabling during scrubbing/playback is mandatory for performance.
+                  filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01 && !isPlaying && !isScrubbing && (isRendering || isHighQualityPlaybackEnabled))
                     ? `blur(${(zoomTransform?.refocusBlur ?? 0) * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
                     : undefined,
                 }}>
@@ -1064,16 +1065,16 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               overflow: 'hidden',
               transform: `translate3d(0,0,0) ${combinedTransform}`,
               transformOrigin: '50% 50%',
-              // PERFORMANCE: Only apply drop shadow when paused, exporting, or if High Quality Playback is enabled.
+              // PERFORMANCE: Only apply drop shadow when paused AND strictly not interacting.
               // During playback/scrubbing, the cost of recomposing large layers is too high unless user opts in.
-              filter: (isRendering || isHighQualityPlaybackEnabled || (!isPlaying && !isScrubbing)) ? (dropShadow || undefined) : undefined,
+              filter: (!isPlaying && !isScrubbing && (isRendering || isHighQualityPlaybackEnabled)) ? (dropShadow || undefined) : undefined,
               willChange: 'transform, filter', backfaceVisibility: 'hidden' as const,
             }}>
               {/* Clipping container with corner radius and refocus blur */}
               <div style={{
                 position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: `${cornerRadius}px`,
-                // PERFORMANCE: Only apply refocus blur when paused, exporting, or if High Quality Playback is enabled
-                filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01 && (isRendering || isHighQualityPlaybackEnabled || (!isPlaying && !isScrubbing)))
+                // PERFORMANCE: Only apply refocus blur when paused AND strictly not interacting.
+                filter: (cameraSettings?.refocusBlurEnabled !== false && (zoomTransform?.refocusBlur ?? 0) > 0.01 && !isPlaying && !isScrubbing && (isRendering || isHighQualityPlaybackEnabled))
                   ? `blur(${(zoomTransform?.refocusBlur ?? 0) * ((cameraSettings?.refocusBlurIntensity ?? 40) / 100) * 12}px)`
                   : undefined,
                 transition: undefined, // No transition - must be frame-deterministic

@@ -1160,69 +1160,53 @@ export function computeCameraState({
         lastSourceTimeMs: sourceTimeMs,
       }
     } else {
-      const dtSeconds = dtTimelineFromState / 1000
+      const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
 
-      // Use pre-calculated rate
-      // const playbackRateEstimate = dtTimeline > 1 ? dtSource / dtTimeline : 1
+      // SIMPLE EXPONENTIAL MOVING AVERAGE (EMA) - replaces complex spring physics.
+      // EMA is inherently smooth, never overshoots, and has no oscillation.
+      // Formula: newPos = lerp(currentPos, targetPos, 1 - e^(-dt / tau))
+      // where tau is the time constant (higher = smoother but slower to respond).
+
+      // Map smoothingAmount (0-100) to time constant tau (in seconds).
+      // At 0 smoothing: tau = 0.08s (fast, responsive)
+      // At 100 smoothing: tau = 0.5s (very smooth, cinematic)
+      const baseTau = lerp(0.08, 0.5, smoothingAmount / 100)
+
+      // Playback rate adjustment: faster playback = faster camera response
       const rate = Math.max(0.5, Math.min(3, playbackRateEstimate || 1))
+      const effectiveTau = baseTau / rate
 
-      // Dynamic Physics Mapping
-      // Map smoothingAmount (0-100) to Tension and Friction.
-      // 0 (Base)  -> CAMERA_CONFIG spring tuning
-      // 100 (Smooth) -> Low Tension (40), High Friction (40) -> Cinematic/Lazy
+      // When cursor is frozen (stopped), use a much higher tau for gentle settling
+      const tau = cursorIsFrozen ? effectiveTau * 3 : effectiveTau
 
-      const baseTension = lerp(SPRING_TENSION, 40, smoothingAmount / 100)
-      const baseFriction = lerp(SPRING_FRICTION, 40, smoothingAmount / 100)
+      // Calculate EMA blend factor (1 - e^(-dt/tau))
+      // Clamped between 0.001 and 1 to avoid numerical issues
+      const alpha = dtSeconds > 0 ? Math.min(1, Math.max(0.001, 1 - Math.exp(-dtSeconds / tau))) : 0
 
-      const effectiveFriction = cursorIsFrozen
-        ? baseFriction / CURSOR_STOP_DAMPING
-        : baseFriction * Math.sqrt(rate)
+      let x = physics.x
+      let y = physics.y
 
-      const effectiveTension = baseTension * rate
-
-      // Standard Physics Engine (Continuous)
-      // No mode switching or forced interpolation. The physics engine handles
-      // the transition from Center -> Mouse naturally based on the tension/friction.
-
-      let x: number, y: number, vx: number, vy: number
-
-      // Center-locked zooms should not carry spring momentum from mouse-follow,
-      // otherwise they can overshoot and look "twitchy" during zoom transitions.
+      // Center-locked zooms should snap to center immediately
       if (activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')) {
-        physics.vx = 0
-        physics.vy = 0
+        x = 0.5
+        y = 0.5
+      } else {
+        // Simple EMA interpolation toward target
+        x = lerp(x, targetCenter.x, alpha)
+        y = lerp(y, targetCenter.y, alpha)
       }
 
-      const ax = (targetCenter.x - physics.x) * effectiveTension - physics.vx * effectiveFriction
-      const ay = (targetCenter.y - physics.y) * effectiveTension - physics.vy * effectiveFriction
-      let vxNext = physics.vx + ax * dtSeconds
-      let vyNext = physics.vy + ay * dtSeconds
-
-      // Additional velocity damping when frozen
-      if (cursorIsFrozen) {
-        vxNext *= CURSOR_STOP_DAMPING
-        vyNext *= CURSOR_STOP_DAMPING
+      // Snap to target when very close (prevents infinite creep)
+      const distToTarget = Math.sqrt(
+        Math.pow(x - targetCenter.x, 2) + Math.pow(y - targetCenter.y, 2)
+      )
+      if (distToTarget < 0.0001) {
+        x = targetCenter.x
+        y = targetCenter.y
       }
 
-      x = physics.x + vxNext * dtSeconds
-      y = physics.y + vyNext * dtSeconds
-      vx = vxNext
-      vy = vyNext
-
-      // Snap to target when frozen and very close
-      if (cursorIsFrozen && activeZoomBlock?.autoScale !== 'fill') {
-        const distToTarget = Math.sqrt(
-          Math.pow(x - targetCenter.x, 2) + Math.pow(y - targetCenter.y, 2)
-        )
-        if (distToTarget < CURSOR_STOP_SNAP_THRESHOLD) {
-          x = targetCenter.x
-          y = targetCenter.y
-          vx = 0
-          vy = 0
-        }
-      }
-
-      nextPhysics = { x, y, vx, vy, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
+      // EMA doesn't need velocity tracking, but we keep vx/vy for API compatibility
+      nextPhysics = { x, y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
     }
   }
 

@@ -88,7 +88,7 @@ export class KeystrokeRenderer {
 
     switch (this.options.position) {
       case KeystrokePosition.BottomRight:
-        return { x: videoWidth - margin - 100, y: videoHeight - margin }
+        return { x: videoWidth - margin, y: videoHeight - margin }
       case KeystrokePosition.TopCenter:
         return { x: videoWidth / 2, y: margin }
       case KeystrokePosition.BottomCenter:
@@ -103,7 +103,7 @@ export class KeystrokeRenderer {
     const ctx = this.ctx
     const scale = this.options.scale || 1
     const fontSize = (this.options.fontSize || 14) * scale
-    const padding = (this.options.padding || 10) * scale
+    const padding = (this.options.padding || 12) * scale
     const borderRadius = (this.options.borderRadius || 8) * scale
     const preset = (this.options.stylePreset || 'glass') as KeystrokeStylePreset
     const presetStyle = getKeystrokePresetStyle(preset, this.options, scale)
@@ -115,20 +115,46 @@ export class KeystrokeRenderer {
     const fontFamily = getKeystrokeFontFamily(preset, this.options.fontFamily)
 
     ctx.font = `500 ${fontSize}px ${fontFamily}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
 
+    // Calculate box dimensions first to handle alignment
     const metrics = ctx.measureText(text)
     const textWidth = metrics.width
     const hPad = padding * 1.4
     const vPad = padding * 0.9
     const boxWidth = textWidth + hPad * 2
     const boxHeight = fontSize + vPad * 2
-    const boxX = x - boxWidth / 2
-    const boxY = y - boxHeight / 2
+
+    // Calculate box origin based on position type
+    let boxX = 0
+    let boxY = 0
+
+    switch (this.options.position) {
+      case KeystrokePosition.BottomRight:
+        // Anchor bottom-right
+        boxX = x - boxWidth
+        boxY = y - boxHeight
+        break;
+      case KeystrokePosition.TopCenter:
+        // Anchor top-center
+        boxX = x - boxWidth / 2
+        boxY = y
+        break;
+      case KeystrokePosition.BottomCenter:
+      default:
+        // Anchor bottom-center
+        boxX = x - boxWidth / 2
+        boxY = y - boxHeight
+        break;
+    }
+
+    // Set text alignment based on calculated box center
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const textX = boxX + boxWidth / 2
+    const textY = boxY + boxHeight / 2
 
     this.drawBackground(ctx, presetStyle, boxX, boxY, boxWidth, boxHeight, borderRadius, scale)
-    this.drawText(ctx, presetStyle, text, x, y, scale)
+    this.drawText(ctx, presetStyle, text, textX, textY, scale)
 
     ctx.restore()
 
