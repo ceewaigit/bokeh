@@ -67,7 +67,7 @@ class CursorImagePreloader {
         fetch(src, { cache: 'force-cache' }).catch(() => { });
 
         img.onload = () => {
-          img.decode().then(() => resolve()).catch(() => resolve());
+          resolve();
         };
         img.onerror = () => {
           console.warn(`Failed to preload cursor: ${type}`);

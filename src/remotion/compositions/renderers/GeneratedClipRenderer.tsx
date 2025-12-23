@@ -43,14 +43,18 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
   drawHeight,
   compositionWidth,
   compositionHeight,
-  isGlowMode,
   activeLayoutItem,
   prevLayoutItem,
   nextLayoutItem,
   shouldHoldPrevFrame,
   isNearBoundaryEnd,
   overlapFrames,
+  // New Config Object
+  renderSettings,
 }) => {
+  // Destructure config objects
+  const { isGlowMode } = renderSettings;
+
   // ==========================================================================
   // PLUGIN LOOKUP
   // ==========================================================================

@@ -70,13 +70,14 @@ export const ClipSequence: React.FC<ClipSequenceProps> = ({
   videoHeight,
   startFrame,
   durationFrames,
-  videoUrls,
-  videoFilePaths,
-  metadataUrls,
-  preferOffthreadVideo,
+  resources,
+  renderSettings,
+
   includeBackground,
   includeKeystrokes,
 }) => {
+  const { preferOffthreadVideo } = renderSettings || {};
+
   return (
     <Sequence
       from={startFrame}
@@ -86,9 +87,7 @@ export const ClipSequence: React.FC<ClipSequenceProps> = ({
       <ClipProvider
         clip={clip}
         effects={effects}
-        videoUrls={videoUrls}
-        videoFilePaths={videoFilePaths}
-        metadataUrls={metadataUrls}
+        resources={resources}
         preferOffthreadVideo={preferOffthreadVideo}
       >
         <ClipLayers

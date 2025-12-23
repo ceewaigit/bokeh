@@ -42,17 +42,16 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
   maxZoomScale,
   currentZoomScale,
   mockupEnabled,
-  videoUrls,
-  videoUrlsHighRes,
-  videoFilePaths,
-  isHighQualityPlaybackEnabled,
-  isPlaying,
-  isGlowMode,
-  enhanceAudio,
-  previewMuted,
-  previewVolume,
   visible,
+  // New Config Objects
+  resources,
+  playback,
+  renderSettings,
 }) => {
+  // Destructure config objects
+  const { isPlaying, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
+  const { isGlowMode, enhanceAudio } = renderSettings;
+
   // ==========================================================================
   // REFS
   // ==========================================================================
@@ -74,9 +73,7 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
   // ==========================================================================
   const videoUrl = useVideoUrl({
     recording,
-    videoUrls,
-    videoUrlsHighRes,
-    videoFilePaths,
+    resources,
     preferOffthreadVideo: false, // Preview always uses native video element
     targetWidth: compositionWidth,
     targetHeight: compositionHeight,

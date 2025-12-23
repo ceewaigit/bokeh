@@ -21,6 +21,47 @@ import type { MetadataUrlSet } from '@/lib/export/metadata-loader';
 export type VideoUrlMap = Record<string, string>;
 export type MetadataUrlMap = Record<string, MetadataUrlSet>;
 
+// ============================================================================
+// CONFIGURATION OBJECTS
+// ============================================================================
+
+export interface VideoResources {
+  videoUrls?: VideoUrlMap;
+  videoUrlsHighRes?: VideoUrlMap;
+  videoFilePaths?: VideoUrlMap;
+  metadataUrls?: MetadataUrlMap;
+}
+
+export interface PlaybackSettings {
+  isPlaying: boolean;
+  isScrubbing: boolean;
+  isHighQualityPlaybackEnabled: boolean;
+  previewMuted: boolean;
+  previewVolume: number;
+}
+
+export interface RenderSettings {
+  /** Whether we are in "glow" mode (ambient background blur) */
+  isGlowMode: boolean;
+  /** Whether to use offthread video rendering (safer but more memory intensive) */
+  preferOffthreadVideo: boolean;
+  /** Whether to enhance audio (normalize/compress) */
+  enhanceAudio: boolean;
+  /** Whether we are currently editing the crop */
+  isEditingCrop: boolean;
+}
+
+export interface CropSettings {
+  cropData?: CropEffectData | null;
+  onCropChange?: (cropData: CropEffectData) => void;
+  onCropConfirm?: () => void;
+  onCropReset?: () => void;
+}
+
+// ============================================================================
+// COMPONENT PROPS
+// ============================================================================
+
 export interface UseRecordingMetadataOptions {
   /** Recording ID to load metadata for */
   recordingId: string;
@@ -45,9 +86,7 @@ export interface UseRecordingMetadataResult {
 
 export interface UseVideoUrlProps {
   recording: Recording | null | undefined;
-  videoUrls?: VideoUrlMap;
-  videoUrlsHighRes?: VideoUrlMap;
-  videoFilePaths?: VideoUrlMap;
+  resources: VideoResources;
   preferOffthreadVideo?: boolean;
   targetWidth?: number;
   targetHeight?: number;
@@ -107,6 +146,7 @@ export interface VideoPositionContextValue {
   mockupEnabled?: boolean;
   /** Device mockup position and dimensions (when enabled) */
   mockupPosition?: MockupPositionResult | null;
+  /** New Crop settings are also available here if needed, or passed down */
 }
 
 export interface ClipContextValue {
@@ -185,6 +225,7 @@ export interface SafeVideoProps extends Omit<VideoHTMLAttributes<HTMLVideoElemen
 
 export interface AudioEnhancerWrapperProps {
   children: ReactElement;
+  /** @deprecated Use RenderSettings.enhanceAudio instead */
   enabled?: boolean;
 }
 
@@ -221,10 +262,11 @@ export interface ClipSequenceProps {
   videoHeight: number;
   startFrame: number;
   durationFrames: number;
-  videoUrls?: VideoUrlMap;
-  videoFilePaths?: VideoUrlMap;
-  metadataUrls?: MetadataUrlMap;
-  preferOffthreadVideo?: boolean;
+
+  // New Config Objects
+  resources: VideoResources;
+  renderSettings: RenderSettings;
+
   includeBackground?: boolean;
   includeKeystrokes?: boolean;
 }
@@ -239,25 +281,17 @@ export interface TimelineCompositionProps {
   fps: number;
   sourceVideoWidth?: number;
   sourceVideoHeight?: number;
-  preferOffthreadVideo?: boolean;
-  videoUrls?: VideoUrlMap;
-  videoUrlsHighRes?: VideoUrlMap;
-  videoFilePaths?: VideoUrlMap;
-  metadataUrls?: MetadataUrlMap;
-  backgroundColor?: string;
-  enhanceAudio?: boolean;
-  isGlowMode?: boolean;
-  isEditingCrop?: boolean;
-  cropData?: CropEffectData | null;
-  onCropChange?: (cropData: CropEffectData) => void;
-  onCropConfirm?: () => void;
-  onCropReset?: () => void;
   cameraSettings?: CameraSettings;
-  isHighQualityPlaybackEnabled?: boolean;
-  isPlaying?: boolean;
-  isScrubbing?: boolean;
-  previewMuted?: boolean;
-  previewVolume?: number;
+  backgroundColor?: string;
+
+  // New Config Objects
+  resources: VideoResources;
+  playback: PlaybackSettings;
+  renderSettings: RenderSettings;
+  cropSettings: CropSettings;
+
+  // Deprecated/Legacy props (mapped to new objects)
+  // Kept briefly for compatibility if needed, but we should remove them
 }
 
 export interface SharedVideoControllerProps {
@@ -265,26 +299,15 @@ export interface SharedVideoControllerProps {
   videoHeight: number;
   sourceVideoWidth?: number;
   sourceVideoHeight?: number;
-  preferOffthreadVideo?: boolean;
   effects: Effect[];
-  videoUrls?: VideoUrlMap;
-  videoUrlsHighRes?: VideoUrlMap;
-  videoFilePaths?: VideoUrlMap;
-  metadataUrls?: MetadataUrlMap;
-  enhanceAudio?: boolean;
   children?: ReactNode;
-  isGlowMode?: boolean;
-  isEditingCrop?: boolean;
-  cropData?: CropEffectData | null;
-  onCropChange?: (cropData: CropEffectData) => void;
-  onCropConfirm?: () => void;
-  onCropReset?: () => void;
   cameraSettings?: CameraSettings;
-  isHighQualityPlaybackEnabled?: boolean;
-  isPlaying?: boolean;
-  isScrubbing?: boolean;
-  previewMuted?: boolean;
-  previewVolume?: number;
+
+  // New Config Objects
+  resources: VideoResources;
+  playback: PlaybackSettings;
+  renderSettings: RenderSettings;
+  cropSettings: CropSettings;
 }
 
 export interface PluginLayerProps {
@@ -308,30 +331,29 @@ export interface VideoClipRendererProps {
   cornerRadius: number;
   drawWidth: number;
   drawHeight: number;
-  preferOffthreadVideo: boolean;
-  videoUrls?: VideoUrlMap;
-  videoUrlsHighRes?: VideoUrlMap;
-  videoFilePaths?: VideoUrlMap;
   compositionWidth: number;
   compositionHeight: number;
   maxZoomScale: number;
   currentZoomScale: number;
   mockupEnabled?: boolean;
-  enhanceAudio?: boolean;
-  isHighQualityPlaybackEnabled: boolean;
-  isPlaying: boolean;
-  isGlowMode: boolean;
+
   activeLayoutItem: FrameLayoutItem | null;
   prevLayoutItem: FrameLayoutItem | null;
   nextLayoutItem: FrameLayoutItem | null;
   shouldHoldPrevFrame: boolean;
   isNearBoundaryEnd: boolean;
   overlapFrames: number;
+
   markRenderReady: (source?: string) => void;
   handleVideoReady: (e: SyntheticEvent<HTMLVideoElement>) => void;
   VideoComponent: any;
   premountFor: number;
   postmountFor: number;
+
+  // New Config Objects
+  resources: VideoResources;
+  playback: PlaybackSettings;
+  renderSettings: RenderSettings;
 }
 
 export interface PreviewVideoRendererProps {
@@ -350,16 +372,12 @@ export interface PreviewVideoRendererProps {
   maxZoomScale: number;
   currentZoomScale: number;
   mockupEnabled?: boolean;
-  videoUrls?: VideoUrlMap;
-  videoUrlsHighRes?: VideoUrlMap;
-  videoFilePaths?: VideoUrlMap;
-  isHighQualityPlaybackEnabled: boolean;
-  isPlaying: boolean;
-  isGlowMode: boolean;
-  enhanceAudio?: boolean;
-  previewMuted: boolean;
-  previewVolume: number;
   visible: boolean;
+
+  // New Config Objects
+  resources: VideoResources;
+  playback: PlaybackSettings;
+  renderSettings: RenderSettings;
 }
 
 export interface GeneratedClipRendererProps {
@@ -376,13 +394,16 @@ export interface GeneratedClipRendererProps {
   drawHeight: number;
   compositionWidth: number;
   compositionHeight: number;
-  isGlowMode: boolean;
+
   activeLayoutItem: FrameLayoutItem | null;
   prevLayoutItem: FrameLayoutItem | null;
   nextLayoutItem: FrameLayoutItem | null;
   shouldHoldPrevFrame: boolean;
   isNearBoundaryEnd: boolean;
   overlapFrames: number;
+
+  // New Config Objects
+  renderSettings: RenderSettings;
 }
 
 export type { MetadataUrlSet };

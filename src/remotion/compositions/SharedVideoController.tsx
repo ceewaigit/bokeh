@@ -107,22 +107,15 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   videoHeight,
   sourceVideoWidth,
   sourceVideoHeight,
-  preferOffthreadVideo = true,
   effects,
-  videoUrls,
-  videoUrlsHighRes,
-  videoFilePaths,
-  metadataUrls,
-  enhanceAudio,
   children,
-  isGlowMode = false,
-  isEditingCrop = false,
   cameraSettings,
-  isHighQualityPlaybackEnabled = false,
-  isPlaying = false,
-  isScrubbing = false,
-  previewMuted = false,
-  previewVolume = 1,
+
+  // New Config Objects
+  resources,
+  playback,
+  renderSettings,
+  cropSettings,
 }) => {
   // ==========================================================================
   // REMOTION HOOKS & CONTEXT
@@ -132,6 +125,12 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const { fps, clips, getRecording, recordingsMap } = useTimeContext();
   const { isRendering } = getRemotionEnvironment();
   const isPreview = !isRendering;
+
+  // Destructure for easier access internally
+  const { isPlaying, isScrubbing, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
+  const { isGlowMode, isEditingCrop, preferOffthreadVideo, enhanceAudio } = renderSettings;
+  const { cropData, onCropChange, onCropConfirm, onCropReset } = cropSettings;
+  const { videoUrls, videoUrlsHighRes, videoFilePaths, metadataUrls } = resources;
 
   // ==========================================================================
   // TIMELINE & FRAME LAYOUT
@@ -370,9 +369,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   // RENDER DATA COMPUTATION
   // ==========================================================================
-  // ==========================================================================
-  // RENDER DATA COMPUTATION
-  // ==========================================================================
 
   // FREEZE LOGIC: Capture layout dimensions when entering crop mode to prevent drift
   // during playback (due to animated padding, resolution changes, etc).
@@ -514,14 +510,14 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
     // Calculate crop transform
     const cropEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Crop, currentTimeMs);
-    const cropData = isEditingCrop ? null : cropEffect ? (cropEffect.data as CropEffectData) : null;
+    const resolvedCropData = isEditingCrop ? null : cropEffect ? (cropEffect.data as CropEffectData) : null;
 
     // IMPORTANT: Crop uses the VIDEO dimensions, derived from the frozen/live layout
     const cropBaseDrawWidth = mockupEnabled && mockupPosition ? mockupPosition.videoWidth : drawWidth;
     const cropBaseDrawHeight = mockupEnabled && mockupPosition ? mockupPosition.videoHeight : drawHeight;
 
     const cropTransform = calculateCropTransform(
-      cropData,
+      resolvedCropData,
       cropBaseDrawWidth,
       cropBaseDrawHeight
     );
@@ -657,6 +653,12 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     }
     : null);
   const previewVideoVisible = !isActiveGenerated;
+
+  // ==========================================================================
+  // VIDEO COMPONENT SELECTION
+  // ==========================================================================
+  const VideoComponent = (isRendering && preferOffthreadVideo) ? OffthreadVideo : (isRendering ? SafeVideo : Video);
+
   const videoContent = isPreview ? (
     <>
       {/* Native video element for responsive preview */}
@@ -676,16 +678,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
         maxZoomScale={memoizedMaxZoomScale}
         currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
         mockupEnabled={mockupEnabled}
-        videoUrls={videoUrls}
-        videoUrlsHighRes={videoUrlsHighRes}
-        videoFilePaths={videoFilePaths}
-        isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-        isPlaying={isPlaying}
-        isGlowMode={isGlowMode}
-        enhanceAudio={previewVideoVisible ? enhanceAudio : false}
-        previewMuted={previewMuted}
-        previewVolume={previewVolume}
         visible={previewVideoVisible}
+        resources={resources}
+        playback={playback}
+        renderSettings={renderSettings}
       />
       {/* Generated clip overlay (blank clips, plugins) */}
       {isActiveGenerated && renderLayoutItem && recording ? (
@@ -704,13 +700,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
           drawHeight={drawHeight}
           compositionWidth={width}
           compositionHeight={height}
-          isGlowMode={isGlowMode}
           activeLayoutItem={activeLayoutItem}
           prevLayoutItem={prevLayoutItem}
           nextLayoutItem={nextLayoutItem}
           shouldHoldPrevFrame={shouldHoldPrevFrame}
           isNearBoundaryEnd={isNearBoundaryEnd}
           overlapFrames={overlapFrames}
+          renderSettings={renderSettings}
         />
       ) : null}
     </>
@@ -721,7 +717,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
        * so current clip is visible on top during transitions.
        * STABILITY: Use groupId as key to prevent remounting when
        * transitioning between contiguous clips of the same recording.
-       */}
+       */ }
       {renderableItems.map((item) => {
         const isPrev = item.clip.id === prevLayoutItem?.clip.id;
         const isNext = item.clip.id === nextLayoutItem?.clip.id;
@@ -740,7 +736,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
         if (!shouldRender) return null;
 
-        const groupStartFrame = item.groupStartFrame;
         const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
 
         const recording = recordingsMap.get(item.clip.recordingId);
@@ -754,7 +749,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               recording={recording}
               startFrame={item.startFrame}
               durationFrames={item.durationFrames}
-              groupStartFrame={groupStartFrame}
+              groupStartFrame={item.groupStartFrame}
               groupDuration={item.groupDuration}
               currentFrame={currentFrame}
               fps={fps}
@@ -763,13 +758,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               drawHeight={drawHeight}
               compositionWidth={width}
               compositionHeight={height}
-              isGlowMode={isGlowMode}
               activeLayoutItem={activeLayoutItem}
               prevLayoutItem={prevLayoutItem}
               nextLayoutItem={nextLayoutItem}
               shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
               isNearBoundaryEnd={isNearBoundaryEnd}
               overlapFrames={overlapFrames}
+              renderSettings={renderSettings}
             />
           );
         }
@@ -787,7 +782,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             recording={recording}
             startFrame={item.startFrame}
             durationFrames={item.durationFrames}
-            groupStartFrame={groupStartFrame}
+            groupStartFrame={item.groupStartFrame}
             renderStartFrom={renderStartFrom}
             groupDuration={item.groupDuration}
             currentFrame={currentFrame}
@@ -796,19 +791,11 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             cornerRadius={cornerRadius}
             drawWidth={drawWidth}
             drawHeight={drawHeight}
-            preferOffthreadVideo={preferOffthreadVideo}
-            videoUrls={videoUrls}
-            videoUrlsHighRes={videoUrlsHighRes}
-            videoFilePaths={videoFilePaths}
             compositionWidth={width}
             compositionHeight={height}
             maxZoomScale={memoizedMaxZoomScale}
             currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
             mockupEnabled={mockupEnabled}
-            enhanceAudio={isActive ? enhanceAudio : false}
-            isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-            isPlaying={isPlaying}
-            isGlowMode={isGlowMode}
             activeLayoutItem={activeLayoutItem}
             prevLayoutItem={prevLayoutItem}
             nextLayoutItem={nextLayoutItem}
@@ -820,6 +807,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             VideoComponent={VideoComponent}
             premountFor={premountFor}
             postmountFor={postmountFor}
+            resources={resources}
+            playback={playback}
+            renderSettings={renderSettings}
           />
         );
       })}
@@ -874,11 +864,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     mockupEnabled,
     mockupPosition,
   };
-
-  // ==========================================================================
-  // VIDEO COMPONENT SELECTION
-  // ==========================================================================
-  const VideoComponent = (isRendering && preferOffthreadVideo) ? OffthreadVideo : (isRendering ? SafeVideo : Video);
 
   // ==========================================================================
   // RENDER
@@ -953,16 +938,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                           maxZoomScale={memoizedMaxZoomScale}
                           currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
                           mockupEnabled={mockupEnabled}
-                          videoUrls={videoUrls}
-                          videoUrlsHighRes={videoUrlsHighRes}
-                          videoFilePaths={videoFilePaths}
-                          isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-                          isPlaying={isPlaying}
-                          isGlowMode={isGlowMode}
-                          enhanceAudio={previewVideoVisible ? enhanceAudio : false}
-                          previewMuted={previewMuted}
-                          previewVolume={previewVolume}
                           visible={previewVideoVisible}
+                          resources={resources}
+                          playback={playback}
+                          renderSettings={renderSettings}
                         />
                         {isActiveGenerated && renderLayoutItem && recording ? (
                           <GeneratedClipRenderer
@@ -980,13 +959,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                             drawHeight={mockupPosition.videoHeight}
                             compositionWidth={width}
                             compositionHeight={height}
-                            isGlowMode={isGlowMode}
                             activeLayoutItem={activeLayoutItem}
                             prevLayoutItem={prevLayoutItem}
                             nextLayoutItem={nextLayoutItem}
                             shouldHoldPrevFrame={shouldHoldPrevFrame}
                             isNearBoundaryEnd={isNearBoundaryEnd}
                             overlapFrames={overlapFrames}
+                            renderSettings={renderSettings}
                           />
                         ) : null}
                       </>
@@ -1010,17 +989,16 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                               drawHeight={mockupPosition.videoHeight}
                               compositionWidth={width}
                               compositionHeight={height}
-                              isGlowMode={isGlowMode}
                               activeLayoutItem={activeLayoutItem}
                               prevLayoutItem={prevLayoutItem}
                               nextLayoutItem={nextLayoutItem}
                               shouldHoldPrevFrame={shouldHoldPrevFrame}
                               isNearBoundaryEnd={isNearBoundaryEnd}
                               overlapFrames={overlapFrames}
+                              renderSettings={renderSettings}
                             />
                           );
                         }
-                        const groupStartFrame = item.groupStartFrame;
                         const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
                         return (
                           <VideoClipRenderer
@@ -1029,7 +1007,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                             recording={rec}
                             startFrame={item.startFrame}
                             durationFrames={item.durationFrames}
-                            groupStartFrame={groupStartFrame}
+                            groupStartFrame={item.groupStartFrame}
                             renderStartFrom={renderStartFrom}
                             groupDuration={item.groupDuration}
                             currentFrame={currentFrame}
@@ -1038,19 +1016,11 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                             cornerRadius={0}
                             drawWidth={mockupPosition.videoWidth}
                             drawHeight={mockupPosition.videoHeight}
-                            preferOffthreadVideo={preferOffthreadVideo}
-                            videoUrls={videoUrls}
-                            videoUrlsHighRes={videoUrlsHighRes}
-                            videoFilePaths={videoFilePaths}
                             compositionWidth={width}
                             compositionHeight={height}
                             maxZoomScale={memoizedMaxZoomScale}
                             currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
                             mockupEnabled={mockupEnabled}
-                            enhanceAudio={item.clip.id === activeLayoutItem?.clip.id ? enhanceAudio : false}
-                            isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-                            isPlaying={isPlaying}
-                            isGlowMode={isGlowMode}
                             activeLayoutItem={activeLayoutItem}
                             prevLayoutItem={prevLayoutItem}
                             nextLayoutItem={nextLayoutItem}
@@ -1062,6 +1032,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                             VideoComponent={VideoComponent}
                             premountFor={0}
                             postmountFor={0}
+                            resources={resources}
+                            playback={playback}
+                            renderSettings={renderSettings}
                           />
                         );
                       })

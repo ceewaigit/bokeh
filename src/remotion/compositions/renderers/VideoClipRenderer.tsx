@@ -33,12 +33,19 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   clipForVideo, recording, startFrame, durationFrames,
   groupStartFrame, renderStartFrom, groupDuration,
   currentFrame, fps, isRendering,
-  cornerRadius, drawWidth, drawHeight, preferOffthreadVideo, videoUrls, videoUrlsHighRes, videoFilePaths,
-  compositionWidth, compositionHeight, maxZoomScale, currentZoomScale, mockupEnabled, enhanceAudio, isHighQualityPlaybackEnabled,
-  isPlaying, isGlowMode, activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame,
+  cornerRadius, drawWidth, drawHeight,
+  compositionWidth, compositionHeight, maxZoomScale, currentZoomScale, mockupEnabled,
+  activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame,
   isNearBoundaryEnd, overlapFrames, markRenderReady, handleVideoReady,
   VideoComponent, premountFor, postmountFor,
+  // New Config Objects
+  resources,
+  playback,
+  renderSettings,
 }) => {
+  // Destructure config objects
+  const { isPlaying, isHighQualityPlaybackEnabled } = playback;
+  const { isGlowMode, preferOffthreadVideo, enhanceAudio } = renderSettings;
 
   // ==========================================================================
   // VIDEO URL RESOLUTION
@@ -46,7 +53,9 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // IMPORTANT: Hooks must run unconditionally to maintain stable hook order.
   // Early returns happen AFTER this hook to prevent React hook count mismatches.
   const videoUrl = useVideoUrl({
-    recording, videoUrls, videoUrlsHighRes, videoFilePaths, preferOffthreadVideo,
+    recording,
+    resources,
+    preferOffthreadVideo,
     targetWidth: compositionWidth, targetHeight: compositionHeight,
     maxZoomScale,
     currentZoomScale,  // Smart resolution: uses current frame's zoom level

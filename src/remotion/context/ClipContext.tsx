@@ -9,25 +9,23 @@
  */
 
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Clip, Recording, Effect, RecordingMetadata } from '@/types/project';
+import type { Clip, Effect, RecordingMetadata } from '@/types/project';
 import { useTimeContext } from './TimeContext';
 import { useVideoUrl } from '../hooks/useVideoUrl';
 import { useRecordingMetadata } from '../hooks/useRecordingMetadata';
-import type { ClipContextValue, MetadataUrlMap, VideoUrlMap } from '@/types';
+import type { ClipContextValue, VideoResources, RenderSettings } from '@/types';
 
 const ClipContext = createContext<ClipContextValue | null>(null);
 
 interface ClipProviderProps {
   clip: Clip;
   effects: Effect[];
-  videoUrls?: VideoUrlMap;
-  videoFilePaths?: VideoUrlMap;
-  metadataUrls?: MetadataUrlMap;  // For lazy metadata loading
+  resources: VideoResources;
   preferOffthreadVideo?: boolean;
   children: React.ReactNode;
 }
 
-export function ClipProvider({ clip, effects, videoUrls, videoFilePaths, metadataUrls, preferOffthreadVideo, children }: ClipProviderProps) {
+export function ClipProvider({ clip, effects, resources, preferOffthreadVideo, children }: ClipProviderProps) {
   const { getRecording } = useTimeContext();
 
   // Get recording first (needed for metadata hook)
@@ -38,7 +36,7 @@ export function ClipProvider({ clip, effects, videoUrls, videoFilePaths, metadat
     recordingId: recording?.id || '',
     folderPath: recording?.folderPath,
     metadataChunks: recording?.metadataChunks,
-    metadataUrls: metadataUrls,
+    metadataUrls: resources?.metadataUrls,
     inlineMetadata: recording?.metadata, // Fallback to already-loaded metadata
   });
 
@@ -83,7 +81,7 @@ export function ClipProvider({ clip, effects, videoUrls, videoFilePaths, metadat
   // Use hook to resolve video URL based on environment
   // Note: recording is already checked in useMemo above, use it directly here
   const videoUrl =
-    useVideoUrl({ recording, videoUrls, videoFilePaths, preferOffthreadVideo }) || '';
+    useVideoUrl({ recording, resources, preferOffthreadVideo }) || '';
 
   // Merge into final context value
   const finalValue = useMemo(

@@ -28,7 +28,6 @@ export {
 
 import {
   isProxySufficientForTarget,
-  isSourceOverkillForPreview,
   PREVIEW_DISPLAY_WIDTH,
   PREVIEW_DISPLAY_HEIGHT,
   RETINA_MULTIPLIER,
@@ -36,9 +35,7 @@ import {
 
 export function useVideoUrl({
   recording,
-  videoUrls,
-  videoUrlsHighRes,
-  videoFilePaths,
+  resources,
   preferOffthreadVideo,
   targetWidth = 1280,
   targetHeight = 720,
@@ -50,6 +47,7 @@ export function useVideoUrl({
   isHighQualityPlaybackEnabled = false,
 }: UseVideoUrlProps): string | undefined {
   const { isRendering } = getRemotionEnvironment();
+  const { videoUrls, videoUrlsHighRes, videoFilePaths } = resources || {};
 
   return useMemo(() => {
     if (!recording) return undefined;

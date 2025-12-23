@@ -25,7 +25,7 @@ export function usePlayerConfiguration(
   videoHeight: number,
   fps: number,
   cameraSettingsOverride?: TimelineCompositionProps['cameraSettings']
-): TimelineCompositionProps | null {
+) {
   const windowSurfaceMode = useWindowAppearanceStore((s) => s.mode)
 
   return useMemo(() => {
@@ -73,4 +73,3 @@ export function usePlayerConfiguration(
     };
   }, [project, videoWidth, videoHeight, fps, windowSurfaceMode, cameraSettingsOverride]);
 }
-

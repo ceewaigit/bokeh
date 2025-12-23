@@ -163,7 +163,7 @@ export function PreviewAreaRemotion({
   // Calculate timeline metadata (total duration, fps, dimensions)
   const timelineMetadata = useTimelineMetadata(project);
 
-  // Build player configuration props
+  // Build partial player configuration props
   const playerConfig = usePlayerConfiguration(
     project,
     timelineMetadata?.width || 1920,
@@ -545,34 +545,68 @@ export function PreviewAreaRemotion({
     );
   }
 
-  // Memoize inputProps to prevent Remotion from re-mounting composition tree
-  // Previously, spreading playerConfig with new values created new object reference every render,
-  // causing VideoClipRenderer to unmount/remount on every state change (VTDecoder memory leak)
+  // Memoize inputProps using the new structure for TimelineComposition
   const mainPlayerInputProps = useMemo(() => {
     return {
       ...playerConfig,
-      isEditingCrop: Boolean(isEditingCrop),
-      cropData,
-      onCropChange,
-      onCropConfirm,
-      onCropReset,
-      isHighQualityPlaybackEnabled,
-      isScrubbing,
-      isPlaying,
-      previewMuted: muted,
-      previewVolume: Math.min(volume / 100, 1),
+      // Group: PlaybackSettings
+      playback: {
+        isPlaying,
+        isScrubbing,
+        isHighQualityPlaybackEnabled,
+        previewMuted: muted,
+        previewVolume: Math.min(volume / 100, 1),
+      },
+      // Group: RenderSettings
+      renderSettings: {
+        isGlowMode: false,
+        preferOffthreadVideo: false, // Preview uses <img>/native video not offthread canvas usually? Or maybe true/false depends. VideoClipRenderer uses it.
+        // Actually for preview we usually want low overhead.
+        enhanceAudio: playerConfig.enhanceAudio, // enhanceAudio is in playerConfig? Yes.
+        isEditingCrop: Boolean(isEditingCrop),
+      },
+      // Group: CropSettings
+      cropSettings: {
+        cropData,
+        onCropChange,
+        onCropConfirm,
+        onCropReset,
+      },
+      // Group: VideoResources
+      resources: {
+        // In preview we might rely on blobs or fallback.
+        // videoUrls map is not explicitly available here, but useVideoUrl handles 'undefined' gracefully by checking storage.
+        // If we want to be explicit we could pass an empty object or rely on useVideoUrl internal logic.
+        videoUrls: undefined,
+        videoUrlsHighRes: undefined,
+        videoFilePaths: undefined,
+        metadataUrls: undefined,
+      }
     }
   }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
 
   const glowPlayerInputProps = useMemo(() => ({
     ...playerConfig,
-    isEditingCrop: Boolean(isEditingCrop),
-    isGlowMode: true,
-    enhanceAudio: false,
-    isPlaying,
-    previewMuted: true,
-    previewVolume: 0,
-  }), [playerConfig, isEditingCrop, isPlaying]);
+    playback: {
+      isPlaying,
+      isScrubbing,
+      isHighQualityPlaybackEnabled, // Glow doesn't need high quality?
+      previewMuted: true,
+      previewVolume: 0,
+    },
+    renderSettings: {
+      isGlowMode: true,
+      preferOffthreadVideo: false,
+      enhanceAudio: false,
+      isEditingCrop: false, // No crop overlay in glow
+    },
+    cropSettings: {
+      // No crop interaction in glow
+    },
+    resources: {
+      // Same as main
+    }
+  }), [playerConfig, isEditingCrop, isPlaying, isScrubbing, isHighQualityPlaybackEnabled]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-transparent">
