@@ -197,34 +197,34 @@ export class BlobURLManager {
       logger.info(`Cleaned ${cleaned} ${type} blobs, freed ${Math.round(freedSize / 1024 / 1024)}MB`)
     }
   }
-  
+
   /**
    * Emergency cleanup for export - frees all non-essential blobs
    */
   cleanupForExport(): void {
     let cleaned = 0
     let freedSize = 0
-    
+
     const entriesToClean: string[] = []
     this.entries.forEach((entry, url) => {
       // Keep only high-priority videos that might be in use
       if (entry.type === 'video' && (entry.priority || 5) >= 8) {
         return // Keep this one
       }
-      
+
       // Clean up everything else
       freedSize += entry.size
       entriesToClean.push(url)
       cleaned++
     })
-    
+
     // Revoke all at once
     entriesToClean.forEach(url => this.revoke(url))
-    
+
     if (cleaned > 0) {
       logger.info(`[Export Cleanup] Freed ${cleaned} blobs, ${Math.round(freedSize / 1024 / 1024)}MB recovered`)
     }
-    
+
     // Force GC if available
     if (typeof global !== 'undefined' && (global as any).gc) {
       (global as any).gc()
@@ -400,13 +400,21 @@ export class BlobURLManager {
       return null
     }
 
+    // Handle data URIs - return as-is without calling IPC
+    // This prevents crash when plugin-generated snapshots (data URIs) are treated as file paths
+    if (filePath.startsWith('data:')) {
+      logger.debug(`Using data URI for ${recordingId}`)
+      RecordingStorage.setBlobUrl(recordingId, filePath)
+      return filePath
+    }
+
     try {
       // Use IPC to resolve path and get video URL from main process
       if (!window.electronAPI?.resolveRecordingPath) {
         logger.error('Electron API not available for path resolution')
         return null
       }
-      
+
       const videoUrl = await window.electronAPI.resolveRecordingPath(filePath, folderPath)
       logger.debug(`Video URL resolved: ${recordingId} -> ${videoUrl}`)
 

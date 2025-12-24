@@ -178,7 +178,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
       }
     }
 
-    // STABILITY FIX: Return previous array reference if clip IDs haven't changed
+    // Return previous array reference if clip IDs haven't changed
     // This prevents ClipSequence remounts when only play/pause state changes
     const currentIds = items.map(i => i.clip.id).sort().join(',');
     if (currentIds === prevVisibleIdsRef.current) {
@@ -194,7 +194,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   }, [frameLayout, fps, frame]);
 
   return (
-    <TimeProvider clips={sortedClips} recordings={recordings} fps={fps} >
+    <TimeProvider clips={sortedClips} recordings={recordings} resources={safeResources} fps={fps} >
       <AbsoluteFill
         style={{
           backgroundColor: backgroundColor ?? '#000',
@@ -210,7 +210,6 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
                 effects={effects}
                 videoWidth={videoWidth}
                 videoHeight={videoHeight}
-                resources={safeResources}
                 renderSettings={safeRenderSettings}
                 startFrame={startFrame}
                 durationFrames={durationFrames}
@@ -244,7 +243,6 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
                 effects={effects}
                 videoWidth={videoWidth}
                 videoHeight={videoHeight}
-                resources={safeResources}
                 renderSettings={safeRenderSettings}
                 startFrame={startFrame}
                 durationFrames={durationFrames}

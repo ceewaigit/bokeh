@@ -62,6 +62,7 @@ const ClipLayers: React.FC<{
  * Clip Sequence
  *
  * Clean pattern: Sequence wraps context and layers
+ * Resources are now accessed via TimeContext (SSOT) instead of props
  */
 export const ClipSequence: React.FC<ClipSequenceProps> = ({
   clip,
@@ -70,7 +71,6 @@ export const ClipSequence: React.FC<ClipSequenceProps> = ({
   videoHeight,
   startFrame,
   durationFrames,
-  resources,
   renderSettings,
 
   includeBackground,
@@ -87,7 +87,6 @@ export const ClipSequence: React.FC<ClipSequenceProps> = ({
       <ClipProvider
         clip={clip}
         effects={effects}
-        resources={resources}
         preferOffthreadVideo={preferOffthreadVideo}
       >
         <ClipLayers

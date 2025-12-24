@@ -58,6 +58,7 @@ import { SafeVideo } from '@/remotion/components/video-helpers';
 import { PreviewVideoRenderer } from './renderers/PreviewVideoRenderer';
 import { VideoClipRenderer } from './renderers/VideoClipRenderer';
 import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
+import { ImageClipRenderer } from './renderers/ImageClipRenderer';
 import { MockupLayer } from './layers/MockupLayer';
 import { calculateMockupPosition, type MockupPositionResult } from '@/lib/mockups/mockup-transform';
 import { PreviewGuides } from '@/components/preview-guides';
@@ -77,6 +78,7 @@ type PreviewVideoState = {
   clip: any;
   layoutItem: FrameLayoutItem;
   sourceTimeMs: number;
+  maxZoomScale?: number;
 };
 
 // ============================================================================
@@ -126,6 +128,25 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const { fps, clips, getRecording, recordingsMap } = useTimeContext();
   const { isRendering } = getRemotionEnvironment();
   const isPreview = !isRendering;
+
+  // Track last video state for generated clip transitions
+  const lastVideoStateRef = useRef<PreviewVideoState | null>(null);
+
+  // FREEZE LOGIC: Capture layout dimensions when entering crop mode to prevent drift
+  // during playback (due to animated padding, resolution changes, etc).
+  // We track the *last* valid geometry to use as the frozen state.
+  interface FrozenLayout {
+    drawWidth: number;
+    drawHeight: number;
+    offsetX: number;
+    offsetY: number;
+    padding: number;
+    scaleFactor: number;
+    activeSourceWidth: number;
+    activeSourceHeight: number;
+    mockupPosition: MockupPositionResult | null;
+  }
+  const frozenLayoutRef = useRef<FrozenLayout | null>(null);
 
   // Destructure for easier access internally
   const { isPlaying, isScrubbing, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
@@ -370,18 +391,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // FREEZE LOGIC: Capture layout dimensions when entering crop mode to prevent drift
   // during playback (due to animated padding, resolution changes, etc).
   // We track the *last* valid geometry to use as the frozen state.
-  interface FrozenLayout {
-    drawWidth: number;
-    drawHeight: number;
-    offsetX: number;
-    offsetY: number;
-    padding: number;
-    scaleFactor: number;
-    activeSourceWidth: number;
-    activeSourceHeight: number;
-    mockupPosition: MockupPositionResult | null;
-  }
-  const frozenLayoutRef = useRef<FrozenLayout | null>(null);
+  // FrozenLayout interface moved to top
+  // const frozenLayoutRef = useRef<FrozenLayout | null>(null); // Moved to top
 
   // Clear frozen state when not editing
   useEffect(() => {
@@ -390,55 +401,18 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     }
   }, [isEditingCrop]);
 
-  // OPTIMIZATION: Memoize stable layout data that only changes when clip changes.
-  // This avoids recalculating video position, mockup position, and background styling
-  // on every single frame - they only need to update when the active recording changes.
-  const stableLayoutData = useMemo(() => {
-    if (!activeClipData) return null;
-    const { recording, sourceTimeMs, effects: clipEffects } = activeClipData;
-
-    // Extract background effect data
-    const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
-    const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
-
-    const livePadding = backgroundData?.padding || 0;
-    const REFERENCE_WIDTH = 1920;
-    const REFERENCE_HEIGHT = 1080;
-    const liveScaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
-    const liveActiveSourceWidth = recording.width || sourceVideoWidth || videoWidth;
-    const liveActiveSourceHeight = recording.height || sourceVideoHeight || videoHeight;
-
-    const paddingScaled = livePadding * liveScaleFactor;
-    const vidPos = calculateVideoPosition(
-      width, height, liveActiveSourceWidth, liveActiveSourceHeight, paddingScaled
-    );
-
-    let mockupPosition: MockupPositionResult | null = null;
-    if (backgroundData?.mockup?.enabled) {
-      mockupPosition = calculateMockupPosition(
-        width, height, backgroundData.mockup, liveActiveSourceWidth, liveActiveSourceHeight, paddingScaled
-      );
-    }
-
-    return {
-      drawWidth: Math.round(vidPos.drawWidth),
-      drawHeight: Math.round(vidPos.drawHeight),
-      offsetX: Math.round(vidPos.offsetX),
-      offsetY: Math.round(vidPos.offsetY),
-      padding: livePadding,
-      scaleFactor: liveScaleFactor,
-      activeSourceWidth: liveActiveSourceWidth,
-      activeSourceHeight: liveActiveSourceHeight,
-      mockupPosition,
-      backgroundData,
-      cornerRadius: (backgroundData?.cornerRadius || 0) * liveScaleFactor,
-      shadowIntensity: backgroundData?.shadowIntensity || 0,
-      mockupData: backgroundData?.mockup,
-      mockupEnabled: backgroundData?.mockup?.enabled ?? false,
+  // Keep track of the last valid video state (recording, clip, etc.)
+  // We update this whenever we are rendering a valid video frame.
+  // This ref is read by computedRenderData to provide "inheritance" for generated clips.
+  if (activeClipData?.recording?.sourceType === 'video' && activeLayoutItem) {
+    lastVideoStateRef.current = {
+      recording: activeClipData.recording,
+      clip: activeClipData.clip,
+      layoutItem: activeLayoutItem,
+      sourceTimeMs: activeClipData.sourceTimeMs,
+      maxZoomScale: memoizedMaxZoomScale
     };
-    // CRITICAL: Only depends on activeClipData?.recording?.id (not currentFrame)
-    // This means layout is recalculated only when switching clips, not every frame
-  }, [activeClipData?.recording?.id, activeClipData?.effects, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight]);
+  }
 
   /**
    * Computes all rendering data for the current frame:
@@ -449,7 +423,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const computedRenderData = useMemo(() => {
     let effectiveClipData = activeClipData;
 
-    // Handle boundary cases: get clip data from adjacent clips when near transitions
     if (!effectiveClipData && !isRendering) {
       if (isNearBoundaryStart && prevLayoutItem) {
         effectiveClipData = getActiveClipDataAtFrame({
@@ -461,6 +434,95 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
         });
       }
     }
+
+    // INHERITANCE LOGIC: If current clip is generated/image (e.g. return clip),
+    // inherit layout/transforms from the persisted video state to prevent "pop".
+    // This makes transition clips "crop agnostic".
+    if (effectiveClipData &&
+      ['generated', 'image'].includes(effectiveClipData.recording.sourceType || '') &&
+      lastVideoStateRef.current?.recording &&
+      lastVideoStateRef.current.recording.sourceType === 'video') {
+
+      const persistedState = lastVideoStateRef.current;
+
+      // Fetch the effective data for the persisted video clip
+      // Use the last frame of the video clip to capture its final state (zoom out start, etc)
+      const videoFrame = Math.min(
+        currentFrame,
+        (persistedState.layoutItem.startFrame || 0) + (persistedState.layoutItem.durationFrames || 1) - 1
+      );
+
+      const distinctVideoData = getActiveClipDataAtFrame({
+        frame: videoFrame,
+        frameLayout,
+        fps,
+        effects,
+        getRecording,
+      });
+
+      if (distinctVideoData) {
+        // Merge strategies:
+        // 1. Base Dimensions: Use Video (the container should match the video)
+        // 2. Crop/Background: Use Video (unless generated clip has explicit overrides, which is rare)
+        // 3. Zoom/Screen: Use Generated Clip (to allow animations like "zoom out map"), fallback to Video
+
+        // Check if generated clip has its own Zoom/Screen effects
+        // We use the generated clip's time for these (animations)
+        const hasOwnZoom = EffectsFactory.getActiveEffectAtTime(effectiveClipData.effects, EffectType.Zoom, effectiveClipData.sourceTimeMs);
+        const hasOwnScreen = EffectsFactory.getActiveEffectAtTime(effectiveClipData.effects, EffectType.Screen, effectiveClipData.sourceTimeMs);
+        const hasOwnCrop = EffectsFactory.getActiveEffectAtTime(effectiveClipData.effects, EffectType.Crop, effectiveClipData.sourceTimeMs);
+        const hasOwnBackground = EffectsFactory.getActiveEffectAtTime(effectiveClipData.effects, EffectType.Background, effectiveClipData.sourceTimeMs);
+
+        // Identify video's structural effects (Crop, Background)
+        // We must re-map their timing to be valid for the current clip's duration,
+        // otherwise getActiveEffectAtTime failed to find them (timestamp mismatch).
+        const videoStructuralEffects = distinctVideoData.effects
+          .filter(e => {
+            // Only inherit if the clip doesn't have its own override
+            if (e.type === EffectType.Crop && hasOwnCrop) return false;
+            if (e.type === EffectType.Background && hasOwnBackground) return false;
+            return e.type === EffectType.Crop || e.type === EffectType.Background;
+          })
+          .map(e => ({
+            ...e,
+            startTime: -Infinity, // Always active
+            endTime: Infinity
+          }));
+
+        effectiveClipData = {
+          ...effectiveClipData,
+          recording: {
+            ...persistedState.recording, // Inherit dimensions/props from video
+            // CRITICAL: Preserve the actual source identity (image/generated)
+            // so the correct renderer is selected.
+            id: effectiveClipData.recording.id,
+            sourceType: effectiveClipData.recording.sourceType,
+            generatedSource: effectiveClipData.recording.generatedSource,
+            imageSource: effectiveClipData.recording.imageSource,
+            metadata: effectiveClipData.recording.metadata,
+          },
+          // Merge effects:
+          // 1. Inherit Crop/Background from video (force-mapped to always be active) - ONLY IF MISSING
+          // 2. Use Generated clip's Zoom/Screen (if present), else inherit video's (also force-mapped?)
+          //    Actually, usually generated clips control their own zoom. If not, maybe inherit?
+          //    Let's stick to the plan: Inherit Crop/Background structurally.
+          effects: [
+            ...videoStructuralEffects,
+            ...(hasOwnZoom ? effectiveClipData.effects.filter(e => e.type === EffectType.Zoom) : distinctVideoData.effects.filter(e => e.type === EffectType.Zoom).map(e => ({ ...e, startTime: -Infinity, endTime: Infinity }))),
+            ...(hasOwnScreen ? effectiveClipData.effects.filter(e => e.type === EffectType.Screen) : distinctVideoData.effects.filter(e => e.type === EffectType.Screen).map(e => ({ ...e, startTime: -Infinity, endTime: Infinity }))),
+            // Keep all other effects from the clip, including our own Crop/Background if we had them
+            ...effectiveClipData.effects.filter(e =>
+              e.type !== EffectType.Zoom &&
+              e.type !== EffectType.Screen &&
+              // Don't filter out Crop/Background if we are using our own!
+              (hasOwnCrop || e.type !== EffectType.Crop) &&
+              (hasOwnBackground || e.type !== EffectType.Background)
+            )
+          ]
+        };
+      }
+    }
+
     if (!effectiveClipData) return null;
 
     const { clip, recording, sourceTimeMs, effects: clipEffects } = effectiveClipData;
@@ -556,7 +618,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const zoomTransformStr = getZoomTransformString(zoomTransform);
 
     // Calculate crop transform
-    const cropEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Crop, currentTimeMs);
+    // CRITICAL FIX: Use sourceTimeMs for crop effect lookup since activeClipData.effects are relative to the recording/source
+    const cropEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Crop, sourceTimeMs);
+
     const resolvedCropData = isEditingCrop ? null : cropEffect ? (cropEffect.data as CropEffectData) : null;
 
     // IMPORTANT: Crop uses the VIDEO dimensions, derived from the frozen/live layout
@@ -588,7 +652,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       cropTransformStr,
       extra3DTransform: isEditingCrop ? '' : extra3DTransform,
 
-      // Force zoomTransform to null when editing crop so VideoPositionContext consumers 
+      // Force zoomTransform to null when editing crop so VideoPositionContext consumers
       // see the raw, un-zoomed dimensions/coordinates.
       zoomTransform: isEditingCrop ? null : zoomTransform,
 
@@ -605,7 +669,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const renderData = computedRenderData ?? lastRenderDataRef.current;
 
   // Track last video state for generated clip transitions
-  const lastVideoStateRef = useRef<PreviewVideoState | null>(null);
+  // const lastVideoStateRef = useRef<PreviewVideoState | null>(null); // Moved to top
 
   // ==========================================================================
   // MOTION BLUR CALCULATION
@@ -689,195 +753,274 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     clip, recording, sourceTimeMs, padding, cornerRadius, shadowIntensity, scaleFactor, activeSourceWidth, activeSourceHeight,
     drawWidth, drawHeight, offsetX, offsetY, outerTransform, cropTransformStr, extra3DTransform, zoomTransform, cropTransform,
     cropClipPath,
-    mockupEnabled, mockupData, mockupPosition,
+    mockupEnabled, mockupData, mockupPosition
   } = renderData;
 
   const renderLayoutIndex = layoutIndexByClipId.get(clip.id);
-  const renderLayoutItem = renderLayoutIndex === undefined ? activeLayoutItem : frameLayout[renderLayoutIndex];
-  const isActiveGenerated = recording?.sourceType === 'generated';
+  const renderLayoutItem = activeLayoutItem;
 
-  // Track last video state for generated clip transitions
-  if (!isActiveGenerated && recording && renderLayoutItem) {
-    lastVideoStateRef.current = {
-      recording,
-      clip,
-      layoutItem: renderLayoutItem,
-      sourceTimeMs,
-    };
+  const isActiveGenerated = recording?.sourceType === 'generated';
+  const isActiveImage = recording?.sourceType === 'image';
+
+  // Track last video state for generated/image clip transitions
+  // (preserves video state so we can show freeze frame behind cursor return)
+  if (!isActiveGenerated && !isActiveImage && recording && renderLayoutItem) {
+    // REMOVED old lastVideoStateRef update logic - moved to top
+    // to ensure it happens before computedRenderData runs (during render phase, technically side-effect but needed for sync)
+    // or we should use useLayoutEffect? 
+    // Actually, updating ref during render is okay for this specific pattern if careful.
+    // We moved it up to line ~453.
   }
 
-  // Determine preview video state (use last video state when on generated clip)
-  const previewVideoState = isActiveGenerated ? lastVideoStateRef.current : (recording && renderLayoutItem
-    ? {
-      recording,
-      clip,
-      layoutItem: renderLayoutItem,
-      sourceTimeMs,
+  // Determine preview video state (use last video state when on generated/image clip)
+  const previewVideoState: PreviewVideoState | null = (isActiveGenerated || isActiveImage) ? lastVideoStateRef.current : (recording && renderLayoutItem ? {
+    recording,
+    clip,
+    layoutItem: renderLayoutItem,
+    sourceTimeMs,
+    maxZoomScale: memoizedMaxZoomScale,
+  } : null);
+
+  // Keep video visible during generated/image clips to prevent blinking.
+  // We show the cached "last video frame" behind the image/generated content.
+  // This ensures there's no black flash while images are loading.
+  const previewVideoVisible = !!previewVideoState;
+
+  // When showing the cached accumulated video frame (during image/generated clips),
+  // we MUST pause the video element so it acts as a freeze frame.
+  // If we leave it playing, it will drift away from the transition point.
+  const effectivePlayback = useMemo(() => {
+    if (isActiveGenerated || isActiveImage) {
+      return { ...playback, isPlaying: false };
     }
-    : null);
-  const previewVideoVisible = !isActiveGenerated;
+    return playback;
+  }, [playback, isActiveGenerated, isActiveImage]);
 
   // ==========================================================================
   // VIDEO COMPONENT SELECTION
   // ==========================================================================
   const VideoComponent = (isRendering && preferOffthreadVideo) ? OffthreadVideo : (isRendering ? SafeVideo : Video);
 
-  const videoContent = isPreview ? (
-    <>
-      {/* Native video element for responsive preview */}
-      <PreviewVideoRenderer
-        recording={previewVideoState?.recording}
-        clipForVideo={previewVideoState?.clip}
-        startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
-        durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
-        sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
-        currentFrame={currentFrame}
-        fps={fps}
-        cornerRadius={cornerRadius}
-        drawWidth={drawWidth}
-        drawHeight={drawHeight}
-        compositionWidth={width}
-        compositionHeight={height}
-        maxZoomScale={memoizedMaxZoomScale}
-        currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
-        mockupEnabled={mockupEnabled}
-        visible={previewVideoVisible}
-        resources={resources}
-        playback={playback}
-        renderSettings={renderSettings}
-      />
-      {/* Generated clip overlay (blank clips, plugins) */}
-      {isActiveGenerated && renderLayoutItem && recording ? (
-        <GeneratedClipRenderer
-          key={renderLayoutItem.groupId}
-          clipForVideo={renderLayoutItem.clip}
-          recording={recording}
-          startFrame={renderLayoutItem.startFrame}
-          durationFrames={renderLayoutItem.durationFrames}
-          groupStartFrame={renderLayoutItem.groupStartFrame}
-          groupDuration={renderLayoutItem.groupDuration}
-          currentFrame={currentFrame}
-          fps={fps}
-          isRendering={isRendering}
-          drawWidth={drawWidth}
-          drawHeight={drawHeight}
-          compositionWidth={width}
-          compositionHeight={height}
-          activeLayoutItem={activeLayoutItem}
-          prevLayoutItem={prevLayoutItem}
-          nextLayoutItem={nextLayoutItem}
-          shouldHoldPrevFrame={shouldHoldPrevFrame}
-          isNearBoundaryEnd={isNearBoundaryEnd}
-          overlapFrames={overlapFrames}
-          renderSettings={renderSettings}
-        />
-      ) : null}
-    </>
-  ) : (
-    <>
-      {/*
-       * Z-ORDER: Render clips chronologically (prev → current → next)
-       * so current clip is visible on top during transitions.
-       * STABILITY: Use groupId as key to prevent remounting when
-       * transitioning between contiguous clips of the same recording.
-       */ }
-      {renderableItems.map((item) => {
-        const isPrev = item.clip.id === prevLayoutItem?.clip.id;
-        const isNext = item.clip.id === nextLayoutItem?.clip.id;
-        const isActive = item.clip.id === activeLayoutItem?.clip.id;
-
-        // Determine if this group should be rendered
-        const isGroupActive = activeLayoutItem && item.groupId === activeLayoutItem.groupId;
-        const isGroupPrev = prevLayoutItem && item.groupId === prevLayoutItem.groupId;
-        const isGroupNext = nextLayoutItem && item.groupId === nextLayoutItem.groupId;
-
-        const shouldRender = isRendering
-          ? ((isGroupActive) ||
-            (isGroupPrev && shouldHoldPrevFrame) ||
-            (isGroupNext && isNearBoundaryEnd))
-          : true;
-
-        if (!shouldRender) return null;
-
-        const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
-
-        const recording = recordingsMap.get(item.clip.recordingId);
-
-        // Render generated clips with GeneratedClipRenderer
-        if (recording?.sourceType === 'generated') {
-          return (
+  const renderContent = (targetWidth: number, targetHeight: number, targetRadius: number) => {
+    if (isPreview) {
+      return (
+        <>
+          {/* Native video element for responsive preview */}
+          <PreviewVideoRenderer
+            recording={previewVideoState?.recording}
+            clipForVideo={previewVideoState?.clip}
+            startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
+            durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
+            sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
+            currentFrame={currentFrame}
+            fps={fps}
+            cornerRadius={targetRadius}
+            drawWidth={targetWidth}
+            drawHeight={targetHeight}
+            compositionWidth={width}
+            compositionHeight={height}
+            maxZoomScale={previewVideoState?.maxZoomScale ?? memoizedMaxZoomScale}
+            currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+            mockupEnabled={mockupEnabled}
+            visible={previewVideoVisible}
+            resources={resources}
+            playback={effectivePlayback}
+            renderSettings={renderSettings}
+          />
+          {/* Generated clip overlay (blank clips, plugins) */}
+          {isActiveGenerated && renderLayoutItem && recording ? (
             <GeneratedClipRenderer
+              key={renderLayoutItem.groupId}
+              clipForVideo={renderLayoutItem.clip}
+              recording={recording}
+              startFrame={renderLayoutItem.startFrame}
+              durationFrames={renderLayoutItem.durationFrames}
+              groupStartFrame={renderLayoutItem.groupStartFrame}
+              groupDuration={renderLayoutItem.groupDuration}
+              currentFrame={currentFrame}
+              fps={fps}
+              isRendering={isRendering}
+              drawWidth={targetWidth}
+              drawHeight={targetHeight}
+              compositionWidth={width}
+              compositionHeight={height}
+              activeLayoutItem={activeLayoutItem}
+              prevLayoutItem={prevLayoutItem}
+              nextLayoutItem={nextLayoutItem}
+              shouldHoldPrevFrame={shouldHoldPrevFrame}
+              isNearBoundaryEnd={isNearBoundaryEnd}
+              overlapFrames={overlapFrames}
+              renderSettings={renderSettings}
+            />
+          ) : null}
+          {/* Image clip overlay (freeze frames, imported images) */}
+          {isActiveImage && renderLayoutItem && recording ? (
+            <ImageClipRenderer
+              key={`image-${renderLayoutItem.groupId}`}
+              clipForVideo={renderLayoutItem.clip}
+              recording={recording}
+              startFrame={renderLayoutItem.startFrame}
+              durationFrames={renderLayoutItem.durationFrames}
+              groupStartFrame={renderLayoutItem.groupStartFrame}
+              groupDuration={renderLayoutItem.groupDuration}
+              currentFrame={currentFrame}
+              fps={fps}
+              isRendering={isRendering}
+              cornerRadius={targetRadius}
+              drawWidth={targetWidth}
+              drawHeight={targetHeight}
+              compositionWidth={width}
+              compositionHeight={height}
+              activeLayoutItem={activeLayoutItem}
+              prevLayoutItem={prevLayoutItem}
+              nextLayoutItem={nextLayoutItem}
+              shouldHoldPrevFrame={shouldHoldPrevFrame}
+              isNearBoundaryEnd={isNearBoundaryEnd}
+              overlapFrames={overlapFrames}
+              resources={resources}
+              renderSettings={renderSettings}
+            />
+          ) : null}
+        </>
+      );
+    }
+
+    return (
+      <>
+        {/*
+         * Z-ORDER: Render clips chronologically (prev → current → next)
+         * so current clip is visible on top during transitions.
+         * STABILITY: Use groupId as key to prevent remounting when
+         * transitioning between contiguous clips of the same recording.
+         */ }
+        {renderableItems.map((item) => {
+          const isPrev = item.clip.id === prevLayoutItem?.clip.id;
+          const isActive = item.clip.id === activeLayoutItem?.clip.id;
+
+          // Determine if this group should be rendered
+          const isGroupActive = activeLayoutItem && item.groupId === activeLayoutItem.groupId;
+          const isGroupPrev = prevLayoutItem && item.groupId === prevLayoutItem.groupId;
+          const isGroupNext = nextLayoutItem && item.groupId === nextLayoutItem.groupId;
+
+          const shouldRender = isRendering
+            ? ((isGroupActive) ||
+              (isGroupPrev && shouldHoldPrevFrame) ||
+              (isGroupNext && isNearBoundaryEnd))
+            : true;
+
+          if (!shouldRender) return null;
+
+          const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
+
+          const recording = recordingsMap.get(item.clip.recordingId);
+
+          // Render generated clips with GeneratedClipRenderer
+          if (recording?.sourceType === 'generated') {
+            return (
+              <GeneratedClipRenderer
+                key={item.groupId}
+                clipForVideo={item.clip}
+                recording={recording}
+                startFrame={item.startFrame}
+                durationFrames={item.durationFrames}
+                groupStartFrame={item.groupStartFrame}
+                groupDuration={item.groupDuration}
+                currentFrame={currentFrame}
+                fps={fps}
+                isRendering={isRendering}
+                drawWidth={targetWidth}
+                drawHeight={targetHeight}
+                compositionWidth={width}
+                compositionHeight={height}
+                activeLayoutItem={activeLayoutItem}
+                prevLayoutItem={prevLayoutItem}
+                nextLayoutItem={nextLayoutItem}
+                shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
+                isNearBoundaryEnd={isNearBoundaryEnd}
+                overlapFrames={overlapFrames}
+                renderSettings={renderSettings}
+              />
+            );
+          }
+
+          // Render image clips with ImageClipRenderer
+          if (recording?.sourceType === 'image') {
+            return (
+              <ImageClipRenderer
+                key={`image-${item.groupId}`}
+                clipForVideo={item.clip}
+                recording={recording}
+                startFrame={item.startFrame}
+                durationFrames={item.durationFrames}
+                groupStartFrame={item.groupStartFrame}
+                groupDuration={item.groupDuration}
+                currentFrame={currentFrame}
+                fps={fps}
+                isRendering={isRendering}
+                cornerRadius={targetRadius}
+                drawWidth={targetWidth}
+                drawHeight={targetHeight}
+                compositionWidth={width}
+                compositionHeight={height}
+                activeLayoutItem={activeLayoutItem}
+                prevLayoutItem={prevLayoutItem}
+                nextLayoutItem={nextLayoutItem}
+                shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
+                isNearBoundaryEnd={isNearBoundaryEnd}
+                overlapFrames={overlapFrames}
+                resources={resources}
+                renderSettings={renderSettings}
+              />
+            );
+          }
+
+          // Render video clips with VideoClipRenderer
+          const clipIndex = layoutIndexByClipId.get(item.clip.id);
+          const shouldExtendSequence = keepVideoWarmOnScrub && clipIndex !== undefined;
+          const premountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
+          const postmountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
+
+          return (
+            <VideoClipRenderer
               key={item.groupId}
               clipForVideo={item.clip}
               recording={recording}
               startFrame={item.startFrame}
               durationFrames={item.durationFrames}
               groupStartFrame={item.groupStartFrame}
+              renderStartFrom={renderStartFrom}
               groupDuration={item.groupDuration}
               currentFrame={currentFrame}
               fps={fps}
               isRendering={isRendering}
-              drawWidth={drawWidth}
-              drawHeight={drawHeight}
+              cornerRadius={targetRadius}
+              drawWidth={targetWidth}
+              drawHeight={targetHeight}
               compositionWidth={width}
               compositionHeight={height}
+              maxZoomScale={memoizedMaxZoomScale}
+              currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
+              mockupEnabled={mockupEnabled}
               activeLayoutItem={activeLayoutItem}
               prevLayoutItem={prevLayoutItem}
               nextLayoutItem={nextLayoutItem}
               shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
               isNearBoundaryEnd={isNearBoundaryEnd}
               overlapFrames={overlapFrames}
+              markRenderReady={markRenderReady}
+              handleVideoReady={handleVideoReady}
+              VideoComponent={VideoComponent}
+              premountFor={premountFor}
+              postmountFor={postmountFor}
+              resources={resources}
+              playback={playback}
               renderSettings={renderSettings}
             />
           );
-        }
-
-        // Render video clips with VideoClipRenderer
-        const clipIndex = layoutIndexByClipId.get(item.clip.id);
-        const shouldExtendSequence = keepVideoWarmOnScrub && clipIndex !== undefined;
-        const premountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
-        const postmountFor = shouldExtendSequence ? scrubKeepAliveFrames : 0;
-
-        return (
-          <VideoClipRenderer
-            key={item.groupId}
-            clipForVideo={item.clip}
-            recording={recording}
-            startFrame={item.startFrame}
-            durationFrames={item.durationFrames}
-            groupStartFrame={item.groupStartFrame}
-            renderStartFrom={renderStartFrom}
-            groupDuration={item.groupDuration}
-            currentFrame={currentFrame}
-            fps={fps}
-            isRendering={isRendering}
-            cornerRadius={cornerRadius}
-            drawWidth={drawWidth}
-            drawHeight={drawHeight}
-            compositionWidth={width}
-            compositionHeight={height}
-            maxZoomScale={memoizedMaxZoomScale}
-            currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
-            mockupEnabled={mockupEnabled}
-            activeLayoutItem={activeLayoutItem}
-            prevLayoutItem={prevLayoutItem}
-            nextLayoutItem={nextLayoutItem}
-            shouldHoldPrevFrame={isPrev ? shouldHoldPrevFrame : (isActive ? shouldHoldPrevFrame : false)}
-            isNearBoundaryEnd={isNearBoundaryEnd}
-            overlapFrames={overlapFrames}
-            markRenderReady={markRenderReady}
-            handleVideoReady={handleVideoReady}
-            VideoComponent={VideoComponent}
-            premountFor={premountFor}
-            postmountFor={postmountFor}
-            resources={resources}
-            playback={playback}
-            renderSettings={renderSettings}
-          />
-        );
-      })}
-    </>
-  );
+        })}
+      </>
+    );
+  };
 
   // ==========================================================================
   // TRANSFORM STRINGS
@@ -1001,125 +1144,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                     transformOrigin: '50% 50%',
                     clipPath: cropClipPath || undefined,
                   }}>
-                    {isPreview ? (
-                      <>
-                        <PreviewVideoRenderer
-                          recording={previewVideoState?.recording}
-                          clipForVideo={previewVideoState?.clip}
-                          startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
-                          durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
-                          sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
-                          currentFrame={currentFrame}
-                          fps={fps}
-                          cornerRadius={0}
-                          drawWidth={mockupPosition.videoWidth}
-                          drawHeight={mockupPosition.videoHeight}
-                          compositionWidth={width}
-                          compositionHeight={height}
-                          maxZoomScale={memoizedMaxZoomScale}
-                          currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
-                          mockupEnabled={mockupEnabled}
-                          visible={previewVideoVisible}
-                          resources={resources}
-                          playback={playback}
-                          renderSettings={renderSettings}
-                        />
-                        {isActiveGenerated && renderLayoutItem && recording ? (
-                          <GeneratedClipRenderer
-                            key={renderLayoutItem.groupId}
-                            clipForVideo={renderLayoutItem.clip}
-                            recording={recording}
-                            startFrame={renderLayoutItem.startFrame}
-                            durationFrames={renderLayoutItem.durationFrames}
-                            groupStartFrame={renderLayoutItem.groupStartFrame}
-                            groupDuration={renderLayoutItem.groupDuration}
-                            currentFrame={currentFrame}
-                            fps={fps}
-                            isRendering={isRendering}
-                            drawWidth={mockupPosition.videoWidth}
-                            drawHeight={mockupPosition.videoHeight}
-                            compositionWidth={width}
-                            compositionHeight={height}
-                            activeLayoutItem={activeLayoutItem}
-                            prevLayoutItem={prevLayoutItem}
-                            nextLayoutItem={nextLayoutItem}
-                            shouldHoldPrevFrame={shouldHoldPrevFrame}
-                            isNearBoundaryEnd={isNearBoundaryEnd}
-                            overlapFrames={overlapFrames}
-                            renderSettings={renderSettings}
-                          />
-                        ) : null}
-                      </>
-                    ) : (
-                      renderableItems.map((item) => {
-                        const rec = recordingsMap.get(item.clip.recordingId);
-                        if (rec?.sourceType === 'generated') {
-                          return (
-                            <GeneratedClipRenderer
-                              key={item.groupId}
-                              clipForVideo={item.clip}
-                              recording={rec}
-                              startFrame={item.startFrame}
-                              durationFrames={item.durationFrames}
-                              groupStartFrame={item.groupStartFrame}
-                              groupDuration={item.groupDuration}
-                              currentFrame={currentFrame}
-                              fps={fps}
-                              isRendering={isRendering}
-                              drawWidth={mockupPosition.videoWidth}
-                              drawHeight={mockupPosition.videoHeight}
-                              compositionWidth={width}
-                              compositionHeight={height}
-                              activeLayoutItem={activeLayoutItem}
-                              prevLayoutItem={prevLayoutItem}
-                              nextLayoutItem={nextLayoutItem}
-                              shouldHoldPrevFrame={shouldHoldPrevFrame}
-                              isNearBoundaryEnd={isNearBoundaryEnd}
-                              overlapFrames={overlapFrames}
-                              renderSettings={renderSettings}
-                            />
-                          );
-                        }
-                        const renderStartFrom = Math.round((item.groupStartSourceIn / 1000) * fps);
-                        return (
-                          <VideoClipRenderer
-                            key={item.groupId}
-                            clipForVideo={item.clip}
-                            recording={rec}
-                            startFrame={item.startFrame}
-                            durationFrames={item.durationFrames}
-                            groupStartFrame={item.groupStartFrame}
-                            renderStartFrom={renderStartFrom}
-                            groupDuration={item.groupDuration}
-                            currentFrame={currentFrame}
-                            fps={fps}
-                            isRendering={isRendering}
-                            cornerRadius={0}
-                            drawWidth={mockupPosition.videoWidth}
-                            drawHeight={mockupPosition.videoHeight}
-                            compositionWidth={width}
-                            compositionHeight={height}
-                            maxZoomScale={memoizedMaxZoomScale}
-                            currentZoomScale={renderData?.zoomTransform?.scale ?? 1}
-                            mockupEnabled={mockupEnabled}
-                            activeLayoutItem={activeLayoutItem}
-                            prevLayoutItem={prevLayoutItem}
-                            nextLayoutItem={nextLayoutItem}
-                            shouldHoldPrevFrame={shouldHoldPrevFrame}
-                            isNearBoundaryEnd={isNearBoundaryEnd}
-                            overlapFrames={overlapFrames}
-                            markRenderReady={markRenderReady}
-                            handleVideoReady={handleVideoReady}
-                            VideoComponent={VideoComponent}
-                            premountFor={0}
-                            postmountFor={0}
-                            resources={resources}
-                            playback={playback}
-                            renderSettings={renderSettings}
-                          />
-                        );
-                      })
-                    )}
+                    {renderContent(mockupPosition.videoWidth, mockupPosition.videoHeight, 0)}
                   </div>
                 </div>
               </MockupLayer>
@@ -1156,7 +1181,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                     backfaceVisibility: 'hidden' as const,
                     clipPath: cropClipPath || undefined,
                   }}>
-                  {videoContent}
+                  {renderContent(drawWidth, drawHeight, cornerRadius)}
                 </div>
               </div>
             </div>

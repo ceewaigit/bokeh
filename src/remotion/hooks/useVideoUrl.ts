@@ -57,11 +57,11 @@ export function useVideoUrl({
     if (!recording) return undefined;
     if (recording.sourceType === 'generated') return undefined;
 
-    // MEMORY FIX: Use maxZoomScale (stable) instead of currentZoomScale (frame-varying)
+    // Use maxZoomScale (stable) instead of currentZoomScale (frame-varying)
     // to prevent URL switching during zoom animations which causes VTDecoder churn
     const zoomScaleForQuality = Math.max(maxZoomScale || 1, 1);
 
-    // MEMORY OPTIMIZATION: Glow player (64×36) always uses proxy
+    // Glow player (64×36) always uses proxy
     // No point decoding 5K when output is 64px wide
     if (isGlowMode) {
       // PRIORITY 0: Specific glow proxy (super low res)
@@ -84,12 +84,10 @@ export function useVideoUrl({
         console.warn(`[useVideoUrl] ⚠️ GLOW has NO proxy, will use full source: ${recording.id}`);
       }
     }
-
-    // MEMORY FIX: Removed isPlaying-based URL switching
     // Previously, switching to proxy on play caused VTDecoder churn every start/stop
     // Now we use consistent resolution logic regardless of playback state
 
-    // MEMORY OPTIMIZATION: Force proxy for preload videos
+    // Force proxy for preload videos
     // Preload shows first frame briefly - doesn't need full resolution
     if (forceProxy && recording.previewProxyUrl) {
       return recording.previewProxyUrl;
@@ -170,6 +168,10 @@ export function useVideoUrl({
     // PRIORITY 5: Fallback to video-stream protocol
     // Include folderPath context for proper path resolution
     if (recording.filePath) {
+      if (recording.filePath.startsWith('data:')) {
+        return recording.filePath;
+      }
+
       // If we have an absolute folderPath, construct the full path
       if (recording.folderPath && recording.folderPath.startsWith('/')) {
         // folderPath is absolute to the recording folder (e.g., /path/to/project/recording-123)

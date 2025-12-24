@@ -661,7 +661,7 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }
 
-function easeOutCubic(t: number): number {
+export function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3)
 }
 

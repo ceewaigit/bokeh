@@ -165,8 +165,10 @@ export interface TimeContextValue {
   fps: number;
   clips: Clip[];
   recordingsMap: Map<string, Recording>;
+  resources: VideoResources;
   getClipAtTimelinePosition: (timelineMs: number) => Clip | null;
   getRecording: (recordingId: string) => Recording | null;
+  getVideoUrl: (recordingId: string) => string | undefined;
 }
 
 export interface CameraMotionBlurState {
@@ -263,8 +265,7 @@ export interface ClipSequenceProps {
   startFrame: number;
   durationFrames: number;
 
-  // New Config Objects
-  resources: VideoResources;
+  // Config objects - resources accessed via TimeContext (SSOT)
   renderSettings: RenderSettings;
 
   includeBackground?: boolean;
@@ -403,6 +404,34 @@ export interface GeneratedClipRendererProps {
   overlapFrames: number;
 
   // New Config Objects
+  renderSettings: RenderSettings;
+}
+
+export interface ImageClipRendererProps {
+  clipForVideo: Clip;
+  recording: Recording;
+  startFrame: number;
+  durationFrames: number;
+  groupStartFrame: number;
+  groupDuration: number;
+  currentFrame: number;
+  fps: number;
+  isRendering: boolean;
+  cornerRadius: number;
+  drawWidth: number;
+  drawHeight: number;
+  compositionWidth: number;
+  compositionHeight: number;
+
+  activeLayoutItem: FrameLayoutItem | null;
+  prevLayoutItem: FrameLayoutItem | null;
+  nextLayoutItem: FrameLayoutItem | null;
+  shouldHoldPrevFrame: boolean;
+  isNearBoundaryEnd: boolean;
+  overlapFrames: number;
+
+  // New Config Objects
+  resources: VideoResources;
   renderSettings: RenderSettings;
 }
 

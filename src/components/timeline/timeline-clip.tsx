@@ -197,6 +197,17 @@ export const TimelineClip = React.memo(({
     const loadThumbnails = async () => {
       try {
         const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+
+        // Fast path for image clips (e.g. Cursor Return clips)
+        if (recording.sourceType === 'image') {
+          const img = document.createElement('img')
+          img.src = resolvedVideoPath
+          img.onload = () => {
+            if (!cancelled) setThumbnails([img])
+          }
+          return
+        }
+
         const sourceAspectRatio = recording.width && recording.height
           ? recording.width / recording.height
           : 16 / 9
@@ -614,6 +625,15 @@ export const TimelineClip = React.memo(({
         const withOpacity = (color: string, alpha: number) => {
           if (!color) return `rgba(168, 85, 247, ${alpha})`
           if (color.startsWith('hsl(')) {
+            // Remove 'hsl(' and ')' and trim
+            const content = color.slice(4, -1).trim()
+            // Check if space-separated (CSS Level 4) e.g. "263 70% 65%"
+            if (content.includes(' ') && !content.includes(',')) {
+              // Convert to comma-separated for compatibility: "263, 70%, 65%"
+              const parts = content.split(/\s+/).join(', ')
+              return `hsla(${parts}, ${alpha})`
+            }
+            // Already comma-separated or other format
             return color.replace('hsl(', 'hsla(').replace(')', `, ${alpha})`)
           }
           return color // Fallback or already has alpha

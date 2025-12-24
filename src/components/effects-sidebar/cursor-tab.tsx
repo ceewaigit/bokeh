@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, RotateCcw, Plus, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -10,6 +10,7 @@ import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickT
 import { EffectType } from '@/types'
 import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
+import { useProjectStore } from '@/stores/project-store'
 
 interface CursorTabProps {
   cursorEffect: Effect | undefined
@@ -45,6 +46,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const [clickTextColor, setClickTextColor] = useState(cursorData?.clickTextColor ?? DEFAULT_CURSOR_DATA.clickTextColor ?? '#ffffff')
   const [clickTextOffsetY, setClickTextOffsetY] = useState(cursorData?.clickTextOffsetY ?? DEFAULT_CURSOR_DATA.clickTextOffsetY ?? -12)
   const [clickTextRise, setClickTextRise] = useState(cursorData?.clickTextRise ?? DEFAULT_CURSOR_DATA.clickTextRise ?? 24)
+  const [returnDuration, setReturnDuration] = useState(1.0)
 
   useEffect(() => {
     setSize(cursorData?.size ?? DEFAULT_CURSOR_DATA.size)
@@ -667,6 +669,48 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               </div>
             </div>
           )}
+
+          {/* Cursor Return Clip Utility */}
+          <div className="pt-2 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <div className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Utilities</div>
+            </div>
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-medium text-muted-foreground">Duration (seconds)</div>
+                <div className="flex items-center justify-between p-2 bg-background/20 rounded-md border border-border/10">
+                  <span className="text-xs font-mono tabular-nums text-foreground/80">{returnDuration.toFixed(1)}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setReturnDuration(d => Math.max(0.5, d - 0.5))}
+                      className="p-1 hover:bg-background/40 rounded-sm transition-colors text-muted-foreground hover:text-foreground"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => setReturnDuration(d => Math.min(10.0, d + 0.5))}
+                      className="p-1 hover:bg-background/40 rounded-sm transition-colors text-muted-foreground hover:text-foreground"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => useProjectStore.getState().addCursorReturnClip({
+                  durationMs: returnDuration * 1000
+                })}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all border border-primary/20 active:scale-98"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Add Cursor Return Clip</span>
+              </button>
+              <div className="text-[10px] text-muted-foreground/50 leading-snug px-2 text-center">
+                Captures a freeze frame and animates cursor back to start. Perfect for loops.
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -166,14 +166,20 @@ export interface Recording {
   // Non-zoom, recording-scoped effects only (cursor/background/screen/etc).
   effects: Effect[]
 
-  /** Source type for this recording (video file or generated clip) */
-  sourceType?: 'video' | 'generated'
+  /** Source type for this recording (video file, generated clip, or image) */
+  sourceType?: 'video' | 'generated' | 'image'
 
   /** Generated source definition for clip plugins */
   generatedSource?: {
     pluginId: string
     params: Record<string, unknown>
   }
+
+  /** Image source data for image clips (freeze frames, imported images) */
+  imageSource?: ImageSourceData
+
+  /** Synthetic mouse events for cursor animation on image clips (cursor return, etc.) */
+  syntheticMouseEvents?: MouseEvent[]
 
   // Folder-based storage for this recording (absolute or project-relative)
   folderPath?: string
@@ -209,6 +215,20 @@ export interface CaptureArea {
   sourceType?: RecordingSourceType
   // Source ID for the recording
   sourceId?: string
+}
+
+/** Image source configuration for image clips (freeze frames, imported images) */
+export interface ImageSourceData {
+  /** Path to the image file (absolute or project-relative) */
+  imagePath: string
+  /** Source video recording ID (for freeze frames captured from video) */
+  sourceRecordingId?: string
+  /** Source timestamp (ms) when the frame was captured */
+  sourceTimestamp?: number
+  /** Original width of the source at capture time */
+  sourceWidth?: number
+  /** Original height of the source at capture time */
+  sourceHeight?: number
 }
 
 export interface RecordingMetadata {

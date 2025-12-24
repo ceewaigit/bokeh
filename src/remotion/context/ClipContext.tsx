@@ -13,20 +13,19 @@ import type { Clip, Effect, RecordingMetadata } from '@/types/project';
 import { useTimeContext } from './TimeContext';
 import { useVideoUrl } from '../hooks/useVideoUrl';
 import { useRecordingMetadata } from '../hooks/useRecordingMetadata';
-import type { ClipContextValue, VideoResources, RenderSettings } from '@/types';
+import type { ClipContextValue } from '@/types';
 
 const ClipContext = createContext<ClipContextValue | null>(null);
 
 interface ClipProviderProps {
   clip: Clip;
   effects: Effect[];
-  resources: VideoResources;
   preferOffthreadVideo?: boolean;
   children: React.ReactNode;
 }
 
-export function ClipProvider({ clip, effects, resources, preferOffthreadVideo, children }: ClipProviderProps) {
-  const { getRecording } = useTimeContext();
+export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: ClipProviderProps) {
+  const { getRecording, resources } = useTimeContext();
 
   // Get recording first (needed for metadata hook)
   const recording = getRecording(clip.recordingId);

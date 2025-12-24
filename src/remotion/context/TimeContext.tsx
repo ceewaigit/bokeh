@@ -7,7 +7,7 @@
 
 import React, { createContext, useContext, useMemo, useCallback } from 'react';
 import type { Clip, Recording } from '@/types/project';
-import type { TimeContextValue } from '@/types';
+import type { TimeContextValue, VideoResources } from '@/types';
 import { findClipAtTimelinePosition } from '@/lib/timeline/time-space-converter';
 
 const TimeContext = createContext<TimeContextValue | null>(null);
@@ -15,11 +15,12 @@ const TimeContext = createContext<TimeContextValue | null>(null);
 interface TimeProviderProps {
   clips: Clip[];
   recordings: Recording[];
+  resources: VideoResources;
   fps: number;
   children: React.ReactNode;
 }
 
-export function TimeProvider({ clips, recordings, fps, children }: TimeProviderProps) {
+export function TimeProvider({ clips, recordings, resources, fps, children }: TimeProviderProps) {
   // PERFORMANCE FIX: Create stable function references using useCallback.
   // Previously, these were created inside useMemo, causing new references on every
   // clips/recordings change, which invalidated usePrecomputedCameraPath's memoization
@@ -38,6 +39,11 @@ export function TimeProvider({ clips, recordings, fps, children }: TimeProviderP
     return findClipAtTimelinePosition(timelineMs, clips);
   }, [clips]);
 
+  // Stable getVideoUrl function - provides SSOT access to video URLs
+  const getVideoUrl = useCallback((recordingId: string): string | undefined => {
+    return resources.videoUrls?.[recordingId];
+  }, [resources.videoUrls]);
+
   const value = useMemo<TimeContextValue>(() => {
     // Calculate total timeline duration
     const totalDurationMs = clips.length > 0
@@ -49,10 +55,12 @@ export function TimeProvider({ clips, recordings, fps, children }: TimeProviderP
       fps,
       clips,
       recordingsMap,
+      resources,
       getClipAtTimelinePosition,
       getRecording,
+      getVideoUrl,
     };
-  }, [clips, fps, recordingsMap, getClipAtTimelinePosition, getRecording]);
+  }, [clips, fps, recordingsMap, resources, getClipAtTimelinePosition, getRecording, getVideoUrl]);
 
   return <TimeContext.Provider value={value}>{children}</TimeContext.Provider>;
 }

@@ -63,7 +63,11 @@ export interface PluginFrameContext {
 }
 
 /**
- * Props passed to plugin render function
+ * Props passed to plugin render function.
+ * 
+ * Note: For clip-type plugins that need access to other clips (e.g., for
+ * freeze-frame backgrounds), use the useTimeContext() hook from
+ * '@/remotion/context/TimeContext' to access clips and recordings.
  */
 export interface PluginRenderProps<TParams extends Record<string, any> = Record<string, any>> {
     /** Resolved parameter values (validated at runtime) */

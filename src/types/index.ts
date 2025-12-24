@@ -60,7 +60,8 @@ export type {
   AnnotationData,
   ScreenEffectData,
   CaptureArea,
-  TimeRemapPeriod
+  TimeRemapPeriod,
+  ImageSourceData
 } from './project'
 
 // Re-export enums

@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import type { Clip, Effect, Project, Recording, Track } from '@/types/project'
+import type { Clip, Effect, Project, Recording, Track, MouseEvent as ProjectMouseEvent } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import type { ClipboardEffect } from '@/types/stores'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
 import type { CameraPathFrame } from '@/types'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { captureLastFrame } from '@/lib/utils/frame-capture'
+import { generateCursorReturnFromSource } from '@/lib/cursor/synthetic-events'
 
 // Import new services
 import {
@@ -122,6 +124,8 @@ interface ProjectStore {
   // Clip Management
   addClip: (clip: Clip | string, startTime?: number) => void
   addGeneratedClip: (options: { pluginId: string; params?: Record<string, unknown>; durationMs?: number; startTime?: number }) => void
+  addImageClip: (options: { imagePath: string; width: number; height: number; durationMs?: number; startTime?: number; syntheticMouseEvents?: ProjectMouseEvent[]; effects?: Effect[] }) => void
+  addCursorReturnClip: (options?: { sourceClipId?: string; durationMs?: number }) => Promise<void>
   resizeGeneratedClip: (clipId: string, durationMs: number) => void
   removeClip: (clipId: string) => void
   updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean }) => void
@@ -490,6 +494,181 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClips = [clip.id]
 
         updatePlayheadState(state)
+      })
+    },
+
+    addImageClip: ({ imagePath, width, height, durationMs, startTime, syntheticMouseEvents, effects }) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const project = state.currentProject
+        const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
+        if (!videoTrack) return
+
+        const duration = Math.max(100, durationMs ?? 5000) // Default 5 seconds for images
+        const recordingId = `image-${Date.now()}`
+
+        const recording: Recording = {
+          id: recordingId,
+          filePath: imagePath,
+          duration,
+          width,
+          height,
+          frameRate: project.settings.frameRate,
+          hasAudio: false,
+          effects: effects || [],
+          sourceType: 'image',
+          imageSource: {
+            imagePath
+          },
+          syntheticMouseEvents,
+          metadata: syntheticMouseEvents ? {
+            mouseEvents: syntheticMouseEvents,
+            keyboardEvents: [],
+            clickEvents: [],
+            scrollEvents: [],
+            screenEvents: []
+          } : undefined
+        }
+
+        project.recordings.push(recording)
+
+        const insertTime = startTime ?? state.currentTime
+        const { insertIndex } = ClipPositioning.getReorderTarget(insertTime, videoTrack.clips)
+
+        const clip: Clip = {
+          id: `clip-${Date.now()}`,
+          recordingId,
+          startTime: insertTime,
+          duration,
+          sourceIn: 0,
+          sourceOut: duration
+        }
+
+        videoTrack.clips.splice(insertIndex, 0, clip)
+        reflowClips(videoTrack, insertIndex)
+
+        project.timeline.duration = calculateTimelineDuration(project)
+        project.modifiedAt = new Date().toISOString()
+
+        // Invalidate cache
+        state.cameraPathCache = null
+
+        state.selectedClipId = clip.id
+        state.selectedClips = [clip.id]
+
+        updatePlayheadState(state)
+      })
+    },
+
+    addCursorReturnClip: async ({ sourceClipId, durationMs = 2000 } = {}) => {
+      const state = useProjectStore.getState()
+      if (!state.currentProject) return
+
+      const project = state.currentProject
+      const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
+      if (!videoTrack) return
+
+      // Find source clip - either specified or current playhead clip
+      let sourceClip: Clip | null = null
+      let sourceRecording: Recording | null = null
+
+      if (sourceClipId) {
+        const result = findClipById(project, sourceClipId)
+        if (result) {
+          sourceClip = result.clip
+          sourceRecording = project.recordings.find(r => r.id === sourceClip!.recordingId) ?? null
+        }
+      } else {
+        // Use playhead clip
+        sourceClip = state.playheadClip
+        sourceRecording = state.playheadRecording
+      }
+
+      if (!sourceClip || !sourceRecording) {
+        console.warn('addCursorReturnClip: No source clip found')
+        return
+      }
+
+      // Only work with video clips (not generated or image)
+      if (sourceRecording.sourceType && sourceRecording.sourceType !== 'video') {
+        console.warn('addCursorReturnClip: Source must be a video clip')
+        return
+      }
+
+      // Capture freeze frame from last frame of source clip
+      const captureResult = await captureLastFrame(
+        sourceRecording.filePath,
+        sourceClip.sourceOut
+      )
+
+      if (!captureResult.success || !captureResult.dataUrl) {
+        console.error('addCursorReturnClip: Failed to capture freeze frame:', captureResult.error)
+        return
+      }
+
+      // Get mouse events from source recording
+      const sourceEvents = sourceRecording.metadata?.mouseEvents ?? []
+
+      // Generate synthetic cursor return events
+      // Pass full source events and exact time range for interpolation
+      const syntheticEvents = generateCursorReturnFromSource(
+        sourceEvents,
+        sourceClip!.sourceIn,
+        sourceClip!.sourceOut,
+        durationMs
+      )
+
+      if (!syntheticEvents) {
+        console.warn('addCursorReturnClip: Could not generate cursor return events (no mouse data)')
+        // Still create the image clip, just without cursor animation
+      }
+
+      // Collect effects to copy from both source recording and timeline
+      // Collect active effects at the transition point (end of source clip)
+      const timelineEffects = project.timeline.effects || []
+      const clipEnd = sourceClip!.startTime + sourceClip!.duration
+
+      const activeTimelineEffects = timelineEffects.filter(e =>
+        e.startTime <= clipEnd && e.endTime >= clipEnd
+      )
+
+      const sourceOut = sourceClip!.sourceOut
+      const activeSourceEffects = sourceRecording.effects.filter(e =>
+        e.startTime <= sourceOut && e.endTime >= sourceOut
+      )
+
+      const allSourceEffects = [
+        ...activeSourceEffects,
+        ...activeTimelineEffects
+      ]
+
+      const effectsToCopy = allSourceEffects.filter(e =>
+        e.type === EffectType.Crop ||
+        e.type === EffectType.Background ||
+        e.type === EffectType.Screen
+      )
+
+      // Clone and adjust timing for new clip (baking timeline effects into recording if needed)
+      const clonedEffects = effectsToCopy.map(effect => ({
+        ...effect,
+        id: `${effect.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        startTime: 0,
+        endTime: durationMs
+      }))
+
+      // Calculate insert time (right after source clip ends)
+      const insertTime = sourceClip.startTime + sourceClip.duration
+
+      // Add image clip with freeze frame and synthetic events
+      useProjectStore.getState().addImageClip({
+        imagePath: captureResult.dataUrl,
+        width: captureResult.width,
+        height: captureResult.height,
+        durationMs,
+        startTime: insertTime,
+        syntheticMouseEvents: syntheticEvents ?? undefined,
+        effects: clonedEffects
       })
     },
 

@@ -6,9 +6,11 @@ import {
   CursorType,
   CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
-  getCursorImagePath
+  getCursorImagePath,
+  electronToCustomCursor
 } from '../../../lib/effects/cursor-types';
-import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../../../lib/effects/utils/cursor-calculator';
+import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects';
+import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, easeOutCubic, type CursorState } from '../../../lib/effects/utils/cursor-calculator';
 import { normalizeClickEvents, normalizeMouseEvents } from '../utils/event-normalizer';
 import { useVideoPosition } from '../../context/VideoPositionContext';
 import { useTimeContext } from '../../context/TimeContext';
@@ -131,7 +133,11 @@ export const CursorLayer = React.memo(({
 
   const recording: Recording | null = activeClipData?.recording ?? null;
   const isGeneratedRecording = recording?.sourceType === 'generated';
-  const recordingId = isGeneratedRecording ? null : (recording?.id ?? null);
+  const isImageRecording = recording?.sourceType === 'image';
+
+  // For generated clips (not images), we can't show cursor - no events
+  // For image clips with syntheticMouseEvents, cursor will be shown via normal path
+  const recordingId = (isGeneratedRecording && !isImageRecording) ? null : recording?.id ?? null;
 
   // LAZY LOADING: Load metadata on-demand via hook
   const { metadata: lazyMetadata } = useRecordingMetadata({
@@ -154,8 +160,16 @@ export const CursorLayer = React.memo(({
 
   // Use lazy-loaded metadata, falling back to recording.metadata if available
   const effectiveMetadata = lazyMetadata || recording?.metadata;
-  const rawCursorEvents = (effectiveMetadata?.mouseEvents || []) as MouseEvent[];
-  const rawClickEvents = (effectiveMetadata?.clickEvents || []) as ClickEvent[];
+
+  // For image clips with synthetic mouse events (cursor return), use those instead of metadata
+  const isImageWithSyntheticEvents = recording?.sourceType === 'image' && recording?.syntheticMouseEvents?.length;
+  const rawCursorEvents = isImageWithSyntheticEvents
+    ? (recording.syntheticMouseEvents as MouseEvent[])
+    : ((effectiveMetadata?.mouseEvents || []) as MouseEvent[]);
+  // Image clips with synthetic events have no click events
+  const rawClickEvents = isImageWithSyntheticEvents
+    ? []
+    : ((effectiveMetadata?.clickEvents || []) as ClickEvent[]);
 
   const cursorEvents = useMemo(() => normalizeMouseEvents(rawCursorEvents), [rawCursorEvents]);
   const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents), [rawClickEvents]);
@@ -231,12 +245,12 @@ export const CursorLayer = React.memo(({
       currentSourceTime,
       previousState, // Use cached state when available
       fps,
-      isRendering
+      Boolean(isImageWithSyntheticEvents) // Disable smoothing for synthetic (already smooth) events to prevent filter overshoot
     );
 
     cache.set(cacheKey, newState);
     return newState;
-  }, [clickEvents, cursorData, cursorEvents, currentSourceTime, fps, isRendering, prevClipData?.recording?.id, prevSourceTimeMs, recordingId]);
+  }, [clickEvents, cursorData, cursorEvents, currentSourceTime, fps, isRendering, prevClipData?.recording?.id, prevSourceTimeMs, recordingId, isImageWithSyntheticEvents]);
 
 
   useEffect(() => {
@@ -602,8 +616,9 @@ export const CursorLayer = React.memo(({
 
   // Don't unmount when hidden - keep component mounted to prevent blinking
   // Instead, return transparent AbsoluteFill
-  // Check if: 1) not a generated recording, 2) effect is enabled, 3) cursor should be visible
-  const shouldShowCursor = !isGeneratedRecording && cursorEffect?.enabled !== false && cursorData && cursorPosition;
+  // Show cursor for: video clips, image clips with syntheticMouseEvents
+  // Don't show cursor for: generated clips (blank, plugins without cursor data)
+  const shouldShowCursor = (!isGeneratedRecording || isImageRecording) && cursorEffect?.enabled !== false && cursorData && cursorPosition;
   const cameraMotionBlur = videoPositionContext.cameraMotionBlur;
   const hasCameraMotionBlur = cameraMotionBlur?.enabled;
 

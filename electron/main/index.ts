@@ -336,6 +336,11 @@ function registerAllHandlers(): void {
         return videoUrl
       }
 
+      // Handle data URIs - return as-is
+      if (filePath.startsWith('data:')) {
+        return filePath
+      }
+
       // Handle relative paths with folder context
       if (folderPath) {
         const recordingsDir = getRecordingsDirectory()

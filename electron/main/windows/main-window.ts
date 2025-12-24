@@ -13,7 +13,7 @@ export function createMainWindow(): BrowserWindow {
   // This adapts to any screen resolution and aspect ratio
   const primaryDisplay = screen.getPrimaryDisplay()
   const workArea = primaryDisplay.workArea
-  const width = Math.round(workArea.width * 0.85)
+  const width = Math.round(workArea.width * 0.72)
   const height = Math.round(workArea.height * 0.85)
 
   // Center the window on the screen

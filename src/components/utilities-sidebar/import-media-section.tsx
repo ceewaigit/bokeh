@@ -23,9 +23,11 @@ import {
 interface ImportedMedia {
     id: string
     name: string
-    type: 'video' | 'audio' | 'project'
+    type: 'video' | 'audio' | 'project' | 'image'
     path: string
     duration: number
+    width?: number
+    height?: number
     status: 'pending' | 'importing' | 'success' | 'error'
     error?: string
 }
@@ -55,11 +57,32 @@ async function getAudioMetadata(filePath: string): Promise<{ duration: number }>
 
 const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v']
 const SUPPORTED_AUDIO_EXTENSIONS = ['mp3', 'wav', 'aac', 'm4a', 'ogg', 'flac']
+const SUPPORTED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff']
 
-function getMediaType(filename: string): 'video' | 'audio' | 'project' | null {
+async function getImageMetadata(filePath: string): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+        const img = new Image()
+
+        img.onload = () => {
+            resolve({ width: img.naturalWidth, height: img.naturalHeight })
+            URL.revokeObjectURL(img.src)
+        }
+
+        img.onerror = () => {
+            URL.revokeObjectURL(img.src)
+            reject(new Error('Failed to load image metadata'))
+        }
+
+        // Use video-stream protocol for Electron (works with any file)
+        img.src = `video-stream://local/${encodeURIComponent(filePath)}`
+    })
+}
+
+function getMediaType(filename: string): 'video' | 'audio' | 'project' | 'image' | null {
     const ext = filename.split('.').pop()?.toLowerCase() || ''
     if (SUPPORTED_VIDEO_EXTENSIONS.includes(ext)) return 'video'
     if (SUPPORTED_AUDIO_EXTENSIONS.includes(ext)) return 'audio'
+    if (SUPPORTED_IMAGE_EXTENSIONS.includes(ext)) return 'image'
     if (SUPPORTED_PROJECT_EXTENSIONS.includes(ext)) return 'project'
     return null
 }
@@ -224,6 +247,56 @@ export function ImportMediaSection() {
                 updatedProject,
                 recording,
                 () => { } // No effects for imported videos
+            )
+
+            // Update duration
+            updatedProject.timeline.duration = calculateTimelineDuration(updatedProject)
+
+            return updatedProject
+        })
+    }, [currentProject, updateProjectData])
+
+    const importImageToProject = useCallback(async (item: ImportedMedia) => {
+        if (!currentProject) {
+            throw new Error('No project open')
+        }
+
+        // Validate file exists
+        if (window.electronAPI?.fileExists) {
+            const exists = await window.electronAPI.fileExists(item.path)
+            if (!exists) {
+                throw new Error(`File not found: ${item.path}`)
+            }
+        }
+
+        // Get image dimensions
+        const metadata = await getImageMetadata(item.path)
+        const defaultDuration = 5000 // 5 seconds default for images
+
+        const recording: Recording = {
+            id: `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            filePath: item.path,
+            duration: defaultDuration,
+            width: metadata.width,
+            height: metadata.height,
+            frameRate: currentProject.settings.frameRate,
+            hasAudio: false,
+            isExternal: true,
+            effects: [],
+            sourceType: 'image',
+            imageSource: {
+                imagePath: item.path
+            }
+        }
+
+        // Add recording and create clip using updateProjectData
+        updateProjectData((project: Project) => {
+            const updatedProject = { ...project }
+
+            addRecordingToProject(
+                updatedProject,
+                recording,
+                () => { } // No effects for imported images
             )
 
             // Update duration
@@ -465,6 +538,8 @@ export function ImportMediaSection() {
                     await importVideoToProject(item)
                 } else if (item.type === 'audio') {
                     await importAudioToProject(item)
+                } else if (item.type === 'image') {
+                    await importImageToProject(item)
                 } else if (item.type === 'project') {
                     await importProjectToProject(item)
                 }
@@ -488,7 +563,7 @@ export function ImportMediaSection() {
         setTimeout(() => {
             setImportQueue(prev => prev.filter(i => i.status !== 'success'))
         }, 3000)
-    }, [importVideoToProject, importAudioToProject, importProjectToProject])
+    }, [importVideoToProject, importAudioToProject, importImageToProject, importProjectToProject])
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault()
