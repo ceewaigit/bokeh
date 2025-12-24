@@ -201,9 +201,19 @@ export const TimelineClip = React.memo(({
         // Fast path for image clips (e.g. Cursor Return clips)
         if (recording.sourceType === 'image') {
           const img = document.createElement('img')
-          img.src = resolvedVideoPath
+          let src = resolvedVideoPath
+
+          // Handle local paths by using video-stream protocol to bypass security restrictions
+          if (src && src.startsWith('/')) {
+            src = `video-stream://local/${encodeURIComponent(src)}`
+          }
+
+          img.src = src
           img.onload = () => {
             if (!cancelled) setThumbnails([img])
+          }
+          img.onerror = (e) => {
+            console.warn('[TimelineClip] Failed to load image thumbnail:', src)
           }
           return
         }

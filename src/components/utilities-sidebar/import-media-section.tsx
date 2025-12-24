@@ -1,82 +1,52 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { Upload, Film, Music, FolderOpen, Loader2, Check, X, FileAudio, FileVideo, FileBox } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus } from 'lucide-react'
 import { cn, formatTime } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
 import { toast } from 'sonner'
-import type { Recording, Clip, Track, Project } from '@/types/project'
-import { TrackType } from '@/types/project'
-import { addRecordingToProject, calculateTimelineDuration } from '@/lib/timeline/timeline-operations'
-import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { useRecordingsLibraryStore, type LibraryRecording } from '@/stores/recordings-library-store'
+import type { Project } from '@/types/project'
+import { addAssetRecording } from '@/lib/timeline/timeline-operations'
+import { useAssetLibraryStore, type Asset } from '@/stores/asset-library-store'
 import { getVideoMetadataFromPath } from '@/lib/utils/video-metadata'
-import { SUPPORTED_PROJECT_EXTENSIONS, PROJECT_EXTENSION, PROJECT_EXTENSION_REGEX } from '@/lib/storage/recording-storage'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
+import { SUPPORTED_PROJECT_EXTENSIONS } from '@/lib/storage/recording-storage'
+import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 
-interface ImportedMedia {
-    id: string
-    name: string
-    type: 'video' | 'audio' | 'project' | 'image'
-    path: string
-    duration: number
-    width?: number
-    height?: number
-    status: 'pending' | 'importing' | 'success' | 'error'
-    error?: string
-}
-
-// VideoMetadata and getVideoMetadata are now imported from '@/lib/utils/video-metadata'
+// --- Metadata Helpers ---
 
 async function getAudioMetadata(filePath: string): Promise<{ duration: number }> {
     return new Promise((resolve, reject) => {
         const audio = document.createElement('audio')
         audio.preload = 'metadata'
-
         audio.onloadedmetadata = () => {
-            const duration = audio.duration * 1000 // Convert to ms
+            const duration = audio.duration * 1000
             URL.revokeObjectURL(audio.src)
             resolve({ duration })
         }
-
         audio.onerror = () => {
             URL.revokeObjectURL(audio.src)
             reject(new Error('Failed to load audio metadata'))
         }
-
-        // Use video-stream protocol for Electron
         audio.src = `video-stream://local/${encodeURIComponent(filePath)}`
+    })
+}
+
+async function getImageMetadata(filePath: string): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+            resolve({ width: img.naturalWidth, height: img.naturalHeight })
+            URL.revokeObjectURL(img.src)
+        }
+        img.onerror = () => {
+            URL.revokeObjectURL(img.src)
+            reject(new Error('Failed to load image metadata'))
+        }
+        img.src = `video-stream://local/${encodeURIComponent(filePath)}`
     })
 }
 
 const SUPPORTED_VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v']
 const SUPPORTED_AUDIO_EXTENSIONS = ['mp3', 'wav', 'aac', 'm4a', 'ogg', 'flac']
 const SUPPORTED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff']
-
-async function getImageMetadata(filePath: string): Promise<{ width: number; height: number }> {
-    return new Promise((resolve, reject) => {
-        const img = new Image()
-
-        img.onload = () => {
-            resolve({ width: img.naturalWidth, height: img.naturalHeight })
-            URL.revokeObjectURL(img.src)
-        }
-
-        img.onerror = () => {
-            URL.revokeObjectURL(img.src)
-            reject(new Error('Failed to load image metadata'))
-        }
-
-        // Use video-stream protocol for Electron (works with any file)
-        img.src = `video-stream://local/${encodeURIComponent(filePath)}`
-    })
-}
 
 function getMediaType(filename: string): 'video' | 'audio' | 'project' | 'image' | null {
     const ext = filename.split('.').pop()?.toLowerCase() || ''
@@ -87,119 +57,298 @@ function getMediaType(filename: string): 'video' | 'audio' | 'project' | 'image'
     return null
 }
 
+interface IngestQueueItem {
+    id: string
+    file: File
+    status: 'pending' | 'processing' | 'success' | 'error'
+    error?: string
+}
+
+// --- AssetItem Component ---
+
+interface AssetItemProps {
+    asset: Asset
+    onAdd: (asset: Asset) => void
+    onRemove: (id: string) => void
+    setDraggingAsset: (asset: Asset | null) => void
+}
+
+const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: AssetItemProps) => {
+    const [thumbnail, setThumbnail] = useState<string | null>(null)
+    const [isHovered, setIsHovered] = useState(false)
+    const [isLoadingThumb, setIsLoadingThumb] = useState(false)
+
+    // Load thumbnail for video
+    useEffect(() => {
+        if (asset.type !== 'video') return
+
+        const cacheKey = `thumb-${asset.id}-${asset.path}`
+        const cached = ThumbnailGenerator.getCachedThumbnail(cacheKey)
+        if (cached) {
+            setThumbnail(cached)
+            return
+        }
+
+        let mounted = true
+        setIsLoadingThumb(true)
+
+        ThumbnailGenerator.generateThumbnail(asset.path, cacheKey, { width: 200, height: 200 })
+            .then(data => {
+                if (mounted && data) setThumbnail(data)
+            })
+            .finally(() => {
+                if (mounted) setIsLoadingThumb(false)
+            })
+
+        return () => { mounted = false }
+    }, [asset.id, asset.path, asset.type])
+
+    const handleDragStart = (e: React.DragEvent) => {
+        setDraggingAsset(asset);
+        const assetData = {
+            path: asset.path,
+            duration: asset.metadata.duration || 0,
+            width: asset.metadata.width || 0,
+            height: asset.metadata.height || 0,
+            type: asset.type,
+            name: asset.name
+        };
+        e.dataTransfer.setData('application/x-bokeh-asset', JSON.stringify(assetData));
+        e.dataTransfer.effectAllowed = 'copy';
+    }
+
+    return (
+        <div
+            draggable={true}
+            onDragStart={handleDragStart}
+            onDragEnd={() => setDraggingAsset(null)}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className="group relative aspect-square rounded-lg overflow-hidden border border-border/40 bg-muted/10 hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing"
+            onClick={() => onAdd(asset)}
+        >
+            {asset.type === 'image' ? (
+                <img
+                    src={`video-stream://local/${encodeURIComponent(asset.path)}`}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    alt={asset.name}
+                />
+            ) : asset.type === 'video' ? (
+                <div className="w-full h-full bg-black relative">
+                    {/* Video Player (only on hover) */}
+                    {isHovered ? (
+                        <video
+                            src={`video-stream://local/${encodeURIComponent(asset.path)}`}
+                            className="w-full h-full object-cover"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                        />
+                    ) : (
+                        /* Thumbnail Image */
+                        thumbnail ? (
+                            <img
+                                src={thumbnail}
+                                className="w-full h-full object-cover opacity-80"
+                                alt={asset.name}
+                            />
+                        ) : (
+                            /* Loading / Fallback placeholder */
+                            <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                                {isLoadingThumb ? (
+                                    <Loader2 className="w-5 h-5 animate-spin text-white/30" />
+                                ) : (
+                                    <Film className="w-8 h-8 text-white/20" />
+                                )}
+                            </div>
+                        )
+                    )}
+
+                    {/* Overlay Icon (only when not playing) */}
+                    {!isHovered && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <Film className="w-6 h-6 text-white/50" />
+                        </div>
+                    )}
+
+                    {asset.metadata.duration && (
+                        <div className="absolute bottom-1 right-1 px-1 py-0.5 bg-black/60 rounded text-[9px] text-white font-mono pointer-events-none">
+                            {formatTime(asset.metadata.duration)}
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-muted/20">
+                    <Music className="w-8 h-8 text-muted-foreground/60 mb-2" />
+                    <span className="text-[10px] text-muted-foreground line-clamp-2 break-all leading-tight">{asset.name}</span>
+                </div>
+            )}
+
+            {/* Hover Actions */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                <button
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm transition-colors pointer-events-auto"
+                    title="Add to Project"
+                >
+                    <Plus className="w-4 h-4" />
+                </button>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onRemove(asset.id)
+                    }}
+                    className="p-1.5 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-200 backdrop-blur-sm transition-colors pointer-events-auto"
+                    title="Remove from Library"
+                >
+                    <Trash2 className="w-4 h-4" />
+                </button>
+            </div>
+        </div>
+    )
+})
+
 export function ImportMediaSection() {
     const [isDragOver, setIsDragOver] = useState(false)
-    const [importQueue, setImportQueue] = useState<ImportedMedia[]>([])
-    const [isImporting, setIsImporting] = useState(false)
-    const [showRecordingPicker, setShowRecordingPicker] = useState(false)
-    const [recordingSearch, setRecordingSearch] = useState('')
+    const [ingestQueue, setIngestQueue] = useState<IngestQueueItem[]>([])
+
+    // Asset Library Store
+    const assets = useAssetLibraryStore((s) => s.assets)
+    const addAsset = useAssetLibraryStore((s) => s.addAsset)
+    const removeAsset = useAssetLibraryStore((s) => s.removeAsset)
+    const setDraggingAsset = useAssetLibraryStore((s) => s.setDraggingAsset)
+
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const currentProject = useProjectStore((s) => s.currentProject)
     const updateProjectData = useProjectStore((s) => s.updateProjectData)
-    const libraryRecordings = useRecordingsLibraryStore((s) => s.allRecordings)
-    const setAllRecordings = useRecordingsLibraryStore((s) => s.setAllRecordings)
-    const updateRecording = useRecordingsLibraryStore((s) => s.updateRecording)
 
-    const visibleRecordings = useMemo(() => {
-        const term = recordingSearch.trim().toLowerCase()
-        return libraryRecordings
-            .filter(rec => rec.path !== currentProject?.filePath)
-            .filter(rec => {
-                if (!term) return true
-                const name = rec.projectInfo?.name || rec.name.replace(PROJECT_EXTENSION_REGEX, '')
-                return name.toLowerCase().includes(term) || rec.name.toLowerCase().includes(term)
-            })
-    }, [currentProject?.filePath, libraryRecordings, recordingSearch])
+    // --- Asset Ingestion Logic ---
 
-    const loadThumbnailFromDisk = useCallback(async (projectDir: string) => {
-        if (!window.electronAPI?.fileExists || !window.electronAPI?.loadImageAsDataUrl) return null
-        const thumbnailPath = `${projectDir}/thumbnail.jpg`
-        const exists = await window.electronAPI.fileExists(thumbnailPath)
-        if (!exists) return null
-        return await window.electronAPI.loadImageAsDataUrl(thumbnailPath)
-    }, [])
+    const ingestFile = useCallback(async (file: File) => {
+        const type = getMediaType(file.name)
+        if (!type || type === 'project') return
 
-    // Ensure recordings are loaded if store is empty (e.g. direct load into project)
-    useEffect(() => {
-        const loadAndHydrate = async () => {
-            if (!window.electronAPI?.loadRecordings) return
+        const path = (file as any).path || file.name
+        const assetId = `asset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+        try {
+            let metadata: { width?: number; height?: number; duration?: number } = {}
+
+            if (type === 'video') {
+                const vidMeta = await getVideoMetadataFromPath(path)
+                metadata = {
+                    width: vidMeta.width,
+                    height: vidMeta.height,
+                    duration: vidMeta.duration
+                }
+            } else if (type === 'image') {
+                const imgMeta = await getImageMetadata(path)
+                metadata = {
+                    width: imgMeta.width,
+                    height: imgMeta.height,
+                    duration: 5000
+                }
+            } else if (type === 'audio') {
+                const audioMeta = await getAudioMetadata(path)
+                metadata = {
+                    duration: audioMeta.duration
+                }
+            }
+
+            const asset: Asset = {
+                id: assetId,
+                type,
+                path,
+                name: file.name,
+                timestamp: Date.now(),
+                metadata
+            }
+
+            addAsset(asset)
+        } catch (error) {
+            console.error('Failed to ingest file:', error)
+            throw error
+        }
+    }, [addAsset])
+
+
+    const processFiles = useCallback(async (files: FileList | File[]) => {
+        const fileArray = Array.from(files)
+        const validFiles = fileArray.filter(file => {
+            const mediaType = getMediaType(file.name)
+            return mediaType !== null && mediaType !== 'project'
+        })
+
+        if (validFiles.length === 0) {
+            const projectFiles = fileArray.filter(file => getMediaType(file.name) === 'project')
+            if (projectFiles.length > 0) {
+                toast.error('Project import requires using the Project Manager or dedicated import dialog')
+                return
+            }
+
+            toast.error('No supported media files found')
+            return
+        }
+
+        const newItems: IngestQueueItem[] = validFiles.map(file => ({
+            id: `ingest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            file,
+            status: 'pending'
+        }))
+
+        setIngestQueue(prev => [...prev, ...newItems])
+
+        for (const item of newItems) {
+            setIngestQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'processing' } : i))
             try {
-                const files = await window.electronAPI.loadRecordings()
-                const recordingsList: LibraryRecording[] = []
-
-                // First pass: Basic file info
-                for (const file of files) {
-                    if (!file.path.endsWith(PROJECT_EXTENSION)) continue
-                    recordingsList.push({
-                        name: file.name,
-                        path: file.path,
-                        timestamp: new Date(file.timestamp),
-                        projectFileSize: file.size
-                    })
-                }
-
-                // Sort by newest
-                recordingsList.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-                setAllRecordings(recordingsList)
-
-                // Second pass: Hydrate metadata (Name & Duration)
-                // We do this in chunks to avoid blocking UI
-                const chunkSize = 3
-                for (let i = 0; i < recordingsList.length; i += chunkSize) {
-                    const chunk = recordingsList.slice(i, i + chunkSize)
-
-                    await Promise.all(chunk.map(async (rec) => {
-                        if (!window.electronAPI?.readLocalFile) return
-
-                        try {
-                            const updates: Partial<LibraryRecording> = {}
-                            const result = await window.electronAPI.readLocalFile(rec.path)
-                            if (result?.success && result.data) {
-                                const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
-                                const project = JSON.parse(projectData) as Project
-
-                                const duration = project.timeline?.duration || project.recordings?.[0]?.duration || 0
-                                const info: any = {
-                                    name: project.name || rec.name,
-                                    duration,
-                                    width: project.recordings?.[0]?.width || 0,
-                                    height: project.recordings?.[0]?.height || 0,
-                                    recordingCount: project.recordings?.length || 0
-                                }
-                                updates.projectInfo = info
-                            }
-
-                            if (!rec.thumbnailUrl) {
-                                const projectDir = rec.path.substring(0, rec.path.lastIndexOf('/'))
-                                const thumbnailUrl = await loadThumbnailFromDisk(projectDir)
-                                if (thumbnailUrl) {
-                                    updates.thumbnailUrl = thumbnailUrl
-                                }
-                            }
-
-                            if (Object.keys(updates).length > 0) {
-                                updateRecording(rec.path, updates)
-                            }
-                        } catch (e) {
-                            console.warn('Failed to hydrate', rec.name, e)
-                        }
-                    }))
-
-                    // Small delay to yield to main thread
-                    await new Promise(r => setTimeout(r, 10))
-                }
-
-            } catch (err) {
-                console.error('[ImportMediaSection] Failed to load recordings:', err)
+                await ingestFile(item.file)
+                setIngestQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'success' } : i))
+            } catch (error) {
+                setIngestQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'error', error: String(error) } : i))
             }
         }
 
-        if (libraryRecordings.length === 0) {
-            loadAndHydrate()
-        }
-    }, [libraryRecordings.length, loadThumbnailFromDisk, setAllRecordings, updateRecording])
+        setTimeout(() => {
+            setIngestQueue(prev => prev.filter(i => i.status !== 'success'))
+        }, 2000)
 
+    }, [ingestFile])
+
+
+    // --- Add Asset To Project Logic ---
+
+    const addAssetToProject = useCallback(async (asset: Asset) => {
+        if (!currentProject) {
+            toast.error('Open a project to add media')
+            return
+        }
+
+        if (window.electronAPI?.fileExists) {
+            const exists = await window.electronAPI.fileExists(asset.path)
+            if (!exists) {
+                toast.error(`File not found: ${asset.path}`)
+                return
+            }
+        }
+
+        updateProjectData((project: Project) => {
+            const updatedProject = { ...project }
+            addAssetRecording(updatedProject, {
+                path: asset.path,
+                duration: asset.metadata.duration || 0,
+                width: asset.metadata.width || 0,
+                height: asset.metadata.height || 0,
+                type: asset.type as 'video' | 'audio' | 'image',
+                name: asset.name
+            })
+            return updatedProject
+        })
+    }, [currentProject, updateProjectData])
+
+
+    // --- Drag & Drop Handlers ---
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
@@ -212,752 +361,140 @@ export function ImportMediaSection() {
         setIsDragOver(false)
     }, [])
 
-    const importVideoToProject = useCallback(async (item: ImportedMedia) => {
-        if (!currentProject) {
-            throw new Error('No project open')
-        }
-
-        // Validate file exists
-        if (window.electronAPI?.fileExists) {
-            const exists = await window.electronAPI.fileExists(item.path)
-            if (!exists) {
-                throw new Error(`File not found: ${item.path}`)
-            }
-        }
-
-        const metadata = await getVideoMetadataFromPath(item.path)
-
-        const recording: Recording = {
-            id: `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            filePath: item.path,
-            duration: metadata.duration,
-            width: metadata.width,
-            height: metadata.height,
-            frameRate: metadata.frameRate,
-            hasAudio: metadata.hasAudio,
-            isExternal: true, // Mark as external import
-            effects: []
-        }
-
-        // Add recording and create clip using updateProjectData
-        updateProjectData((project: Project) => {
-            const updatedProject = { ...project }
-
-            addRecordingToProject(
-                updatedProject,
-                recording,
-                () => { } // No effects for imported videos
-            )
-
-            // Update duration
-            updatedProject.timeline.duration = calculateTimelineDuration(updatedProject)
-
-            return updatedProject
-        })
-    }, [currentProject, updateProjectData])
-
-    const importImageToProject = useCallback(async (item: ImportedMedia) => {
-        if (!currentProject) {
-            throw new Error('No project open')
-        }
-
-        // Validate file exists
-        if (window.electronAPI?.fileExists) {
-            const exists = await window.electronAPI.fileExists(item.path)
-            if (!exists) {
-                throw new Error(`File not found: ${item.path}`)
-            }
-        }
-
-        // Get image dimensions
-        const metadata = await getImageMetadata(item.path)
-        const defaultDuration = 5000 // 5 seconds default for images
-
-        const recording: Recording = {
-            id: `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            filePath: item.path,
-            duration: defaultDuration,
-            width: metadata.width,
-            height: metadata.height,
-            frameRate: currentProject.settings.frameRate,
-            hasAudio: false,
-            isExternal: true,
-            effects: [],
-            sourceType: 'image',
-            imageSource: {
-                imagePath: item.path
-            }
-        }
-
-        // Add recording and create clip using updateProjectData
-        updateProjectData((project: Project) => {
-            const updatedProject = { ...project }
-
-            addRecordingToProject(
-                updatedProject,
-                recording,
-                () => { } // No effects for imported images
-            )
-
-            // Update duration
-            updatedProject.timeline.duration = calculateTimelineDuration(updatedProject)
-
-            return updatedProject
-        })
-    }, [currentProject, updateProjectData])
-
-    const importAudioToProject = useCallback(async (item: ImportedMedia) => {
-        if (!currentProject) {
-            throw new Error('No project open')
-        }
-
-        // Validate file exists
-        if (window.electronAPI?.fileExists) {
-            const exists = await window.electronAPI.fileExists(item.path)
-            if (!exists) {
-                throw new Error(`File not found: ${item.path}`)
-            }
-        }
-
-        const metadata = await getAudioMetadata(item.path)
-
-        // For audio, we create a recording-like entry but mark it as audio
-        const recording: Recording = {
-            id: `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            filePath: item.path,
-            duration: metadata.duration,
-            width: 0, // Audio doesn't have dimensions
-            height: 0,
-            frameRate: 0,
-            hasAudio: true,
-            isExternal: true, // Mark as external import
-            effects: []
-        }
-
-        // Pre-load the audio file into the blob manager for playback
-        try {
-            await globalBlobManager.loadVideos({
-                id: recording.id,
-                filePath: recording.filePath
-            })
-        } catch (error) {
-            console.warn('Failed to pre-load audio file, will use video-stream protocol:', error)
-        }
-
-        // Add to audio track using updateProjectData
-        updateProjectData((project: Project) => {
-            const updatedProject = { ...project }
-
-            // Add to recordings array
-            updatedProject.recordings = [...updatedProject.recordings, recording]
-
-            // Find or create audio track
-            let audioTrack = updatedProject.timeline.tracks.find((t: Track) => t.type === TrackType.Audio)
-            if (!audioTrack) {
-                audioTrack = {
-                    id: `track-audio-${Date.now()}`,
-                    name: 'Audio',
-                    type: TrackType.Audio,
-                    clips: [],
-                    muted: false,
-                    locked: false
-                }
-                updatedProject.timeline.tracks = [...updatedProject.timeline.tracks, audioTrack]
-            }
-
-            // Calculate start time - add at end of existing audio clips or at timeline start if empty
-            let audioStartTime = 0
-            if (audioTrack.clips.length > 0) {
-                // Find the end of the last audio clip
-                const lastClipEnd = Math.max(...audioTrack.clips.map(c => c.startTime + c.duration))
-                audioStartTime = lastClipEnd
-            }
-
-            // Create clip for audio
-            const clip: Clip = {
-                id: `clip-${Date.now()}`,
-                recordingId: recording.id,
-                startTime: audioStartTime,
-                duration: metadata.duration,
-                sourceIn: 0,
-                sourceOut: metadata.duration
-            }
-
-            // Update the audio track with the new clip
-            updatedProject.timeline.tracks = updatedProject.timeline.tracks.map((t: Track) =>
-                t.id === audioTrack!.id
-                    ? { ...t, clips: [...t.clips, clip] }
-                    : t
-            )
-
-            return updatedProject
-        })
-    }, [currentProject, updateProjectData])
-
-    // Import a recording from another project file with full metadata
-    const importProjectToProject = useCallback(async (item: ImportedMedia) => {
-        if (!currentProject) {
-            throw new Error('No project open')
-        }
-
-        // Read the source project file
-        if (!window.electronAPI?.readLocalFile) {
-            throw new Error('File reading not available')
-        }
-
-        const result = await window.electronAPI.readLocalFile(item.path)
-        if (!result?.success || !result.data) {
-            throw new Error('Failed to read project file')
-        }
-
-        const sourceProject = JSON.parse(new TextDecoder().decode(result.data as ArrayBuffer)) as Project
-
-        if (!sourceProject.recordings || sourceProject.recordings.length === 0) {
-            throw new Error('Source project has no recordings')
-        }
-
-        // Get the project directory for resolving relative paths
-        const projectDir = item.path.substring(0, item.path.lastIndexOf('/'))
-
-        // Import each recording from the source project
-        for (const sourceRecording of sourceProject.recordings) {
-            // Resolve video path relative to source project
-            let videoPath = sourceRecording.filePath
-            if (!videoPath.startsWith('/')) {
-                videoPath = `${projectDir}/${videoPath}`
-            }
-
-            // Validate video file exists
-            if (window.electronAPI?.fileExists) {
-                const exists = await window.electronAPI.fileExists(videoPath)
-                if (!exists) {
-                    throw new Error(`Recording video not found: ${videoPath}`)
-                }
-            }
-
-            // Resolve folderPath if it exists (for metadata chunks)
-            let resolvedFolderPath = sourceRecording.folderPath
-            if (resolvedFolderPath && !resolvedFolderPath.startsWith('/')) {
-                resolvedFolderPath = `${projectDir}/${resolvedFolderPath}`
-            }
-
-            // Create new recording with preserved metadata references
-            const recording: Recording = {
-                id: `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                filePath: videoPath,
-                duration: sourceRecording.duration,
-                width: sourceRecording.width,
-                height: sourceRecording.height,
-                frameRate: sourceRecording.frameRate,
-                hasAudio: sourceRecording.hasAudio,
-                captureArea: sourceRecording.captureArea,
-                isExternal: false, // Has our metadata, not external!
-                effects: [], // Will regenerate below
-                folderPath: resolvedFolderPath,
-                metadataChunks: sourceRecording.metadataChunks
-            }
-
-            // Load metadata from chunks if available
-            if (recording.folderPath && recording.metadataChunks) {
-                try {
-                    const loadedMetadata = await RecordingStorage.loadMetadataChunks(
-                        recording.folderPath,
-                        recording.metadataChunks
-                    )
-                    recording.metadata = loadedMetadata
-                    RecordingStorage.setMetadata(recording.id, loadedMetadata)
-                } catch (error) {
-                    console.warn('Failed to load metadata chunks:', error)
-                }
-            }
-
-            // Pre-load the video into blob manager
-            try {
-                await globalBlobManager.loadVideos({
-                    id: recording.id,
-                    filePath: recording.filePath,
-                    folderPath: recording.folderPath,
-                    metadata: recording.metadata
-                })
-            } catch (error) {
-                console.warn('Failed to pre-load video:', error)
-            }
-
-            // Add to project and generate effects
-            updateProjectData((project: Project) => {
-                const updatedProject = { ...project }
-
-                addRecordingToProject(
-                    updatedProject,
-                    recording,
-                    EffectsFactory.createInitialEffectsForRecording
-                )
-
-                updatedProject.timeline.duration = calculateTimelineDuration(updatedProject)
-
-                return updatedProject
-            })
-        }
-    }, [currentProject, updateProjectData])
-
-    const processFiles = useCallback(async (files: FileList | File[]) => {
-        const fileArray = Array.from(files)
-        const validFiles = fileArray.filter(file => {
-            const mediaType = getMediaType(file.name)
-            return mediaType !== null
-        })
-
-        if (validFiles.length === 0) {
-            toast.error('No supported media files found', {
-                description: `Supported formats: MP4, MOV, WebM, MKV, AVI, MP3, WAV, AAC, M4A, OGG, FLAC, ${PROJECT_EXTENSION.toUpperCase().replace('.', '')}`
-            })
-            return
-        }
-
-        // Add to import queue
-        const newItems: ImportedMedia[] = validFiles.map(file => ({
-            id: `import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: file.name,
-            type: getMediaType(file.name) as 'video' | 'audio' | 'project',
-            path: (file as any).path || file.name,
-            duration: 0,
-            status: 'pending' as const
-        }))
-
-        setImportQueue(prev => [...prev, ...newItems])
-
-        // Process imports
-        setIsImporting(true)
-        for (const item of newItems) {
-            try {
-                setImportQueue(prev => prev.map(i =>
-                    i.id === item.id ? { ...i, status: 'importing' } : i
-                ))
-
-                if (item.type === 'video') {
-                    await importVideoToProject(item)
-                } else if (item.type === 'audio') {
-                    await importAudioToProject(item)
-                } else if (item.type === 'image') {
-                    await importImageToProject(item)
-                } else if (item.type === 'project') {
-                    await importProjectToProject(item)
-                }
-
-                setImportQueue(prev => prev.map(i =>
-                    i.id === item.id ? { ...i, status: 'success' } : i
-                ))
-
-                toast.success(`Imported ${item.name}`)
-            } catch (error) {
-                console.error('Import failed:', error)
-                setImportQueue(prev => prev.map(i =>
-                    i.id === item.id ? { ...i, status: 'error', error: String(error) } : i
-                ))
-                toast.error(`Failed to import ${item.name}`)
-            }
-        }
-        setIsImporting(false)
-
-        // Clear successful imports after a delay
-        setTimeout(() => {
-            setImportQueue(prev => prev.filter(i => i.status !== 'success'))
-        }, 3000)
-    }, [importVideoToProject, importAudioToProject, importImageToProject, importProjectToProject])
-
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
         setIsDragOver(false)
-
-        const files = e.dataTransfer.files
-        if (files.length > 0) {
-            processFiles(files)
+        if (e.dataTransfer.files.length > 0) {
+            processFiles(e.dataTransfer.files)
         }
     }, [processFiles])
 
     const handleBrowse = useCallback(async () => {
+        if (!window.electronAPI?.showOpenDialog) return
         try {
-            console.log('Browse clicked, checking electronAPI...')
-            if (!window.electronAPI) {
-                console.error('electronAPI is missing')
-                toast.error('System interface not available')
-                return
-            }
-
-            if (!window.electronAPI.showOpenDialog) {
-                console.error('showOpenDialog is missing on electronAPI')
-                toast.error('File dialog not available')
-                return
-            }
-
-            console.log('Opening file dialog...')
             const result = await window.electronAPI.showOpenDialog({
                 properties: ['openFile', 'multiSelections'],
-                filters: [
-                    { name: 'All Supported', extensions: [...SUPPORTED_VIDEO_EXTENSIONS, ...SUPPORTED_AUDIO_EXTENSIONS, ...SUPPORTED_PROJECT_EXTENSIONS] },
-                    { name: 'Video Files', extensions: SUPPORTED_VIDEO_EXTENSIONS },
-                    { name: 'Audio Files', extensions: SUPPORTED_AUDIO_EXTENSIONS },
-                    { name: 'Project Files', extensions: SUPPORTED_PROJECT_EXTENSIONS },
-                    { name: 'All Files', extensions: ['*'] }
-                ]
+                filters: [{ name: 'Media', extensions: [...SUPPORTED_VIDEO_EXTENSIONS, ...SUPPORTED_AUDIO_EXTENSIONS, ...SUPPORTED_IMAGE_EXTENSIONS] }]
             })
-
-            console.log('File dialog result:', result)
-
-            if (!result.canceled && result.filePaths?.length > 0) {
-                // Convert paths to fake File objects with path property
+            if (!result.canceled && result.filePaths.length > 0) {
                 const fakeFiles = result.filePaths.map(path => ({
                     name: path.split('/').pop() || 'unknown',
                     path: path
                 } as unknown as File))
                 processFiles(fakeFiles as any)
             }
-        } catch (error) {
-            console.error('Failed to open file dialog:', error)
-            toast.error('Failed to open file browser', {
-                description: String(error)
-            })
+        } catch (e) {
+            console.error(e)
         }
     }, [processFiles])
 
     const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files
-        if (files && files.length > 0) {
-            processFiles(files)
+        if (e.target.files && e.target.files.length > 0) {
+            processFiles(e.target.files)
         }
-        // Reset input
         e.target.value = ''
     }, [processFiles])
 
-    const clearItem = useCallback((id: string) => {
-        setImportQueue(prev => prev.filter(i => i.id !== id))
-    }, [])
 
-    // Handle selecting a recording from the library to import
-    const handleSelectLibraryRecording = useCallback(async (rec: LibraryRecording) => {
-        setShowRecordingPicker(false)
+    // --- Pagination ---
+    const PAGE_SIZE = 20
+    const [page, setPage] = useState(1)
 
-        // Create a fake ImportedMedia item and process it
-        const item: ImportedMedia = {
-            id: `import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: rec.name,
-            type: 'project',
-            path: rec.path,
-            duration: rec.projectInfo?.duration || 0,
-            status: 'pending'
-        }
+    const visibleAssets = assets.slice(0, page * PAGE_SIZE)
+    const hasMore = assets.length > visibleAssets.length
 
-        setImportQueue(prev => [...prev, item])
-        setIsImporting(true)
-
-        try {
-            setImportQueue(prev => prev.map(i =>
-                i.id === item.id ? { ...i, status: 'importing' } : i
-            ))
-
-            await importProjectToProject(item)
-
-            setImportQueue(prev => prev.map(i =>
-                i.id === item.id ? { ...i, status: 'success' } : i
-            ))
-            toast.success(`Imported recording: ${rec.name}`)
-        } catch (error) {
-            console.error('Import failed:', error)
-            setImportQueue(prev => prev.map(i =>
-                i.id === item.id ? { ...i, status: 'error', error: String(error) } : i
-            ))
-            toast.error(`Failed to import ${rec.name}`)
-        }
-
-        setIsImporting(false)
-
-        // Clear successful imports after a delay
-        setTimeout(() => {
-            setImportQueue(prev => prev.filter(i => i.status !== 'success'))
-        }, 3000)
-    }, [importProjectToProject])
-
-    const hasProject = !!currentProject
+    const handleLoadMore = () => {
+        setPage(prev => prev + 1)
+    }
 
     return (
-        <div className="space-y-3 p-1">
-            {/* Compact Drop Zone */}
-            <button
-                // Valid HTML: Input cannot be inside button. Moving input out.
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={(e) => {
-                    if (hasProject) {
-                        handleBrowse()
-                    } else {
-                        console.warn('[ImportMediaSection] Clicked but hasProject is false')
-                        toast.error('No project appears to be active')
-                    }
-                }}
-                disabled={false}
-                className={cn(
-                    "relative w-full text-left rounded-lg transition-all duration-200 group",
-                    "flex items-center gap-3 p-3",
-                    "border border-border/50 hover:border-border",
-                    isDragOver
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                        : "bg-muted/20 hover:bg-muted/40",
-                )}
-            >
-                <div className={cn(
-                    "w-9 h-9 rounded-md flex items-center justify-center transition-all shrink-0",
-                    isDragOver
-                        ? "bg-primary/15 text-primary"
-                        : "bg-muted/60 text-muted-foreground group-hover:bg-muted group-hover:text-foreground"
-                )}>
-                    <Upload className="w-4 h-4" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                    <p className={cn(
-                        "text-xs font-medium transition-colors",
-                        isDragOver ? "text-primary" : "text-foreground"
+        <div className="flex flex-col h-full bg-transparent">
+            {/* Import Drop Area */}
+            <div className="p-3 bg-transparent shrink-0">
+                <button
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={handleBrowse}
+                    className={cn(
+                        "relative w-full text-left rounded-lg transition-all duration-200 group bg-transparent",
+                        "flex items-center gap-3 p-3",
+                        "border border-border/50 hover:border-border/80 border-dashed",
+                        isDragOver
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                            : "hover:bg-muted/10",
+                    )}
+                >
+                    <div className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0",
+                        isDragOver ? "bg-primary/20 text-primary" : "bg-muted/20 text-muted-foreground group-hover:text-foreground group-hover:scale-105"
                     )}>
-                        {isDragOver ? "Release to import" : "Import Media"}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                        Drop files or click to browse
-                    </p>
-                </div>
-            </button>
-
-            {/* Hidden file input moved OUTSIDE button */}
-            <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={[
-                    ...SUPPORTED_VIDEO_EXTENSIONS.map(e => `.${e}`),
-                    ...SUPPORTED_AUDIO_EXTENSIONS.map(e => `.${e}`)
-                ].join(',')}
-                className="hidden"
-                onChange={handleFileInputChange}
-            />
-
-            {/* No Project Warning */}
-            {!hasProject && (
-                <p className="text-[10px] text-muted-foreground text-center py-1.5 px-2">
-                    Open a project to import media
-                </p>
-            )}
-
-            {/* Import Queue - only show when active */}
-            {importQueue.length > 0 && (
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                            Queue
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                            {importQueue.filter(i => i.status === 'success').length}/{importQueue.length}
-                        </span>
+                        <Upload className="w-5 h-5" />
                     </div>
-                    <div className="space-y-1 max-h-32 overflow-y-auto px-1">
-                        <AnimatePresence mode="popLayout" initial={false}>
-                            {importQueue.map(item => (
-                                <motion.div
-                                    layout
-                                    initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-                                    transition={{ duration: 0.2 }}
-                                    key={item.id}
-                                    className={cn(
-                                        "flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px]",
-                                        "bg-muted/30 border border-transparent",
-                                        item.status === 'success' && "border-green-500/20 bg-green-500/5",
-                                        item.status === 'error' && "border-destructive/20 bg-destructive/5",
-                                        item.status === 'importing' && "border-primary/20 bg-primary/5"
-                                    )}
-                                >
-                                    {/* Status indicator */}
-                                    <div className="shrink-0">
-                                        {item.status === 'importing' ? (
-                                            <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                                        ) : item.status === 'success' ? (
-                                            <Check className="w-3 h-3 text-green-500" />
-                                        ) : item.status === 'error' ? (
-                                            <X className="w-3 h-3 text-destructive" />
-                                        ) : (
-                                            <div className="w-3 h-3 rounded-full border border-muted-foreground/30" />
-                                        )}
-                                    </div>
-
-                                    {/* File info */}
-                                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                        {item.type === 'video' ? (
-                                            <Film className="w-3 h-3 text-blue-400 shrink-0" />
-                                        ) : item.type === 'audio' ? (
-                                            <Music className="w-3 h-3 text-green-400 shrink-0" />
-                                        ) : (
-                                            <FileBox className="w-3 h-3 text-orange-400 shrink-0" />
-                                        )}
-                                        <span className="truncate text-muted-foreground">{item.name}</span>
-                                    </div>
-
-                                    {/* Clear button for errors/success */}
-                                    {(item.status === 'error' || item.status === 'success') && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                clearItem(item.id)
-                                            }}
-                                            className="shrink-0 opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    )}
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
+                    <div>
+                        <p className="text-sm font-medium text-foreground/90">Import Media</p>
+                        <p className="text-xs text-muted-foreground">Images, Videos, Audio</p>
                     </div>
-                </div>
-            )}
-
-            {/* Quick Import Buttons */}
-            <div className="flex gap-1.5">
-                <button
-                    onClick={handleBrowse}
-                    disabled={!hasProject}
-                    title="Video"
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs",
-                        "bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border",
-                        "transition-all duration-150",
-                        "disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                >
-                    <Film className="w-4 h-4 text-blue-400" />
                 </button>
-                <button
-                    onClick={handleBrowse}
-                    disabled={!hasProject}
-                    title="Audio"
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs",
-                        "bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border",
-                        "transition-all duration-150",
-                        "disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                >
-                    <Music className="w-4 h-4 text-green-400" />
-                </button>
-                <button
-                    onClick={() => setShowRecordingPicker(true)}
-                    disabled={!hasProject}
-                    title={libraryRecordings.length === 0 ? "No recordings in library" : "Import from library"}
-                    className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs",
-                        "bg-muted/30 hover:bg-muted/50 border border-border/50 hover:border-border",
-                        "transition-all duration-150",
-                        "disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                >
-                    <FileBox className="w-4 h-4 text-orange-400" />
-                </button>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileInputChange}
+                />
             </div>
 
-            {/* Supported formats - collapsible/minimal */}
-            <details className="group">
-                <summary className="text-[10px] text-muted-foreground/60 cursor-pointer hover:text-muted-foreground transition-colors list-none flex items-center gap-1">
-                    <span className="group-open:rotate-90 transition-transform">›</span>
-                    Supported formats
-                </summary>
-                <div className="mt-1.5 text-[10px] text-muted-foreground/50 pl-3 space-y-0.5">
-                    <p><span className="text-blue-400/70">Video:</span> MP4, MOV, WebM, MKV, AVI, M4V</p>
-                    <p><span className="text-green-400/70">Audio:</span> MP3, WAV, AAC, M4A, OGG, FLAC</p>
-                    <p><span className="text-orange-400/70">Recording:</span> From your library</p>
-                </div>
-            </details>
-
-            {/* Recording Picker Dialog */}
-            <Dialog open={showRecordingPicker} onOpenChange={setShowRecordingPicker}>
-                <DialogContent className="max-w-xl max-h-[72vh] overflow-hidden flex flex-col p-0 border-border/60 shadow-2xl">
-                    <div className="px-5 py-4 border-b border-border/60 bg-background">
-                        <DialogHeader>
-                            <DialogTitle className="text-base tracking-tight">Import recording</DialogTitle>
-                        </DialogHeader>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Pick a recording from your library to bring it into the current project.
-                        </p>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-background">
-                        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-3">
-                            <div className="flex items-center gap-2">
-                                <input
-                                    value={recordingSearch}
-                                    onChange={(e) => setRecordingSearch(e.target.value)}
-                                    placeholder="Search recordings…"
-                                    className={cn(
-                                        "h-9 w-full rounded-md border border-input bg-background px-3 text-sm",
-                                        "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    )}
-                                />
-                                <div className="text-[11px] text-muted-foreground shrink-0">
-                                    {visibleRecordings.length} {visibleRecordings.length === 1 ? 'item' : 'items'}
-                                </div>
-                            </div>
+            {/* Ingest Progress */}
+            {ingestQueue.length > 0 && (
+                <div className="px-3 pb-2 space-y-1 shrink-0">
+                    {ingestQueue.map(item => (
+                        <div key={item.id} className="flex items-center justify-between text-xs p-1.5 rounded bg-muted/20">
+                            <span className="truncate max-w-[150px]">{item.file.name}</span>
+                            {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                            {item.status === 'success' && <Check className="w-3 h-3 text-green-500" />}
+                            {item.status === 'error' && <X className="w-3 h-3 text-red-500" />}
                         </div>
+                    ))}
+                </div>
+            )}
 
-                        {libraryRecordings.length === 0 ? (
-                            <div className="text-center text-muted-foreground text-sm py-10 rounded-xl border border-dashed border-border/60 bg-muted/30">
-                                No recordings in library
+            {/* Asset Library Grid */}
+            <div className="flex-1 overflow-y-auto min-h-0 bg-transparent">
+                <div className="px-3 py-2 bg-transparent">
+                    <h3 className="text-xs font-medium text-muted-foreground mb-3 px-1 uppercase tracking-wider">Your Assets ({assets.length})</h3>
+
+                    {assets.length === 0 ? (
+                        <div className="text-center py-10 px-4 text-muted-foreground/50 text-xs">
+                            No imported assets yet.
+                        </div>
+                    ) : (
+                        <div className="flex flex-col pb-10 gap-4">
+                            <div className="grid grid-cols-2 gap-2">
+                                {visibleAssets.map(asset => (
+                                    <AssetItem
+                                        key={asset.id}
+                                        asset={asset}
+                                        onAdd={addAssetToProject}
+                                        onRemove={removeAsset}
+                                        setDraggingAsset={setDraggingAsset}
+                                    />
+                                ))}
                             </div>
-                        ) : visibleRecordings.length === 0 ? (
-                            <div className="text-center text-muted-foreground text-sm py-10 rounded-xl border border-dashed border-border/60 bg-muted/30">
-                                No matches. Try a different search.
-                            </div>
-                        ) : (
-                            visibleRecordings.map(rec => (
+
+                            {hasMore && (
                                 <button
-                                    key={rec.path}
-                                    onClick={() => handleSelectLibraryRecording(rec)}
-                                    className={cn(
-                                        "w-full flex items-center gap-3 rounded-xl text-left",
-                                        "bg-muted/20 hover:bg-muted/40 border border-border/50 hover:border-border",
-                                        "transition-all duration-150 group shadow-sm hover:shadow-md"
-                                    )}
+                                    onClick={handleLoadMore}
+                                    className="w-full py-2 text-xs text-muted-foreground hover:text-foreground bg-muted/10 hover:bg-muted/20 rounded transition-colors"
                                 >
-                                    <div className="w-28 h-16 rounded-lg overflow-hidden bg-muted/60 shrink-0 relative m-2 border border-border/40">
-                                        {rec.thumbnailUrl ? (
-                                            <img
-                                                src={rec.thumbnailUrl}
-                                                alt={rec.name}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-150"
-                                            />
-                                        ) : (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <Film className="w-6 h-6 text-muted-foreground/30" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0 pr-3 py-3">
-                                        <p className="font-medium truncate text-sm text-foreground/95">
-                                            {rec.projectInfo?.name || rec.name.replace(PROJECT_EXTENSION_REGEX, '')}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            {rec.projectInfo?.duration
-                                                ? `${(rec.projectInfo.duration / 1000).toFixed(1)}s`
-                                                : 'Unknown duration'}
-                                            {rec.projectInfo?.width && rec.projectInfo?.height
-                                                ? ` • ${rec.projectInfo.width}×${rec.projectInfo.height}`
-                                                : ''}
-                                        </p>
-                                    </div>
+                                    Load More
                                 </button>
-                            ))
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }

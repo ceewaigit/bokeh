@@ -191,7 +191,7 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
           muted={effectiveMuted}
           style={{
             width: '100%', height: '100%',
-            objectFit: mockupEnabled ? 'cover' : 'contain',
+            objectFit: 'cover', // Match ImageClipRenderer and VideoClipRenderer
             position: 'absolute', top: 0, left: 0,
             borderRadius: `${cornerRadius}px`,
             pointerEvents: 'none',

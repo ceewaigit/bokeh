@@ -75,6 +75,7 @@ interface NativeVideoCleanupOptions {
   videoUrl: string | undefined;
   visible?: boolean;
   onPlay?: () => void;
+  videoRef?: React.RefObject<HTMLVideoElement>;
 }
 
 interface NativeVideoCleanupResult {
@@ -96,8 +97,10 @@ export function useNativeVideoCleanup({
   videoUrl,
   visible = true,
   onPlay,
+  videoRef: providedRef,
 }: NativeVideoCleanupOptions): NativeVideoCleanupResult {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const internalRef = useRef<HTMLVideoElement>(null);
+  const videoRef = providedRef || internalRef;
   const lastSrcRef = useRef<string | null>(null);
   const [isVideoReady, setIsVideoReady] = useState(false);
 
@@ -128,7 +131,7 @@ export function useNativeVideoCleanup({
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       cleanupVideoDecoder(video);
     };
-  }, [videoUrl, onPlay]);
+  }, [videoUrl, onPlay, videoRef]);
 
   return { videoRef, isVideoReady, setIsVideoReady };
 }

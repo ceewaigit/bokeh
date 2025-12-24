@@ -206,12 +206,25 @@ export class ProjectIOService {
           }
           rec.filePath = videoPath
 
+          // Also resolve imageSource.imagePath if present (for image clips like cursor return freeze frames)
+          if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
+            const resolvedImagePath = `${projectDir}/${rec.imageSource.imagePath}`
+            console.log(`[ProjectIO] 🖼️ Resolving imageSource.imagePath: ${rec.imageSource.imagePath} -> ${resolvedImagePath}`)
+            rec.imageSource.imagePath = resolvedImagePath
+          }
+
+          // For image clips, also sync filePath to resolved imageSource path
+          if (rec.sourceType === 'image' && rec.imageSource?.imagePath && rec.imageSource.imagePath.startsWith('/')) {
+            console.log(`[ProjectIO] 🖼️ Syncing filePath for image clip: ${rec.filePath} -> ${rec.imageSource.imagePath}`)
+            rec.filePath = rec.imageSource.imagePath
+          }
+
           // Validate file exists before loading
           if (window.electronAPI?.fileExists) {
-            const exists = await window.electronAPI.fileExists(videoPath)
+            const exists = await window.electronAPI.fileExists(rec.filePath)
             if (!exists) {
               rec.isMissing = true
-              console.warn(`Recording file missing: ${videoPath}`)
+              console.warn(`[ProjectIO] ❌ Recording file missing: ${rec.filePath} (sourceType: ${rec.sourceType})`)
               continue
             }
           }
@@ -222,12 +235,15 @@ export class ProjectIOService {
           // ASYNC PROXY GENERATION: Don't block project load
           // Video will play from original source while proxy generates in background
           // Once proxy is ready, future loads will use it instantly
-          this.ensurePreviewProxy(rec, onProgress).catch(e =>
-            console.warn('[ProjectIO] Preview proxy generation failed:', e)
-          )
-          this.ensureGlowProxy(rec).catch(e =>
-            console.warn('[ProjectIO] Glow proxy generation failed:', e)
-          )
+          // SKIP for image clips - static images don't need video proxy conversion
+          if (rec.sourceType !== 'image') {
+            this.ensurePreviewProxy(rec, onProgress).catch(e =>
+              console.warn('[ProjectIO] Preview proxy generation failed:', e)
+            )
+            this.ensureGlowProxy(rec).catch(e =>
+              console.warn('[ProjectIO] Glow proxy generation failed:', e)
+            )
+          }
 
         } catch (error) {
           console.error('Failed to load recording from project:', error)
@@ -526,6 +542,11 @@ export class ProjectIOService {
       // Relativize filePath
       if (r.filePath && r.filePath.startsWith(projectDir)) {
         r.filePath = r.filePath.substring(projectDir.length + 1)
+      }
+
+      // Relativize imageSource.imagePath for image clips (cursor return freeze frames, etc.)
+      if (r.imageSource?.imagePath && r.imageSource.imagePath.startsWith(projectDir)) {
+        r.imageSource = { ...r.imageSource, imagePath: r.imageSource.imagePath.substring(projectDir.length + 1) }
       }
 
       return r

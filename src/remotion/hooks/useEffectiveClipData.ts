@@ -14,7 +14,8 @@ import { EffectType } from '@/types/project';
 import type { Clip, Effect, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import type { ActiveClipDataAtFrame } from '@/types';
-import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
+import { getActiveClipDataAtFrame, resolveClipDataForLayoutItem } from '@/remotion/utils/get-active-clip-data-at-frame';
+import { findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
 
 // ============================================================================
 // TYPES
@@ -111,11 +112,11 @@ export function useEffectiveClipData({
 
         let persistedVideoState: PersistedVideoState | null = null;
 
-        const isVideo = (rec: Recording | null | undefined) =>
-            rec && (!rec.sourceType || rec.sourceType === 'video');
+        const isVisualSource = (rec: Recording | null | undefined) =>
+            rec && (!rec.sourceType || rec.sourceType === 'video' || rec.sourceType === 'image');
 
-        // If current is video, it IS the state
-        if (isVideo(clipData?.recording) && activeLayoutItem && clipData) {
+        // If current is visual (video/image), it IS the state
+        if (isVisualSource(clipData?.recording) && activeLayoutItem && clipData) {
             persistedVideoState = {
                 recording: clipData.recording,
                 clip: clipData.clip,
@@ -123,43 +124,75 @@ export function useEffectiveClipData({
                 sourceTimeMs: clipData.sourceTimeMs,
             };
         }
-        // If current is NOT video (or null), search backwards
+        // If current is NOT video (or null), we need to find the "background video"
         else {
-            const currentIndex = activeLayoutItem ? frameLayout.indexOf(activeLayoutItem) : -1;
-            // Start searching from the item before current, or from the end if no current item
-            // (Only search if we have a layout to search)
-            let searchIndex = currentIndex >= 0 ? currentIndex - 1 : -1;
+            // STEP 1: Check for CONCURRENT video (video playing right now, potentially obscured)
+            // This is critical for transitions where a Cursor clip overlaps [Image -> Video B]
+            // We must find Video B even if the Cursor clip is "active"
+            const activeItems = findActiveFrameLayoutItems(frameLayout, currentFrame);
+            const concurrentVisualItem = activeItems.find(item => {
+                const rec = getRecording(item.clip.recordingId);
+                return isVisualSource(rec);
+            });
 
-            // Safety: if we have no active item but have prevLayoutItem (boundary case), use that index
-            if (searchIndex < 0 && prevLayoutItem) {
-                searchIndex = frameLayout.indexOf(prevLayoutItem);
+            if (concurrentVisualItem) {
+                const videoData = resolveClipDataForLayoutItem({
+                    frame: currentFrame,
+                    layoutItem: concurrentVisualItem,
+                    frameLayout,
+                    fps,
+                    effects,
+                    getRecording,
+                });
+
+                if (videoData) {
+                    persistedVideoState = {
+                        recording: videoData.recording,
+                        clip: videoData.clip,
+                        layoutItem: concurrentVisualItem,
+                        sourceTimeMs: videoData.sourceTimeMs,
+                    };
+                }
             }
 
-            if (searchIndex >= 0) {
-                for (let i = searchIndex; i >= 0; i--) {
-                    const item = frameLayout[i];
-                    const rec = getRecording(item.clip.recordingId);
+            // STEP 2: If no concurrent video, search BACKWARDS for the last video (Freeze Frame)
+            if (!persistedVideoState) {
+                const currentIndex = activeLayoutItem ? frameLayout.indexOf(activeLayoutItem) : -1;
+                // Start searching from the item before current, or from the end if no current item
+                let searchIndex = currentIndex >= 0 ? currentIndex - 1 : -1;
 
-                    if (isVideo(rec)) {
-                        // Found the last video clip. Evaluate it at its end frame.
-                        const endFrame = item.startFrame + item.durationFrames - 1;
-                        const videoData = getActiveClipDataAtFrame({
-                            frame: endFrame,
-                            frameLayout,
-                            fps,
-                            effects,
-                            getRecording,
-                        });
+                // Safety: if we have no active item but have prevLayoutItem (boundary case), use that index
+                if (searchIndex < 0 && prevLayoutItem) {
+                    searchIndex = frameLayout.indexOf(prevLayoutItem);
+                }
 
-                        if (videoData) {
-                            persistedVideoState = {
-                                recording: videoData.recording,
-                                clip: videoData.clip,
+                if (searchIndex >= 0) {
+                    for (let i = searchIndex; i >= 0; i--) {
+                        const item = frameLayout[i];
+                        const rec = getRecording(item.clip.recordingId);
+
+                        if (isVisualSource(rec)) {
+                            // Found the last visual clip. Evaluate it at its end frame.
+                            const endFrame = item.startFrame + item.durationFrames - 1;
+                            const videoData = resolveClipDataForLayoutItem({
+                                frame: endFrame,
                                 layoutItem: item,
-                                sourceTimeMs: videoData.sourceTimeMs,
-                            };
+                                frameLayout,
+                                fps,
+                                effects,
+                                getRecording,
+                            });
+
+                            if (videoData) {
+                                persistedVideoState = {
+                                    recording: videoData.recording,
+                                    clip: videoData.clip,
+                                    layoutItem: item,
+                                    sourceTimeMs: videoData.sourceTimeMs,
+                                };
+                            }
+                            break; // Stop after finding the first valid video
                         }
-                        break; // Stop after finding the first valid video
                     }
                 }
             }
@@ -171,9 +204,9 @@ export function useEffectiveClipData({
         // Generated/image clips inherit structural effects from the persisted video state
         if (
             clipData &&
-            ['generated', 'image'].includes(clipData.recording.sourceType || '') &&
+            ['generated'].includes(clipData.recording.sourceType || '') &&
             persistedVideoState &&
-            isVideo(persistedVideoState.recording)
+            isVisualSource(persistedVideoState.recording)
         ) {
             clipData = applyInheritance(
                 clipData,
@@ -225,8 +258,10 @@ function applyInheritance(
         persistedState.layoutItem.startFrame + persistedState.layoutItem.durationFrames - 1
     );
 
-    const videoData = getActiveClipDataAtFrame({
+    // Use explicit resolution to ensure we get the video state, not the generated clip state
+    const videoData = resolveClipDataForLayoutItem({
         frame: videoFrame,
+        layoutItem: persistedState.layoutItem,
         frameLayout,
         fps,
         effects,

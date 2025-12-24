@@ -386,6 +386,10 @@ export interface Effect {
   // Common properties
   enabled: boolean
   locked?: boolean
+
+  // Explicit clip ID binding for clip-scoped effects (Crop, etc.)
+  // When set, this effect is bound to a specific clip and moves with it
+  clipId?: string
 }
 
 export interface ZoomBlock {

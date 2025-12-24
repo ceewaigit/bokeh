@@ -15,6 +15,7 @@ import React, { useMemo } from 'react'
 import { useCurrentFrame, useVideoConfig, AbsoluteFill } from 'remotion'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { frameToMs } from '../utils/frame-time'
 import type { Effect, PluginEffectData } from '@/types/project'
 import type { PluginLayerProps } from '@/types'
 import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config/plugin-sdk'
@@ -27,7 +28,7 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
 }) => {
   const frame = useCurrentFrame()
   const { fps, width, height } = useVideoConfig()
-  const currentTimeMs = (frame / fps) * 1000
+  const currentTimeMs = frameToMs(frame, fps)
 
   // Effects list is typically stable while playing; avoid re-filtering/sorting every frame.
   const allPluginEffects = useMemo(() => EffectsFactory.getAllPluginEffects(effects), [effects])

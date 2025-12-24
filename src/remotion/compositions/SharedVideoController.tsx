@@ -23,7 +23,7 @@ import {
 } from './utils/zoom-transform';
 import { calculateCameraMotionBlur } from './utils/camera-motion-blur';
 import type { SharedVideoControllerProps } from '@/types';
-import type { Recording } from '@/types/project';
+import type { Clip, Recording } from '@/types/project';
 import {
   buildFrameLayout,
   findActiveFrameLayoutIndex,
@@ -129,9 +129,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // BOUNDARY STATE
   // ==========================================================================
   const boundaryState = useMemo(() => {
-    if (!isRendering && isPlaying && !isScrubbing) {
-      return { isNearBoundaryStart: false, isNearBoundaryEnd: false, shouldHoldPrevFrame: false, overlapFrames: 0 };
-    }
+    // REMOVED: Previous optimization that disabled boundary detection during playback
+    // This caused blinking at clip transitions because clips weren't preloaded
+    // Boundary overlap detection is now always enabled for smooth transitions
     return getBoundaryOverlapState({
       currentFrame, fps, isRendering, activeLayoutItem, prevLayoutItem, nextLayoutItem,
       sourceWidth: sourceVideoWidth, sourceHeight: sourceVideoHeight, isScrubbing,
@@ -317,9 +317,16 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const isActiveImage = recording?.sourceType === 'image';
 
   // Preview video state for generated/image clip freeze frames
-  const previewVideoState: PreviewVideoState | null = (isActiveGenerated || isActiveImage)
+  // REFACTORED: Now includes "Image" clips as background state (visual source)
+  const previewVideoState: PreviewVideoState | null = isActiveGenerated
     ? (persistedVideoState ? { ...persistedVideoState, maxZoomScale: memoizedMaxZoomScale } : null)
-    : (recording && activeLayoutItem ? { recording, clip, layoutItem: activeLayoutItem, sourceTimeMs, maxZoomScale: memoizedMaxZoomScale } : null);
+    : (recording && activeLayoutItem ? {
+      recording,
+      clip: activeClipData?.clip as Clip,
+      layoutItem: activeLayoutItem,
+      sourceTimeMs: activeClipData?.sourceTimeMs ?? 0,
+      maxZoomScale: memoizedMaxZoomScale
+    } : null);
 
   const previewVideoVisible = !!previewVideoState;
 
@@ -332,24 +339,54 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     if (isPreview) {
       return (
         <>
-          <PreviewVideoRenderer
-            recording={previewVideoState?.recording}
-            clipForVideo={previewVideoState?.clip}
-            startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
-            durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
-            sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
-            currentFrame={currentFrame}
-            fps={fps}
-            cornerRadius={targetRadius}
-            drawWidth={targetWidth}
-            drawHeight={targetHeight}
-            compositionWidth={width}
-            compositionHeight={height}
-            maxZoomScale={previewVideoState?.maxZoomScale ?? memoizedMaxZoomScale}
-            currentZoomScale={zoomTransform?.scale ?? 1}
-            mockupEnabled={mockupEnabled}
-            visible={previewVideoVisible}
-          />
+          {previewVideoState?.recording.sourceType === 'image' ? (
+            previewVideoVisible && (
+              <ImageClipRenderer
+                key={`bg-image-${previewVideoState.layoutItem.groupId}`}
+                clipForVideo={previewVideoState.clip}
+                recording={previewVideoState.recording}
+                startFrame={previewVideoState.layoutItem.startFrame}
+                durationFrames={previewVideoState.layoutItem.durationFrames}
+                groupStartFrame={previewVideoState.layoutItem.groupStartFrame}
+                groupDuration={previewVideoState.layoutItem.groupDuration}
+                currentFrame={currentFrame}
+                fps={fps}
+                isRendering={isRendering}
+                cornerRadius={targetRadius}
+                drawWidth={targetWidth}
+                drawHeight={targetHeight}
+                compositionWidth={width}
+                compositionHeight={height}
+                activeLayoutItem={previewVideoState.layoutItem}
+                // Background layer: minimal transition logic needed as it's being driven by persistence
+                prevLayoutItem={null}
+                nextLayoutItem={null}
+                shouldHoldPrevFrame={false}
+                isNearBoundaryEnd={false}
+                overlapFrames={0}
+              />
+            )
+          ) : (
+            <PreviewVideoRenderer
+              recording={previewVideoState?.recording}
+              clipForVideo={previewVideoState?.clip}
+              startFrame={previewVideoState?.layoutItem.startFrame ?? 0}
+              durationFrames={previewVideoState?.layoutItem.durationFrames ?? 1}
+              sourceTimeMs={previewVideoState?.sourceTimeMs ?? 0}
+              currentFrame={currentFrame}
+              fps={fps}
+              cornerRadius={targetRadius}
+              drawWidth={targetWidth}
+              drawHeight={targetHeight}
+              compositionWidth={width}
+              compositionHeight={height}
+              maxZoomScale={previewVideoState?.maxZoomScale ?? memoizedMaxZoomScale}
+              currentZoomScale={zoomTransform?.scale ?? 1}
+              mockupEnabled={mockupEnabled}
+              visible={previewVideoVisible}
+            />
+          )}
+
           {isActiveGenerated && activeLayoutItem && recording && (
             <GeneratedClipRenderer
               key={activeLayoutItem.groupId}
@@ -362,31 +399,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               currentFrame={currentFrame}
               fps={fps}
               isRendering={isRendering}
-              drawWidth={targetWidth}
-              drawHeight={targetHeight}
-              compositionWidth={width}
-              compositionHeight={height}
-              activeLayoutItem={activeLayoutItem}
-              prevLayoutItem={prevLayoutItem}
-              nextLayoutItem={nextLayoutItem}
-              shouldHoldPrevFrame={shouldHoldPrevFrame}
-              isNearBoundaryEnd={isNearBoundaryEnd}
-              overlapFrames={overlapFrames}
-            />
-          )}
-          {isActiveImage && activeLayoutItem && recording && (
-            <ImageClipRenderer
-              key={`image-${activeLayoutItem.groupId}`}
-              clipForVideo={activeLayoutItem.clip}
-              recording={recording}
-              startFrame={activeLayoutItem.startFrame}
-              durationFrames={activeLayoutItem.durationFrames}
-              groupStartFrame={activeLayoutItem.groupStartFrame}
-              groupDuration={activeLayoutItem.groupDuration}
-              currentFrame={currentFrame}
-              fps={fps}
-              isRendering={isRendering}
-              cornerRadius={targetRadius}
               drawWidth={targetWidth}
               drawHeight={targetHeight}
               compositionWidth={width}

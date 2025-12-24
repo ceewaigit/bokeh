@@ -625,11 +625,16 @@ export const useProjectStore = create<ProjectStore>()(
       }
 
       // Collect effects to copy from both source recording and timeline
-      // Collect active effects at the transition point (end of source clip)
+      // Use getCropEffectForClip for reliable clipId-based matching
       const timelineEffects = project.timeline.effects || []
       const clipEnd = sourceClip!.startTime + sourceClip!.duration
 
+      // Get crop effect using clipId-based matching (robust)
+      const cropEffect = EffectsFactory.getCropEffectForClip(timelineEffects, sourceClip!)
+
+      // Get other effects (Background, Screen) using time-range filtering
       const activeTimelineEffects = timelineEffects.filter(e =>
+        e.type !== EffectType.Crop && // Exclude crop - handled separately above
         e.startTime <= clipEnd && e.endTime >= clipEnd
       )
 
@@ -638,16 +643,15 @@ export const useProjectStore = create<ProjectStore>()(
         e.startTime <= sourceOut && e.endTime >= sourceOut
       )
 
-      const allSourceEffects = [
-        ...activeSourceEffects,
-        ...activeTimelineEffects
+      const effectsToCopy = [
+        ...(cropEffect ? [cropEffect] : []),
+        ...activeTimelineEffects.filter(e =>
+          e.type === EffectType.Background || e.type === EffectType.Screen
+        ),
+        ...activeSourceEffects.filter(e =>
+          e.type === EffectType.Background || e.type === EffectType.Screen
+        )
       ]
-
-      const effectsToCopy = allSourceEffects.filter(e =>
-        e.type === EffectType.Crop ||
-        e.type === EffectType.Background ||
-        e.type === EffectType.Screen
-      )
 
       // Clone and adjust timing for new clip (baking timeline effects into recording if needed)
       const clonedEffects = effectsToCopy.map(effect => ({

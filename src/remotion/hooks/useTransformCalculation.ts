@@ -138,11 +138,11 @@ export function useTransformCalculation({
         // CROP TRANSFORM
         // ==========================================================================
 
-        const cropEffect = EffectsFactory.getActiveEffectAtTime(
-            clipEffects,
-            EffectType.Crop,
-            sourceTimeMs
-        );
+        // IMPORTANT: clipEffects is ALREADY filtered by time in getActiveClipDataAtFrame:
+        // - Timeline effects filtered by timeline overlap
+        // - Recording effects filtered by sourceTimeMs
+        // So we just need to find an enabled crop effect - no additional time filtering needed.
+        const cropEffect = clipEffects.find(e => e.type === EffectType.Crop && e.enabled);
 
         // Disable crop during editing
         const resolvedCropData = isEditingCrop

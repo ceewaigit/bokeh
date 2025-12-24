@@ -6,6 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { Sequence, Img, staticFile } from 'remotion';
 import { useClipRenderState } from '@/remotion/hooks/useClipRenderState';
+import { useVideoUrl } from '@/remotion/hooks/useVideoUrl';
+import { usePlaybackSettings } from '@/remotion/context/PlaybackSettingsContext';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 
@@ -45,47 +47,23 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
     activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
   });
 
-  // Image URL resolution
-  const [imageUrl, setImageUrl] = useState<string | null>(() => {
-    return recording.filePath?.startsWith('data:') ? recording.filePath : null;
+  // Get settings from context for URL resolution
+  const { resources } = usePlaybackSettings();
+
+  // Unified URL resolution using shared hook
+  // This handles video-stream:// protocol, proxy logic, and file paths consistently
+  const imageUrl = useVideoUrl({
+    recording,
+    resources,
+    preferOffthreadVideo: false,
+    targetWidth: compositionWidth,
+    targetHeight: compositionHeight,
+    maxZoomScale: 1,
+    currentZoomScale: 1,
+    isGlowMode: false,
+    isHighQualityPlaybackEnabled: false,
+    isPlaying: isRendering
   });
-
-  useEffect(() => {
-    const resolveImageUrl = async () => {
-      if (recording.filePath?.startsWith('data:')) {
-        setImageUrl(recording.filePath);
-        return;
-      }
-
-      const imagePath = recording.imageSource?.imagePath || recording.filePath;
-      if (!imagePath) {
-        setImageUrl(null);
-        return;
-      }
-
-      if (isRendering) {
-        if (imagePath.startsWith('file://') || imagePath.startsWith('/') || imagePath.startsWith('data:')) {
-          setImageUrl(imagePath);
-        } else {
-          setImageUrl(staticFile(imagePath));
-        }
-        return;
-      }
-
-      try {
-        if (window.electronAPI?.getVideoUrl) {
-          const url = await window.electronAPI.getVideoUrl(imagePath);
-          setImageUrl(url || null);
-        } else {
-          setImageUrl(imagePath);
-        }
-      } catch (err) {
-        console.error('[ImageClipRenderer] Failed to resolve image URL:', err);
-        setImageUrl(null);
-      }
-    };
-    resolveImageUrl();
-  }, [recording.filePath, recording.imageSource?.imagePath, isRendering]);
 
   // Effective corner radius
   const effectiveRadius = cornerRadius / Math.min(renderState.scaleX, renderState.scaleY);

@@ -1,4 +1,5 @@
 import type { Clip } from '@/types/project';
+import { msToFrame } from '@/remotion/compositions/utils/frame-time';
 
 export interface FrameLayoutItem {
   clip: Clip;
@@ -120,8 +121,8 @@ export function buildFrameLayout(clips: Clip[], fps: number): FrameLayoutItem[] 
   let lastEndFrame = -1;
 
   clips.forEach((clip, index) => {
-    const startFrame = Math.round((clip.startTime / 1000) * fps);
-    const durationFrames = Math.max(1, Math.round((clip.duration / 1000) * fps));
+    const startFrame = msToFrame(clip.startTime, fps);
+    const durationFrames = Math.max(1, msToFrame(clip.duration, fps));
     const endFrame = startFrame + durationFrames;
 
     // Check for continuity
@@ -219,16 +220,13 @@ export function getBoundaryOverlapState(opts: {
   // Source dimensions for adaptive overlap
   sourceWidth?: number;
   sourceHeight?: number;
-  // Skip overlap during scrubbing to prevent video element churn
+  // DEPRECATED: isScrubbing no longer affects behavior - unified for SSOT
   isScrubbing?: boolean;
 }): BoundaryOverlapState {
-  const { currentFrame, fps, isRendering, activeLayoutItem, prevLayoutItem, nextLayoutItem, sourceWidth = 1920, sourceHeight = 1080, isScrubbing = false } = opts;
+  const { currentFrame, fps, isRendering, activeLayoutItem, prevLayoutItem, nextLayoutItem, sourceWidth = 1920, sourceHeight = 1080 } = opts;
 
-  // No overlap during scrubbing - prevents video element churn
-  // that causes VTDecoderXPCService memory accumulation (10GB+ issue)
-  if (isScrubbing && !isRendering) {
-    return { isNearBoundaryStart: false, isNearBoundaryEnd: false, shouldHoldPrevFrame: false, overlapFrames: 0 };
-  }
+  // REMOVED: isScrubbing early return that caused frame mismatch between scrub and playback
+  // Now boundary detection is unified for consistent frame display in both modes
 
   // Shorter overlap for high-res sources to reduce concurrent decode streams
   // High-res videos (>1080p) use 0.35s overlap, standard uses 0.5s (reduced from 1.0s)

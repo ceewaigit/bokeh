@@ -500,6 +500,7 @@ export class EffectsFactory {
       type: EffectType.Crop,
       startTime: options.startTime,
       endTime: options.endTime,
+      clipId: options.clipId,  // Bind effect to clip for robust matching
       data: {
         x: options.cropData?.x ?? 0,
         y: options.cropData?.y ?? 0,
@@ -511,9 +512,19 @@ export class EffectsFactory {
   }
 
   /**
-   * Get crop effect for a specific clip by matching time range
+   * Get crop effect for a specific clip.
+   * Primary: Match by clipId (robust, survives reflow/split)
+   * Fallback: Legacy time-based matching for older projects
    */
   static getCropEffectForClip(effects: Effect[], clip: Clip): Effect | undefined {
+    // Primary: Match by clipId (robust, survives reflow)
+    const byClipId = effects.find(e =>
+      e.type === EffectType.Crop &&
+      e.clipId === clip.id
+    )
+    if (byClipId) return byClipId
+
+    // Fallback: Legacy time-based matching for existing projects
     return effects.find(e =>
       e.type === EffectType.Crop &&
       e.startTime === clip.startTime &&

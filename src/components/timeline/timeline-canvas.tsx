@@ -9,6 +9,7 @@ import type { Project, ZoomBlock, ZoomEffectData, Effect } from '@/types/project
 import { EffectType, TrackType, TimelineTrackType } from '@/types/project'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
+import { useAssetLibraryStore } from '@/stores/asset-library-store'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -33,6 +34,7 @@ import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
+import { useTimelineSnapping } from '@/hooks/use-timeline-snapping'
 
 // Commands
 import {
@@ -75,6 +77,8 @@ export function TimelineCanvas({
   // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders every frame
   const currentTime = useProjectStore((s) => s.currentTime)
   const isPlaying = useProjectStore((s) => s.isPlaying)
+  const draggingAsset = useAssetLibraryStore((s) => s.draggingAsset)
+  const [dragTime, setDragTime] = useState<number | null>(null)
 
   const {
     selectedClips,
@@ -131,6 +135,12 @@ export function TimelineCanvas({
   // Calculate timeline dimensions
   const duration = currentProject?.timeline?.duration || 10000
   const pixelsPerMs = TimeConverter.calculatePixelsPerMs(stageSize.width, zoom)
+
+  const { getSnapPoints, getSnappedTimeFromPixel } = useTimelineSnapping({
+    pixelsPerMs,
+    project: currentProject
+  })
+
   const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
 
   const timelineEffects = currentProject?.timeline.effects || []
@@ -658,6 +668,60 @@ export function TimelineCanvas({
           // Ensure container maintains focus for keyboard events
           containerRef.current?.focus()
         }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect()
+            const x = (e.clientX - rect.left) + scrollLeft - TimelineConfig.TRACK_LABEL_WIDTH
+
+            // Generate snap points dynamically (cached by hook based on project)
+            const snapPoints = getSnapPoints()
+            const snappedTime = getSnappedTimeFromPixel(x, snapPoints)
+
+            setDragTime(snappedTime)
+          }
+        }}
+        onDragLeave={() => {
+          setDragTime(null)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragTime(null)
+          const assetData = e.dataTransfer.getData('application/x-bokeh-asset')
+          if (!assetData || !containerRef.current) return
+
+          try {
+            const asset = JSON.parse(assetData)
+            const rect = containerRef.current.getBoundingClientRect()
+            // Calculate effective X position:
+            // Mouse X relative to container - Track Label Width + Scroll Offset
+            const x = (e.clientX - rect.left) + scrollLeft - TimelineConfig.TRACK_LABEL_WIDTH
+
+            // Convert to time, clamping to 0
+            // const time = Math.max(0, TimeConverter.pixelsToMs(x, pixelsPerMs))
+
+            // Use snapped time for consistency with drag preview
+            const snapPoints = getSnapPoints()
+            const time = getSnappedTimeFromPixel(x, snapPoints)
+
+            // Use the shared helper to add the asset intelligently
+            // (Creates recording, adds to project, inherits crop from previous clip)
+            useProjectStore.getState().updateProjectData((project: Project) => {
+              // Dynamic import or require inside updateProjectData is tricky if not already available?
+              // But timeline-operations handles the imports.
+              // We need to import addAssetRecording at top of file.
+              const { addAssetRecording } = require('@/lib/timeline/timeline-operations')
+              const updatedProject = { ...project }
+              addAssetRecording(updatedProject, asset, time)
+              return updatedProject
+            })
+
+          } catch (err) {
+            console.error('Failed to parse asset data on drop', err)
+          }
+        }}
         style={{
           userSelect: 'none',
           WebkitUserSelect: 'none',
@@ -1090,6 +1154,43 @@ export function TimelineCanvas({
             onSpeedUp={handleClipSpeedUp}
             onClose={() => setContextMenu(null)}
           />
+        )}
+
+        {/* Drag Preview Overlay (Ghost Clip) */}
+        {draggingAsset && dragTime !== null && (
+          <div
+            className="absolute pointer-events-none z-50 flex flex-col justify-center overflow-hidden rounded-md border-2 border-primary bg-primary/20 backdrop-blur-[1px]"
+            style={{
+              left: (TimelineConfig.TRACK_LABEL_WIDTH + TimeConverter.msToPixels(dragTime, pixelsPerMs)) + 'px',
+              top: (TimelineConfig.RULER_HEIGHT + 10) + 'px',
+              width: Math.max(TimelineConfig.MIN_CLIP_WIDTH, TimeConverter.msToPixels(draggingAsset.metadata?.duration || 5000, pixelsPerMs)) + 'px',
+              height: '64px', // Standard track height approx
+            }}
+          >
+            {/* Thumbnail if available */}
+            {draggingAsset.type === 'image' || draggingAsset.type === 'video' ? (
+              <div className="w-full h-full opacity-50 relative">
+                {/* We can't easily load video thumb here synchronously, but we can try image source */}
+                {(draggingAsset.type === 'image' && draggingAsset.path) ? (
+                  <img
+                    src={draggingAsset.path.startsWith('/')
+                      ? `video-stream://local/${encodeURIComponent(draggingAsset.path)}`
+                      : draggingAsset.path}
+                    className="w-full h-full object-cover"
+                    alt=""
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-black/20">
+                    <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Speed-up suggestion popover */}

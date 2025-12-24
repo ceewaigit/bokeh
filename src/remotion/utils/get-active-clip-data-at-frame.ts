@@ -54,6 +54,31 @@ export function getActiveClipDataAtFrame(args: {
   if (layoutIndex < 0) return null
   const layoutItem = frameLayout[layoutIndex]
 
+  return resolveClipDataForLayoutItem({
+    frame,
+    layoutItem,
+    frameLayout,
+    fps,
+    effects,
+    getRecording
+  })
+}
+
+/**
+ * Resolve clip data for a specific layout item at a specific frame.
+ * Useful when you already know which item you want to evaluate (e.g. background video),
+ * bypassing the "active index" lookup which might return an overlapping clip.
+ */
+export function resolveClipDataForLayoutItem(args: {
+  frame: number
+  layoutItem: FrameLayoutItem
+  frameLayout: FrameLayoutItem[]
+  fps: number
+  effects: Effect[]
+  getRecording: (recordingId: string) => Recording | null | undefined
+}): ActiveClipDataAtFrame | null {
+  const { frame, layoutItem, frameLayout, fps, effects, getRecording } = args
+
   const clip = layoutItem.clip
   const recording = getRecording(clip.recordingId)
   if (!recording) return null

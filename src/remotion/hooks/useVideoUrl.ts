@@ -191,10 +191,21 @@ export function useVideoUrl({
   // Key insight: Lock the URL while PAUSED, so when play starts we use the stable URL
   // This fixes the timing issue where play state change triggered useMemo recalculation
   // BEFORE the lock could capture the original URL.
-  if (!isPlaying) {
+
+  // Track which recording the lock belongs to
+  const lockedRecordingIdRef = useRef<string | undefined>(undefined);
+
+  if (recording?.id !== lockedRecordingIdRef.current) {
+    // CRITICAL FIX: If the recording changes (e.g. Video A -> Image -> Video B),
+    // we MUST invalidate the lock immediately, otherwise we'll try to play
+    // Video B using Video A's locked URL.
+    lockedUrlRef.current = computedUrl;
+    lockedRecordingIdRef.current = recording?.id;
+  } else if (!isPlaying) {
     // When paused, always update the locked URL to the current computed URL
     // This ensures we have the latest URL ready when playback starts
     lockedUrlRef.current = computedUrl;
+    lockedRecordingIdRef.current = recording?.id;
   }
 
   // During playback, return the locked URL (captured when last paused)

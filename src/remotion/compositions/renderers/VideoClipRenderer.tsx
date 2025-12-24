@@ -117,7 +117,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
               src={videoUrl || ''}
               style={{
                 width: '100%', height: '100%',
-                objectFit: mockupEnabled ? 'cover' : 'contain',
+                objectFit: 'cover', // Match ImageClipRenderer behavior (was mockupEnabled ? 'cover' : 'contain')
                 position: 'absolute', top: 0, left: 0,
                 borderRadius: `${cornerRadius}px`,
                 pointerEvents: 'none',

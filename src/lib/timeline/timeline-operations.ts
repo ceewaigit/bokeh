@@ -13,6 +13,30 @@ export function calculateTimelineDuration(project: Project): number {
   return maxEndTime
 }
 
+/**
+ * Sync crop effect time ranges to match their bound clips.
+ * Call this after any operation that changes clip positions (reflow, split, add, etc.)
+ * 
+ * Crop effects with a clipId are kept in sync with their clip's startTime/endTime.
+ * This ensures the effect↔clip binding survives timeline operations.
+ */
+export function syncCropEffectTimes(project: Project): void {
+  if (!project.timeline.effects) return
+
+  const allClips = project.timeline.tracks.flatMap(t => t.clips)
+
+  for (const effect of project.timeline.effects) {
+    // Only sync crop effects that have a clipId binding
+    if (effect.type !== EffectType.Crop || !effect.clipId) continue
+
+    const clip = allClips.find(c => c.id === effect.clipId)
+    if (clip) {
+      effect.startTime = clip.startTime
+      effect.endTime = clip.startTime + clip.duration
+    }
+  }
+}
+
 // Find clip by ID across all tracks
 export function findClipById(project: Project, clipId: string): { clip: Clip; track: Track } | null {
   for (const track of project.timeline.tracks) {
@@ -190,6 +214,9 @@ export function splitClipAtTime(
     }
   }
 
+  // Create the command to add the second clip
+  // NOTE: We do not add to track here. The caller (executeSplitClip) handles the track splicing.
+
   return { firstClip, secondClip }
 }
 
@@ -217,6 +244,19 @@ export function executeSplitClip(
   // Both split clips share the same recording's effects, no splitting needed
 
   project.modifiedAt = new Date().toISOString()
+
+  // Sync crop effect times to match moved clips
+  syncCropEffectTimes(project)
+
+  // Sync keystroke effects to ensure cursor metadata follows the split clips
+  try {
+    const { EffectsFactory } = require('../effects/effects-factory')
+    // We need to pass metadataByRecordingId if generic syncing is needed, but for now mostly recording metadata is enough
+    EffectsFactory.syncKeystrokeEffects(project)
+  } catch (e) {
+    console.error('Failed to sync keystroke effects during split', e)
+  }
+
   return {
     firstClip: splitResult.firstClip,
     secondClip: splitResult.secondClip
@@ -376,6 +416,18 @@ export function updateClipInTrack(
 
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
+
+  // Sync crop effect times to match moved clips
+  syncCropEffectTimes(project)
+
+  // Sync keystroke effects to ensure cursor metadata follows the moved clips
+  try {
+    const { EffectsFactory } = require('../effects/effects-factory')
+    EffectsFactory.syncKeystrokeEffects(project)
+  } catch (e) {
+    console.error('Failed to sync keystroke effects during update', e)
+  }
+
   return true
 }
 
@@ -584,4 +636,165 @@ export function addRecordingToProject(
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return clip
+}
+
+export interface AssetDetails {
+  path: string
+  duration: number
+  width: number
+  height: number
+  type: 'video' | 'audio' | 'image'
+  name?: string
+}
+
+export function addAssetRecording(
+  project: Project,
+  asset: AssetDetails,
+  startTime?: number
+): Clip | null {
+  const recordingId = `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+  // 1. Identify valid insertion point and previous clip for inheritance
+  const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
+  let lastVideoClip: Clip | null = null
+
+  if (videoTrack && videoTrack.clips.length > 0) {
+    // Sort clips to find the last one (or one before insertion time if provided)
+    const sortedClips = [...videoTrack.clips].sort((a, b) => a.startTime - b.startTime)
+
+    if (typeof startTime === 'number') {
+      // Find clip that ends before or at startTime
+      // We want the clip *immediately* preceding the new one in perceived timeline order
+      // Ideally we'd spatially search, but linear time check is okay
+      const preceding = sortedClips.filter(c => (c.startTime + c.duration) <= startTime)
+      if (preceding.length > 0) {
+        lastVideoClip = preceding[preceding.length - 1]
+      }
+    } else {
+      // Appending to end -> use absolute last clip
+      lastVideoClip = sortedClips[sortedClips.length - 1]
+    }
+  }
+
+  // 2. Create Recording Object
+  const recording: Recording = {
+    id: recordingId,
+    filePath: asset.path,
+    duration: asset.duration || 5000, // Default 5s for images if not specified
+    width: asset.width || 0,
+    height: asset.height || 0,
+    frameRate: 30,
+    hasAudio: asset.type === 'video' || asset.type === 'audio',
+    isExternal: true,
+    effects: [],
+    sourceType: asset.type === 'image' ? 'image' : (asset.type === 'video' ? 'video' : undefined)
+  }
+
+  if (asset.type === 'image') {
+    recording.imageSource = { imagePath: asset.path }
+    // Default duration for images if 0 passed
+    if (recording.duration === 0) recording.duration = 5000
+  }
+
+  // 3. Add to Project
+  // We intentionally pass empty effect callback so no defaults are created ON THE RECORDING
+  // Global effects (cursor, background) are ensured by addRecordingToProject internally
+  const newClip = addRecordingToProject(project, recording, () => { })
+
+  if (!newClip) return null
+
+  // If startTime was specified, insert the clip at that position (handling splits if needed)
+  if (typeof startTime === 'number') {
+    if (videoTrack) {
+      const trackClips = videoTrack.clips
+
+      // 1. Remove the new clip from the end (where addRecordingToProject put it)
+      const newClipIndex = trackClips.findIndex(c => c.id === newClip.id)
+      if (newClipIndex !== -1) {
+        trackClips.splice(newClipIndex, 1)
+      }
+
+      // 2. Find insertion point
+      let insertIndex = trackClips.length
+
+      for (let i = 0; i < trackClips.length; i++) {
+        const clip = trackClips[i]
+        const start = clip.startTime
+        const end = start + clip.duration
+
+        // Check for strict overlap (requires split)
+        // Epsilon for float comparison
+        if (startTime > start + 0.01 && startTime < end - 0.01) {
+          const splitRes = executeSplitClip(project, clip.id, startTime)
+          if (splitRes) {
+            // executeSplitClip replaces existing clip with [first, second] at index i
+            // So secondClip is at i + 1
+            // We want to insert between them, so at i + 1
+            insertIndex = i + 1
+          }
+          break
+        }
+
+        // Exact start match (or close enough) - insert before this clip
+        if (startTime <= start + 0.01) {
+          insertIndex = i
+          break
+        }
+
+        // If greater than end, continue to next
+      }
+
+      // 3. Insert and Reflow
+      trackClips.splice(insertIndex, 0, newClip)
+      reflowClips(videoTrack, 0)
+    }
+  }
+
+  // 4. Inherit Crop Effect Logic
+  // Only inherit if we found a previous clip AND the effects factory is available
+  if (lastVideoClip) {
+    // We need to import EffectsFactory or pass it in? 
+    // It's a static class, so we can import it if no circular dependency.
+    // timeline-operations.ts doesn't import EffectsFactory yet (except in require).
+    // Let's use the require pattern used in addRecordingToProject
+    const { EffectsFactory } = require('../effects/effects-factory')
+
+    const prevCropEffect = EffectsFactory.getCropEffectForClip(project.timeline.effects || [], lastVideoClip)
+    if (prevCropEffect && prevCropEffect.data) {
+      const newCropEffect = EffectsFactory.createCropEffect({
+        clipId: newClip.id,
+        startTime: newClip.startTime,
+        endTime: newClip.startTime + newClip.duration,
+        cropData: prevCropEffect.data
+      })
+      EffectsFactory.addEffectToProject(project, newCropEffect)
+    }
+  }
+
+  // 5. Prevent Effect Bleed (Mutually Exclusive Logic)
+  // Ensure that timeline-level effects (Zoom, Screen) do not implicitly cover the new clip.
+  // We truncate any existing effects that would overlap the new clip's start time.
+  if (project.timeline.effects) {
+    const bleedTypes = [EffectType.Zoom, EffectType.Screen] // Add other types if needed
+
+    project.timeline.effects.forEach(effect => {
+      if (bleedTypes.includes(effect.type) && effect.enabled) {
+        // Check if effect overlaps the start of the new clip
+        if (effect.startTime < newClip.startTime && effect.endTime > newClip.startTime) {
+          // Truncate the effect to end exactly where the new clip starts
+          effect.endTime = newClip.startTime
+        }
+        // Note: If effect started AFTER new clip start, we leave it alone (it might be a future effect).
+        // If it was "surrounding" the clip, we just cut it off. 
+        // This satisfies "mutually exclusive" - the previous state stops.
+      }
+    })
+  }
+
+  project.timeline.duration = calculateTimelineDuration(project)
+
+  // Sync crop effect times to match any clips that moved during insertion
+  syncCropEffectTimes(project)
+
+  return newClip
 }
