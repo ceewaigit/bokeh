@@ -17,6 +17,7 @@ import { AbsoluteFill, Audio, Sequence, getRemotionEnvironment, useCurrentFrame,
 import type { Recording } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
 import { TimeProvider } from '../context/TimeContext';
+import { PlaybackSettingsProvider } from '../context/PlaybackSettingsContext';
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
 import { buildFrameLayout, findActiveFrameLayoutIndex, findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
@@ -194,12 +195,17 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   }, [frameLayout, fps, frame]);
 
   return (
-    <TimeProvider clips={sortedClips} recordings={recordings} resources={safeResources} fps={fps} >
-      <AbsoluteFill
-        style={{
-          backgroundColor: backgroundColor ?? '#000',
-        }}
+    <TimeProvider clips={sortedClips} recordings={recordings} resources={safeResources} fps={fps}>
+      <PlaybackSettingsProvider
+        playback={safePlayback}
+        renderSettings={safeRenderSettings}
+        resources={safeResources}
       >
+        <AbsoluteFill
+          style={{
+            backgroundColor: backgroundColor ?? '#000',
+          }}
+        >
         {/* Background layer must be below the video. Render per-clip to support parallax (mouse-driven) backgrounds. */}
         <AbsoluteFill style={{ zIndex: 0 }}>
           {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
@@ -308,7 +314,8 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
             </Sequence>
           );
         })}
-      </AbsoluteFill>
-    </TimeProvider >
+        </AbsoluteFill>
+      </PlaybackSettingsProvider>
+    </TimeProvider>
   );
 };

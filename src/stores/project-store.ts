@@ -660,9 +660,45 @@ export const useProjectStore = create<ProjectStore>()(
       // Calculate insert time (right after source clip ends)
       const insertTime = sourceClip.startTime + sourceClip.duration
 
+      // Save freeze frame to disk instead of using data URL directly
+      // This prevents path corruption when project is reopened
+      let imagePath = captureResult.dataUrl // Fallback to data URL if saving fails
+
+      if (window.electronAPI?.saveRecording && project.filePath) {
+        try {
+          // Extract project folder from project file path
+          const projectFolder = project.filePath.substring(0, project.filePath.lastIndexOf('/'))
+          const freezeFrameId = `freeze-${Date.now()}`
+          const freezeFramePath = `${projectFolder}/${freezeFrameId}.jpg`
+
+          // Convert data URL to binary
+          const match = captureResult.dataUrl.match(/^data:([^;]+);base64,(.+)$/)
+          if (match) {
+            const base64 = match[2]
+            const binary = atob(base64)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i)
+            }
+
+            // Save to disk
+            const saveResult = await window.electronAPI.saveRecording(freezeFramePath, bytes.buffer)
+            if (saveResult?.success) {
+              imagePath = freezeFramePath
+              console.log('[CursorReturn] Saved freeze frame to:', freezeFramePath)
+            } else {
+              console.warn('[CursorReturn] Failed to save freeze frame, using data URL fallback')
+            }
+          }
+        } catch (error) {
+          console.warn('[CursorReturn] Error saving freeze frame to disk:', error)
+          // Continue with data URL fallback
+        }
+      }
+
       // Add image clip with freeze frame and synthetic events
       useProjectStore.getState().addImageClip({
-        imagePath: captureResult.dataUrl,
+        imagePath,
         width: captureResult.width,
         height: captureResult.height,
         durationMs,

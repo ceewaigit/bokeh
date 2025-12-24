@@ -6,6 +6,7 @@
  *
  * SIMPLIFIED: All effects are now in timeline-space, no dual-space filtering needed.
  * LAZY LOADING: Metadata is loaded on-demand via useRecordingMetadata hook.
+ * OPTIMIZED: Each filtered array is memoized separately to prevent unnecessary recalculations.
  */
 
 import React, { createContext, useContext, useMemo } from 'react';
@@ -13,6 +14,10 @@ import type { Clip, Effect, RecordingMetadata } from '@/types/project';
 import { useTimeContext } from './TimeContext';
 import { useVideoUrl } from '../hooks/useVideoUrl';
 import { useRecordingMetadata } from '../hooks/useRecordingMetadata';
+import {
+  filterEffectsForClip,
+  filterEventsForSourceRange,
+} from '../compositions/utils/effect-filters';
 import type { ClipContextValue } from '@/types';
 
 const ClipContext = createContext<ClipContextValue | null>(null);
@@ -30,65 +35,77 @@ export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: 
   // Get recording first (needed for metadata hook)
   const recording = getRecording(clip.recordingId);
 
+  if (!recording) {
+    throw new Error(`Recording not found: ${clip.recordingId}`);
+  }
+
   // LAZY LOADING: Load metadata on-demand via hook
   const { metadata: lazyMetadata } = useRecordingMetadata({
-    recordingId: recording?.id || '',
-    folderPath: recording?.folderPath,
-    metadataChunks: recording?.metadataChunks,
+    recordingId: recording.id,
+    folderPath: recording.folderPath,
+    metadataChunks: recording.metadataChunks,
     metadataUrls: resources?.metadataUrls,
-    inlineMetadata: recording?.metadata, // Fallback to already-loaded metadata
+    inlineMetadata: recording.metadata, // Fallback to already-loaded metadata
   });
 
-  const value = useMemo<ClipContextValue>(() => {
-    if (!recording) {
-      throw new Error(`Recording not found: ${clip.recordingId}`);
-    }
+  // Use lazy-loaded metadata, falling back to recording.metadata if available
+  const metadata: RecordingMetadata | undefined = lazyMetadata || recording.metadata;
+  const sourceIn = clip.sourceIn ?? 0;
+  const sourceOut = clip.sourceOut ?? recording.duration;
 
-    // Use lazy-loaded metadata, falling back to recording.metadata if available
-    const metadata: RecordingMetadata | undefined = lazyMetadata || recording.metadata;
-    const sourceIn = clip.sourceIn ?? 0;
-    const sourceOut = clip.sourceOut ?? recording.duration;
+  // ==========================================================================
+  // MEMOIZED FILTERS - Each array is memoized separately for optimal performance
+  // ==========================================================================
 
-    // Filter metadata to only events within this clip's source range
-    const cursorEvents = (metadata?.mouseEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
+  // Filter cursor events - only recalculates when metadata or source range changes
+  const cursorEvents = useMemo(
+    () => filterEventsForSourceRange(metadata?.mouseEvents ?? [], sourceIn, sourceOut),
+    [metadata?.mouseEvents, sourceIn, sourceOut]
+  );
 
-    const clickEvents = (metadata?.clickEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
+  // Filter click events
+  const clickEvents = useMemo(
+    () => filterEventsForSourceRange(metadata?.clickEvents ?? [], sourceIn, sourceOut),
+    [metadata?.clickEvents, sourceIn, sourceOut]
+  );
 
-    const keystrokeEvents = (metadata?.keyboardEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
+  // Filter keystroke events
+  const keystrokeEvents = useMemo(
+    () => filterEventsForSourceRange(metadata?.keyboardEvents ?? [], sourceIn, sourceOut),
+    [metadata?.keyboardEvents, sourceIn, sourceOut]
+  );
 
-    const scrollEvents = (metadata?.scrollEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
+  // Filter scroll events
+  const scrollEvents = useMemo(
+    () => filterEventsForSourceRange(metadata?.scrollEvents ?? [], sourceIn, sourceOut),
+    [metadata?.scrollEvents, sourceIn, sourceOut]
+  );
 
-    // Filter effects by timeline range (all effects are now in timeline-space)
-    const clipStart = clip.startTime;
-    const clipEnd = clip.startTime + clip.duration;
-    const filteredEffects = effects.filter(effect =>
-      effect.startTime < clipEnd && effect.endTime > clipStart
-    );
+  // Filter effects - only recalculates when effects or clip changes
+  const filteredEffects = useMemo(
+    () => filterEffectsForClip(effects, clip),
+    [effects, clip]
+  );
 
-    return {
+  // Use hook to resolve video URL based on environment
+  const videoUrl = useVideoUrl({ recording, resources, preferOffthreadVideo }) || '';
+
+  // Compose final context value
+  const value = useMemo<ClipContextValue>(
+    () => ({
       clip,
       recording,
-      videoUrl: '',
+      videoUrl,
       cursorEvents,
       clickEvents,
       keystrokeEvents,
       scrollEvents,
       effects: filteredEffects,
-    };
-  }, [clip, effects, recording, lazyMetadata]);
-
-  // Use hook to resolve video URL based on environment
-  // Note: recording is already checked in useMemo above, use it directly here
-  const videoUrl =
-    useVideoUrl({ recording, resources, preferOffthreadVideo }) || '';
-
-  // Merge into final context value
-  const finalValue = useMemo(
-    () => ({ ...value, videoUrl }),
-    [value, videoUrl]
+    }),
+    [clip, recording, videoUrl, cursorEvents, clickEvents, keystrokeEvents, scrollEvents, filteredEffects]
   );
 
-  return <ClipContext.Provider value={finalValue}>{children}</ClipContext.Provider>;
+  return <ClipContext.Provider value={value}>{children}</ClipContext.Provider>;
 }
 
 /**
