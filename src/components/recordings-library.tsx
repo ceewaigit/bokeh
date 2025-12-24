@@ -46,6 +46,25 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return `${value.toFixed(precision)} ${units[unitIndex]}`
   }
 
+  // Validate recording ID format to skip corrupted IDs (e.g., base64 strings like '2Q==')
+  const isValidRecordingId = (id: string | undefined): boolean => {
+    if (!id || typeof id !== 'string') return false
+    // Valid IDs should start with 'recording-' followed by a timestamp,
+    // or be alphanumeric with hyphens/underscores (legacy format)
+    return /^recording-\d+$/.test(id) || /^[a-zA-Z0-9_-]+$/.test(id) && !id.includes('=')
+  }
+
+  // Validate file path to skip corrupted paths (e.g., base64 strings, paths with '=')
+  const isValidFilePath = (path: string | undefined): boolean => {
+    if (!path || typeof path !== 'string') return false
+    // Skip paths that look like base64 (contain '='), are too short, or have no file extension
+    if (path.includes('=')) return false
+    if (path.length < 5) return false
+    // Valid paths should have a reasonable file extension or be an absolute path
+    const basename = path.split('/').pop() || path
+    return basename.includes('.') || path.startsWith('/')
+  }
+
   // Use store for persistent state
   const {
     allRecordings,
@@ -196,6 +215,15 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 const projectDir = rec.path.substring(0, rec.path.lastIndexOf('/'))
                 let videoPath = project.recordings[0].filePath
 
+                // Skip video path resolution if the path looks corrupted (e.g., base64 like '2Q==')
+                if (!isValidFilePath(videoPath)) {
+                  // Still update project info even without valid video path
+                  if (info) {
+                    updateRecording(rec.path, { projectInfo: info })
+                  }
+                  return
+                }
+
                 // Handle path resolution
                 let exists = false
                 if (videoPath.startsWith('/') && window.electronAPI?.fileExists) {
@@ -213,12 +241,18 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     videoPath = flatPath
                   } else {
                     // Try nested structure (ProjectDir/RecordingID/Video.mov)
+                    // Only attempt if recording ID is valid (skip corrupted IDs like base64 strings)
                     const recordingId = project.recordings[0].id
-                    const nestedPath = `${projectDir}/${recordingId}/${basename}`
-                    if (window.electronAPI?.fileExists && await window.electronAPI.fileExists(nestedPath)) {
-                      videoPath = nestedPath
+                    if (isValidRecordingId(recordingId)) {
+                      const nestedPath = `${projectDir}/${recordingId}/${basename}`
+                      if (window.electronAPI?.fileExists && await window.electronAPI.fileExists(nestedPath)) {
+                        videoPath = nestedPath
+                      } else {
+                        // Default to flat if neither found (will likely fail but valid fallback)
+                        videoPath = flatPath
+                      }
                     } else {
-                      // Default to flat if neither found (will likely fail but valid fallback)
+                      // Skip nested lookup for invalid recording IDs
                       videoPath = flatPath
                     }
                   }
@@ -231,6 +265,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     for (const r of project.recordings) {
                       let p = r.filePath
                       if (!p) continue
+
+                      // Skip corrupted file paths (e.g., base64 strings like '2Q==')
+                      if (!isValidFilePath(p)) continue
 
                       // Path resolution fallback
                       const isAbsolute = p.startsWith('/')
@@ -250,13 +287,14 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         if (window.electronAPI?.fileExists) {
                           if (await window.electronAPI.fileExists(flatPath)) {
                             resolvedPath = flatPath
-                          } else {
-                            // Try nested structure
+                          } else if (isValidRecordingId(r.id)) {
+                            // Try nested structure - only if recording ID is valid
                             const nestedPath = `${projectDir}/${r.id}/${basename}`
                             if (await window.electronAPI.fileExists(nestedPath)) {
                               resolvedPath = nestedPath
                             }
                           }
+                          // Skip nested lookup for invalid recording IDs (e.g., '2Q==')
                         }
 
                         if (window.electronAPI?.getFileSize) {
