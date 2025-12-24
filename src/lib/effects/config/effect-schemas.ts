@@ -12,7 +12,6 @@
 
 import { EffectType } from '@/types/effects'
 import { CursorStyle, KeystrokePosition, BackgroundType, ScreenEffectPreset } from '@/types/project'
-import { DEFAULT_ZOOM_DATA, DEFAULT_SCREEN_DATA, DEFAULT_BACKGROUND_DATA, DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -82,10 +81,10 @@ export const ZOOM_SCHEMA: EffectSchema = {
     icon: 'ZoomIn',
     category: 'transform',
     params: {
-        scale: { type: 'number', default: DEFAULT_ZOOM_DATA.scale, label: 'Scale', min: 1, max: 7, step: 0.1, unit: 'x' },
-        introMs: { type: 'number', default: DEFAULT_ZOOM_DATA.introMs, label: 'Ease In', min: 0, max: 1000, step: 50, unit: 'ms' },
-        outroMs: { type: 'number', default: DEFAULT_ZOOM_DATA.outroMs, label: 'Ease Out', min: 0, max: 1000, step: 50, unit: 'ms' },
-        mouseIdlePx: { type: 'number', default: DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3, label: 'Idle Threshold', min: 1, max: 20, step: 1, unit: 'px', description: 'Minimum movement to trigger pan' },
+        scale: { type: 'number', default: 2.0, label: 'Scale', min: 1, max: 7, step: 0.1, unit: 'x' },
+        introMs: { type: 'number', default: 300, label: 'Ease In', min: 0, max: 1000, step: 50, unit: 'ms' },
+        outroMs: { type: 'number', default: 300, label: 'Ease Out', min: 0, max: 1000, step: 50, unit: 'ms' },
+        mouseIdlePx: { type: 'number', default: 3, label: 'Idle Threshold', min: 1, max: 20, step: 1, unit: 'px', description: 'Minimum movement to trigger pan' },
     }
 }
 
@@ -113,7 +112,7 @@ export const CURSOR_SCHEMA: EffectSchema = {
         clickEffects: { type: 'boolean', default: true, label: 'Click Animation', description: 'Pulse/ripple on mouse clicks' },
         motionBlur: { type: 'boolean', default: true, label: 'Motion Blur', description: 'Blur on fast movements' },
         directionalTilt: { type: 'boolean', default: true, label: 'Directional Tilt', description: 'Slightly rotate in direction of travel' },
-        directionalTiltMaxDeg: { type: 'number', default: 10, label: 'Tilt Amount', min: 0, max: 15, step: 1, unit: '°' },
+        directionalTiltMaxDeg: { type: 'number', default: 6, label: 'Tilt Amount', min: 0, max: 15, step: 1, unit: '°' },
         hideOnIdle: { type: 'boolean', default: true, label: 'Hide When Idle', description: 'Hide cursor after timeout' },
         fadeOnIdle: { type: 'boolean', default: true, label: 'Fade In/Out', description: 'Fade instead of instant hide' },
         gliding: { type: 'boolean', default: true, label: 'Smooth Movement', description: 'Interpolate cursor motion' },
@@ -128,7 +127,7 @@ export const KEYSTROKE_SCHEMA: EffectSchema = {
     params: {
         stylePreset: {
             type: 'enum',
-            default: DEFAULT_KEYSTROKE_DATA.stylePreset ?? 'glass',
+            default: 'glass',
             label: 'Style',
             options: [
                 { value: 'glass', label: 'Glass' },
@@ -140,7 +139,7 @@ export const KEYSTROKE_SCHEMA: EffectSchema = {
         },
         position: {
             type: 'enum',
-            default: DEFAULT_KEYSTROKE_DATA.position ?? KeystrokePosition.BottomCenter,
+            default: KeystrokePosition.BottomCenter,
             label: 'Position',
             options: [
                 { value: KeystrokePosition.BottomCenter, label: 'Bottom' },
@@ -148,13 +147,13 @@ export const KEYSTROKE_SCHEMA: EffectSchema = {
                 { value: KeystrokePosition.BottomRight, label: 'Right' },
             ]
         },
-        fontSize: { type: 'number', default: DEFAULT_KEYSTROKE_DATA.fontSize ?? 14, label: 'Size', min: 10, max: 28, step: 1, unit: 'px' },
-        displayDuration: { type: 'number', default: DEFAULT_KEYSTROKE_DATA.displayDuration ?? 2000, label: 'Duration', min: 500, max: 5000, step: 100, unit: 'ms' },
-        borderRadius: { type: 'number', default: DEFAULT_KEYSTROKE_DATA.borderRadius ?? 15, label: 'Corner Radius', min: 0, max: 24, step: 1, unit: 'px' },
-        padding: { type: 'number', default: DEFAULT_KEYSTROKE_DATA.padding ?? 10, label: 'Padding', min: 4, max: 20, step: 1, unit: 'px' },
-        scale: { type: 'number', default: DEFAULT_KEYSTROKE_DATA.scale ?? 1.0, label: 'Scale', min: 0.5, max: 2, step: 0.1, unit: 'x' },
-        fadeOutDuration: { type: 'number', default: DEFAULT_KEYSTROKE_DATA.fadeOutDuration ?? 400, label: 'Fade Out', min: 100, max: 1000, step: 50, unit: 'ms' },
-        showModifierSymbols: { type: 'boolean', default: DEFAULT_KEYSTROKE_DATA.showModifierSymbols ?? true, label: 'Use Symbols', description: 'Show ⌘⌥⌃ instead of Cmd+Alt+Ctrl' },
+        fontSize: { type: 'number', default: 14, label: 'Size', min: 10, max: 28, step: 1, unit: 'px' },
+        displayDuration: { type: 'number', default: 2000, label: 'Duration', min: 500, max: 5000, step: 100, unit: 'ms' },
+        borderRadius: { type: 'number', default: 15, label: 'Corner Radius', min: 0, max: 24, step: 1, unit: 'px' },
+        padding: { type: 'number', default: 10, label: 'Padding', min: 4, max: 20, step: 1, unit: 'px' },
+        scale: { type: 'number', default: 1.0, label: 'Scale', min: 0.5, max: 2, step: 0.1, unit: 'x' },
+        fadeOutDuration: { type: 'number', default: 400, label: 'Fade Out', min: 100, max: 1000, step: 50, unit: 'ms' },
+        showModifierSymbols: { type: 'boolean', default: true, label: 'Use Symbols', description: 'Show ⌘⌥⌃ instead of Cmd+Alt+Ctrl' },
     }
 }
 
@@ -166,7 +165,7 @@ export const SCREEN_SCHEMA: EffectSchema = {
     params: {
         preset: {
             type: 'enum',
-            default: DEFAULT_SCREEN_DATA.preset ?? ScreenEffectPreset.Subtle,
+            default: ScreenEffectPreset.Subtle,
             label: 'Preset',
             options: [
                 { value: ScreenEffectPreset.Subtle, label: 'Subtle' },
@@ -181,8 +180,8 @@ export const SCREEN_SCHEMA: EffectSchema = {
                 { value: ScreenEffectPreset.TiltRight, label: 'Tilt Right' },
             ]
         },
-        introMs: { type: 'number', default: DEFAULT_SCREEN_DATA.introMs ?? 300, label: 'Ease In', min: 0, max: 1000, step: 50, unit: 'ms' },
-        outroMs: { type: 'number', default: DEFAULT_SCREEN_DATA.outroMs ?? 300, label: 'Ease Out', min: 0, max: 1000, step: 50, unit: 'ms' },
+        introMs: { type: 'number', default: 300, label: 'Ease In', min: 0, max: 1000, step: 50, unit: 'ms' },
+        outroMs: { type: 'number', default: 300, label: 'Ease Out', min: 0, max: 1000, step: 50, unit: 'ms' },
     }
 }
 
@@ -194,7 +193,7 @@ export const BACKGROUND_SCHEMA: EffectSchema = {
     params: {
         type: {
             type: 'enum',
-            default: DEFAULT_BACKGROUND_DATA.type,
+            default: BackgroundType.Wallpaper,
             label: 'Type',
             options: [
                 { value: BackgroundType.Wallpaper, label: 'Wallpaper' },
@@ -204,11 +203,11 @@ export const BACKGROUND_SCHEMA: EffectSchema = {
                 { value: BackgroundType.Parallax, label: 'Parallax' },
             ]
         },
-        padding: { type: 'number', default: DEFAULT_BACKGROUND_DATA.padding, label: 'Padding', min: 0, max: 200, step: 5, unit: 'px' },
-        cornerRadius: { type: 'number', default: DEFAULT_BACKGROUND_DATA.cornerRadius ?? 15, label: 'Corner Radius', min: 0, max: 50, step: 1, unit: 'px' },
-        shadowIntensity: { type: 'number', default: DEFAULT_BACKGROUND_DATA.shadowIntensity ?? 85, label: 'Shadow', min: 0, max: 100, step: 5, unit: '%' },
-        blur: { type: 'number', default: DEFAULT_BACKGROUND_DATA.blur ?? 0, label: 'Blur', min: 0, max: 50, step: 1, unit: 'px' },
-        parallaxIntensity: { type: 'number', default: DEFAULT_BACKGROUND_DATA.parallaxIntensity ?? 50, label: 'Movement', min: 0, max: 100, step: 5, unit: '%' },
+        padding: { type: 'number', default: 60, label: 'Padding', min: 0, max: 200, step: 5, unit: 'px' },
+        cornerRadius: { type: 'number', default: 15, label: 'Corner Radius', min: 0, max: 50, step: 1, unit: 'px' },
+        shadowIntensity: { type: 'number', default: 85, label: 'Shadow', min: 0, max: 100, step: 5, unit: '%' },
+        blur: { type: 'number', default: 0, label: 'Blur', min: 0, max: 50, step: 1, unit: 'px' },
+        parallaxIntensity: { type: 'number', default: 50, label: 'Movement', min: 0, max: 100, step: 5, unit: '%' },
     }
 }
 
