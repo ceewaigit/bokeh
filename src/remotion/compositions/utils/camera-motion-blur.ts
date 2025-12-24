@@ -156,13 +156,18 @@ export function calculateCameraMotionBlur(params: {
   const zoomStrength = Math.max(0, Math.min(1, (renderData.zoomTransform.scale - 1) / 0.5));
   const smoothBlur = rawBlur.blurRadius * zoomStrength;
 
-  // QUANTIZATION: Round to nearest 0.5px to reduce SVG filter updates and GPU thrashing
-  // WindowServer usage drops significantly when filter attributes are stable
-  const quantizedBlur = Math.round(smoothBlur * 2) / 2;
+  // QUANTIZATION: Round to nearest 1px to reduce SVG filter updates and GPU thrashing.
+  // Using 1px steps (instead of 0.5px) significantly reduces filter regeneration
+  // while keeping motion blur visually indistinguishable.
+  const quantizedBlur = Math.round(smoothBlur);
 
-  // Only update angle if blur is visible to avoid unnecessary rotations
-  const effectiveAngle = quantizedBlur > 0.5 ? rawBlur.angle : 0;
-  const effectiveVelocity = quantizedBlur > 0.5 ? rawBlur.velocity : 0;
+  // HYSTERESIS: Snap to zero if blur is very small to avoid filter oscillation near threshold.
+  // This prevents rapid enable/disable cycles that cause GPU stuttering.
+  const snapToZero = quantizedBlur < 1 ? 0 : quantizedBlur;
 
-  return { ...rawBlur, blurRadius: quantizedBlur, angle: effectiveAngle, velocity: effectiveVelocity };
+  // Only compute angle if blur is visible (saves trig operations when blur is off)
+  const effectiveAngle = snapToZero > 0 ? Math.round(rawBlur.angle) : 0;
+  const effectiveVelocity = snapToZero > 0 ? rawBlur.velocity : 0;
+
+  return { ...rawBlur, blurRadius: snapToZero, angle: effectiveAngle, velocity: effectiveVelocity };
 }

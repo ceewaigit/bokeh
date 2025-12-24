@@ -9,6 +9,7 @@ import { ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType, EffectType } from '@/types/effects'
 import { AddEffectCommand, DefaultCommandContext, CommandManager } from '@/lib/commands'
+import { DEFAULT_SCREEN_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 
 interface ScreenTabProps {
@@ -18,13 +19,13 @@ interface ScreenTabProps {
 }
 
 export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }: ScreenTabProps) {
-  const [introMs, setIntroMs] = useState(300)
-  const [outroMs, setOutroMs] = useState(300)
+  const [introMs, setIntroMs] = useState(DEFAULT_SCREEN_DATA.introMs ?? 300)
+  const [outroMs, setOutroMs] = useState(DEFAULT_SCREEN_DATA.outroMs ?? 300)
 
   // Keep UI in sync if selection changes; these values are currently "best-effort" defaults.
   useEffect(() => {
-    setIntroMs(300)
-    setOutroMs(300)
+    setIntroMs(DEFAULT_SCREEN_DATA.introMs ?? 300)
+    setOutroMs(DEFAULT_SCREEN_DATA.outroMs ?? 300)
   }, [selectedEffectLayer?.id])
 
   return (

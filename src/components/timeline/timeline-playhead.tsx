@@ -13,6 +13,12 @@ interface TimelinePlayheadProps {
   timelineWidth: number
   maxTime: number
   onSeek: (time: number) => void
+  /** Optional: Current playback state for seek-while-playing UX */
+  isPlaying?: boolean
+  /** Optional: Callback to pause playback during drag */
+  onPause?: () => void
+  /** Optional: Callback to resume playback after drag */
+  onPlay?: () => void
 }
 
 export const TimelinePlayhead = React.memo(({
@@ -21,11 +27,16 @@ export const TimelinePlayhead = React.memo(({
   pixelsPerMs,
   timelineWidth,
   maxTime,
-  onSeek
+  onSeek,
+  isPlaying,
+  onPause,
+  onPlay
 }: TimelinePlayheadProps) => {
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  /** Track if playback was active before drag started (for resume) */
+  const wasPlayingBeforeDragRef = useRef(false)
 
   const x = TimeConverter.msToPixels(currentTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
   const isActive = isHovered || isDragging
@@ -123,8 +134,22 @@ export const TimelinePlayhead = React.memo(({
         )
         return { x: newX, y: 0 }
       }}
-      onDragStart={() => setIsDragging(true)}
-      onDragEnd={() => setIsDragging(false)}
+      onDragStart={() => {
+        // Remember if we were playing and pause for seek
+        wasPlayingBeforeDragRef.current = Boolean(isPlaying)
+        if (isPlaying && onPause) {
+          onPause()
+        }
+        setIsDragging(true)
+      }}
+      onDragEnd={() => {
+        setIsDragging(false)
+        // Resume playback if we were playing before drag
+        if (wasPlayingBeforeDragRef.current && onPlay) {
+          onPlay()
+        }
+        wasPlayingBeforeDragRef.current = false
+      }}
       onDragMove={(e) => {
         const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH
         const time = TimeConverter.pixelsToMs(newX, pixelsPerMs)

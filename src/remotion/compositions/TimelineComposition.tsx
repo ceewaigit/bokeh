@@ -79,7 +79,39 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   playback,
   renderSettings,
   cropSettings,
+  // Legacy props support (for export handler compatibility)
+  ...legacyProps
 }) => {
+  // ==========================================================================
+  // DEFENSIVE DEFAULTS FOR EXPORT COMPATIBILITY
+  // ==========================================================================
+  // The export handler may pass flattened props instead of structured config objects.
+  // Build safe defaults to prevent undefined access errors during export.
+  const safeRenderSettings: typeof renderSettings = renderSettings ?? {
+    isGlowMode: false,
+    preferOffthreadVideo: (legacyProps as any)?.preferOffthreadVideo ?? false,
+    enhanceAudio: (legacyProps as any)?.enhanceAudio ?? false,
+    isEditingCrop: false,
+  };
+
+  const safeResources: typeof resources = resources ?? {
+    videoUrls: (legacyProps as any)?.videoUrls ?? {},
+    videoUrlsHighRes: (legacyProps as any)?.videoUrlsHighRes ?? {},
+    videoFilePaths: (legacyProps as any)?.videoFilePaths ?? {},
+    metadataUrls: (legacyProps as any)?.metadataUrls ?? {},
+  };
+
+  const safePlayback: typeof playback = playback ?? {
+    isPlaying: false,
+    isScrubbing: false,
+    isHighQualityPlaybackEnabled: false,
+    previewMuted: true,
+    previewVolume: 1,
+  };
+
+  const safeCropSettings: typeof cropSettings = cropSettings ?? {
+    cropData: null,
+  };
   const frame = useCurrentFrame();
   const { isRendering } = getRemotionEnvironment();
   const { width } = useVideoConfig();
@@ -178,8 +210,8 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
                 effects={effects}
                 videoWidth={videoWidth}
                 videoHeight={videoHeight}
-                resources={resources}
-                renderSettings={renderSettings}
+                resources={safeResources}
+                renderSettings={safeRenderSettings}
                 startFrame={startFrame}
                 durationFrames={durationFrames}
                 includeBackground={true}
@@ -197,10 +229,10 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
           sourceVideoHeight={sourceVideoHeight}
           effects={effects}
           cameraSettings={cameraSettings}
-          resources={resources}
-          playback={playback}
-          renderSettings={renderSettings}
-          cropSettings={cropSettings}
+          resources={safeResources}
+          playback={safePlayback}
+          renderSettings={safeRenderSettings}
+          cropSettings={safeCropSettings}
         >
           {/* Overlay layers (cursor, keystrokes, etc.) rendered per clip as children */}
           {/* They now have access to VideoPositionContext! */}
@@ -212,39 +244,39 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
                 effects={effects}
                 videoWidth={videoWidth}
                 videoHeight={videoHeight}
-                resources={resources}
-                renderSettings={renderSettings}
+                resources={safeResources}
+                renderSettings={safeRenderSettings}
                 startFrame={startFrame}
                 durationFrames={durationFrames}
                 includeBackground={false}
-                includeKeystrokes={!renderSettings.isGlowMode}
+                includeKeystrokes={!safeRenderSettings.isGlowMode}
               />
             );
           })}
 
           {/* Glue player is an ambient blur; skip extra overlays to keep preview smooth. */}
-          {!renderSettings.isGlowMode && (
+          {!safeRenderSettings.isGlowMode && (
             <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="below-cursor" />
           )}
 
           {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
-          {!renderSettings.isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={resources.metadataUrls} />}
+          {!safeRenderSettings.isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={safeResources.metadataUrls} />}
 
           {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
           {/* Only render on main player (large width) to avoid thumbnail instance conflicts */}
           {useVideoConfig().width > 300 && (
             <CropEditingLayer
-              isEditingCrop={renderSettings.isEditingCrop}
-              cropData={cropSettings.cropData ?? null}
-              onCropChange={cropSettings.onCropChange}
-              onCropConfirm={cropSettings.onCropConfirm}
-              onCropReset={cropSettings.onCropReset}
+              isEditingCrop={safeRenderSettings.isEditingCrop}
+              cropData={safeCropSettings.cropData ?? null}
+              onCropChange={safeCropSettings.onCropChange}
+              onCropConfirm={safeCropSettings.onCropConfirm}
+              onCropReset={safeCropSettings.onCropReset}
             />
           )}
         </SharedVideoController>
 
         {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
-        {!renderSettings.isGlowMode && (
+        {!safeRenderSettings.isGlowMode && (
           <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="above-cursor" />
         )}
 
@@ -253,7 +285,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
           const recording = recordingMap.get(audioClip.recordingId);
           if (!recording) return null;
 
-          const audioUrl = getAudioUrl(recording, resources.videoFilePaths);
+          const audioUrl = getAudioUrl(recording, safeResources.videoFilePaths);
           if (!audioUrl) return null;
 
           // Calculate frame positions for this audio clip

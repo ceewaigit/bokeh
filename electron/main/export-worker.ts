@@ -820,6 +820,8 @@ class ExportWorker extends BaseWorker {
         '-safe', '0',
         '-i', concatListPath,
         '-y', // Overwrite output file if exists
+        // CRITICAL: Stream copy video to avoid re-encoding (prevents huge file size increase)
+        '-c:v', 'copy',
         // Apply audio enhancement if enabled
       ];
 
@@ -827,10 +829,13 @@ class ExportWorker extends BaseWorker {
         // Match Web Audio API compressor settings for consistent preview/export
         ffmpegArgs.push(
           '-af',
-          'acompressor=threshold=-24dB:ratio=4:attack=3:release=150'
+          'acompressor=threshold=-24dB:ratio=4:attack=3:release=150',
+          // When applying audio filter, must re-encode audio (can't use -c:a copy with -af)
+          '-c:a', 'aac',
+          '-b:a', '160k'
         );
       } else {
-        // Use copy if no enhancement, otherwise re-encode audio
+        // Use copy if no enhancement
         ffmpegArgs.push('-c:a', 'copy');
       }
       ffmpegArgs.push(job.outputPath);

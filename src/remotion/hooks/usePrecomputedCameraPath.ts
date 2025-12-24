@@ -302,9 +302,22 @@ export function usePrecomputedCameraPath(args: {
     hasCameraTracking,
   ])
 
+  // OPTIMIZATION: Cache the lookup result to avoid creating new objects every frame.
+  // We use a ref to store the last frame's result and only create a new one if frame changed.
+  const cachedResultRef = useRef<{ frame: number; result: (CameraPathFrame & { path?: CameraPathFrame[] }) | null }>({ frame: -1, result: null })
+
   if (frames) {
     const frameData = frames[currentFrame]
-    if (frameData) return { ...frameData, path: frames }
+    if (frameData) {
+      // Return cached result if same frame (avoids spread on re-renders within same frame)
+      if (cachedResultRef.current.frame === currentFrame && cachedResultRef.current.result) {
+        return cachedResultRef.current.result
+      }
+      // Create new result object (unavoidable since frames from store are frozen)
+      const result = { ...frameData, path: frames }
+      cachedResultRef.current = { frame: currentFrame, result }
+      return result
+    }
     // Fallback: if we have frames but currentFrame is out of bounds (e.g. at the very end),
     // default to center instead of null to prevent glitches.
     return { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, path: frames }

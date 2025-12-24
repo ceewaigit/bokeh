@@ -590,7 +590,7 @@ export function PreviewAreaRemotion({
     playback: {
       isPlaying,
       isScrubbing,
-      isHighQualityPlaybackEnabled, // Glow doesn't need high quality?
+      isHighQualityPlaybackEnabled: false, // CRITICAL FIX: Glow is 64x36, never needs high-quality
       previewMuted: true,
       previewVolume: 0,
     },
@@ -606,7 +606,7 @@ export function PreviewAreaRemotion({
     resources: {
       // Same as main
     }
-  }), [playerConfig, isEditingCrop, isPlaying, isScrubbing, isHighQualityPlaybackEnabled]);
+  }), [playerConfig, isEditingCrop, isPlaying, isScrubbing]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-transparent">

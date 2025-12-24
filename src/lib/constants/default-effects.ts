@@ -1,5 +1,5 @@
-import type { BackgroundEffectData, CursorEffectData, CursorMotionPreset, KeystrokeEffectData, ParallaxLayer } from '@/types/project'
-import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, CursorMotionPreset, KeystrokeEffectData, ParallaxLayer, ScreenEffectData, ZoomEffectData } from '@/types/project'
+import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset, ZoomFollowStrategy } from '@/types/project'
 
 // Re-export schema helpers for gradual migration
 export { getEffectDefaults, getEffectSchema, getParamConstraints } from '@/lib/effects/config/effect-schemas'
@@ -26,7 +26,26 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
   padding: 60,
   cornerRadius: 15,
   shadowIntensity: 85,
-  parallaxLayers: DEFAULT_PARALLAX_LAYERS
+  parallaxLayers: DEFAULT_PARALLAX_LAYERS,
+  blur: 0,
+  parallaxIntensity: 50
+}
+
+// Default zoom data
+export const DEFAULT_ZOOM_DATA: ZoomEffectData = {
+  scale: 2.0,
+  introMs: 500,
+  outroMs: 500,
+  smoothing: 50,
+  followStrategy: ZoomFollowStrategy.Mouse,
+  mouseIdlePx: 3
+}
+
+// Default screen effect data
+export const DEFAULT_SCREEN_DATA: ScreenEffectData = {
+  preset: ScreenEffectPreset.Subtle,
+  introMs: 300,
+  outroMs: 300
 }
 
 // Default screen effect presets
@@ -72,7 +91,7 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   clickTextRise: 24,
   motionBlur: true,
   directionalTilt: true,
-  directionalTiltMaxDeg: 6,
+  directionalTiltMaxDeg: 10,
   hideOnIdle: true,
   fadeOnIdle: true,
   idleTimeout: 3000,

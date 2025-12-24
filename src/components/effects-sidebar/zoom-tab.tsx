@@ -12,6 +12,7 @@ import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { AddEffectCommand, DefaultCommandContext, CommandManager } from '@/lib/commands'
+import { DEFAULT_ZOOM_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 
 interface ZoomTabProps {
@@ -68,8 +69,8 @@ export function ZoomTab({
                 enabled: true,
                 data: {
                   scale: 1,
-                  introMs: 400,
-                  outroMs: 400,
+                  introMs: DEFAULT_ZOOM_DATA.introMs,
+                  outroMs: DEFAULT_ZOOM_DATA.outroMs,
                   smoothing: 50,
                   followStrategy: ZoomFollowStrategy.Center,
                   autoScale: 'fill'
@@ -118,12 +119,12 @@ export function ZoomTab({
                   </div>
                 </div>
                 <span className="text-[10px] font-mono text-primary tabular-nums">
-                  {isFillScreen ? 'Fill' : `${(localScale ?? zoomData.scale ?? 2.0).toFixed(1)}x`}
+                  {isFillScreen ? 'Fill' : `${(localScale ?? zoomData.scale ?? DEFAULT_ZOOM_DATA.scale).toFixed(1)}x`}
                 </span>
               </div>
               <Slider
                 key={`scale-${selectedEffectLayer.id}`}
-                value={[localScale ?? zoomData.scale ?? 2.0]}
+                value={[localScale ?? zoomData.scale ?? DEFAULT_ZOOM_DATA.scale]}
                 onValueChange={([value]) => setLocalScale(value)}
                 onValueCommit={([value]) => {
                   if (selectedEffectLayer.id && onZoomBlockUpdate) {
@@ -209,12 +210,12 @@ export function ZoomTab({
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">In</span>
                     <span className="text-xs font-mono text-muted-foreground tabular-nums">
-                      {localIntroMs ?? (zoomData.introMs || 500)}ms
+                      {localIntroMs ?? (zoomData.introMs || DEFAULT_ZOOM_DATA.introMs)}ms
                     </span>
                   </div>
                   <Slider
                     key={`intro-${selectedEffectLayer.id}`}
-                    value={[localIntroMs ?? (zoomData.introMs || 500)]}
+                    value={[localIntroMs ?? (zoomData.introMs || DEFAULT_ZOOM_DATA.introMs)]}
                     onValueChange={([value]) => setLocalIntroMs(value)}
                     onValueCommit={([value]) => {
                       if (selectedEffectLayer.id && onZoomBlockUpdate) {
@@ -233,12 +234,12 @@ export function ZoomTab({
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Out</span>
                     <span className="text-xs font-mono text-muted-foreground tabular-nums">
-                      {localOutroMs ?? (zoomData.outroMs || 500)}ms
+                      {localOutroMs ?? (zoomData.outroMs || DEFAULT_ZOOM_DATA.outroMs)}ms
                     </span>
                   </div>
                   <Slider
                     key={`outro-${selectedEffectLayer.id}`}
-                    value={[localOutroMs ?? (zoomData.outroMs || 500)]}
+                    value={[localOutroMs ?? (zoomData.outroMs || DEFAULT_ZOOM_DATA.outroMs)]}
                     onValueChange={([value]) => setLocalOutroMs(value)}
                     onValueCommit={([value]) => {
                       if (selectedEffectLayer.id && onZoomBlockUpdate) {
@@ -275,12 +276,12 @@ export function ZoomTab({
                     <InfoTooltip content="Minimum movement (px) needed to trigger panning inside a zoom." />
                   </div>
                   <span className="text-xs font-mono text-muted-foreground tabular-nums">
-                    {zoomData.mouseIdlePx ?? 3}px
+                    {zoomData.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3}px
                   </span>
                 </div>
                 <Slider
                   key={`mouseidle-${selectedEffectLayer.id}`}
-                  value={[localMouseIdlePx ?? (zoomData.mouseIdlePx ?? 3)]}
+                  value={[localMouseIdlePx ?? (zoomData.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3)]}
                   onValueChange={([value]) => setLocalMouseIdlePx(value)}
                   onValueCommit={([value]) => {
                     if (selectedEffectLayer.id && onZoomBlockUpdate) {

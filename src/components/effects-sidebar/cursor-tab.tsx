@@ -31,7 +31,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const [speed, setSpeed] = useState(cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed)
   const [smoothness, setSmoothness] = useState(cursorData?.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
   const [glide, setGlide] = useState(cursorData?.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75)
-  const [tiltMaxDeg, setTiltMaxDeg] = useState(cursorData?.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 6)
+  const [tiltMaxDeg, setTiltMaxDeg] = useState(cursorData?.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 10)
   const [clickStyle, setClickStyle] = useState<ClickEffectStyle>(cursorData?.clickEffectStyle ?? DEFAULT_CURSOR_DATA.clickEffectStyle ?? 'ripple')
   const [clickAnimation, setClickAnimation] = useState<ClickEffectAnimation>(cursorData?.clickEffectAnimation ?? DEFAULT_CURSOR_DATA.clickEffectAnimation ?? 'expand')
   const [clickDurationMs, setClickDurationMs] = useState(cursorData?.clickEffectDurationMs ?? DEFAULT_CURSOR_DATA.clickEffectDurationMs ?? 300)
@@ -71,7 +71,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   }, [cursorData?.glide])
 
   useEffect(() => {
-    setTiltMaxDeg(cursorData?.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 6)
+    setTiltMaxDeg(cursorData?.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 10)
   }, [cursorData?.directionalTiltMaxDeg])
 
   useEffect(() => {
@@ -599,7 +599,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div className="text-xs leading-none">Directional Tilt</div>
-                    <InfoTooltip content="How much the cursor tilts opposite its movement (0° disables)." />
+                    <InfoTooltip content="Cursor tilts towards its movement direction (0° disables)." />
                   </div>
                   <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{tiltMaxDeg.toFixed(0)}°</span>
                 </div>

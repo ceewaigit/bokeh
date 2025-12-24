@@ -1066,6 +1066,9 @@ export function TimelineCanvas({
               timelineWidth={timelineWidth}
               maxTime={currentProject.timeline.duration}
               onSeek={onSeek}
+              isPlaying={isPlaying}
+              onPause={onPause}
+              onPlay={onPlay}
             />
           </Layer>
         </Stage>

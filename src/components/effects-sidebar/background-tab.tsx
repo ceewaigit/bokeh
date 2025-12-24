@@ -7,7 +7,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { BackgroundEffectData, Effect } from '@/types/project'
 import { BackgroundType } from '@/types/project'
-import { DEFAULT_PARALLAX_LAYERS } from '@/lib/constants/default-effects'
+import { DEFAULT_PARALLAX_LAYERS, DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
 import { GRADIENT_PRESETS, COLOR_PRESETS } from './constants'
 import { getElectronAssetUrl } from '@/lib/assets/electron-asset-url'
 import { InfoTooltip } from './info-tooltip'
@@ -533,7 +533,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                 onUpdateBackground({
                   type: BackgroundType.Parallax,
                   parallaxLayers: previewParallaxLayers,
-                  parallaxIntensity: bgData?.parallaxIntensity ?? 50
+                  parallaxIntensity: bgData?.parallaxIntensity ?? DEFAULT_BACKGROUND_DATA.parallaxIntensity ?? 50
                 })
               }}
               className={cn(
@@ -551,13 +551,13 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-medium text-muted-foreground">Movement Intensity</label>
-                  <span className="text-xs text-muted-foreground">{bgData?.parallaxIntensity ?? 50}%</span>
+                  <span className="text-xs text-muted-foreground">{bgData?.parallaxIntensity ?? DEFAULT_BACKGROUND_DATA.parallaxIntensity ?? 50}%</span>
                 </div>
                 <input
                   type="range"
                   min="0"
                   max="100"
-                  value={bgData?.parallaxIntensity ?? 50}
+                  value={bgData?.parallaxIntensity ?? DEFAULT_BACKGROUND_DATA.parallaxIntensity ?? 50}
                   onChange={(e) => {
                     onUpdateBackground({
                       parallaxIntensity: parseInt(e.target.value)

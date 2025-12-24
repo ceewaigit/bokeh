@@ -144,6 +144,15 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
     // Track when video metadata is loaded - needed for objectFit to work correctly
     const handleLoadedMetadata = () => {
       setIsVideoReady(true);
+      // CRITICAL FIX: Resume playback after source change if we should be playing
+      // This fixes video not playing during high-quality playback mode
+      if (isPlayingRef.current && visible) {
+        const playPromise = video.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => undefined); // Suppress autoplay errors
+        }
+        lastIsPlayingRef.current = true;
+      }
     };
 
     // If video already has metadata (can happen with cached videos), mark as ready
@@ -164,7 +173,7 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
         // Best-effort cleanup
       }
     };
-  }, [videoUrl]);
+  }, [videoUrl, visible]);
 
   // ==========================================================================
   // AUDIO CONFIGURATION
@@ -188,21 +197,41 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
     if (!video || !videoUrl) return;
 
     const shouldPlay = isPlaying && visible && hasSource;
-    if (shouldPlay) {
-      if (!lastIsPlayingRef.current) {
+
+    const attemptPlay = () => {
+      // CRITICAL FIX: Check actual video.paused state, not just our tracking ref
+      // Video can become paused due to buffering, source change, etc.
+      if (shouldPlay && video.paused) {
         const playPromise = video.play();
         if (playPromise && typeof playPromise.catch === 'function') {
           playPromise.catch(() => undefined); // Suppress autoplay errors
         }
       }
-    } else if (lastIsPlayingRef.current) {
+    };
+
+    if (shouldPlay) {
+      attemptPlay();
+      // Retry when video becomes ready to play (after buffering)
+      video.addEventListener('canplay', attemptPlay);
+      // HIGH-QUALITY PLAYBACK FIX: Also listen for stalled/waiting events
+      // These fire when video buffers during playback and need recovery
+      video.addEventListener('stalled', attemptPlay);
+      video.addEventListener('waiting', attemptPlay);
+    } else if (!shouldPlay && !video.paused) {
       try {
         video.pause();
       } catch (e) {
         // Best-effort pause
       }
     }
+
     lastIsPlayingRef.current = shouldPlay;
+
+    return () => {
+      video.removeEventListener('canplay', attemptPlay);
+      video.removeEventListener('stalled', attemptPlay);
+      video.removeEventListener('waiting', attemptPlay);
+    };
   }, [isPlaying, visible, videoUrl, hasSource]);
 
   // ==========================================================================
@@ -225,17 +254,26 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoUrl || !visible) return;
-    // BUGFIX: Also require video to be ready before seeking (ensures metadata is loaded)
-    if (!isVideoReady) return;
+
+    // CRITICAL FIX: During playback, the native video element handles its own timing.
+    // Seeking during playback fights with the video element and causes freezes.
+    // Only seek when:
+    // 1. Paused (scrubbing/frame advance)
+    // 2. Initial load (no previous seek)
+    if (isPlayingRef.current && lastSeekSourceTimeMsRef.current >= 0) {
+      // Already playing and have seeked before - let native video handle timing
+      return;
+    }
+
+    // For paused state, require video ready for proper crop alignment
+    if (!isVideoReady && !isPlayingRef.current) return;
 
     const desiredTime = Math.max(0, sourceTimeMs / 1000);
     const currentVideoTime = video.currentTime;
     const diff = Math.abs(currentVideoTime - desiredTime);
 
-    // Tolerance: during playback, the video element naturally advances,
-    // so we allow larger drift before forcing a seek. When paused (scrubbing),
-    // we need precise frame positioning. Use ref to avoid stale closure.
-    const tolerance = isPlayingRef.current ? Math.max(1 / fps, 0.05) : 0.001;
+    // Tolerance: when paused we need precise positioning for scrubbing
+    const tolerance = 0.001;
 
     // Only seek if:
     // 1. The source time actually changed significantly
@@ -251,7 +289,7 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
     }
 
     lastSeekSourceTimeMsRef.current = sourceTimeMs;
-  }, [sourceTimeMs, videoUrl, visible, fps, isVideoReady]); // Added isVideoReady dependency
+  }, [sourceTimeMs, videoUrl, visible, isVideoReady]);
 
   // ==========================================================================
   // SIZING CALCULATIONS
@@ -279,7 +317,10 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
   const isPreloading = currentFrame < startFrame;
   const baseOpacity = isPreloading ? 0 : (needsFade ? fadeOpacity : 1);
   // CROP FIX: Hide video until metadata is loaded to prevent objectFit misalignment
-  const effectiveOpacity = visible && hasSource && isVideoReady ? baseOpacity : 0;
+  // PLAYBACK FIX: During playback, show video immediately even if still loading
+  // The crop alignment issue only matters when paused/scrubbing (precise frame positioning)
+  const shouldWaitForReady = !isPlaying; // Only wait for metadata when paused
+  const effectiveOpacity = visible && hasSource && (isVideoReady || !shouldWaitForReady) ? baseOpacity : 0;
 
   // ==========================================================================
   // RENDER
@@ -325,6 +366,28 @@ export const PreviewVideoRenderer: React.FC<PreviewVideoRendererProps> = React.m
       left: 0,
       opacity: effectiveOpacity,
     }}>
+      {/* Loading skeleton - shows while video is buffering */}
+      {!isVideoReady && visible && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg, rgba(30,30,30,0.9) 0%, rgba(20,20,20,0.95) 100%)',
+          borderRadius: `${cornerRadius}px`,
+        }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            border: '3px solid rgba(255,255,255,0.1)',
+            borderTopColor: 'rgba(255,255,255,0.5)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
       {resolvedContent}
     </div>
   );

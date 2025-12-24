@@ -22,7 +22,7 @@
  * @see GeneratedClipRenderer for plugin-generated clips
  */
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import { useTimeContext } from '../context/TimeContext';
 import { useProjectStore } from '@/stores/project-store';
@@ -390,6 +390,56 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     }
   }, [isEditingCrop]);
 
+  // OPTIMIZATION: Memoize stable layout data that only changes when clip changes.
+  // This avoids recalculating video position, mockup position, and background styling
+  // on every single frame - they only need to update when the active recording changes.
+  const stableLayoutData = useMemo(() => {
+    if (!activeClipData) return null;
+    const { recording, sourceTimeMs, effects: clipEffects } = activeClipData;
+
+    // Extract background effect data
+    const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
+    const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
+
+    const livePadding = backgroundData?.padding || 0;
+    const REFERENCE_WIDTH = 1920;
+    const REFERENCE_HEIGHT = 1080;
+    const liveScaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
+    const liveActiveSourceWidth = recording.width || sourceVideoWidth || videoWidth;
+    const liveActiveSourceHeight = recording.height || sourceVideoHeight || videoHeight;
+
+    const paddingScaled = livePadding * liveScaleFactor;
+    const vidPos = calculateVideoPosition(
+      width, height, liveActiveSourceWidth, liveActiveSourceHeight, paddingScaled
+    );
+
+    let mockupPosition: MockupPositionResult | null = null;
+    if (backgroundData?.mockup?.enabled) {
+      mockupPosition = calculateMockupPosition(
+        width, height, backgroundData.mockup, liveActiveSourceWidth, liveActiveSourceHeight, paddingScaled
+      );
+    }
+
+    return {
+      drawWidth: Math.round(vidPos.drawWidth),
+      drawHeight: Math.round(vidPos.drawHeight),
+      offsetX: Math.round(vidPos.offsetX),
+      offsetY: Math.round(vidPos.offsetY),
+      padding: livePadding,
+      scaleFactor: liveScaleFactor,
+      activeSourceWidth: liveActiveSourceWidth,
+      activeSourceHeight: liveActiveSourceHeight,
+      mockupPosition,
+      backgroundData,
+      cornerRadius: (backgroundData?.cornerRadius || 0) * liveScaleFactor,
+      shadowIntensity: backgroundData?.shadowIntensity || 0,
+      mockupData: backgroundData?.mockup,
+      mockupEnabled: backgroundData?.mockup?.enabled ?? false,
+    };
+    // CRITICAL: Only depends on activeClipData?.recording?.id (not currentFrame)
+    // This means layout is recalculated only when switching clips, not every frame
+  }, [activeClipData?.recording?.id, activeClipData?.effects, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight]);
+
   /**
    * Computes all rendering data for the current frame:
    * - Background styling (padding, corner radius, shadow)
@@ -561,8 +611,22 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // MOTION BLUR CALCULATION
   // ==========================================================================
   /** Previous pan position for delta-based motion blur (preview mode) */
-  const prevPanRef = useRef<{ panX: number; panY: number } | null>(null);
+  const prevPanRef = useRef<{ panX: number; panY: number; frame: number } | null>(null);
   const blurConfig = getMotionBlurConfig(cameraSettings);
+
+  // CRITICAL FIX: Capture the previous pan value BEFORE computing motion blur,
+  // then update the ref synchronously for the next frame.
+  // This fixes the timing issue where useEffect runs after render.
+  const currentPan = renderData?.zoomTransform ? {
+    panX: renderData.zoomTransform.panX,
+    panY: renderData.zoomTransform.panY,
+    frame: currentFrame,
+  } : null;
+
+  // Get previous pan for delta calculation (must be from a different frame)
+  const prevPanForBlur = (prevPanRef.current && prevPanRef.current.frame !== currentFrame)
+    ? prevPanRef.current
+    : null;
 
   /**
    * Calculates camera motion blur based on pan/zoom velocity.
@@ -584,7 +648,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       precomputedPath: precomputedCamera?.path,
       calculatedZoomCenter,
       calculatedZoomBlock,
-      prevPanRef: prevPanRef.current,
+      prevPanRef: prevPanForBlur,
     });
   }, [
     blurConfig,
@@ -600,14 +664,16 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     precomputedCamera?.path,
     calculatedZoomCenter,
     calculatedZoomBlock,
+    prevPanForBlur,
   ]);
 
-  // Update previous pan ref for next frame's delta calculation
-  useEffect(() => {
-    if (!isRendering && renderData?.zoomTransform) {
-      prevPanRef.current = { panX: renderData.zoomTransform.panX, panY: renderData.zoomTransform.panY };
+  // Update previous pan ref synchronously for next frame's delta calculation
+  // Using useLayoutEffect ensures this runs before the next paint
+  useLayoutEffect(() => {
+    if (!isRendering && currentPan) {
+      prevPanRef.current = currentPan;
     }
-  }, [isRendering, renderData?.zoomTransform]);
+  }, [isRendering, currentPan?.panX, currentPan?.panY, currentPan?.frame]);
 
   // ==========================================================================
   // EARLY RETURN: No clips to render
@@ -835,6 +901,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   const motionBlurFilterId = 'camera-motion-blur';
   const hasMotionBlur = blurConfig.enabled && motionBlur.blurRadius > 0.2 && !isEditingCrop;
+
+
   // PERFORMANCE FIX: Only generate SVG if blur is active to avoid re-rendering/DOM thrashing
   const motionBlurSvg = hasMotionBlur ? createMotionBlurSvg(motionBlur.blurRadius, motionBlurFilterId) : null;
 

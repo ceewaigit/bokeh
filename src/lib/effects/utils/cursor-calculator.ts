@@ -376,7 +376,7 @@ function calculateDirectionalTilt(options: {
   // Keep "text" and "precision" cursors stable.
   if (cursorType === CursorType.IBEAM || cursorType === CursorType.CROSSHAIR) return { rotation: 0, tiltX: 0, tiltY: 0 }
 
-  const maxDegRaw = cursorData.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 6
+  const maxDegRaw = cursorData.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 10
   const maxDeg = Math.max(0, Math.min(25, Number.isFinite(maxDegRaw) ? maxDegRaw : 0))
   if (maxDeg <= 0) return { rotation: 0, tiltX: 0, tiltY: 0 }
 
@@ -392,11 +392,12 @@ function calculateDirectionalTilt(options: {
   const dtMs = 1000 / fps
   const dtSec = dtMs / 1000
 
-  // ~280ms window worth of samples, clamped to a reasonable count.
-  const windowMs = 280
-  const sampleCount = Math.max(6, Math.min(14, Math.round(windowMs / dtMs)))
+  // Wider window + slower decay for smoother, more cinematic tilt response
+  // Prevents jerky snapping on fast direction changes
+  const windowMs = 400  // was 280ms - wider for more stability
+  const sampleCount = Math.max(8, Math.min(18, Math.round(windowMs / dtMs)))
 
-  const tauMs = 120 // smaller = more responsive, larger = more "flow"/lag
+  const tauMs = 200 // was 120ms - slower decay for gentler response
 
   let sumW = 0
   let sumVx = 0
@@ -424,11 +425,11 @@ function calculateDirectionalTilt(options: {
   const vyHat = sumVy / sumW
   const speedPxPerSec = Math.sqrt(vxHat * vxHat + vyHat * vyHat)
 
-  // Softer deadzone + steeper ramp so tilt is visible at typical speeds.
-  // Targets an "Apple commercial" feel: elegant, noticeable, not twitchy.
-  const speed01Raw = clamp01((speedPxPerSec - 40) / 600)
+  // Higher deadzone threshold to ignore micro-movements and reduce jitter
+  // Smoother ramp for gradual tilt engagement
+  const speed01Raw = clamp01((speedPxPerSec - 80) / 800)  // was 40/600
   const speed01Smooth = speed01Raw * speed01Raw * (3 - 2 * speed01Raw) // smoothstep
-  const speed01 = clamp01(speed01Smooth + 0.06) // subtle baseline tilt for slow drift
+  const speed01 = clamp01(speed01Smooth) // removed baseline tilt for cleaner look
 
   // Smooth direction mapping; avoids sign flip jitter on tiny vx.
   const direction = Math.tanh(vxHat / 900)
@@ -438,13 +439,13 @@ function calculateDirectionalTilt(options: {
   const ux = vxHat * invSpeed
   const uy = vyHat * invSpeed
 
-  // Resistance: lean opposite the travel direction, as a 3D tilt.
+  // Point towards travel direction: cursor leans into the direction of movement.
   // rotateX responds to vertical travel; rotateY responds to horizontal travel.
-  const tiltX = maxDeg * speed01 * Math.tanh((-uy) / 0.85)
-  const tiltY = maxDeg * speed01 * Math.tanh((-ux) / 0.85)
+  const tiltX = maxDeg * speed01 * Math.tanh(uy / 0.85)
+  const tiltY = maxDeg * speed01 * Math.tanh(ux / 0.85)
 
-  // Small in-plane roll adds a subtle "snap" without trying to fully rotate the cursor.
-  const rotation = -maxDeg * 0.25 * speed01 * direction
+  // Small in-plane roll adds a subtle "snap" in the direction of movement.
+  const rotation = maxDeg * 0.25 * speed01 * direction
 
   return { rotation, tiltX, tiltY }
 }
@@ -589,19 +590,18 @@ function getOneEuroParams(cursorData: CursorEffectData): {
   const speed = clamp01(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)
   const glide = clamp01(cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75)
 
-  // Lower cutoff = more glide/"ice".
-  // a bit behind the raw input, especially at low speed settings.
-  const baseMinCutoff = lerp(1.6, 0.35, smoothness)
-  const speedFactor = lerp(0.5, 1.15, speed)
-  const glideFactor = lerp(1.0, 0.22, glide)
-  const minCutoffHz = Math.max(0.08, baseMinCutoff * speedFactor * glideFactor)
+  // Lower cutoff = more inertia/glide (Apple-esque smooth motion)
+  // Reduced base values for more cinematic feel
+  const baseMinCutoff = lerp(1.2, 0.25, smoothness)
+  const speedFactor = lerp(0.4, 1.0, speed)
+  const glideFactor = lerp(1.0, 0.18, glide)
+  const minCutoffHz = Math.max(0.05, baseMinCutoff * speedFactor * glideFactor)
 
-  // Velocity influence is applied on a normalized speed (px/s divided by 1000),
-  // otherwise typical mouse speeds (hundreds/thousands px/s) become overly snappy.
-  const baseBeta = lerp(2.2, 0.6, smoothness)
-  const beta = Math.max(0, baseBeta * lerp(0.6, 1.4, speed) * lerp(1.0, 0.6, glide))
+  // Reduced velocity influence for gentler transitions at high speed
+  const baseBeta = lerp(1.8, 0.4, smoothness)
+  const beta = Math.max(0, baseBeta * lerp(0.5, 1.2, speed) * lerp(1.0, 0.5, glide))
 
-  const dCutoffHz = 1.2
+  const dCutoffHz = 1.0
 
   return { minCutoffHz, beta, dCutoffHz }
 }
