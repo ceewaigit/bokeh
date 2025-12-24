@@ -68,7 +68,7 @@ export function calculateCropTransform(
   const clipRight = (1 - cropX - cropWidth) * 100;
   const clipBottom = (1 - cropY - cropHeight) * 100;
   const clipLeft = cropX * 100;
-  const clipPath = `inset(${clipTop.toFixed(2)}% ${clipRight.toFixed(2)}% ${clipBottom.toFixed(2)}% ${clipLeft.toFixed(2)}%)`;
+  const clipPath = `inset(${clipTop.toFixed(4)}% ${clipRight.toFixed(4)}% ${clipBottom.toFixed(4)}% ${clipLeft.toFixed(4)}%)`;
 
   return { scale, translateX, translateY, isActive: true, clipPath };
 }
@@ -82,9 +82,9 @@ export function getCropTransformString(cropTransform: CropTransform): string {
   }
 
   // Round to prevent sub-pixel jitter
-  const translateX = Math.round(cropTransform.translateX * 100) / 100;
-  const translateY = Math.round(cropTransform.translateY * 100) / 100;
-  const scale = Math.round(cropTransform.scale * 1000) / 1000;
+  const translateX = Math.round(cropTransform.translateX * 1000000) / 1000000;
+  const translateY = Math.round(cropTransform.translateY * 1000000) / 1000000;
+  const scale = Math.round(cropTransform.scale * 1000000) / 1000000;
 
   // Use transform3d for GPU acceleration
   return `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${scale}, ${scale}, 1)`;
