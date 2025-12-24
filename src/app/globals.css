@@ -55,8 +55,8 @@
   /* Window surface (glassmorphism) */
   --window-surface-opacity: 1;
   --window-surface-blur: 0px;
-  /* Light mode glass: high brightness white for clean, modern look */
-  --window-surface-color: 220 20% 98%;
+  /* Light mode glass: Pure white for clean frosted/snow effect */
+  --window-surface-color: 0 0% 100%;
 
   /* Light theme colors */
   --background: 0 0% 100%;
@@ -148,7 +148,7 @@
   /* Gray when not recording */
 
   /* Dark mode glass - pure neutral dark for clean look */
-  --window-surface-color: 0 0% 5%;
+  --window-surface-color: 0 0% 0%;
 }
 
 @layer base {
@@ -237,14 +237,16 @@
 @layer components {
   .window-surface {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(200%) brightness(1.1);
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(200%) brightness(1.1);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
   }
 
   /* Dark mode: reduce brightness boost */
   .dark .window-surface {
     -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
     backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
   /* Solid mode: use pure background color with no transparency tricks */
@@ -253,13 +255,14 @@
     background-color: hsl(var(--background));
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+    box-shadow: none;
   }
 
   /* Full-window surface uses the app background token */
   .window-surface-bg {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(200%) brightness(1.1);
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(200%) brightness(1.1);
   }
 
   .dark .window-surface-bg {
@@ -329,6 +332,62 @@
   .timeline-container {
     background: hsl(var(--timeline-bg));
     border: 1px solid hsl(var(--border));
+  }
+
+  /* Glass mode: Transparent container to match global window tint (unified glass look) */
+  [data-window-surface="glass"] .timeline-container {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .dark [data-window-surface="glass"] .timeline-container {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Force higher contrast for muted text in glass mode */
+  [data-window-surface="glass"] .text-muted-foreground {
+    color: hsl(var(--foreground) / 0.85) !important;
+  }
+
+  .dark [data-window-surface="glass"] .text-muted-foreground {
+    color: hsl(var(--foreground) / 0.85) !important;
+  }
+
+  /* Make muted backgrounds (like tabs) slightly more opaque in glass mode */
+  [data-window-surface="glass"] .bg-muted\/50 {
+    background-color: hsl(var(--foreground) / 0.1) !important;
+  }
+
+  /* Boost colored text contrast in glass mode - these accent colors need more opacity and a subtle shadow */
+  [data-window-surface="glass"] [class*="text-blue-"],
+  [data-window-surface="glass"] [class*="text-green-"],
+  [data-window-surface="glass"] [class*="text-orange-"],
+  [data-window-surface="glass"] [class*="text-destructive"] {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Force full opacity for colored text labels in glass mode */
+  [data-window-surface="glass"] .text-blue-400\/70 {
+    color: rgb(96, 165, 250) !important;
+    /* blue-400 full opacity */
+  }
+
+  [data-window-surface="glass"] .text-green-400\/70 {
+    color: rgb(74, 222, 128) !important;
+    /* green-400 full opacity */
+  }
+
+  [data-window-surface="glass"] .text-orange-400\/70 {
+    color: rgb(251, 146, 60) !important;
+    /* orange-400 full opacity */
+  }
+
+  [data-window-surface="glass"] .text-muted-foreground\/50,
+  [data-window-surface="glass"] .text-muted-foreground\/60 {
+    color: hsl(var(--foreground) / 0.7) !important;
   }
 
   .timeline-track {

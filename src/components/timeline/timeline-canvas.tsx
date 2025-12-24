@@ -616,7 +616,7 @@ export function TimelineCanvas({
     )
   }
 
-  // The timeline panel already sits on a `.window-surface`; avoid painting an extra opaque canvas layer in glass modes.
+  // Glass mode: fully transparent canvas, rely on text shadows for readability. Solid mode: full opacity.
   const backgroundOpacity = windowSurfaceMode === 'solid' ? 1 : 0
 
   return (
@@ -643,7 +643,7 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-transparent select-none outline-none focus:outline-none"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-transparent select-none outline-none focus:outline-none timeline-container"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
         onWheel={(e) => {
@@ -1106,6 +1106,6 @@ export function TimelineCanvas({
           />
         )}
       </div>
-    </div>
+    </div >
   )
 }

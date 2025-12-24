@@ -68,8 +68,8 @@ function SubTabs<T extends string>({
             "flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-102 active:scale-98",
             tab.disabled && "opacity-50 cursor-not-allowed",
             value === tab.id
-              ? "bg-background/80 text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              ? "bg-background/50 backdrop-blur-sm text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/30"
           )}
         >
           {tab.label}

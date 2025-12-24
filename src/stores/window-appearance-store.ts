@@ -29,13 +29,13 @@ const MIN_GLASS_BLUR_PX = 1
 const PRESETS = {
   solid: { mode: 'solid' as const, opacity: 1, blurPx: 0 },
 
-  // Glass: subtle blur + transparency = modern glassmorphism
-  // Very low blur values for clean, contemporary see-through aesthetic
-  'glass-light': { mode: 'glass' as const, opacity: 0.05, blurPx: 2 },
-  glass: { mode: 'glass' as const, opacity: 0.10, blurPx: 4 },
-  'glass-strong': { mode: 'glass' as const, opacity: 0.20, blurPx: 6 },
+  // Glass: frosted glass aesthetic with strong blur and translucency
+  // Higher opacity + high blur = clean, readable, premium feel
+  'glass-light': { mode: 'glass' as const, opacity: 0.40, blurPx: 15 },
+  glass: { mode: 'glass' as const, opacity: 0.60, blurPx: 25 },
+  'glass-strong': { mode: 'glass' as const, opacity: 0.80, blurPx: 40 },
 
-  // Clear: high opacity, no blur (dark tint, 85% as default medium)
+  // Clear: high opacity, no blur (tinted overlay)
   'clear-light': { mode: 'clear' as const, opacity: 0.75, blurPx: 0 },
   clear: { mode: 'clear' as const, opacity: 0.85, blurPx: 0 },
   'clear-strong': { mode: 'clear' as const, opacity: 0.95, blurPx: 0 },

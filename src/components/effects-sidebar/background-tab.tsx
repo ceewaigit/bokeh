@@ -313,8 +313,8 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               className={cn(
                 "flex-shrink-0 py-1.5 px-2.5 rounded-md text-xs font-medium transition-all capitalize whitespace-nowrap",
                 backgroundType === type
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                  ? "bg-background/60 backdrop-blur-sm text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/40"
               )}
             >
               {type}

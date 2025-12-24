@@ -22,42 +22,42 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
           bgFill: colors.background,
           bgOpacity: 0.5,
           labelText: 'V',
-          labelColor: colors.accent
+          labelColor: colors.foreground
         }
       case TimelineTrackType.Zoom:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
           labelText: 'Z',
-          labelColor: colors.zoomBlock
+          labelColor: colors.foreground
         }
       case TimelineTrackType.Screen:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
           labelText: 'S',
-          labelColor: colors.screenBlock
+          labelColor: colors.foreground
         }
       case TimelineTrackType.Keystroke:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
           labelText: 'K',
-          labelColor: colors.warning
+          labelColor: colors.foreground
         }
       case TimelineTrackType.Plugin:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
           labelText: 'P',
-          labelColor: colors.primary
+          labelColor: colors.foreground
         }
       case TimelineTrackType.Audio:
         return {
           bgFill: colors.background,
           bgOpacity: 0.3,
           labelText: 'A',
-          labelColor: colors.success // Greenish for Audio
+          labelColor: colors.foreground
         }
     }
   }
@@ -73,7 +73,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
         width={width}
         height={height}
         fill={style.bgFill}
-        opacity={muted ? 0.05 : 0.02}
+        opacity={muted ? 0.06 : 0.03} // Increased contrast for visibility
       />
 
       {/* Divider line at bottom */}
@@ -83,7 +83,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
         width={width}
         height={1}
         fill={colors.border}
-        opacity={0.08}
+        opacity={0.06} // Barely visible separator
       />
 
       {/* Track label background */}

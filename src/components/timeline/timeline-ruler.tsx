@@ -35,7 +35,7 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
     }
   }
 
-  // Background for ruler - now clickable
+  // Background for ruler
   marks.push(
     <Rect
       key="ruler-bg"
@@ -78,10 +78,10 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
     marks.push(
       <Line
         key={`mark-${time}`}
-        points={[x, TimelineConfig.RULER_HEIGHT - (isMajor ? 8 : 4), x, TimelineConfig.RULER_HEIGHT]}
+        points={[x, TimelineConfig.RULER_HEIGHT - (isMajor ? 6 : 3), x, TimelineConfig.RULER_HEIGHT]}
         stroke={colors.mutedForeground}
         strokeWidth={1}
-        opacity={isMajor ? 0.5 : 0.25}
+        opacity={isMajor ? 0.4 : 0.2}
         lineCap="round"
         listening={false}
       />
@@ -91,14 +91,14 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
       marks.push(
         <Text
           key={`label-${time}`}
-          x={x + 5}
-          y={6}
+          x={x + 4}
+          y={8}
           text={formatTime(time, true)}
-          fontSize={10}
+          fontSize={9}
           fill={colors.mutedForeground}
-          fontFamily="system-ui, -apple-system, BlinkMacSystemFont"
+          fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'SF Mono', monospace"
           fontStyle="normal"
-          opacity={0.6}
+          opacity={0.7}
           listening={false}
         />
       )

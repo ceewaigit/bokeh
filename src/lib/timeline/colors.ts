@@ -25,8 +25,12 @@ export const getTimelineColors = () => {
     return value
   }
 
+  const isDark = document.documentElement.classList.contains('dark')
+  const isGlassMode = document.documentElement.dataset.windowSurface === 'glass'
+
   return {
-    isDark: document.documentElement.classList.contains('dark'),
+    isDark,
+    isGlassMode,
     // Background colors
     background: getCSSVar('--background'),
     foreground: getCSSVar('--foreground'),
@@ -56,6 +60,14 @@ export const getTimelineColors = () => {
     destructive: getCSSVar('--destructive'),
     destructiveForeground: getCSSVar('--destructive-foreground'),
 
+    // Glass-safe text colors (high contrast for glass backgrounds)
+    glassForeground: isDark ? 'hsl(0, 0%, 100%)' : 'hsl(0, 0%, 0%)',
+    glassSecondaryForeground: isDark ? 'hsl(0, 0%, 85%)' : 'hsl(0, 0%, 20%)',
+
+    // Effect block label colors - guaranteed visibility on any background
+    effectLabelColor: isDark ? 'hsl(0, 0%, 95%)' : 'hsl(0, 0%, 10%)',
+    effectLabelShadow: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)',
+
     // Additional semantic colors for timeline
     success: getCSSVar('--success') || 'hsl(142, 71%, 45%)',
     warning: getCSSVar('--warning') || 'hsl(38, 92%, 50%)',
@@ -63,15 +75,16 @@ export const getTimelineColors = () => {
 
     // Timeline-specific colors
     playhead: getCSSVar('--destructive') || 'hsl(0, 84%, 60%)',
-    zoomBlock: getCSSVar('--info') || 'hsl(217, 75%, 55%)',
+    zoomBlock: getCSSVar('--primary') || 'hsl(263, 70%, 50%)', // Use primary purple for zoom
     // zoomBlockHover removed (unused)
-    screenBlock: 'hsl(24, 75%, 55%)',
+    screenBlock: getCSSVar('--accent') || 'hsl(263, 70%, 65%)', // Use accent for screen effects
   }
 }
 
 // Default colors for SSR/fallback
 const getDefaultColors = () => ({
   isDark: true,
+  isGlassMode: false,
   background: 'hsl(240, 10%, 3.9%)',
   foreground: 'hsl(0, 0%, 98%)',
   card: 'hsl(240, 10%, 3.9%)',
@@ -87,13 +100,18 @@ const getDefaultColors = () => ({
   accentForeground: 'hsl(0, 0%, 98%)',
   destructive: 'hsl(0, 62.8%, 30.6%)',
   destructiveForeground: 'hsl(0, 0%, 98%)',
+  // Glass-safe text colors
+  glassForeground: 'hsl(0, 0%, 100%)',
+  glassSecondaryForeground: 'hsl(0, 0%, 85%)',
+  effectLabelColor: 'hsl(0, 0%, 95%)',
+  effectLabelShadow: 'rgba(0,0,0,0.8)',
   success: 'hsl(0, 0%, 80%)', // White/Grey for Audio
   warning: 'hsl(38, 92%, 50%)',
   info: 'hsl(267, 100%, 61%)', // Purple for Video
-  playhead: 'hsl(267, 100%, 61%)', // Purple playhead
-  zoomBlock: 'hsl(280, 65%, 60%)', // Soft Purple for Zoom
+  playhead: 'hsl(263, 70%, 65%)', // Purple playhead
+  zoomBlock: 'hsl(263, 70%, 65%)', // Primary Purple for Zoom
   // zoomBlockHover removed (unused)
-  screenBlock: 'hsl(24, 75%, 55%)',
+  screenBlock: 'hsl(263, 70%, 65%)', // Accent Purple for Screen
 })
 
 // Hook for React components that updates when theme changes

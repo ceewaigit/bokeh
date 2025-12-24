@@ -19,13 +19,6 @@ import { useRecordingMetadata } from '@/remotion/hooks/useRecordingMetadata'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 
 import { useProjectStore } from '@/stores/project-store'
-import { ApplySpeedUpCommand } from '@/lib/commands/timeline/ApplySpeedUpCommand'
-import { ApplyAllSpeedUpsCommand } from '@/lib/commands/timeline/ApplyAllSpeedUpsCommand'
-import { DefaultCommandContext } from '@/lib/commands'
-import { CommandManager } from '@/lib/commands'
-import { toast } from 'sonner'
-
-// No global tracking needed - metadata is the source of truth
 
 interface TimelineClipProps {
   clip: Clip
@@ -374,23 +367,25 @@ export const TimelineClip = React.memo(({
           trackType === TrackType.Video && thumbnails.length > 0
             ? 'transparent'
             : trackType === TrackType.Video
-              ? (isGeneratedClip ? colors.muted : colors.info)
+              ? (isGeneratedClip ? colors.muted : 'rgba(127,127,127,0.15)')
               : colors.success
         }
         stroke={
           isDragging && !isValidPosition
-            ? '#ef4444' // red-500 for invalid
+            ? colors.destructive // Theme destructive color
             : isSelected
               ? colors.primary // Highlight border when selected
-              : 'rgba(255,255,255,0.15)' // Subtle border for definition
+              : colors.isDark
+                ? 'rgba(255,255,255,0.1)' // Very subtle white for dark mode
+                : 'rgba(0,0,0,0.08)' // Subtle translucent black for light mode
         }
         strokeWidth={isDragging && !isValidPosition ? 3 : isSelected ? 2 : 1}
         cornerRadius={24}
         opacity={0.95}
-        shadowColor={isDragging && !isValidPosition ? '#ef4444' : "black"}
-        shadowBlur={isDragging && !isValidPosition ? 15 : isSelected ? 12 : 6}
-        shadowOpacity={isDragging && !isValidPosition ? 0.5 : 0.2}
-        shadowOffsetY={3}
+        shadowColor={isDragging && !isValidPosition ? colors.destructive : "black"}
+        shadowBlur={isDragging && !isValidPosition ? 15 : isSelected ? 12 : 4}
+        shadowOpacity={isDragging && !isValidPosition ? 0.5 : isSelected ? 0.2 : 0.05}
+        shadowOffsetY={2}
       />
 
       {isGeneratedClip && thumbnails.length === 0 && (
@@ -426,9 +421,9 @@ export const TimelineClip = React.memo(({
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
             fillLinearGradientEndPoint={{ x: 0, y: trackHeight - TimelineConfig.TRACK_PADDING * 2 }}
             fillLinearGradientColorStops={[
-              0, 'rgba(255,255,255,0.12)',
+              0, 'rgba(255,255,255,0.05)',
               0.5, 'rgba(255,255,255,0)',
-              1, 'rgba(0,0,0,0.2)'
+              1, 'rgba(0,0,0,0.1)'
             ]}
             listening={false}
           />
@@ -490,9 +485,9 @@ export const TimelineClip = React.memo(({
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
             fillLinearGradientEndPoint={{ x: 0, y: trackHeight - TimelineConfig.TRACK_PADDING * 2 }}
             fillLinearGradientColorStops={[
-              0, 'rgba(0,0,0,0.2)',
+              0, 'rgba(0,0,0,0.02)', // Very subtle top
               0.7, 'rgba(0,0,0,0)',
-              1, 'rgba(0,0,0,0.4)'
+              1, 'rgba(0,0,0,0.1)' // Much more subtle bottom
             ]}
           />
         </Group>
@@ -615,11 +610,18 @@ export const TimelineClip = React.memo(({
           ? Math.max(6, Math.min(clipWidth * 0.3, TimeConverter.msToPixels(clip.outroFadeMs, pixelsPerMs)))
           : 0
 
-        // Use hardcoded purple accent colors for Canvas compatibility
-        // Canvas doesn't support modern HSL syntax, so we use rgba
-        const colorFull = 'rgba(168, 85, 247, 0.8)'   // purple-500 at 80%
-        const colorMid = 'rgba(168, 85, 247, 0.4)'    // purple-500 at 40%
-        const colorNone = 'rgba(168, 85, 247, 0)'     // purple-500 at 0%
+        // Helper to apply alpha to token colors
+        const withOpacity = (color: string, alpha: number) => {
+          if (!color) return `rgba(168, 85, 247, ${alpha})`
+          if (color.startsWith('hsl(')) {
+            return color.replace('hsl(', 'hsla(').replace(')', `, ${alpha})`)
+          }
+          return color // Fallback or already has alpha
+        }
+
+        const colorFull = withOpacity(colors.primary, 0.8)
+        const colorMid = withOpacity(colors.primary, 0.4)
+        const colorNone = withOpacity(colors.primary, 0)
 
         return (
           <Group

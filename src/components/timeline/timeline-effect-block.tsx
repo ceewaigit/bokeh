@@ -68,6 +68,7 @@ export const TimelineEffectBlock = React.memo(({
   const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Use token color if no custom fill is provided
   const baseStroke = fillColor || colors.zoomBlock
   const handleWidth = 6
   const handleHeight = 14
@@ -104,18 +105,20 @@ export const TimelineEffectBlock = React.memo(({
   }
 
   // Define colors using tokens
-  const lightFill = withAlpha(baseStroke, isSelected ? 0.16 : 0.08)
-  const darkFill = withAlpha(baseStroke, isSelected ? 0.25 : 0.15)
+  const lightFill = withAlpha(baseStroke, isSelected ? 0.35 : 0.25)
+  const darkFill = withAlpha(baseStroke, isSelected ? 0.45 : 0.35)
   const blockFill = isDarkMode ? darkFill : lightFill
 
+  // Use glass-safe colors for maximum contrast on any background
   const labelFill = isEnabled
-    ? colors.foreground
-    : withAlpha(colors.foreground, 0.5)
+    ? colors.effectLabelColor // High-contrast text from glass-safe tokens
+    : colors.glassSecondaryForeground
 
   const curveStroke = withAlpha(colors.foreground, isEnabled ? (isDarkMode ? 0.9 : 0.7) : 0.35)
 
-  const handleFill = colors.foreground // handles usually contrast well against block fill or bg
-  const labelShadowColor = isDarkMode ? colors.background : colors.background // Shadow usually opposite or bg color
+  const handleFill = colors.foreground
+  // Always use text shadow for glass mode legibility
+  const labelShadowColor = colors.effectLabelShadow
 
   // Debounced hover handlers to prevent flickering when moving between Group and Transformer
   const handleMouseEnter = () => {
@@ -356,14 +359,20 @@ export const TimelineEffectBlock = React.memo(({
           y={0}
           width={currentWidth}
           height={height}
-          fill={blockFill}
-          stroke={baseStroke}
-          strokeWidth={isSelected ? 2.5 : 2}
-          cornerRadius={10}
-          opacity={!isEnabled ? 0.35 : (isDragging ? 0.85 : 1)}
-          shadowColor={isSelected ? baseStroke : undefined}
-          shadowBlur={isSelected ? 8 : 0}
-          shadowOpacity={isSelected ? 0.25 : 0}
+          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+          fillLinearGradientEndPoint={{ x: 0, y: height }}
+          fillLinearGradientColorStops={[
+            0, withAlpha(blockFill, 0.7),
+            1, withAlpha(blockFill, 1)
+          ]}
+          stroke={withAlpha(baseStroke, isSelected ? 0.8 : 0.4)}
+          strokeWidth={isSelected ? 1.5 : 1}
+          cornerRadius={6}
+          opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
+          shadowColor="black"
+          shadowBlur={isSelected ? 12 : 2}
+          shadowOpacity={isSelected ? 0.15 : 0.05}
+          shadowOffsetY={1}
           listening={true}
         />
 
@@ -372,19 +381,19 @@ export const TimelineEffectBlock = React.memo(({
           <>
             {/* Subtle top highlight */}
             <Rect
-              x={2}
-              y={2}
-              width={currentWidth - 4}
-              height={(height - 4) / 2}
+              x={1}
+              y={1}
+              width={currentWidth - 2}
+              height={(height - 2) / 2}
               fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-              fillLinearGradientEndPoint={{ x: 0, y: (height - 4) / 2 }}
+              fillLinearGradientEndPoint={{ x: 0, y: (height - 2) / 2 }}
               fillLinearGradientColorStops={[
                 0,
-                withAlpha(colors.foreground, 0.1),
+                withAlpha(colors.foreground, 0.08),
                 1,
                 withAlpha(colors.foreground, 0)
               ]}
-              cornerRadius={[8, 8, 0, 0]}
+              cornerRadius={[5, 5, 0, 0]}
               listening={false}
             />
           </>
@@ -399,8 +408,11 @@ export const TimelineEffectBlock = React.memo(({
               width={handleWidth}
               height={handleHeight}
               fill={handleFill}
-              cornerRadius={Math.min(handleWidth / 2, 3)}
+              cornerRadius={2}
               listening={false}
+              shadowColor="black"
+              shadowBlur={2}
+              shadowOpacity={0.1}
             />
             <Rect
               x={currentWidth - handleWidth / 2}
@@ -408,8 +420,11 @@ export const TimelineEffectBlock = React.memo(({
               width={handleWidth}
               height={handleHeight}
               fill={handleFill}
-              cornerRadius={Math.min(handleWidth / 2, 3)}
+              cornerRadius={2}
               listening={false}
+              shadowColor="black"
+              shadowBlur={2}
+              shadowOpacity={0.1}
             />
           </>
         )}
@@ -420,7 +435,7 @@ export const TimelineEffectBlock = React.memo(({
             <Line
               points={curvePoints}
               stroke={curveStroke}
-              strokeWidth={2}
+              strokeWidth={1.5}
               lineCap="round"
               lineJoin="round"
               listening={false}
@@ -429,23 +444,23 @@ export const TimelineEffectBlock = React.memo(({
         )}
 
         {/* Label - centered in compact mode, top-left otherwise */}
-        {/* Label - centered in compact mode, top-left otherwise */}
         {(label && currentWidth > 32) && (
           <Text
-            x={isCompact ? 0 : 10}
-            y={isCompact ? height / 2 - 5 : 8}
-            width={isCompact ? currentWidth : currentWidth - 20}
+            x={isCompact ? 0 : 8}
+            y={isCompact ? height / 2 - 5 : 6}
+            width={isCompact ? currentWidth : currentWidth - 16}
             text={label}
             fontSize={isCompact ? 10 : 11}
             fill={labelFill}
-            fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
+            fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text'"
             fontStyle="600"
             align={isCompact ? "center" : "left"}
             wrap="none"
             listening={false}
             shadowColor={labelShadowColor}
-            shadowBlur={isDarkMode ? 4 : 2}
-            shadowOpacity={isDarkMode ? 0.4 : 0.2}
+            shadowBlur={4}
+            shadowOpacity={0.9}
+            shadowOffsetY={1}
           />
         )}
       </Group>
