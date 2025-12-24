@@ -253,23 +253,25 @@ export function RecordButtonDock() {
     "border border-white/[0.08]"
   )
 
-  // Horizontal icon+text buttons - prevents text wrapping
+  // Horizontal icon+text buttons - Apple-like snappy animations
   const sourceButtonStyle = (isSelected: boolean) => cn(
     "flex items-center gap-1.5 h-[36px] px-3 rounded-[8px] whitespace-nowrap",
-    "transition-all duration-100 ease-out",
+    "transition-[background,color,transform] duration-[80ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]",
     "text-[11px] font-medium tracking-[-0.01em]",
+    "active:scale-[0.97]",
     isSelected
       ? "bg-white/[0.12] text-white"
-      : "text-white/40 hover:text-white/70 hover:bg-white/[0.05]"
+      : "text-white/40 hover:text-white/75 hover:bg-white/[0.06]"
   )
 
   const optionButtonStyle = (isActive: boolean) => cn(
     "flex items-center gap-1.5 h-[32px] px-2.5 rounded-[6px] whitespace-nowrap",
     "text-[10px] font-medium tracking-[-0.01em]",
-    "transition-all duration-100 ease-out",
+    "transition-[color,background] duration-[80ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+    "active:opacity-70",
     isActive
       ? "text-white/80"
-      : "text-white/35 hover:text-white/55"
+      : "text-white/35 hover:text-white/60"
   )
 
   // Skeleton matches horizontal button layout
@@ -288,11 +290,13 @@ export function RecordButtonDock() {
       <div ref={containerRef} className="inline-block p-1">
         <div className={barStyle} style={{ ['WebkitAppRegion' as any]: 'drag' }}>
           <div className="flex items-center gap-2 px-3 h-[44px]">
-            <span className="relative flex h-[6px] w-[6px]">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff3b30] opacity-60" />
+            {/* Recording dot - isolated layer to prevent repaints */}
+            <span className="relative flex-shrink-0 h-[6px] w-[6px]">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff3b30] opacity-60 will-change-transform" />
               <span className="relative inline-flex rounded-full h-[6px] w-[6px] bg-[#ff3b30]" />
             </span>
-            <span className="text-white/90 text-[13px] font-mono font-medium tabular-nums tracking-tight">
+            {/* Timer - fixed width to prevent layout shift */}
+            <span className="text-white/90 text-[13px] font-mono font-medium tabular-nums tracking-tight min-w-[52px]">
               {formatTime(duration)}
             </span>
           </div>
