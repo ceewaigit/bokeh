@@ -1,5 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRecording } from '@/hooks/use-recording'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
@@ -11,19 +10,21 @@ import { createAreaSourceId } from '@/lib/recording/utils/area-source-parser'
 import { RecordingSourceType } from '@/types/project'
 import { AudioInput } from '@/types'
 import {
-  Volume2,
-  VolumeX,
+  Mic,
+  MicOff,
   Square,
   Pause,
   Play,
   Monitor,
   Crop,
-  ChevronDown,
-  FolderOpen,
-  Search,
-  X,
+  AppWindow,
   EyeOff,
-  Settings2
+  Eye,
+  Circle,
+  FolderOpen,
+  ChevronDown,
+  Search,
+  X
 } from 'lucide-react'
 
 interface Source {
@@ -42,13 +43,15 @@ interface Source {
 
 export function RecordButtonDock() {
   const containerRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [sources, setSources] = useState<Source[]>([])
-  const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [includeAppWindows, setIncludeAppWindows] = useState(false)
   const [hideDesktopIcons, setHideDesktopIcons] = useState(false)
+  const [includeAppWindows] = useState(false)
+  const [isLoadingSources, setIsLoadingSources] = useState(true)
+  const [showWindowPicker, setShowWindowPicker] = useState(false)
+  const [windowSearch, setWindowSearch] = useState('')
 
   const { screenRecording, requestScreenRecording } = usePermissions()
   const permissionStatus = screenRecording ? 'granted' : 'denied'
@@ -66,17 +69,10 @@ export function RecordButtonDock() {
     const root = document.getElementById('root')
     if (root) root.style.background = 'transparent'
 
-    // Cleanup on unmount: if still recording, force stop to prevent orphaned recording state
     return () => {
       const { isRecording } = useRecordingSessionStore.getState()
       if (isRecording) {
         logger.warn('RecordButtonDock unmounting while recording - forcing stop')
-        // stopRecording is async but we can't await in cleanup. 
-        // We fire-and-forget, trusting the hook/store logic to cleanup.
-        // We can't access `stopRecording` from closure safely if it changes, 
-        // but we can use the store or electron API directly if needed.
-        // For now, rely on Electron's own window-close cleanup which usually handles this,
-        // but adding a proactive state reset is good safety.
         useRecordingSessionStore.getState().setRecording(false)
         useRecordingSessionStore.getState().setStatus('idle')
       }
@@ -92,19 +88,33 @@ export function RecordButtonDock() {
     const updateSize = () => {
       const rect = container.getBoundingClientRect()
       window.electronAPI?.setWindowContentSize?.({
-        width: Math.ceil(rect.width) + 16,
-        height: Math.ceil(rect.height) + 16
+        width: Math.ceil(rect.width),
+        height: Math.ceil(rect.height)
       })
     }
 
-    updateSize()
-    const observer = new ResizeObserver(updateSize)
+    // Small delay to ensure DOM is settled
+    const timer = setTimeout(updateSize, 16)
+    const observer = new ResizeObserver(() => setTimeout(updateSize, 16))
     observer.observe(container)
-    return () => observer.disconnect()
-  }, [showSourcePicker, isRecording])
+    return () => {
+      clearTimeout(timer)
+      observer.disconnect()
+    }
+  }, [isRecording, showWindowPicker])
+
+  useEffect(() => {
+    if (showWindowPicker && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 100)
+    }
+    if (!showWindowPicker) {
+      setWindowSearch('')
+    }
+  }, [showWindowPicker])
 
   const loadSources = useCallback(async () => {
     if (!window.electronAPI?.getDesktopSources) return
+    setIsLoadingSources(true)
     try {
       const desktopSources = await window.electronAPI.getDesktopSources({
         types: ['screen', 'window'],
@@ -135,24 +145,19 @@ export function RecordButtonDock() {
       setSelectedSourceId(primary?.id || allSources.find(s => s.type === RecordingSourceType.Screen)?.id || null)
     } catch (error) {
       logger.error('Failed to load sources:', error)
+    } finally {
+      setIsLoadingSources(false)
     }
   }, [includeAppWindows])
 
   useEffect(() => { loadSources() }, [loadSources])
   useEffect(() => { updateSettings({ audioInput: audioEnabled ? AudioInput.System : AudioInput.None }) }, [audioEnabled, updateSettings])
 
-  const handleRecord = () => {
-    if (permissionStatus === 'denied') {
-      requestScreenRecording()
-      return
-    }
-    setShowSourcePicker(true)
-    setSearchQuery('')
-  }
-
   const handleSourceSelect = (source: Source) => {
     window.electronAPI?.hideMonitorOverlay?.()
     setSelectedSourceId(source.id)
+    setShowWindowPicker(false)
+
     if (source.type === RecordingSourceType.Screen && source.displayInfo?.id !== undefined) {
       window.electronAPI?.showMonitorOverlay?.(source.displayInfo.id)
     } else if (source.type === RecordingSourceType.Window) {
@@ -160,29 +165,61 @@ export function RecordButtonDock() {
     }
   }
 
+  const handleWindowModeClick = () => {
+    const newState = !showWindowPicker
+    setShowWindowPicker(newState)
+    if (newState) {
+      window.electronAPI?.hideMonitorOverlay?.()
+    }
+  }
+
+  const handleAreaClick = async () => {
+    window.electronAPI?.hideMonitorOverlay?.()
+    setShowWindowPicker(false)
+
+    const result = await window.electronAPI?.selectScreenArea?.()
+    const area = result?.area
+    if (result?.success && area) {
+      setSelectedSourceId(createAreaSourceId(area))
+      window.electronAPI?.showRecordingOverlay?.(
+        { x: area.x, y: area.y, width: area.width, height: area.height },
+        'Selected Area'
+      )
+    }
+  }
+
   const handleStartRecording = async () => {
+    if (permissionStatus === 'denied') {
+      requestScreenRecording()
+      return
+    }
     if (!selectedSourceId) return
+
     const source = sources.find(s => s.id === selectedSourceId)
     const displayId = source?.displayInfo?.id
 
     window.electronAPI?.hideMonitorOverlay?.()
+    window.electronAPI?.hideRecordingOverlay?.()
+    setShowWindowPicker(false)
     await initializeDefaultWallpaper()
-    setShowSourcePicker(false)
 
-    // Hide desktop icons if the option is enabled
     if (hideDesktopIcons) {
       await window.electronAPI?.hideDesktopIcons?.()
     }
 
-    // Save the "include app windows" setting
     updateSettings({ includeAppWindows })
 
-    if (selectedSourceId === 'area:selection') {
-      const result = await window.electronAPI?.selectScreenArea?.()
-      const area = result?.area
-      if (result?.success && area) {
-        prepareRecording(createAreaSourceId(area), area.displayId)
-        setTimeout(() => startCountdown(startRecording, area.displayId), 50)
+    if (selectedSourceId.startsWith('area:')) {
+      if (selectedSourceId === 'area:selection') {
+        const result = await window.electronAPI?.selectScreenArea?.()
+        const area = result?.area
+        if (result?.success && area) {
+          prepareRecording(createAreaSourceId(area), area.displayId)
+          setTimeout(() => startCountdown(startRecording, area.displayId), 50)
+        }
+      } else {
+        prepareRecording(selectedSourceId, displayId)
+        setTimeout(() => startCountdown(startRecording, displayId), 50)
       }
     } else {
       prepareRecording(selectedSourceId, displayId)
@@ -191,7 +228,6 @@ export function RecordButtonDock() {
   }
 
   const handleStop = async () => {
-    // Restore desktop icons when stopping recording
     if (hideDesktopIcons) {
       await window.electronAPI?.showDesktopIcons?.()
     }
@@ -201,262 +237,294 @@ export function RecordButtonDock() {
 
   const screens = sources.filter(s => s.type === RecordingSourceType.Screen)
   const windows = sources.filter(s => s.type === RecordingSourceType.Window)
+  const filteredWindows = windowSearch
+    ? windows.filter(w => w.name.toLowerCase().includes(windowSearch.toLowerCase()))
+    : windows
   const areaOption = sources.find(s => s.type === RecordingSourceType.Area)
+  const isWindowSelected = selectedSourceId ? sources.find(s => s.id === selectedSourceId)?.type === RecordingSourceType.Window : false
 
-  const filteredWindows = useMemo(() => {
-    if (!searchQuery.trim()) return windows
-    return windows.filter(w => w.name.toLowerCase().includes(searchQuery.toLowerCase()))
-  }, [windows, searchQuery])
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STYLES - Refined typography and spacing
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  return (
-    <div ref={containerRef} className="inline-block">
-      <div
-        className={cn(
-          "flex flex-col rounded-2xl",
-          "bg-black/80 backdrop-blur-xl",
-          "border border-white/10",
-          "shadow-2xl"
-        )}
-        style={{ ['WebkitAppRegion' as any]: 'drag' }}
-      >
-        {/* Main Bar */}
-        <div className="flex items-center justify-center gap-1.5 px-3 py-2">
-          {!isRecording ? (
-            <>
-              {/* Audio Toggle */}
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                onClick={() => setAudioEnabled(!audioEnabled)}
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors",
-                  audioEnabled ? "text-white/90" : "text-white/30"
-                )}
-                title={audioEnabled ? 'Audio On' : 'Audio Off'}
-              >
-                {audioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              </button>
+  const barStyle = cn(
+    "flex items-center gap-1 px-1.5 py-1.5 rounded-[14px]",
+    "bg-[#1c1c1e]/95 backdrop-blur-xl",
+    "border border-white/[0.08]"
+  )
 
-              {/* Record Button */}
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                onClick={handleRecord}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-full",
-                  "bg-red-500 hover:bg-red-600 text-white",
-                  "text-xs font-medium transition-all",
-                  "hover:scale-105 active:scale-95"
-                )}
-              >
-                <span className="w-2 h-2 rounded-full bg-white" />
-                Record
-              </button>
+  // Horizontal icon+text buttons - prevents text wrapping
+  const sourceButtonStyle = (isSelected: boolean) => cn(
+    "flex items-center gap-1.5 h-[36px] px-3 rounded-[8px] whitespace-nowrap",
+    "transition-all duration-100 ease-out",
+    "text-[11px] font-medium tracking-[-0.01em]",
+    isSelected
+      ? "bg-white/[0.12] text-white"
+      : "text-white/40 hover:text-white/70 hover:bg-white/[0.05]"
+  )
 
-              {/* Library */}
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                onClick={() => window.electronAPI?.openWorkspace?.()}
-                className="p-1.5 rounded-lg text-white/30 hover:text-white/70 transition-colors"
-                title="Library"
-              >
-                <FolderOpen className="w-4 h-4" />
-              </button>
+  const optionButtonStyle = (isActive: boolean) => cn(
+    "flex items-center gap-1.5 h-[32px] px-2.5 rounded-[6px] whitespace-nowrap",
+    "text-[10px] font-medium tracking-[-0.01em]",
+    "transition-all duration-100 ease-out",
+    isActive
+      ? "text-white/80"
+      : "text-white/35 hover:text-white/55"
+  )
 
-              {/* Settings */}
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                onClick={() => {
-                  if (window.electronAPI?.openWorkspaceSettings) {
-                    window.electronAPI.openWorkspaceSettings()
-                  } else {
-                    window.electronAPI?.openWorkspace?.()
-                  }
-                }}
-                className="p-1.5 rounded-lg text-white/30 hover:text-white/70 transition-colors"
-                title="Settings"
-              >
-                <Settings2 className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <>
-              {/* Recording State */}
-              <div className="flex items-center gap-2 px-2">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-white/90 text-xs font-mono tabular-nums">{formatTime(duration)}</span>
-              </div>
+  // Skeleton matches horizontal button layout
+  const SkeletonButton = () => (
+    <div className="flex items-center gap-1.5 h-[36px] px-3">
+      <div className="w-[16px] h-[16px] rounded-[4px] bg-white/[0.06]" />
+      <div className="w-[40px] h-[10px] rounded-[3px] bg-white/[0.06]" />
+    </div>
+  )
 
-              {(canPause() || canResume()) && (
-                <button
-                  style={{ WebkitAppRegion: 'no-drag' } as any}
-                  onClick={isPaused ? resumeRecording : pauseRecording}
-                  className="p-1.5 rounded-lg text-white/70 hover:text-white transition-colors"
-                >
-                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-                </button>
-              )}
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RECORDING STATE
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (isRecording) {
+    return (
+      <div ref={containerRef} className="inline-block p-1">
+        <div className={barStyle} style={{ ['WebkitAppRegion' as any]: 'drag' }}>
+          <div className="flex items-center gap-2 px-3 h-[44px]">
+            <span className="relative flex h-[6px] w-[6px]">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff3b30] opacity-60" />
+              <span className="relative inline-flex rounded-full h-[6px] w-[6px] bg-[#ff3b30]" />
+            </span>
+            <span className="text-white/90 text-[13px] font-mono font-medium tabular-nums tracking-tight">
+              {formatTime(duration)}
+            </span>
+          </div>
 
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                onClick={handleStop}
-                className={cn(
-                  "flex items-center gap-1 px-2.5 py-1 rounded-lg",
-                  "bg-white/10 hover:bg-white/20 text-white/90",
-                  "text-xs font-medium transition-colors"
-                )}
-              >
-                <Square className="w-3 h-3 fill-current" />
-                Stop
-              </button>
-            </>
+          <div className="w-px h-6 bg-white/[0.08]" />
+
+          {(canPause() || canResume()) && (
+            <button
+              type="button"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+              onClick={isPaused ? resumeRecording : pauseRecording}
+              className="flex items-center justify-center w-[36px] h-[36px] rounded-[8px] text-white/50 hover:text-white hover:bg-white/[0.08] transition-all duration-100"
+            >
+              {isPaused ? <Play className="w-[14px] h-[14px] fill-current" /> : <Pause className="w-[14px] h-[14px]" />}
+            </button>
           )}
+
+          <button
+            type="button"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+            onClick={handleStop}
+            className={cn(
+              "flex items-center gap-1.5 h-[36px] px-3.5 rounded-[8px]",
+              "bg-white/[0.08] hover:bg-white/[0.12]",
+              "text-white/85 text-[12px] font-medium",
+              "transition-all duration-100"
+            )}
+          >
+            <Square className="w-[10px] h-[10px] fill-current" />
+            <span>Stop</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IDLE STATE
+  // ═══════════════════════════════════════════════════════════════════════════
+  return (
+    <div ref={containerRef} className="inline-flex flex-col items-center gap-1.5 p-1">
+      {/* Window Picker - renders ABOVE the dock bar */}
+      {showWindowPicker && windows.length > 0 && (
+        <div
+          className={cn(
+            "w-[300px] p-2 rounded-[12px]",
+            "bg-[#1c1c1e]/95 backdrop-blur-xl",
+            "border border-white/[0.08]"
+          )}
+        >
+          {/* Search */}
+          <div className="relative mb-2">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-[12px] h-[12px] text-white/25 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search windows..."
+              value={windowSearch}
+              onChange={(e) => setWindowSearch(e.target.value)}
+              className={cn(
+                "w-full h-[32px] pl-7 pr-7 rounded-[8px]",
+                "bg-white/[0.06] border-none",
+                "text-white/90 text-[12px] placeholder:text-white/25",
+                "font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Text',sans-serif]",
+                "focus:outline-none focus:ring-1 focus:ring-white/[0.15]",
+                "transition-all duration-100"
+              )}
+            />
+            {windowSearch && (
+              <button
+                type="button"
+                onClick={() => setWindowSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/50 transition-colors"
+              >
+                <X className="w-[12px] h-[12px]" />
+              </button>
+            )}
+          </div>
+
+          {/* Window List */}
+          <div className="max-h-[160px] overflow-y-auto">
+            {filteredWindows.length === 0 ? (
+              <div className="py-6 text-center text-[11px] text-white/30 font-medium">
+                No windows found
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {filteredWindows.slice(0, 20).map(win => (
+                  <button
+                    type="button"
+                    key={win.id}
+                    onClick={() => handleSourceSelect(win)}
+                    className={cn(
+                      "w-full px-2.5 py-2 rounded-[6px] text-[11px] truncate text-left",
+                      "font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Text',sans-serif]",
+                      "transition-all duration-100",
+                      selectedSourceId === win.id
+                        ? "bg-white/[0.12] text-white font-medium"
+                        : "text-white/60 hover:bg-white/[0.06] hover:text-white/80"
+                    )}
+                    title={win.name}
+                  >
+                    {win.name.length > 45 ? win.name.slice(0, 45) + '…' : win.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main Bar */}
+      <div className={barStyle} style={{ ['WebkitAppRegion' as any]: 'drag' }}>
+        {/* Source Buttons */}
+        {isLoadingSources ? (
+          <>
+            <SkeletonButton />
+            <SkeletonButton />
+            <SkeletonButton />
+          </>
+        ) : (
+          <>
+            {screens.map((screen, idx) => (
+              <button
+                type="button"
+                key={screen.id}
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                onClick={() => handleSourceSelect(screen)}
+                className={sourceButtonStyle(selectedSourceId === screen.id)}
+              >
+                <Monitor className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+                <span>
+                  {screens.length > 1
+                    ? (screen.displayInfo?.isPrimary ? 'Main' : `Display ${idx + 1}`)
+                    : 'Display'}
+                </span>
+              </button>
+            ))}
+
+            {windows.length > 0 && (
+              <button
+                type="button"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                onClick={handleWindowModeClick}
+                className={sourceButtonStyle(isWindowSelected || showWindowPicker)}
+              >
+                <AppWindow className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+                <span>Window</span>
+                <ChevronDown className={cn(
+                  "w-3 h-3 opacity-50 transition-transform duration-100 -ml-0.5",
+                  showWindowPicker && "rotate-180"
+                )} />
+              </button>
+            )}
+
+            {areaOption && (
+              <button
+                type="button"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                onClick={handleAreaClick}
+                className={sourceButtonStyle(selectedSourceId?.startsWith('area:') ?? false)}
+              >
+                <Crop className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+                <span>Area</span>
+              </button>
+            )}
+          </>
+        )}
+
+        <div className="w-px h-6 bg-white/[0.08] mx-1" />
+
+        {/* Options */}
+        <div className="flex items-center">
+          <button
+            type="button"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+            onClick={() => setAudioEnabled(!audioEnabled)}
+            className={optionButtonStyle(audioEnabled)}
+            title={audioEnabled ? 'System audio enabled' : 'System audio muted'}
+          >
+            {audioEnabled ? <Mic className="w-[12px] h-[12px]" strokeWidth={1.75} /> : <MicOff className="w-[12px] h-[12px]" strokeWidth={1.75} />}
+            <span>{audioEnabled ? 'System' : 'Muted'}</span>
+          </button>
+
+          <button
+            type="button"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+            onClick={() => setHideDesktopIcons(!hideDesktopIcons)}
+            className={optionButtonStyle(hideDesktopIcons)}
+            title={hideDesktopIcons ? 'Desktop icons hidden' : 'Desktop icons visible'}
+          >
+            {hideDesktopIcons ? <EyeOff className="w-[12px] h-[12px]" strokeWidth={1.75} /> : <Eye className="w-[12px] h-[12px]" strokeWidth={1.75} />}
+            <span>{hideDesktopIcons ? 'Clean' : 'Desktop'}</span>
+          </button>
         </div>
 
-        {/* Source Picker Dropdown */}
-        <AnimatePresence mode="wait">
-          {showSourcePicker && (
-            <motion.div
-              initial={{ opacity: 0, scaleY: 0.95, originY: 0 }}
-              animate={{ opacity: 1, scaleY: 1 }}
-              exit={{ opacity: 0, scaleY: 0.95 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className="overflow-hidden"
-            >
-              <div className="px-2 pb-2 pt-1 border-t border-white/10" style={{ width: 280 }}>
-                {/* Source Type Tabs */}
-                <div className="flex gap-1 mb-2">
-                  {areaOption && (
-                    <button
-                      style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => handleSourceSelect(areaOption)}
-                      className={cn(
-                        "flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors",
-                        selectedSourceId === areaOption.id
-                          ? "bg-white/20 text-white"
-                          : "text-white/50 hover:text-white/80"
-                      )}
-                    >
-                      <Crop className="w-3 h-3" />
-                      Area
-                    </button>
-                  )}
-                  {screens.map(screen => (
-                    <button
-                      key={screen.id}
-                      style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => handleSourceSelect(screen)}
-                      className={cn(
-                        "flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors",
-                        selectedSourceId === screen.id
-                          ? "bg-white/20 text-white"
-                          : "text-white/50 hover:text-white/80"
-                      )}
-                    >
-                      <Monitor className="w-3 h-3" />
-                      {screen.name}
-                    </button>
-                  ))}
-                </div>
+        <div className="w-px h-6 bg-white/[0.08] mx-1" />
 
-                {/* Apps */}
-                {windows.length > 0 && (
-                  <>
-                    <div className="relative mb-1.5">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30" />
-                      <input
-                        type="text"
-                        placeholder="Search apps..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        style={{ WebkitAppRegion: 'no-drag' } as any}
-                        className="w-full pl-7 pr-2 py-1 text-[10px] bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-white/30"
-                      />
-                    </div>
+        {/* Library */}
+        <button
+          type="button"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+          onClick={() => window.electronAPI?.openWorkspace?.()}
+          className="flex items-center justify-center w-[36px] h-[36px] rounded-[8px] text-white/30 hover:text-white/60 hover:bg-white/[0.05] transition-all duration-100"
+          title="Open Library"
+        >
+          <FolderOpen className="w-[15px] h-[15px]" strokeWidth={1.75} />
+        </button>
 
-                    <div className="grid grid-cols-2 gap-1 max-h-24 overflow-y-auto">
-                      {filteredWindows.slice(0, 12).map(source => (
-                        <button
-                          key={source.id}
-                          style={{ WebkitAppRegion: 'no-drag' } as any}
-                          onClick={() => handleSourceSelect(source)}
-                          className={cn(
-                            "px-2 py-1 rounded-lg text-[10px] truncate text-left transition-colors",
-                            selectedSourceId === source.id
-                              ? "bg-white/20 text-white"
-                              : "text-white/50 hover:bg-white/10 hover:text-white/80"
-                          )}
-                          title={source.name}
-                        >
-                          {source.name.split(' - ')[0]}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {/* Actions */}
-                <div className="flex justify-between items-center mt-2 pt-2 border-t border-white/10">
-                  <div className="flex items-center gap-2">
-                    <button
-                      style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => {
-                        window.electronAPI?.hideMonitorOverlay?.()
-                        setShowSourcePicker(false)
-                      }}
-                      className="text-[10px] text-white/40 hover:text-white/70 transition-colors"
-                    >
-                      Cancel
-                    </button>
-
-                    {/* Include App Windows Toggle */}
-                    <button
-                      style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => setIncludeAppWindows(!includeAppWindows)}
-                      className={cn(
-                        "px-2 py-0.5 rounded text-[10px] transition-colors border",
-                        includeAppWindows
-                          ? "bg-blue-500/20 border-blue-500/50 text-blue-200"
-                          : "bg-transparent border-white/10 text-white/40 hover:text-white/70"
-                      )}
-                      title="Show Bokeh windows in the list"
-                    >
-                      Own App Window
-                    </button>
-
-                    {/* Hide Desktop Toggle */}
-                    <button
-                      style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => setHideDesktopIcons(!hideDesktopIcons)}
-                      className={cn(
-                        "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors border",
-                        hideDesktopIcons
-                          ? "bg-purple-500/20 border-purple-500/50 text-purple-200"
-                          : "bg-transparent border-white/10 text-white/40 hover:text-white/70"
-                      )}
-                      title="Hide desktop icons and widgets during recording"
-                    >
-                      <EyeOff className="w-3 h-3" />
-                      Hide Desktop
-                    </button>
-                  </div>
-
-                  <button
-                    style={{ WebkitAppRegion: 'no-drag' } as any}
-                    onClick={handleStartRecording}
-                    disabled={!selectedSourceId}
-                    className={cn(
-                      "px-3 py-1 rounded-lg text-[10px] font-medium transition-all",
-                      selectedSourceId
-                        ? "bg-red-500 text-white hover:bg-red-600"
-                        : "bg-white/10 text-white/30 cursor-not-allowed"
-                    )}
-                  >
-                    Start
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+        {/* Record Button */}
+        <button
+          type="button"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+          onClick={handleStartRecording}
+          disabled={!selectedSourceId}
+          className={cn(
+            "flex items-center justify-center gap-2 h-[40px] px-5 rounded-[10px]",
+            "text-[11px] font-semibold uppercase tracking-[0.08em]",
+            "transition-all duration-150 ease-out",
+            selectedSourceId
+              ? "bg-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_3px_rgba(0,0,0,0.2)] hover:brightness-110 active:scale-[0.97]"
+              : "bg-white/[0.04] text-white/20 cursor-not-allowed"
           )}
-        </AnimatePresence>
+        >
+          <span className={cn(
+            "w-[7px] h-[7px] rounded-full",
+            selectedSourceId
+              ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+              : "bg-white/30"
+          )} />
+          <span>Record</span>
+        </button>
       </div>
     </div>
   )

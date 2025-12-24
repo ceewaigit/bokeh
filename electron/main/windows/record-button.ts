@@ -38,7 +38,7 @@ export function createRecordButton(): BrowserWindow {
     maxWidth: 500,  // Allow expansion for source picker
     maxHeight: 500, // Allow expansion for source picker
     x: Math.floor(display.workAreaSize.width / 2 - 90),
-    y: 20,
+    y: display.workAreaSize.height - 72 - 24, // Position at bottom, 24px from edge
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -137,7 +137,12 @@ export function setupRecordButton(recordButton: BrowserWindow): void {
   })
 
   recordButton.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('file://') && !url.startsWith('app://') && !url.startsWith('data:')) {
+    const allowedPrefixes = ['file://', 'app://', 'data:']
+    // Allow localhost in development
+    if (process.env.NODE_ENV === 'development') {
+      allowedPrefixes.push('http://localhost:', 'http://127.0.0.1:')
+    }
+    if (!allowedPrefixes.some(prefix => url.startsWith(prefix))) {
       console.log('🚫 Preventing navigation to:', url)
       event.preventDefault()
     }

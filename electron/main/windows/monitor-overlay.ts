@@ -110,7 +110,7 @@ export function showWindowBoundsOverlay(
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
 
-  // Window-specific overlay HTML
+  // Refined window overlay HTML - matching monitor overlay style
   const html = `
     <!DOCTYPE html>
     <html>
@@ -121,79 +121,105 @@ export function showWindowBoundsOverlay(
           background: transparent;
           height: 100vh;
           width: 100vw;
-          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+          -webkit-font-smoothing: antialiased;
           user-select: none;
           overflow: hidden;
         }
         
-        .border-overlay {
+        /* Subtle gradient border */
+        .frame {
           position: absolute;
-          inset: 0;
+          inset: 3px;
+          border-radius: 6px;
           pointer-events: none;
-          animation: fadeIn 0.3s ease-out;
+          animation: fadeIn 0.15s ease-out;
         }
         
-        .border-overlay::before {
+        .frame::before {
           content: '';
           position: absolute;
-          inset: 4px;
-          border: 2px solid rgba(99, 102, 241, 0.8);
-          border-radius: 8px;
-          background: rgba(99, 102, 241, 0.05);
-          box-shadow: 
-            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-            0 4px 20px rgba(99, 102, 241, 0.2);
+          inset: 0;
+          border-radius: 6px;
+          padding: 1.5px;
+          background: linear-gradient(
+            135deg,
+            rgba(255,255,255,0.5) 0%,
+            rgba(255,255,255,0.2) 50%,
+            rgba(255,255,255,0.5) 100%
+          );
+          -webkit-mask: 
+            linear-gradient(#fff 0 0) content-box, 
+            linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
         }
         
-        .status-indicator {
+        /* Elegant status pill */
+        .status {
           position: absolute;
-          top: 12px;
-          left: 12px;
-          display: flex;
+          top: 10px;
+          left: 10px;
+          display: inline-flex;
           align-items: center;
           gap: 6px;
-          background: rgba(0, 0, 0, 0.85);
+          background: rgba(0, 0, 0, 0.65);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
           padding: 6px 12px;
-          border-radius: 16px;
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          animation: slideDown 0.4s ease-out;
+          border-radius: 100px;
+          border: 0.5px solid rgba(255, 255, 255, 0.1);
+          animation: slideIn 0.15s ease-out;
+          max-width: calc(100% - 20px);
         }
         
-        .status-dot {
+        .dot {
           width: 5px;
           height: 5px;
-          background: #10b981;
+          background: #34d399;
           border-radius: 50%;
-          animation: pulse 2s ease-in-out infinite;
+          flex-shrink: 0;
+          box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
         }
         
-        .status-text {
-          color: rgba(255, 255, 255, 0.95);
+        .label {
+          color: rgba(255, 255, 255, 0.85);
           font-size: 11px;
           font-weight: 500;
+          letter-spacing: -0.1px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        @keyframes fadeOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
         
         .fade-out {
-          animation: fadeOut 0.5s ease-out forwards;
+          animation: fadeOut 0.3s ease-out forwards;
         }
       </style>
     </head>
     <body>
-      <div class="border-overlay"></div>
-      <div class="status-indicator">
-        <div class="status-dot"></div>
-        <div class="status-text">${windowName}</div>
+      <div class="frame"></div>
+      <div class="status">
+        <div class="dot"></div>
+        <span class="label">${windowName}</span>
       </div>
       <script>
-        // Auto-hide after 2 seconds
-        setTimeout(() => {
-          document.body.classList.add('fade-out');
-        }, 2000);
+        setTimeout(() => document.body.classList.add('fade-out'), 2000);
       </script>
     </body>
     </html>
@@ -202,13 +228,13 @@ export function showWindowBoundsOverlay(
   overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
   overlayWindow.show()
 
-  // Auto-close the overlay after 2.5 seconds (after fade animation)
+  // Auto-close after fade animation
   setTimeout(() => {
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.close()
       overlayWindow = null
     }
-  }, 2500)
+  }, 2300)
 }
 
 export function showMonitorOverlay(displayId?: number, customLabel?: string): void {
@@ -218,162 +244,82 @@ export function showMonitorOverlay(displayId?: number, customLabel?: string): vo
   const targetDisplay = resolveTargetDisplay(displayId)
 
   const displayName = customLabel || getDisplayName(targetDisplay)
-  const statusText = customLabel ? 'Ready to Record' : 'Ready to Record'
 
-  // Glassmorphic overlay HTML with beautiful design
+  // Refined, artistic Apple-like overlay
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
       <style>
-        * { 
-          margin: 0; 
-          padding: 0; 
-          box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
           background: transparent;
           height: 100vh;
           width: 100vw;
-          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+          -webkit-font-smoothing: antialiased;
           user-select: none;
-          -webkit-user-select: none;
           overflow: hidden;
-          position: relative;
         }
         
-        /* Minimal glassmorphic border */
-        .border-overlay {
+        /* Subtle animated border */
+        .frame {
           position: absolute;
-          inset: 0;
+          inset: 4px;
+          border-radius: 8px;
           pointer-events: none;
-          animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          animation: fadeIn 0.15s ease-out;
         }
         
-        /* Clean, minimal border design */
-        .border-overlay::before {
+        .frame::before {
           content: '';
           position: absolute;
-          inset: 8px;
-          border: 1.5px solid rgba(255, 255, 255, 0.25);
-          border-radius: 12px;
-          background: linear-gradient(135deg, 
-            rgba(255, 255, 255, 0.08) 0%,
-            rgba(255, 255, 255, 0.03) 100%);
+          inset: 0;
+          border-radius: 8px;
+          padding: 1.5px;
+          background: linear-gradient(
+            135deg,
+            rgba(255,255,255,0.5) 0%,
+            rgba(255,255,255,0.2) 50%,
+            rgba(255,255,255,0.5) 100%
+          );
+          -webkit-mask: 
+            linear-gradient(#fff 0 0) content-box, 
+            linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+        }
+        
+        /* Elegant status pill */
+        .status {
+          position: absolute;
+          top: 12px;
+          left: 12px;
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          background: rgba(0, 0, 0, 0.65);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
-          box-shadow: 
-            0 0 0 1px rgba(255, 255, 255, 0.15) inset,
-            0 8px 32px rgba(0, 0, 0, 0.25),
-            0 4px 16px rgba(0, 0, 0, 0.1);
+          padding: 7px 14px;
+          border-radius: 100px;
+          border: 0.5px solid rgba(255, 255, 255, 0.1);
+          animation: slideIn 0.15s ease-out;
         }
         
-        /* Subtle corner indicators */
-        .corner {
-          position: absolute;
-          width: 20px;
-          height: 20px;
-          border: 2px solid rgba(99, 102, 241, 0.8);
-          background: rgba(99, 102, 241, 0.15);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-        }
-        
-        .corner.top-left {
-          top: 6px;
-          left: 6px;
-          border-right: none;
-          border-bottom: none;
-          border-top-left-radius: 8px;
-        }
-        
-        .corner.top-right {
-          top: 6px;
-          right: 6px;
-          border-left: none;
-          border-bottom: none;
-          border-top-right-radius: 8px;
-        }
-        
-        .corner.bottom-left {
-          bottom: 6px;
-          left: 6px;
-          border-right: none;
-          border-top: none;
-          border-bottom-left-radius: 8px;
-        }
-        
-        .corner.bottom-right {
-          bottom: 6px;
-          right: 6px;
-          border-left: none;
-          border-top: none;
-          border-bottom-right-radius: 8px;
-        }
-        
-        /* Clean status indicator - positioned in top-left */
-        .status-indicator {
-          position: absolute;
-          top: 16px;
-          left: 16px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: rgba(0, 0, 0, 0.8);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-          padding: 8px 16px;
-          border-radius: 20px;
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-          animation: slideDown 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .status-dot {
-          width: 6px;
-          height: 6px;
-          background: #10b981;
+        .dot {
+          width: 5px;
+          height: 5px;
+          background: #34d399;
           border-radius: 50%;
-          animation: pulse 2s ease-in-out infinite;
-          box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-        }
-        
-        .status-text {
-          color: rgba(255, 255, 255, 0.95);
-          font-size: 13px;
-          font-weight: 500;
-          letter-spacing: 0.2px;
-        }
-        
-        /* Minimal center label */
-        .label-container {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          z-index: 10;
-          animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
         }
         
         .label {
-          background: rgba(0, 0, 0, 0.75);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-          padding: 12px 24px;
-          border-radius: 24px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 
-            0 4px 24px rgba(0, 0, 0, 0.3),
-            0 0 0 0.5px rgba(255, 255, 255, 0.1) inset;
-        }
-        
-        .label-text {
-          color: rgba(255, 255, 255, 0.95);
-          font-size: 14px;
+          color: rgba(255, 255, 255, 0.85);
+          font-size: 11px;
           font-weight: 500;
-          letter-spacing: 0.3px;
-          text-align: center;
+          letter-spacing: -0.1px;
         }
         
         @keyframes fadeIn {
@@ -381,58 +327,17 @@ export function showMonitorOverlay(displayId?: number, customLabel?: string): vo
           to { opacity: 1; }
         }
         
-        @keyframes slideDown {
-          from { 
-            opacity: 0;
-            transform: translateY(-8px);
-          }
-          to { 
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes fadeInUp {
-          from { 
-            opacity: 0;
-            transform: translate(-50%, -45%);
-          }
-          to { 
-            opacity: 1;
-            transform: translate(-50%, -50%);
-          }
-        }
-        
-        @keyframes pulse {
-          0%, 100% { 
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% { 
-            opacity: 0.6;
-            transform: scale(1.2);
-          }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
       </style>
     </head>
     <body>
-      <div class="border-overlay">
-        <!-- Minimal corner indicators -->
-        <div class="corner top-left"></div>
-        <div class="corner top-right"></div>
-        <div class="corner bottom-left"></div>
-        <div class="corner bottom-right"></div>
-      </div>
-      
-      <div class="status-indicator">
-        <div class="status-dot"></div>
-        <div class="status-text">${statusText}</div>
-      </div>
-      
-      <div class="label-container">
-        <div class="label">
-          <div class="label-text">${displayName}</div>
-        </div>
+      <div class="frame"></div>
+      <div class="status">
+        <div class="dot"></div>
+        <span class="label">${displayName}</span>
       </div>
     </body>
     </html>

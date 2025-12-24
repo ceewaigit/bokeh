@@ -181,13 +181,14 @@ export function registerWindowControlHandlers(): void {
       window.setMinimumSize(dimensions.width, dimensions.height)
       window.setMaximumSize(dimensions.width, dimensions.height)
 
-      // Set bounds with centered X position
+      // Position: centered X, anchored to bottom of screen
       const newX = Math.floor(display.workAreaSize.width / 2 - dimensions.width / 2)
-      const currentY = window.getPosition()[1]
+      // Keep 24px gap from bottom edge of work area
+      const newY = display.workAreaSize.height - dimensions.height - 24
 
       window.setBounds({
         x: newX,
-        y: currentY,
+        y: newY,
         width: Math.round(dimensions.width),
         height: Math.round(dimensions.height)
       }, true)
