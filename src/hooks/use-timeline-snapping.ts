@@ -2,8 +2,7 @@
 import { useCallback, useState } from 'react'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { ClipReorderService } from '@/lib/timeline/clip-reorder-service'
-import { TimelineConfig } from '@/lib/timeline/config'
-import type { Project, TrackType } from '@/types/project'
+import type { Project } from '@/types/project'
 
 interface UseTimelineSnappingProps {
     pixelsPerMs: number

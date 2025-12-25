@@ -6,7 +6,6 @@
 
 import type { Recording, Clip, RecordingMetadata } from '@/types/project'
 import type { SpeedUpPeriod, SpeedUpSuggestions } from '@/types/speed-up'
-import { SpeedUpType } from '@/types/speed-up'
 import { filterPeriodsForClip, calculateOverallSuggestion } from './index'
 import { TypingActivityDetector } from './typing-detector'
 import { IdleActivityDetector } from './idle-detector'

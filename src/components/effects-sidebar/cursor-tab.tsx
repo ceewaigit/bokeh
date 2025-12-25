@@ -146,7 +146,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           <div className="min-w-0">
             <div className="text-xs font-medium leading-none">Cursor</div>
             <div className="mt-1 text-[10px] text-muted-foreground leading-snug">
-              Show and customize the cursor overlay.
+              Display and style the cursor
             </div>
           </div>
           <Switch
@@ -173,7 +173,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 <label className="text-xs font-medium text-muted-foreground">Size</label>
-                <InfoTooltip content="Changes the size of the cursor." />
+                <InfoTooltip content="Cursor size multiplier" />
               </div>
               <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{size.toFixed(1)}x</span>
             </div>
@@ -205,7 +205,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <label className="text-xs font-medium text-muted-foreground">Motion Style</label>
-                  <InfoTooltip content="Controls how smoothly the cursor glides across the screen." />
+                  <InfoTooltip content="How the cursor moves and animates" />
                 </div>
                 <Select
                   value={motionPreset}
@@ -574,7 +574,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               <div className="border-t border-border/30 pt-2.5 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <div className="text-xs leading-none">Smooth Movement</div>
-                  <InfoTooltip content="Interpolates mouse movement for smoother cursor motion." />
+                  <InfoTooltip content="Smooths out jerky cursor movements" />
                 </div>
                 <Switch
                   className="scale-90 origin-right"
@@ -587,7 +587,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               <div className="border-t border-border/30 pt-2.5 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <div className="text-xs leading-none">Motion Blur</div>
-                  <InfoTooltip content="Adds blur to fast cursor movements." />
+                  <InfoTooltip content="Blur trail on fast movements" />
                 </div>
                 <Switch
                   className="scale-90 origin-right"
@@ -601,7 +601,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div className="text-xs leading-none">Directional Tilt</div>
-                    <InfoTooltip content="Cursor tilts towards its movement direction (0° disables)." />
+                    <InfoTooltip content="Tilt cursor in movement direction" />
                   </div>
                   <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{tiltMaxDeg.toFixed(0)}°</span>
                 </div>
@@ -621,7 +621,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div className="text-xs leading-none">Hide When Idle</div>
-                    <InfoTooltip content="Hides the cursor when it's not moving." />
+                    <InfoTooltip content="Auto-hide idle cursor" />
                   </div>
                   <Switch
                     className="scale-90 origin-right"
@@ -636,7 +636,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <label className="text-xs font-medium text-muted-foreground">Timeout</label>
-                          <InfoTooltip content="How long to wait before hiding the cursor." />
+                          <InfoTooltip content="Seconds until cursor hides" />
                         </div>
                         <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">
                           {idleTimeoutSec.toFixed(1)}s
@@ -656,7 +656,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <div className="text-xs leading-none">Fade In/Out</div>
-                        <InfoTooltip content="Fades the cursor instead of instantly hiding/showing it." />
+                        <InfoTooltip content="Fade animation" />
                       </div>
                       <Switch
                         className="scale-90 origin-right"
@@ -707,7 +707,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 <span>Add Cursor Return Clip</span>
               </button>
               <div className="text-[10px] text-muted-foreground/50 leading-snug px-2 text-center">
-                Captures a freeze frame and animates cursor back to start. Perfect for loops.
+                Animate cursor back to start — great for seamless loops
               </div>
             </div>
           </div>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { TimelineComposition } from './compositions/TimelineComposition';
-import type { TimelineCompositionProps } from '../types';
 
 export const RemotionRoot: React.FC = () => {
   return (

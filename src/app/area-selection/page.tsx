@@ -1,19 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { cn } from '@/lib/utils'
-
-interface SelectionBounds {
-    x: number
-    y: number
-    width: number
-    height: number
-}
 
 export default function AreaSelectionPage() {
     const [isSelecting, setIsSelecting] = useState(false)
     const [startPoint, setStartPoint] = useState({ x: 0, y: 0 })
-    const [currentBounds, setCurrentBounds] = useState<SelectionBounds | null>(null)
     const overlayRef = useRef<HTMLDivElement>(null)
     const selectionRef = useRef<HTMLDivElement>(null)
 
@@ -32,11 +23,8 @@ export default function AreaSelectionPage() {
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         const start = { x: e.clientX, y: e.clientY }
-        const bounds = { x: e.clientX, y: e.clientY, width: 0, height: 0 }
-
         setIsSelecting(true)
         setStartPoint(start)
-        setCurrentBounds(bounds)
 
         // Update refs immediately for use in document-level handlers
         isSelectingRef.current = true
@@ -78,7 +66,6 @@ export default function AreaSelectionPage() {
             }
 
             // Update state less frequently (for final bounds on mouseup)
-            setCurrentBounds({ x, y, width, height })
         }
 
         const handleDocumentMouseUp = () => {
@@ -100,7 +87,6 @@ export default function AreaSelectionPage() {
 
             // Validate minimum size (50x50)
             if (bounds.width < 50 || bounds.height < 50) {
-                setCurrentBounds(null)
                 return
             }
 

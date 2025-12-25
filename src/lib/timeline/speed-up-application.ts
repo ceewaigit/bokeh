@@ -189,6 +189,9 @@ export class SpeedUpApplicationService {
                 duration: clipDuration,
                 sourceIn: segment.start,
                 sourceOut: segment.end,
+                // Lock bounds to segment - prevents expansion beyond these limits
+                lockedSourceIn: segment.start,
+                lockedSourceOut: segment.end,
                 playbackRate: effectiveRate,
                 // Only mark segments as applied if they actually have speed applied
                 // Normal-speed segments should still show remaining suggestions

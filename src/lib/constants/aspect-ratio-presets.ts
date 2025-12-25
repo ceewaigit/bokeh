@@ -8,9 +8,7 @@
 import { AspectRatioPreset } from '@/types/project'
 import {
   Smartphone,
-  Instagram,
   Monitor,
-  Layout,
   Maximize,
   RectangleHorizontal,
   Square,

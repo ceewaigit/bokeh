@@ -92,9 +92,11 @@ export class MigrationRunner {
 
 // Import and register all migrations
 import { migration001 } from './migrations/001_timeline_space_effects'
+import { migration002 } from './migrations/002_normalize_effect_data'
 
 /**
  * Singleton migration runner with all migrations registered
  */
 export const migrationRunner = new MigrationRunner()
     .register(migration001)
+    .register(migration002)

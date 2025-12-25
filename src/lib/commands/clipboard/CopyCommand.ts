@@ -1,6 +1,5 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { Clip } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
 import { EffectType } from '@/types'
 import { EffectStore } from '@/lib/core/effects'

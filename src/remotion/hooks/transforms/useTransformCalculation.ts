@@ -15,6 +15,7 @@ import {
 import {
     calculateCropTransform,
     getCropTransformString,
+    combineCropAndZoomTransforms,
 } from '../../compositions/utils/transforms/crop-transform';
 import { calculateScreenTransform } from '../../compositions/utils/transforms/screen-transform';
 import { getCropData, getActiveCropEffect } from '@/lib/effects/effect-filters';
@@ -138,7 +139,7 @@ export function useTransformCalculation({
         // ==========================================================================
 
         // Use centralized effect lookup with consistent boundary semantics
-        const cropEffect = getActiveCropEffect(clipEffects, sourceTimeMs);
+        const cropEffect = getActiveCropEffect(clipEffects, currentTimeMs);
 
         // Disable crop during editing
         const resolvedCropData = isEditingCrop || !cropEffect
@@ -170,6 +171,10 @@ export function useTransformCalculation({
         // ==========================================================================
 
         const extra3DTransform = calculateScreenTransform(clipEffects, currentTimeMs);
+        const combinedZoomCrop = combineCropAndZoomTransforms(cropTransformStr, zoomTransformStr);
+        const combinedTransform = extra3DTransform
+            ? `${extra3DTransform} ${combinedZoomCrop}`.trim()
+            : combinedZoomCrop;
 
         // ==========================================================================
         // RETURN
@@ -184,7 +189,7 @@ export function useTransformCalculation({
             cropClipPath: cropClipPath || undefined,
             cropEffectId: cropEffect?.id,
             extra3DTransform: isEditingCrop ? '' : extra3DTransform,
-            outerTransform: isEditingCrop ? '' : zoomTransformStr,
+            outerTransform: isEditingCrop ? '' : combinedTransform,
         };
     }, [
         currentTimeMs,

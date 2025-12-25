@@ -150,7 +150,7 @@ export const KEYSTROKE_SCHEMA: EffectSchema = {
         fontSize: { type: 'number', default: 14, label: 'Size', min: 10, max: 28, step: 1, unit: 'px' },
         displayDuration: { type: 'number', default: 2000, label: 'Duration', min: 500, max: 5000, step: 100, unit: 'ms' },
         borderRadius: { type: 'number', default: 15, label: 'Corner Radius', min: 0, max: 24, step: 1, unit: 'px' },
-        padding: { type: 'number', default: 10, label: 'Padding', min: 4, max: 20, step: 1, unit: 'px' },
+        padding: { type: 'number', default: 8, label: 'Padding', min: 4, max: 20, step: 1, unit: 'px' },
         scale: { type: 'number', default: 1.0, label: 'Scale', min: 0.5, max: 2, step: 0.1, unit: 'x' },
         fadeOutDuration: { type: 'number', default: 400, label: 'Fade Out', min: 100, max: 1000, step: 50, unit: 'ms' },
         showModifierSymbols: { type: 'boolean', default: true, label: 'Use Symbols', description: 'Show ⌘⌥⌃ instead of Cmd+Alt+Ctrl' },

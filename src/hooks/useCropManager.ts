@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useProjectStore } from '@/stores/project-store'
-import { EffectType } from '@/types/project'
-import type { Effect, CropEffectData, Clip } from '@/types/project'
-import { CommandManager } from '@/lib/commands'
+import type { CropEffectData, Clip } from '@/types/project'
+import { CommandExecutor, AddEffectCommand, RemoveEffectCommand, UpdateEffectCommand } from '@/lib/commands'
 import { getCropEffectForClip, getCropData } from '@/lib/effects/effect-filters'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { EffectStore } from '@/lib/core/effects'
+import { useShallow } from 'zustand/react/shallow'
 
 export interface UseCropManagerReturn {
     isEditingCrop: boolean
@@ -19,55 +20,49 @@ export interface UseCropManagerReturn {
 }
 
 export function useCropManager(
-    contextEffects: Effect[],
     selectedClip: Clip | null | undefined
 ): UseCropManagerReturn {
-    // Crop editing state
-    const [isEditingCrop, setIsEditingCrop] = useState(false)
-    const [editingCropData, setEditingCropData] = useState<CropEffectData | null>(null)
-    const [editingCropEffectId, setEditingCropEffectId] = useState<string | null>(null)
+    // State from store
+    const {
+        currentProject,
+        isEditingCrop,
+        editingCropData,
+        editingCropEffectId,
+        startEditingCrop,
+        updateEditingStoreCrop,
+        stopEditingCrop
+    } = useProjectStore(
+        useShallow(s => ({
+            currentProject: s.currentProject,
+            isEditingCrop: s.isEditingCrop,
+            editingCropData: s.editingCropData,
+            editingCropEffectId: s.editingCropId,
+            startEditingCrop: s.startEditingCrop,
+            updateEditingStoreCrop: s.updateEditingCrop,
+            stopEditingCrop: s.stopEditingCrop
+        }))
+    )
 
-    // We need a ref to the command manager instance
-    // We can get it via singleton since it's initialized in WorkspaceManager/Layout usually
-    // But safer to get it fresh on usage or keep a ref if available.
-    // WorkspaceManager initializes it: CommandManager.getInstance(commandContextRef.current)
-    // We'll rely on CommandManager.getInstance() returning the singleton if initialized.
-    // However, we need to be careful if it's not initialized yet.
-    // Ideally, this hook runs inside a component where CommandManager is ready.
+    // Derived effects list
+    const contextEffects = currentProject ? EffectStore.getAll(currentProject) : []
 
     // Monitor effect existence to auto-close editing if removed externally
     useEffect(() => {
         if (!editingCropEffectId) return
         const stillExists = contextEffects.some(effect => effect.id === editingCropEffectId)
         if (!stillExists) {
-            setIsEditingCrop(false)
-            setEditingCropData(null)
-            setEditingCropEffectId(null)
+            stopEditingCrop()
         }
-    }, [contextEffects, editingCropEffectId])
+    }, [contextEffects, editingCropEffectId, stopEditingCrop])
 
     const handleAddCrop = useCallback(() => {
-        // Need current project to know if we can add
-        // We can access store directly
-        const currentProject = useProjectStore.getState().currentProject
         if (!selectedClip || !currentProject) return
 
-        const commandManager = CommandManager.getInstance()
-        if (!commandManager) return
-
-        const currentTime = useProjectStore.getState().currentTime
-        const activeCrop = contextEffects.find(e =>
-            e.type === EffectType.Crop &&
-            e.startTime <= currentTime &&
-            e.endTime > currentTime
-        )
-
-        if (activeCrop) {
-            const cropData = getCropData(activeCrop)
+        const clipCrop = getCropEffectForClip(contextEffects, selectedClip)
+        if (clipCrop) {
+            const cropData = getCropData(clipCrop)
             if (cropData) {
-                setEditingCropEffectId(activeCrop.id)
-                setEditingCropData(cropData)
-                setIsEditingCrop(true)
+                startEditingCrop(clipCrop.id, cropData)
                 return
             }
         }
@@ -80,36 +75,26 @@ export function useCropManager(
             cropData: { x: 0, y: 0, width: 1, height: 1 }, // Default to full-frame (no crop)
         })
 
-        commandManager.executeByName('AddEffect', cropEffect)
+        CommandExecutor.getInstance().execute(AddEffectCommand, cropEffect)
 
         // Start editing immediately
-        setEditingCropEffectId(cropEffect.id)
-        setEditingCropData(cropEffect.data as CropEffectData)
-        setIsEditingCrop(true)
-    }, [selectedClip, contextEffects])
+        startEditingCrop(cropEffect.id, cropEffect.data as CropEffectData)
+    }, [selectedClip, contextEffects, currentProject, startEditingCrop])
 
     const handleRemoveCrop = useCallback((effectId: string) => {
-        const commandManager = CommandManager.getInstance()
-        if (!commandManager) return
-
-        commandManager.executeByName('RemoveEffect', effectId)
+        CommandExecutor.getInstance().execute(RemoveEffectCommand, effectId)
 
         // Clear editing state if we were editing this effect
         if (editingCropEffectId === effectId) {
-            setIsEditingCrop(false)
-            setEditingCropData(null)
-            setEditingCropEffectId(null)
+            stopEditingCrop()
         }
-    }, [editingCropEffectId])
+    }, [editingCropEffectId, stopEditingCrop])
 
     const handleUpdateCrop = useCallback((effectId: string, updates: Partial<CropEffectData>) => {
-        const commandManager = CommandManager.getInstance()
-        if (!commandManager) return
-
         const effect = contextEffects.find(e => e.id === effectId)
         if (!effect) return
 
-        commandManager.executeByName('UpdateEffect', effectId, {
+        CommandExecutor.getInstance().execute(UpdateEffectCommand, effectId, {
             data: {
                 ...effect.data,
                 ...updates,
@@ -117,40 +102,25 @@ export function useCropManager(
         })
 
         // Update local editing state if we're editing this effect
-        if (editingCropEffectId === effectId && editingCropData) {
-            setEditingCropData({
-                ...editingCropData,
-                ...updates,
-            })
+        if (editingCropEffectId === effectId) {
+            updateEditingStoreCrop(updates)
         }
-    }, [contextEffects, editingCropEffectId, editingCropData])
+    }, [contextEffects, editingCropEffectId, updateEditingStoreCrop])
 
     const handleStartEditCrop = useCallback(() => {
         if (!selectedClip) return
 
         // This ensures we edit exactly what the user sees, even if clips were trimmed/moved
         // and effect start times are slightly misaligned with clip start times.
-        const currentTime = useProjectStore.getState().currentTime
-        let cropEffect = contextEffects.find(e =>
-            e.type === EffectType.Crop &&
-            e.startTime <= currentTime &&
-            e.endTime > currentTime
-        )
-
-        // Fallback: Use clip-scoped match if no active effect found (e.g. playhead outside range)
-        if (!cropEffect) {
-            cropEffect = getCropEffectForClip(contextEffects, selectedClip)
-        }
+        const cropEffect = getCropEffectForClip(contextEffects, selectedClip)
 
         if (!cropEffect) return
 
         const cropData = getCropData(cropEffect)
         if (!cropData) return
 
-        setEditingCropEffectId(cropEffect.id)
-        setEditingCropData(cropData)
-        setIsEditingCrop(true)
-    }, [selectedClip, contextEffects])
+        startEditingCrop(cropEffect.id, cropData)
+    }, [selectedClip, contextEffects, startEditingCrop])
 
     const handleCropConfirm = useCallback(() => {
         // Save current crop data to the effect
@@ -159,10 +129,13 @@ export function useCropManager(
         }
 
         // Exit editing mode
-        setIsEditingCrop(false)
-        setEditingCropData(null)
-        setEditingCropEffectId(null)
-    }, [editingCropEffectId, editingCropData, handleUpdateCrop])
+        stopEditingCrop()
+    }, [
+        editingCropEffectId,
+        editingCropData,
+        handleUpdateCrop,
+        stopEditingCrop,
+    ])
 
     const handleCropReset = useCallback(() => {
         // Remove the crop effect entirely
@@ -171,14 +144,12 @@ export function useCropManager(
         }
 
         // Exit editing mode
-        setIsEditingCrop(false)
-        setEditingCropData(null)
-        setEditingCropEffectId(null)
-    }, [editingCropEffectId, handleRemoveCrop])
+        stopEditingCrop()
+    }, [editingCropEffectId, handleRemoveCrop, stopEditingCrop])
 
     const handleCropChange = useCallback((cropData: CropEffectData) => {
-        setEditingCropData(cropData)
-    }, [])
+        updateEditingStoreCrop(cropData)
+    }, [updateEditingStoreCrop])
 
     return {
         isEditingCrop,

@@ -34,7 +34,7 @@ export function isFullFrameCrop(cropData: CropEffectData): boolean {
 /**
  * Calculate crop transformation to fill canvas with cropped region.
  * Uses uniform scaling to preserve aspect ratio of cropped content.
- * Uses MIN scale to ensure the ENTIRE selected region is visible (may letterbox).
+ * Uses MAX scale so the selected region fills the canvas.
  * Includes clipPath to hide non-cropped areas.
  */
 export function calculateCropTransform(
@@ -51,10 +51,10 @@ export function calculateCropTransform(
   const cropX = Math.max(0, Math.min(1 - cropWidth, cropData.x));
   const cropY = Math.max(0, Math.min(1 - cropHeight, cropData.y));
 
-  // Use MIN scale so the ENTIRE cropped region fits (no clipping of selection)
+  // Use MAX scale so the selected region fills the canvas
   const scaleX = 1 / cropWidth;
   const scaleY = 1 / cropHeight;
-  const scale = Math.min(scaleX, scaleY);
+  const scale = Math.max(scaleX, scaleY);
 
   // Move crop center to canvas center
   const cropCenterX = cropX + cropWidth / 2;

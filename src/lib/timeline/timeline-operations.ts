@@ -1,4 +1,4 @@
-import type { Project, Track, Clip, Effect, Recording } from '@/types/project'
+import type { Project, Track, Clip, Recording } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
@@ -134,8 +134,6 @@ export function splitClipAtTime(
     return null
   }
 
-  const playbackRate = clip.playbackRate || 1
-
   // Import the proper conversion function
   const { clipRelativeToSource } = require('../timeline/time-space-converter')
 
@@ -230,6 +228,10 @@ export function executeSplitClip(
 
   const { clip, track } = result
 
+  // Find crop effect for the original clip BEFORE the split
+  const allEffects = EffectStore.getAll(project)
+  const originalCropEffect = getCropEffectForClip(allEffects, clip)
+
   // Convert timeline position to clip-relative time
   const clipRelativeTime = splitTime - clip.startTime
 
@@ -241,6 +243,30 @@ export function executeSplitClip(
 
   // Note: Effects are now stored on Recording in source space
   // Both split clips share the same recording's effects, no splitting needed
+
+  // Handle crop effect: copy to both new clips and remove the orphaned original
+  if (originalCropEffect && originalCropEffect.data) {
+    // Create crop effect for first clip
+    const firstCropEffect = EffectsFactory.createCropEffect({
+      clipId: splitResult.firstClip.id,
+      startTime: splitResult.firstClip.startTime,
+      endTime: splitResult.firstClip.startTime + splitResult.firstClip.duration,
+      cropData: originalCropEffect.data as any
+    })
+    EffectsFactory.addEffectToProject(project, firstCropEffect)
+
+    // Create crop effect for second clip
+    const secondCropEffect = EffectsFactory.createCropEffect({
+      clipId: splitResult.secondClip.id,
+      startTime: splitResult.secondClip.startTime,
+      endTime: splitResult.secondClip.startTime + splitResult.secondClip.duration,
+      cropData: originalCropEffect.data as any
+    })
+    EffectsFactory.addEffectToProject(project, secondCropEffect)
+
+    // Remove the orphaned original crop effect
+    EffectsFactory.removeEffectFromProject(project, originalCropEffect.id)
+  }
 
   project.modifiedAt = new Date().toISOString()
 
@@ -262,20 +288,26 @@ export function executeSplitClip(
   }
 }
 
+// Minimum clip duration (1 second) - matches UI constraint
+const MIN_CLIP_DURATION_MS = 1000
+
 // Trim clip from start
 export function trimClipStart(
   clip: Clip,
   newStartTime: number
 ): Partial<Clip> | null {
-  if (newStartTime >= clip.startTime + clip.duration || newStartTime < 0) {
+  const newDuration = clip.duration - (newStartTime - clip.startTime)
+
+  // Reject if would result in invalid or too-short clip
+  if (newStartTime < 0 || newDuration < MIN_CLIP_DURATION_MS) {
     return null
   }
 
   const trimAmount = newStartTime - clip.startTime
+  const playbackRate = clip.playbackRate || 1
 
   // Sticky fade behavior: Fade stays with the clip edge
   // Only reduce fade if it's longer than the new clip duration
-  const newDuration = clip.duration - trimAmount
   let newIntroFadeMs: number | undefined = clip.introFadeMs
 
   if (clip.introFadeMs) {
@@ -283,12 +315,21 @@ export function trimClipStart(
     newIntroFadeMs = Math.min(clip.introFadeMs, newDuration)
   }
 
-  // Convert timeline trim amount to source space (respects playbackRate + time remaps)
-  const newSourceIn = TimeConverter.clipRelativeToSource(trimAmount, clip)
+  // Calculate new sourceIn directly by adding the trim amount converted to source space
+  // When expanding left (negative trimAmount), this will be less than current sourceIn
+  // When shrinking (positive trimAmount), this will be greater than current sourceIn
+  const newSourceIn = clip.sourceIn + (trimAmount * playbackRate)
+
+  // Validate against locked bounds - can't expand beyond lockedSourceIn
+  const effectiveMinSource = clip.lockedSourceIn ?? 0
+  if (newSourceIn < effectiveMinSource) {
+    return null // Can't expand beyond locked bounds
+  }
+
   return {
     startTime: newStartTime,
     duration: newDuration,
-    sourceIn: newSourceIn,
+    sourceIn: Math.max(0, newSourceIn),
     introFadeMs: newIntroFadeMs,
   }
 }
@@ -303,11 +344,19 @@ export function executeTrimClipStart(
   if (!result) return false
 
   const { clip, track } = result
+  const oldStartTime = clip.startTime
   const trimResult = trimClipStart(clip, newStartTime)
   if (!trimResult) return false
 
   Object.assign(clip, trimResult)
-  reflowClips(track, 0)
+
+  // Smart reflow based on direction:
+  // - Shrinking (moving start right): close the gap that formed
+  // - Expanding (moving start left): no reflow needed, just uses space before
+  if (newStartTime > oldStartTime) {
+    reflowClips(track, 0)
+  }
+
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return true
@@ -318,11 +367,14 @@ export function trimClipEnd(
   clip: Clip,
   newEndTime: number
 ): Partial<Clip> | null {
-  if (newEndTime <= clip.startTime || newEndTime < 0) {
+  const newDuration = newEndTime - clip.startTime
+
+  // Reject if would result in invalid or too-short clip
+  if (newEndTime < 0 || newDuration < MIN_CLIP_DURATION_MS) {
     return null
   }
-
-  const newDuration = newEndTime - clip.startTime
+  const durationChange = newDuration - clip.duration
+  const playbackRate = clip.playbackRate || 1
 
   // Sticky fade behavior: Fade stays with the clip edge
   // Only reduce fade if it's longer than the new clip duration
@@ -333,11 +385,19 @@ export function trimClipEnd(
     newOutroFadeMs = Math.min(clip.outroFadeMs, newDuration)
   }
 
-  // Convert new timeline duration to source space (respects playbackRate + time remaps)
-  const newSourceOut = TimeConverter.clipRelativeToSource(newDuration, clip)
+  // Calculate new sourceOut directly by adding the duration change converted to source space
+  // When expanding right (positive durationChange), this will be greater than current sourceOut
+  // When shrinking (negative durationChange), this will be less than current sourceOut
+  const newSourceOut = clip.sourceOut + (durationChange * playbackRate)
+
+  // Validate against locked bounds - can't expand beyond lockedSourceOut
+  if (clip.lockedSourceOut !== undefined && newSourceOut > clip.lockedSourceOut) {
+    return null // Can't expand beyond locked bounds
+  }
+
   return {
     duration: newDuration,
-    sourceOut: newSourceOut,
+    sourceOut: Math.max(clip.sourceIn, newSourceOut), // Ensure sourceOut >= sourceIn
     outroFadeMs: newOutroFadeMs,
   }
 }
@@ -352,31 +412,30 @@ export function executeTrimClipEnd(
   if (!result) return false
 
   const { clip, track } = result
+  const oldEndTime = clip.startTime + clip.duration
   const trimResult = trimClipEnd(clip, newEndTime)
   if (!trimResult) return false
 
   Object.assign(clip, trimResult)
-  // Maintain contiguous timeline layout after shortening the clip.
-  // Without this, gaps can form and later reorder/playback may desync.
-  reflowClips(track, 0)
+
+  // Smart behavior based on direction:
+  // - Expanding (end moving right): push subsequent clips to make room
+  // - Shrinking (end moving left): close the gap that formed
+  if (newEndTime > oldEndTime) {
+    // Expanding - push subsequent clips by the expansion amount
+    const expansion = newEndTime - oldEndTime
+    const clipIndex = track.clips.findIndex(c => c.id === clipId)
+    for (let i = clipIndex + 1; i < track.clips.length; i++) {
+      track.clips[i] = { ...track.clips[i], startTime: track.clips[i].startTime + expansion }
+    }
+  } else {
+    // Shrinking - reflow to close the gap
+    reflowClips(track, 0)
+  }
+
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return true
-}
-
-// Check for clip overlaps (internal use only)
-function wouldCauseOverlap(
-  clips: Clip[],
-  clipId: string,
-  newStartTime: number,
-  duration: number
-): boolean {
-  return clips.some(otherClip => {
-    if (otherClip.id === clipId) return false
-    const otherEnd = otherClip.startTime + otherClip.duration
-    const newEnd = newStartTime + duration
-    return newStartTime < otherEnd && newEnd > otherClip.startTime
-  })
 }
 
 // Update clip with overlap handling
@@ -401,9 +460,6 @@ export function updateClipInTrack(
     clip = result.clip;
     track = result.track;
   }
-
-  const prevStartTime = clip.startTime
-  const prevDuration = clip.duration
 
   // Apply updates to the clip
   Object.assign(clip, updates)
@@ -649,8 +705,11 @@ export interface AssetDetails {
 export function addAssetRecording(
   project: Project,
   asset: AssetDetails,
-  startTime?: number
+  startTimeOrOptions?: number | { startTime?: number; insertIndex?: number }
 ): Clip | null {
+  const options = typeof startTimeOrOptions === 'number' ? { startTime: startTimeOrOptions } : startTimeOrOptions
+  const startTime = options?.startTime
+  const insertIndexOverride = options?.insertIndex
   const recordingId = `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
   // 1. Identify valid insertion point and previous clip for inheritance
@@ -658,20 +717,28 @@ export function addAssetRecording(
   let lastVideoClip: Clip | null = null
 
   if (videoTrack && videoTrack.clips.length > 0) {
-    // Sort clips to find the last one (or one before insertion time if provided)
-    const sortedClips = [...videoTrack.clips].sort((a, b) => a.startTime - b.startTime)
-
-    if (typeof startTime === 'number') {
-      // Find clip that ends before or at startTime
-      // We want the clip *immediately* preceding the new one in perceived timeline order
-      // Ideally we'd spatially search, but linear time check is okay
-      const preceding = sortedClips.filter(c => (c.startTime + c.duration) <= startTime)
-      if (preceding.length > 0) {
-        lastVideoClip = preceding[preceding.length - 1]
+    if (typeof insertIndexOverride === 'number') {
+      const clampedIndex = Math.max(0, Math.min(insertIndexOverride, videoTrack.clips.length))
+      if (clampedIndex > 0) {
+        lastVideoClip = videoTrack.clips[clampedIndex - 1] ?? null
       }
-    } else {
-      // Appending to end -> use absolute last clip
-      lastVideoClip = sortedClips[sortedClips.length - 1]
+    }
+    if (typeof insertIndexOverride !== 'number') {
+      // Sort clips to find the last one (or one before insertion time if provided)
+      const sortedClips = [...videoTrack.clips].sort((a, b) => a.startTime - b.startTime)
+
+      if (typeof startTime === 'number') {
+        // Find clip that ends before or at startTime
+        // We want the clip *immediately* preceding the new one in perceived timeline order
+        // Ideally we'd spatially search, but linear time check is okay
+        const preceding = sortedClips.filter(c => (c.startTime + c.duration) <= startTime)
+        if (preceding.length > 0) {
+          lastVideoClip = preceding[preceding.length - 1]
+        }
+      } else {
+        // Appending to end -> use absolute last clip
+        lastVideoClip = sortedClips[sortedClips.length - 1]
+      }
     }
   }
 
@@ -703,7 +770,18 @@ export function addAssetRecording(
   if (!newClip) return null
 
   // If startTime was specified, insert the clip at that position (handling splits if needed)
-  if (typeof startTime === 'number') {
+  if (typeof insertIndexOverride === 'number') {
+    if (videoTrack) {
+      const trackClips = videoTrack.clips
+      const newClipIndex = trackClips.findIndex(c => c.id === newClip.id)
+      if (newClipIndex !== -1) {
+        trackClips.splice(newClipIndex, 1)
+      }
+      const insertIndex = Math.max(0, Math.min(insertIndexOverride, trackClips.length))
+      trackClips.splice(insertIndex, 0, newClip)
+      reflowClips(videoTrack, 0)
+    }
+  } else if (typeof startTime === 'number') {
     if (videoTrack) {
       const trackClips = videoTrack.clips
 

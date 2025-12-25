@@ -9,10 +9,10 @@
 
 import { useMemo } from 'react';
 import type { Project } from '@/types/project';
-import { TrackType } from '@/types/project';
 import type { TimelineCompositionProps } from '@/types';
 import { useWindowAppearanceStore } from '@/stores/window-appearance-store';
 import { EffectStore } from '@/lib/core/effects';
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service';
 
 /**
  * Build timeline composition props from project
@@ -34,12 +34,9 @@ export function usePlayerConfiguration(
       return null;
     }
 
-    // Separate video clips and audio clips based on track type
-    const videoTrack = project.timeline.tracks.find((t) => t.type === TrackType.Video);
-    const audioTrack = project.timeline.tracks.find((t) => t.type === TrackType.Audio);
-
-    const videoClips = videoTrack?.clips || [];
-    const audioClips = audioTrack?.clips || [];
+    // Separate video clips and audio clips using centralized selectors
+    const videoClips = TimelineDataService.getVideoClips(project);
+    const audioClips = TimelineDataService.getAudioClips(project);
 
     // We need at least video clips for the composition
     if (videoClips.length === 0) {
@@ -47,7 +44,7 @@ export function usePlayerConfiguration(
     }
 
     // Get all recordings
-    const recordings = project.recordings;
+    const recordings = project.recordings || [];
 
     // Collect all effects from timeline.effects (the single source of truth)
     const effects = EffectStore.getAll(project);

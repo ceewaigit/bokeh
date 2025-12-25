@@ -70,7 +70,7 @@ export function usePermissions() {
 
         // Listen for updates from backend (e.g. mock changes or polling results)
         if (window.electronAPI?.onPermissionStatusChanged) {
-            const cleanup = window.electronAPI.onPermissionStatusChanged((event, data) => {
+            const cleanup = window.electronAPI.onPermissionStatusChanged((_event, data) => {
                 const screenGranted = data.screen.granted
                 const micGranted = data.microphone.granted
 

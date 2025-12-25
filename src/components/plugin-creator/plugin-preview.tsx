@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useMemo, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import * as Babel from '@babel/standalone'
 import { Sparkles } from 'lucide-react'
 import type { GeneratedPlugin } from './page'
@@ -9,16 +9,6 @@ interface PluginPreviewProps {
     plugin: GeneratedPlugin | null
     progress: number
     onError?: (error: Error) => void
-}
-
-// Mock frame context for plugin rendering
-interface MockFrameContext {
-    frame: number
-    fps: number
-    progress: number
-    durationFrames: number
-    width: number
-    height: number
 }
 
 export function PluginPreview({
@@ -137,15 +127,12 @@ export function PluginPreview({
 
     // Responsive scaling
     const [scale, setScale] = useState(1)
-    const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
-
     useEffect(() => {
         if (!containerRef.current) return
 
         const updateSize = () => {
             if (!containerRef.current) return
             const { clientWidth, clientHeight } = containerRef.current
-            setContainerSize({ width: clientWidth, height: clientHeight })
 
             // Calculate scale to fit (contain)
             const targetWidth = 1920

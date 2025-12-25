@@ -13,12 +13,12 @@
  * For keystroke sync: import from './keystroke-sync-service'
  * For CRUD operations: import { EffectStore } from '@/lib/core/effects'
  */
-import type { Effect, Recording, Clip, Project, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData } from '@/types/project'
+import type { Effect, Recording, Project, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { getPluginDefaults, getDefaultZIndexForCategory } from '@/lib/effects/config/plugin-sdk'
 import { DEFAULT_BACKGROUND_DATA, DEFAULT_CURSOR_DATA, getDefaultWallpaper } from '@/lib/constants/default-effects'
-import { EffectStore, EffectQueries } from '@/lib/core/effects'
+import { EffectStore } from '@/lib/core/effects'
 
 // Re-export from new modules for backwards compatibility
 // Import for internal use
@@ -180,7 +180,7 @@ export class EffectsFactory {
 
   static getEffectsForClip(project: Project, clipId: string): Effect[] {
     // All effects now live in timeline.effects (the SSOT)
-    return EffectQueries.byClip(project, clipId)
+    return EffectStore.getAll(project).filter(e => e.clipId === clipId)
   }
 
   /**
@@ -194,4 +194,3 @@ export class EffectsFactory {
     return EffectStore.find(project, effectId)
   }
 }
-

@@ -8,8 +8,9 @@
 import { useMemo } from 'react';
 import type { Project } from '@/types/project';
 import { AspectRatioPreset } from '@/types/project';
-import { buildFrameLayout, getTimelineDurationInFrames } from '@/lib/timeline/frame-layout';
+import { getTimelineDurationInFrames } from '@/lib/timeline/frame-layout';
 import { calculateCanvasDimensions } from '@/lib/constants/aspect-ratio-presets';
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service';
 
 export interface TimelineMetadata {
   durationInFrames: number;
@@ -31,37 +32,24 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
       return null;
     }
 
-    // Extract all clips from all tracks
-    const clips = project.timeline.tracks.flatMap((track) => track.clips);
-
+    const clips = TimelineDataService.getVideoClips(project);
     if (clips.length === 0) {
       return null;
     }
 
     // Calculate total timeline duration (max end time of any clip)
-    const totalDurationMs = Math.max(...clips.map((c) => c.startTime + c.duration));
+    const inferredDuration = Math.max(...clips.map((c) => c.startTime + c.duration));
+    const totalDurationMs = TimelineDataService.getDuration(project) || inferredDuration;
 
-    // Get fps from project settings (preferred) or first recording.
-    const firstClip = clips[0];
-    const firstRecording = project.recordings.find((r) => r.id === firstClip.recordingId);
-
-    if (!firstRecording) {
-      return null;
-    }
-
-    const fps =
-      project.settings?.frameRate ||
-      firstRecording.frameRate ||
-      60;
+    // Get fps from the centralized service.
+    const fps = TimelineDataService.getFps(project);
 
     // Calculate duration in frames using frame layout to avoid rounding gaps.
-    const recordingsMap = new Map(project.recordings.map(r => [r.id, r]));
-    const frameLayout = buildFrameLayout(clips, fps, recordingsMap);
+    const frameLayout = TimelineDataService.getFrameLayout(project, fps);
     const durationInFrames = getTimelineDurationInFrames(frameLayout);
 
-    // Get source dimensions from first recording
-    const sourceWidth = firstRecording.width || 1920;
-    const sourceHeight = firstRecording.height || 1080;
+    // Get source dimensions from first recording or fallback
+    const sourceDimensions = TimelineDataService.getSourceDimensions(project);
 
     // Calculate canvas dimensions based on aspect ratio settings
     const canvasSettings = project.settings?.canvas;
@@ -72,8 +60,8 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
       1080, // base resolution
       canvasSettings?.customWidth,
       canvasSettings?.customHeight,
-      sourceWidth,
-      sourceHeight
+      sourceDimensions.width,
+      sourceDimensions.height
     );
 
     return {

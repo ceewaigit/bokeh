@@ -1,36 +1,24 @@
 import { create } from 'zustand'
-import { ExportFormat, QualityLevel } from '@/types/project'
-import { ExportEngine, type ExportProgress } from '@/lib/export/export-engine'
+import { ExportFormat } from '@/types/project'
+import { ExportEngine } from '@/lib/export/export-engine'
 import type { ExportSettings } from '@/types/export'
-import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import type { Project } from '@/types/project'
+import { useProjectStore } from './project-store'
 
 interface ExportStore {
   engine: ExportEngine | null
   isExporting: boolean
-  progress: ExportProgress | null
   lastExport: Blob | null
-  exportSettings: ExportSettings
+  lastExportSettings: ExportSettings | null
 
   getEngine: () => ExportEngine
 
-  updateSettings: (newSettings: Partial<ExportSettings>) => void
-
-  exportProject: (project: import('@/types/project').Project) => Promise<void>
-  exportAsGIF: (project: import('@/types/project').Project) => Promise<void>
+  exportProject: (project: Project, settings: ExportSettings) => Promise<void>
+  exportAsGIF: (project: Project, settings: ExportSettings) => Promise<void>
   cancelExport: () => Promise<void>
   saveLastExport: (defaultFilename: string) => Promise<void>
 
-  setPreset: (preset: string) => void
   reset: () => void
-}
-
-const defaultSettings: ExportSettings = {
-  format: ExportFormat.MP4,
-  quality: QualityLevel.High,
-  resolution: { width: 1920, height: 1080 },
-  framerate: 60,
-  outputPath: ''
-  // Memory settings are dynamically calculated in export-handler.ts based on system resources
 }
 
 export const useExportStore = create<ExportStore>((set, get) => {
@@ -49,125 +37,103 @@ export const useExportStore = create<ExportStore>((set, get) => {
   return {
     engine: null,
     isExporting: false,
-    progress: null,
     lastExport: null,
-    exportSettings: defaultSettings,
+    lastExportSettings: null,
 
     getEngine,
 
-    updateSettings: (newSettings) => {
-      set((state) => ({
-        exportSettings: { ...state.exportSettings, ...newSettings }
-      }))
-    },
+    exportProject: async (project, settings) => {
+      set({ isExporting: true, lastExport: null, lastExportSettings: settings })
 
-    exportProject: async (project) => {
-      const { exportSettings } = get()
-
-      set({ isExporting: true, progress: null, lastExport: null })
+      // Start unified progress
+      useProjectStore.getState().startProcessing('Exporting Project...')
 
       try {
         // Use the new unified export engine that handles everything
         const engine = getEngine()
 
-        const blob = await engine.exportProject(
+        const result = await engine.exportProject(
           project,
-          exportSettings,
-          (progress) => set({
-            progress: {
-              ...progress,
-              progress: Math.max(0, Math.min(100, progress.progress))
-            }
-          })
+          settings,
+          (progress) => {
+            // Update unified progress
+            useProjectStore.getState().setProgress(
+              Math.max(0, Math.min(100, progress.progress)),
+              progress.message,
+              progress.eta
+            )
+          }
         )
 
-        // Validate blob thoroughly
-        const size = blob.size
-        if (!size || size <= 0) {
-          throw new Error('Export produced an empty file. Please check your timeline has video clips.')
+        // Validate result thoroughly
+        if (!result || !(result instanceof Blob)) {
+          throw new Error('Export produced an invalid result.')
         }
 
-        // Check for suspiciously small files (likely just headers)
-        if (size < 256 * 1024) {
-          throw new Error(`Export file is too small (${size} bytes). The export may have failed.`)
-        }
-
-        console.log(`Export successful: ${(size / 1024 / 1024).toFixed(2)} MB`)
+        console.log(`Export successful: ${result.size} bytes`)
 
         set({
           isExporting: false,
-          lastExport: blob,
-          progress: {
-            progress: 100,
-            stage: 'complete',
-            message: `Export complete! (${(size / 1024 / 1024).toFixed(2)} MB)`
-          }
+          lastExport: result,
         })
+
+        // Finish unified progress
+        useProjectStore.getState().finishProcessing('Export complete')
 
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        const canceled = /cancel|abort/i.test(message)
-        set({
-          isExporting: false,
-          progress: {
-            progress: 0,
-            stage: 'error',
-            message: canceled ? 'Export canceled' : `Export failed: ${message}`
-          }
-        })
+        // Fail unified progress
+        useProjectStore.getState().failProcessing(error instanceof Error ? error.message : 'Export failed')
+
+        set({ isExporting: false })
       }
     },
 
-    exportAsGIF: async (project) => {
-      const { exportSettings } = get()
+    exportAsGIF: async (project, settings) => {
       const engine = getEngine()
 
-      set({ isExporting: true, progress: null, lastExport: null })
+      // Export as GIF by changing the format
+      const gifSettings = {
+        ...settings,
+        format: ExportFormat.GIF,
+        framerate: 10
+      }
+
+      set({ isExporting: true, lastExport: null, lastExportSettings: gifSettings })
+
+      // Start unified progress
+      useProjectStore.getState().startProcessing('Exporting GIF...')
 
       try {
-        // Export as GIF by changing the format
-        const gifSettings = {
-          ...exportSettings,
-          format: ExportFormat.GIF,
-          framerate: 10
-        }
-
-        const blob = await engine.exportProject(
+        const result = await engine.exportProject(
           project,
           gifSettings,
-          (progress) => set({
-            progress: {
-              ...progress,
-              progress: Math.max(0, Math.min(100, progress.progress))
-            }
-          })
+          (progress) => {
+            // Update unified progress
+            useProjectStore.getState().setProgress(
+              Math.max(0, Math.min(100, progress.progress)),
+              progress.message,
+              progress.eta
+            )
+          }
         )
 
-        if (!blob.size) {
-          throw new Error('GIF export produced an empty file')
+        if (!result || !(result instanceof Blob)) {
+          throw new Error('GIF export produced an invalid result.')
         }
 
         set({
           isExporting: false,
-          lastExport: blob,
-          progress: {
-            progress: 100,
-            stage: 'complete',
-            message: 'GIF export complete!'
-          }
+          lastExport: result,
         })
 
+        // Finish unified progress
+        useProjectStore.getState().finishProcessing('GIF export complete')
+
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        const canceled = /cancel|abort/i.test(message)
-        set({
-          isExporting: false,
-          progress: {
-            progress: 0,
-            stage: 'error',
-            message: canceled ? 'GIF export canceled' : `GIF export failed: ${message}`
-          }
-        })
+        // Fail unified progress
+        useProjectStore.getState().failProcessing(error instanceof Error ? error.message : 'GIF export failed')
+
+        set({ isExporting: false })
       }
     },
 
@@ -179,12 +145,13 @@ export const useExportStore = create<ExportStore>((set, get) => {
       } catch (e) {
         console.error('Failed to cancel export:', e)
       }
-      set({ isExporting: false, progress: null, lastExport: null })
+      useProjectStore.getState().resetProgress()
+      set({ isExporting: false, lastExport: null })
     },
 
     saveLastExport: async (defaultFilename) => {
-      const { lastExport, exportSettings } = get()
-      if (!lastExport) return
+      const { lastExport, lastExportSettings } = get()
+      if (!lastExport || !lastExportSettings) return
 
       // Determine extension based on the blob type when available (handles codec fallbacks)
       const mime = lastExport.type || ''
@@ -192,7 +159,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
         mime === 'video/mp4' ? 'mp4' :
           mime === 'video/webm' ? 'webm' :
             mime === 'image/gif' ? 'gif' :
-              (exportSettings.format === 'gif' ? 'gif' : exportSettings.format.toLowerCase())
+              (lastExportSettings.format === 'gif' ? 'gif' : lastExportSettings.format.toLowerCase())
       const extension = inferredExt
       const suggestedName = defaultFilename.endsWith(`.${extension}`)
         ? defaultFilename
@@ -209,6 +176,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
         })
 
         if (result && !result.canceled && result.filePath) {
+          // In Electron, we need to save the ArrayBuffer
           const arrayBuffer = await lastExport.arrayBuffer()
           await window.electronAPI.saveFile(arrayBuffer, result.filePath)
         }
@@ -219,32 +187,10 @@ export const useExportStore = create<ExportStore>((set, get) => {
       throw new Error('Electron API not available for file save')
     },
 
-    setPreset: (preset) => {
-      // Quality-tier based presets
-      // Resolution height defines the tier, width is calculated from project aspect ratio at export time
-      const presets: Record<string, Partial<ExportSettings>> = {
-        'hd-60': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
-        'hd-30': { resolution: { width: 1920, height: 1080 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
-        '4k-60': { resolution: { width: 3840, height: 2160 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
-        '4k-30': { resolution: { width: 3840, height: 2160 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.High },
-        'sd': { resolution: { width: 1280, height: 720 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
-        'prores-hd': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MOV, quality: QualityLevel.High },
-        'prores-4k': { resolution: { width: 3840, height: 2160 }, framerate: 30, format: ExportFormat.MOV, quality: QualityLevel.Ultra },
-        'gif': { resolution: { width: 640, height: 480 }, framerate: 15, format: ExportFormat.GIF, quality: QualityLevel.Low }
-      }
-
-      set((state) => ({
-        exportSettings: { ...state.exportSettings, ...(presets[preset] || {}) as Partial<ExportSettings> }
-      }))
-    },
-
     reset: () => {
-      // Clean up any export-related blobs from blob manager
-      if (typeof globalBlobManager !== 'undefined') {
-        globalBlobManager.cleanupByType('export')
-      }
       // Reset state - this will release the lastExport blob reference
-      set({ isExporting: false, progress: null, lastExport: null })
+      useProjectStore.getState().resetProgress()
+      set({ isExporting: false, lastExport: null, lastExportSettings: null })
     }
   }
 })

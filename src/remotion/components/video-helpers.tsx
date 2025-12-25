@@ -4,7 +4,7 @@
  * AudioEnhancerWrapper: Attaches audio enhancement to video elements.
  */
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useCurrentFrame, useVideoConfig, delayRender, continueRender, getRemotionEnvironment } from 'remotion';
 import { useAudioEnhancement } from '@/hooks/use-audio-enhancement';
 import type { AudioEnhancerWrapperProps, SafeVideoProps } from '@/types';

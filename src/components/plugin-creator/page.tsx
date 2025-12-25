@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { FolderOpen } from 'lucide-react'
 import { PluginPlayer } from './plugin-player'
 import { ChatPanel } from './chat-panel'

@@ -3,8 +3,8 @@
  *
  * Renders image clips (freeze frames, imported images) within a Remotion composition.
  */
-import React, { useState, useEffect } from 'react';
-import { Sequence, Img, staticFile } from 'remotion';
+import React from 'react';
+import { Sequence, Img } from 'remotion';
 import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { useVideoUrl } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';

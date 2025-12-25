@@ -3,8 +3,7 @@
  * 
  * Provides centralized effect management with:
  * - EffectStore: CRUD operations (all effects on timeline.effects)
- * - EffectQueries: Filtering and query utilities
+ * - EffectStore: CRUD operations (all effects on timeline.effects)
  */
 
 export { EffectStore } from './store'
-export { EffectQueries } from './queries'

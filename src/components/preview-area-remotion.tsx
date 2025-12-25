@@ -15,17 +15,17 @@
 
 'use client';
 
-import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/remotion/compositions/TimelineComposition';
 import { useProjectStore } from '@/stores/project-store';
-import { useWorkspaceStore } from '@/stores/workspace-store';
+import { usePreviewSettingsStore } from '@/stores/preview-settings-store';
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 import { globalBlobManager } from '@/lib/security/blob-url-manager';
-import { useTheme } from '@/contexts/theme-context';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
-import type { CropEffectData, Recording } from '@/types/project';
+import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/lib/utils/resolution-utils';
+import type { CropEffectData } from '@/types/project';
 
 import { AmbientGlowPlayer } from './preview/ambient-glow-player';
 
@@ -57,7 +57,7 @@ export function PreviewAreaRemotion({
   // Instead, read it directly from the store ref during sync intervals.
   const storeIsPlaying = useProjectStore((s) => s.isPlaying);
   const storePause = useProjectStore((s) => s.pause);
-  const storeSeek = useProjectStore((s) => s.seek);  // For syncing store FROM player
+  const storeSeekFromPlayer = useProjectStore((s) => s.seekFromPlayer);  // For syncing store FROM player
   const isExporting = useExportStore((s) => s.isExporting);
 
   // PERFORMANCE: Track document visibility - pause when window not focused
@@ -96,8 +96,9 @@ export function PreviewAreaRemotion({
   const lastSeekTimeRef = useRef<number>(0);
   const pendingSeekRef = useRef<number | null>(null);
   const scrubTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // SSOT FIX: isScrubbing removed - same code path for play and scrub
-  const isScrubbing = false;
+  const lastFrameSyncMsRef = useRef<number>(0);
+  const isScrubbing = useProjectStore((s) => s.isScrubbing);
+  const wasPlayingBeforeScrubRef = useRef(false);
   const lastIsPlayingRef = useRef<boolean>(false);
   const playbackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -122,12 +123,12 @@ export function PreviewAreaRemotion({
   }, []);
 
   const project = useProjectStore((s) => s.currentProject);
-  const { volume, muted } = useProjectStore((s) => s.settings.audio);
+  const volume = useProjectStore((s) => s.settings.audio.volume);
+  const muted = useProjectStore((s) => s.settings.audio.muted);
   const cameraSettings = useProjectStore((s) => s.settings.camera);
-  const isHighQualityPlaybackEnabled = useWorkspaceStore((s) => s.isHighQualityPlaybackEnabled);
-  const isGlowEnabled = useWorkspaceStore((s) => s.isGlowEnabled);
-  const { resolvedTheme } = useTheme();
-
+  const isHighQualityPlaybackEnabled = usePreviewSettingsStore((s) => s.highQuality);
+  const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow);
+  const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity);
 
   // Calculate timeline metadata (total duration, fps, dimensions)
   const timelineMetadata = useTimelineMetadata(project);
@@ -150,10 +151,12 @@ export function PreviewAreaRemotion({
     const videoHeight = timelineMetadata.height;
     const videoAspectRatio = videoWidth / videoHeight;
 
-    // Preview resolution: 1440p is sufficient for most displays
-    // High-quality toggle in settings can enable full resolution if needed
-    const maxWidth = 2560;
-    const maxHeight = 1440;
+    const maxWidth = isHighQualityPlaybackEnabled
+      ? videoWidth
+      : PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER;
+    const maxHeight = isHighQualityPlaybackEnabled
+      ? videoHeight
+      : PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER;
 
     const scaleByWidth = maxWidth / videoWidth;
     const scaleByHeight = maxHeight / videoHeight;
@@ -167,7 +170,7 @@ export function PreviewAreaRemotion({
     }
 
     return { width, height };
-  }, [timelineMetadata]);
+  }, [timelineMetadata, isHighQualityPlaybackEnabled]);
 
   // Ensure all videos are loaded
   useEffect(() => {
@@ -257,11 +260,16 @@ export function PreviewAreaRemotion({
 
     const handleFrameUpdate = (e: { detail: { frame: number } }) => {
       // Only sync during playback - scrub sync is handled separately
-      if (!useProjectStore.getState().isPlaying) return;
+      const { isPlaying, isScrubbing } = useProjectStore.getState();
+      if (!isPlaying) return;
+      if (isScrubbing) return;
+      const now = performance.now();
+      if (now - lastFrameSyncMsRef.current < 1000 / 30) return;
+      lastFrameSyncMsRef.current = now;
 
       const frame = e.detail.frame;
       const timeMs = (frame / timelineMetadata.fps) * 1000;
-      storeSeek(timeMs);
+      storeSeekFromPlayer(timeMs);
     };
 
     player.addEventListener('frameupdate', handleFrameUpdate as any);
@@ -269,7 +277,74 @@ export function PreviewAreaRemotion({
     return () => {
       player.removeEventListener('frameupdate', handleFrameUpdate as any);
     };
-  }, [timelineMetadata, storeSeek]);
+  }, [timelineMetadata, storeSeekFromPlayer]);
+
+  // Scrub behavior: pause player while dragging, resume from final position.
+  useEffect(() => {
+    if (!playerRef.current || !timelineMetadata) return;
+    const player = playerRef.current;
+
+    if (isScrubbing) {
+      wasPlayingBeforeScrubRef.current = isPlaying;
+      try {
+        player.pause();
+      } catch {
+        // Best-effort pause
+      }
+      return;
+    }
+
+    if (wasPlayingBeforeScrubRef.current && isPlaying) {
+      const time = useProjectStore.getState().currentTime;
+      const targetFrame = clampFrame(timeToFrame(time));
+      try {
+        player.seekTo(targetFrame);
+        safePlay(player, 'main');
+      } catch (e) {
+        console.warn('Failed to resume after scrub:', e);
+      }
+    }
+
+    wasPlayingBeforeScrubRef.current = false;
+  }, [isScrubbing, isPlaying, timelineMetadata, safePlay]);
+
+  // Allow intentional seeks during playback (e.g. ruler click) without pausing.
+  useEffect(() => {
+    if (!playerRef.current || !timelineMetadata || !isPlaying || isExporting || isScrubbing) return;
+
+    let prevTime = useProjectStore.getState().currentTime;
+
+    const unsubscribe = useProjectStore.subscribe((state) => {
+      if (!state.isPlaying || isExporting || state.isScrubbing) return;
+
+      const nextTime = state.currentTime;
+      if (Math.abs(nextTime - prevTime) < 1) return;
+      prevTime = nextTime;
+
+      const player = playerRef.current;
+      if (!player) return;
+
+      const targetFrame = clampFrame(timeToFrame(nextTime));
+      let playerFrame = 0;
+
+      try {
+        playerFrame = player.getCurrentFrame();
+      } catch {
+        return;
+      }
+
+      if (Math.abs(playerFrame - targetFrame) <= 2) return;
+
+      try {
+        player.seekTo(targetFrame);
+        safePlay(player, 'main');
+      } catch (e) {
+        console.warn('Failed to seek during playback:', e);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isPlaying, isExporting, timelineMetadata, safePlay]);
 
   // Main player sync effect with throttled scrubbing
   useEffect(() => {
@@ -344,11 +419,17 @@ export function PreviewAreaRemotion({
       console.warn('Failed to pause:', e);
     }
 
-    // Need to subscribe to time updates manually since we removed the prop
+    // PERFORMANCE: Subscribe only to currentTime changes, not all store mutations
+    // Track previous time to filter out unrelated state changes
+    let prevTime = useProjectStore.getState().currentTime
+
     const unsubscribe = useProjectStore.subscribe((state) => {
+      // Only react if currentTime actually changed (within 1ms tolerance)
+      if (Math.abs(state.currentTime - prevTime) < 1) return
+      prevTime = state.currentTime
+
       if (!state.isPlaying && !isExporting) {
-        const time = state.currentTime;
-        const frame = clampFrame(timeToFrame(time));
+        const frame = clampFrame(timeToFrame(state.currentTime));
         throttledSeek(frame);
       }
     });
@@ -359,7 +440,7 @@ export function PreviewAreaRemotion({
     return () => {
       unsubscribe();
     }
-  }, [isPlaying, timelineMetadata, throttledSeek, isExporting, isGlowEnabled]); // Removed currentTime
+  }, [isPlaying, timelineMetadata, throttledSeek, isExporting]);
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -489,6 +570,7 @@ export function PreviewAreaRemotion({
                   isScrubbing={isScrubbing}
                   playerKey={playerKey}
                   initialFrame={initialFrame}
+                  glowIntensity={glowIntensity}
                 />
               )}
 

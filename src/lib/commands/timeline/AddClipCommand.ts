@@ -1,5 +1,5 @@
 import { Command, CommandResult } from '../base/Command'
-import { CommandContext, hasClipOverlap, findNextValidPosition, calculateTimelineDuration } from '../base/CommandContext'
+import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 

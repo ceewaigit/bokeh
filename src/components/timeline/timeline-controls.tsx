@@ -74,7 +74,7 @@ export const TimelineControls = React.memo(({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 bg-transparent">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-border/30 bg-transparent">
         <div className="flex items-center gap-1">
           {/* Playback Controls */}
           <Tooltip>
@@ -83,7 +83,7 @@ export const TimelineControls = React.memo(({
                 size="sm"
                 variant="ghost"
                 onClick={() => onSeek(Math.max(0, currentTime - 1000))}
-                className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98"
+                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 <SkipBack className="w-3.5 h-3.5" />
               </Button>
@@ -99,7 +99,7 @@ export const TimelineControls = React.memo(({
                 size="sm"
                 variant="ghost"
                 onClick={() => isPlaying ? onPause() : onPlay()}
-                className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98"
+                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
               </Button>
@@ -115,7 +115,7 @@ export const TimelineControls = React.memo(({
                 size="sm"
                 variant="ghost"
                 onClick={() => onSeek(Math.min(maxDuration, currentTime + 1000))}
-                className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98"
+                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 <SkipForward className="w-3.5 h-3.5" />
               </Button>
@@ -125,7 +125,7 @@ export const TimelineControls = React.memo(({
             </TooltipContent>
           </Tooltip>
 
-          <div className="w-px h-5 bg-border/50 mx-1" />
+          <div className="w-px h-4 bg-border/40 mx-1.5" />
 
           {/* Single-clip Edit Controls - Hidden when no selection */}
           {hasSingleSelection && (
@@ -136,7 +136,7 @@ export const TimelineControls = React.memo(({
                     size="sm"
                     variant="ghost"
                     onClick={onSplit}
-                    className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98"
+                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <Scissors className="w-3.5 h-3.5" />
                   </Button>
@@ -152,7 +152,7 @@ export const TimelineControls = React.memo(({
                     size="sm"
                     variant="ghost"
                     onClick={onTrimStart}
-                    className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98"
+                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <ChevronsLeft className="w-3.5 h-3.5" />
                   </Button>
@@ -168,7 +168,7 @@ export const TimelineControls = React.memo(({
                     size="sm"
                     variant="ghost"
                     onClick={onTrimEnd}
-                    className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98"
+                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <ChevronsRight className="w-3.5 h-3.5" />
                   </Button>
@@ -184,7 +184,7 @@ export const TimelineControls = React.memo(({
                     size="sm"
                     variant="ghost"
                     onClick={onDuplicate}
-                    className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98"
+                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <Layers className="w-3.5 h-3.5" />
                   </Button>
@@ -204,7 +204,7 @@ export const TimelineControls = React.memo(({
                 variant="ghost"
                 onClick={onDelete}
                 disabled={!hasSelection}
-                className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98 disabled:hover:scale-100 disabled:opacity-50"
+                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -222,7 +222,7 @@ export const TimelineControls = React.memo(({
                   variant="ghost"
                   onClick={onCopy}
                   disabled={!hasSingleSelection}
-                  className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98 disabled:hover:scale-100 disabled:opacity-50"
+                  className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
                 >
                   <Copy className="w-3.5 h-3.5" />
                 </Button>
@@ -241,7 +241,7 @@ export const TimelineControls = React.memo(({
                   variant="ghost"
                   onClick={onPaste}
                   disabled={!copiedClip}
-                  className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98 disabled:hover:scale-100 disabled:opacity-50"
+                  className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
                 >
                   <Clipboard className="w-3.5 h-3.5" />
                 </Button>
@@ -256,7 +256,7 @@ export const TimelineControls = React.memo(({
         </div>
 
         {/* Timecode Display */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-2 py-0.5 bg-background/50 rounded border border-border/50 font-mono text-[11px] tabular-nums text-muted-foreground">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-2.5 py-0.5 bg-muted/40 rounded-lg font-mono text-[11px] tabular-nums text-muted-foreground">
           {formatTimecode(currentTime, fps)}
         </div>
 
@@ -268,7 +268,7 @@ export const TimelineControls = React.memo(({
                 size="sm"
                 variant="ghost"
                 onClick={() => onZoomChange(Math.max(effectiveMinZoom, zoom - 0.1))}
-                className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98 disabled:hover:scale-100 disabled:opacity-50"
+                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
                 disabled={zoom <= effectiveMinZoom}
               >
                 <ZoomOut className="w-3.5 h-3.5" />
@@ -294,7 +294,7 @@ export const TimelineControls = React.memo(({
                 size="sm"
                 variant="ghost"
                 onClick={() => onZoomChange(Math.min(effectiveMaxZoom, zoom + 0.1))}
-                className="h-7 w-7 p-0 transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-110 active:scale-98 disabled:hover:scale-100 disabled:opacity-50"
+                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
                 disabled={zoom >= effectiveMaxZoom}
               >
                 <ZoomIn className="w-3.5 h-3.5" />

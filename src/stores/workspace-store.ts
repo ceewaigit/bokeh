@@ -46,11 +46,6 @@ interface WorkspaceStore {
   loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => void
   resetWorkspace: () => void
 
-  // Preview Settings
-  isHighQualityPlaybackEnabled: boolean
-  setHighQualityPlaybackEnabled: (enabled: boolean) => void
-  isGlowEnabled: boolean
-  setGlowEnabled: (enabled: boolean) => void
 }
 
 const defaultWorkspaceState = {
@@ -63,16 +58,14 @@ const defaultWorkspaceState = {
   isSettingsOpen: false,
   propertiesPanelWidth: 400,
   utilitiesPanelWidth: 400,  // Default open width
-  timelineHeight: 200,
+  timelineHeight: 250,  // Default height in px (will respect 30vh minimum)
   currentView: 'library' as WorkspaceView,
   activeUtilityTab: 'import' as UtilityTabId,
-  isHighQualityPlaybackEnabled: false,
-  isGlowEnabled: true, // Ambient glow effect on preview
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       ...defaultWorkspaceState,
 
       toggleProperties: () => {
@@ -112,7 +105,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       },
 
       setTimelineHeight: (height: number) => {
-        set({ timelineHeight: Math.max(150, Math.min(400, height)) })
+        // Min 30vh equivalent (~200px), max 50vh (~400px)
+        const minHeight = Math.max(200, window.innerHeight * 0.3)
+        const maxHeight = window.innerHeight * 0.5
+        set({ timelineHeight: Math.max(minHeight, Math.min(maxHeight, height)) })
       },
 
       setActiveUtilityTab: (tab: UtilityTabId) => {
@@ -123,13 +119,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         set({ currentView: view })
       },
 
-      setHighQualityPlaybackEnabled: (enabled: boolean) => {
-        set({ isHighQualityPlaybackEnabled: enabled })
-      },
 
-      setGlowEnabled: (enabled: boolean) => {
-        set({ isGlowEnabled: enabled })
-      },
 
       loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => {
         switch (preset) {
@@ -200,8 +190,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         utilitiesPanelWidth: state.utilitiesPanelWidth,
         timelineHeight: state.timelineHeight,
         activeUtilityTab: state.activeUtilityTab,
-        isHighQualityPlaybackEnabled: state.isHighQualityPlaybackEnabled,
-        isGlowEnabled: state.isGlowEnabled,
       }),
     }
   )

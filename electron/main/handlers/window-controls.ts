@@ -301,15 +301,23 @@ export function registerWindowControlHandlers(): void {
     }
   })
 
-  ipcMain.handle('show-recording-overlay', async (_event, bounds: { x: number; y: number; width: number; height: number }, label?: string) => {
+  ipcMain.handle(
+    'show-recording-overlay',
+    async (
+      _event,
+      bounds: { x: number; y: number; width: number; height: number },
+      label?: string,
+      options?: { displayId?: number; relativeToDisplay?: boolean }
+    ) => {
     try {
-      showRecordingOverlay(bounds, label)
+      showRecordingOverlay(bounds, label, options)
       return { success: true }
     } catch (error) {
       console.error('[WindowControls] Failed to show recording overlay:', error)
       return { success: false, error: (error as Error).message }
     }
-  })
+  }
+  )
 
   ipcMain.handle('hide-recording-overlay', async () => {
     try {

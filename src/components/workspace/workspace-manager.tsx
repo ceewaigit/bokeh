@@ -17,21 +17,20 @@ import { EffectsSidebar } from '../effects-sidebar'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
 import { UtilitiesSidebar } from '../utilities-sidebar'
-import { useProjectStore, useSelectedClipId } from '@/stores/project-store'
+import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
-import type { Effect, ZoomBlock, CropEffectData } from '@/types/project'
+import type { Effect } from '@/types/project'
 import { useCropManager } from '@/hooks/useCropManager'
+import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { usePlayheadState } from '@/hooks/use-playhead-state'
 import { EffectType } from '@/types/project'
-import { CommandExecutor, UpdateZoomBlockCommand } from '@/lib/commands'
 import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
-import { buildFrameLayout } from '@/lib/timeline/frame-layout'
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 import { calculateFullCameraPath } from '@/lib/effects/utils/camera-path-calculator'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
 import { EffectStore } from '@/lib/core/effects'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
@@ -40,13 +39,17 @@ import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
 import { useExportStore } from '@/stores/export-store'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { toast } from 'sonner'
+import { useSelectedClip } from '@/stores/selectors/clip-selectors'
 
 // Simplified project loading - delegates to ProjectIOService for all heavy lifting
 async function loadProjectRecording(
   recording: any,
   setLoadingMessage: (message: string) => void,
   newProject: (name: string) => void,
-  setLastSavedAt: (timestamp: string | null) => void
+  setLastSavedAt: (timestamp: string | null) => void,
+  setProject: (project: any) => void,
+  setCameraPathCache: (cache: any) => void,
+  setAutoZoom: (zoom: number) => void
 ) {
   try {
     // Initialize wallpaper if not already done
@@ -67,21 +70,15 @@ async function loadProjectRecording(
     setLastSavedAt(project.modifiedAt || new Date().toISOString())
 
     // Set the project ONCE after all recordings are processed
-    useProjectStore.getState().setProject(project)
+    setProject(project)
 
     // Pre-compute camera path for smooth playback
     setLoadingMessage('Optimizing playback...')
 
-    // We need to build the frame layout first (same logic as SharedVideoController)
-    // Flatten clips from all video tracks for layout building
-    const videoTracks = project.timeline.tracks.filter(t => t.type === 'video')
-    const allClips = videoTracks.flatMap(t => t.clips).sort((a, b) => a.startTime - b.startTime)
-    const fps = project.settings.frameRate
-
-    const recordingsMap = new Map(project.recordings.map(r => [r.id, r]));
-    const frameLayout = buildFrameLayout(allClips, fps, recordingsMap)
-
-    const projectStore = useProjectStore.getState()
+    // Build frame layout once using centralized service
+    const fps = TimelineDataService.getFps(project)
+    const recordingsMap = TimelineDataService.getRecordingsMap(project)
+    const frameLayout = TimelineDataService.getFrameLayout(project, fps)
 
     // Run the heavy calculation
     const cameraPath = calculateFullCameraPath({
@@ -90,19 +87,17 @@ async function loadProjectRecording(
       videoWidth: project.settings.resolution.width,
       videoHeight: project.settings.resolution.height,
       effects: EffectStore.getAll(project),
-      getRecording: (id) => project.recordings.find(r => r.id === id),
+      getRecording: (id) => recordingsMap.get(id),
       loadedMetadata: undefined
     })
 
     // Store in cache
     if (cameraPath) {
-      projectStore.setCameraPathCache(cameraPath)
+      setCameraPathCache(cameraPath)
     }
 
     const viewportWidth = window.innerWidth
-    const allZoomEffects = project.recordings.flatMap((r: any) =>
-      getZoomEffects(r.effects || [])
-    )
+    const allZoomEffects = getZoomEffects(EffectStore.getAll(project))
     const zoomBlocks = allZoomEffects.map((e: any) => ({
       startTime: e.startTime,
       endTime: e.endTime
@@ -117,7 +112,7 @@ async function loadProjectRecording(
     // Calculate optimal zoom and clamp to adaptive limits
     const optimalZoom = TimeConverter.calculateOptimalZoom(project.timeline.duration, viewportWidth)
     const clampedZoom = Math.max(adaptiveLimits.min, Math.min(adaptiveLimits.max, optimalZoom))
-    useProjectStore.getState().setAutoZoom(clampedZoom)
+    setAutoZoom(clampedZoom)
 
     return true
   } catch (error) {
@@ -134,29 +129,38 @@ export function WorkspaceManager() {
   const {
     currentProject,
     newProject,
+    setProject,
+    setCameraPathCache,
     selectedEffectLayer,
     play: storePlay,
     pause: storePause,
     seek: storeSeek,
     saveCurrentProject,
     setZoom,
+    setAutoZoom,
     zoom,
+    cleanupProject,
   } = useProjectStore(
     useShallow((s) => ({
       currentProject: s.currentProject,
       newProject: s.newProject,
+      setProject: s.setProject,
+      setCameraPathCache: s.setCameraPathCache,
       selectedEffectLayer: s.selectedEffectLayer,
       play: s.play,
       pause: s.pause,
       seek: s.seek,
       saveCurrentProject: s.saveCurrentProject,
       setZoom: s.setZoom,
+      setAutoZoom: s.setAutoZoom,
       zoom: s.zoom,
+      cleanupProject: s.cleanupProject,
     }))
   )
 
-  // Derived selector: selectedClipId from selectedClips (SSOT)
-  const selectedClipId = useSelectedClipId()
+  const selectedClipResult = useSelectedClip()
+  const selectedClip = selectedClipResult?.clip ?? null
+  const selectedTrackType = selectedClipResult?.track.type
 
   // Computed playhead state (SSOT - derived from currentTime and clips)
   const { playheadClip, playheadRecording } = usePlayheadState()
@@ -173,40 +177,64 @@ export function WorkspaceManager() {
     isExportOpen,
     propertiesPanelWidth,
     utilitiesPanelWidth,
+    timelineHeight,
     toggleProperties,
     setUtilitiesPanelWidth,
-    setExportOpen
-  } = useWorkspaceStore()
+    setTimelineHeight,
+    setExportOpen,
+    currentView,
+    setCurrentView,
+    resetWorkspace
+  } = useWorkspaceStore(
+    useShallow((s) => ({
+      isPropertiesOpen: s.isPropertiesOpen,
+      isUtilitiesOpen: s.isUtilitiesOpen,
+      isExportOpen: s.isExportOpen,
+      propertiesPanelWidth: s.propertiesPanelWidth,
+      utilitiesPanelWidth: s.utilitiesPanelWidth,
+      timelineHeight: s.timelineHeight,
+      toggleProperties: s.toggleProperties,
+      setUtilitiesPanelWidth: s.setUtilitiesPanelWidth,
+      setTimelineHeight: s.setTimelineHeight,
+      setExportOpen: s.setExportOpen,
+      currentView: s.currentView,
+      setCurrentView: s.setCurrentView,
+      resetWorkspace: s.resetWorkspace
+    }))
+  )
 
   const isExporting = useExportStore((s) => s.isExporting)
+  const clearLibrary = useRecordingsLibraryStore((s) => s.clearLibrary)
 
 
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const isResizingUtilitiesRef = useRef(false)
+  const isResizingTimelineRef = useRef(false)
 
   // Command executor for undo/redo support
-  const executorRef = useRef<CommandExecutor | null>(null)
-
-  // Initialize command executor
-  useEffect(() => {
-    executorRef.current = CommandExecutor.isInitialized()
-      ? CommandExecutor.getInstance()
-      : CommandExecutor.initialize(useProjectStore)
-  }, [])
+  const executorRef = useCommandExecutor()
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
-      if (!isResizingUtilitiesRef.current) return
-      setUtilitiesPanelWidth(event.clientX)
+      if (isResizingUtilitiesRef.current) {
+        setUtilitiesPanelWidth(event.clientX)
+      }
+      if (isResizingTimelineRef.current) {
+        // Calculate height from bottom of viewport
+        const newHeight = window.innerHeight - event.clientY
+        setTimelineHeight(newHeight)
+      }
     }
 
     const handleMouseUp = () => {
-      if (!isResizingUtilitiesRef.current) return
-      isResizingUtilitiesRef.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
+      if (isResizingUtilitiesRef.current || isResizingTimelineRef.current) {
+        isResizingUtilitiesRef.current = false
+        isResizingTimelineRef.current = false
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -216,28 +244,12 @@ export function WorkspaceManager() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [setUtilitiesPanelWidth])
+  }, [setUtilitiesPanelWidth, setTimelineHeight])
 
-  // Get selected clip and its track type
-  const selectedTrack = currentProject?.timeline.tracks.find(t => t.clips.some(c => c.id === selectedClipId))
-  const selectedClip = selectedTrack?.clips.find(c => c.id === selectedClipId) || null
-  const selectedTrackType = selectedTrack?.type
-
-  // Get all effects for the current context
-  // Uses EffectStore to get all effects (timeline + legacy recording.effects)
-  const contextEffects = useMemo((): Effect[] => {
-    if (!currentProject) return []
-    return EffectStore.getAll(currentProject)
-  }, [currentProject])
+  const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
+  const contextEffects = timelineEffects ?? []
 
 
-
-  // Effects for preview are derived per-clip inside PreviewAreaRemotion
-  const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
-    if (executorRef.current) {
-      executorRef.current.execute(UpdateZoomBlockCommand, blockId, updates)
-    }
-  }, [])
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
@@ -542,7 +554,7 @@ export function WorkspaceManager() {
     handleCropConfirm,
     handleCropReset,
     handleCropChange
-  } = useCropManager(contextEffects, selectedClip)
+  } = useCropManager(selectedClip)
 
 
 
@@ -564,7 +576,7 @@ export function WorkspaceManager() {
   }
 
   // Check if we should show Plugin Creator (accessible even without project)
-  if (useWorkspaceStore.getState().currentView === 'plugin-creator') {
+  if (currentView === 'plugin-creator') {
     return (
       <div className="fixed inset-0 flex flex-col bg-zinc-950 z-50">
         <div className="flex-shrink-0">
@@ -574,7 +586,7 @@ export function WorkspaceManager() {
             onExport={() => setExportOpen(true)}
             onSaveProject={handleSaveProject}
             onBackToLibrary={() => {
-              useWorkspaceStore.getState().setCurrentView('editor')
+              setCurrentView('editor')
             }}
             hasUnsavedChanges={hasUnsavedChanges}
           />
@@ -598,14 +610,17 @@ export function WorkspaceManager() {
 
               try {
                 // Clear library data to free memory before loading project
-                useRecordingsLibraryStore.getState().clearLibrary()
+                clearLibrary()
                 ThumbnailGenerator.clearAllCache()
 
                 const success = await loadProjectRecording(
                   recording,
                   setLoadingMessage,
                   newProject,
-                  setLastSavedAt
+                  setLastSavedAt,
+                  setProject,
+                  setCameraPathCache,
+                  setAutoZoom
                 )
 
                 if (!success) {
@@ -652,8 +667,8 @@ export function WorkspaceManager() {
                   RecordingStorage.clearMetadataCache()
 
                   // Clean up stores
-                  useProjectStore.getState().cleanupProject()
-                  useWorkspaceStore.getState().resetWorkspace()
+                  cleanupProject()
+                  resetWorkspace()
 
                   // Clear all rendering caches to free memory
                   import('@/lib/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
@@ -684,8 +699,8 @@ export function WorkspaceManager() {
         {!isExporting ? (
           <div className="flex-1 flex flex-col overflow-hidden relative">
             <div className="flex flex-col h-full">
-              {/* Top Section - Preview and Sidebar (70% height) */}
-              <div className="flex" style={{ height: '70%' }}>
+              {/* Top Section - Preview and Sidebars (flexible height) */}
+              <div className="flex flex-1 min-h-0">
                 {/* Left Sidebar - Utilities (closed by default) */}
                 {isUtilitiesOpen && (
                   <div
@@ -734,7 +749,6 @@ export function WorkspaceManager() {
                       effects={contextEffects}
                       selectedEffectLayer={selectedEffectLayer}
                       onEffectChange={handleEffectChange}
-                      onZoomBlockUpdate={handleZoomBlockUpdate}
                       onBulkToggleKeystrokes={handleBulkToggleKeystrokes}
                       onAddCrop={handleAddCrop}
                       onRemoveCrop={handleRemoveCrop}
@@ -747,8 +761,25 @@ export function WorkspaceManager() {
                 )}
               </div>
 
-              {/* Timeline Section - Full width at bottom (30% height) */}
-              <div className="bg-transparent overflow-hidden" style={{ height: '30%', width: '100vw' }}>
+              {/* Timeline Resize Divider */}
+              <div
+                className="h-2 cursor-row-resize bg-transparent hover:bg-border/30 transition-all duration-150 flex-shrink-0 flex items-center justify-center group"
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  isResizingTimelineRef.current = true
+                  document.body.style.cursor = 'row-resize'
+                  document.body.style.userSelect = 'none'
+                }}
+              >
+                {/* Subtle resize handle indicator */}
+                <div className="w-8 h-1 rounded-full bg-border/40 group-hover:bg-border/60 transition-colors" />
+              </div>
+
+              {/* Timeline Section - Full width at bottom */}
+              <div
+                className="bg-transparent overflow-hidden flex-shrink-0"
+                style={{ height: `${timelineHeight}px`, minHeight: '30vh', width: '100vw' }}
+              >
                 <TimelineCanvas
                   className="h-full w-full"
                   currentProject={currentProject}
@@ -758,7 +789,6 @@ export function WorkspaceManager() {
                   onSeek={handleSeek}
                   onClipSelect={handleClipSelect}
                   onZoomChange={setZoom}
-                  onZoomBlockUpdate={handleZoomBlockUpdate}
                 />
               </div>
             </div>

@@ -3,12 +3,12 @@
 import React, { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
-import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect } from '@/types/project'
 import { ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType, EffectType } from '@/types/effects'
-import { CommandExecutor, AddEffectCommand } from '@/lib/commands'
+import { AddEffectCommand } from '@/lib/commands'
+import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { DEFAULT_SCREEN_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 
@@ -21,6 +21,7 @@ interface ScreenTabProps {
 export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }: ScreenTabProps) {
   const [introMs, setIntroMs] = useState(DEFAULT_SCREEN_DATA.introMs ?? 300)
   const [outroMs, setOutroMs] = useState(DEFAULT_SCREEN_DATA.outroMs ?? 300)
+  const executorRef = useCommandExecutor()
 
   // Keep UI in sync if selection changes; these values are currently "best-effort" defaults.
   useEffect(() => {
@@ -45,9 +46,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               data: { preset: ScreenEffectPreset.Subtle }
             }
             // Use command pattern for undo/redo support
-            if (CommandExecutor.isInitialized()) {
-              await CommandExecutor.getInstance().execute(AddEffectCommand, newEffect)
-            }
+            await executorRef.current?.execute(AddEffectCommand, newEffect)
           }}
         >
           Add 3D Screen Block

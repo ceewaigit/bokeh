@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ChevronDown, Search, Trash2, RefreshCw, Puzzle } from 'lucide-react'
+import { ChevronDown, Search, Trash2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -255,7 +255,6 @@ export function PluginsTab() {
                     {Object.entries(pluginDef.params).map(([key, param]) => (
                         <PluginParamControl
                             key={key}
-                            paramKey={key}
                             param={param}
                             value={pluginData.params[key] ?? param.default}
                             onChange={(value) => handleSelectedParamChange(key, value)}
@@ -317,7 +316,6 @@ export function PluginsTab() {
                     {Object.entries(pluginDef.params).map(([key, param]) => (
                         <PluginParamControl
                             key={key}
-                            paramKey={key}
                             param={param}
                             value={clipParams[key] ?? param.default}
                             onChange={(value) => handleGeneratedClipParamChange(key, value)}
@@ -480,7 +478,6 @@ export function PluginsTab() {
                                                 {Object.entries(plugin.params).map(([key, param]) => (
                                                     <PluginParamControl
                                                         key={key}
-                                                        paramKey={key}
                                                         param={param}
                                                         value={getParamValue(plugin.id, key, param)}
                                                         onChange={(value) => handleParamChange(plugin.id, key, value)}
@@ -504,13 +501,12 @@ export function PluginsTab() {
 // =============================================================================
 
 interface ParamControlProps {
-    paramKey: string
     param: ParamDef
     value: unknown
     onChange: (value: unknown) => void
 }
 
-function PluginParamControl({ paramKey, param, value, onChange }: ParamControlProps) {
+function PluginParamControl({ param, value, onChange }: ParamControlProps) {
     if (param.type === 'number') {
         const numParam = param as NumberParam
         const displayValue = typeof value === 'number' ? value : numParam.default

@@ -375,7 +375,7 @@ export function findClipAtTimelinePosition(timelineMs: number, clips: Clip[]): C
  * @param zoom - Zoom level (1 = default, 2 = 2x zoom, etc)
  * @returns Pixels per millisecond
  */
-export function calculatePixelsPerMs(stageWidth: number, zoom: number): number {
+export function calculatePixelsPerMs(_stageWidth: number, zoom: number): number {
   const basePixelsPerMs = 0.1 // Base scale: 0.1 pixel per ms
   return basePixelsPerMs * zoom
 }

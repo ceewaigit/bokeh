@@ -11,6 +11,7 @@ import { useRef, useEffect, useMemo } from 'react';
 import { calculateVideoPosition } from '../../compositions/utils/layout/video-position';
 import { calculateMockupPosition, type MockupPositionResult } from '@/lib/mockups/mockup-transform';
 import { getActiveBackgroundEffect } from '@/lib/effects/effect-filters';
+import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects';
 
 import type { Effect, BackgroundEffect } from '@/types/project';
 
@@ -59,7 +60,7 @@ interface UseLayoutCalculationOptions {
 
     // Effects for this clip
     clipEffects: Effect[];
-    sourceTimeMs: number;
+    currentTimeMs: number;
 
     // Crop editing state (triggers layout freeze)
     isEditingCrop: boolean;
@@ -86,7 +87,7 @@ export function useLayoutCalculation({
     recordingWidth,
     recordingHeight,
     clipEffects,
-    sourceTimeMs,
+    currentTimeMs,
     isEditingCrop,
 }: UseLayoutCalculationOptions): LayoutResult {
     // Frozen layout ref - persists layout during crop editing
@@ -106,7 +107,7 @@ export function useLayoutCalculation({
         }
 
         // Get background effect data using centralized lookup (consistent boundary semantics)
-        const backgroundEffect = getActiveBackgroundEffect(clipEffects, sourceTimeMs) as BackgroundEffect | undefined;
+        const backgroundEffect = getActiveBackgroundEffect(clipEffects, currentTimeMs) as BackgroundEffect | undefined;
         const backgroundData = backgroundEffect?.data || null;
 
         // Calculate scale factor
@@ -116,10 +117,10 @@ export function useLayoutCalculation({
         );
 
         // Extract background properties
-        const padding = backgroundData?.padding || 0;
+        const padding = backgroundData?.padding ?? DEFAULT_BACKGROUND_DATA.padding;
         const paddingScaled = padding * scaleFactor;
-        const cornerRadius = (backgroundData?.cornerRadius || 0) * scaleFactor;
-        const shadowIntensity = backgroundData?.shadowIntensity || 0;
+        const cornerRadius = (backgroundData?.cornerRadius ?? DEFAULT_BACKGROUND_DATA.cornerRadius ?? 0) * scaleFactor;
+        const shadowIntensity = backgroundData?.shadowIntensity ?? DEFAULT_BACKGROUND_DATA.shadowIntensity ?? 0;
         const mockupData = backgroundData?.mockup;
         const mockupEnabled = mockupData?.enabled ?? false;
 
@@ -182,7 +183,7 @@ export function useLayoutCalculation({
         recordingWidth,
         recordingHeight,
         clipEffects,
-        sourceTimeMs,
+        currentTimeMs,
         isEditingCrop,
     ]);
 }

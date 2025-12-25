@@ -88,7 +88,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
           <div className="min-w-0">
             <div className="text-xs font-medium leading-none">Keystrokes</div>
             <div className="mt-1 text-[10px] text-muted-foreground leading-snug">
-              Show keyboard input overlay
+              Display key presses on screen
             </div>
             <div className="mt-0.5 text-[10px] text-muted-foreground/70 tabular-nums">
               {keystrokeEffects.length > 0 ? `${keystrokeEffects.length} blocks` : `${keyboardEventCount} events`}
@@ -264,7 +264,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-1">
                   <label className="text-[10px] font-medium text-muted-foreground">Use Symbols</label>
-                  <InfoTooltip content="Show symbols like ⌘ instead of words like Cmd." />
+                  <InfoTooltip content="Use symbols (⌘) instead of text (Cmd)" />
                 </div>
                 <Switch
                   checked={showModifierSymbols}

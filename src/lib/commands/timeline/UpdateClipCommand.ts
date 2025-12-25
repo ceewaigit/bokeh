@@ -36,7 +36,7 @@ export class UpdateClipCommand extends Command<{ clipId: string }> {
       }
     }
 
-    const { clip, track } = result
+    const { clip, track: _track } = result
     
     // Store original state
     this.originalClip = JSON.parse(JSON.stringify(clip))

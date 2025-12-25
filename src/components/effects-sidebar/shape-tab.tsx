@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { Square } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import type { BackgroundEffectData, Effect } from '@/types/project'
 import { InfoTooltip } from './info-tooltip'

@@ -9,7 +9,7 @@
  * - Undo/Redo restoration
  */
 
-import type { Clip, Recording } from '@/types/project'
+import type { Clip, Recording, Effect } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import {
     findClipById,
@@ -23,7 +23,8 @@ import {
     restoreClipToTrack,
     restoreClipsToTrack,
     calculateTimelineDuration,
-    reflowClips
+    reflowClips,
+    syncCropEffectTimes
 } from '@/lib/timeline/timeline-operations'
 import { ProjectCleanupService } from '@/lib/timeline/project-cleanup'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
@@ -31,7 +32,7 @@ import { SpeedUpApplicationService } from '@/lib/timeline/speed-up-application'
 import { PlayheadService } from '@/lib/timeline/playhead-service'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
-import { getCropEffectForClip } from '@/lib/effects/effect-filters'
+import { getActiveCropEffect, getCropEffectForClip } from '@/lib/effects/effect-filters'
 import { captureLastFrame } from '@/lib/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/lib/cursor/synthetic-events'
 import { EffectStore } from '@/lib/core/effects'
@@ -128,6 +129,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     },
 
     addImageClip: ({ imagePath, width, height, durationMs, startTime, syntheticMouseEvents, effects }) => {
+        let created: { clip: Clip; recording: Recording } | null = null
+
         set((state) => {
             if (!state.currentProject) return
 
@@ -137,6 +140,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             const duration = Math.max(100, durationMs ?? 5000) // Default 5 seconds for images
             const recordingId = `image-${Date.now()}`
+            const clipId = `clip-${Date.now()}`
 
             const recording: Recording = {
                 id: recordingId,
@@ -167,7 +171,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             const { insertIndex } = ClipPositioning.getReorderTarget(insertTime, videoTrack.clips)
 
             const clip: Clip = {
-                id: `clip-${Date.now()}`,
+                id: clipId,
                 recordingId,
                 startTime: insertTime,
                 duration,
@@ -185,7 +189,14 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             invalidateCaches(state)
 
             state.selectedClips = [clip.id]
+
+            const resolvedClip = videoTrack.clips.find(c => c.id === clipId)
+            if (resolvedClip) {
+                created = { clip: resolvedClip, recording }
+            }
         })
+
+        return created
     },
 
     addCursorReturnClip: async ({ sourceClipId, durationMs = 2000 } = {}) => {
@@ -241,8 +252,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         // Generate synthetic cursor return events
         const syntheticEvents = generateCursorReturnFromSource(
             sourceEvents,
-            0,
-            sourceClip!.sourceOut,
+            sourceClip.sourceIn ?? 0,
+            sourceClip.sourceOut,
             durationMs
         )
 
@@ -254,8 +265,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         const timelineEffects = EffectStore.getAll(project)
         const clipEnd = sourceClip!.startTime + sourceClip!.duration
 
-        // Get crop effect using clipId-based matching (robust)
+        // Get crop effect using clipId-based matching first, then fall back to active-at-end
         const cropEffect = getCropEffectForClip(timelineEffects, sourceClip!)
+            ?? getActiveCropEffect(timelineEffects, Math.max(0, clipEnd - 1))
 
         // Get other effects (Background, Screen) using time-range filtering
         const activeTimelineEffects = timelineEffects.filter(e =>
@@ -264,7 +276,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         )
 
         const sourceOut = sourceClip!.sourceOut
-        const activeSourceEffects = sourceRecording.effects.filter(e =>
+        const activeSourceEffects = (sourceRecording.effects ?? []).filter(e =>
             e.startTime <= sourceOut && e.endTime >= sourceOut
         )
 
@@ -279,13 +291,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         ]
 
         // Clone and adjust timing for new clip
-        const clonedEffects = effectsToCopy.map(effect => ({
-            ...effect,
-            id: `${effect.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            startTime: 0,
-            endTime: durationMs
-        }))
-
         // Calculate insert time (right after source clip ends)
         const insertTime = sourceClip.startTime + sourceClip.duration
 
@@ -321,15 +326,42 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         }
 
         // Add image clip with freeze frame and synthetic events
-        get().addImageClip({
+        const created = get().addImageClip({
             imagePath,
             width: captureResult.width,
             height: captureResult.height,
             durationMs,
             startTime: insertTime,
             syntheticMouseEvents: syntheticEvents ?? undefined,
-            effects: clonedEffects
+            effects: []
         })
+
+        if (!created) return
+
+        const clipStart = created.clip.startTime
+        const newClipEnd = created.clip.startTime + created.clip.duration
+
+        const clonedEffects = effectsToCopy.map(effect => {
+            const cloned = {
+                ...effect,
+                id: `${effect.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                startTime: clipStart,
+                endTime: newClipEnd,
+                data: effect.data ? { ...effect.data } : effect.data
+            } as Effect
+            if (effect.type === EffectType.Crop) {
+                cloned.clipId = created.clip.id
+            }
+            return cloned
+        })
+
+        if (clonedEffects.length > 0) {
+            set((state) => {
+                if (!state.currentProject) return
+                EffectStore.addMany(state.currentProject, clonedEffects)
+                invalidateCaches(state)
+            })
+        }
     },
 
     resizeGeneratedClip: (clipId, durationMs) => {
@@ -544,29 +576,92 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             for (const track of state.currentProject.timeline.tracks) {
                 const clipIndex = track.clips.findIndex(c => c.id === clipId)
-                if (clipIndex !== -1 && clipIndex !== newIndex) {
+                if (clipIndex === -1) continue
+
+                const oldRanges = track.clips.map(c => ({
+                    id: c.id,
+                    startTime: c.startTime,
+                    endTime: c.startTime + c.duration
+                }))
+
+                if (clipIndex !== newIndex) {
                     // Remove clip from current position
                     const [clip] = track.clips.splice(clipIndex, 1)
                     // Insert at new position
                     track.clips.splice(newIndex, 0, clip)
+                }
 
-                    // Reflow all clips to ensure contiguity from time 0
-                    reflowClips(track, 0)
+                // Reflow all clips to ensure contiguity from time 0
+                reflowClips(track, 0)
+
+                const newRanges = new Map<string, { startTime: number; endTime: number }>()
+                for (const updatedClip of track.clips) {
+                    newRanges.set(updatedClip.id, {
+                        startTime: updatedClip.startTime,
+                        endTime: updatedClip.startTime + updatedClip.duration
+                    })
+                }
+
+                const deltaByClipId = new Map<string, number>()
+                for (const oldRange of oldRanges) {
+                    const updatedRange = newRanges.get(oldRange.id)
+                    if (!updatedRange) continue
+                    const delta = updatedRange.startTime - oldRange.startTime
+                    if (delta !== 0) {
+                        deltaByClipId.set(oldRange.id, delta)
+                    }
+                }
+
+                if (track.type === TrackType.Video) {
+                    const effects = state.currentProject.timeline.effects ?? []
+                    const shiftableTypes = new Set<EffectType>([
+                        EffectType.Zoom,
+                        EffectType.Screen,
+                        EffectType.Plugin
+                    ])
+
+                    for (const effect of effects) {
+                        if (effect.clipId && deltaByClipId.has(effect.clipId)) {
+                            const delta = deltaByClipId.get(effect.clipId) ?? 0
+                            effect.startTime += delta
+                            effect.endTime += delta
+                            continue
+                        }
+
+                        if (!shiftableTypes.has(effect.type)) continue
+
+                        const owningClip = oldRanges.find(range =>
+                            effect.startTime >= range.startTime &&
+                            effect.endTime <= range.endTime
+                        )
+                        if (!owningClip) continue
+                        const delta = deltaByClipId.get(owningClip.id)
+                        if (!delta) continue
+
+                        effect.startTime += delta
+                        effect.endTime += delta
+                    }
+
+                    if (effects.length > 0) {
+                        state.currentProject.timeline.effects = [...effects]
+                    }
+
+                    syncCropEffectTimes(state.currentProject)
 
                     // Start times changed; rebuild derived keystroke blocks.
                     EffectsFactory.syncKeystrokeEffects(state.currentProject)
-
-                    // Force new array reference
-                    track.clips = [...track.clips]
-
-                    // Update timeline duration
-                    state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-                    state.currentProject.modifiedAt = new Date().toISOString()
-
-                    // Invalidate cache
-                    invalidateCaches(state)
-                    break
                 }
+
+                // Force new array reference
+                track.clips = [...track.clips]
+
+                // Update timeline duration
+                state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+                state.currentProject.modifiedAt = new Date().toISOString()
+
+                // Invalidate cache
+                invalidateCaches(state)
+                break
             }
         })
     },

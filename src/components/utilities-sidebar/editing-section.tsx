@@ -61,7 +61,7 @@ export function EditingSection() {
                             <TooltipTrigger asChild>
                                 <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
                             </TooltipTrigger>
-                            <TooltipContent side="left">Snaps clips to the grid to help you align them perfectly.</TooltipContent>
+                            <TooltipContent side="left">Align clips to grid lines</TooltipContent>
                         </Tooltip>
                     </div>
                     <Switch
@@ -82,7 +82,7 @@ export function EditingSection() {
                             <TooltipTrigger asChild>
                                 <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
                             </TooltipTrigger>
-                            <TooltipContent side="left">Shows the audio volume as a wavy line on your clips.</TooltipContent>
+                            <TooltipContent side="left">Display audio volume on clips</TooltipContent>
                         </Tooltip>
                     </div>
                     <Switch
@@ -103,7 +103,7 @@ export function EditingSection() {
                             <TooltipTrigger asChild>
                                 <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
                             </TooltipTrigger>
-                            <TooltipContent side="left">Automatically closes the gap when you delete a clip.</TooltipContent>
+                            <TooltipContent side="left">Close gaps when deleting clips</TooltipContent>
                         </Tooltip>
                     </div>
                     <Switch
@@ -291,7 +291,7 @@ export function EditingSection() {
                     </DialogContent>
                 </Dialog>
                 <p className="text-[10px] text-muted-foreground/70 text-center leading-snug">
-                    Reset effects to their auto-detected state
+                    Restore effects to auto-detected defaults
                 </p>
             </div>
 

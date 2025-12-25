@@ -6,6 +6,7 @@
  */
 
 import type { ProjectStore } from './types'
+import { QualityLevel, ExportFormat, type Project } from '@/types/project'
 
 /**
  * CENTRALIZED CACHE INVALIDATION
@@ -36,7 +37,32 @@ export function resetSelectionState(state: ProjectStore): void {
   state.selectedEffectLayer = null
   state.zoomManuallyAdjusted = false
   state.currentTime = 0
+  state.currentTime = 0
   // Note: playhead state is now computed via usePlayheadState() hook - no need to update here
+}
+
+/**
+ * Synchronize project settings to the store settings state.
+ * Used when loading or setting a project to ensure UI reflects the project's configuration.
+ */
+export function syncProjectSettingsToStore(state: ProjectStore, project: Project): void {
+  if (!project.settings) return
+
+  // Sync unified settings
+  if (project.settings.resolution) {
+    state.settings.resolution = project.settings.resolution
+  }
+  if (project.settings.frameRate) {
+    state.settings.framerate = project.settings.frameRate
+  }
+
+  // Sync nested settings (shallow merge properties)
+  if (project.settings.audio) {
+    Object.assign(state.settings.audio, project.settings.audio)
+  }
+  if (project.settings.camera) {
+    Object.assign(state.settings.camera, project.settings.camera)
+  }
 }
 
 /**
@@ -44,6 +70,11 @@ export function resetSelectionState(state: ProjectStore): void {
  * Used by the core slice for initial state.
  */
 export const DEFAULT_SETTINGS: ProjectStore['settings'] = {
+  quality: QualityLevel.High,
+  resolution: { width: 1920, height: 1080 },
+  framerate: 60,
+  format: ExportFormat.MP4,
+
   showTypingSuggestions: true,
   audio: {
     volume: 100,
@@ -51,14 +82,6 @@ export const DEFAULT_SETTINGS: ProjectStore['settings'] = {
     fadeInDuration: 0.5,
     fadeOutDuration: 0.5,
     enhanceAudio: false
-  },
-  preview: {
-    showRuleOfThirds: false,
-    showCenterGuides: false,
-    showSafeZones: false,
-    guideColor: 'rgba(255, 255, 255, 0.5)',
-    guideOpacity: 0.5,
-    safeZoneMargin: 10
   },
   editing: {
     snapToGrid: true,
@@ -72,5 +95,10 @@ export const DEFAULT_SETTINGS: ProjectStore['settings'] = {
     motionBlurThreshold: 30,
     refocusBlurEnabled: true,
     refocusBlurIntensity: 40
+  },
+  recording: {
+    lowMemoryEncoder: false,
+    useMacOSDefaults: true,
+    includeAppWindows: false
   }
 }

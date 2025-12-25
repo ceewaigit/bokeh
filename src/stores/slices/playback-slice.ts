@@ -14,6 +14,7 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
   // State
   currentTime: 0,
   isPlaying: false,
+  isScrubbing: false,
   zoom: 0.5,
   zoomManuallyAdjusted: false,
 
@@ -48,6 +49,20 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
       const duration = state.currentProject?.timeline?.duration || 0
       state.currentTime = playbackService.seek(time, duration)
       // playhead state computed via hook
+    })
+  },
+
+  seekFromPlayer: (time) => {
+    set((state) => {
+      const duration = state.currentProject?.timeline?.duration || 0
+      state.currentTime = playbackService.seek(time, duration)
+      // playhead state computed via hook
+    })
+  },
+
+  setScrubbing: (isScrubbing) => {
+    set((state) => {
+      state.isScrubbing = isScrubbing
     })
   },
 

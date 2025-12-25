@@ -279,8 +279,12 @@ const electronAPI = {
     ipcRenderer.invoke('hide-monitor-overlay'),
 
   // Recording overlay
-  showRecordingOverlay: (bounds: { x: number; y: number; width: number; height: number }, label?: string) =>
-    ipcRenderer.invoke('show-recording-overlay', bounds, label),
+  showRecordingOverlay: (
+    bounds: { x: number; y: number; width: number; height: number },
+    label?: string,
+    options?: { displayId?: number; relativeToDisplay?: boolean }
+  ) =>
+    ipcRenderer.invoke('show-recording-overlay', bounds, label, options),
 
   hideRecordingOverlay: () =>
     ipcRenderer.invoke('hide-recording-overlay'),

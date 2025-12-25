@@ -131,7 +131,6 @@ export function useRenderableItems({
       isRendering,
       prevLayoutItem,
       nextLayoutItem,
-      activeLayoutItem,
       shouldHoldPrevFrame,
       isNearBoundaryEnd,
     });

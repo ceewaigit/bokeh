@@ -236,7 +236,11 @@ export interface ElectronAPI {
   showMonitorOverlay?: (displayId?: number) => Promise<{ success: boolean }>
   hideMonitorOverlay?: () => Promise<{ success: boolean }>
   showWindowOverlay?: (windowId: string) => Promise<{ success: boolean }>
-  showRecordingOverlay?: (bounds: { x: number; y: number; width: number; height: number }, label?: string) => Promise<{ success: boolean }>
+  showRecordingOverlay?: (
+    bounds: { x: number; y: number; width: number; height: number },
+    label?: string,
+    options?: { displayId?: number; relativeToDisplay?: boolean }
+  ) => Promise<{ success: boolean }>
   hideRecordingOverlay?: () => Promise<{ success: boolean }>
 
   // Desktop icons visibility (macOS only)

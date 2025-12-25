@@ -18,13 +18,18 @@ export enum AudioInput {
   None = 'none'
 }
 
-export interface RecordingSettings {
+// Session-specific settings managed by RecordingSessionStore
+export interface SessionSettings {
   area: RecordingArea
   audioInput: AudioInput
+  sourceId?: string
+}
+
+// Full settings payload sent to IPC (composed of SessionSettings + ProjectSettings)
+export interface RecordingSettings extends SessionSettings {
   quality: import('./project').QualityLevel
   framerate: 30 | 60
   format: import('./project').ExportFormat
-  sourceId?: string // Specific source ID to record
   onlySelf?: boolean // Only record the application's own windows
   includeAppWindows?: boolean // Keep app windows visible during recording
   lowMemoryEncoder?: boolean // Reduce encoder buffering to lower memory usage

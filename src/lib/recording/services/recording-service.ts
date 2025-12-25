@@ -40,10 +40,16 @@ export class RecordingService {
   async start(settings: RecordingSettings): Promise<void> {
     // Check permissions
     await this.checkPermissions()
+    if (!settings.sourceId) {
+      throw new Error('Recording source is required')
+    }
     this.onlySelf = settings.onlySelf ?? false
 
     // Get source information
     const sourceInfo = await this.getSourceInfo(settings)
+    if (!this.captureArea?.fullBounds) {
+      throw new Error('Failed to resolve capture bounds')
+    }
 
     // Select best available strategy
     this.strategy = await this.selectStrategy()
@@ -52,19 +58,21 @@ export class RecordingService {
     // Parse recording config
     const config = this.parseConfig(settings, sourceInfo)
 
-    // Start recording
-    await this.strategy.start(config)
-
-    // Show recording overlay for the active capture bounds.
-    await this.showRecordingOverlay()
-
-    // Start tracking
+    // Start tracking first so we can fail fast before recording
     await this.trackingService.start(
-      settings.sourceId!,
+      sourceInfo.sourceId,
       { fullBounds: this.captureArea?.fullBounds, scaleFactor: this.captureArea?.scaleFactor },
       this.captureWidth,
       this.captureHeight
     )
+
+    try {
+      await this.strategy.start(config)
+      await this.showRecordingOverlay()
+    } catch (error) {
+      await this.trackingService.stop()
+      throw error
+    }
   }
 
   /**
@@ -75,11 +83,15 @@ export class RecordingService {
       throw new Error('No recording in progress')
     }
 
-    // Stop tracking first
+    let trackingError: unknown
     let metadata: ElectronMetadata[] = []
     let result: RecordingResult
     try {
       metadata = await this.trackingService.stop()
+    } catch (error) {
+      trackingError = error
+    }
+    try {
       result = await this.strategy.stop()
     } finally {
       await this.hideRecordingOverlay()
@@ -99,6 +111,10 @@ export class RecordingService {
     this.captureWidth = 0
     this.captureHeight = 0
     this.onlySelf = false
+
+    if (trackingError) {
+      logger.warn('[RecordingService] Tracking stop failed; returning video with partial metadata', trackingError)
+    }
 
     return recordingResult
   }

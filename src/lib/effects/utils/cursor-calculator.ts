@@ -50,30 +50,14 @@ export function precomputeCursorSmoothingCache(
   const startTime = mouseEvents[0]?.timestamp ?? 0
   const endTime = Math.min(startTime + durationMs, mouseEvents[mouseEvents.length - 1]?.timestamp ?? startTime)
 
-  let previousState: CursorState | undefined = undefined
-
   // Simulate frame-by-frame to build up cache
   for (let t = startTime; t <= endTime; t += frameInterval) {
     const rawPosition = interpolateMousePosition(mouseEvents, t)
     if (!rawPosition) continue
 
     // This will populate the smoothingCache
-    const result = simulateSmoothingWithHistory(mouseEvents, t, rawPosition, cursorData, fps)
+    simulateSmoothingWithHistory(mouseEvents, t, rawPosition, cursorData, fps)
 
-    // Build up previousState for sequential frame processing
-    if (result.smoothingState) {
-      previousState = {
-        visible: true,
-        x: result.position.x,
-        y: result.position.y,
-        type: CursorType.ARROW,
-        scale: cursorData.size ?? DEFAULT_CURSOR_DATA.size,
-        opacity: 1,
-        clickEffects: [],
-        timestamp: t,
-        smoothingState: result.smoothingState
-      }
-    }
   }
 }
 

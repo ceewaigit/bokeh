@@ -19,7 +19,7 @@ import { WaveformAnalyzer } from '@/lib/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { CommandManager } from '@/lib/commands/base/CommandManager'
 import type { CreateCoreSlice } from './types'
-import { resetSelectionState, DEFAULT_SETTINGS } from './utils'
+import { resetSelectionState, DEFAULT_SETTINGS, syncProjectSettingsToStore } from './utils'
 
 export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   // State
@@ -40,6 +40,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
 
     set((state) => {
       state.currentProject = project
+      syncProjectSettingsToStore(state, project)
       resetSelectionState(state)
     })
 
@@ -70,6 +71,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
 
       set((state) => {
         state.currentProject = project
+        syncProjectSettingsToStore(state, project)
         resetSelectionState(state)
       })
     } catch (error) {
@@ -87,21 +89,21 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     try {
       // Persist store-level settings that affect rendering/export into the project payload.
       // We do this at save-time to avoid making the entire app re-render on every UI slider tick.
-      const projectToSave = {
-        ...currentProject,
-        settings: {
-          ...currentProject.settings,
-          audio: {
-            ...currentProject.settings.audio,
-            ...settings.audio,
+        const projectToSave = {
+          ...currentProject,
+          settings: {
+            ...currentProject.settings,
+            audio: {
+              ...currentProject.settings.audio,
+              ...settings.audio,
+            },
+            camera: {
+              ...currentProject.settings.camera,
+              ...settings.camera,
+            },
           },
-          camera: {
-            ...currentProject.settings.camera,
-            ...settings.camera,
-          },
-        },
-        modifiedAt: new Date().toISOString(),
-      }
+          modifiedAt: new Date().toISOString(),
+        }
 
       // Use ProjectIOService to save the project
       await ProjectIOService.saveProject(projectToSave)
@@ -141,35 +143,6 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
         // Enable waveforms by default if the recording has audio
         if (recording.hasAudio) {
           state.settings.editing.showWaveforms = true
-        }
-      }
-    })
-  },
-
-  updateSettings: (updates) => {
-    set((state) => {
-      // Update store settings
-      Object.assign(state.settings, updates)
-
-      // Also update project settings if a project is loaded.
-      // Only persist settings that are part of the project file format.
-      if (state.currentProject) {
-        let didPersistToProject = false
-
-        // Deep merge for nested audio settings (persisted)
-        if (updates.audio) {
-          state.currentProject.settings.audio = {
-            ...state.currentProject.settings.audio,
-            ...updates.audio
-          }
-          didPersistToProject = true
-        }
-
-        // Note: `settings.preview`, `settings.editing`, `settings.camera`, etc are UI-only for now.
-        // Do NOT touch `currentProject` (or `modifiedAt`) for those, otherwise we force expensive rerenders
-        // and mark the project as dirty without actually persisting anything.
-        if (didPersistToProject) {
-          state.currentProject.modifiedAt = new Date().toISOString()
         }
       }
     })

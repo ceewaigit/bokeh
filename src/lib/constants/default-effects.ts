@@ -112,14 +112,14 @@ export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
   textColor: '#ffffff',
   borderColor: 'rgba(255, 255, 255, 0.15)',
   borderRadius: 15,
-  padding: 12,
+  padding: 8,
   fadeOutDuration: 400,
   displayDuration: 2000,
   position: KeystrokePosition.BottomCenter,
   maxWidth: 400,
   stylePreset: 'glass',
   showModifierSymbols: true,
-  scale: 1.5  // Reduced scale for better default appearance
+  scale: 1
 }
 
 // Store for default wallpaper once loaded

@@ -116,7 +116,7 @@ export function calculateZoomTransform(
   zoomCenter: { x: number; y: number }, // Fixed zoom center (normalized 0-1)
   overrideScale?: number,
   /** Padding amount in pixels - used to calculate pan for revealing padding */
-  padding?: number,
+  _padding?: number,
   /** Disable refocus blur regardless of timing */
   disableRefocusBlur: boolean = false,
   /** Allow panning at scale=1 (used for mockup cursor centering). */

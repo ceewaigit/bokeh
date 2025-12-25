@@ -786,7 +786,7 @@ export const ProgressBarPlugin: PluginDefinition<ProgressBarParams> = {
         segments: { type: 'number', default: 10, label: 'Segments', min: 2, max: 50, step: 1 },
     },
     render(props: PluginRenderProps<ProgressBarParams>) {
-        const { params, frame, width: canvasWidth, height: canvasHeight } = props
+        const { params, frame, width: canvasWidth, height: _canvasHeight } = props
         const {
             position,
             width,
@@ -858,8 +858,6 @@ export const ProgressBarPlugin: PluginDefinition<ProgressBarParams> = {
         // Segmented bar logic
         const renderSegments = () => {
             const segmentGap = 4
-            const totalGap = (segments - 1) * segmentGap
-            const segmentWidth = (barWidth - totalGap) / segments
             const activeSegments = Math.ceil(frame.progress * segments)
 
             return (
@@ -999,7 +997,7 @@ export const BlankClipPlugin: PluginDefinition<BlankClipParams> = {
         borderStrength: { type: 'number', default: 0, label: 'Frame Border', min: 0, max: 100, step: 4, unit: '%' },
     },
     render(props: PluginRenderProps<BlankClipParams>) {
-        const { params, frame, width, height } = props
+        const { params, frame: _frame, width, height } = props
         const {
             backgroundColor,
             accentColor,

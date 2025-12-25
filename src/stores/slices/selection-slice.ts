@@ -15,6 +15,11 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
   selectedEffectLayer: null,
   clipboard: {},
 
+  // Crop Editing State
+  isEditingCrop: false,
+  editingCropId: null,
+  editingCropData: null,
+
   // Actions
   selectClip: (clipId, multi = false) => {
     set((state) => {
@@ -73,6 +78,31 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
   clearClipboard: () => {
     set((state) => {
       state.clipboard = {}
+    })
+  },
+
+  // Crop Editing Actions
+  startEditingCrop: (effectId, data) => {
+    set((state) => {
+      state.isEditingCrop = true
+      state.editingCropId = effectId
+      state.editingCropData = data
+    })
+  },
+
+  updateEditingCrop: (updates) => {
+    set((state) => {
+      if (state.editingCropData) {
+        state.editingCropData = { ...state.editingCropData, ...updates }
+      }
+    })
+  },
+
+  stopEditingCrop: () => {
+    set((state) => {
+      state.isEditingCrop = false
+      state.editingCropId = null
+      state.editingCropData = null
     })
   }
 })

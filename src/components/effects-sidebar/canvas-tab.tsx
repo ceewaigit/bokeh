@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { BackgroundEffectData, DeviceMockupData, CanvasSettings } from '@/types/project'
 import { AspectRatioPreset, DeviceType, DeviceModel } from '@/types/project'
@@ -18,7 +17,6 @@ import {
   Monitor,
   Watch,
   Tv,
-  Minus,
 } from 'lucide-react'
 
 interface CanvasTabProps {
@@ -125,11 +123,6 @@ export function CanvasTab({
       }
     })
   }, [updateProjectData])
-
-  // Toggle mockup enabled
-  const toggleMockup = useCallback(() => {
-    updateMockup({ enabled: !mockupData.enabled })
-  }, [mockupData.enabled, updateMockup])
 
   const { devices: availableDevices, availableTypes: availableDeviceTypes } = useAvailableMockups()
 
@@ -274,7 +267,6 @@ export function CanvasTab({
       {subTab === 'mockup' && (
         <MockupSection
           mockupData={mockupData}
-          onToggle={toggleMockup}
           onDeviceTypeChange={selectDeviceType}
           onDeviceModelChange={selectDeviceModel}
           onUpdateMockup={updateMockup}
@@ -437,7 +429,6 @@ function AspectRatioButton({
 // Mockup Section
 interface MockupSectionProps {
   mockupData: DeviceMockupData
-  onToggle: () => void
   onDeviceTypeChange: (type: DeviceType) => void
   onDeviceModelChange: (model: string) => void
   onUpdateMockup: (updates: Partial<DeviceMockupData>) => void
@@ -449,7 +440,6 @@ interface MockupSectionProps {
 
 function MockupSection({
   mockupData,
-  onToggle,
   onDeviceTypeChange,
   onDeviceModelChange,
   onUpdateMockup,

@@ -17,10 +17,10 @@ const PRESET_LABELS: Record<AudioEnhancementPreset, string> = {
 }
 
 const PRESET_DESCRIPTIONS: Record<AudioEnhancementPreset, string> = {
-    off: 'No changes to audio.',
-    subtle: 'Slightly improves audio while keeping it natural.',
-    balanced: 'Makes voices clearer and more consistent.',
-    broadcast: 'Makes audio sound like a professional radio broadcast.',
+    off: 'No changes to audio',
+    subtle: 'Light touch-ups while keeping it natural',
+    balanced: 'Clearer, more consistent voice',
+    broadcast: 'Professional radio-quality sound',
     custom: 'Your custom settings',
 }
 
@@ -88,7 +88,7 @@ export function AudioSection() {
                                 <TooltipTrigger asChild>
                                     <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
                                 </TooltipTrigger>
-                                <TooltipContent side="left">Adjusts the total volume of your video.</TooltipContent>
+                                <TooltipContent side="left">Overall volume level</TooltipContent>
                             </Tooltip>
                         </div>
                         <span className="text-xs font-mono text-muted-foreground/70 tabular-nums">
@@ -137,7 +137,7 @@ export function AudioSection() {
                             <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent side="left" className="max-w-[200px]">
-                            Makes your voice sound more consistent and professional.
+                            Improve voice clarity and consistency
                         </TooltipContent>
                     </Tooltip>
                 </div>

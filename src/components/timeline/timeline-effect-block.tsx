@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Rect, Text, Transformer, Line, Group, Circle } from 'react-konva'
+import { Rect, Text, Transformer, Line, Group } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
+import { getSnappedDragX, hasOverlap } from '@/lib/timeline/drag-positioning'
 import Konva from 'konva'
 
 interface TimelineTimeBlock {
@@ -68,6 +69,8 @@ export const TimelineEffectBlock = React.memo(({
   const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // PERFORMANCE: Store tween ref to cancel before creating new one
+  const hoverTweenRef = useRef<Konva.Tween | null>(null)
   // Use token color if no custom fill is provided
   const baseStroke = fillColor || colors.zoomBlock
   const handleWidth = 6
@@ -156,80 +159,45 @@ export const TimelineEffectBlock = React.memo(({
   }, [isSelected, isHovering])
 
   // Animation effect on hover
+  // PERFORMANCE: Cancel existing tween before creating new one to prevent accumulation
   useEffect(() => {
     const node = rectRef.current
     if (!node) return
 
-    if (isHovering && !isDragging && !isTransforming) {
-      new Konva.Tween({
-        node,
-        duration: 0.1,
-        x: 0,
-        y: 0,
-        scaleX: 1,
-        scaleY: 1,
-        shadowBlur: 10,
-        shadowOpacity: 0.28,
-        easing: Konva.Easings.EaseOut
-      }).play()
-    } else {
-      new Konva.Tween({
-        node,
-        duration: 0.1,
-        x: 0,
-        y: 0,
-        scaleX: 1,
-        scaleY: 1,
-        shadowBlur: isSelected ? 8 : 0,
-        shadowOpacity: isSelected ? 0.25 : 0,
-        easing: Konva.Easings.EaseOut
-      }).play()
-    }
-  }, [isHovering, isDragging, isTransforming, isSelected, currentWidth, height])
-
-  const getValidDragPosition = (proposedX: number, currentWidth: number): number => {
-    const snapThreshold = Number(TimelineConfig.SNAP_THRESHOLD_PX)
-    const blocks = allBlocks
-      .filter(b => b.id !== blockId)
-      .map(b => ({
-        x: TimeConverter.msToPixels(b.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH,
-        endX: TimeConverter.msToPixels(b.endTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
-      }))
-      .sort((a, b) => a.x - b.x)
-
-    const blockWidth = currentWidth
-
-    let bestSnapX = proposedX
-    let minSnapDistance = snapThreshold
-
-    for (const block of blocks) {
-      const leftToLeftDistance = Math.abs(proposedX - block.x)
-      if (leftToLeftDistance < minSnapDistance) {
-        minSnapDistance = leftToLeftDistance
-        bestSnapX = block.x
-      }
-
-      const leftToRightDistance = Math.abs(proposedX - block.endX)
-      if (leftToRightDistance < minSnapDistance) {
-        minSnapDistance = leftToRightDistance
-        bestSnapX = block.endX
-      }
-
-      const rightToLeftDistance = Math.abs((proposedX + blockWidth) - block.x)
-      if (rightToLeftDistance < minSnapDistance) {
-        minSnapDistance = rightToLeftDistance
-        bestSnapX = block.x - blockWidth
-      }
-
-      const rightToRightDistance = Math.abs((proposedX + blockWidth) - block.endX)
-      if (rightToRightDistance < minSnapDistance) {
-        minSnapDistance = rightToRightDistance
-        bestSnapX = block.endX - blockWidth
-      }
+    // Cancel any existing tween before creating new one
+    if (hoverTweenRef.current) {
+      hoverTweenRef.current.destroy()
+      hoverTweenRef.current = null
     }
 
-    return Math.max(TimelineConfig.TRACK_LABEL_WIDTH, bestSnapX)
-  }
+    const targetShadowBlur = isHovering && !isDragging && !isTransforming ? 10 : (isSelected ? 8 : 0)
+    const targetShadowOpacity = isHovering && !isDragging && !isTransforming ? 0.28 : (isSelected ? 0.25 : 0)
+
+    hoverTweenRef.current = new Konva.Tween({
+      node,
+      duration: 0.1,
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+      shadowBlur: targetShadowBlur,
+      shadowOpacity: targetShadowOpacity,
+      easing: Konva.Easings.EaseOut,
+      onFinish: () => {
+        // Clear ref when tween completes naturally
+        hoverTweenRef.current = null
+      }
+    })
+    hoverTweenRef.current.play()
+
+    // Cleanup on unmount
+    return () => {
+      if (hoverTweenRef.current) {
+        hoverTweenRef.current.destroy()
+        hoverTweenRef.current = null
+      }
+    }
+  }, [isHovering, isDragging, isTransforming, isSelected])
 
   const generateZoomCurve = () => {
     if (!scale) return [] as number[]
@@ -316,15 +284,24 @@ export const TimelineEffectBlock = React.memo(({
           setIsDragging(false)
           const draggedX = e.target.x()
 
-          const snappedX = getValidDragPosition(draggedX, width)
+          const snappedX = getSnappedDragX({
+            proposedX: draggedX,
+            blockWidth: currentWidth,
+            blocks: allBlocks,
+            pixelsPerMs,
+            excludeId: blockId
+          })
 
           const newStartTime = TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
           const duration = endTime - startTime
           const newEndTime = newStartTime + duration
 
-          const wouldOverlap = allBlocks
-            .filter(b => b.id !== blockId)
-            .some(block => (newStartTime < block.endTime && newEndTime > block.startTime))
+          const wouldOverlap = hasOverlap({
+            proposedStartTime: newStartTime,
+            proposedEndTime: newEndTime,
+            blocks: allBlocks,
+            excludeId: blockId
+          })
 
           if (wouldOverlap) {
             if (groupRef.current) {

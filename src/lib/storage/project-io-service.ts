@@ -301,7 +301,7 @@ export class ProjectIOService {
           groups.get(key)!.push(e);
         });
 
-        groups.forEach((group, key) => {
+        groups.forEach((group, _key) => {
           if (group.length > 1) {
             group.sort((a, b) => getTimestampFromId(b.id) - getTimestampFromId(a.id)); // Newest first
             otherEffects.push(group[0]); // Keep newest

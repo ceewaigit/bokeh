@@ -10,7 +10,6 @@ import type {
   ClickEvent,
   ScrollEvent,
   KeyboardEvent,
-  DeviceMockupData,
   CropEffectData,
 } from './project';
 import type { MockupPositionResult } from '@/lib/mockups/mockup-transform';
@@ -312,12 +311,10 @@ export interface SharedVideoControllerProps {
   videoHeight: number;
   sourceVideoWidth?: number;
   sourceVideoHeight?: number;
-  effects: Effect[];
   children?: ReactNode;
   cameraSettings?: CameraSettings;
 
   // New Config Objects
-  resources: VideoResources;
   playback: PlaybackSettings;
   renderSettings: RenderSettings;
   cropSettings: CropSettings;

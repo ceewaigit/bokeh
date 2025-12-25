@@ -35,7 +35,7 @@ import {
 export function useVideoUrl({
   recording,
   resources,
-  preferOffthreadVideo,
+  preferOffthreadVideo: _preferOffthreadVideo,
   targetWidth = 1280,
   targetHeight = 720,
   maxZoomScale = 1,

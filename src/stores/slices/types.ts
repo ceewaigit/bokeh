@@ -14,7 +14,10 @@ import type {
   ZoomEffectData,
   CursorEffectData,
   BackgroundEffectData,
-  MouseEvent as ProjectMouseEvent
+  CropEffectData,
+  MouseEvent as ProjectMouseEvent,
+  QualityLevel,
+  ExportFormat
 } from '@/types/project'
 import type { EffectType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
@@ -31,6 +34,12 @@ import type { ClipboardEffect } from '@/types/stores'
 // =============================================================================
 
 export interface StoreSettings {
+  // Unified Settings (formerly scattered)
+  quality: QualityLevel
+  resolution: { width: number; height: number }
+  framerate: number
+  format: ExportFormat
+
   showTypingSuggestions: boolean
   audio: {
     volume: number
@@ -47,14 +56,6 @@ export interface StoreSettings {
       knee: number
     }
   }
-  preview: {
-    showRuleOfThirds: boolean
-    showCenterGuides: boolean
-    showSafeZones: boolean
-    guideColor: string
-    guideOpacity: number
-    safeZoneMargin: number
-  }
   editing: {
     snapToGrid: boolean
     showWaveforms: boolean
@@ -69,6 +70,11 @@ export interface StoreSettings {
     motionBlurThreshold: number
     refocusBlurEnabled: boolean
     refocusBlurIntensity: number
+  }
+  recording: {
+    lowMemoryEncoder: boolean
+    useMacOSDefaults: boolean
+    includeAppWindows: boolean
   }
 }
 
@@ -88,11 +94,16 @@ export interface SelectionSliceState {
     clip?: Clip
     effect?: ClipboardEffect
   }
+  // Crop Editing State
+  isEditingCrop: boolean
+  editingCropId: string | null
+  editingCropData: CropEffectData | null
 }
 
 export interface PlaybackSliceState {
   currentTime: number
   isPlaying: boolean
+  isScrubbing: boolean
   zoom: number
   zoomManuallyAdjusted: boolean
 }
@@ -108,6 +119,21 @@ export interface CacheSliceState {
   frameLayoutCache: FrameLayoutItem[] | null
 }
 
+export interface ProgressState {
+  isProcessing: boolean
+  progress: number // 0-100
+  progressLabel: string | null // e.g., "Exporting...", "Processing..."
+  progressStage: 'idle' | 'preparing' | 'rendering' | 'encoding' | 'complete' | 'error'
+  progressMessage?: string // Detailed message
+  eta?: number // Estimated seconds remaining
+  currentFrame?: number
+  totalFrames?: number
+}
+
+export interface ProgressSliceState {
+  progress: ProgressState
+}
+
 // =============================================================================
 // Slice Action Interfaces
 // =============================================================================
@@ -119,7 +145,6 @@ export interface CoreSliceActions {
   setProject: (project: Project) => void
   updateProjectData: (updater: (project: Project) => Project) => void
   addRecording: (recording: Recording, videoBlob: Blob) => Promise<void>
-  updateSettings: (updates: Partial<StoreSettings>) => void
   cleanupProject: () => void
 }
 
@@ -139,11 +164,11 @@ export interface ClipSliceActions {
     startTime?: number
     syntheticMouseEvents?: ProjectMouseEvent[]
     effects?: Effect[]
-  }) => void
+  }) => { clip: Clip; recording: Recording } | null
   addCursorReturnClip: (options?: { sourceClipId?: string; durationMs?: number }) => Promise<void>
   resizeGeneratedClip: (clipId: string, durationMs: number) => void
   removeClip: (clipId: string) => void
-  updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean }) => void
+  updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean; maintainContiguous?: boolean }) => void
   restoreClip: (trackId: string, clip: Clip, index: number) => void
   splitClip: (clipId: string, splitTime: number) => void
   trimClipStart: (clipId: string, newStartTime: number) => void
@@ -186,12 +211,19 @@ export interface SelectionSliceActions {
   copyClip: (clip: Clip) => void
   copyEffect: (type: typeof EffectType.Zoom | typeof EffectType.Cursor | typeof EffectType.Background, data: ZoomEffectData | CursorEffectData | BackgroundEffectData, sourceClipId: string) => void
   clearClipboard: () => void
+
+  // Crop Editing Actions
+  startEditingCrop: (effectId: string, data: CropEffectData) => void
+  updateEditingCrop: (updates: Partial<CropEffectData>) => void
+  stopEditingCrop: () => void
 }
 
 export interface PlaybackSliceActions {
   play: () => void
   pause: () => void
   seek: (time: number) => void
+  seekFromPlayer: (time: number) => void
+  setScrubbing: (isScrubbing: boolean) => void
   setZoom: (zoom: number, isManual?: boolean) => void
   setAutoZoom: (zoom: number) => void
 }
@@ -212,6 +244,28 @@ export interface CacheSliceActions {
   invalidateAllCaches: () => void
 }
 
+export interface SettingsSliceActions {
+  setQuality: (quality: QualityLevel) => void
+  setResolution: (width: number, height: number) => void
+  setFramerate: (fps: number) => void
+  setFormat: (format: ExportFormat) => void
+  updateSettings: (updates: Partial<StoreSettings>) => void
+  // Helpers for common updates
+  setAudioSettings: (updates: Partial<StoreSettings['audio']>) => void
+  setEditingSettings: (updates: Partial<StoreSettings['editing']>) => void
+  setCameraSettings: (updates: Partial<StoreSettings['camera']>) => void
+  setRecordingSettings: (updates: Partial<StoreSettings['recording']>) => void
+}
+
+export interface ProgressSliceActions {
+  startProcessing: (label: string) => void
+  setProgress: (progress: number, message?: string, eta?: number) => void
+  setProgressDetails: (details: Partial<ProgressState>) => void
+  finishProcessing: (message?: string) => void
+  failProcessing: (error: string) => void
+  resetProgress: () => void
+}
+
 // =============================================================================
 // Combined Store State Type (Full State)
 // =============================================================================
@@ -221,14 +275,18 @@ export type ProjectStoreState =
   SelectionSliceState &
   PlaybackSliceState &
   TimelineSliceState &
-  CacheSliceState
+  CacheSliceState &
+  ProgressSliceState
 
 export type ProjectStoreActions =
   CoreSliceActions &
   TimelineSliceActions &
   SelectionSliceActions &
   PlaybackSliceActions &
-  CacheSliceActions
+  PlaybackSliceActions &
+  CacheSliceActions &
+  SettingsSliceActions &
+  ProgressSliceActions
 
 export type ProjectStore = ProjectStoreState & ProjectStoreActions
 
@@ -245,6 +303,9 @@ export type TimelineSlice = TimelineSliceState & TimelineSliceActions
 export type SelectionSlice = SelectionSliceState & SelectionSliceActions
 export type PlaybackSlice = PlaybackSliceState & PlaybackSliceActions
 export type CacheSlice = CacheSliceState & CacheSliceActions
+export type SettingsSlice = SettingsSliceActions // State is hosted in CoreSlice for now (root.settings)
+export type ProgressSlice = ProgressSliceState & ProgressSliceActions
+
 
 // StateCreator function types
 export type CreateCoreSlice = StateCreator<ProjectStore, ImmerMiddleware, [], CoreSlice>
@@ -252,3 +313,5 @@ export type CreateTimelineSlice = StateCreator<ProjectStore, ImmerMiddleware, []
 export type CreateSelectionSlice = StateCreator<ProjectStore, ImmerMiddleware, [], SelectionSlice>
 export type CreatePlaybackSlice = StateCreator<ProjectStore, ImmerMiddleware, [], PlaybackSlice>
 export type CreateCacheSlice = StateCreator<ProjectStore, ImmerMiddleware, [], CacheSlice>
+export type CreateSettingsSlice = StateCreator<ProjectStore, ImmerMiddleware, [], SettingsSlice>
+export type CreateProgressSlice = StateCreator<ProjectStore, ImmerMiddleware, [], ProgressSlice>

@@ -1,4 +1,5 @@
 import type { Clip, Effect, Recording } from '@/types/project'
+import { EffectType } from '@/types/project'
 import type { ActiveClipDataAtFrame } from '@/types'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import { findActiveFrameLayoutIndex } from '@/lib/timeline/frame-layout'
@@ -34,7 +35,12 @@ function getTimelineEffectsForClip(args: {
 
   const clipStart = clip.startTime
   const clipEnd = clip.startTime + clip.duration
-  const timelineEffects = effects.filter(effect => effect.startTime < clipEnd && effect.endTime > clipStart)
+  const timelineEffects = effects.filter(effect => {
+    if (effect.type === EffectType.Crop) {
+      return effect.clipId === clip.id && effect.startTime < clipEnd && effect.endTime > clipStart
+    }
+    return effect.startTime < clipEnd && effect.endTime > clipStart
+  })
 
   byClipId.set(clip.id, timelineEffects)
   return timelineEffects
@@ -103,7 +109,7 @@ export function resolveClipDataForLayoutItem(args: {
   // No more recording.effects - everything is in timeline space
   const mergedEffects = timelineEffects.slice().sort((a, b) => a.startTime - b.startTime);
 
-  // OPTIMIZATION: Return stable array reference if contents match previous call (Last-Value Caching)
+  // Return stable array reference if contents match previous call (Last-Value Caching)
   // This is critical for keeping usePrecomputedCameraPath from re-running heavy physics
   const cacheKey = `${clip.id}-${layoutItem.startFrame}`;
   const prev = activeEffectsCache.get(cacheKey);

@@ -1,12 +1,11 @@
 import { create } from 'zustand'
-import type { RecordingState, RecordingSettings } from '@/types'
+import type { RecordingState, SessionSettings } from '@/types'
 import { RecordingArea, AudioInput } from '@/types'
-import { QualityLevel, ExportFormat } from '@/types/project'
+import { useProjectStore } from './project-store'
 import { logger } from '@/lib/utils/logger'
 
 interface RecordingStore extends RecordingState {
-  settings: RecordingSettings
-  processingProgress: number | null
+  settings: SessionSettings
   countdownActive: boolean
   selectedDisplayId?: number
 
@@ -15,10 +14,9 @@ interface RecordingStore extends RecordingState {
   setPaused: (isPaused: boolean) => void
   setDuration: (duration: number) => void
   setStatus: (status: RecordingState['status']) => void
-  setProcessingProgress: (progress: number | null) => void
 
   // Settings management
-  updateSettings: (settings: Partial<RecordingSettings>) => void
+  updateSettings: (settings: Partial<SessionSettings>) => void
 
   // Countdown management
   startCountdown: (onComplete: () => void, displayId?: number) => void
@@ -30,16 +28,10 @@ interface RecordingStore extends RecordingState {
   reset: () => void
 }
 
-const defaultSettings: RecordingSettings = {
+const defaultSettings: SessionSettings = {
   area: RecordingArea.Fullscreen,
   audioInput: AudioInput.System,
-  quality: QualityLevel.High,
-  framerate: 60,
-  format: ExportFormat.WEBM,
-  sourceId: undefined,
-  includeAppWindows: false,
-  lowMemoryEncoder: false,
-  useMacOSDefaults: true
+  sourceId: undefined
 }
 
 export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
@@ -48,7 +40,6 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   duration: 0,
   status: 'idle',
   settings: defaultSettings,
-  processingProgress: null,
   countdownActive: false,
   selectedDisplayId: undefined,
 
@@ -68,7 +59,7 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
 
   setStatus: (status) => set({ status }),
 
-  setProcessingProgress: (progress) => set({ processingProgress: progress }),
+
 
   updateSettings: (newSettings) =>
     set((state) => ({
@@ -96,7 +87,7 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
         window.electronAPI?.hideCountdown?.()
 
         // If recording self, keep workspace open. Otherwise show dock.
-        const includeAppWindows = get().settings.includeAppWindows
+        const includeAppWindows = useProjectStore.getState().settings.recording?.includeAppWindows ?? false
         window.electronAPI?.showRecordButton?.({ hideMainWindow: includeAppWindows ? false : undefined })
         onComplete()
       } else {
@@ -130,7 +121,6 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
     duration: 0,
     status: 'idle',
     settings: defaultSettings,
-    processingProgress: null,
     countdownActive: false,
     selectedDisplayId: undefined
   })

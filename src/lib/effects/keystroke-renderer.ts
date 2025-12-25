@@ -21,7 +21,6 @@ export type KeystrokeDrawRect = {
 export class KeystrokeRenderer {
   private canvas: HTMLCanvasElement | null = null
   private ctx: CanvasRenderingContext2D | null = null
-  private keyHistory: KeyboardEvent[] = []
   private segments: KeystrokeSegment[] = []
   private options: Required<KeystrokeEffectData>
   private dpr: number = 1  // Device pixel ratio for Retina support
@@ -61,7 +60,6 @@ export class KeystrokeRenderer {
       .sort((a, b) => (a.e.timestamp - b.e.timestamp) || (a.index - b.index))
       .map(({ e }) => e)
 
-    this.keyHistory = orderedEvents
     this.segments = computeKeystrokeSegments(orderedEvents, this.options)
   }
 
@@ -153,8 +151,8 @@ export class KeystrokeRenderer {
     const textX = boxX + boxWidth / 2
     const textY = boxY + boxHeight / 2
 
-    this.drawBackground(ctx, presetStyle, boxX, boxY, boxWidth, boxHeight, borderRadius, scale)
-    this.drawText(ctx, presetStyle, text, textX, textY, scale)
+    this.drawBackground(ctx, presetStyle, boxX, boxY, boxWidth, boxHeight, borderRadius)
+    this.drawText(ctx, presetStyle, text, textX, textY)
 
     ctx.restore()
 
@@ -174,8 +172,7 @@ export class KeystrokeRenderer {
     presetStyle: KeystrokePresetStyle,
     x: number, y: number,
     w: number, h: number,
-    r: number,
-    scale: number
+    r: number
   ) {
     ctx.beginPath()
     ctx.roundRect(x, y, w, h, r)
@@ -203,7 +200,7 @@ export class KeystrokeRenderer {
     ctx.shadowOffsetY = 0
   }
 
-  private drawText(ctx: CanvasRenderingContext2D, presetStyle: KeystrokePresetStyle, text: string, x: number, y: number, scale: number) {
+  private drawText(ctx: CanvasRenderingContext2D, presetStyle: KeystrokePresetStyle, text: string, x: number, y: number) {
     if (presetStyle.textShadow) {
       ctx.shadowColor = presetStyle.textShadow.color
       ctx.shadowBlur = presetStyle.textShadow.blur

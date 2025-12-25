@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Trash2, Search, Sparkles, AlertCircle } from 'lucide-react'
+import { X, Trash2, Search, Sparkles } from 'lucide-react'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import type { GeneratedPlugin } from './page'
 import type { PluginDefinition } from '@/lib/effects/config/plugin-sdk'

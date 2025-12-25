@@ -53,7 +53,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   groupStartFrame, renderStartFrom, groupDuration,
   currentFrame, fps, isRendering,
   cornerRadius, drawWidth, drawHeight,
-  compositionWidth, compositionHeight, maxZoomScale, currentZoomScale, mockupEnabled,
+  compositionWidth, compositionHeight, maxZoomScale, currentZoomScale, mockupEnabled: _mockupEnabled,
   activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame,
   isNearBoundaryEnd, overlapFrames, markRenderReady, handleVideoReady,
   VideoComponent, premountFor, postmountFor,
@@ -152,4 +152,3 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     </div>
   );
 });
-

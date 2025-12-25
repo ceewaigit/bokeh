@@ -131,8 +131,8 @@ export function calculateBackgroundStyle(
  */
 function createGradientStyle(
   gradient: { colors: string[]; angle?: number },
-  width: number,
-  height: number
+  _width: number,
+  _height: number
 ): BackgroundStyle {
   const { colors, angle = 135 } = gradient
 

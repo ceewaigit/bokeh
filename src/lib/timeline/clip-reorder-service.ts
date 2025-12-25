@@ -1,4 +1,4 @@
-import type { Clip, Track, Project } from '@/types/project'
+import type { Clip } from '@/types/project'
 import { ClipPositioning } from './clip-positioning'
 
 export interface ReorderTarget {
@@ -39,11 +39,9 @@ export class ClipReorderService {
     const positions: number[] = [0]
     let runningTime = 0
 
-    const sortedOthers = clips
-      .filter(c => c.id !== excludeClipId)
-      .sort((a, b) => a.startTime - b.startTime)
+    const orderedOthers = clips.filter(c => c.id !== excludeClipId)
 
-    for (const clip of sortedOthers) {
+    for (const clip of orderedOthers) {
       runningTime += clip.duration
       positions.push(runningTime)
     }
@@ -82,7 +80,7 @@ export class ClipReorderService {
 
   /**
    * Compute the target insertion index based on a proposed timeline position.
-   * Delegates to ClipPositioning.getReorderTarget for the actual calculation.
+   * Uses array order and durations to keep contiguous behavior stable.
    */
   static computeTargetIndex(
     proposedTimelineMs: number,
@@ -105,8 +103,7 @@ export class ClipReorderService {
    * Clips are ordered by startTime.
    */
   static getCurrentIndex(clips: Clip[], clipId: string): number {
-    const sorted = [...clips].sort((a, b) => a.startTime - b.startTime)
-    return sorted.findIndex(c => c.id === clipId)
+    return clips.findIndex(c => c.id === clipId)
   }
 
   /**

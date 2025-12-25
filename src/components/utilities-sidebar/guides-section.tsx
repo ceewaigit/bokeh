@@ -1,12 +1,13 @@
 import React from 'react'
-import { Grid, Crosshair, Monitor } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
-import { useProjectStore } from '@/stores/project-store'
+import { usePreviewSettingsStore, type PreviewSettings } from '@/stores/preview-settings-store'
 import { cn } from '@/lib/utils'
 
 const GUIDE_COLORS = [
+    { label: 'Ink', value: '#111111' },
+    { label: 'Graphite', value: '#2c2c2c' },
     { label: 'White', value: '#ffffff' },
     { label: 'Red', value: '#ff4444' },
     { label: 'Blue', value: '#4488ff' },
@@ -15,23 +16,17 @@ const GUIDE_COLORS = [
 ]
 
 export function GuidesSection() {
-    const preview = useProjectStore((s) => s.settings.preview)
-    const updateSettings = useProjectStore((s) => s.updateSettings)
-    const {
-        showRuleOfThirds,
-        showCenterGuides,
-        showSafeZones,
-        guideColor = '#ffffff',
-        guideOpacity = 0.5,
-        safeZoneMargin = 10
-    } = preview
+    const showRuleOfThirds = usePreviewSettingsStore((s) => s.showRuleOfThirds)
+    const showCenterGuides = usePreviewSettingsStore((s) => s.showCenterGuides)
+    const showSafeZones = usePreviewSettingsStore((s) => s.showSafeZones)
+    const guideColor = usePreviewSettingsStore((s) => s.guideColor)
+    const guideOpacity = usePreviewSettingsStore((s) => s.guideOpacity)
+    const safeZoneMargin = usePreviewSettingsStore((s) => s.safeZoneMargin)
+    const setPreviewSettings = usePreviewSettingsStore((s) => s.setPreviewSettings)
 
-    const updatePreviewSettings = (key: keyof typeof preview, value: any) => {
-        updateSettings({
-            preview: {
-                ...preview,
-                [key]: value
-            }
+    const updatePreviewSettings = (key: keyof PreviewSettings, value: PreviewSettings[keyof PreviewSettings]) => {
+        setPreviewSettings({
+            [key]: value
         })
     }
 
@@ -133,7 +128,7 @@ export function GuidesSection() {
             ) : (
                 <div className="py-8 text-center px-4">
                     <p className="text-xs text-muted-foreground/60">
-                        Enable a guide above to see customization options.
+                        Enable a guide above to customize its appearance
                     </p>
                 </div>
             )}

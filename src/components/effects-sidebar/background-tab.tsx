@@ -569,7 +569,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             )}
 
             <p className="text-xs text-muted-foreground/70 leading-snug">
-              Background follows recorded mouse movement during playback and export.
+              Background moves with your cursor for a depth effect
             </p>
           </div>
         )}
@@ -728,7 +728,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               <label className="flex items-center justify-between cursor-pointer">
                 <span className="flex items-center gap-2 text-xs">
                   Enable Blur
-                  <InfoTooltip content="Blurs the background to help the video stand out." />
+                  <InfoTooltip content="Blur for depth of field" />
                 </span>
                 <Switch
                   checked={bgData?.blur ? bgData.blur > 0 : false}
@@ -737,7 +737,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   }
                 />
               </label>
-              {bgData?.blur && bgData.blur > 0 && (
+              {bgData?.blur != null && bgData.blur > 0 && (
                 <div className="space-y-2">
                   <Slider
                     value={[localBlur ?? bgData.blur]}

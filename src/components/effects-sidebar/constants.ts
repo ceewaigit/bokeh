@@ -41,9 +41,9 @@ export enum SidebarTabId {
 
 export const SIDEBAR_TABS = [
   { id: SidebarTabId.Clip, icon: SlidersHorizontal, label: 'Clip' },
-  { id: SidebarTabId.Style, icon: Palette, label: 'Style' },
-  { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Pointer' },
-  { id: SidebarTabId.Framing, icon: Crop, label: 'Framing' },
+  { id: SidebarTabId.Style, icon: Palette, label: 'Appearance' },
+  { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Cursor & Keys' },
+  { id: SidebarTabId.Framing, icon: Crop, label: 'Zoom & Crop' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Canvas' },
-  { id: SidebarTabId.Advanced, icon: Bot, label: 'Advanced' },
+  { id: SidebarTabId.Advanced, icon: Bot, label: 'Settings' },
 ] as const

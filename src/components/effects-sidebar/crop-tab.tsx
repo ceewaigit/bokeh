@@ -2,13 +2,12 @@
 
 import React from 'react'
 import { Crop, RotateCcw, Move, Maximize } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
-import type { Clip, Effect, CropEffect, CropEffectData } from '@/types/project'
-import { EffectType } from '@/types/project'
+import type { Clip, Effect, CropEffectData } from '@/types/project'
 import { getCropEffectForClip, getCropData } from '@/lib/effects/effect-filters'
 import { InfoTooltip } from './info-tooltip'
+import { cn } from '@/lib/utils'
 
 interface CropTabProps {
   effects: Effect[] | undefined
@@ -62,13 +61,13 @@ export function CropTab({
   if (!cropEffect || !cropData) {
     return (
       <div className="space-y-4">
-        <div className="flex flex-col items-center justify-center py-6 text-center">
+        <div className="flex flex-col items-center justify-center py-6 text-center border border-border/40 bg-background/50 rounded-lg">
           <Crop className="w-8 h-8 text-muted-foreground/50 mb-3" />
           <p className="text-sm text-muted-foreground mb-1">
             No crop applied
           </p>
-          <p className="text-xs text-muted-foreground/70 mb-4">
-            Crop to focus on a specific part of your recording
+          <p className="text-xs text-muted-foreground/70 mb-4 max-w-[220px]">
+            Crop to focus on the most important part of your recording.
           </p>
           <Button
             onClick={onAddCrop}
@@ -83,7 +82,26 @@ export function CropTab({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-semibold tracking-[-0.02em]">Crop</h3>
+          <p className="text-[11px] leading-[1.35] text-muted-foreground/80">
+            Refine framing with precise, non-destructive crop.
+          </p>
+        </div>
+        <div
+          className={cn(
+            "shrink-0 whitespace-nowrap text-[9px] font-mono tracking-[0.18em] uppercase px-2.5 py-1 rounded-full border transition-colors duration-150",
+            isEditingCrop
+              ? "bg-primary/10 text-primary border-primary/20"
+              : "bg-muted/40 text-muted-foreground border-border/40"
+          )}
+        >
+          {isEditingCrop ? 'Live' : 'Ready'}
+        </div>
+      </div>
+
       {/* Edit Crop Button */}
       <Button
         onClick={onStartEditCrop}
@@ -95,11 +113,11 @@ export function CropTab({
       </Button>
 
       {/* Crop Region Info */}
-      <div className="p-3 bg-background/40 rounded-lg space-y-3">
+      <div className="p-3 bg-background/60 border border-border/40 rounded-lg space-y-3">
         <div className="flex items-center gap-2">
           <Crop className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs font-medium">Crop Region</span>
-          <InfoTooltip content="The cropped area will fill the screen. These values show how much of the original video is kept." />
+          <InfoTooltip content="The cropped area expands to fill the canvas. Values represent the visible portion of the original frame." />
         </div>
 
         {/* Position Controls */}
@@ -221,7 +239,7 @@ export function CropTab({
 
       {/* Info */}
       <p className="text-[10px] text-muted-foreground/70 text-center">
-        The cropped region will auto-fill the canvas
+        The selected region scales to fill the canvas.
       </p>
     </div>
   )

@@ -1,49 +1,30 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotateCcw, Zap } from 'lucide-react'
 import type { Clip } from '@/types/project'
-import { CommandExecutor, ChangePlaybackRateCommand } from '@/lib/commands'
+import { ChangePlaybackRateCommand } from '@/lib/commands'
 import { useProjectStore } from '@/stores/project-store'
+import { useSelectedClip } from '@/stores/selectors/clip-selectors'
+import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { InfoTooltip } from './info-tooltip'
 
 interface ClipTabProps {
   selectedClip: Clip | null
-  onClipUpdate?: (clipId: string, updates: Partial<Clip>) => void
 }
 
-export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTabProps) {
+export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
   const [playbackRate, setPlaybackRate] = useState(1.0)
   const [introFadeMs, setIntroFadeMs] = useState(0)
   const [outroFadeMs, setOutroFadeMs] = useState(0)
-  const executorRef = useRef<CommandExecutor | null>(null)
+  const executorRef = useCommandExecutor()
   const updateClip = useProjectStore((s) => s.updateClip)
 
-  // Initialize CommandExecutor
-  useEffect(() => {
-    if (!executorRef.current && CommandExecutor.isInitialized()) {
-      executorRef.current = CommandExecutor.getInstance()
-    }
-  }, [])
-
-  // Get the actual selected clip from the store to ensure reactivity
-  const selectedClips = useProjectStore((s) => s.selectedClips)
-  const currentProject = useProjectStore((s) => s.currentProject)
-  const selectedClipId = selectedClips[0]
-
-  // Find the current clip in the project to get the latest data
-  const selectedClip = React.useMemo(() => {
-    if (!selectedClipId || !currentProject) return propSelectedClip
-
-    for (const track of currentProject.timeline.tracks) {
-      const clip = track.clips.find(c => c.id === selectedClipId)
-      if (clip) return clip
-    }
-    return propSelectedClip
-  }, [selectedClipId, currentProject, propSelectedClip])
+  const selectedClipResult = useSelectedClip()
+  const selectedClip = selectedClipResult?.clip ?? propSelectedClip
 
   // Update local state when selected clip changes
   useEffect(() => {
@@ -143,7 +124,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <h4 className="text-xs font-medium text-foreground">Playback Speed</h4>
-            <InfoTooltip content="Changes how fast the video plays." />
+            <InfoTooltip content="Video playback speed" />
           </div>
           <div className="flex items-center gap-1.5">
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 h-5">
@@ -245,13 +226,13 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
       <div className="p-3 bg-background/40 rounded-lg space-y-3">
         <div className="flex items-center gap-1.5">
           <h4 className="text-xs font-medium text-foreground">Clip Fades</h4>
-          <InfoTooltip content="Fades the video in at the start and out at the end." />
+          <InfoTooltip content="Fade transitions" />
         </div>
 
         {/* Intro Fade */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Intro (Fade In)</span>
+            <span className="text-[10px] text-muted-foreground">Fade In</span>
             <span className="text-[10px] font-mono text-muted-foreground/70 tabular-nums">
               {introFadeMs}ms
             </span>
@@ -270,7 +251,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
         {/* Outro Fade */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Outro (Fade Out)</span>
+            <span className="text-[10px] text-muted-foreground">Fade Out</span>
             <span className="text-[10px] font-mono text-muted-foreground/70 tabular-nums">
               {outroFadeMs}ms
             </span>

@@ -9,6 +9,7 @@ import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { createAreaSourceId } from '@/lib/recording/utils/area-source-parser'
 import { RecordingSourceType } from '@/types/project'
 import { AudioInput } from '@/types'
+import { useProjectStore } from '@/stores/project-store'
 import {
   Mic,
   MicOff,
@@ -20,7 +21,6 @@ import {
   AppWindow,
   EyeOff,
   Eye,
-  Circle,
   FolderOpen,
   ChevronDown,
   Search,
@@ -58,6 +58,7 @@ export function RecordButtonDock() {
 
   const { startRecording, stopRecording, pauseRecording, resumeRecording, canPause, canResume } = useRecording()
   const { isRecording, isPaused, duration, updateSettings, startCountdown, prepareRecording } = useRecordingSessionStore()
+  const setRecordingSettings = useProjectStore((s) => s.setRecordingSettings)
 
   useEffect(() => {
     document.documentElement.style.background = 'transparent'
@@ -183,7 +184,8 @@ export function RecordButtonDock() {
       setSelectedSourceId(createAreaSourceId(area))
       window.electronAPI?.showRecordingOverlay?.(
         { x: area.x, y: area.y, width: area.width, height: area.height },
-        'Selected Area'
+        'Selected Area',
+        { displayId: area.displayId, relativeToDisplay: true }
       )
     }
   }
@@ -207,7 +209,7 @@ export function RecordButtonDock() {
       await window.electronAPI?.hideDesktopIcons?.()
     }
 
-    updateSettings({ includeAppWindows })
+    setRecordingSettings({ includeAppWindows })
 
     if (selectedSourceId.startsWith('area:')) {
       if (selectedSourceId === 'area:selection') {

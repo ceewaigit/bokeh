@@ -10,17 +10,14 @@ describe('recordings-library-store', () => {
     const b: LibraryRecording = { name: 'B', path: '/b.bokeh', timestamp: new Date('2024-01-02') }
 
     useRecordingsLibraryStore.setState({
-      recordings: [{ ...a }],
-      allRecordings: [{ ...a }, { ...b }],
+      recordings: [{ ...a }, { ...b }],
       currentPage: 1,
       isHydrated: true,
     })
 
-    useRecordingsLibraryStore.getState().updateRecording(a.path, { thumbnailUrl: 'thumb://a' })
+    useRecordingsLibraryStore.getState().setHydration(a.path, { thumbnailUrl: 'thumb://a' })
 
-    expect(useRecordingsLibraryStore.getState().recordings[0]?.thumbnailUrl).toBe('thumb://a')
-    expect(useRecordingsLibraryStore.getState().allRecordings.find(r => r.path === a.path)?.thumbnailUrl).toBe('thumb://a')
-    expect(useRecordingsLibraryStore.getState().allRecordings.find(r => r.path === b.path)?.thumbnailUrl).toBeUndefined()
+    expect(useRecordingsLibraryStore.getState().hydrationByPath[a.path]?.thumbnailUrl).toBe('thumb://a')
+    expect(useRecordingsLibraryStore.getState().hydrationByPath[b.path]?.thumbnailUrl).toBeUndefined()
   })
 })
-

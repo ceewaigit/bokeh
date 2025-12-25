@@ -1,15 +1,19 @@
 'use client'
 
 import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react'
-import { Stage, Layer, Rect, Group, Text } from 'react-konva'
+import { Stage, Layer, Rect } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { useShallow } from 'zustand/react/shallow'
 import { cn, clamp } from '@/lib/utils'
-import type { Project, ZoomBlock, ZoomEffectData, Effect, PluginEffect, ScreenEffect } from '@/types/project'
-import { EffectType, TrackType, TimelineTrackType } from '@/types/project'
-import { getZoomEffects, getScreenEffects, getAllPluginEffects, getScreenData, getPluginData } from '@/lib/effects/effect-filters'
-import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
+import type { Project, Clip } from '@/types/project'
+import { TrackType, TimelineTrackType } from '@/types/project'
+import { getZoomEffects } from '@/lib/effects/effect-filters'
+import { TimelineLayoutProvider, useTimelineLayout } from './timeline-layout-provider'
 import { useAssetLibraryStore } from '@/stores/asset-library-store'
+import { TimelineZoomTrack } from './tracks/timeline-zoom-track'
+import { TimelineScreenTrack } from './tracks/timeline-screen-track'
+import { TimelineKeystrokeTrack } from './tracks/timeline-keystroke-track'
+import { TimelinePluginTrack } from './tracks/timeline-plugin-track'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -19,10 +23,7 @@ import { TimelinePlayhead } from './timeline-playhead'
 import { SpeedUpSuggestionPopover } from './speed-up-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
-import { TimelineEffectBlock } from './timeline-effect-block'
-import { EffectLayerType, type SelectedEffectLayer } from '@/types/effects'
 import type { SpeedUpPeriod } from '@/types/speed-up'
-import { ActivityDetectionService } from '@/lib/timeline/activity-detection/detection-service'
 import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 import { ApplySpeedUpCommand } from '@/lib/commands/timeline/ApplySpeedUpCommand'
 import { ApplyAllSpeedUpsCommand } from '@/lib/commands/timeline/ApplyAllSpeedUpsCommand'
@@ -30,17 +31,16 @@ import { EffectStore } from '@/lib/core/effects'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
+import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { getSnappedDragX } from '@/lib/timeline/drag-positioning'
 import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
-import { useTimelineSnapping } from '@/hooks/use-timeline-snapping'
 
 // Commands
 import {
-  CommandExecutor,
-  UpdateClipCommand,
   RemoveClipCommand,
   SplitClipCommand,
   DuplicateClipCommand,
@@ -50,6 +50,7 @@ import {
   PasteCommand,
   ChangePlaybackRateCommand
 } from '@/lib/commands'
+import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 
 interface TimelineCanvasProps {
   className?: string
@@ -60,10 +61,17 @@ interface TimelineCanvasProps {
   onSeek: (time: number) => void
   onClipSelect?: (clipId: string) => void
   onZoomChange: (zoom: number) => void
-  onZoomBlockUpdate?: (blockId: string, updates: Partial<ZoomBlock>) => void
 }
 
-export function TimelineCanvas({
+export function TimelineCanvas(props: TimelineCanvasProps) {
+  return (
+    <TimelineLayoutProvider>
+      <TimelineCanvasContent {...props} />
+    </TimelineLayoutProvider>
+  )
+}
+
+function TimelineCanvasContent({
   className = "h-full w-full",
   currentProject,
   zoom,
@@ -71,8 +79,7 @@ export function TimelineCanvas({
   onPause,
   onSeek,
   onClipSelect,
-  onZoomChange,
-  onZoomBlockUpdate
+  onZoomChange
 }: TimelineCanvasProps) {
   // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders every frame
   const currentTime = useProjectStore((s) => s.currentTime)
@@ -80,36 +87,36 @@ export function TimelineCanvas({
   const draggingAsset = useAssetLibraryStore((s) => s.draggingAsset)
   const [dragTime, setDragTime] = useState<number | null>(null)
 
+  // Use Layout Context (replaces local resizing and calculations)
+  const {
+    stageWidth,
+    stageHeight,
+    timelineWidth,
+    pixelsPerMs,
+    trackHeights,
+    trackPositions,
+    hasZoomTrack,
+    hasScreenTrack,
+    hasKeystrokeTrack,
+    hasPluginTrack,
+    containerRef,
+  } = useTimelineLayout()
+
   const {
     selectedClips,
-    selectedEffectLayer,
     selectClip,
-    selectEffectLayer,
     clearEffectSelection,
-    removeClip,
-    updateClip,
-    updateEffect,
     clearSelection,
-    splitClip,
-    duplicateClip,
   } = useProjectStore(
     useShallow((s) => ({
       selectedClips: s.selectedClips,
-      selectedEffectLayer: s.selectedEffectLayer,
       selectClip: s.selectClip,
-      selectEffectLayer: s.selectEffectLayer,
       clearEffectSelection: s.clearEffectSelection,
-      removeClip: s.removeClip,
-      updateClip: s.updateClip,
-      updateEffect: s.updateEffect,
       clearSelection: s.clearSelection,
-      splitClip: s.splitClip,
-      duplicateClip: s.duplicateClip,
     }))
   )
-  const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
 
-  const [stageSize, setStageSize] = useState({ width: 800, height: 400 })
+  // Local state for scroll and context menu (stageSize moved to context)
   const [scrollLeft, setScrollLeft] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
   const [speedUpPopover, setSpeedUpPopover] = useState<{
@@ -121,7 +128,6 @@ export function TimelineCanvas({
     clipId: string
   } | null>(null)
 
-  const containerRef = useRef<HTMLDivElement>(null)
   const colors = useTimelineColors()
   const windowSurfaceMode = useWindowAppearanceStore((s) => s.mode)
   const windowSurfaceOpacity = useWindowAppearanceStore((s) => s.opacity)
@@ -132,80 +138,8 @@ export function TimelineCanvas({
     return colors.primary + colors.background + windowSurfaceMode + windowSurfaceOpacity
   }, [colors.primary, colors.background, windowSurfaceMode, windowSurfaceOpacity])
 
-  // Calculate timeline dimensions
+  // Calculate timeline dimensions - MOVED TO CONTEXT
   const duration = currentProject?.timeline?.duration || 10000
-  const pixelsPerMs = TimeConverter.calculatePixelsPerMs(stageSize.width, zoom)
-
-  const { getSnapPoints, getSnappedTimeFromPixel } = useTimelineSnapping({
-    pixelsPerMs,
-    project: currentProject
-  })
-
-  const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
-
-  const timelineEffects = useMemo(
-    () => currentProject ? EffectStore.getAll(currentProject) : [],
-    [currentProject]
-  )
-
-  const allZoomEffects = useMemo(
-    () => getZoomEffects(timelineEffects),
-    [timelineEffects]
-  )
-
-  const allScreenEffects = useMemo(
-    () => getScreenEffects(timelineEffects),
-    [timelineEffects]
-  )
-
-  const allKeystrokeEffects = useMemo(
-    () => timelineEffects.filter((e) => e.type === EffectType.Keystroke),
-    [timelineEffects]
-  )
-
-  const allPluginEffects = useMemo(
-    () => getAllPluginEffects(timelineEffects),
-    [timelineEffects]
-  )
-
-  // Show individual effect tracks based on their effects
-  const hasZoomEffects = allZoomEffects.length > 0
-  const hasScreenEffects = allScreenEffects.length > 0
-  const zoomTrackExists = hasZoomEffects
-  const screenTrackExists = hasScreenEffects
-
-  // Determine if any zoom block is enabled
-  const isZoomEnabled = useMemo(
-    () => allZoomEffects.some(e => e.enabled),
-    [allZoomEffects]
-  )
-
-  // Calculate adaptive zoom limits based on zoom blocks and timeline duration
-  const adaptiveZoomLimits = React.useMemo(() => {
-    const zoomBlocks = allZoomEffects.map(e => ({
-      startTime: e.startTime,
-      endTime: e.endTime
-    }))
-    return TimeConverter.calculateAdaptiveZoomLimits(
-      duration,
-      stageSize.width,
-      zoomBlocks,
-      TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX
-    )
-  }, [allZoomEffects, duration, stageSize.width])
-
-  // Show keystroke track if keystrokes exist in metadata OR any keystroke effect exists.
-  // This ensures the UI exposes the keystroke lane/toggle even if the effect is disabled or missing.
-  const hasAnyKeyboardEvents = useMemo(
-    () => (currentProject?.recordings || []).some((r) => (r.metadata?.keyboardEvents?.length ?? 0) > 0),
-    [currentProject?.recordings]
-  )
-  const hasAnyKeystrokeEffect = allKeystrokeEffects.length > 0
-  const hasKeystrokeTrack = hasAnyKeystrokeEffect || hasAnyKeyboardEvents
-
-  // Show plugin track if any plugin effects exist
-  const hasPluginTrack = allPluginEffects.length > 0
-
   // Memoize video/audio tracks lookup
   const videoTrack = useMemo(
     () => currentProject?.timeline.tracks.find(t => t.type === TrackType.Video),
@@ -217,136 +151,46 @@ export function TimelineCanvas({
   )
   const videoClips = useMemo(() => videoTrack?.clips || [], [videoTrack])
   const audioClips = useMemo(() => audioTrack?.clips || [], [audioTrack])
-
-  // Memoize block arrays for snapping/overlap detection
-  const allZoomBlocksInTimelineSpace = useMemo(
-    () => allZoomEffects.map(e => ({
-      id: e.id,
-      startTime: e.startTime,
-      endTime: e.endTime,
-      scale: (e.data as ZoomEffectData).scale,
-      targetX: (e.data as ZoomEffectData).targetX,
-      targetY: (e.data as ZoomEffectData).targetY,
-      introMs: (e.data as ZoomEffectData).introMs,
-      outroMs: (e.data as ZoomEffectData).outroMs,
+  const videoClipBlocks = useMemo(
+    () => videoClips.map((clip) => ({
+      id: clip.id,
+      startTime: clip.startTime,
+      endTime: clip.startTime + clip.duration
     })),
-    [allZoomEffects]
+    [videoClips]
   )
 
-  const allScreenBlocksData = useMemo(
-    () => allScreenEffects.map((e) => ({
-      id: e.id,
+  const timelineEffects = useMemo(
+    () => currentProject ? EffectStore.getAll(currentProject) : [],
+    [currentProject]
+  )
+  const allZoomEffects = useMemo(
+    () => getZoomEffects(timelineEffects),
+    [timelineEffects]
+  )
+  const adaptiveZoomLimits = React.useMemo(() => {
+    const zoomBlocks = allZoomEffects.map(e => ({
       startTime: e.startTime,
-      endTime: e.endTime,
-    })),
-    [allScreenEffects]
-  )
+      endTime: e.endTime
+    }))
+    return TimeConverter.calculateAdaptiveZoomLimits(
+      duration,
+      stageWidth,
+      zoomBlocks,
+      TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX
+    )
+  }, [allZoomEffects, duration, stageWidth])
 
-  const allKeystrokeBlocksData = useMemo(
-    () => allKeystrokeEffects.map((e) => {
-      const startTime = Math.max(0, e.startTime)
-      const endTime = Math.min(duration, e.endTime)
-      return { id: e.id, startTime, endTime }
-    }),
-    [allKeystrokeEffects, duration]
-  )
-
-  const allPluginBlocksData = useMemo(
-    () => allPluginEffects.map((e) => {
-      const startTime = Math.max(0, e.startTime)
-      const endTime = Math.min(duration, e.endTime)
-      return { id: e.id, startTime, endTime }
-    }),
-    [allPluginEffects, duration]
-  )
-
-  // Check if any clips have ACTUAL speed-up suggestions to display
-  // Uses the detection service to get real suggestion counts (not just events existing)
-  const hasSpeedUpSuggestions = React.useMemo(() => {
-    if (!currentProject) return { typing: false, idle: false }
-
-    const videoTrack = currentProject.timeline.tracks.find(t => t.type === TrackType.Video)
-    if (!videoTrack) return { typing: false, idle: false }
-
-    let hasTyping = false
-    let hasIdle = false
-
-    for (const clip of videoTrack.clips) {
-      const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
-      if (!recording) continue
-
-      // Use the detection service to get actual suggestions (respects thresholds)
-      const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip)
-
-      if (suggestions.typing.length > 0) hasTyping = true
-      if (suggestions.idle.length > 0) hasIdle = true
-
-      if (hasTyping && hasIdle) break // Found both, no need to continue
-    }
-
-    return { typing: hasTyping, idle: hasIdle }
-  }, [currentProject])
-
-  // Calculate track heights based on number of tracks - memoized to avoid recalculation on every render
-  const trackHeights = useMemo(() => {
-    const rulerHeight = TimelineConfig.RULER_HEIGHT
-
-    // Calculate space needed for speed-up bars (single row layout - always 32px)
-    const hasSuggestions = hasSpeedUpSuggestions.typing || hasSpeedUpSuggestions.idle
-    const speedUpBarSpace = (showTypingSuggestions && hasSuggestions) ? 32 : 0
-
-    const remainingHeight = stageSize.height - rulerHeight
-    const totalTracks = 2 + (zoomTrackExists ? 1 : 0) + (screenTrackExists ? 1 : 0) + (hasKeystrokeTrack ? 1 : 0) + (hasPluginTrack ? 1 : 0)
-
-    // Define height ratios for different track configurations
-    const heightRatios: Record<number, { video: number; audio: number; zoom?: number; screen?: number; keystroke?: number; plugin?: number }> = {
-      2: { video: 0.45, audio: 0.55 },
-      3: { video: 0.35, audio: 0.35, zoom: 0.3, screen: 0.3, keystroke: 0.3, plugin: 0.3 },
-      4: { video: 0.3, audio: 0.3, zoom: 0.2, screen: 0.2, keystroke: 0.2, plugin: 0.2 },
-      5: { video: 0.25, audio: 0.25, zoom: 0.18, screen: 0.18, keystroke: 0.14, plugin: 0.14 },
-      6: { video: 0.22, audio: 0.22, zoom: 0.15, screen: 0.15, keystroke: 0.13, plugin: 0.13 }
-    }
-
-    const ratios = heightRatios[totalTracks] || heightRatios[2]
-
-    // Calculate raw heights based on ratios
-    const rawVideoHeight = Math.floor(remainingHeight * ratios.video)
-    const rawAudioHeight = Math.floor(remainingHeight * ratios.audio)
-    const rawZoomHeight = zoomTrackExists ? Math.floor(remainingHeight * (ratios.zoom || 0)) : 0
-    const rawScreenHeight = screenTrackExists ? Math.floor(remainingHeight * (ratios.screen || 0)) : 0
-    const rawKeystrokeHeight = hasKeystrokeTrack ? Math.floor(remainingHeight * (ratios.keystroke || 0)) : 0
-    const rawPluginHeight = hasPluginTrack ? Math.floor(remainingHeight * (ratios.plugin || 0)) : 0
-
-    // Cap heights at MAX_TRACK_HEIGHT
-    return {
-      ruler: rulerHeight,
-      speedUpBarSpace, // Export this for clip positioning
-      video: Math.min(rawVideoHeight, TimelineConfig.MAX_TRACK_HEIGHT),
-      audio: Math.min(rawAudioHeight, TimelineConfig.MAX_TRACK_HEIGHT),
-      zoom: Math.min(rawZoomHeight, TimelineConfig.MAX_TRACK_HEIGHT),
-      screen: Math.min(rawScreenHeight, TimelineConfig.MAX_TRACK_HEIGHT),
-      keystroke: Math.min(rawKeystrokeHeight, TimelineConfig.MAX_TRACK_HEIGHT),
-      plugin: Math.min(rawPluginHeight, TimelineConfig.MAX_TRACK_HEIGHT)
-    }
-  }, [stageSize.height, zoomTrackExists, screenTrackExists, hasKeystrokeTrack, hasPluginTrack, showTypingSuggestions, hasSpeedUpSuggestions.typing, hasSpeedUpSuggestions.idle])
   const rulerHeight = trackHeights.ruler
-  const speedUpBarSpace = trackHeights.speedUpBarSpace
   const videoTrackHeight = trackHeights.video
   const audioTrackHeight = trackHeights.audio
   const zoomTrackHeight = trackHeights.zoom
   const screenTrackHeight = trackHeights.screen
   const keystrokeTrackHeight = trackHeights.keystroke
   const pluginTrackHeight = trackHeights.plugin
-  const stageWidth = Math.max(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Initialize command executor
-  const executorRef = useRef<CommandExecutor | null>(null)
-
-  useEffect(() => {
-    executorRef.current = CommandExecutor.isInitialized()
-      ? CommandExecutor.getInstance()
-      : CommandExecutor.initialize(useProjectStore)
-  }, [])
+  const executorRef = useCommandExecutor()
 
   // Use command-based keyboard shortcuts for editing operations (copy, cut, paste, delete, etc.)
   useCommandKeyboard({ enabled: true })
@@ -354,44 +198,32 @@ export function TimelineCanvas({
   // Use playback-specific keyboard shortcuts (play, pause, seek, shuttle, etc.)
   useTimelinePlayback({ enabled: true })
 
-  // Handle window resize with debouncing to prevent excessive re-renders
+  // PERFORMANCE: Auto-scroll during playback at reduced frequency (10Hz instead of 60Hz)
+  // The playhead updates smoothly at 60fps, but scroll checks only need to run periodically
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null
+    if (!isPlaying) return
 
-    const updateSize = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        setStageSize({ width: rect.width, height: rect.height })
+    const checkAutoScroll = () => {
+      const container = containerRef.current
+      if (!container) return
+
+      // Get current time imperatively to avoid needing it as a dependency
+      const time = useProjectStore.getState().currentTime
+      const playheadX = TimeConverter.msToPixels(time, pixelsPerMs)
+      const scrollWidth = container.scrollWidth - container.clientWidth
+      const currentScrollLeft = container.scrollLeft
+
+      if (playheadX > currentScrollLeft + stageWidth - 100) {
+        const newScroll = Math.min(scrollWidth, playheadX - 100)
+        container.scrollLeft = newScroll
+        setScrollLeft(newScroll)
       }
     }
 
-    const debouncedUpdateSize = () => {
-      if (timeoutId) clearTimeout(timeoutId)
-      timeoutId = setTimeout(updateSize, 100) // 100ms debounce
-    }
-
-    updateSize() // Initial size
-    window.addEventListener('resize', debouncedUpdateSize)
-
-    return () => {
-      window.removeEventListener('resize', debouncedUpdateSize)
-      if (timeoutId) clearTimeout(timeoutId)
-    }
-  }, [])
-
-  // Auto-scroll during playback
-  useEffect(() => {
-    if (!isPlaying || !containerRef.current) return
-    const playheadX = TimeConverter.msToPixels(currentTime, pixelsPerMs)
-    const container = containerRef.current
-    const scrollWidth = container.scrollWidth - container.clientWidth
-
-    if (playheadX > scrollLeft + stageSize.width - 100) {
-      const newScroll = Math.min(scrollWidth, playheadX - 100)
-      container.scrollLeft = newScroll
-      setScrollLeft(newScroll)
-    }
-  }, [currentTime, isPlaying, pixelsPerMs, scrollLeft, stageSize.width])
+    // Check 10 times per second instead of 60
+    const interval = setInterval(checkAutoScroll, 100)
+    return () => clearInterval(interval)
+  }, [isPlaying, pixelsPerMs, stageWidth, containerRef])
 
   // Handle wheel zoom with non-passive listener to prevent default browser zooming
   const wheelDepsRef = useRef({ zoom, onZoomChange, adaptiveZoomLimits })
@@ -416,7 +248,7 @@ export function TimelineCanvas({
     // passive: false is required to use preventDefault()
     container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
-  }, [])
+  }, [containerRef]) // Added containerRef dep
 
   // Handle clip context menu
   const handleClipContextMenu = useCallback((e: { evt: { clientX: number; clientY: number } }, clipId: string) => {
@@ -429,6 +261,13 @@ export function TimelineCanvas({
     })
   }, [selectClip])
 
+  // onScroll handler updated to just update state
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollLeft(e.currentTarget.scrollLeft)
+  }
+
+
+
   // Handle clip selection
   const handleClipSelect = useCallback((clipId: string) => {
     // If the clip is already selected AND it's the only one selected, deselect it (toggle behavior)
@@ -440,9 +279,80 @@ export function TimelineCanvas({
     }
   }, [selectClip, onClipSelect, selectedClips, clearSelection])
 
-  const handleReorderClip = useCallback((clipId: string, newIndex: number) => {
-    useProjectStore.getState().reorderClip(clipId, newIndex)
+  const [dragPreview, setDragPreview] = useState<{
+    clipId: string
+    trackType: TrackType.Video | TrackType.Audio
+    startTimes: Record<string, number>
+    insertIndex: number
+  } | null>(null)
+  const previewRafRef = useRef<number | null>(null)
+  const pendingPreviewRef = useRef<{ clipId: string; trackType: TrackType.Video | TrackType.Audio; proposedTime: number } | null>(null)
+
+  const buildContiguousPreview = useCallback((
+    clips: Clip[],
+    clipId: string,
+    proposedTime: number
+  ) => {
+    return ClipPositioning.computeContiguousPreview(clips, proposedTime, { clipId })
   }, [])
+
+  const schedulePreviewUpdate = useCallback((clipId: string, trackType: TrackType.Video | TrackType.Audio, proposedTime: number) => {
+    pendingPreviewRef.current = { clipId, trackType, proposedTime }
+    if (previewRafRef.current !== null) return
+    previewRafRef.current = requestAnimationFrame(() => {
+      previewRafRef.current = null
+      const pending = pendingPreviewRef.current
+      if (!pending) return
+      const clips = pending.trackType === TrackType.Video ? videoClips : audioClips
+      const preview = buildContiguousPreview(clips, pending.clipId, pending.proposedTime)
+      if (preview) {
+        setDragPreview({
+          clipId: pending.clipId,
+          trackType: pending.trackType,
+          startTimes: preview.startTimes,
+          insertIndex: preview.insertIndex
+        })
+      }
+    })
+  }, [audioClips, buildContiguousPreview, videoClips])
+
+  const clearPreview = useCallback(() => {
+    pendingPreviewRef.current = null
+    if (previewRafRef.current !== null) {
+      cancelAnimationFrame(previewRafRef.current)
+      previewRafRef.current = null
+    }
+    setDragPreview(null)
+  }, [])
+
+  const handleDragPreview = useCallback((clipId: string, trackType: TrackType.Video | TrackType.Audio, proposedTime: number) => {
+    schedulePreviewUpdate(clipId, trackType, proposedTime)
+  }, [schedulePreviewUpdate])
+
+  const handleDragCommit = useCallback((clipId: string, trackType: TrackType.Video | TrackType.Audio, proposedTime: number) => {
+    const clips = trackType === TrackType.Video ? videoClips : audioClips
+    const preview = buildContiguousPreview(clips, clipId, proposedTime)
+    if (preview) {
+      useProjectStore.getState().reorderClip(clipId, preview.insertIndex)
+    }
+    clearPreview()
+  }, [audioClips, buildContiguousPreview, clearPreview, videoClips])
+
+  const handleVideoDragPreview = useCallback((clipId: string, proposedStartTime: number) => {
+    handleDragPreview(clipId, TrackType.Video, proposedStartTime)
+  }, [handleDragPreview])
+
+  const handleVideoDragCommit = useCallback((clipId: string, proposedStartTime: number) => {
+    handleDragCommit(clipId, TrackType.Video, proposedStartTime)
+  }, [handleDragCommit])
+
+  const handleAudioDragPreview = useCallback((clipId: string, proposedStartTime: number) => {
+    handleDragPreview(clipId, TrackType.Audio, proposedStartTime)
+  }, [handleDragPreview])
+
+  const handleAudioDragCommit = useCallback((clipId: string, proposedStartTime: number) => {
+    handleDragCommit(clipId, TrackType.Audio, proposedStartTime)
+  }, [handleDragCommit])
 
   // Handle popover actions for speed-up suggestions
   const handleApplySpeedUp = useCallback(async (period: SpeedUpPeriod, clipId: string) => {
@@ -457,31 +367,28 @@ export function TimelineCanvas({
     setSpeedUpPopover(null)
   }, [])
 
-  // Handle clip drag using command pattern
-  const handleClipDragEnd = useCallback(async (clipId: string, newStartTime: number) => {
-    if (!executorRef.current) return
-    await executorRef.current.execute(UpdateClipCommand, clipId, { startTime: newStartTime })
-    selectClip(clipId)
-  }, [selectClip])
-
   // Handle control actions using command pattern
+  // PERFORMANCE: Use imperative store access instead of subscribed currentTime
   const handleSplit = useCallback(async () => {
     if (selectedClips.length === 1 && executorRef.current) {
-      await executorRef.current.execute(SplitClipCommand, selectedClips[0], currentTime)
+      const time = useProjectStore.getState().currentTime
+      await executorRef.current.execute(SplitClipCommand, selectedClips[0], time)
     }
-  }, [selectedClips, currentTime])
+  }, [selectedClips])
 
   const handleTrimStart = useCallback(async () => {
     if (selectedClips.length === 1 && executorRef.current) {
-      await executorRef.current.execute(TrimCommand, selectedClips[0], currentTime, 'start')
+      const time = useProjectStore.getState().currentTime
+      await executorRef.current.execute(TrimCommand, selectedClips[0], time, 'start')
     }
-  }, [selectedClips, currentTime])
+  }, [selectedClips])
 
   const handleTrimEnd = useCallback(async () => {
     if (selectedClips.length === 1 && executorRef.current) {
-      await executorRef.current.execute(TrimCommand, selectedClips[0], currentTime, 'end')
+      const time = useProjectStore.getState().currentTime
+      await executorRef.current.execute(TrimCommand, selectedClips[0], time, 'end')
     }
-  }, [selectedClips, currentTime])
+  }, [selectedClips])
 
   const handleDelete = useCallback(async () => {
     if (!executorRef.current) return
@@ -503,20 +410,24 @@ export function TimelineCanvas({
   }, [selectedClips])
 
   // Context menu wrappers - reuse existing handlers
+  // PERFORMANCE: Use imperative store access instead of subscribed currentTime
   const handleClipSplit = useCallback(async (clipId: string) => {
     if (!executorRef.current) return
-    await executorRef.current.execute(SplitClipCommand, clipId, currentTime)
-  }, [currentTime])
+    const time = useProjectStore.getState().currentTime
+    await executorRef.current.execute(SplitClipCommand, clipId, time)
+  }, [])
 
   const handleClipTrimStart = useCallback(async (clipId: string) => {
     if (!executorRef.current) return
-    await executorRef.current.execute(TrimCommand, clipId, currentTime, 'start')
-  }, [currentTime])
+    const time = useProjectStore.getState().currentTime
+    await executorRef.current.execute(TrimCommand, clipId, time, 'start')
+  }, [])
 
   const handleClipTrimEnd = useCallback(async (clipId: string) => {
     if (!executorRef.current) return
-    await executorRef.current.execute(TrimCommand, clipId, currentTime, 'end')
-  }, [currentTime])
+    const time = useProjectStore.getState().currentTime
+    await executorRef.current.execute(TrimCommand, clipId, time, 'end')
+  }, [])
 
   const handleClipDuplicate = useCallback(async (clipId: string) => {
     if (!executorRef.current) return
@@ -535,8 +446,9 @@ export function TimelineCanvas({
 
   const handlePaste = useCallback(async () => {
     if (!executorRef.current) return
-    await executorRef.current.execute(PasteCommand, currentTime)
-  }, [currentTime])
+    const time = useProjectStore.getState().currentTime
+    await executorRef.current.execute(PasteCommand, time)
+  }, [])
 
   const handleClipDelete = useCallback(async (clipId: string) => {
     if (!executorRef.current) return
@@ -548,6 +460,15 @@ export function TimelineCanvas({
     if (!executorRef.current) return
     await executorRef.current.execute(ChangePlaybackRateCommand, clipId, 2.0)
   }, [selectClip])
+
+  // Edge trim handlers - called when user drags clip edges
+  const handleClipEdgeTrimStart = useCallback((clipId: string, newStartTime: number) => {
+    useProjectStore.getState().trimClipStart(clipId, newStartTime)
+  }, [])
+
+  const handleClipEdgeTrimEnd = useCallback((clipId: string, newEndTime: number) => {
+    useProjectStore.getState().trimClipEnd(clipId, newEndTime)
+  }, [])
 
   // Stage click handler - click to seek and clear selections
   const handleStageClick = useCallback((e: { target: any; evt: { offsetX: number } }) => {
@@ -601,7 +522,7 @@ export function TimelineCanvas({
         ref={containerRef}
         className="flex-1 overflow-x-auto overflow-y-hidden relative bg-transparent select-none outline-none focus:outline-none timeline-container"
         tabIndex={0}
-        onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
+        onScroll={handleScroll}
 
         onMouseDown={() => {
           // Ensure container maintains focus for keyboard events
@@ -611,39 +532,72 @@ export function TimelineCanvas({
           e.preventDefault()
           e.dataTransfer.dropEffect = 'copy'
 
-          if (containerRef.current) {
+          if (containerRef.current && draggingAsset) {
             const rect = containerRef.current.getBoundingClientRect()
-            const x = (e.clientX - rect.left) + scrollLeft - TimelineConfig.TRACK_LABEL_WIDTH
+            const stageX = (e.clientX - rect.left) + scrollLeft
+            const assetDuration = draggingAsset.metadata?.duration || 5000
+            const snappedX = getSnappedDragX({
+              proposedX: stageX,
+              blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
+              blocks: videoClipBlocks,
+              pixelsPerMs
+            })
+            const proposedTime = Math.max(
+              0,
+              TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+            )
 
-            // Generate snap points dynamically (cached by hook based on project)
-            const snapPoints = getSnapPoints()
-            const snappedTime = getSnappedTimeFromPixel(x, snapPoints)
-
-            setDragTime(snappedTime)
+            const preview = ClipPositioning.computeContiguousPreview(
+              videoClips,
+              proposedTime,
+              { durationMs: assetDuration }
+            )
+            if (preview) {
+              setDragPreview({
+                clipId: '__asset__',
+                trackType: TrackType.Video,
+                startTimes: preview.startTimes,
+                insertIndex: preview.insertIndex
+              })
+              setDragTime(preview.insertTime)
+            } else {
+              setDragTime(proposedTime)
+            }
           }
         }}
         onDragLeave={() => {
           setDragTime(null)
+          setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
+          useAssetLibraryStore.getState().setDraggingAsset(null)
         }}
         onDrop={(e) => {
           e.preventDefault()
           setDragTime(null)
+          setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
+          useAssetLibraryStore.getState().setDraggingAsset(null)
           const assetData = e.dataTransfer.getData('application/x-bokeh-asset')
           if (!assetData || !containerRef.current) return
 
           try {
             const asset = JSON.parse(assetData)
             const rect = containerRef.current.getBoundingClientRect()
-            // Calculate effective X position:
-            // Mouse X relative to container - Track Label Width + Scroll Offset
-            const x = (e.clientX - rect.left) + scrollLeft - TimelineConfig.TRACK_LABEL_WIDTH
-
-            // Convert to time, clamping to 0
-            // const time = Math.max(0, TimeConverter.pixelsToMs(x, pixelsPerMs))
-
-            // Use snapped time for consistency with drag preview
-            const snapPoints = getSnapPoints()
-            const time = getSnappedTimeFromPixel(x, snapPoints)
+            const stageX = (e.clientX - rect.left) + scrollLeft
+            const assetDuration = asset.duration || 5000
+            const snappedX = getSnappedDragX({
+              proposedX: stageX,
+              blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
+              blocks: videoClipBlocks,
+              pixelsPerMs
+            })
+            const proposedTime = Math.max(
+              0,
+              TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+            )
+            const preview = ClipPositioning.computeContiguousPreview(
+              videoClips,
+              proposedTime,
+              { durationMs: assetDuration }
+            )
 
             // Use the shared helper to add the asset intelligently
             // (Creates recording, adds to project, inherits crop from previous clip)
@@ -653,7 +607,11 @@ export function TimelineCanvas({
               // We need to import addAssetRecording at top of file.
               const { addAssetRecording } = require('@/lib/timeline/timeline-operations')
               const updatedProject = { ...project }
-              addAssetRecording(updatedProject, asset, time)
+              if (preview) {
+                addAssetRecording(updatedProject, asset, { insertIndex: preview.insertIndex })
+              } else {
+                addAssetRecording(updatedProject, asset, { startTime: proposedTime })
+              }
               return updatedProject
             })
 
@@ -672,7 +630,7 @@ export function TimelineCanvas({
         <Stage
           key={themeKey}
           width={stageWidth}
-          height={stageSize.height}
+          height={stageHeight}
           onMouseDown={handleStageClick}
           style={{
             userSelect: 'none',
@@ -687,7 +645,7 @@ export function TimelineCanvas({
               x={0}
               y={0}
               width={stageWidth}
-              height={stageSize.height}
+              height={stageHeight}
               fill={colors.background}
               opacity={backgroundOpacity}
             />
@@ -703,25 +661,25 @@ export function TimelineCanvas({
 
             <TimelineTrack
               type={TimelineTrackType.Video}
-              y={rulerHeight}
+              y={trackPositions.video}
               width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={videoTrackHeight}
             />
 
-            {zoomTrackExists && (
+            {hasZoomTrack && (
               <TimelineTrack
                 type={TimelineTrackType.Zoom}
-                y={rulerHeight + videoTrackHeight}
+                y={trackPositions.zoom}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={zoomTrackHeight}
-                muted={!isZoomEnabled}
+                muted={!allZoomEffects.some(e => e.enabled)}
               />
             )}
 
-            {screenTrackExists && (
+            {hasScreenTrack && (
               <TimelineTrack
                 type={TimelineTrackType.Screen}
-                y={rulerHeight + videoTrackHeight + zoomTrackHeight}
+                y={trackPositions.screen}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={screenTrackHeight}
               />
@@ -730,7 +688,7 @@ export function TimelineCanvas({
             {hasKeystrokeTrack && (
               <TimelineTrack
                 type={TimelineTrackType.Keystroke}
-                y={rulerHeight + videoTrackHeight + zoomTrackHeight + screenTrackHeight}
+                y={trackPositions.keystroke}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={keystrokeTrackHeight}
               />
@@ -739,7 +697,7 @@ export function TimelineCanvas({
             {hasPluginTrack && (
               <TimelineTrack
                 type={TimelineTrackType.Plugin}
-                y={rulerHeight + videoTrackHeight + zoomTrackHeight + screenTrackHeight + keystrokeTrackHeight}
+                y={trackPositions.plugin}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={pluginTrackHeight}
               />
@@ -747,7 +705,7 @@ export function TimelineCanvas({
 
             <TimelineTrack
               type={TimelineTrackType.Audio}
-              y={rulerHeight + videoTrackHeight + zoomTrackHeight + screenTrackHeight + keystrokeTrackHeight + pluginTrackHeight}
+              y={trackPositions.audio}
               width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={audioTrackHeight}
             />
@@ -767,296 +725,72 @@ export function TimelineCanvas({
           {/* Clips Layer */}
           <Layer>
             {/* Video clips - Uses memoized videoClips */}
-            {videoClips.map((clip, index) => {
+            {videoClips.map((clip) => {
               const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
+              const previewStartTime = dragPreview?.trackType === TrackType.Video && dragPreview.clipId !== clip.id
+                ? dragPreview.startTimes[clip.id]
+                : undefined
               // Merge effects from recording (zoom) and timeline (global)
-              const recordingEffects = recording?.effects || []
-              const clipEffects = [...recordingEffects, ...timelineEffects]
-
               return (
                 <TimelineClip
                   key={clip.id}
                   clip={clip}
                   recording={recording}
                   trackType={TrackType.Video}
-                  trackY={rulerHeight}
+                  trackY={trackPositions.video}
                   trackHeight={videoTrackHeight}
-                  speedUpBarSpace={speedUpBarSpace}
                   pixelsPerMs={pixelsPerMs}
                   isSelected={selectedClips.includes(clip.id)}
-                  selectedEffectType={selectedClips.includes(clip.id) ? (selectedEffectLayer?.type === EffectLayerType.Screen ? null : selectedEffectLayer?.type) : null}
                   otherClipsInTrack={videoClips}
-                  clipEffects={clipEffects}
                   onSelect={handleClipSelect}
-                  onReorderClip={handleReorderClip}
-                  onSelectEffect={(type) => {
-                    selectEffectLayer(type)
-                  }}
-                  onDragEnd={handleClipDragEnd}
+                  onDragPreview={handleVideoDragPreview}
+                  onDragCommit={handleVideoDragCommit}
                   onContextMenu={handleClipContextMenu}
+                  onTrimStart={handleClipEdgeTrimStart}
+                  onTrimEnd={handleClipEdgeTrimEnd}
                   onOpenSpeedUpSuggestion={(opts) => setSpeedUpPopover({ ...opts, clipId: clip.id })}
+                  displayStartTime={previewStartTime}
                 />
               )
             })}
 
-            {/* Zoom blocks - SIMPLIFIED: All zoom effects are now in timeline-space */}
-            {zoomTrackExists && (() => {
-              // Render each zoom effect as a block on the timeline
-              const zoomBlocks = allZoomEffects.map((effect) => {
-                const isBlockSelected = selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id === effect.id
-                const zoomData = effect.data as ZoomEffectData
-                const isFillZoom = zoomData.autoScale === 'fill'
+            {/* Zoom blocks */}
+            <TimelineZoomTrack />
 
-                // Use effect times directly (already in timeline-space)
-                const timelineStartTime = effect.startTime
-                const timelineEndTime = effect.endTime
+            {/* Screen Effects blocks */}
+            <TimelineScreenTrack />
 
-                // Calculate width with minimum visual constraint
-                const calculatedWidth = TimeConverter.msToPixels(timelineEndTime - timelineStartTime, pixelsPerMs)
-                const visualWidth = Math.max(TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX, calculatedWidth)
-                const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
+            {/* Keystroke blocks */}
+            <TimelineKeystrokeTrack />
 
-                const blockElement = (
-                  <TimelineEffectBlock
-                    key={effect.id}
-                    blockId={effect.id}
-                    x={TimeConverter.msToPixels(timelineStartTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
-                    y={rulerHeight + videoTrackHeight + TimelineConfig.TRACK_PADDING}
-                    width={visualWidth}
-                    height={zoomTrackHeight - TimelineConfig.TRACK_PADDING * 2}
-                    isCompact={isCompact}
-                    startTime={timelineStartTime}
-                    endTime={timelineEndTime}
-                    label={isFillZoom ? 'Fill' : `${zoomData.scale.toFixed(1)}×`}
-                    fillColor={colors.zoomBlock}
-                    scale={isFillZoom ? undefined : zoomData.scale}
-                    introMs={zoomData.introMs}
-                    outroMs={zoomData.outroMs}
-                    isSelected={isBlockSelected}
-                    isEnabled={effect.enabled}
-                    allBlocks={allZoomBlocksInTimelineSpace}
-                    pixelsPerMs={pixelsPerMs}
-                    onSelect={() => {
-                      if (isBlockSelected) {
-                        clearEffectSelection()
-                      } else {
-                        selectEffectLayer(EffectLayerType.Zoom, effect.id)
-                      }
-                      setTimeout(() => {
-                        containerRef.current?.focus()
-                      }, 0)
-                    }}
-                    onUpdate={(updates) => {
-                      // All updates are in timeline-space, pass through directly
-                      onZoomBlockUpdate?.(effect.id, updates)
-                    }}
-                  />
-                )
-                return blockElement
-              })
-
-              return (
-                <>
-                  {zoomBlocks}
-                </>
-              )
-            })()}
-
-            {/* Screen Effects blocks - rendered in dedicated Screen track */}
-            {screenTrackExists && (() => {
-              if (allScreenEffects.length === 0) return null
-
-              // Render in the dedicated Screen track (below zoom track)
-              const yBase = rulerHeight + videoTrackHeight + zoomTrackHeight + TimelineConfig.TRACK_PADDING
-
-              const screenBlocks = allScreenEffects.map((effect) => {
-                const isBlockSelected =
-                  selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id === effect.id
-
-                const calculatedWidth = TimeConverter.msToPixels(effect.endTime - effect.startTime, pixelsPerMs)
-                const visualWidth = Math.max(TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX, calculatedWidth)
-                const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
-
-                // Get screen effect data for intro/outro
-                const screenData = (effect as ScreenEffect).data
-
-                const blockElement = (
-                  <TimelineEffectBlock
-                    key={effect.id}
-                    blockId={effect.id}
-                    x={TimeConverter.msToPixels(effect.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
-                    y={yBase}
-                    width={visualWidth}
-                    height={screenTrackHeight - TimelineConfig.TRACK_PADDING * 2}
-                    isCompact={isCompact}
-                    startTime={effect.startTime}
-                    endTime={effect.endTime}
-                    label={'3D'}
-                    fillColor={colors.screenBlock}
-                    scale={1.3}  // Use a fixed scale to show the intro/outro curve
-                    introMs={screenData?.introMs ?? 400}
-                    outroMs={screenData?.outroMs ?? 400}
-                    isSelected={isBlockSelected}
-                    isEnabled={effect.enabled}
-                    allBlocks={allScreenBlocksData}
-                    pixelsPerMs={pixelsPerMs}
-                    onSelect={() => {
-                      if (isBlockSelected) {
-                        clearEffectSelection()
-                      } else {
-                        selectEffectLayer(EffectLayerType.Screen, effect.id)
-                      }
-                      setTimeout(() => {
-                        containerRef.current?.focus()
-                      }, 0)
-                    }}
-                    onUpdate={(updates) => updateEffect(effect.id, updates)}
-                  />
-                )
-                return blockElement
-              })
-
-              return (
-                <>
-                  {screenBlocks}
-                </>
-              )
-            })()}
-
-            {/* Keystroke blocks - rendered in dedicated Keystroke track */}
-            {hasKeystrokeTrack && (() => {
-              if (allKeystrokeEffects.length === 0) return null
-
-              const yBase = rulerHeight + videoTrackHeight + zoomTrackHeight + screenTrackHeight + TimelineConfig.TRACK_PADDING
-
-              const blocks = allKeystrokeEffects.map((effect) => {
-                const isBlockSelected =
-                  selectedEffectLayer?.type === EffectLayerType.Keystroke && selectedEffectLayer?.id === effect.id
-
-                const startTime = Math.max(0, effect.startTime)
-                const endTime = Math.min(currentProject.timeline.duration, effect.endTime)
-
-                const calculatedWidth = TimeConverter.msToPixels(endTime - startTime, pixelsPerMs)
-                const visualWidth = Math.max(TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX, calculatedWidth)
-                const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
-
-                const blockElement = (
-                  <TimelineEffectBlock
-                    key={effect.id}
-                    blockId={effect.id}
-                    x={TimeConverter.msToPixels(startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
-                    y={yBase}
-                    width={visualWidth}
-                    height={keystrokeTrackHeight - TimelineConfig.TRACK_PADDING * 2}
-                    isCompact={isCompact}
-                    startTime={startTime}
-                    endTime={endTime}
-                    label={'Keys'}
-                    fillColor={colors.warning}
-                    isSelected={isBlockSelected}
-                    isEnabled={effect.enabled}
-                    allBlocks={allKeystrokeBlocksData}
-                    pixelsPerMs={pixelsPerMs}
-                    onSelect={() => {
-                      if (isBlockSelected) {
-                        clearEffectSelection()
-                      } else {
-                        selectEffectLayer(EffectLayerType.Keystroke, effect.id)
-                      }
-                      setTimeout(() => {
-                        containerRef.current?.focus()
-                      }, 0)
-                    }}
-                    onUpdate={(updates) => updateEffect(effect.id, updates)}
-                  />
-                )
-                return blockElement
-              })
-
-              return (
-                <>
-                  {blocks}
-                </>
-              )
-            })()}
-
-            {/* Plugin blocks - rendered in dedicated Plugin track */}
-            {hasPluginTrack && (() => {
-              if (allPluginEffects.length === 0) return null
-
-              const yBase = rulerHeight + videoTrackHeight + zoomTrackHeight + screenTrackHeight + keystrokeTrackHeight + TimelineConfig.TRACK_PADDING
-
-              const blocks = allPluginEffects.map((effect) => {
-                const isBlockSelected =
-                  selectedEffectLayer?.type === EffectLayerType.Plugin && selectedEffectLayer?.id === effect.id
-
-                const startTime = Math.max(0, effect.startTime)
-                const endTime = Math.min(currentProject.timeline.duration, effect.endTime)
-
-                const calculatedWidth = TimeConverter.msToPixels(endTime - startTime, pixelsPerMs)
-                const visualWidth = Math.max(TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX, calculatedWidth)
-                const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
-
-                // Get plugin name from registry for label
-                const pluginData = (effect as PluginEffect).data
-                const plugin = pluginData ? PluginRegistry.get(pluginData.pluginId) : null
-                const label = plugin?.name?.slice(0, 8) || 'Plugin'
-
-                const blockElement = (
-                  <TimelineEffectBlock
-                    key={effect.id}
-                    blockId={effect.id}
-                    x={TimeConverter.msToPixels(startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
-                    y={yBase}
-                    width={visualWidth}
-                    height={pluginTrackHeight - TimelineConfig.TRACK_PADDING * 2}
-                    isCompact={isCompact}
-                    startTime={startTime}
-                    endTime={endTime}
-                    label={label}
-                    fillColor={colors.primary}
-                    isSelected={isBlockSelected}
-                    isEnabled={effect.enabled}
-                    allBlocks={allPluginBlocksData}
-                    pixelsPerMs={pixelsPerMs}
-                    onSelect={() => {
-                      if (isBlockSelected) {
-                        clearEffectSelection()
-                      } else {
-                        selectEffectLayer(EffectLayerType.Plugin, effect.id)
-                      }
-                      setTimeout(() => {
-                        containerRef.current?.focus()
-                      }, 0)
-                    }}
-                    onUpdate={(updates) => updateEffect(effect.id, updates)}
-                  />
-                )
-                return blockElement
-              })
-
-              return (
-                <>
-                  {blocks}
-                </>
-              )
-            })()}
+            {/* Plugin blocks */}
+            <TimelinePluginTrack />
 
             {audioClips.map(clip => (
-              <TimelineClip
-                key={clip.id}
-                clip={clip}
-                trackType={TrackType.Audio}
-                trackY={rulerHeight + videoTrackHeight + zoomTrackHeight + screenTrackHeight + keystrokeTrackHeight + pluginTrackHeight}
-                trackHeight={audioTrackHeight}
-                pixelsPerMs={pixelsPerMs}
-                isSelected={selectedClips.includes(clip.id)}
-                otherClipsInTrack={audioClips}
-                onSelect={handleClipSelect}
-                onReorderClip={handleReorderClip}
-                onDragEnd={handleClipDragEnd}
-                onContextMenu={handleClipContextMenu}
-              />
+              (() => {
+                const previewStartTime = dragPreview?.trackType === TrackType.Audio && dragPreview.clipId !== clip.id
+                  ? dragPreview.startTimes[clip.id]
+                  : undefined
+                return (
+                  <TimelineClip
+                    key={clip.id}
+                    clip={clip}
+                    trackType={TrackType.Audio}
+                    trackY={trackPositions.audio}
+                    trackHeight={audioTrackHeight}
+                    pixelsPerMs={pixelsPerMs}
+                    isSelected={selectedClips.includes(clip.id)}
+                    otherClipsInTrack={audioClips}
+                    onSelect={handleClipSelect}
+                    onDragPreview={handleAudioDragPreview}
+                    onDragCommit={handleAudioDragCommit}
+                    onContextMenu={handleClipContextMenu}
+                    onTrimStart={handleClipEdgeTrimStart}
+                    onTrimEnd={handleClipEdgeTrimEnd}
+                    displayStartTime={previewStartTime}
+                  />
+                )
+              })()
             ))}
           </Layer>
 
@@ -1064,14 +798,11 @@ export function TimelineCanvas({
           <Layer>
             <TimelinePlayhead
               currentTime={currentTime}
-              totalHeight={stageSize.height}
+              totalHeight={stageHeight}
               pixelsPerMs={pixelsPerMs}
               timelineWidth={timelineWidth}
               maxTime={currentProject.timeline.duration}
               onSeek={onSeek}
-              isPlaying={isPlaying}
-              onPause={onPause}
-              onPlay={onPlay}
             />
           </Layer>
         </Stage>

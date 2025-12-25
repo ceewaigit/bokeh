@@ -1,8 +1,7 @@
-import { Command, CompositeCommand, CommandResult } from '../base/Command'
+import { CompositeCommand } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { CopyCommand } from './CopyCommand'
 import { RemoveClipCommand } from '../timeline/RemoveClipCommand'
-import type { Clip } from '@/types/project'
 
 export class CutCommand extends CompositeCommand<{ clipId: string }> {
   constructor(context: CommandContext, clipId?: string) {

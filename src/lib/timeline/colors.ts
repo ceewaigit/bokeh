@@ -74,6 +74,7 @@ export const getTimelineColors = () => {
     info: getCSSVar('--info') || 'hsl(217, 91%, 60%)',
 
     // Timeline-specific colors
+    ruler: getCSSVar('--timeline-ruler') || getCSSVar('--muted'),
     playhead: getCSSVar('--destructive') || 'hsl(0, 84%, 60%)',
     zoomBlock: getCSSVar('--primary') || 'hsl(263, 70%, 50%)', // Use primary purple for zoom
     // zoomBlockHover removed (unused)
@@ -108,6 +109,7 @@ const getDefaultColors = () => ({
   success: 'hsl(0, 0%, 80%)', // White/Grey for Audio
   warning: 'hsl(38, 92%, 50%)',
   info: 'hsl(267, 100%, 61%)', // Purple for Video
+  ruler: 'hsl(0, 0%, 8%)',
   playhead: 'hsl(263, 70%, 65%)', // Purple playhead
   zoomBlock: 'hsl(263, 70%, 65%)', // Primary Purple for Zoom
   // zoomBlockHover removed (unused)

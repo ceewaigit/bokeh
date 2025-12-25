@@ -5,7 +5,8 @@ import { AddZoomBlockCommand } from '../effects/AddZoomBlockCommand'
 import type { Clip, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { EffectQueries } from '@/lib/core/effects'
+import { EffectStore } from '@/lib/core/effects'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 export interface PasteResult {
   type: 'clip' | 'effect'
@@ -89,7 +90,7 @@ export class PasteCommand extends Command<PasteResult> {
           const defaultDuration = effectType === EffectType.Keystroke ? 5000 : 3000 // 5s for keystroke, 3s for screen
 
           // Find non-overlapping position
-          const existingEffects = EffectQueries.byType(project, effectType)
+          const existingEffects = EffectStore.getAll(project).filter(e => e.type === effectType)
           existingEffects.sort((a, b) => a.startTime - b.startTime)
 
           let finalStartTime = Math.max(0, currentTime)
@@ -161,7 +162,26 @@ export class PasteCommand extends Command<PasteResult> {
       this.pastedCommand = new AddClipCommand(this.context, newClip)
       const result = await this.pastedCommand.execute()
 
-      if (result.success) {
+      if (result.success && project) {
+        // Copy crop effect from the original clip to the pasted clip
+        const allEffects = EffectStore.getAll(project)
+        // Look up crop effect by the original clipboard clip ID
+        const originalCropEffect = allEffects.find(e =>
+          e.type === EffectType.Crop &&
+          e.clipId === clipboard.clip!.id
+        )
+
+        if (originalCropEffect && originalCropEffect.data) {
+          // Create a new crop effect for the pasted clip
+          const newCropEffect = EffectsFactory.createCropEffect({
+            clipId: newClip.id,
+            startTime: newClip.startTime,
+            endTime: newClip.startTime + newClip.duration,
+            cropData: originalCropEffect.data as any
+          })
+          EffectsFactory.addEffectToProject(project, newCropEffect)
+        }
+
         return {
           success: true,
           data: { type: 'clip', clipId: newClip.id }
@@ -175,7 +195,7 @@ export class PasteCommand extends Command<PasteResult> {
 
   private async createZoomBlock(
     zoomData: ZoomEffectData,
-    recordingId: string,
+    _recordingId: string,
     pasteTimelinePosition: number,  // Now we use timeline position directly
     project: any
   ): Promise<CommandResult<PasteResult>> {
@@ -183,7 +203,7 @@ export class PasteCommand extends Command<PasteResult> {
     const blockDuration = 5000 // 5 seconds
 
     // Find non-overlapping position - check ALL zoom effects in timeline.effects
-    const existingZoomEffects = EffectQueries.byType(project, EffectType.Zoom)
+    const existingZoomEffects = EffectStore.getAll(project).filter(e => e.type === EffectType.Zoom)
     existingZoomEffects.sort((a, b) => a.startTime - b.startTime)
 
     let finalStartTime = Math.max(0, pasteTimelinePosition)

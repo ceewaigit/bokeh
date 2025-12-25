@@ -7,7 +7,7 @@
  */
 
 import type { Migration } from '../index'
-import type { Project, Effect, Clip, Recording } from '@/types/project'
+import type { Project, Effect, Clip } from '@/types/project'
 import { EffectType } from '@/types/project'
 
 /**

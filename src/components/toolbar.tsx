@@ -13,7 +13,6 @@ import {
   PanelLeft,
   Library,
   Info,
-  Sparkles,
   Camera,
   Loader2,
   Settings2
@@ -24,15 +23,14 @@ import { WindowHeader } from './ui/window-header'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { cn, formatTime } from '@/lib/utils'
 import type { Project } from '@/types/project'
-import { TrackType } from '@/types/project'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useProjectStore } from '@/stores/project-store'
 import { toast } from 'sonner'
-import { buildFrameLayout } from '@/lib/timeline/frame-layout'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import { EffectStore } from '@/lib/core/effects'
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 
 interface ToolbarProps {
   project: Project | null
@@ -66,7 +64,7 @@ export function Toolbar({
   const [isSnapshotting, setIsSnapshotting] = useState(false)
 
   const { isUtilitiesOpen, toggleUtilities, setSettingsOpen } = useWorkspaceStore()
-  const videoTrack = project?.timeline.tracks.find((t) => t.type === TrackType.Video)
+  const hasVideoClips = project ? TimelineDataService.getVideoClips(project).length > 0 : false
 
   const handleToggleProperties = () => {
     setPropertiesOpen(!propertiesOpen)
@@ -78,14 +76,14 @@ export function Toolbar({
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo/Brand */}
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-md">
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/8 rounded-lg">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-          <span className="font-bold text-[10px] text-primary uppercase tracking-wider whitespace-nowrap">
+          <span className="font-semibold text-[10px] text-primary uppercase tracking-wide whitespace-nowrap">
             Studio
           </span>
         </div>
 
-        <div className="w-px h-5 bg-muted-foreground/20" />
+        <div className="w-px h-4 bg-border/30" />
 
         {/* Left Sidebar Toggle */}
         <Button
@@ -100,7 +98,7 @@ export function Toolbar({
           }
         </Button>
 
-        <div className="w-px h-5 bg-muted-foreground/20" />
+        <div className="w-px h-4 bg-border/30" />
 
         {/* Back to Library Button */}
         {onBackToLibrary && (
@@ -111,7 +109,7 @@ export function Toolbar({
             >
               Library
             </HeaderButton>
-            <div className="w-px h-5 bg-muted-foreground/20" />
+            <div className="w-px h-4 bg-border/30" />
           </>
         )}
 
@@ -178,11 +176,11 @@ export function Toolbar({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className="flex items-center gap-1.5 px-3 py-1 window-surface rounded-md flex-shrink-0 border border-border/50 cursor-default"
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
                   style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 >
-                  <span className="text-[11px] font-semibold text-foreground/90">{project.name}</span>
-                  <Info className="w-3 h-3 text-muted-foreground/50" />
+                  <span className="text-[11px] font-medium text-foreground/90">{project.name}</span>
+                  <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" align="center" className="text-xs">
@@ -232,7 +230,7 @@ export function Toolbar({
 
       {/* Right Section - Export and Settings - Not draggable */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        <div className="w-px h-5 bg-muted-foreground/20" />
+        <div className="w-px h-4 bg-border/30" />
 
         {/* Plugin Creator Button */}
         {/* <Button
@@ -248,9 +246,9 @@ export function Toolbar({
         {/* Export Button */}
         <HeaderButton
           variant="default"
-          disabled={!project || !videoTrack?.clips?.length}
+          disabled={!project || !hasVideoClips}
           onClick={onExport}
-          className="bg-primary hover:bg-primary/90 shadow-sm"
+          className="bg-primary hover:bg-primary/90 shadow-sm transition-all duration-150 ease-out"
           icon={Download}
         >
           Export
@@ -258,14 +256,14 @@ export function Toolbar({
 
         {/* Snapshot Button */}
         <HeaderButton
-          disabled={!project || !videoTrack?.clips?.length || isSnapshotting}
+          disabled={!project || !hasVideoClips || isSnapshotting}
           onClick={async () => {
             if (!project || !window.electronAPI?.generateThumbnail) return
 
             // Pause playback first
             useProjectStore.getState().pause()
 
-            const videoClips = videoTrack?.clips || []
+            const videoClips = TimelineDataService.getVideoClips(project)
             if (!videoClips.length) {
               toast.error('No video clips to snapshot')
               return
@@ -293,9 +291,8 @@ export function Toolbar({
             await new Promise(resolve => setTimeout(resolve, 0))
 
             try {
-              const sortedClips = [...videoClips].sort((a, b) => a.startTime - b.startTime)
-              const recordingsMap = new Map((project.recordings || []).map(r => [r.id, r]))
-              const frameLayout = buildFrameLayout(sortedClips, fps, recordingsMap)
+              const recordingsMap = TimelineDataService.getRecordingsMap(project)
+              const frameLayout = TimelineDataService.getFrameLayout(project, fps)
 
               // Get all effects using EffectStore (the SSOT)
               const allEffects = EffectStore.getAll(project)
@@ -305,7 +302,7 @@ export function Toolbar({
                 frameLayout,
                 fps,
                 effects: allEffects,
-                getRecording: (recordingId) => project.recordings.find(r => r.id === recordingId)
+                getRecording: (recordingId) => recordingsMap.get(recordingId)
               })
 
               if (!active) {

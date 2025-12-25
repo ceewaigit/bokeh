@@ -168,7 +168,6 @@ export class ZoomDetector {
   ): ActionPoint[] {
     const actions: ActionPoint[] = []
     let lastClickTime = -Infinity
-    let lastClickPosition = { x: 0, y: 0 }
     let isFirstTypingBurst = true
 
     // Process clicks - highest priority actions
@@ -204,7 +203,6 @@ export class ZoomDetector {
       })
 
       lastClickTime = click.timestamp
-      lastClickPosition = { x: click.x, y: click.y }
     }
 
     // Process keyboard events - detect typing bursts

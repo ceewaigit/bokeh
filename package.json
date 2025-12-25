@@ -92,6 +92,7 @@
     "@electron-forge/maker-zip": "^7.8.3",
     "@electron-forge/plugin-webpack": "^7.8.3",
     "@electron/rebuild": "^3.7.2",
+    "@next/swc-darwin-arm64": "^16.1.1",
     "@testing-library/jest-dom": "^6.2.0",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.2",

@@ -57,15 +57,6 @@ export function CropOverlay({
     height: cropData.height * videoRect.height,
   }
 
-  // Convert pixel position to normalized crop coordinates
-  const pixelToNormalized = useCallback(
-    (px: number, py: number) => ({
-      x: (px - videoRect.x) / videoRect.width,
-      y: (py - videoRect.y) / videoRect.height,
-    }),
-    [videoRect]
-  )
-
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, type: 'move' | HandlePosition) => {
       e.preventDefault()

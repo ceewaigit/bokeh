@@ -5,6 +5,7 @@ import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { clamp, formatTime } from '@/lib/utils'
+import { useProjectStore } from '@/stores/project-store'
 
 interface TimelinePlayheadProps {
   currentTime: number
@@ -13,12 +14,6 @@ interface TimelinePlayheadProps {
   timelineWidth: number
   maxTime: number
   onSeek: (time: number) => void
-  /** Optional: Current playback state for seek-while-playing UX */
-  isPlaying?: boolean
-  /** Optional: Callback to pause playback during drag */
-  onPause?: () => void
-  /** Optional: Callback to resume playback after drag */
-  onPlay?: () => void
 }
 
 export const TimelinePlayhead = React.memo(({
@@ -27,16 +22,12 @@ export const TimelinePlayhead = React.memo(({
   pixelsPerMs,
   timelineWidth,
   maxTime,
-  onSeek,
-  isPlaying,
-  onPause,
-  onPlay
+  onSeek
 }: TimelinePlayheadProps) => {
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  /** Track if playback was active before drag started (for resume) */
-  const wasPlayingBeforeDragRef = useRef(false)
+  const setScrubbing = useProjectStore((s) => s.setScrubbing)
 
   const x = TimeConverter.msToPixels(currentTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
   const isActive = isHovered || isDragging
@@ -61,63 +52,110 @@ export const TimelinePlayhead = React.memo(({
   const badgeGroupRef = useRef<Konva.Group>(null)
   const handleRef = useRef<Konva.Rect>(null)
   const lineRef = useRef<Konva.Line>(null)
+  // PERFORMANCE: Store tween refs to cancel before creating new ones
+  const badgeTweenRef = useRef<Konva.Tween | null>(null)
+  const handleTweenRef = useRef<Konva.Tween | null>(null)
+  const lineTweenRef = useRef<Konva.Tween | null>(null)
 
+  // PERFORMANCE: Cancel existing tweens before creating new ones to prevent accumulation
   useEffect(() => {
     const badgeGroup = badgeGroupRef.current
     const handle = handleRef.current
     const line = lineRef.current
 
-    if (badgeGroup && handle && line) {
-      if (isActive) {
-        // Animate to Active State (Show Badge, Hide Handle)
-        new Konva.Tween({
-          node: badgeGroup,
-          duration: 0.25,
-          opacity: 1,
-          scaleX: 1,
-          scaleY: 1,
-          easing: Konva.Easings.BackEaseOut,
-        }).play()
+    if (!badgeGroup || !handle || !line) return
 
-        new Konva.Tween({
-          node: handle,
-          duration: 0.2,
-          opacity: 0,
-          scaleX: 0.8,
-          scaleY: 0.8,
-          easing: Konva.Easings.EaseOut,
-        }).play()
+    // Cancel any existing tweens before creating new ones
+    if (badgeTweenRef.current) {
+      badgeTweenRef.current.destroy()
+      badgeTweenRef.current = null
+    }
+    if (handleTweenRef.current) {
+      handleTweenRef.current.destroy()
+      handleTweenRef.current = null
+    }
+    if (lineTweenRef.current) {
+      lineTweenRef.current.destroy()
+      lineTweenRef.current = null
+    }
 
-        new Konva.Tween({
-          node: line,
-          duration: 0.2,
-          opacity: 1,
-        }).play()
-      } else {
-        // Animate to Idle State (Hide Badge, Show Handle)
-        new Konva.Tween({
-          node: badgeGroup,
-          duration: 0.2,
-          opacity: 0,
-          scaleX: 0.8,
-          scaleY: 0.8,
-          easing: Konva.Easings.EaseIn,
-        }).play()
+    if (isActive) {
+      // Animate to Active State (Show Badge, Hide Handle)
+      badgeTweenRef.current = new Konva.Tween({
+        node: badgeGroup,
+        duration: 0.25,
+        opacity: 1,
+        scaleX: 1,
+        scaleY: 1,
+        easing: Konva.Easings.BackEaseOut,
+        onFinish: () => { badgeTweenRef.current = null }
+      })
+      badgeTweenRef.current.play()
 
-        new Konva.Tween({
-          node: handle,
-          duration: 0.25,
-          opacity: 0.9,
-          scaleX: 1,
-          scaleY: 1,
-          easing: Konva.Easings.BackEaseOut,
-        }).play()
+      handleTweenRef.current = new Konva.Tween({
+        node: handle,
+        duration: 0.2,
+        opacity: 0,
+        scaleX: 0.8,
+        scaleY: 0.8,
+        easing: Konva.Easings.EaseOut,
+        onFinish: () => { handleTweenRef.current = null }
+      })
+      handleTweenRef.current.play()
 
-        new Konva.Tween({
-          node: line,
-          duration: 0.2,
-          opacity: 0.85,
-        }).play()
+      lineTweenRef.current = new Konva.Tween({
+        node: line,
+        duration: 0.2,
+        opacity: 1,
+        onFinish: () => { lineTweenRef.current = null }
+      })
+      lineTweenRef.current.play()
+    } else {
+      // Animate to Idle State (Hide Badge, Show Handle)
+      badgeTweenRef.current = new Konva.Tween({
+        node: badgeGroup,
+        duration: 0.2,
+        opacity: 0,
+        scaleX: 0.8,
+        scaleY: 0.8,
+        easing: Konva.Easings.EaseIn,
+        onFinish: () => { badgeTweenRef.current = null }
+      })
+      badgeTweenRef.current.play()
+
+      handleTweenRef.current = new Konva.Tween({
+        node: handle,
+        duration: 0.25,
+        opacity: 0.9,
+        scaleX: 1,
+        scaleY: 1,
+        easing: Konva.Easings.BackEaseOut,
+        onFinish: () => { handleTweenRef.current = null }
+      })
+      handleTweenRef.current.play()
+
+      lineTweenRef.current = new Konva.Tween({
+        node: line,
+        duration: 0.2,
+        opacity: 0.85,
+        onFinish: () => { lineTweenRef.current = null }
+      })
+      lineTweenRef.current.play()
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (badgeTweenRef.current) {
+        badgeTweenRef.current.destroy()
+        badgeTweenRef.current = null
+      }
+      if (handleTweenRef.current) {
+        handleTweenRef.current.destroy()
+        handleTweenRef.current = null
+      }
+      if (lineTweenRef.current) {
+        lineTweenRef.current.destroy()
+        lineTweenRef.current = null
       }
     }
   }, [isActive])
@@ -135,20 +173,12 @@ export const TimelinePlayhead = React.memo(({
         return { x: newX, y: 0 }
       }}
       onDragStart={() => {
-        // Remember if we were playing and pause for seek
-        wasPlayingBeforeDragRef.current = Boolean(isPlaying)
-        if (isPlaying && onPause) {
-          onPause()
-        }
+        setScrubbing(true)
         setIsDragging(true)
       }}
       onDragEnd={() => {
         setIsDragging(false)
-        // Resume playback if we were playing before drag
-        if (wasPlayingBeforeDragRef.current && onPlay) {
-          onPlay()
-        }
-        wasPlayingBeforeDragRef.current = false
+        setScrubbing(false)
       }}
       onDragMove={(e) => {
         const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH

@@ -19,6 +19,12 @@ export interface SnapPoint {
   clipId?: string
 }
 
+export interface ContiguousPreviewResult {
+  startTimes: Record<string, number>
+  insertIndex: number
+  insertTime: number
+}
+
 /**
  * Unified service for clip positioning, overlap detection, and snapping
  */
@@ -162,21 +168,61 @@ export class ClipPositioning {
     clips: Clip[],
     excludeClipId?: string
   ): { insertBeforeClipId: string | null; insertIndex: number } {
-    const sorted = clips
-      .filter(c => c.id !== excludeClipId)
-      .sort((a, b) => a.startTime - b.startTime)
+    const ordered = clips.filter(c => c.id !== excludeClipId)
+    let runningTime = 0
 
-    // Find insertion point based on where the clip center would be
-    for (let i = 0; i < sorted.length; i++) {
-      const clip = sorted[i]
-      const clipMidpoint = clip.startTime + clip.duration / 2
-      if (proposedTime < clipMidpoint) {
+    // Find insertion point based on contiguous layout midpoints.
+    for (let i = 0; i < ordered.length; i++) {
+      const clip = ordered[i]
+      const midpoint = runningTime + clip.duration / 2
+      if (proposedTime < midpoint) {
         return { insertBeforeClipId: clip.id, insertIndex: i }
       }
+      runningTime += clip.duration
     }
 
-    // Insert at end
-    return { insertBeforeClipId: null, insertIndex: sorted.length }
+    return { insertBeforeClipId: null, insertIndex: ordered.length }
+  }
+
+  /**
+   * Compute a contiguous preview layout for a proposed insert/move.
+   * Returns startTimes for all existing clips (excluding the dragged one),
+   * plus the insertion index and timeline time for the preview clip.
+   */
+  static computeContiguousPreview(
+    clips: Clip[],
+    proposedTime: number,
+    options?: { clipId?: string; durationMs?: number }
+  ): ContiguousPreviewResult | null {
+    const clipId = options?.clipId
+    const previewClip =
+      (clipId ? clips.find(c => c.id === clipId) : null) ??
+      (options?.durationMs ? ({ id: '__preview__', duration: options.durationMs } as Clip) : null)
+
+    if (!previewClip) return null
+
+    const target = this.getReorderTarget(proposedTime, clips, clipId)
+    const ordered = clips.filter(c => c.id !== clipId)
+    ordered.splice(target.insertIndex, 0, previewClip)
+
+    const startTimes: Record<string, number> = {}
+    let runningTime = 0
+    let insertTime = 0
+
+    for (const clip of ordered) {
+      if (clip.id === previewClip.id) {
+        insertTime = runningTime
+      } else {
+        startTimes[clip.id] = runningTime
+      }
+      runningTime += clip.duration
+    }
+
+    return {
+      startTimes,
+      insertIndex: target.insertIndex,
+      insertTime
+    }
   }
 
   /**
@@ -185,10 +231,10 @@ export class ClipPositioning {
    */
   static applyMagneticSnap(
     proposedTime: number,
-    duration: number,
+    _duration: number,
     clips: Clip[],
     excludeClipId?: string,
-    currentTime?: number
+    _currentTime?: number
   ): { time: number; snappedTo?: SnapPoint } {
     const sorted = clips
       .filter(c => !excludeClipId || c.id !== excludeClipId)

@@ -9,15 +9,16 @@
  * OPTIMIZED: Each filtered array is memoized separately to prevent unnecessary recalculations.
  */
 
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useRef, useEffect } from 'react';
 import type { Clip, Effect, RecordingMetadata } from '@/types/project';
+import { EffectType } from '@/types/project';
 import { useTimeContext } from './TimeContext';
 import { useVideoUrl } from '../../hooks/media/useVideoUrl';
 import { useRecordingMetadata } from '../../hooks/media/useRecordingMetadata';
 import {
   filterEffectsForClip,
   filterEventsForSourceRange,
-} from '../../compositions/utils/effects/effect-filters';
+} from '@/lib/effects/effect-filters';
 import type { ClipContextValue } from '@/types';
 
 const ClipContext = createContext<ClipContextValue | null>(null);
@@ -31,6 +32,7 @@ interface ClipProviderProps {
 
 export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: ClipProviderProps) {
   const { getRecording, resources } = useTimeContext();
+  const hasLoggedRef = useRef(false);
 
   // Get recording first (needed for metadata hook)
   const recording = getRecording(clip.recordingId);
@@ -52,6 +54,11 @@ export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: 
   const metadata: RecordingMetadata | undefined = lazyMetadata || recording.metadata;
   const sourceIn = clip.sourceIn ?? 0;
   const sourceOut = clip.sourceOut ?? recording.duration;
+
+  useEffect(() => {
+    if (hasLoggedRef.current) return;
+    hasLoggedRef.current = true;
+  }, [clip.id, recording.id, recording.metadata, lazyMetadata, metadata, effects.length]);
 
   // ==========================================================================
   // MEMOIZED FILTERS - Each array is memoized separately for optimal performance
@@ -82,10 +89,26 @@ export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: 
   );
 
   // Filter effects - only recalculates when effects or clip changes
-  const filteredEffects = useMemo(
-    () => filterEffectsForClip(effects, clip),
-    [effects, clip]
-  );
+  const filteredEffects = useMemo(() => {
+    const timelineFiltered = filterEffectsForClip(effects, clip).filter(effect =>
+      effect.type !== EffectType.Crop || effect.clipId === clip.id
+    );
+    const merged = new Map<string, Effect>();
+
+    for (const effect of timelineFiltered) {
+      merged.set(effect.id, effect);
+    }
+
+    for (const effect of effects) {
+      if (effect.type === EffectType.Background || effect.type === EffectType.Cursor) {
+        merged.set(effect.id, effect);
+      } else if (effect.type === EffectType.Crop && effect.clipId === clip.id) {
+        merged.set(effect.id, effect);
+      }
+    }
+
+    return Array.from(merged.values());
+  }, [effects, clip]);
 
   // Use hook to resolve video URL based on environment
   const videoUrl = useVideoUrl({ recording, resources, preferOffthreadVideo }) || '';

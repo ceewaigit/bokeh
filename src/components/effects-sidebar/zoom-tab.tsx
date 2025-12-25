@@ -11,8 +11,9 @@ import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
-import { EffectQueries } from '@/lib/core/effects'
-import { CommandExecutor, AddEffectCommand } from '@/lib/commands'
+import { EffectStore } from '@/lib/core/effects'
+import { AddEffectCommand } from '@/lib/commands'
+import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { DEFAULT_ZOOM_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 
@@ -30,9 +31,10 @@ export function ZoomTab({
   selectedEffectLayer,
   selectedClip,
   onUpdateZoom,
-  onEffectChange,
+  onEffectChange: _onEffectChange,
   onZoomBlockUpdate
 }: ZoomTabProps) {
+  const executorRef = useCommandExecutor()
   const zoomEffects = effects ? getZoomEffects(effects) : []
 
   // Local state for slider values during dragging
@@ -52,7 +54,7 @@ export function ZoomTab({
             onClick={async () => {
               const project = useProjectStore.getState().currentProject
               if (!project) return
-              const existingZoomEffects = EffectQueries.byType(project, EffectType.Zoom)
+              const existingZoomEffects = EffectStore.getAll(project).filter(e => e.type === EffectType.Zoom)
                 .sort((a, b) => a.startTime - b.startTime)
               const blockDuration = Math.max(0, selectedClip.duration)
               let finalStartTime = Math.max(0, selectedClip.startTime)
@@ -77,19 +79,16 @@ export function ZoomTab({
                   autoScale: 'fill'
                 } as ZoomEffectData
               }
-              if (CommandExecutor.isInitialized()) {
-                await CommandExecutor.getInstance().execute(AddEffectCommand, newEffect)
-              }
+              await executorRef.current?.execute(AddEffectCommand, newEffect)
             }}
           >
-            <Sparkles className="w-3.5 h-3.5" />
             Add Fill Screen Zoom
           </button>
           <div className="mt-2 flex items-center justify-center gap-2">
             <p className="text-xs text-muted-foreground/70 italic leading-snug">
-              Center-locked 1.5x zoom for a full-frame look.
+              Adds a centered zoom region to fill the frame
             </p>
-            <InfoTooltip content="Adds a zoom block to the timeline that you can resize." />
+            <InfoTooltip content="Creates a zoom region you can adjust on the timeline" />
           </div>
         </div>
       )}
@@ -170,7 +169,7 @@ export function ZoomTab({
                     }
                   }}
                 >
-                  Follow Cursor
+                  Track Cursor
                 </button>
                 <button
                   className={cn(
@@ -191,25 +190,25 @@ export function ZoomTab({
                     }
                   }}
                 >
-                  Fill Screen
+                  Center Lock
                 </button>
               </div>
               <p className="text-[10px] text-muted-foreground/70 leading-snug">
-                Fill Screen locks the zoom center for a cinematic full-frame look.
+                Center Lock keeps the view fixed for a clean, professional look
               </p>
             </div>
 
             {/* Easing Controls */}
             <div className="p-4 bg-background/40 rounded-xl space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium leading-none">Easing Duration</span>
-                <InfoTooltip content="Makes the zoom transition smooth." />
+                <span className="text-sm font-medium leading-none">Transition Timing</span>
+                <InfoTooltip content="Makes the zoom transition smooth" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {/* Ease In */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">In</span>
+                    <span className="text-xs text-muted-foreground">Zoom In</span>
                     <span className="text-xs font-mono text-muted-foreground tabular-nums">
                       {localIntroMs ?? (zoomData.introMs || DEFAULT_ZOOM_DATA.introMs)}ms
                     </span>
@@ -233,7 +232,7 @@ export function ZoomTab({
                 {/* Ease Out */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Out</span>
+                    <span className="text-xs text-muted-foreground">Zoom Out</span>
                     <span className="text-xs font-mono text-muted-foreground tabular-nums">
                       {localOutroMs ?? (zoomData.outroMs || DEFAULT_ZOOM_DATA.outroMs)}ms
                     </span>
@@ -273,8 +272,8 @@ export function ZoomTab({
               <div className="p-4 bg-background/30 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Mouse Idle Threshold</span>
-                    <InfoTooltip content="Minimum movement (px) needed to trigger panning inside a zoom." />
+                    <span className="text-xs text-muted-foreground">Dead Zone</span>
+                    <InfoTooltip content="How far cursor must move before camera follows" />
                   </div>
                   <span className="text-xs font-mono text-muted-foreground tabular-nums">
                     {zoomData.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3}px
@@ -313,7 +312,7 @@ export function ZoomTab({
             <div className="min-w-0">
               <div className="text-xs font-medium leading-none">Zoom Effects</div>
               <div className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
-                Auto-detect and apply zoom regions.
+                Enable automatic zoom detection
               </div>
             </div>
           </div>
@@ -324,6 +323,6 @@ export function ZoomTab({
           />
         </div>
       </div>
-    </div>
+    </div >
   )
 }

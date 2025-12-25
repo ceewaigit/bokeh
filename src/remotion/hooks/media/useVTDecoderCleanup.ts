@@ -95,7 +95,7 @@ interface NativeVideoCleanupResult {
  */
 export function useNativeVideoCleanup({
   videoUrl,
-  visible = true,
+  visible: _visible = true,
   onPlay,
   videoRef: providedRef,
 }: NativeVideoCleanupOptions): NativeVideoCleanupResult {

@@ -7,7 +7,7 @@ import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEff
 import { EffectType, BackgroundType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { getBackgroundEffect, getCursorEffect, getKeystrokeEffect } from '@/lib/effects/effect-filters'
+import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect } from '@/lib/effects/effect-filters'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -57,7 +57,7 @@ function SubTabs<T extends string>({
   tabs: { id: T; label: string; disabled?: boolean }[]
 }) {
   return (
-    <div className="flex p-0.5 bg-muted/50 rounded-lg gap-0.5">
+    <div className="relative flex p-0.5 bg-muted/30 rounded-lg gap-0.5">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -65,11 +65,11 @@ function SubTabs<T extends string>({
           disabled={tab.disabled}
           onClick={() => onChange(tab.id)}
           className={cn(
-            "flex-1 px-2 py-1.5 text-[11px] font-medium rounded-md transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-102 active:scale-98",
-            tab.disabled && "opacity-50 cursor-not-allowed",
+            "relative z-10 flex-1 px-3 py-1.5 text-[11px] font-medium rounded-md transition-all duration-150 ease-out",
+            tab.disabled && "opacity-40 cursor-not-allowed",
             value === tab.id
-              ? "bg-background/50 backdrop-blur-sm text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/30"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
           )}
         >
           {tab.label}
@@ -80,22 +80,20 @@ function SubTabs<T extends string>({
 }
 
 const tabVariants = {
-  initial: { opacity: 0, y: 4, scale: 0.99 },
+  initial: { opacity: 0, y: 3 },
   animate: {
     opacity: 1,
     y: 0,
-    scale: 1,
     transition: {
-      duration: 0.2,
-      ease: [0.2, 0, 0, 1]
+      duration: 0.15,
+      ease: [0.25, 0.1, 0.25, 1]
     }
   },
   exit: {
     opacity: 0,
-    scale: 0.99,
     transition: {
       duration: 0.1,
-      ease: "easeIn"
+      ease: "easeOut"
     }
   }
 }
@@ -122,6 +120,7 @@ export function EffectsSidebar({
   const [pointerSubTab, setPointerSubTab] = useState<PointerSubTabId>('cursor')
   const [framingSubTab, setFramingSubTab] = useState<FramingSubTabId>('zoom')
   const tooltipRef = useRef<HTMLDivElement | null>(null)
+  const lastAutoOpenedCropClipRef = useRef<string | null>(null)
 
   // Extract current effects from the array using effect-filters helpers
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
@@ -133,6 +132,51 @@ export function EffectsSidebar({
   const prevEffectTypeRef = React.useRef<EffectLayerType | undefined>(undefined)
 
   const isVideoClipSelected = !!selectedClip && selectedTrackType === TrackType.Video
+
+  useEffect(() => {
+    const isInCropTab =
+      activeTab === SidebarTabId.Framing &&
+      framingSubTab === 'crop'
+
+    if (!isInCropTab || !isVideoClipSelected) {
+      lastAutoOpenedCropClipRef.current = null
+      return
+    }
+
+    const clipId = selectedClip?.id ?? null
+    if (!clipId || lastAutoOpenedCropClipRef.current === clipId) {
+      return
+    }
+
+    if (isEditingCrop) {
+      lastAutoOpenedCropClipRef.current = clipId
+      return
+    }
+
+    const cropEffect = selectedClip && effects
+      ? getCropEffectForClip(effects, selectedClip)
+      : undefined
+
+    if (cropEffect && onStartEditCrop) {
+      onStartEditCrop()
+      lastAutoOpenedCropClipRef.current = clipId
+      return
+    }
+
+    if (!cropEffect && onAddCrop) {
+      onAddCrop()
+      lastAutoOpenedCropClipRef.current = clipId
+    }
+  }, [
+    activeTab,
+    framingSubTab,
+    isVideoClipSelected,
+    isEditingCrop,
+    effects,
+    selectedClip,
+    onAddCrop,
+    onStartEditCrop,
+  ])
 
   const routeToEffect = useCallback((type: EffectLayerType) => {
     switch (type) {
@@ -238,27 +282,27 @@ export function EffectsSidebar({
 
   return (
     <TooltipProvider>
-      <div ref={tooltipRef} className={cn("flex h-full bg-transparent border-l border-border/40", className)}>
+      <div ref={tooltipRef} className={cn("flex h-full bg-transparent border-l border-border/30", className)}>
         {/* Left sidebar with section tabs */}
-        <div className="w-[60px] flex-shrink-0 flex flex-col items-center py-4 border-r border-border/40 bg-transparent">
-          <div className="flex flex-col gap-3 w-full px-2">
+        <div className="w-[56px] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent">
+          <div className="flex flex-col gap-1.5 w-full px-1.5">
             {visibleTabs.map((tab) => (
-              <Tooltip key={tab.id} delayDuration={150}>
+              <Tooltip key={tab.id} delayDuration={200}>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setActiveTab(tab.id as any)}
                     className={cn(
-                      "group relative flex w-full items-center justify-center p-2.5 rounded-xl transition-all duration-100 ease-[cubic-bezier(0.2,0,0,1)] hover:scale-102 active:scale-98",
+                      "group relative flex w-full items-center justify-center p-2 rounded-lg transition-all duration-150 ease-out",
                       activeTab === tab.id
-                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
                     )}
                     aria-label={tab.label}
                   >
-                    <tab.icon className={cn("w-5 h-5 transition-transform duration-200", activeTab === tab.id ? "scale-100" : "group-hover:scale-110")} />
+                    <tab.icon className="w-[18px] h-[18px]" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" align="center" sideOffset={12}>
+                <TooltipContent side="right" align="center" sideOffset={8} className="text-xs">
                   {tab.label}
                 </TooltipContent>
               </Tooltip>
@@ -269,23 +313,23 @@ export function EffectsSidebar({
         {/* Right content area */}
         <div className="flex-1 min-w-0 flex flex-col bg-transparent">
           {/* Header */}
-          <div className="h-14 flex items-center px-5 border-b border-border/40 bg-transparent sticky top-0 z-10">
+          <div className="h-12 flex items-center px-4 border-b border-border/30 bg-transparent sticky top-0 z-10">
             <AnimatePresence mode="wait">
               <motion.h2
                 key={activeTab}
-                initial={{ opacity: 0, y: 5 }}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -5 }}
-                transition={{ duration: 0.15 }}
-                className="text-sm font-medium tracking-tight"
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
+                className="text-[13px] font-semibold tracking-tight"
               >
                 {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
               </motion.h2>
             </AnimatePresence>
             {selectedEffectLayer && (
-              <div className="ml-auto px-2.5 py-1 bg-primary/10 text-primary text-xs font-medium leading-none rounded-full border border-primary/20">
+              <div className="ml-auto px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-medium leading-tight rounded-full">
                 {selectedEffectLayer.type === EffectLayerType.Zoom && selectedEffectLayer.id ?
-                  `Editing Zoom Block` :
+                  `Editing Zoom` :
                   (() => {
                     const t = String(selectedEffectLayer.type)
                     return `Editing ${t.charAt(0).toUpperCase() + t.slice(1)}`
@@ -295,7 +339,7 @@ export function EffectsSidebar({
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 custom-scrollbar">
             <div className="w-full relative">
               <AnimatePresence mode="wait" initial={false}>
                 {activeTab === SidebarTabId.Clip && (
@@ -372,7 +416,7 @@ export function EffectsSidebar({
                           <ScreenTab
                             selectedClip={selectedClip}
                             selectedEffectLayer={selectedEffectLayer}
-                            onEffectChange={(type, data) => onEffectChange(EffectType.Screen, data)}
+                            onEffectChange={(_type, data) => onEffectChange(EffectType.Screen, data)}
                           />
                         </motion.div>
                       )}

@@ -19,6 +19,8 @@ import { createSelectionSlice } from './slices/selection-slice'
 import { createPlaybackSlice } from './slices/playback-slice'
 import { createTimelineSlice } from './slices/timeline-slice'
 import { createCacheSlice } from './slices/cache-slice'
+import { createSettingsSlice } from './slices/settings-slice'
+import { createProgressSlice } from './slices/progress-slice'
 import type { ProjectStore } from './slices/types'
 
 // Compose all slices into the main store
@@ -29,6 +31,8 @@ export const useProjectStore = create<ProjectStore>()(
     ...createSelectionSlice(...a),
     ...createPlaybackSlice(...a),
     ...createCacheSlice(...a),
+    ...createSettingsSlice(...a),
+    ...createProgressSlice(...a),
   }))
 )
 

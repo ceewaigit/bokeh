@@ -90,7 +90,7 @@ export class TimelineProcessor {
     clips: Clip[],
     recordings: Map<string, Recording>,
     effects: Effect[],
-    totalDuration: number,
+    _totalDuration: number,
     segmentDuration: number
   ): TimelineSegment[] {
     const segments: TimelineSegment[] = []
@@ -116,8 +116,7 @@ export class TimelineProcessor {
       // Find clips that overlap with this segment
       const segmentClips = clips
         .filter(clip => {
-          const clipEnd = clip.startTime + clip.duration
-          return clip.startTime < segmentEnd && clipEnd > segmentStart
+          return clip.startTime < segmentEnd && (clip.startTime + clip.duration) > segmentStart
         })
         .map(clip => {
           const recording = recordings.get(clip.recordingId)
@@ -126,7 +125,6 @@ export class TimelineProcessor {
           }
 
           // Calculate the portion of the clip that falls within this segment
-          const clipEnd = clip.startTime + clip.duration
           const segmentClipStart = Math.max(0, segmentStart - clip.startTime)
           const segmentClipEnd = Math.min(clip.duration, segmentEnd - clip.startTime)
 
@@ -146,7 +144,7 @@ export class TimelineProcessor {
       )
 
       // Check if this segment has gaps
-      const hasGap = this.segmentHasGaps(segmentClips, segmentStart, segmentEnd)
+      const hasGap = this.segmentHasGaps(segmentClips)
 
       segments.push({
         id: `segment-${i}`,
@@ -183,9 +181,7 @@ export class TimelineProcessor {
    * Check if a segment has gaps
    */
   private segmentHasGaps(
-    segmentClips: Array<{ segmentStartTime: number; segmentEndTime: number }>,
-    segmentStart: number,
-    segmentEnd: number
+    segmentClips: Array<{ segmentStartTime: number; segmentEndTime: number }>
   ): boolean {
     // If no clips, it's a gap only if this isn't a partial segment at the end
     if (segmentClips.length === 0) {

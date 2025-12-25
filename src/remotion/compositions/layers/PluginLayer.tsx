@@ -23,8 +23,8 @@ import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config
 
 export const PluginLayer: React.FC<PluginLayerProps> = ({
   effects,
-  videoWidth,
-  videoHeight,
+  videoWidth: _videoWidth,
+  videoHeight: _videoHeight,
   layer = 'below-cursor'
 }) => {
   const frame = useCurrentFrame()

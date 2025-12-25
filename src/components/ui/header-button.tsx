@@ -21,8 +21,9 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                 variant={variant}
                 size="sm"
                 className={cn(
-                    "h-7 px-3 text-[11px] font-medium transition-all",
-                    "hover:bg-accent hover:text-accent-foreground active:scale-95",
+                    "h-7 px-3 text-[11px] font-medium",
+                    "transition-all duration-150 ease-out",
+                    "hover:bg-accent/80 hover:text-accent-foreground active:scale-[0.97]",
                     active && "bg-accent text-accent-foreground",
                     // When purely an icon button (no children), ensure square aspect ratio and centering
                     !children && "w-7 px-0",

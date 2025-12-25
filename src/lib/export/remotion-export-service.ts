@@ -42,7 +42,7 @@ export class RemotionExportService {
   async export(
     segments: TimelineSegment[],
     recordings: Map<string, Recording>,
-    metadata: Map<string, RecordingMetadata>,
+    _metadata: Map<string, RecordingMetadata>,
     settings: ExportSettings,
     onProgress?: (progress: RemotionExportProgress) => void,
     abortSignal?: AbortSignal,

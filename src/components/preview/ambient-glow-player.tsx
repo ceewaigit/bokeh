@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/remotion/compositions/TimelineComposition';
 import { useTheme } from '@/contexts/theme-context';
@@ -15,32 +15,32 @@ type PlayerConfig = ReturnType<typeof usePlayerConfiguration>;
 // Ambient glow configuration
 const GLOW_CONFIG = {
     // Ultra low-res player for memory efficiency
-    width: 64,
-    height: 36,
+    maxSize: 96,
+    minSize: 32,
     // Glow extends beyond video for elegant spread
-    spread: 50,
+    spread: 36,
 };
 
 const GLOW_VISUALS = {
     dark: {
         // Softer blur for smooth edges
-        blur: 50,
-        // More visible but still subtle
-        opacity: 0.35,
+        blur: 52,
+        // Subtle lift for dark UI
+        opacity: 0.21,
         // Gentle brightness
-        brightness: 0.55,
-        // Rich saturation for vibrant colors
-        saturation: 1.4,
+        brightness: 0.54,
+        // Modest saturation for clean glow
+        saturation: 1.22,
     },
     light: {
         // Slightly larger blur for airy glow on light surfaces
-        blur: 70,
+        blur: 88,
         // Lower opacity to avoid muddy halos
-        opacity: 0.18,
-        // Lift brightness so glow reads on white
-        brightness: 1.1,
-        // Gentle saturation to avoid neon on light mode
-        saturation: 1.1,
+        opacity: 0.22,
+        // Gentle brightness so glow stays subtle on white
+        brightness: 1.12,
+        // Soft saturation for a cleaner, more neutral glow
+        saturation: 1.08,
     }
 };
 
@@ -52,6 +52,7 @@ interface AmbientGlowPlayerProps {
     isScrubbing: boolean;
     playerKey: string;
     initialFrame: number;
+    glowIntensity: number;
 }
 
 export function AmbientGlowPlayer({
@@ -62,13 +63,19 @@ export function AmbientGlowPlayer({
     isScrubbing,
     playerKey,
     initialFrame,
+    glowIntensity,
 }: AmbientGlowPlayerProps) {
     const glowPlayerRef = useRef<PlayerRef>(null);
-    const glowPlaybackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastGlowIsPlayingRef = useRef<boolean>(false);
+    const lastSyncedFrameRef = useRef<number | null>(null);
     const { resolvedTheme } = useTheme();
 
     const glowVisuals = resolvedTheme === 'light' ? GLOW_VISUALS.light : GLOW_VISUALS.dark;
+    const clampedIntensity = Math.max(0, Math.min(1, glowIntensity));
+    const intensityCurve = 0.55 + 1.05 * Math.pow(clampedIntensity, 1.15);
+    const glowOpacity = glowVisuals.opacity * intensityCurve;
+    const glowBlur = glowVisuals.blur * (0.9 + 0.45 * Math.pow(clampedIntensity, 1.1));
+    const glowSaturation = glowVisuals.saturation * (0.95 + 0.2 * Math.pow(clampedIntensity, 1.1));
 
     const clampFrame = useCallback((frame: number) => {
         if (!timelineMetadata) return Math.max(0, frame);
@@ -97,36 +104,20 @@ export function AmbientGlowPlayer({
         }
     }, []);
 
-    // Cleanup interval on unmount
-    useEffect(() => {
-        return () => {
-            if (glowPlaybackSyncIntervalRef.current) {
-                clearInterval(glowPlaybackSyncIntervalRef.current);
-                glowPlaybackSyncIntervalRef.current = null;
-            }
-        };
-    }, []);
+    const glowSize = useMemo(() => {
+        if (!timelineMetadata) {
+            return { width: GLOW_CONFIG.minSize, height: GLOW_CONFIG.minSize };
+        }
+        const maxDim = Math.max(timelineMetadata.width, timelineMetadata.height);
+        const scale = Math.min(1, GLOW_CONFIG.maxSize / maxDim);
+        const width = Math.max(GLOW_CONFIG.minSize, Math.round(timelineMetadata.width * scale));
+        const height = Math.max(GLOW_CONFIG.minSize, Math.round(timelineMetadata.height * scale));
+        return { width, height };
+    }, [timelineMetadata]);
 
     // Glow player sync - follows main player but simpler (no audio)
-    // OPTIMIZATION: Skip glow updates during active scrubbing to reduce decode pressure
     useEffect(() => {
         if (!glowPlayerRef.current || !timelineMetadata) return;
-
-        // Skip glow player updates during active scrubbing to save memory
-        if (isScrubbing && !isPlaying) {
-            // Just pause the glow player during scrubbing
-            try {
-                if (glowPlaybackSyncIntervalRef.current) {
-                    clearInterval(glowPlaybackSyncIntervalRef.current);
-                    glowPlaybackSyncIntervalRef.current = null;
-                }
-                lastGlowIsPlayingRef.current = false;
-                glowPlayerRef.current.pause();
-            } catch {
-                // Non-critical
-            }
-            return;
-        }
 
         // Direct store access for syncing when not playing
 
@@ -140,27 +131,8 @@ export function AmbientGlowPlayer({
                     safePlay(glowPlayerRef.current, 'glow');
                 }
 
-                if (!glowPlaybackSyncIntervalRef.current) {
-                    glowPlaybackSyncIntervalRef.current = setInterval(() => {
-                        const player = glowPlayerRef.current;
-                        const mainPlayer = mainPlayerRef.current;
-                        if (!player || !mainPlayer) return;
-
-                        try {
-                            // SSOT: Sync glow player FROM main player's frame
-                            const mainFrame = mainPlayer.getCurrentFrame();
-                            player.seekTo(mainFrame);
-                        } catch {
-                            // Best-effort sync only
-                        }
-                    }, 200); // Sync at lower rate for performance
-                }
                 lastGlowIsPlayingRef.current = true;
             } else {
-                if (glowPlaybackSyncIntervalRef.current) {
-                    clearInterval(glowPlaybackSyncIntervalRef.current);
-                    glowPlaybackSyncIntervalRef.current = null;
-                }
                 lastGlowIsPlayingRef.current = false;
                 glowPlayerRef.current.pause();
                 glowPlayerRef.current.seekTo(targetFrame);
@@ -169,26 +141,29 @@ export function AmbientGlowPlayer({
         } catch {
             // Glow player errors are non-critical
         }
-    }, [isPlaying, timelineMetadata, isScrubbing, clampFrame, timeToFrame, mainPlayerRef, safePlay]);
+    }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, safePlay]);
 
-    // Subscribe to store updates for scrubbing sync (when not playing)
     useEffect(() => {
-        const unsubscribe = useProjectStore.subscribe((state) => {
+        const glowPlayer = glowPlayerRef.current;
+        const mainPlayer = mainPlayerRef.current;
+        if (!glowPlayer || !mainPlayer || !timelineMetadata) return;
 
-
-            if (!state.isPlaying) {
-
-                const time = state.currentTime;
-                const frame = clampFrame(timeToFrame(time));
-                if (glowPlayerRef.current) {
-                    try {
-                        glowPlayerRef.current.seekTo(frame);
-                    } catch { }
-                }
+        const handleFrameUpdate = (e: { detail: { frame: number } }) => {
+            const frame = clampFrame(e.detail.frame);
+            if (lastSyncedFrameRef.current === frame) return;
+            lastSyncedFrameRef.current = frame;
+            try {
+                glowPlayer.seekTo(frame);
+            } catch {
+                // Best-effort sync only
             }
-        });
-        return unsubscribe;
-    }, [clampFrame, timeToFrame]);
+        };
+
+        mainPlayer.addEventListener('frameupdate', handleFrameUpdate as any);
+        return () => {
+            mainPlayer.removeEventListener('frameupdate', handleFrameUpdate as any);
+        };
+    }, [clampFrame, mainPlayerRef, timelineMetadata]);
 
 
     // Prepare input props
@@ -231,13 +206,16 @@ export function AmbientGlowPlayer({
                 width: `calc(100% + ${GLOW_CONFIG.spread * 2}px)`,
                 height: `calc(100% + ${GLOW_CONFIG.spread * 2}px)`,
                 transform: 'translate(-50%, -50%) translateZ(0)',
-                filter: `blur(${glowVisuals.blur}px) brightness(${glowVisuals.brightness}) saturate(${glowVisuals.saturation})`,
-                opacity: glowVisuals.opacity,
+                filter: `blur(${glowBlur}px) brightness(${glowVisuals.brightness}) saturate(${glowSaturation}) contrast(1.01)`,
+                opacity: glowOpacity,
                 zIndex: 0,
                 borderRadius: 32,
                 overflow: 'hidden',
                 pointerEvents: 'none',
-                mixBlendMode: resolvedTheme === 'light' ? 'screen' : 'normal',
+                mixBlendMode: resolvedTheme === 'light' ? 'soft-light' : 'normal',
+                backgroundImage: resolvedTheme === 'light'
+                    ? 'radial-gradient(64% 64% at 50% 50%, rgba(255,255,255,0.35), rgba(255,255,255,0) 72%)'
+                    : 'radial-gradient(70% 70% at 50% 50%, rgba(255,255,255,0.2), rgba(255,255,255,0) 78%)',
             }}
         >
             <Player
@@ -246,8 +224,8 @@ export function AmbientGlowPlayer({
                 component={TimelineComposition as any}
                 inputProps={glowPlayerInputProps as any}
                 durationInFrames={timelineMetadata.durationInFrames}
-                compositionWidth={GLOW_CONFIG.width}
-                compositionHeight={GLOW_CONFIG.height}
+                compositionWidth={glowSize.width}
+                compositionHeight={glowSize.height}
                 fps={timelineMetadata.fps}
                 initialFrame={initialFrame}
                 initiallyMuted={true}

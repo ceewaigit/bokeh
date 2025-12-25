@@ -49,11 +49,8 @@ type UiMachineProfile = {
 
 export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const {
-    exportSettings,
     isExporting,
-    progress,
     lastExport,
-    updateSettings,
     exportProject,
     exportAsGIF,
     cancelExport,
@@ -62,6 +59,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   } = useExportStore()
 
   const currentProject = useProjectStore((s) => s.currentProject)
+  const progress = useProjectStore((s) => s.progress)
 
   // Get canvas settings and source resolution
   const canvasSettings = currentProject?.settings?.canvas
@@ -185,8 +183,16 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
   // Default to native resolution
   const [resolution, setResolution] = useState<Resolution>('native')
+
+  // Local state for frame rate/format controls (syncs to ProjectStore)
   const [frameRate, setFrameRate] = useState<FrameRate>(60)
   const [format, setFormat] = useState<Format>('mp4')
+
+  const setProjectResolution = useProjectStore((s) => s.setResolution)
+  const setProjectFramerate = useProjectStore((s) => s.setFramerate)
+  const setProjectFormat = useProjectStore((s) => s.setFormat)
+  const setProjectQuality = useProjectStore((s) => s.setQuality)
+  const projectSettings = useProjectStore((s) => s.settings)
 
   const [machineProfile, setMachineProfile] = useState<UiMachineProfile | null>(null)
 
@@ -287,14 +293,13 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         megapixels > 2.1 ? QualityLevel.High :
           QualityLevel.Medium
 
-    updateSettings({
-      resolution: dims,
-      framerate: format === 'gif' ? 15 : frameRate,
-      format: formatMap[format],
-      quality,
-      enhanceAudio: currentProject?.settings?.audio?.enhanceAudio
-    })
-  }, [resolution, frameRate, format, updateSettings, sourceResolution, currentProject?.settings?.audio?.enhanceAudio, resolutionOptions])
+    // Sync to ProjectStore
+    setProjectResolution(dims.width, dims.height)
+    setProjectFramerate(format === 'gif' ? 15 : frameRate)
+    setProjectFormat(formatMap[format])
+    setProjectQuality(quality)
+
+  }, [resolution, frameRate, format, sourceResolution, resolutionOptions, setProjectResolution, setProjectFramerate, setProjectFormat, setProjectQuality])
 
   // Reset export state when project changes
   useEffect(() => {
@@ -307,9 +312,25 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
     try {
       if (format === 'gif') {
-        await exportAsGIF(currentProject)
+        const gifSettings: import('@/types/export').ExportSettings = {
+          format: ExportFormat.GIF,
+          framerate: 10,
+          quality: QualityLevel.Low,
+          resolution: projectSettings.resolution,
+          outputPath: '',
+          enhanceAudio: false
+        }
+        await exportAsGIF(currentProject, gifSettings)
       } else {
-        await exportProject(currentProject)
+        const settings: import('@/types/export').ExportSettings = {
+          format: projectSettings.format,
+          framerate: projectSettings.framerate,
+          quality: projectSettings.quality,
+          resolution: projectSettings.resolution,
+          outputPath: '', // Handled by engine/storage
+          enhanceAudio: projectSettings.audio?.enhanceAudio
+        }
+        await exportProject(currentProject, settings)
       }
       toast.success('Export completed')
     } catch (e: any) {
@@ -324,7 +345,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
       mime === 'video/mp4' ? 'mp4' :
         mime === 'video/webm' ? 'webm' :
           mime === 'image/gif' ? 'gif' :
-            (format === 'gif' ? 'gif' : format === 'prores' ? 'mov' : 'mp4')
+            (projectSettings.format === ExportFormat.GIF ? 'gif' : projectSettings.format.toLowerCase())
     const filename = `${currentProject?.name || 'export'}.${extension}`
     try {
       await saveLastExport(filename)
@@ -450,7 +471,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
           {/* Content */}
           <div className="p-5">
             {/* Ready State */}
-            {!isExporting && !lastExport && progress?.stage !== 'error' && (
+            {!isExporting && !lastExport && progress?.progressStage !== 'error' && (
               <div className="space-y-4">
                 {/* Resolution */}
                 <div className="space-y-2">
@@ -567,7 +588,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                       <span className="font-medium text-foreground tabular-nums">
                         {format === 'gif'
                           ? '480p · 15fps'
-                          : `${exportSettings.resolution.width}×${exportSettings.resolution.height} · ${frameRate}fps`
+                          : `${projectSettings.resolution.width}×${projectSettings.resolution.height} · ${frameRate}fps`
                         }
                       </span>
                     </div>
@@ -645,7 +666,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
             })()}
 
             {/* Success State */}
-            {lastExport && progress?.stage === 'complete' && (
+            {lastExport && progress?.progressStage === 'complete' && (
               <div className="py-4 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -653,14 +674,14 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">Export Complete</p>
-                    <p className="text-xs text-muted-foreground">{progress.message}</p>
+                    <p className="text-xs text-muted-foreground">{progress.progressMessage}</p>
                   </div>
                 </div>
               </div>
             )}
 
             {/* Error State */}
-            {progress?.stage === 'error' && (
+            {progress?.progressStage === 'error' && (
               <div className="py-4 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center">
@@ -668,7 +689,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">Export Failed</p>
-                    <p className="text-xs text-muted-foreground">{progress.message}</p>
+                    <p className="text-xs text-muted-foreground">{progress.progressMessage}</p>
                   </div>
                 </div>
                 <Button
@@ -694,7 +715,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
               Cancel
             </Button>
 
-            {lastExport && progress?.stage === 'complete' ? (
+            {lastExport && progress?.progressStage === 'complete' ? (
               <Button size="sm" onClick={handleSave} className="text-xs">
                 <Download className="w-3.5 h-3.5 mr-1.5" />
                 Save

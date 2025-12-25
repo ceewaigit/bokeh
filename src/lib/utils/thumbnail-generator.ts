@@ -32,10 +32,6 @@ export class ThumbnailGenerator {
   private static poolInitialized = false
   private static pendingRequests: Array<() => void> = []
 
-  // Minimal cooldown - modern systems handle concurrent decoding well
-  private static lastOperationTime = 0
-  private static readonly OPERATION_COOLDOWN_MS = 10
-
   /**
    * Initialize the video pool
    */
@@ -73,7 +69,6 @@ export class ThumbnailGenerator {
     const freeVideo = this.videoPool.find(v => !v.inUse)
     if (freeVideo) {
       freeVideo.inUse = true
-      this.lastOperationTime = Date.now()
       return freeVideo
     }
 
@@ -83,7 +78,6 @@ export class ThumbnailGenerator {
         const nextFree = this.videoPool.find(v => !v.inUse)
         if (nextFree) {
           nextFree.inUse = true
-          this.lastOperationTime = Date.now()
           resolve(nextFree)
         }
       })

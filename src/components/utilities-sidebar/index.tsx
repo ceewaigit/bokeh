@@ -15,26 +15,24 @@ const UTILITY_TABS: { id: UtilityTabId; label: string; icon: React.ElementType }
     { id: 'audio', label: 'Audio', icon: Volume2 },
     { id: 'guides', label: 'Guides', icon: Grid },
     { id: 'plugins', label: 'Plugins', icon: Puzzle },
-    { id: 'advanced', label: 'Advanced', icon: Settings },
+    { id: 'advanced', label: 'Editing', icon: Settings },
 ]
 
 const tabVariants = {
-    initial: { opacity: 0, y: 4, scale: 0.99 },
+    initial: { opacity: 0, y: 3 },
     animate: {
         opacity: 1,
         y: 0,
-        scale: 1,
         transition: {
-            duration: 0.2,
-            ease: [0.2, 0, 0, 1]
+            duration: 0.15,
+            ease: [0.25, 0.1, 0.25, 1]
         }
     },
     exit: {
         opacity: 0,
-        scale: 0.99,
         transition: {
             duration: 0.1,
-            ease: "easeIn"
+            ease: "easeOut"
         }
     }
 }
@@ -45,27 +43,27 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
 
     return (
         <TooltipProvider>
-            <div className={cn("flex h-full bg-transparent border-r border-border/40", className)}>
+            <div className={cn("flex h-full bg-transparent border-r border-border/30", className)}>
                 {/* Left icon strip */}
-                <div className="w-[60px] flex-shrink-0 flex flex-col items-center py-4 border-r border-border/40 bg-transparent">
-                    <div className="flex flex-col gap-3 w-full px-2">
+                <div className="w-[56px] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent">
+                    <div className="flex flex-col gap-1.5 w-full px-1.5">
                         {UTILITY_TABS.map((tab) => (
-                            <Tooltip key={tab.id} delayDuration={150}>
+                            <Tooltip key={tab.id} delayDuration={200}>
                                 <TooltipTrigger asChild>
                                     <button
                                         onClick={() => setActiveUtilityTab(tab.id)}
                                         className={cn(
-                                            "group relative flex w-full items-center justify-center p-2.5 rounded-xl transition-all duration-200",
+                                            "group relative flex w-full items-center justify-center p-2 rounded-lg transition-all duration-150 ease-out",
                                             activeUtilityTab === tab.id
-                                                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                ? "bg-primary text-primary-foreground shadow-sm"
+                                                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
                                         )}
                                         aria-label={tab.label}
                                     >
-                                        <tab.icon className={cn("w-5 h-5 transition-transform duration-200", activeUtilityTab === tab.id ? "scale-100" : "group-hover:scale-110")} />
+                                        <tab.icon className="w-[18px] h-[18px]" />
                                     </button>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" align="center" sideOffset={12}>
+                                <TooltipContent side="right" align="center" sideOffset={8} className="text-xs">
                                     {tab.label}
                                 </TooltipContent>
                             </Tooltip>
@@ -76,15 +74,15 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
                 {/* Right content area */}
                 <div className="flex-1 min-w-0 flex flex-col bg-transparent">
                     {/* Header */}
-                    <div className="h-14 flex items-center px-5 border-b border-border/40 bg-transparent sticky top-0 z-10">
+                    <div className="h-12 flex items-center px-4 border-b border-border/30 bg-transparent sticky top-0 z-10">
                         <AnimatePresence mode="wait">
                             <motion.h2
                                 key={activeUtilityTab}
-                                initial={{ opacity: 0, y: 5 }}
+                                initial={{ opacity: 0, y: 4 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -5 }}
-                                transition={{ duration: 0.15 }}
-                                className="text-sm font-medium tracking-tight"
+                                exit={{ opacity: 0, y: -4 }}
+                                transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
+                                className="text-[13px] font-semibold tracking-tight"
                             >
                                 {UTILITY_TABS.find(t => t.id === activeUtilityTab)?.label}
                             </motion.h2>
@@ -92,7 +90,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
                     </div>
 
                     {/* Scrollable Content */}
-                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+                    <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
                         <div className="w-full relative">
                             <AnimatePresence mode="wait" initial={false}>
                                 {activeUtilityTab === 'import' && (

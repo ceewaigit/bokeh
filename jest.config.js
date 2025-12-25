@@ -1,3 +1,5 @@
+process.env.NEXT_DISABLE_SWC = '1'
+
 const nextJest = require('next/jest')
 
 const createJestConfig = nextJest({

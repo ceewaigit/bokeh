@@ -123,7 +123,6 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore }
     settings: {
       showTypingSuggestions: true,
       audio: { volume: 100, muted: false, fadeInDuration: 0.5, fadeOutDuration: 0.5 },
-      preview: { showRuleOfThirds: false, showCenterGuides: false, showSafeZones: false, guideColor: 'white', guideOpacity: 0.5, safeZoneMargin: 10 },
       editing: { snapToGrid: true, showWaveforms: false, autoRipple: true },
       playback: { previewSpeed: 1 }
     }

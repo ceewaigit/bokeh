@@ -83,7 +83,6 @@ export class TrackingService {
     }
 
     this.startTime = Date.now()
-    this.isActive = true
     this.isPaused = false
     this.metadata = []
     this.writeQueue = []
@@ -94,19 +93,33 @@ export class TrackingService {
     this.captureWidth = captureWidth || 0
     this.captureHeight = captureHeight || 0
 
-    // Create metadata file for persistence
-    const result = await this.bridge.createMetadataFile()
-    if (result?.success && result.data) {
-      this.metadataPath = result.data
-      this.persistMetadataToFile = true
-      logger.info(`[TrackingService] Metadata file: ${this.metadataPath}`)
+    try {
+      const result = await this.bridge.createMetadataFile()
+      if (result?.success && result.data) {
+        this.metadataPath = result.data
+        this.persistMetadataToFile = true
+        logger.info(`[TrackingService] Metadata file: ${this.metadataPath}`)
+      }
+
+      this.isActive = true
+      await this.startMouseTracking(sourceId)
+      await this.startKeyboardTracking()
+
+      logger.info('[TrackingService] Started')
+    } catch (error) {
+      this.mouseCleanup?.()
+      this.clickCleanup?.()
+      this.scrollCleanup?.()
+      this.keyboardCleanup?.()
+      this.mouseCleanup = null
+      this.clickCleanup = null
+      this.scrollCleanup = null
+      this.keyboardCleanup = null
+      this.isActive = false
+      this.isPaused = false
+      this.metadataPath = null
+      throw error
     }
-
-    // Start native tracking
-    await this.startMouseTracking(sourceId)
-    await this.startKeyboardTracking()
-
-    logger.info('[TrackingService] Started')
   }
 
   /**
@@ -121,8 +134,8 @@ export class TrackingService {
     this.isPaused = false
 
     // Stop native tracking
-    await this.bridge.stopMouseTracking()
-    await this.bridge.stopKeyboardTracking()
+    await this.bridge.stopMouseTracking().catch(() => { })
+    await this.bridge.stopKeyboardTracking().catch(() => { })
 
     // Clean up event listeners
     this.mouseCleanup?.()
@@ -135,7 +148,7 @@ export class TrackingService {
     this.keyboardCleanup = null
 
     // Flush remaining metadata
-    await this.flush(true)
+    await this.flush(true).catch(() => { })
 
     // Read persisted metadata if available (more complete than in-memory)
     if (this.metadataPath) {

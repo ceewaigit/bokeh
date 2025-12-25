@@ -343,6 +343,11 @@ export interface Clip {
   sourceIn: number     // Start point in source recording
   sourceOut: number    // End point in source recording
 
+  // Locked expansion bounds - when set, prevent expansion beyond these
+  // Used by system-created clips (e.g., speed-up segments) to lock their bounds
+  lockedSourceIn?: number   // Minimum sourceIn allowed (can't expand left past this)
+  lockedSourceOut?: number  // Maximum sourceOut allowed (can't expand right past this)
+
   // Playback control
   playbackRate?: number // Speed multiplier (1.0 = normal, 2.0 = 2x speed, 0.5 = half speed)
   typingSpeedApplied?: boolean // Flag to indicate typing speed has been applied to this clip

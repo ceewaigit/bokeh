@@ -107,9 +107,10 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
         }
 
         const { recording, sourceTimeMs, effects: clipEffects } = clipData
+        const timelineMs = (currentFrame / fps) * 1000
         const metadata = recording ? loadedMetadata?.get(recording.id) : undefined
         // Use centralized lookup with consistent boundary semantics
-        const backgroundEffect = getActiveBackgroundEffect(clipEffects, sourceTimeMs) as BackgroundEffect | undefined
+        const backgroundEffect = getActiveBackgroundEffect(clipEffects, timelineMs) as BackgroundEffect | undefined
         const backgroundData = backgroundEffect?.data ?? null
         const padding = backgroundData?.padding || 0
 
@@ -166,7 +167,6 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
             }
             : undefined
 
-        const timelineMs = (currentFrame / fps) * 1000
         const prevFrame = previewLastFrameRef.current
         const recordingId = recording?.id ?? null
 

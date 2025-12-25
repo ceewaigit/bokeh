@@ -304,7 +304,6 @@ export function getVisibleFrameLayout(opts: {
   isRendering: boolean;
   prevLayoutItem: FrameLayoutItem | null;
   nextLayoutItem: FrameLayoutItem | null;
-  activeLayoutItem: FrameLayoutItem | null;
   shouldHoldPrevFrame: boolean;
   isNearBoundaryEnd: boolean;
 }): FrameLayoutItem[] {
@@ -315,7 +314,6 @@ export function getVisibleFrameLayout(opts: {
     isRendering,
     prevLayoutItem,
     nextLayoutItem,
-    activeLayoutItem,
     shouldHoldPrevFrame,
     isNearBoundaryEnd,
   } = opts;

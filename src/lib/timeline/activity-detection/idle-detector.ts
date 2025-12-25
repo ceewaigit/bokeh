@@ -144,13 +144,6 @@ export class IdleActivityDetector implements ActivityDetector {
   /**
    * Find periods where ALL activity types are below threshold
    */
-  private detectIdlePeriods(
-    activityTimeline: ActivityEvent[],
-    recordingDuration: number
-  ): SpeedUpPeriod[] {
-    return this.detectIdlePeriodsWithConfig(activityTimeline, recordingDuration, this.config)
-  }
-
   /**
    * Find periods where ALL activity types are below threshold (with custom config)
    */
@@ -215,10 +208,6 @@ export class IdleActivityDetector implements ActivityDetector {
   /**
    * Check if an event represents meaningful activity
    */
-  private isActiveEvent(event: ActivityEvent): boolean {
-    return this.isActiveEventWithConfig(event, this.config)
-  }
-
   /**
    * Check if an event represents meaningful activity (with custom config)
    */
@@ -235,10 +224,6 @@ export class IdleActivityDetector implements ActivityDetector {
   /**
    * Create an idle period with calculated speed multiplier
    */
-  private createIdlePeriod(start: number, end: number): SpeedUpPeriod {
-    return this.createIdlePeriodWithConfig(start, end, this.config)
-  }
-
   /**
    * Create an idle period with calculated speed multiplier (with custom config)
    */

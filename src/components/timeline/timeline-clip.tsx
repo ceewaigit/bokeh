@@ -1,16 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
+import Konva from 'konva'
 
 import type { Clip, Recording } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { ClipReorderService } from '@/lib/timeline/clip-reorder-service'
+import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { WaveformAnalyzer, type WaveformData } from '@/lib/audio/waveform-analyzer'
-import { EffectLayerType } from '@/types/effects'
 import { SpeedUpSuggestionsBar } from './speed-up-suggestions-bar'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { SpeedUpPeriod } from '@/types/speed-up'
@@ -26,17 +26,16 @@ interface TimelineClipProps {
   trackType: TrackType.Video | TrackType.Audio
   trackY: number
   trackHeight: number
-  speedUpBarSpace?: number // Space reserved for speed-up bars above clips
   pixelsPerMs: number
   isSelected: boolean
-  selectedEffectType?: EffectLayerType | null
   otherClipsInTrack?: Clip[]
-  clipEffects?: any[]  // Effects for this clip from timeline.effects
   onSelect: (clipId: string) => void
-  onSelectEffect?: (type: EffectLayerType) => void
-  onDragEnd: (clipId: string, newStartTime: number) => void
-  onReorderClip?: (clipId: string, newIndex: number) => void
+  onDragPreview?: (clipId: string, proposedStartTime: number) => void
+  onDragCommit?: (clipId: string, proposedStartTime: number) => void
   onContextMenu?: (e: any, clipId: string) => void
+  onTrimStart?: (clipId: string, newStartTime: number) => void
+  onTrimEnd?: (clipId: string, newEndTime: number) => void
+  displayStartTime?: number
   onOpenSpeedUpSuggestion?: (opts: {
     x: number
     y: number
@@ -46,32 +45,43 @@ interface TimelineClipProps {
   }) => void
 }
 
-export const TimelineClip = React.memo(({
+// Minimum clip duration in milliseconds (enforced during edge trimming)
+const MIN_CLIP_DURATION_MS = 1000 // 1 second minimum
+
+const TimelineClipComponent = ({
   clip,
   recording,
   trackType,
   trackY,
   trackHeight,
-  speedUpBarSpace = 0,
   pixelsPerMs,
   isSelected,
-  selectedEffectType,
   otherClipsInTrack = [],
-  clipEffects = [],
   onSelect,
-  onSelectEffect,
-  onDragEnd,
-  onReorderClip,
+  onDragPreview,
+  onDragCommit,
   onContextMenu,
+  onTrimStart,
+  onTrimEnd,
+  displayStartTime,
   onOpenSpeedUpSuggestion
 }: TimelineClipProps) => {
   const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isValidPosition, setIsValidPosition] = useState(true)
-  const [originalPosition, setOriginalPosition] = useState<number>(0)
   const [typingPeriods, setTypingPeriods] = useState<SpeedUpPeriod[]>([])
   const [idlePeriods, setIdlePeriods] = useState<SpeedUpPeriod[]>([])
-  const [cachedSnapPositions, setCachedSnapPositions] = useState<number[]>([])
+  const [isHovering, setIsHovering] = useState(false)
+  const [trimEdge, setTrimEdge] = useState<'left' | 'right' | null>(null)
+  const [trimPreview, setTrimPreview] = useState<{ startTime: number; endTime: number } | null>(null)
+  const trimStartRef = useRef<{
+    startTime: number
+    endTime: number
+    mouseX: number
+    minStartTime: number
+    maxEndTime: number
+  } | null>(null)
+  const groupRef = useRef<Konva.Group>(null)
 
   const colors = useTimelineColors()
   const showWaveforms = useProjectStore((s) => s.settings.editing.showWaveforms ?? true)
@@ -89,10 +99,17 @@ export const TimelineClip = React.memo(({
     inlineMetadata: recording?.metadata,
   })
 
-  const clipX = TimeConverter.msToPixels(clip.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+  // Use preview values during trimming for live feedback
+  const effectiveStartTime = trimPreview?.startTime ?? clip.startTime
+  const effectiveDuration = trimPreview
+    ? trimPreview.endTime - trimPreview.startTime
+    : clip.duration
+
+  const visualStartTime = displayStartTime ?? effectiveStartTime
+  const clipX = TimeConverter.msToPixels(visualStartTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
   const clipWidth = Math.max(
     TimelineConfig.MIN_CLIP_WIDTH,
-    TimeConverter.msToPixels(clip.duration, pixelsPerMs)
+    TimeConverter.msToPixels(effectiveDuration, pixelsPerMs)
   )
 
   // Track height is now passed as a prop
@@ -212,7 +229,7 @@ export const TimelineClip = React.memo(({
           img.onload = () => {
             if (!cancelled) setThumbnails([img])
           }
-          img.onerror = (e) => {
+          img.onerror = (_e) => {
             console.warn('[TimelineClip] Failed to load image thumbnail:', src)
           }
           return
@@ -283,34 +300,140 @@ export const TimelineClip = React.memo(({
     }
   }, [recording, resolvedVideoPath, clip.id, clip.sourceIn, clip.sourceOut, trackHeight, trackType, isGeneratedClip])
 
+  // Calculate trim boundaries based on source material and locked bounds
+  // Adjacent clips are handled by push/reflow after trim, not by blocking expansion
+  const getTrimBoundaries = useCallback(() => {
+    const playbackRate = clip.playbackRate || 1
+    const recordingDuration = recording?.duration || 0
+
+    // Use locked bounds if set, otherwise full recording range
+    const effectiveMinSource = clip.lockedSourceIn ?? 0
+    const effectiveMaxSource = clip.lockedSourceOut ?? recordingDuration
+
+    // Source space constraints - limited by locked bounds
+    const sourceExpandLeft = (clip.sourceIn - effectiveMinSource) / playbackRate
+    const sourceExpandRight = (effectiveMaxSource - clip.sourceOut) / playbackRate
+
+    // Find previous clip - we can't push clips left (would go negative), so this is a hard limit
+    const sortedClips = [...otherClipsInTrack].filter(c => c.id !== clip.id).sort((a, b) => a.startTime - b.startTime)
+    const prevClip = sortedClips.filter(c => c.startTime + c.duration <= clip.startTime).pop()
+
+    // Left edge: constrained by previous clip AND source material (respecting locked bounds)
+    const minStartTime = Math.max(
+      prevClip ? prevClip.startTime + prevClip.duration : 0,
+      clip.startTime - sourceExpandLeft
+    )
+
+    // Right edge: constrained by source material respecting locked bounds (subsequent clips will be pushed)
+    const maxEndTime = clip.startTime + clip.duration + sourceExpandRight
+
+    return { minStartTime, maxEndTime }
+  }, [clip, recording, otherClipsInTrack])
+
+  // Handle trim drag with visual preview
+  const handleTrimMouseDown = useCallback((edge: 'left' | 'right', e: Konva.KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true // Stop propagation to prevent clip drag
+    setTrimEdge(edge)
+
+    const boundaries = getTrimBoundaries()
+    const initialState = {
+      startTime: clip.startTime,
+      endTime: clip.startTime + clip.duration,
+      mouseX: e.evt.clientX,
+      minStartTime: boundaries.minStartTime,
+      maxEndTime: boundaries.maxEndTime
+    }
+    trimStartRef.current = initialState
+    setTrimPreview({ startTime: initialState.startTime, endTime: initialState.endTime })
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!trimStartRef.current) return
+
+      const deltaX = moveEvent.clientX - trimStartRef.current.mouseX
+      const deltaMs = TimeConverter.pixelsToMs(deltaX, pixelsPerMs)
+
+      if (edge === 'left') {
+        // Trim start: moving right makes clip shorter, left makes it longer
+        let newStartTime = trimStartRef.current.startTime + deltaMs
+
+        // Enforce minimum duration
+        const maxStartTime = trimStartRef.current.endTime - MIN_CLIP_DURATION_MS
+        newStartTime = Math.min(newStartTime, maxStartTime)
+
+        // Can't go before minimum (previous clip or source boundary)
+        newStartTime = Math.max(trimStartRef.current.minStartTime, newStartTime)
+
+        // Update visual preview in real-time
+        setTrimPreview({ startTime: newStartTime, endTime: trimStartRef.current.endTime })
+      } else {
+        // Trim end: moving right makes clip longer, left makes it shorter
+        let newEndTime = trimStartRef.current.endTime + deltaMs
+
+        // Enforce minimum duration
+        const minEndTime = trimStartRef.current.startTime + MIN_CLIP_DURATION_MS
+        newEndTime = Math.max(newEndTime, minEndTime)
+
+        // Can't go past maximum (next clip or source boundary)
+        newEndTime = Math.min(trimStartRef.current.maxEndTime, newEndTime)
+
+        // Update visual preview in real-time
+        setTrimPreview({ startTime: trimStartRef.current.startTime, endTime: newEndTime })
+      }
+    }
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      if (!trimStartRef.current) return
+
+      const deltaX = upEvent.clientX - trimStartRef.current.mouseX
+      const deltaMs = TimeConverter.pixelsToMs(deltaX, pixelsPerMs)
+
+      if (edge === 'left') {
+        let newStartTime = trimStartRef.current.startTime + deltaMs
+        const maxStartTime = trimStartRef.current.endTime - MIN_CLIP_DURATION_MS
+        newStartTime = Math.min(newStartTime, maxStartTime)
+        newStartTime = Math.max(trimStartRef.current.minStartTime, newStartTime)
+
+        if (newStartTime !== trimStartRef.current.startTime) {
+          onTrimStart?.(clip.id, newStartTime)
+        }
+      } else {
+        let newEndTime = trimStartRef.current.endTime + deltaMs
+        const minEndTime = trimStartRef.current.startTime + MIN_CLIP_DURATION_MS
+        newEndTime = Math.max(newEndTime, minEndTime)
+        newEndTime = Math.min(trimStartRef.current.maxEndTime, newEndTime)
+
+        if (newEndTime !== trimStartRef.current.endTime) {
+          onTrimEnd?.(clip.id, newEndTime)
+        }
+      }
+
+      setTrimEdge(null)
+      setTrimPreview(null)
+      trimStartRef.current = null
+      document.body.style.cursor = 'default'
+
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [clip.id, clip.startTime, clip.duration, pixelsPerMs, onTrimStart, onTrimEnd, getTrimBoundaries])
+
   return (
     <Group
+      ref={groupRef}
       x={clipX}
       y={trackY + TimelineConfig.TRACK_PADDING}
-      draggable
+      draggable={!trimEdge}
       dragBoundFunc={(pos) => {
-        // Convert drag position to time
-        const proposedTime = TimeConverter.pixelsToMs(
-          pos.x - TimelineConfig.TRACK_LABEL_WIDTH,
-          pixelsPerMs
+        const proposedTime = Math.max(
+          0,
+          TimeConverter.pixelsToMs(pos.x - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
         )
-
-        // Use cached snap positions (computed at drag start)
-        const snapPositions = cachedSnapPositions.length > 0
-          ? cachedSnapPositions
-          : ClipReorderService.computeSnapPositions(otherClipsInTrack || [], clip.id)
-
-        // Find nearest snap position using the service
-        const { position: nearestSnap } = ClipReorderService.findNearestSnapPosition(
-          proposedTime,
-          snapPositions
-        )
-
-        setIsValidPosition(true)
-
-        // Convert snapped time to pixels
-        const snappedX = TimeConverter.msToPixels(nearestSnap, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
-
+        const preview = ClipPositioning.computeContiguousPreview(otherClipsInTrack, proposedTime, { clipId: clip.id })
+        const insertTime = preview?.insertTime ?? proposedTime
+        const snappedX = TimeConverter.msToPixels(insertTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
         return {
           x: snappedX,
           y: trackY + TimelineConfig.TRACK_PADDING
@@ -318,42 +441,25 @@ export const TimelineClip = React.memo(({
       }}
       onDragStart={() => {
         setIsDragging(true)
-        setOriginalPosition(clip.startTime)
         setIsValidPosition(true)
-        // Cache snap positions at drag start for performance
-        setCachedSnapPositions(
-          ClipReorderService.computeSnapPositions(otherClipsInTrack || [], clip.id)
+      }}
+      onDragMove={(e) => {
+        const draggedX = e.target.x()
+        const proposedStartTime = Math.max(
+          0,
+          TimeConverter.pixelsToMs(draggedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
         )
+        onDragPreview?.(clip.id, proposedStartTime)
       }}
       onDragEnd={(e) => {
         setIsDragging(false)
 
-        // Get the final snapped position
         const finalX = e.target.x()
-        const snappedTime = TimeConverter.pixelsToMs(
-          finalX - TimelineConfig.TRACK_LABEL_WIDTH,
-          pixelsPerMs
+        const proposedStartTime = Math.max(
+          0,
+          TimeConverter.pixelsToMs(finalX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
         )
-
-        // Find which snap position we're at to determine insert index
-        const { index: newIndex } = ClipReorderService.findNearestSnapPosition(
-          snappedTime,
-          cachedSnapPositions
-        )
-
-        // Check if reorder would change anything
-        const allClips = (() => {
-          if (!otherClipsInTrack || otherClipsInTrack.length === 0) return [clip]
-          return otherClipsInTrack.some(c => c.id === clip.id)
-            ? otherClipsInTrack
-            : [...otherClipsInTrack, clip]
-        })()
-        if (ClipReorderService.wouldChangeOrder(allClips, clip.id, newIndex)) {
-          onReorderClip?.(clip.id, newIndex)
-        }
-
-        // Clear cached snap positions
-        setCachedSnapPositions([])
+        onDragCommit?.(clip.id, proposedStartTime)
         setIsValidPosition(true)
       }}
       onClick={() => {
@@ -368,12 +474,18 @@ export const TimelineClip = React.memo(({
         }
       }}
       onMouseEnter={() => {
-        document.body.style.cursor = 'grab'
+        if (!trimEdge) {
+          document.body.style.cursor = 'grab'
+        }
+        setIsHovering(true)
       }}
       onMouseLeave={() => {
-        document.body.style.cursor = 'default'
+        if (!trimEdge) {
+          document.body.style.cursor = 'default'
+        }
+        setIsHovering(false)
       }}
-      opacity={isDragging ? (isValidPosition ? 0.8 : 0.5) : 1}
+      opacity={isDragging ? (isValidPosition ? 0.95 : 0.7) : 1}
     >
       {/* Clip background with rounded corners */}
       <Rect
@@ -393,27 +505,25 @@ export const TimelineClip = React.memo(({
         }
         stroke={
           isDragging && !isValidPosition
-            ? colors.destructive // Theme destructive color
+            ? colors.destructive
             : isSelected
-              ? colors.primary // Highlight border when selected
-              : colors.isDark
-                ? 'rgba(255,255,255,0.1)' // Very subtle white for dark mode
-                : 'rgba(0,0,0,0.08)' // Subtle translucent black for light mode
+              ? colors.primary
+              : 'transparent'
         }
-        strokeWidth={isDragging && !isValidPosition ? 3 : isSelected ? 2 : 1}
-        cornerRadius={24}
-        opacity={0.95}
-        shadowColor={isDragging && !isValidPosition ? colors.destructive : "black"}
-        shadowBlur={isDragging && !isValidPosition ? 15 : isSelected ? 12 : 4}
-        shadowOpacity={isDragging && !isValidPosition ? 0.5 : isSelected ? 0.2 : 0.05}
-        shadowOffsetY={2}
+        strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1 : 0}
+        cornerRadius={8}
+        opacity={1}
+        shadowColor="black"
+        shadowBlur={isSelected ? 3 : 1}
+        shadowOpacity={isSelected ? 0.08 : 0.02}
+        shadowOffsetY={1}
       />
 
       {isGeneratedClip && thumbnails.length === 0 && (
         <Group
           clipFunc={(ctx) => {
             ctx.beginPath()
-            ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 24)
+            ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 8)
             ctx.closePath()
           }}
         >
@@ -468,7 +578,7 @@ export const TimelineClip = React.memo(({
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
-          ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 24)
+          ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 8)
           ctx.closePath()
         }}>
           {/* Distribute thumbnails across clip width */}
@@ -526,8 +636,8 @@ export const TimelineClip = React.memo(({
             ctx.beginPath()
             const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
             const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
-            // Rounded bottom corners only - match clip's 24px radius
-            ctx.roundRect(0, 0, clipWidth, stripHeight, [0, 0, 24, 24])
+            // Rounded bottom corners only - match clip's 8px radius
+            ctx.roundRect(0, 0, clipWidth, stripHeight, [0, 0, 8, 8])
             ctx.closePath()
           }}
         >
@@ -542,8 +652,6 @@ export const TimelineClip = React.memo(({
             // Modern minimal waveform: thin, rounded bars centered on the midline
             const barWidth = 2
             const barGap = 1
-            const barCount = Math.max(24, Math.floor(clipWidth / (barWidth + barGap)))
-
             const peaks = waveformData?.peaks?.length
               ? WaveformAnalyzer.resamplePeaks(waveformData.peaks, clipWidth, barWidth, barGap)
               : []
@@ -559,9 +667,9 @@ export const TimelineClip = React.memo(({
                   y={0}
                   width={clipWidth}
                   height={stripHeight}
-                  fill="rgba(0,0,0,0.2)"
+                  fill="rgba(0,0,0,0.15)"
                   opacity={1}
-                  cornerRadius={[0, 0, 24, 24]}
+                  cornerRadius={[0, 0, 8, 8]}
                   listening={false}
                 />
                 {peaks.length > 0 && peaks.map((peak, i) => {
@@ -658,7 +766,7 @@ export const TimelineClip = React.memo(({
             clipFunc={(ctx) => {
               // Clip to rounded rectangle to match clip shape
               ctx.beginPath()
-              ctx.roundRect(0, 0, clipWidth, clipInnerHeight, 24)
+              ctx.roundRect(0, 0, clipWidth, clipInnerHeight, 8)
               ctx.closePath()
             }}
           >
@@ -712,6 +820,117 @@ export const TimelineClip = React.memo(({
         />
       )}
 
+      {/* Trim ghost overlay - shows the region being trimmed away */}
+      {trimPreview && trimEdge && (
+        <>
+          {trimEdge === 'left' && trimPreview.startTime > clip.startTime && (
+            // Ghost showing trimmed region on left
+            <Rect
+              x={TimeConverter.msToPixels(clip.startTime - effectiveStartTime, pixelsPerMs)}
+              y={0}
+              width={TimeConverter.msToPixels(trimPreview.startTime - clip.startTime, pixelsPerMs)}
+              height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+              fill={colors.destructive}
+              opacity={0.3}
+              cornerRadius={[8, 0, 0, 8]}
+              listening={false}
+            />
+          )}
+          {trimEdge === 'right' && trimPreview.endTime < (clip.startTime + clip.duration) && (
+            // Ghost showing trimmed region on right
+            <Rect
+              x={clipWidth}
+              y={0}
+              width={TimeConverter.msToPixels((clip.startTime + clip.duration) - trimPreview.endTime, pixelsPerMs)}
+              height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+              fill={colors.destructive}
+              opacity={0.3}
+              cornerRadius={[0, 8, 8, 0]}
+              listening={false}
+            />
+          )}
+        </>
+      )}
+
+      {/* Trim handles - shown on hover */}
+      {(isHovering || trimEdge) && !isDragging && (
+        <>
+          {/* Left trim handle */}
+          <Rect
+            x={0}
+            y={0}
+            width={8}
+            height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+            fill={trimEdge === 'left' ? colors.primary : 'transparent'}
+            opacity={trimEdge === 'left' ? 0.6 : 1}
+            cornerRadius={[8, 0, 0, 8]}
+            onMouseEnter={() => {
+              document.body.style.cursor = 'ew-resize'
+            }}
+            onMouseLeave={() => {
+              if (!trimEdge) {
+                document.body.style.cursor = 'grab'
+              }
+            }}
+            onMouseDown={(e) => handleTrimMouseDown('left', e)}
+          />
+          {/* Left handle visual indicator */}
+          <Rect
+            x={2}
+            y={(trackHeight - TimelineConfig.TRACK_PADDING * 2) / 2 - 10}
+            width={4}
+            height={20}
+            fill={colors.primary}
+            opacity={0.8}
+            cornerRadius={2}
+            listening={false}
+          />
+
+          {/* Right trim handle */}
+          <Rect
+            x={clipWidth - 8}
+            y={0}
+            width={8}
+            height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+            fill={trimEdge === 'right' ? colors.primary : 'transparent'}
+            opacity={trimEdge === 'right' ? 0.6 : 1}
+            cornerRadius={[0, 8, 8, 0]}
+            onMouseEnter={() => {
+              document.body.style.cursor = 'ew-resize'
+            }}
+            onMouseLeave={() => {
+              if (!trimEdge) {
+                document.body.style.cursor = 'grab'
+              }
+            }}
+            onMouseDown={(e) => handleTrimMouseDown('right', e)}
+          />
+          {/* Right handle visual indicator */}
+          <Rect
+            x={clipWidth - 6}
+            y={(trackHeight - TimelineConfig.TRACK_PADDING * 2) / 2 - 10}
+            width={4}
+            height={20}
+            fill={colors.primary}
+            opacity={0.8}
+            cornerRadius={2}
+            listening={false}
+          />
+        </>
+      )}
+
     </Group>
   )
+}
+
+export const TimelineClip = React.memo(TimelineClipComponent, (prev, next) => {
+  return prev.clip === next.clip &&
+    prev.recording === next.recording &&
+    prev.trackType === next.trackType &&
+    prev.trackY === next.trackY &&
+    prev.trackHeight === next.trackHeight &&
+    prev.pixelsPerMs === next.pixelsPerMs &&
+    prev.isSelected === next.isSelected &&
+    prev.otherClipsInTrack === next.otherClipsInTrack &&
+    prev.displayStartTime === next.displayStartTime
 })

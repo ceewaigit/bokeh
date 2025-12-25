@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Monitor, Mic, Check, X, ArrowRight, Settings } from 'lucide-react'
+import { Monitor, Mic, Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 

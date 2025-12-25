@@ -354,17 +354,32 @@ export function hideMonitorOverlay(): void {
   }
 }
 
-export function showRecordingOverlay(bounds: { x: number; y: number; width: number; height: number }, label: string = 'Recording'): void {
+export function showRecordingOverlay(
+  bounds: { x: number; y: number; width: number; height: number },
+  label: string = 'Recording',
+  options?: { displayId?: number; relativeToDisplay?: boolean }
+): void {
   if (recordingOverlayWindow && !recordingOverlayWindow.isDestroyed()) {
     recordingOverlayWindow.close()
     recordingOverlayWindow = null
   }
 
+  const resolvedBounds = (() => {
+    if (!options?.relativeToDisplay) return bounds
+    const targetDisplay = resolveTargetDisplay(options.displayId)
+    return {
+      x: bounds.x + targetDisplay.bounds.x,
+      y: bounds.y + targetDisplay.bounds.y,
+      width: bounds.width,
+      height: bounds.height
+    }
+  })()
+
   recordingOverlayWindow = new BrowserWindow({
-    x: Math.round(bounds.x),
-    y: Math.round(bounds.y),
-    width: Math.max(1, Math.round(bounds.width)),
-    height: Math.max(1, Math.round(bounds.height)),
+    x: Math.round(resolvedBounds.x),
+    y: Math.round(resolvedBounds.y),
+    width: Math.max(1, Math.round(resolvedBounds.width)),
+    height: Math.max(1, Math.round(resolvedBounds.height)),
     frame: false,
     transparent: true,
     alwaysOnTop: true,

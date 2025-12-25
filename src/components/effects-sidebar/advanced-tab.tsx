@@ -43,12 +43,9 @@ export function AdvancedTab({
         <div className="flex items-start gap-2">
           <Bot className="w-4 h-4 text-muted-foreground mt-0.5" />
           <div className="min-w-0">
-            <div className="text-xs font-medium leading-none">Advanced</div>
+            <div className="text-xs font-medium leading-none">Camera & Motion</div>
             <div className="mt-1 text-[10px] text-muted-foreground leading-snug">
-              Fine-tuning controls and global camera effects.
-            </div>
-            <div className="mt-1 text-[10px] text-muted-foreground/70 leading-snug">
-              Plugins live in <span className="text-muted-foreground">Utilities → Plugins</span>.
+              Camera motion and effects
             </div>
           </div>
         </div>
@@ -60,7 +57,7 @@ export function AdvancedTab({
           <div className="min-w-0">
             <div className="text-xs font-medium leading-none">Motion Smoothing</div>
             <div className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
-              Smooth out camera movement.
+              Reduce jitter in camera panning
             </div>
           </div>
           <div className="text-xs font-mono text-muted-foreground w-8 text-right">
@@ -98,7 +95,7 @@ export function AdvancedTab({
               </Tooltip>
             </div>
             <div className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
-              Global camera setting.
+              Adds blur during fast camera pans
             </div>
           </div>
           <Switch
@@ -150,7 +147,7 @@ export function AdvancedTab({
                 max={100}
                 step={5}
               />
-              <p className="text-[10px] text-muted-foreground/60 italic">Higher = less blur, only on fast pans</p>
+              <p className="text-[10px] text-muted-foreground/60 italic">Higher threshold = blur only on faster movements</p>
             </div>
           </div>
         )}
@@ -162,7 +159,7 @@ export function AdvancedTab({
           <div className="min-w-0">
             <div className="text-xs font-medium leading-none">Refocus Blur</div>
             <div className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
-              Adds a focus-pull feel during zoom transitions.
+              Softens focus during zoom in/out
             </div>
           </div>
           <Switch
@@ -193,7 +190,7 @@ export function AdvancedTab({
               max={100}
               step={5}
             />
-            <p className="text-[10px] text-muted-foreground/60 italic">Blurs during zoom in/out transitions</p>
+            <p className="text-[10px] text-muted-foreground/60 italic">Adjust blur strength during zoom transitions</p>
           </div>
         )}
       </div>

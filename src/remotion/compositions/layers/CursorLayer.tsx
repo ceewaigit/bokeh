@@ -89,7 +89,7 @@ class CursorImagePreloader {
 // MEMOIZATION: Prevent re-renders when parent (SharedVideoController) updates but props/context are stable.
 // This works with VideoPositionContext optimization to allow "static" cursor frames during video playback.
 export const CursorLayer = React.memo(({
-  effects,
+  effects: _effects,
   videoWidth,
   videoHeight,
   metadataUrls,
