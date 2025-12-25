@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { Sequence } from 'remotion';
-import { useClipRenderState } from '@/remotion/hooks/useClipRenderState';
+import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry';
 import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config/plugin-sdk';
 import type { Clip, Recording } from '@/types/project';

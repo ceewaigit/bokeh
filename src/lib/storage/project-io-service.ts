@@ -7,6 +7,7 @@ import { PROJECT_EXTENSION } from '@/lib/storage/recording-storage'
 import { precomputeCursorSmoothingCache } from '@/lib/effects/utils/cursor-calculator'
 import { precomputeCameraCaches } from '@/lib/effects/utils/camera-calculator'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
+import { EffectStore } from '@/lib/core/effects'
 
 /**
  * Options for loadProjectFromRecording
@@ -254,16 +255,15 @@ export class ProjectIOService {
     // Load assets (metadata chunks and videos)
     await this.loadProjectAssets(project, onProgress)
 
-    // Initialize effects array if it doesn't exist
-    if (!project.timeline.effects) {
-      project.timeline.effects = []
-    }
+    // Initialize effects array using EffectStore
+    EffectStore.ensureArray(project)
 
     // Ensure global background/cursor effects exist
     const { EffectsFactory } = await import('../effects/effects-factory')
 
     // DEDUPLICATE CROP EFFECTS: Fix for multiple overlapping crop effects causing glitches
-    if (project.timeline.effects) {
+    const timelineEffects = project.timeline.effects || []
+    if (timelineEffects.length > 0) {
       const otherEffects: typeof project.timeline.effects = [];
 
       // Sort by modification time (or ID timestamp if available) to keep the newest one
@@ -283,12 +283,12 @@ export class ProjectIOService {
         return id.substring(5, lastDash);
       };
 
-      const cropEffects = project.timeline.effects.filter(e => e.type === 'crop');
-      const nonCropEffects = project.timeline.effects.filter(e => e.type !== 'crop');
+      const cropEffects = timelineEffects.filter(e => e.type === 'crop');
+      const nonCropEffects = timelineEffects.filter(e => e.type !== 'crop');
 
       if (cropEffects.length > 1) {
         // Group by CLIP ID to ensure we only deduplicate effects targeting the SAME clip
-        const groups = new Map<string, (typeof project.timeline.effects)[number][]>();
+        const groups = new Map<string, typeof timelineEffects>();
 
         cropEffects.forEach(e => {
           // Use Clip ID as the grouping key. 
@@ -492,28 +492,21 @@ export class ProjectIOService {
    */
   static async saveProject(project: Project): Promise<void> {
     // Deep copy to avoid mutating frozen Immer objects.
-    // Zoom effects live only in timeline.effects; recording.effects are non-zoom.
+    // All effects now live in timeline.effects (the SSOT)
     // Strip temp proxy URLs (they live in /tmp and won't exist after restarts)
     const projectToSave: Project = this.relativizePaths({
       ...project,
       recordings: project.recordings.map(r => {
-        // Destructure to omit temp proxy URLs from saved project
-        const { previewProxyUrl, glowProxyUrl, ...rest } = r as any
-        return {
-          ...rest,
-          effects: (r.effects || []).filter(e => e.type !== 'zoom')
-        }
+        // Destructure to omit temp proxy URLs and deprecated effects array from saved project
+        const { previewProxyUrl, glowProxyUrl, effects, ...rest } = r as any
+        return rest
       }),
       timeline: {
         ...project.timeline,
-        effects: project.timeline.effects || []
+        effects: EffectStore.getAll(project)
       },
       modifiedAt: new Date().toISOString()
     })
-
-    // Use Electron's file system API to write the file
-
-    // Use Electron's file system API to write the file
 
     await RecordingStorage.saveProject(projectToSave)
   }
@@ -615,11 +608,9 @@ export class ProjectIOService {
         }
       }
 
-      // Only regenerate effects if metadata exists and effects are empty
-      if (recording.metadata && (!recording.effects || recording.effects.length === 0)) {
-        if (!recording.effects) {
-          recording.effects = []
-        }
+      // NOTE: recording.effects is deprecated - all effects live in timeline.effects
+      // The call to createInitialEffectsForRecording is a no-op now, kept for API compatibility
+      if (recording.metadata) {
         EffectsFactory.createInitialEffectsForRecording(recording)
       }
 
@@ -630,8 +621,9 @@ export class ProjectIOService {
         if (mouseEvents && mouseEvents.length > 0) {
           onProgress?.(`Pre-computing effects for recording ${i + 1}...`)
 
-          // Get cursor settings from effects or use defaults
-          const cursorEffect = recording.effects?.find(e => e.type === 'cursor')
+          // Get cursor settings from timeline effects (the SSOT) or use defaults
+          const timelineEffects = EffectStore.getAll(project)
+          const cursorEffect = timelineEffects.find(e => e.type === 'cursor')
           const cursorData = (cursorEffect?.data as CursorEffectData) ?? DEFAULT_CURSOR_DATA
 
           // Pre-compute cursor smoothing cache (first 5 seconds at 30fps)
@@ -640,7 +632,7 @@ export class ProjectIOService {
           // Pre-compute camera motion clusters
           const videoWidth = recording.width ?? 1920
           const videoHeight = recording.height ?? 1080
-          precomputeCameraCaches(mouseEvents, recording.effects ?? [], videoWidth, videoHeight)
+          precomputeCameraCaches(mouseEvents, timelineEffects, videoWidth, videoHeight)
         }
       }
     }

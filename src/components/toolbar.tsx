@@ -32,6 +32,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { toast } from 'sonner'
 import { buildFrameLayout } from '@/lib/timeline/frame-layout'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
+import { EffectStore } from '@/lib/core/effects'
 
 interface ToolbarProps {
   project: Project | null
@@ -293,12 +294,17 @@ export function Toolbar({
 
             try {
               const sortedClips = [...videoClips].sort((a, b) => a.startTime - b.startTime)
-              const frameLayout = buildFrameLayout(sortedClips, fps)
+              const recordingsMap = new Map((project.recordings || []).map(r => [r.id, r]))
+              const frameLayout = buildFrameLayout(sortedClips, fps, recordingsMap)
+
+              // Get all effects using EffectStore (the SSOT)
+              const allEffects = EffectStore.getAll(project)
+
               const active = getActiveClipDataAtFrame({
                 frame,
                 frameLayout,
                 fps,
-                effects: project.timeline.effects || [],
+                effects: allEffects,
                 getRecording: (recordingId) => project.recordings.find(r => r.id === recordingId)
               })
 
@@ -319,8 +325,8 @@ export function Toolbar({
               }))
 
               // Attach global timeline effects to the first segment if they exist
-              if (segments.length > 0 && project.timeline.effects) {
-                segments[0].effects = project.timeline.effects
+              if (segments.length > 0 && allEffects.length > 0) {
+                segments[0].effects = allEffects
               }
 
               const result = await window.electronAPI.generateThumbnail({

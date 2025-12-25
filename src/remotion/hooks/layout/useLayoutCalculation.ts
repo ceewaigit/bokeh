@@ -8,10 +8,10 @@
  */
 
 import { useRef, useEffect, useMemo } from 'react';
-import { calculateVideoPosition } from '../compositions/utils/video-position';
+import { calculateVideoPosition } from '../../compositions/utils/layout/video-position';
 import { calculateMockupPosition, type MockupPositionResult } from '@/lib/mockups/mockup-transform';
+import { getActiveBackgroundEffect } from '@/lib/effects/effect-filters';
 
-import { EffectType } from '@/types/project';
 import type { Effect, BackgroundEffect } from '@/types/project';
 
 // ============================================================================
@@ -105,13 +105,8 @@ export function useLayoutCalculation({
             return frozenLayoutRef.current;
         }
 
-        // Get background effect data
-        const backgroundEffect = clipEffects.find(e =>
-            e.type === EffectType.Background &&
-            e.enabled &&
-            sourceTimeMs >= e.startTime &&
-            sourceTimeMs <= e.endTime
-        ) as BackgroundEffect | undefined;
+        // Get background effect data using centralized lookup (consistent boundary semantics)
+        const backgroundEffect = getActiveBackgroundEffect(clipEffects, sourceTimeMs) as BackgroundEffect | undefined;
         const backgroundData = backgroundEffect?.data || null;
 
         // Calculate scale factor

@@ -8,14 +8,12 @@
  * throughout playback - no switching means no blink.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { getRemotionEnvironment } from 'remotion';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
-import { useUrlLocking } from './useUrlLocking';
 import type { UseVideoUrlProps } from '@/types';
 
 // Re-export shared utilities for backwards compatibility
-// Single source of truth now lives in resolution-utils.ts
 export {
   getMaxZoomScale,
   isProxySufficientForTarget,
@@ -41,14 +39,12 @@ export function useVideoUrl({
   targetWidth = 1280,
   targetHeight = 720,
   maxZoomScale = 1,
-  currentZoomScale = 1,
-  isPlaying = false,
   isGlowMode = false,
   forceProxy = false,
   isHighQualityPlaybackEnabled = false,
 }: UseVideoUrlProps): string | undefined {
   const { isRendering } = getRemotionEnvironment();
-  const { videoUrls, videoUrlsHighRes, videoFilePaths } = resources || {};
+  const { videoUrls, videoUrlsHighRes } = resources || {};
 
   const computedUrl = useMemo(() => {
     if (!recording) return undefined;
@@ -63,22 +59,13 @@ export function useVideoUrl({
     if (isGlowMode) {
       // PRIORITY 0: Specific glow proxy (super low res)
       if (recording.glowProxyUrl) {
-        if (typeof window !== 'undefined' && !(window as any).__glowProxyLoggedFor?.[recording.id]) {
-          (window as any).__glowProxyLoggedFor = (window as any).__glowProxyLoggedFor || {};
-          (window as any).__glowProxyLoggedFor[recording.id] = true;
-        }
         return recording.glowProxyUrl;
       }
 
       if (recording.previewProxyUrl) {
-        if (typeof window !== 'undefined' && !(window as any).__proxyLoggedFor?.[recording.id]) {
-          (window as any).__proxyLoggedFor = (window as any).__proxyLoggedFor || {};
-          (window as any).__proxyLoggedFor[recording.id] = true;
-          console.log(`[useVideoUrl] 🎨 GLOW using standard proxy: ${recording.id}`, recording.previewProxyUrl?.substring(0, 50));
-        }
         return recording.previewProxyUrl;
       } else {
-        console.warn(`[useVideoUrl] ⚠️ GLOW has NO proxy, will use full source: ${recording.id}`);
+        // console.warn(`[useVideoUrl] ⚠️ GLOW has NO proxy, will use full source: ${recording.id}`);
       }
     }
     // Previously, switching to proxy on play caused VTDecoder churn every start/stop
@@ -90,7 +77,6 @@ export function useVideoUrl({
       return recording.previewProxyUrl;
     }
 
-    // SMART RESOLUTION SELECTION FOR EXPORT
     // Both videoUrls and videoUrlsHighRes are pre-unified by export orchestrator
     // to point to the same zoom-aware smart proxy. Just use what's available.
     if (isRendering) {
@@ -118,22 +104,11 @@ export function useVideoUrl({
 
       // USER PREFERENCE: If high-res preview is enabled, only use proxy if truly sufficient
       // Don't apply sourceOverkill optimization - user wants quality preview
+      // USER PREFERENCE: If high-res preview is enabled, prioritize full source
+      // We only use proxy if it's explicitly forced or if we really can't load the source
       if (isHighQualityPlaybackEnabled) {
-        if (proxySufficient) {
-          if (typeof window !== 'undefined' && !(window as any).__proxyLoggedFor?.[recording.id]) {
-            (window as any).__proxyLoggedFor = (window as any).__proxyLoggedFor || {};
-            (window as any).__proxyLoggedFor[recording.id] = true;
-            console.log(`[useVideoUrl] ✅ Using proxy for ${recording.id} (high-quality enabled but proxy sufficient)`);
-          }
-          return recording.previewProxyUrl;
-        } else {
-          if (typeof window !== 'undefined' && !(window as any).__fullResLoggedFor?.[recording.id]) {
-            (window as any).__fullResLoggedFor = (window as any).__fullResLoggedFor || {};
-            (window as any).__fullResLoggedFor[recording.id] = true;
-            console.log(`[useVideoUrl] 🔴 Using full source for ${recording.id} (high-quality enabled, proxy insufficient for ${zoomScaleForQuality.toFixed(2)}x zoom)`);
-          }
-          // Don't return proxy - fall through to full source
-        }
+        // Fall through to full source unless there's a compelling reason not to
+        // This fixes the issue where "High Quality" doesn't work because the system thinks the proxy is "good enough"
       } else {
         // MEMORY OPTIMIZATION: When high-res preview is disabled, be aggressive about using proxy
         // Calculate max useful resolution for preview display
@@ -145,12 +120,6 @@ export function useVideoUrl({
 
         // Use proxy if: proxy is sufficient for quality OR source is overkill for display
         if (proxySufficient || sourceOverkill) {
-          if (typeof window !== 'undefined' && !(window as any).__proxyLoggedFor?.[recording.id]) {
-            (window as any).__proxyLoggedFor = (window as any).__proxyLoggedFor || {};
-            (window as any).__proxyLoggedFor[recording.id] = true;
-            const reason = sourceOverkill ? 'source overkill for display' : 'proxy sufficient';
-            console.log(`[useVideoUrl] ✅ Using proxy for ${recording.id} (${reason}, maxUseful: ${Math.round(maxUsefulWidth)}×${Math.round(maxUsefulHeight)}, source: ${sourceWidth}×${sourceHeight})`);
-          }
           return recording.previewProxyUrl;
         }
       }
@@ -182,8 +151,22 @@ export function useVideoUrl({
     }
 
     return `video-stream://${recording.id}`;
-  }, [preferOffthreadVideo, recording, isRendering, videoFilePaths, videoUrls, videoUrlsHighRes, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled]);
+  }, [recording, isRendering, videoUrls, videoUrlsHighRes, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled]);
 
   // Use URL locking to prevent mid-playback URL switches that cause video reloads
-  return useUrlLocking(computedUrl, isPlaying, recording?.id);
+  // Merged from useUrlLocking logic:
+  const lockedUrlRef = useRef<string | undefined>(undefined);
+  const lockedKeyRef = useRef<string | undefined>(undefined);
+  const invalidateKey = recording?.id;
+
+  if (invalidateKey !== lockedKeyRef.current) {
+    // Key changed (e.g., different recording) - lock the new URL
+    lockedUrlRef.current = computedUrl;
+    lockedKeyRef.current = invalidateKey;
+  } else if (!lockedUrlRef.current && computedUrl) {
+    // First time getting a valid URL for this recording - lock it
+    lockedUrlRef.current = computedUrl;
+  }
+
+  return lockedUrlRef.current ?? computedUrl;
 }

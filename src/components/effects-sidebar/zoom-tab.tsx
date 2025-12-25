@@ -11,6 +11,7 @@ import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
+import { EffectQueries } from '@/lib/core/effects'
 import { CommandExecutor, AddEffectCommand } from '@/lib/commands'
 import { DEFAULT_ZOOM_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
@@ -50,8 +51,8 @@ export function ZoomTab({
             className="w-full px-4 py-2.5 text-xs rounded-lg transition-all flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary"
             onClick={async () => {
               const project = useProjectStore.getState().currentProject
-              const existingZoomEffects = (project?.timeline.effects || [])
-                .filter(effect => effect.type === EffectType.Zoom)
+              if (!project) return
+              const existingZoomEffects = EffectQueries.byType(project, EffectType.Zoom)
                 .sort((a, b) => a.startTime - b.startTime)
               const blockDuration = Math.max(0, selectedClip.duration)
               let finalStartTime = Math.max(0, selectedClip.startTime)

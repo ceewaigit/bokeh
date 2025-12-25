@@ -161,6 +161,81 @@ export function getCropEffectForClip(effects: Effect[], clip: Clip): Effect | un
   )
 }
 
+// =============================================================================
+// TIME-BASED ACTIVE EFFECT LOOKUPS
+// =============================================================================
+//
+// BOUNDARY SEMANTICS: startTime <= timeMs < endTime (inclusive start, exclusive end)
+// This is consistent with how clips work: a clip at frame 0-30 owns frames 0-29.
+// An effect at time 0-1000ms is active from 0ms up to (but not including) 1000ms.
+//
+// This eliminates the subtle bugs where different hooks used different boundary logic.
+// =============================================================================
+
+/**
+ * Get the active background effect at a specific time.
+ * Returns the FIRST enabled background effect whose time range contains timeMs.
+ */
+export function getActiveBackgroundEffect(effects: Effect[], timeMs: number): Effect | undefined {
+  return effects.find(e =>
+    e.type === EffectType.Background &&
+    e.enabled &&
+    e.startTime <= timeMs &&
+    e.endTime > timeMs
+  )
+}
+
+/**
+ * Get the active crop effect at a specific time.
+ * Returns the FIRST enabled crop effect whose time range contains timeMs.
+ */
+export function getActiveCropEffect(effects: Effect[], timeMs: number): Effect | undefined {
+  return effects.find(e =>
+    e.type === EffectType.Crop &&
+    e.enabled !== false &&
+    e.startTime <= timeMs &&
+    e.endTime > timeMs
+  )
+}
+
+/**
+ * Get all active zoom effects at a specific time.
+ * Returns enabled zoom effects whose time range contains timeMs.
+ */
+export function getActiveZoomEffects(effects: Effect[], timeMs: number): Effect[] {
+  return effects.filter(e =>
+    e.type === EffectType.Zoom &&
+    e.enabled &&
+    e.startTime <= timeMs &&
+    e.endTime > timeMs
+  )
+}
+
+/**
+ * Get all active screen effects at a specific time.
+ * Returns enabled screen effects whose time range contains timeMs.
+ */
+export function getActiveScreenEffects(effects: Effect[], timeMs: number): Effect[] {
+  return effects.filter(e =>
+    e.type === EffectType.Screen &&
+    e.enabled &&
+    e.startTime <= timeMs &&
+    e.endTime > timeMs
+  )
+}
+
+/**
+ * Check if any effect of the given type is active at the specified time.
+ */
+export function hasActiveEffectOfType(effects: Effect[], type: EffectType, timeMs: number): boolean {
+  return effects.some(e =>
+    e.type === type &&
+    e.enabled !== false &&
+    e.startTime <= timeMs &&
+    e.endTime > timeMs
+  )
+}
+
 // --- Data Accessors ---
 
 export function getZoomData(effect: Effect): ZoomEffectData | null {

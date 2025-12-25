@@ -6,37 +6,10 @@
 import React from 'react';
 import type { ZoomBlock } from '@/types/project';
 import type { CameraMotionBlurState, CameraSettings, MotionBlurConfig, ZoomTransform } from '@/types';
+import { smoothStep, smootherStep, easeInOutCubic, clamp01 } from '@/lib/core/math';
 
-/**
- * Professional easing curves for smooth, cinematic zoom
- * These are deterministic and frame-perfect
- */
-
-// Smooth ease-in-out-cubic for consistent speed
-export const easeInOutCubic = (t: number): number => {
-  return t < 0.5
-    ? 4 * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 3) / 2;
-};
-
-/**
- * Hermite smoothstep interpolation (t² × (3 - 2t))
- * Creates smooth transitions with zero first-derivative at endpoints
- * This is the key to cinematic, film-quality zoom transitions
- */
-export const smoothStep = (t: number): number => {
-  const clamped = Math.max(0, Math.min(1, t));
-  return clamped * clamped * (3 - 2 * clamped);
-};
-
-/**
- * Faster smoothstep variant using Ken Perlin's improved formula (t³ × (t × (6t - 15) + 10))
- * Has zero first AND second derivative at endpoints - even smoother
- */
-export const smootherStep = (t: number): number => {
-  const clamped = Math.max(0, Math.min(1, t));
-  return clamped * clamped * clamped * (clamped * (clamped * 6 - 15) + 10);
-};
+// Re-export easing functions for backwards compatibility
+export { smoothStep, smootherStep, easeInOutCubic };
 
 // Professional zoom easing - asymmetric for cinematic feel
 // Now using smootherStep for ultra-smooth transitions
@@ -276,9 +249,7 @@ export function getZoomTransformString(zoomTransform: ZoomTransform): string {
 /**
  * Camera motion blur state for cinematic pan effects
  */
-function clamp01(n: number): number {
-  return Math.max(0, Math.min(1, n));
-}
+// clamp01 now imported from @/lib/core/math
 
 /**
  * Calculate motion blur from a translation delta between frames (content-space).

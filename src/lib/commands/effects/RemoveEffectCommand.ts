@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { Effect } from '@/types/project'
+import { EffectStore } from '@/lib/core/effects'
 
 export class RemoveEffectCommand extends Command {
     private originalEffect: Effect | null = null
@@ -17,29 +18,16 @@ export class RemoveEffectCommand extends Command {
     }
 
     async doExecute(): Promise<CommandResult> {
-        // Find the effect before removing it so we can restore it later
         const project = this.context.getProject()
         if (!project) return { success: false, error: 'No active project' }
 
-        // Search in timeline effects (global)
-        let effect = project.timeline.effects?.find(e => e.id === this.effectId)
-
-        // If not found, search in recordings (scoped effects like zoom)
-        if (!effect) {
-            for (const recording of project.recordings) {
-                const found = recording.effects?.find(e => e.id === this.effectId)
-                if (found) {
-                    effect = found
-                    break
-                }
-            }
-        }
-
-        if (!effect) {
+        // Use EffectStore to find the effect (searches both timeline and legacy recording.effects)
+        const located = EffectStore.find(project, this.effectId)
+        if (!located) {
             return { success: false, error: 'Effect not found' }
         }
 
-        this.originalEffect = JSON.parse(JSON.stringify(effect))
+        this.originalEffect = JSON.parse(JSON.stringify(located.effect))
         this.context.getStore().removeEffect(this.effectId)
 
         return { success: true }
@@ -53,3 +41,4 @@ export class RemoveEffectCommand extends Command {
         return { success: false, error: 'No original effect to restore' }
     }
 }
+

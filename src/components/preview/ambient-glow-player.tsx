@@ -5,7 +5,7 @@ import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/remotion/compositions/TimelineComposition';
 import { useTheme } from '@/contexts/theme-context';
 import { useProjectStore } from '@/stores/project-store';
-import { msToFrame } from '@/remotion/compositions/utils/frame-time';
+import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import type { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import type { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 

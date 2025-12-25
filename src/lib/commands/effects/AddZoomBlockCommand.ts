@@ -2,7 +2,7 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
-import { useProjectStore } from '@/stores/project-store'
+import { EffectStore } from '@/lib/core/effects'
 
 /**
  * AddZoomBlockCommand - Adds zoom effects to timeline.effects[] (TIMELINE SPACE)
@@ -63,14 +63,8 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
       enabled: true
     }
 
-    // Add to timeline.effects[]
-    useProjectStore.getState().updateProjectData((proj) => ({
-      ...proj,
-      timeline: {
-        ...proj.timeline,
-        effects: [...(proj.timeline.effects || []), zoomEffect]
-      }
-    }))
+    // Add to timeline.effects[] using EffectStore
+    EffectStore.add(project, zoomEffect)
 
     return {
       success: true,
@@ -79,14 +73,11 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   doUndo(): CommandResult<{ blockId: string }> {
-    // Remove from timeline.effects
-    useProjectStore.getState().updateProjectData((proj) => ({
-      ...proj,
-      timeline: {
-        ...proj.timeline,
-        effects: (proj.timeline.effects || []).filter(e => e.id !== this.block.id)
-      }
-    }))
+    // Remove from timeline.effects using EffectStore
+    const project = this.context.getProject()
+    if (project) {
+      EffectStore.remove(project, this.block.id)
+    }
 
     return {
       success: true,

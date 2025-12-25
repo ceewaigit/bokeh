@@ -1,4 +1,4 @@
-import { calculateCropTransform, getCropTransformString, isFullFrameCrop, clampCropData } from '@/remotion/compositions/utils/crop-transform'
+import { calculateCropTransform, getCropTransformString, isFullFrameCrop, clampCropData } from '@/remotion/compositions/utils/transforms/crop-transform'
 
 describe('crop-transform', () => {
   describe('calculateCropTransform', () => {

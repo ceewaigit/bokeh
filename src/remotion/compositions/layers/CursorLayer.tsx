@@ -7,18 +7,16 @@ import {
   CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
   getCursorImagePath,
-  electronToCustomCursor
 } from '../../../lib/effects/cursor-types';
-import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects';
-import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, easeOutCubic, type CursorState } from '../../../lib/effects/utils/cursor-calculator';
-import { normalizeClickEvents, normalizeMouseEvents } from '../utils/event-normalizer';
-import { useVideoPosition } from '../../context/VideoPositionContext';
-import { useTimeContext } from '../../context/TimeContext';
+import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../../../lib/effects/utils/cursor-calculator';
+
+import { normalizeClickEvents, normalizeMouseEvents } from '../utils/events/event-normalizer';
+import { useVideoPosition } from '../../context/layout/VideoPositionContext';
+import { useTimeContext } from '../../context/timeline/TimeContext';
 import { getCursorEffect } from '@/lib/effects/effect-filters';
-import { applyCssTransformToPoint } from '../utils/transform-point';
-import { buildFrameLayout } from '@/lib/timeline/frame-layout';
-import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
-import { useRecordingMetadata } from '../../hooks/useRecordingMetadata';
+import { applyCssTransformToPoint } from '../utils/transforms/transform-point';
+
+import { useRecordingMetadata } from '../../hooks/media/useRecordingMetadata';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -96,51 +94,18 @@ export const CursorLayer = React.memo(({
   videoHeight,
   metadataUrls,
 }: CursorLayerProps) => {
-  const { fps, clips, getRecording } = useTimeContext();
+  const { fps } = useTimeContext();
   const { isRendering } = getRemotionEnvironment();
 
-  // Get ACTUAL video position from SharedVideoController (fixes coordinate mismatch!)
+  // Get ACTUAL video position and clip data from SharedVideoController (SSOT)
   const videoPositionContext = useVideoPosition();
 
   const frame = useCurrentFrame();
 
-  const sortedClips = useMemo(() => {
-    return [...clips].sort((a, b) => a.startTime - b.startTime);
-  }, [clips]);
-
-  const recordingsMap = useMemo(() => {
-    const map = new Map<string, Recording>();
-    // Collect unique recording IDs
-    const recordingIds = new Set(clips.map(c => c.recordingId));
-    recordingIds.forEach(id => {
-      const rec = getRecording(id);
-      if (rec) map.set(id, rec);
-    });
-    return map;
-  }, [clips, getRecording]);
-
-  const frameLayout = useMemo(() => buildFrameLayout(sortedClips, fps, recordingsMap), [sortedClips, fps, recordingsMap]);
-
-  const activeClipData = useMemo(() => {
-    return getActiveClipDataAtFrame({
-      frame,
-      frameLayout,
-      fps,
-      effects,
-      getRecording,
-    });
-  }, [effects, fps, frame, frameLayout, getRecording]);
-
-  const prevClipData = useMemo(() => {
-    if (frame <= 0) return null;
-    return getActiveClipDataAtFrame({
-      frame: frame - 1,
-      frameLayout,
-      fps,
-      effects,
-      getRecording,
-    });
-  }, [effects, fps, frame, frameLayout, getRecording]);
+  // USE SHARED DATA FROM CONTEXT (SSOT from SharedVideoController)
+  // This eliminates duplicate recordingsMap construction and frameLayout/clipData calculation
+  const activeClipData = videoPositionContext.activeClipData ?? null;
+  const prevClipData = videoPositionContext.prevFrameClipData ?? null;
 
   const recording: Recording | null = activeClipData?.recording ?? null;
   const isGeneratedRecording = recording?.sourceType === 'generated';

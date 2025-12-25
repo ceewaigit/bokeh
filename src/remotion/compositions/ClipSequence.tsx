@@ -13,7 +13,7 @@
 import React from 'react';
 import { Sequence } from 'remotion';
 import type { ClipSequenceProps } from '@/types';
-import { ClipProvider, useClipContext } from '../context/ClipContext';
+import { ClipProvider, useClipContext } from '../context/timeline/ClipContext';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { KeystrokeLayer } from './layers/KeystrokeLayer';
 

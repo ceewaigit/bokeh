@@ -2,13 +2,15 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Effect, Project, ZoomBlock } from '@/types/project'
 import { EffectType } from '@/types/project'
+import { EffectStore } from '@/lib/core/effects'
 
 /**
- * Find zoom effect in timeline.effects ONLY (simplified - no dual-search)
+ * Find zoom effect in the project using EffectStore
  */
 function findZoomEffect(project: Project | null, effectId: string): Effect | null {
   if (!project) return null
-  return project.timeline.effects?.find(e => e.id === effectId && e.type === EffectType.Zoom) ?? null
+  const effect = EffectStore.get(project, effectId)
+  return effect?.type === EffectType.Zoom ? effect : null
 }
 
 export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {

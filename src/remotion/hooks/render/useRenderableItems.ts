@@ -86,12 +86,22 @@ export function useRenderableItems({
     if (!isRendering && activeLayoutItem) {
       const itemsByGroupId = new Map<string, FrameLayoutItem>();
       const activeIsGenerated = isGeneratedItem(activeLayoutItem);
-      const shouldIncludePrevVideo = keepVideoWarmOnScrub || activeIsGenerated;
-      const shouldIncludeNextVideo = keepVideoWarmOnScrub || activeIsGenerated;
+      // Enable A/B buffering for smooth transitions (prev/next clips)
+      // We respect shouldHoldPrevFrame/isNearBoundaryEnd to keep neighbors alive during transitions
+      const shouldIncludePrevVideo = keepVideoWarmOnScrub || activeIsGenerated || (shouldHoldPrevFrame && !!prevLayoutItem);
+      const shouldIncludeNextVideo = keepVideoWarmOnScrub || activeIsGenerated || (isNearBoundaryEnd && !!nextLayoutItem);
 
       // Include prev video clip if needed (for warm transition from generated)
       if (shouldIncludePrevVideo) {
-        const prevVideo = findPrevVideo(activeLayoutIndex);
+        // First try finding the semantic "prev video" (skipping generated items)
+        let prevVideo = findPrevVideo(activeLayoutIndex);
+
+        // Fallback: If we assume standard A/B cut, just grab the previous layout item
+        // This ensures that even if there are weird generated clips involved, we hold onto the neighbor
+        if (!prevVideo && prevLayoutItem) {
+          prevVideo = prevLayoutItem;
+        }
+
         if (prevVideo && !itemsByGroupId.has(prevVideo.groupId)) {
           itemsByGroupId.set(prevVideo.groupId, prevVideo);
         }

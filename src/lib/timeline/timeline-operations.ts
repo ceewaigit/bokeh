@@ -3,6 +3,7 @@ import { TrackType, EffectType } from '@/types/project'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { getCropEffectForClip } from '@/lib/effects/effect-filters'
+import { EffectStore } from '@/lib/core/effects'
 
 // Calculate total timeline duration
 export function calculateTimelineDuration(project: Project): number {
@@ -23,11 +24,14 @@ export function calculateTimelineDuration(project: Project): number {
  * This ensures the effect↔clip binding survives timeline operations.
  */
 export function syncCropEffectTimes(project: Project): void {
-  if (!project.timeline.effects) return
+  // Use EffectStore to get all effects (the SSOT)
+  const allEffects = EffectStore.getAll(project)
+  if (allEffects.length === 0) return
 
   const allClips = project.timeline.tracks.flatMap(t => t.clips)
 
-  for (const effect of project.timeline.effects) {
+  // Update crop effects in timeline.effects array
+  for (const effect of allEffects) {
     // Only sync crop effects that have a clipId binding
     if (effect.type !== EffectType.Crop || !effect.clipId) continue
 
@@ -47,10 +51,6 @@ export function findClipById(project: Project, clipId: string): { clip: Clip; tr
   }
   return null
 }
-
-// ARCHITECTURE NOTE: Effects are stored in source space on Recording objects
-// When clips move/split on the timeline, effects do NOT need to be shifted or split
-// because they remain anchored to the source recording timestamps
 
 /**
  * Sort clips by their current startTime.
@@ -750,8 +750,8 @@ export function addAssetRecording(
   }
 
   // 1. Sync Crop Effects
-  // Replaced dynamic require with static import
-  const timelineLikelyEffects = project.timeline.effects || []
+  // Use EffectStore as SSOT for getting effects
+  const allEffects = EffectStore.getAll(project)
 
   // We need to find the clip that was *before* the new clip in the timeline
   // This is `lastVideoClip` if `startTime` was not provided, or the clip
@@ -762,7 +762,7 @@ export function addAssetRecording(
 
   if (oldClip && newClip) {
     // If we have an old clip to copy from
-    const existingCrop = getCropEffectForClip(timelineLikelyEffects, oldClip)
+    const existingCrop = getCropEffectForClip(allEffects, oldClip)
 
     if (existingCrop && existingCrop.data) {
       const newCropEffect = EffectsFactory.createCropEffect({
@@ -779,10 +779,11 @@ export function addAssetRecording(
   // 5. Prevent Effect Bleed (Mutually Exclusive Logic)
   // Ensure that timeline-level effects (Zoom, Screen) do not implicitly cover the new clip.
   // We truncate any existing effects that would overlap the new clip's start time.
-  if (project.timeline.effects) {
+  const timelineEffects = EffectStore.getAll(project)
+  if (timelineEffects.length > 0) {
     const bleedTypes = [EffectType.Zoom, EffectType.Screen] // Add other types if needed
 
-    project.timeline.effects.forEach(effect => {
+    timelineEffects.forEach(effect => {
       if (bleedTypes.includes(effect.type) && effect.enabled) {
         // Check if effect overlaps the start of the new clip
         if (effect.startTime < newClip.startTime && effect.endTime > newClip.startTime) {

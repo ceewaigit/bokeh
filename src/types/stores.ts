@@ -5,14 +5,12 @@
 import type {
   Project,
   Clip,
-  Track,
-  Recording,
   Effect,
   ZoomEffectData,
   CursorEffectData,
   BackgroundEffectData
 } from './project'
-import type { SelectedEffectLayer, EffectLayerType } from './effects'
+import type { SelectedEffectLayer } from './effects'
 import { EffectType } from './effects'
 
 // Clipboard effect type with proper union typing for data
@@ -26,8 +24,6 @@ export interface ClipboardEffect {
 export interface ProjectStore {
   currentProject: Project | null
   currentTime: number
-  // selectedClipId removed - use useSelectedClipId() selector instead
-  // It's derived from selectedClips[selectedClips.length - 1]
   selectedClips: string[]
   selectedEffectLayer: SelectedEffectLayer
   clipboard: {

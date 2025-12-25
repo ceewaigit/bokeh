@@ -13,6 +13,7 @@ import type { Effect, Project, KeystrokeEffectData, RecordingMetadata } from '@/
 import { EffectType } from '@/types/project'
 import { sourceToTimeline, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
+import { EffectStore, EffectQueries } from '@/lib/core/effects'
 
 // Configuration
 const MAX_GAP_MS = 2000 // Max gap between keys to be in same cluster
@@ -130,12 +131,11 @@ export function syncKeystrokeEffects(
   project: Project,
   metadataByRecordingId?: Map<string, RecordingMetadata>
 ): void {
-  if (!project.timeline.effects) {
-    project.timeline.effects = []
-  }
+  // Ensure effects array exists using EffectStore
+  EffectStore.ensureArray(project)
 
   const allClips = project.timeline.tracks.flatMap(t => t.clips)
-  const existingKeystrokes = project.timeline.effects.filter(e => e.type === EffectType.Keystroke)
+  const existingKeystrokes = EffectQueries.byType(project, EffectType.Keystroke)
 
   // Check if metadata is available
   const hasAnyLoadedMetadata = Boolean(metadataByRecordingId && metadataByRecordingId.size > 0) ||
@@ -177,8 +177,9 @@ export function syncKeystrokeEffects(
   const preservedUserKeystrokes = existingKeystrokes.filter(e => !isManagedKeystrokeEffect(e))
 
   // Remove managed keystroke effects (including old-style global one).
+  // Safe to use ! because ensureArray was called at the start
   project.timeline.effects = [
-    ...project.timeline.effects.filter(e => e.type !== EffectType.Keystroke),
+    ...project.timeline.effects!.filter(e => e.type !== EffectType.Keystroke),
     ...preservedUserKeystrokes
   ]
 

@@ -99,27 +99,9 @@ export function resolveClipDataForLayoutItem(args: {
 
   const timelineEffects = getTimelineEffectsForClip({ effects, frameLayout, clip })
 
-  // Recording-scoped effects are stored in source space on Recording.effects.
-  // They should be resolved by sourceTimeMs, not timeline overlap.
-  const sourceEffects = (recording.effects || []).filter(effect => {
-    return effect.enabled && sourceTimeMs >= effect.startTime && sourceTimeMs <= effect.endTime
-  })
-
-  // OPTIMIZATION: Use Map for O(N) deduplication instead of O(N^2) filter+findIndex
-  const uniqueEffects = new Map<string, Effect>();
-
-  // Process timeline effects first
-  for (const effect of timelineEffects) {
-    if (effect.id) uniqueEffects.set(effect.id, effect);
-  }
-
-  // Process source effects (overwriting if same ID, though usually they are distinct sets)
-  for (const effect of sourceEffects) {
-    if (effect.id) uniqueEffects.set(effect.id, effect);
-  }
-
-  const mergedEffects = Array.from(uniqueEffects.values())
-    .sort((a, b) => a.startTime - b.startTime);
+  // All effects now come from timeline.effects (the SSOT)
+  // No more recording.effects - everything is in timeline space
+  const mergedEffects = timelineEffects.slice().sort((a, b) => a.startTime - b.startTime);
 
   // OPTIMIZATION: Return stable array reference if contents match previous call (Last-Value Caching)
   // This is critical for keeping usePrecomputedCameraPath from re-running heavy physics

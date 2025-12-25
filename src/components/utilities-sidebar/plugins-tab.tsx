@@ -11,6 +11,7 @@ import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { getPluginData } from '@/lib/effects/effect-filters'
 import { getPluginDefaults } from '@/lib/effects/config/plugin-sdk'
+import { EffectStore } from '@/lib/core/effects'
 import { useProjectStore, useSelectedClipId } from '@/stores/project-store'
 import { findClipById } from '@/lib/timeline/timeline-operations'
 import type { ParamDef, NumberParam, EnumParam } from '@/lib/effects/config/plugin-sdk'
@@ -77,16 +78,9 @@ export function PluginsTab() {
     // Find selected plugin effect
     const selectedPluginEffect = React.useMemo(() => {
         if (selectedEffectLayer?.type === EffectLayerType.Plugin && selectedEffectLayer.id && currentProject) {
-            // Search timeline effects
-            let effect = currentProject.timeline.effects?.find(e => e.id === selectedEffectLayer.id)
-            if (!effect) {
-                // Search recording effects
-                for (const rec of currentProject.recordings) {
-                    effect = rec.effects?.find(e => e.id === selectedEffectLayer.id)
-                    if (effect) break
-                }
-            }
-            return effect
+            // Use EffectStore to find the effect (searches both timeline and legacy recording.effects)
+            const located = EffectStore.find(currentProject, selectedEffectLayer.id)
+            return located?.effect ?? null
         }
         return null
     }, [selectedEffectLayer, currentProject])

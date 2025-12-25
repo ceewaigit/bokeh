@@ -798,25 +798,54 @@ export function setupExportHandler(): void {
       // This fixes a race condition where workers could receive stale HighRes URLs
       // that pointed to the original source instead of the "Smart Proxy", preventing
       // the blink fix from working.
+      //
+      // ARCHITECTURE: Use structured props format (resources, renderSettings, playback, cropSettings)
+      // This matches the TimelineComposition interface and eliminates the need for defensive fallbacks.
       const inputProps = {
+        // Core timeline data
         clips: allClips,
         recordings: downsampledRecordings,
         effects: allEffects,
+
+        // Video dimensions
         videoWidth: settings.resolution?.width || 1920,
         videoHeight: settings.resolution?.height || 1080,
         sourceVideoWidth: nativeSourceWidth,
         sourceVideoHeight: nativeSourceHeight,
-        // Prefer OffthreadVideo for formats that are slow/unreliable in headless Chromium.
-        // Can be overridden via settings.preferOffthreadVideo.
-        preferOffthreadVideo,
         fps,
-        metadata: Object.fromEntries(metadata),
-        videoUrls,  // Low-res proxy URLs for non-zoomed frames
-        videoUrlsHighRes,  // High-res original URLs (or Smart Proxy) for zoomed frames
-        videoFilePaths,
-        metadataUrls,  // For lazy metadata loading during export
-        ...settings,
-        projectFolder
+
+        // Camera settings (if any)
+        cameraSettings: settings.cameraSettings,
+
+        // STRUCTURED: Video resources group
+        resources: {
+          videoUrls,           // Low-res proxy URLs for non-zoomed frames
+          videoUrlsHighRes,    // High-res original URLs (or Smart Proxy) for zoomed frames
+          videoFilePaths,      // Direct file paths for OffthreadVideo
+          metadataUrls,        // For lazy metadata loading during export
+        },
+
+        // STRUCTURED: Playback settings group (export doesn't play, but needs defaults)
+        playback: {
+          isPlaying: false,
+          isScrubbing: false,
+          isHighQualityPlaybackEnabled: true, // Always high quality for export
+          previewMuted: true,
+          previewVolume: 1,
+        },
+
+        // STRUCTURED: Render settings group
+        renderSettings: {
+          isGlowMode: false,
+          preferOffthreadVideo,
+          enhanceAudio: settings.enhanceAudio ?? false,
+          isEditingCrop: false,
+        },
+
+        // STRUCTURED: Crop settings group (export never edits crops)
+        cropSettings: {
+          cropData: null,
+        },
       }
 
       // Build common job config

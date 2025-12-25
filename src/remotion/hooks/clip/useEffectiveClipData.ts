@@ -11,7 +11,7 @@ import { useMemo } from 'react';
 import type { Effect, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import type { ActiveClipDataAtFrame } from '@/types';
-import { getActiveClipDataAtFrame, resolveClipDataForLayoutItem } from '@/remotion/utils/get-active-clip-data-at-frame';
+import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
 import { applyInheritance, type PersistedVideoState } from '@/lib/effects/effect-inheritance';
 
 // Re-export for consumers

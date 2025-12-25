@@ -7,7 +7,7 @@
  * SSOT: All cleanup logic lives here, renderers just use hooks.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // ============================================================================
 // UTILITY FUNCTIONS

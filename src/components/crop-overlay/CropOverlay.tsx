@@ -4,7 +4,7 @@ import React, { useCallback, useRef, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Check, RotateCcw } from 'lucide-react'
 import type { CropEffectData } from '@/types/project'
-import { clampCropData } from '@/remotion/compositions/utils/crop-transform'
+import { clampCropData } from '@/remotion/compositions/utils/transforms/crop-transform'
 
 interface CropOverlayProps {
   /** Current crop data (0-1 normalized) */

@@ -11,6 +11,7 @@ import type { Effect, Recording, RecordingMetadata, Clip, Project, ZoomEffectDat
 import { EffectType, ScreenEffectPreset, ZoomFollowStrategy } from '@/types/project'
 import { ZoomDetector } from './utils/zoom-detector'
 import { EffectsFactory } from './effects-factory'
+import { EffectStore } from '@/lib/core/effects'
 import { DEFAULT_MOCKUP_DATA } from '@/lib/constants/device-mockups'
 
 /**
@@ -175,8 +176,12 @@ export class EffectGenerationService {
         // Import idle detector dynamically to avoid circular deps
         const { IdleActivityDetector } = require('@/lib/timeline/activity-detection/idle-detector')
 
-        // Clear existing auto-generated effects
-        project.timeline.effects = (project.timeline.effects || []).filter(e => {
+        // Clear existing auto-generated effects using EffectStore
+        EffectStore.ensureArray(project)
+        const allEffects = EffectStore.getAll(project)
+
+        // Filter to keep only certain effects
+        project.timeline.effects = allEffects.filter(e => {
             // Keep background and cursor effects
             if (e.type === EffectType.Background || e.type === EffectType.Cursor) return true
             // Remove screen effects that were auto-generated (have 'screen-auto-' prefix)
@@ -192,10 +197,10 @@ export class EffectGenerationService {
         })
 
         // Reset device mockup framing back to defaults (preserve other background settings).
-        const backgroundEffect = project.timeline.effects.find(e => e.type === EffectType.Background)
+        const backgroundEffect = project.timeline.effects!.find(e => e.type === EffectType.Background)
         if (backgroundEffect?.data) {
             backgroundEffect.data = {
-                ...(backgroundEffect.data as Record<string, unknown>),
+                ...(backgroundEffect.data as unknown as Record<string, unknown>),
                 mockup: { ...DEFAULT_MOCKUP_DATA }
             } as any
         }

@@ -24,14 +24,12 @@ import { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 import { globalBlobManager } from '@/lib/security/blob-url-manager';
 import { useTheme } from '@/contexts/theme-context';
-import { msToFrame } from '@/remotion/compositions/utils/frame-time';
+import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import type { CropEffectData, Recording } from '@/types/project';
 
 import { AmbientGlowPlayer } from './preview/ambient-glow-player';
 
 type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
-
-
 
 // Scrub throttle configuration (reduces video decode pressure)
 const SCRUB_THROTTLE_MS = 125; // Max 8 seeks per second during scrubbing

@@ -11,15 +11,14 @@ import { useMemo } from 'react';
 import {
     calculateZoomTransform,
     getZoomTransformString,
-} from '../compositions/utils/zoom-transform';
+} from '../../compositions/utils/transforms/zoom-transform';
 import {
     calculateCropTransform,
     getCropTransformString,
-} from '../compositions/utils/crop-transform';
-import { calculateScreenTransform } from '../compositions/utils/screen-transform';
-import { getCropData } from '@/lib/effects/effect-filters';
-import { EffectType } from '@/types/project';
-import type { CropEffectData, Effect } from '@/types/project';
+} from '../../compositions/utils/transforms/crop-transform';
+import { calculateScreenTransform } from '../../compositions/utils/transforms/screen-transform';
+import { getCropData, getActiveCropEffect } from '@/lib/effects/effect-filters';
+import type { Effect } from '@/types/project';
 import type { ParsedZoomBlock } from '@/lib/effects/utils/camera-calculator';
 import type { MockupPositionResult } from '@/lib/mockups/mockup-transform';
 import type { ZoomTransform, CropTransform } from '@/types';
@@ -138,12 +137,8 @@ export function useTransformCalculation({
         // CROP TRANSFORM
         // ==========================================================================
 
-        // Use centralized effect lookup for consistency across codebase
-        const cropEffect = clipEffects.find(e =>
-            e.type === EffectType.Crop &&
-            e.startTime <= sourceTimeMs &&
-            e.endTime > sourceTimeMs
-        );
+        // Use centralized effect lookup with consistent boundary semantics
+        const cropEffect = getActiveCropEffect(clipEffects, sourceTimeMs);
 
         // Disable crop during editing
         const resolvedCropData = isEditingCrop || !cropEffect

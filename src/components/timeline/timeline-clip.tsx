@@ -15,7 +15,7 @@ import { SpeedUpSuggestionsBar } from './speed-up-suggestions-bar'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { ActivityDetectionService } from '@/lib/timeline/activity-detection/detection-service'
-import { useRecordingMetadata } from '@/remotion/hooks/useRecordingMetadata'
+import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadata'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 
 import { useProjectStore } from '@/stores/project-store'

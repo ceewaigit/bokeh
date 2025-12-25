@@ -12,6 +12,7 @@ import type { Project } from '@/types/project';
 import { TrackType } from '@/types/project';
 import type { TimelineCompositionProps } from '@/types';
 import { useWindowAppearanceStore } from '@/stores/window-appearance-store';
+import { EffectStore } from '@/lib/core/effects';
 
 /**
  * Build timeline composition props from project
@@ -48,16 +49,8 @@ export function usePlayerConfiguration(
     // Get all recordings
     const recordings = project.recordings;
 
-    // Collect all effects - timeline effects are now the single source of truth
-    const timelineEffects = project.timeline.effects || [];
-
-    // Collect non-zoom effects from recordings (cursor, background stay in source space)
-    const recordingNonZoomEffects = recordings.flatMap((r) =>
-      (r.effects || []).filter(e => e.type !== 'zoom')
-    );
-
-    // Combine all effects (zoom is already in timeline-space from timeline.effects)
-    const effects = [...timelineEffects, ...recordingNonZoomEffects];
+    // Collect all effects from timeline.effects (the single source of truth)
+    const effects = EffectStore.getAll(project);
 
     return {
       clips: videoClips,  // Only video clips for the main video rendering

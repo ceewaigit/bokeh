@@ -4,7 +4,7 @@ import {
   calculateCameraMotionBlurFromDelta,
   calculateCameraMotionBlurFromCenters,
   calculateZoomTransform,
-} from './zoom-transform';
+} from '../transforms/zoom-transform';
 
 type ZoomTransformLike = {
   scale: number;

@@ -3,6 +3,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
 import { EffectType } from '@/types'
+import { EffectStore } from '@/lib/core/effects'
 
 export interface CopyResult {
   type: 'clip' | 'effect'
@@ -63,11 +64,10 @@ export class CopyCommand extends Command<CopyResult> {
         return { success: false, error: 'Unknown effect type' }
       }
 
-      const effect = project?.timeline.effects?.find(
-        e => e.id === selectedEffectLayer.id && e.type === effectType
-      ) ?? null
+      // Use EffectStore to find the effect
+      const effect = project ? EffectStore.get(project, selectedEffectLayer.id) : null
 
-      if (effect) {
+      if (effect && effect.type === effectType) {
         console.log(`[CopyCommand] Copying ${effectType} effect:`, selectedEffectLayer.id)
         store.copyEffect(effectType as any, effect.data as any, '')
 

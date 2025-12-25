@@ -1,6 +1,6 @@
 
 import { computeCameraState, ParsedZoomBlock, type CameraPhysicsState } from '@/lib/effects/utils/camera-calculator'
-import { calculateVideoPosition } from '@/remotion/compositions/utils/video-position'
+import { calculateVideoPosition } from '@/remotion/compositions/utils/layout/video-position'
 import { EffectType } from '@/types/project'
 import type { BackgroundEffect, Effect, Recording, RecordingMetadata } from '@/types/project'
 import type { CameraPathFrame } from '@/types'

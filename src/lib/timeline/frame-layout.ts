@@ -1,6 +1,6 @@
 
 import type { Clip, Recording } from '@/types/project';
-import { msToFrame } from '@/remotion/compositions/utils/frame-time';
+import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 
 export interface PersistedVideoState {
   recording: Recording;

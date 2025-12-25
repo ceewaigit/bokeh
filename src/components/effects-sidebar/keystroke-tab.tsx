@@ -10,6 +10,7 @@ import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 import { useProjectStore } from '@/stores/project-store'
 import { getKeystrokeEffects } from '@/lib/effects/effect-filters'
+import { EffectStore } from '@/lib/core/effects'
 import { ChevronDown } from 'lucide-react'
 
 interface KeystrokeTabProps {
@@ -41,8 +42,9 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   const keystrokeEffects = React.useMemo(() => {
-    return getKeystrokeEffects(project?.timeline.effects || [])
-  }, [project?.timeline.effects])
+    if (!project) return []
+    return getKeystrokeEffects(EffectStore.getAll(project))
+  }, [project])
 
   const hasEnabledKeystrokes = React.useMemo(() => {
     return keystrokeEffects.some(e => e.enabled)

@@ -5,9 +5,9 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Sequence, Img, staticFile } from 'remotion';
-import { useClipRenderState } from '@/remotion/hooks/useClipRenderState';
-import { useVideoUrl } from '@/remotion/hooks/useVideoUrl';
-import { usePlaybackSettings } from '@/remotion/context/PlaybackSettingsContext';
+import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
+import { useVideoUrl } from '@/remotion/hooks/media/useVideoUrl';
+import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 

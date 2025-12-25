@@ -19,6 +19,7 @@ import type {
 import type { EffectType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
 import type { CameraPathFrame } from '@/types/remotion'
+import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import type { EffectGenerationConfig } from '@/lib/effects/effect-generation-service'
 
 // Re-export ClipboardEffect from stores.ts for backward compatibility
@@ -96,8 +97,15 @@ export interface PlaybackSliceState {
   zoomManuallyAdjusted: boolean
 }
 
-export interface EffectsSliceState {
+export interface TimelineSliceState {
+  // Timeline state is currently derived or hosted in Core/Project,
+  // but this slice exists for future expansion of view-specific state.
+  _placeholder?: never
+}
+
+export interface CacheSliceState {
   cameraPathCache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
+  frameLayoutCache: FrameLayoutItem[] | null
 }
 
 // =============================================================================
@@ -194,8 +202,14 @@ export interface EffectsSliceActions {
   updateEffect: (effectId: string, updates: Partial<Effect>) => void
   getEffectsAtTimeRange: (clipId: string) => Effect[]
   regenerateAllEffects: (config?: EffectGenerationConfig) => Promise<void>
+}
+
+export interface TimelineSliceActions extends ClipSliceActions, EffectsSliceActions { }
+
+export interface CacheSliceActions {
   setCameraPathCache: (cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null) => void
-  invalidateCameraPathCache: () => void
+  setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
+  invalidateAllCaches: () => void
 }
 
 // =============================================================================
@@ -206,14 +220,15 @@ export type ProjectStoreState =
   CoreSliceState &
   SelectionSliceState &
   PlaybackSliceState &
-  EffectsSliceState
+  TimelineSliceState &
+  CacheSliceState
 
 export type ProjectStoreActions =
   CoreSliceActions &
-  ClipSliceActions &
+  TimelineSliceActions &
   SelectionSliceActions &
   PlaybackSliceActions &
-  EffectsSliceActions
+  CacheSliceActions
 
 export type ProjectStore = ProjectStoreState & ProjectStoreActions
 
@@ -226,14 +241,14 @@ type ImmerMiddleware = [['zustand/immer', never]]
 
 // StateCreator types for each slice
 export type CoreSlice = CoreSliceState & CoreSliceActions
-export type ClipSlice = ClipSliceActions  // No state, only actions
+export type TimelineSlice = TimelineSliceState & TimelineSliceActions
 export type SelectionSlice = SelectionSliceState & SelectionSliceActions
 export type PlaybackSlice = PlaybackSliceState & PlaybackSliceActions
-export type EffectsSlice = EffectsSliceState & EffectsSliceActions
+export type CacheSlice = CacheSliceState & CacheSliceActions
 
 // StateCreator function types
 export type CreateCoreSlice = StateCreator<ProjectStore, ImmerMiddleware, [], CoreSlice>
-export type CreateClipSlice = StateCreator<ProjectStore, ImmerMiddleware, [], ClipSlice>
+export type CreateTimelineSlice = StateCreator<ProjectStore, ImmerMiddleware, [], TimelineSlice>
 export type CreateSelectionSlice = StateCreator<ProjectStore, ImmerMiddleware, [], SelectionSlice>
 export type CreatePlaybackSlice = StateCreator<ProjectStore, ImmerMiddleware, [], PlaybackSlice>
-export type CreateEffectsSlice = StateCreator<ProjectStore, ImmerMiddleware, [], EffectsSlice>
+export type CreateCacheSlice = StateCreator<ProjectStore, ImmerMiddleware, [], CacheSlice>

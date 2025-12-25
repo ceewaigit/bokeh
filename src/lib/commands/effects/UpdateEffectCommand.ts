@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { Effect } from '@/types/project'
+import { EffectStore } from '@/lib/core/effects'
 
 export class UpdateEffectCommand extends Command {
     private originalData: Partial<Effect> | null = null
@@ -21,22 +22,13 @@ export class UpdateEffectCommand extends Command {
         const project = this.context.getProject()
         if (!project) return { success: false, error: 'No active project' }
 
-        // Find the effect to store its original state
-        let effect = project.timeline.effects?.find(e => e.id === this.effectId)
-
-        if (!effect) {
-            for (const recording of project.recordings) {
-                const found = recording.effects?.find(e => e.id === this.effectId)
-                if (found) {
-                    effect = found
-                    break
-                }
-            }
-        }
-
-        if (!effect) {
+        // Use EffectStore to find the effect (searches both timeline and legacy recording.effects)
+        const located = EffectStore.find(project, this.effectId)
+        if (!located) {
             return { success: false, error: 'Effect not found' }
         }
+
+        const effect = located.effect
 
         // Capture only the properties that are being updated
         this.originalData = {}
@@ -87,3 +79,4 @@ export class UpdateEffectCommand extends Command {
         return { success: false, error: 'No original data to restore' }
     }
 }
+

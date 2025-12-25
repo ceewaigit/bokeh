@@ -10,9 +10,9 @@
 
 import React, { useCallback, useRef, useState, useEffect } from 'react'
 import { AbsoluteFill, getRemotionEnvironment } from 'remotion'
-import { useVideoPosition } from '../../context/VideoPositionContext'
+import { useVideoPosition } from '../../context/layout/VideoPositionContext'
 import type { CropEffectData } from '@/types/project'
-import { clampCropData, calculateCropTransform, getCropTransformString } from '../utils/crop-transform'
+import { clampCropData, calculateCropTransform, getCropTransformString } from '../utils/transforms/crop-transform'
 
 interface CropEditingLayerProps {
     /** Whether crop editing is active */

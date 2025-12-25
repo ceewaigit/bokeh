@@ -7,16 +7,18 @@
  * This file handles:
  * - Effect creation (background, cursor, crop, plugin)
  * - Global effect initialization
- * - Project effect management (add/remove/update)
+ * - Project effect management (add/remove/update) - now delegates to EffectStore
  *
  * For filtering: import from './effect-filters'
  * For keystroke sync: import from './keystroke-sync-service'
+ * For CRUD operations: import { EffectStore } from '@/lib/core/effects'
  */
 import type { Effect, Recording, Clip, Project, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { getPluginDefaults, getDefaultZIndexForCategory } from '@/lib/effects/config/plugin-sdk'
 import { DEFAULT_BACKGROUND_DATA, DEFAULT_CURSOR_DATA, getDefaultWallpaper } from '@/lib/constants/default-effects'
+import { EffectStore, EffectQueries } from '@/lib/core/effects'
 
 // Re-export from new modules for backwards compatibility
 // Import for internal use
@@ -122,31 +124,28 @@ export class EffectsFactory {
   // === INITIALIZATION ===
 
   static createInitialEffectsForRecording(
-    recording: Recording,
+    _recording: Recording,
     _existingGlobalEffects: Effect[] = []
   ): void {
-    if (!recording.effects) {
-      recording.effects = []
-    }
-    // NOTE: Zoom effects are created on-demand via sidebar, not auto-created here
+    // NOTE: All effects now live in timeline.effects (the SSOT)
+    // This method is kept for API compatibility but does nothing
   }
 
   static ensureGlobalEffects(project: Project): void {
-    if (!project.timeline.effects) {
-      project.timeline.effects = []
-    }
+    EffectStore.ensureArray(project)
 
-    const hasBackground = project.timeline.effects.some(e => e.type === EffectType.Background)
+    const effects = EffectStore.getAll(project)
+    const hasBackground = effects.some(e => e.type === EffectType.Background)
     if (!hasBackground) {
-      project.timeline.effects.push(this.createDefaultBackgroundEffect())
+      EffectStore.add(project, this.createDefaultBackgroundEffect())
     }
 
-    const hasCursor = project.timeline.effects.some(e => e.type === EffectType.Cursor)
+    const hasCursor = effects.some(e => e.type === EffectType.Cursor)
     if (!hasCursor) {
-      project.timeline.effects.push(this.createDefaultCursorEffect())
+      EffectStore.add(project, this.createDefaultCursorEffect())
     }
 
-    const hasKeystrokes = project.timeline.effects.some(e => e.type === EffectType.Keystroke)
+    const hasKeystrokes = effects.some(e => e.type === EffectType.Keystroke)
     if (!hasKeystrokes) {
       syncKeystrokeEffects(project)
     }
@@ -161,100 +160,38 @@ export class EffectsFactory {
   }
 
   // === PROJECT EFFECT MANAGEMENT ===
+  // These methods now delegate to EffectStore for the SSOT
 
   static ensureEffectsArray(project: Project): void {
-    if (!project.timeline.effects) {
-      project.timeline.effects = []
-    }
+    EffectStore.ensureArray(project)
   }
 
   static addEffectToProject(project: Project, effect: Effect): void {
-    this.ensureEffectsArray(project)
-    project.timeline.effects!.push(effect)
-    project.modifiedAt = new Date().toISOString()
+    EffectStore.add(project, effect)
   }
 
   static removeEffectFromProject(project: Project, effectId: string): boolean {
-    const located = this.findEffectInProject(project, effectId)
-    if (!located) return false
-
-    if (located.scope === 'timeline') {
-      const effects = project.timeline.effects || []
-      const index = effects.findIndex(e => e.id === effectId)
-      if (index !== -1) {
-        effects.splice(index, 1)
-        project.modifiedAt = new Date().toISOString()
-        return true
-      }
-    } else if (located.scope === 'recording' && located.recording) {
-      const effects = located.recording.effects || []
-      const index = effects.findIndex(e => e.id === effectId)
-      if (index !== -1) {
-        effects.splice(index, 1)
-        project.modifiedAt = new Date().toISOString()
-        return true
-      }
-    }
-
-    return false
+    return EffectStore.remove(project, effectId)
   }
 
   static updateEffectInProject(project: Project, effectId: string, updates: Partial<Effect>): boolean {
-    const located = this.findEffectInProject(project, effectId)
-    if (!located) return false
-
-    // Deep merge data object to preserve existing properties
-    if (updates.data && located.effect.data) {
-      Object.assign(located.effect, updates, {
-        data: { ...located.effect.data, ...updates.data }
-      })
-    } else {
-      Object.assign(located.effect, updates)
-    }
-
-    project.modifiedAt = new Date().toISOString()
-    return true
+    return EffectStore.update(project, effectId, updates)
   }
 
   static getEffectsForClip(project: Project, clipId: string): Effect[] {
-    let clip: Clip | null = null
-    for (const track of project.timeline.tracks) {
-      clip = track.clips.find(c => c.id === clipId) || null
-      if (clip) break
-    }
-    if (!clip) return []
-
-    const recording = project.recordings.find(r => r.id === clip.recordingId)
-    if (!recording || !recording.effects) return []
-
-    return recording.effects.filter(effect =>
-      effect.startTime < clip.sourceOut && effect.endTime > clip.sourceIn
-    )
+    // All effects now live in timeline.effects (the SSOT)
+    return EffectQueries.byClip(project, clipId)
   }
 
-  private static findEffectInProject(project: Project, effectId: string): {
+  /**
+   * Find an effect by ID in the project.
+   * @deprecated Use EffectStore.find() directly for new code.
+   */
+  static findEffectInProject(project: Project, effectId: string): {
     effect: Effect
-    scope: 'timeline' | 'recording'
-    recording?: Recording
+    scope: 'timeline'
   } | null {
-    // Check timeline effects first (new architecture)
-    if (project.timeline.effects) {
-      const effect = project.timeline.effects.find(e => e.id === effectId)
-      if (effect) {
-        return { effect, scope: 'timeline' }
-      }
-    }
-
-    // Then check recording-level effects
-    for (const recording of project.recordings) {
-      if (!recording.effects) continue
-      const effect = recording.effects.find(e => e.id === effectId)
-      if (effect) {
-        return { effect, scope: 'recording', recording }
-      }
-    }
-
-    return null
+    return EffectStore.find(project, effectId)
   }
-
 }
+

@@ -9,6 +9,7 @@ import { CursorStyle } from '@/types/project'
 import { interpolateMousePosition } from './mouse-interpolation'
 import { CursorType, electronToCustomCursor } from '../cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
+import { clamp01, lerp, easeOutCubic, clamp } from '@/lib/core/math'
 
 // PERF: Memoization cache for smoothing results to avoid re-simulation
 type OneEuroSmoothingState = { x: number; y: number; dx: number; dy: number }
@@ -129,18 +130,18 @@ export function resolveClickEffectConfig(cursorData?: CursorEffectData): Resolve
 
   const style = (cursorData?.clickEffectStyle ?? defaults.clickEffectStyle ?? 'ripple')
   const animation = (cursorData?.clickEffectAnimation ?? defaults.clickEffectAnimation ?? 'expand')
-  const durationMs = clampNumber(cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 300, 80, 2000)
-  const maxRadius = clampNumber(cursorData?.clickEffectMaxRadius ?? defaults.clickEffectMaxRadius ?? 50, 4, 200)
-  const lineWidth = clampNumber(cursorData?.clickEffectLineWidth ?? defaults.clickEffectLineWidth ?? 2, 1, 12)
+  const durationMs = clamp(cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 300, 80, 2000)
+  const maxRadius = clamp(cursorData?.clickEffectMaxRadius ?? defaults.clickEffectMaxRadius ?? 50, 4, 200)
+  const lineWidth = clamp(cursorData?.clickEffectLineWidth ?? defaults.clickEffectLineWidth ?? 2, 1, 12)
   const color = cursorData?.clickEffectColor ?? defaults.clickEffectColor ?? '#ffffff'
 
   const textWords = normalizeClickWords(cursorData?.clickTextWords ?? defaults.clickTextWords ?? ['click!'])
   const textMode = (cursorData?.clickTextMode ?? defaults.clickTextMode ?? 'random')
   const textAnimation = (cursorData?.clickTextAnimation ?? defaults.clickTextAnimation ?? 'float')
-  const textSize = clampNumber(cursorData?.clickTextSize ?? defaults.clickTextSize ?? 16, 8, 64)
+  const textSize = clamp(cursorData?.clickTextSize ?? defaults.clickTextSize ?? 16, 8, 64)
   const textColor = cursorData?.clickTextColor ?? defaults.clickTextColor ?? '#ffffff'
-  const textOffsetY = clampNumber(cursorData?.clickTextOffsetY ?? defaults.clickTextOffsetY ?? -12, -200, 200)
-  const textRise = clampNumber(cursorData?.clickTextRise ?? defaults.clickTextRise ?? 24, 0, 200)
+  const textOffsetY = clamp(cursorData?.clickTextOffsetY ?? defaults.clickTextOffsetY ?? -12, -200, 200)
+  const textRise = clamp(cursorData?.clickTextRise ?? defaults.clickTextRise ?? 24, 0, 200)
 
   return {
     style,
@@ -577,9 +578,7 @@ function computeHistoryWindowMs(cursorData: CursorEffectData): number {
   return Math.max(90, baseWindow * responsiveness)
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t
-}
+// lerp is now imported from @/lib/core/math
 
 function getOneEuroParams(cursorData: CursorEffectData): {
   minCutoffHz: number
@@ -651,19 +650,12 @@ function oneEuroStep(
   return { x: xHat, y: yHat, dx: dxHat, dy: dyHat }
 }
 
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.min(1, value))
-}
+// clamp01 is now imported from @/lib/core/math
 
-function clampNumber(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min
-  return Math.max(min, Math.min(max, value))
-}
+// clampNumber removed in favor of standard clamp function
 
-export function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3)
-}
+// easeOutCubic is now imported from @/lib/core/math and re-exported for backwards compatibility
+export { easeOutCubic }
 
 function normalizeClickWords(words: string[]): string[] {
   const sanitized = words

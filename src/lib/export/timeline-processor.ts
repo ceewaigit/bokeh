@@ -3,9 +3,10 @@
  * Splits timeline into segments for parallel processing
  */
 
-import type { Timeline, Clip, Recording, Effect } from '@/types'
+import type { Timeline, Clip, Recording, Effect, Project } from '@/types'
 import { TrackType } from '@/types'
 import { logger } from '@/lib/utils/logger'
+import { EffectStore } from '@/lib/core/effects'
 
 export interface TimelineSegment {
   id: string
@@ -57,13 +58,12 @@ export class TimelineProcessor {
     // Check for gaps
     const hasGaps = this.detectGaps(videoClips)
 
-    // Merge all effects: timeline effects + recording-scoped non-zoom effects
-    const allEffects: Effect[] = [...(timeline.effects || [])]
-    for (const recording of recordings.values()) {
-      if (recording.effects) {
-        allEffects.push(...recording.effects)
-      }
-    }
+    // Use EffectStore to get all effects from timeline.effects (the SSOT)
+    // Construct a minimal Project-like object for EffectStore API
+    const allEffects = EffectStore.getAll({
+      timeline,
+      recordings: Array.from(recordings.values())
+    } as Project)
 
     // Split timeline into segments
     const segments = this.createSegments(

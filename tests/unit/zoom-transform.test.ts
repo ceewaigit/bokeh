@@ -1,4 +1,4 @@
-import { calculateZoomTransform, getZoomTransformString } from '@/remotion/compositions/utils/zoom-transform'
+import { calculateZoomTransform, getZoomTransformString } from '@/remotion/compositions/utils/transforms/zoom-transform'
 
 describe('zoom-transform', () => {
   it('does not snap by returning an empty transform near 1x', () => {

@@ -14,14 +14,14 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
-import { useTimeContext } from '../context/TimeContext';
+import { useTimeContext } from '../context/timeline/TimeContext';
 import { useProjectStore } from '@/stores/project-store';
-import { VideoPositionProvider } from '../context/VideoPositionContext';
+import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
 import {
   createMotionBlurSvg,
   getMotionBlurConfig,
-} from './utils/zoom-transform';
-import { calculateCameraMotionBlur } from './utils/camera-motion-blur';
+} from './utils/transforms/zoom-transform';
+import { calculateCameraMotionBlur } from './utils/effects/camera-motion-blur';
 import type { SharedVideoControllerProps } from '@/types';
 import type { Clip, Recording } from '@/types/project';
 import {
@@ -31,16 +31,16 @@ import {
   type FrameLayoutItem,
 } from '@/lib/timeline/frame-layout';
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
-import { usePrecomputedCameraPath } from '@/remotion/hooks/usePrecomputedCameraPath';
-import { useRecordingMetadata } from '@/remotion/hooks/useRecordingMetadata';
-import { getMaxZoomScale } from '@/remotion/hooks/useVideoUrl';
-import { useRenderDelay } from '@/remotion/hooks/useRenderDelay';
-import { useRenderableItems } from '@/remotion/hooks/useRenderableItems';
-import { useEffectiveClipData } from '@/remotion/hooks/useEffectiveClipData';
-import { useLayoutCalculation } from '@/remotion/hooks/useLayoutCalculation';
-import { useTransformCalculation } from '@/remotion/hooks/useTransformCalculation';
+import { usePrecomputedCameraPath } from '@/remotion/hooks/camera/usePrecomputedCameraPath';
+import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadata';
+import { getMaxZoomScale } from '@/remotion/hooks/media/useVideoUrl';
+import { useRenderDelay } from '@/remotion/hooks/render/useRenderDelay';
+import { useRenderableItems } from '@/remotion/hooks/render/useRenderableItems';
+import { useEffectiveClipData } from '@/remotion/hooks/clip/useEffectiveClipData';
+import { useLayoutCalculation } from '@/remotion/hooks/layout/useLayoutCalculation';
+import { useTransformCalculation } from '../hooks/transforms/useTransformCalculation';
 import { SafeVideo } from '@/remotion/components/video-helpers';
-import { frameToMs } from './utils/frame-time';
+import { frameToMs } from './utils/time/frame-time';
 
 import { VideoClipRenderer } from './renderers/VideoClipRenderer';
 import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
@@ -52,13 +52,7 @@ import { PreviewGuides } from '@/components/preview-guides';
 // TYPES
 // ============================================================================
 
-type PreviewVideoState = {
-  recording: Recording;
-  clip: any;
-  layoutItem: FrameLayoutItem;
-  sourceTimeMs: number;
-  maxZoomScale?: number;
-};
+
 
 // ============================================================================
 // COMPONENT
@@ -86,8 +80,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const { isRendering } = getRemotionEnvironment();
   const isPreview = !isRendering;
 
-  // SSOT: isScrubbing kept for type compatibility but no longer affects behavior
-  const { isPlaying, isScrubbing: _isScrubbing, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
+  // SSOT: isScrubbing is now used to optimize memory during rapid seeking
+  const { isPlaying, isScrubbing, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
   const { isGlowMode, isEditingCrop, preferOffthreadVideo, enhanceAudio } = renderSettings;
   const { metadataUrls } = resources;
 
@@ -122,6 +116,12 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   const activeClipData = useMemo(
     () => getActiveClipDataAtFrame({ frame: currentFrame, frameLayout, fps, effects, getRecording }),
+    [currentFrame, effects, fps, frameLayout, getRecording]
+  );
+
+  // Previous frame's clip data (for cursor smoothing)
+  const prevFrameClipData = useMemo(
+    () => currentFrame > 0 ? getActiveClipDataAtFrame({ frame: currentFrame - 1, frameLayout, fps, effects, getRecording }) : null,
     [currentFrame, effects, fps, frameLayout, getRecording]
   );
 
@@ -224,20 +224,25 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   // RENDERABLE ITEMS
   // ==========================================================================
+  // OPTIMIZATION: Disable A/B buffering during scrubbing to prevent decoder thrashing
+  // We only want the smooth transition during actual playback
+  const effectiveShouldHoldPrevFrame = isScrubbing ? false : shouldHoldPrevFrame;
+  const effectiveIsNearBoundaryEnd = isScrubbing ? false : isNearBoundaryEnd;
+
   const renderableItems = useRenderableItems({
     frameLayout,
     currentFrame,
     fps,
     isRendering,
     isPlaying,
-    isScrubbing: false,  // SSOT: unified code path
+    isScrubbing,
     recordingsMap,
     activeLayoutIndex,
     activeLayoutItem,
     prevLayoutItem,
     nextLayoutItem,
-    shouldHoldPrevFrame,
-    isNearBoundaryEnd,
+    shouldHoldPrevFrame: effectiveShouldHoldPrevFrame,
+    isNearBoundaryEnd: effectiveIsNearBoundaryEnd,
   });
 
   // ==========================================================================
@@ -312,17 +317,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   const isActiveGenerated = recording?.sourceType === 'generated';
 
-  const previewVideoState: PreviewVideoState | null = isActiveGenerated
-    ? (persistedVideoState ? { ...persistedVideoState, maxZoomScale: memoizedMaxZoomScale } : null)
-    : (recording && activeLayoutItem ? {
-      recording,
-      clip: activeClipData?.clip as Clip,
-      layoutItem: activeLayoutItem,
-      sourceTimeMs: activeClipData?.sourceTimeMs ?? 0,
-      maxZoomScale: memoizedMaxZoomScale
-    } : null);
-
-
   const VideoComponent = (isRendering && preferOffthreadVideo) ? OffthreadVideo : (isRendering ? SafeVideo : Video);
 
   // ==========================================================================
@@ -394,7 +388,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     // Video clips
     return (
       <VideoClipRenderer
-        key={item.groupId}
+        key={`${item.groupId}-${isHighQualityPlaybackEnabled ? 'hq' : 'lq'}`}
         clipForVideo={item.clip}
         recording={itemRecording}
         startFrame={item.startFrame}
@@ -423,34 +417,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // RENDER CONTENT
   // ==========================================================================
   const renderContent = (targetWidth: number, targetHeight: number, targetRadius: number) => {
-    // PREVIEW MODE: Render single active clip + generated overlay if applicable
-    if (isPreview) {
-      return (
-        <>
-          {previewVideoState && previewVideoState.layoutItem && (
-            renderClipItem(
-              previewVideoState.layoutItem,
-              previewVideoState.recording,
-              targetWidth,
-              targetHeight,
-              targetRadius,
-              { isPreviewBackground: true }
-            )
-          )}
-
-          {isActiveGenerated && activeLayoutItem && recording && (
-            renderClipItem(
-              activeLayoutItem,
-              recording,
-              targetWidth,
-              targetHeight,
-              targetRadius,
-              { isActive: true }
-            )
-          )}
-        </>
-      );
-    }
+    // UNIFIED RENDERER: Use the same logic for Preview and Export
+    // This enables A/B buffering (rendering overlapping clips) for smooth transitions
 
     // EXPORT MODE: Render all visible items
     return (
@@ -462,7 +430,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
           const isGroupPrev = prevLayoutItem && item.groupId === prevLayoutItem.groupId;
           const isGroupNext = nextLayoutItem && item.groupId === nextLayoutItem.groupId;
 
-          const shouldRender = isGroupActive || (isGroupPrev && shouldHoldPrevFrame) || (isGroupNext && isNearBoundaryEnd);
+          // Special case: If active item is generated (e.g. overlay), we MUST render the previous video as background
+          const isBackgroundForGenerated = isActiveGenerated && isGroupPrev;
+
+          const shouldRender = isGroupActive || (isGroupPrev && shouldHoldPrevFrame) || (isGroupNext && isNearBoundaryEnd) || isBackgroundForGenerated;
           if (!shouldRender) return null;
 
           const itemRecording = recordingsMap.get(item.clip.recordingId);
@@ -516,13 +487,23 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     cameraMotionBlur: { enabled: hasMotionBlur, angle: motionBlur.angle, filterId: motionBlurFilterId },
     mockupEnabled,
     mockupPosition,
+    // Frame layout and clip data (SSOT for overlays like CursorLayer)
+    activeClipData,
+    effectiveClipData,
+    prevFrameClipData,
+    frameLayout,
+    activeLayoutItem,
+    prevLayoutItem,
+    nextLayoutItem,
   }), [
     effectiveOffsetX, effectiveOffsetY, effectiveDrawWidth, effectiveDrawHeight,
     zoomTransform?.scale, zoomTransform?.panX, zoomTransform?.panY, zoomTransform?.refocusBlur,
     contentTransform, padding, activeSourceWidth, activeSourceHeight,
     hasMotionBlur, motionBlur.angle, mockupEnabled,
     mockupPosition?.videoX, mockupPosition?.videoY, mockupPosition?.videoWidth, mockupPosition?.videoHeight,
+    activeClipData, effectiveClipData, prevFrameClipData, frameLayout, activeLayoutItem, prevLayoutItem, nextLayoutItem,
   ]);
+
 
   // ==========================================================================
   // RENDER

@@ -146,7 +146,22 @@ export interface VideoPositionContextValue {
   mockupEnabled?: boolean;
   /** Device mockup position and dimensions (when enabled) */
   mockupPosition?: MockupPositionResult | null;
-  /** New Crop settings are also available here if needed, or passed down */
+
+  // Frame layout and clip data (SSOT from SharedVideoController)
+  /** Active clip data for current frame */
+  activeClipData?: ActiveClipDataAtFrame | null;
+  /** Effective clip data with inheritance applied */
+  effectiveClipData?: ActiveClipDataAtFrame | null;
+  /** Clip data for previous frame (frame-1) - used for cursor smoothing */
+  prevFrameClipData?: ActiveClipDataAtFrame | null;
+  /** Pre-computed frame layout */
+  frameLayout?: FrameLayoutItem[];
+  /** Current active layout item */
+  activeLayoutItem?: FrameLayoutItem | null;
+  /** Previous layout item (for boundary logic) */
+  prevLayoutItem?: FrameLayoutItem | null;
+  /** Next layout item (for boundary logic) */
+  nextLayoutItem?: FrameLayoutItem | null;
 }
 
 export interface ClipContextValue {
@@ -290,9 +305,6 @@ export interface TimelineCompositionProps {
   playback: PlaybackSettings;
   renderSettings: RenderSettings;
   cropSettings: CropSettings;
-
-  // Deprecated/Legacy props (mapped to new objects)
-  // Kept briefly for compatibility if needed, but we should remove them
 }
 
 export interface SharedVideoControllerProps {

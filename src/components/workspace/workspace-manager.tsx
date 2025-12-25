@@ -33,6 +33,7 @@ import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
+import { EffectStore } from '@/lib/core/effects'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
 import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
@@ -88,7 +89,7 @@ async function loadProjectRecording(
       fps,
       videoWidth: project.settings.resolution.width,
       videoHeight: project.settings.resolution.height,
-      effects: project.timeline.effects || [],
+      effects: EffectStore.getAll(project),
       getRecording: (id) => project.recordings.find(r => r.id === id),
       loadedMetadata: undefined
     })
@@ -223,25 +224,11 @@ export function WorkspaceManager() {
   const selectedTrackType = selectedTrack?.type
 
   // Get all effects for the current context
-  // Merges timeline.effects (zoom, background, cursor) + recording.effects (recording-scoped non-zoom)
+  // Uses EffectStore to get all effects (timeline + legacy recording.effects)
   const contextEffects = useMemo((): Effect[] => {
     if (!currentProject) return []
-
-    const effects: Effect[] = []
-
-    // Add timeline effects (background, cursor, keystroke)
-    if (currentProject.timeline.effects) {
-      effects.push(...currentProject.timeline.effects)
-    }
-
-    // Add recording-scoped non-zoom effects from playhead recording or selected clip's recording
-    const targetRecording = playheadRecording || (selectedClip && currentProject.recordings.find(r => r.id === selectedClip.recordingId))
-    if (targetRecording?.effects) {
-      effects.push(...targetRecording.effects)
-    }
-
-    return effects
-  }, [currentProject, playheadRecording, selectedClip])
+    return EffectStore.getAll(currentProject)
+  }, [currentProject])
 
 
 
@@ -761,7 +748,7 @@ export function WorkspaceManager() {
               </div>
 
               {/* Timeline Section - Full width at bottom (30% height) */}
-              <div className="bg-transparent overflow-hidden border-t border-border/50" style={{ height: '30%', width: '100vw' }}>
+              <div className="bg-transparent overflow-hidden" style={{ height: '30%', width: '100vw' }}>
                 <TimelineCanvas
                   className="h-full w-full"
                   currentProject={currentProject}

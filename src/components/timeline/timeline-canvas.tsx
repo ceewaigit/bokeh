@@ -26,6 +26,7 @@ import { ActivityDetectionService } from '@/lib/timeline/activity-detection/dete
 import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 import { ApplySpeedUpCommand } from '@/lib/commands/timeline/ApplySpeedUpCommand'
 import { ApplyAllSpeedUpsCommand } from '@/lib/commands/timeline/ApplyAllSpeedUpsCommand'
+import { EffectStore } from '@/lib/core/effects'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
@@ -142,7 +143,10 @@ export function TimelineCanvas({
 
   const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
 
-  const timelineEffects = currentProject?.timeline.effects || []
+  const timelineEffects = useMemo(
+    () => currentProject ? EffectStore.getAll(currentProject) : [],
+    [currentProject]
+  )
 
   const allZoomEffects = useMemo(
     () => getZoomEffects(timelineEffects),
@@ -389,6 +393,31 @@ export function TimelineCanvas({
     }
   }, [currentTime, isPlaying, pixelsPerMs, scrollLeft, stageSize.width])
 
+  // Handle wheel zoom with non-passive listener to prevent default browser zooming
+  const wheelDepsRef = useRef({ zoom, onZoomChange, adaptiveZoomLimits })
+  useEffect(() => {
+    wheelDepsRef.current = { zoom, onZoomChange, adaptiveZoomLimits }
+  })
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault()
+        const { zoom, onZoomChange, adaptiveZoomLimits } = wheelDepsRef.current
+        const zoomDelta = -e.deltaY * 0.001 // Invert direction and scale
+        const newZoom = Math.min(Math.max(zoom + zoomDelta, adaptiveZoomLimits.min), adaptiveZoomLimits.max)
+        onZoomChange(newZoom)
+      }
+    }
+
+    // passive: false is required to use preventDefault()
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [])
+
   // Handle clip context menu
   const handleClipContextMenu = useCallback((e: { evt: { clientX: number; clientY: number } }, clipId: string) => {
     // Match common UX: right-clicking a clip selects it so actions operate on the intended target.
@@ -573,14 +602,7 @@ export function TimelineCanvas({
         className="flex-1 overflow-x-auto overflow-y-hidden relative bg-transparent select-none outline-none focus:outline-none timeline-container"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
-        onWheel={(e) => {
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault()
-            const zoomDelta = -e.deltaY * 0.001 // Invert direction and scale
-            const newZoom = Math.min(Math.max(zoom + zoomDelta, adaptiveZoomLimits.min), adaptiveZoomLimits.max)
-            onZoomChange(newZoom)
-          }
-        }}
+
         onMouseDown={() => {
           // Ensure container maintains focus for keyboard events
           containerRef.current?.focus()

@@ -15,10 +15,16 @@ import type { ProjectStore } from './types'
  * Called by: addClip, removeClip, updateClip, splitClip, duplicateClip, reorderClip,
  *            addGeneratedClip, addImageClip, resizeGeneratedClip,
  *            addEffect, removeEffect, updateEffect, regenerateAllEffects
+ *
+ * NOTE: This pattern (explicit invalidation) was chosen over automatic middleware
+ * invalidation because:
+ * 1. It's explicit and clear - no magic behind the scenes
+ * 2. Not all state changes need cache invalidation
+ * 3. Performance - avoids diffing entire state tree on every update
  */
 export function invalidateCaches(state: ProjectStore): void {
   state.cameraPathCache = null
-  // Future caches go here (e.g., waveformCache, thumbnailCache)
+  state.frameLayoutCache = null
 }
 
 /**

@@ -12,12 +12,12 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import type { Clip, Effect, RecordingMetadata } from '@/types/project';
 import { useTimeContext } from './TimeContext';
-import { useVideoUrl } from '../hooks/useVideoUrl';
-import { useRecordingMetadata } from '../hooks/useRecordingMetadata';
+import { useVideoUrl } from '../../hooks/media/useVideoUrl';
+import { useRecordingMetadata } from '../../hooks/media/useRecordingMetadata';
 import {
   filterEffectsForClip,
   filterEventsForSourceRange,
-} from '../compositions/utils/effect-filters';
+} from '../../compositions/utils/effects/effect-filters';
 import type { ClipContextValue } from '@/types';
 
 const ClipContext = createContext<ClipContextValue | null>(null);

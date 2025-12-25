@@ -5,6 +5,7 @@ import { AddZoomBlockCommand } from '../effects/AddZoomBlockCommand'
 import type { Clip, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { EffectQueries } from '@/lib/core/effects'
 
 export interface PasteResult {
   type: 'clip' | 'effect'
@@ -88,9 +89,7 @@ export class PasteCommand extends Command<PasteResult> {
           const defaultDuration = effectType === EffectType.Keystroke ? 5000 : 3000 // 5s for keystroke, 3s for screen
 
           // Find non-overlapping position
-          const existingEffects: Effect[] = (project.timeline.effects || []).filter(
-            (e: Effect) => e.type === effectType
-          )
+          const existingEffects = EffectQueries.byType(project, effectType)
           existingEffects.sort((a, b) => a.startTime - b.startTime)
 
           let finalStartTime = Math.max(0, currentTime)
@@ -108,9 +107,9 @@ export class PasteCommand extends Command<PasteResult> {
             type: effectType as EffectType,
             startTime: finalStartTime,
             endTime: finalStartTime + defaultDuration,
-            data: effectData,
+            data: effectData as any,
             enabled: true
-          })
+          } as Effect)
 
           return {
             success: true,
@@ -130,16 +129,16 @@ export class PasteCommand extends Command<PasteResult> {
         const existingEffect = existingEffects.find(e => e.type === effectType)
 
         if (existingEffect) {
-          store.updateEffect(existingEffect.id, { data: effectData })
+          store.updateEffect(existingEffect.id, { data: effectData as any })
         } else {
           store.addEffect({
             id: `${effectType}-global-${Date.now()}`,
             type: effectType as EffectType,
             startTime: 0,
             endTime: Number.MAX_SAFE_INTEGER,
-            data: effectData,
+            data: effectData as any,
             enabled: true
-          })
+          } as Effect)
         }
 
         return {
@@ -184,9 +183,7 @@ export class PasteCommand extends Command<PasteResult> {
     const blockDuration = 5000 // 5 seconds
 
     // Find non-overlapping position - check ALL zoom effects in timeline.effects
-    const existingZoomEffects: Effect[] = (project.timeline.effects || []).filter(
-      (e: Effect) => e.type === EffectType.Zoom
-    )
+    const existingZoomEffects = EffectQueries.byType(project, EffectType.Zoom)
     existingZoomEffects.sort((a, b) => a.startTime - b.startTime)
 
     let finalStartTime = Math.max(0, pasteTimelinePosition)

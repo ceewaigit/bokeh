@@ -6,29 +6,29 @@
  *
  * Slices:
  * - core-slice: Project lifecycle, settings, recordings
- * - clip-slice: Clip CRUD, speed-up, undo
+ * - timeline-slice: Clip & Effect operations (merged)
  * - selection-slice: Selection state, clipboard
  * - playback-slice: Playback controls, zoom
- * - effects-slice: Effects management, camera path cache
+ * - cache-slice: Centralized caching (camera path, frame layout)
  */
 
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { createCoreSlice } from './slices/core-slice'
-import { createClipSlice } from './slices/clip-slice'
 import { createSelectionSlice } from './slices/selection-slice'
 import { createPlaybackSlice } from './slices/playback-slice'
-import { createEffectsSlice } from './slices/effects-slice'
+import { createTimelineSlice } from './slices/timeline-slice'
+import { createCacheSlice } from './slices/cache-slice'
 import type { ProjectStore } from './slices/types'
 
 // Compose all slices into the main store
 export const useProjectStore = create<ProjectStore>()(
   immer((...a) => ({
     ...createCoreSlice(...a),
-    ...createClipSlice(...a),
+    ...createTimelineSlice(...a),
     ...createSelectionSlice(...a),
     ...createPlaybackSlice(...a),
-    ...createEffectsSlice(...a),
+    ...createCacheSlice(...a),
   }))
 )
 

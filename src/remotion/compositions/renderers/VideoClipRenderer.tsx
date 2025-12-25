@@ -7,10 +7,10 @@
  */
 import React, { useCallback } from 'react';
 import { Sequence } from 'remotion';
-import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/useVideoUrl';
-import { usePlaybackSettings } from '@/remotion/context/PlaybackSettingsContext';
-import { useClipRenderState } from '@/remotion/hooks/useClipRenderState';
-import { useVideoContainerCleanup } from '@/remotion/hooks/useVTDecoderCleanup';
+import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/media/useVideoUrl';
+import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
+import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
+import { useVideoContainerCleanup } from '@/remotion/hooks/media/useVTDecoderCleanup';
 import { AudioEnhancerWrapper } from '@/remotion/components/video-helpers';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';

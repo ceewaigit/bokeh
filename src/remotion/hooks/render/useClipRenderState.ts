@@ -12,8 +12,8 @@
  */
 
 import { useMemo } from 'react';
-import { usePlaybackSettings } from '@/remotion/context/PlaybackSettingsContext';
-import { calculateClipFadeDurations, calculateClipFadeOpacity, calculateGlowCrossfadeOpacity } from '../compositions/utils/clip-fade';
+import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
+import { calculateClipFadeDurations, calculateClipFadeOpacity, calculateGlowCrossfadeOpacity } from '../../compositions/utils/effects/clip-fade';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 

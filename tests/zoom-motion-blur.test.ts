@@ -1,4 +1,4 @@
-import { calculateCameraMotionBlurFromCenters, calculateCameraMotionBlurFromDelta } from '@/remotion/compositions/utils/zoom-transform'
+import { calculateCameraMotionBlurFromCenters, calculateCameraMotionBlurFromDelta } from '@/remotion/compositions/utils/transforms/zoom-transform'
 
 describe('zoom-transform camera motion blur', () => {
   test('does not blur during pure zoom (no center movement)', () => {
