@@ -10,9 +10,9 @@
 import { useRef, useEffect, useMemo } from 'react';
 import { calculateVideoPosition } from '../compositions/utils/video-position';
 import { calculateMockupPosition, type MockupPositionResult } from '@/lib/mockups/mockup-transform';
-import { EffectsFactory } from '@/lib/effects/effects-factory';
+
 import { EffectType } from '@/types/project';
-import type { Effect } from '@/types/project';
+import type { Effect, BackgroundEffect } from '@/types/project';
 
 // ============================================================================
 // TYPES
@@ -106,14 +106,13 @@ export function useLayoutCalculation({
         }
 
         // Get background effect data
-        const backgroundEffect = EffectsFactory.getActiveEffectAtTime(
-            clipEffects,
-            EffectType.Background,
-            sourceTimeMs
-        );
-        const backgroundData = backgroundEffect
-            ? EffectsFactory.getBackgroundData(backgroundEffect)
-            : null;
+        const backgroundEffect = clipEffects.find(e =>
+            e.type === EffectType.Background &&
+            e.enabled &&
+            sourceTimeMs >= e.startTime &&
+            sourceTimeMs <= e.endTime
+        ) as BackgroundEffect | undefined;
+        const backgroundData = backgroundEffect?.data || null;
 
         // Calculate scale factor
         const scaleFactor = Math.min(

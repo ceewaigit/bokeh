@@ -3,6 +3,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { EffectType } from '@/types/project'
 import type { Effect, CropEffectData, Clip } from '@/types/project'
 import { CommandManager } from '@/lib/commands'
+import { getCropEffectForClip, getCropData } from '@/lib/effects/effect-filters'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 export interface UseCropManagerReturn {
@@ -55,10 +56,14 @@ export function useCropManager(
         if (!commandManager) return
 
         const currentTime = useProjectStore.getState().currentTime
-        const activeCrop = EffectsFactory.getActiveEffectAtTime(contextEffects, EffectType.Crop, currentTime)
+        const activeCrop = contextEffects.find(e =>
+            e.type === EffectType.Crop &&
+            e.startTime <= currentTime &&
+            e.endTime > currentTime
+        )
 
         if (activeCrop) {
-            const cropData = EffectsFactory.getCropData(activeCrop)
+            const cropData = getCropData(activeCrop)
             if (cropData) {
                 setEditingCropEffectId(activeCrop.id)
                 setEditingCropData(cropData)
@@ -126,16 +131,20 @@ export function useCropManager(
         // This ensures we edit exactly what the user sees, even if clips were trimmed/moved
         // and effect start times are slightly misaligned with clip start times.
         const currentTime = useProjectStore.getState().currentTime
-        let cropEffect = EffectsFactory.getActiveEffectAtTime(contextEffects, EffectType.Crop, currentTime)
+        let cropEffect = contextEffects.find(e =>
+            e.type === EffectType.Crop &&
+            e.startTime <= currentTime &&
+            e.endTime > currentTime
+        )
 
         // Fallback: Use clip-scoped match if no active effect found (e.g. playhead outside range)
         if (!cropEffect) {
-            cropEffect = EffectsFactory.getCropEffectForClip(contextEffects, selectedClip)
+            cropEffect = getCropEffectForClip(contextEffects, selectedClip)
         }
 
         if (!cropEffect) return
 
-        const cropData = EffectsFactory.getCropData(cropEffect)
+        const cropData = getCropData(cropEffect)
         if (!cropData) return
 
         setEditingCropEffectId(cropEffect.id)

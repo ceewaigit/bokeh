@@ -17,7 +17,7 @@ import {
     getCropTransformString,
 } from '../compositions/utils/crop-transform';
 import { calculateScreenTransform } from '../compositions/utils/screen-transform';
-import { EffectsFactory } from '@/lib/effects/effects-factory';
+import { getCropData } from '@/lib/effects/effect-filters';
 import { EffectType } from '@/types/project';
 import type { CropEffectData, Effect } from '@/types/project';
 import type { ParsedZoomBlock } from '@/lib/effects/utils/camera-calculator';
@@ -138,18 +138,17 @@ export function useTransformCalculation({
         // CROP TRANSFORM
         // ==========================================================================
 
-        // IMPORTANT: clipEffects is ALREADY filtered by time in getActiveClipDataAtFrame:
-        // - Timeline effects filtered by timeline overlap
-        // - Recording effects filtered by sourceTimeMs
-        // So we just need to find an enabled crop effect - no additional time filtering needed.
-        const cropEffect = clipEffects.find(e => e.type === EffectType.Crop && e.enabled);
+        // Use centralized effect lookup for consistency across codebase
+        const cropEffect = clipEffects.find(e =>
+            e.type === EffectType.Crop &&
+            e.startTime <= sourceTimeMs &&
+            e.endTime > sourceTimeMs
+        );
 
         // Disable crop during editing
-        const resolvedCropData = isEditingCrop
+        const resolvedCropData = isEditingCrop || !cropEffect
             ? null
-            : cropEffect
-                ? (cropEffect.data as CropEffectData)
-                : null;
+            : getCropData(cropEffect);
 
         // Crop uses video dimensions (not mockup)
         const cropBaseWidth = mockupEnabled && mockupPosition

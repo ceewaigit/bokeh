@@ -1,10 +1,11 @@
 /**
  * VideoClipRenderer.tsx
  *
- * Renders video clips within a Remotion composition for EXPORT rendering.
- * Uses Remotion's Sequence component for precise frame timing.
+ * Renders video clips within a Remotion composition.
+ * Uses Remotion's Sequence and Video components for frame-accurate timing.
+ * Works for both preview and export modes.
  */
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Sequence } from 'remotion';
 import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/PlaybackSettingsContext';
@@ -72,6 +73,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // VTDecoder cleanup
   const containerRef = useVideoContainerCleanup(videoUrl);
 
+  // Handle video loaded event
+  const handleLoaded = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
+    if (isRendering) {
+      handleVideoReady(e);
+    }
+  }, [isRendering, handleVideoReady]);
+
   // Early return for invalid recordings
   if (!recording || recording.sourceType === 'generated' || !recording.filePath) {
     return null;
@@ -94,10 +102,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const isActiveClipGenerated = activeLayoutItem?.clip.recordingId?.startsWith('generated-');
   const isThisClipActive = activeLayoutItem?.clip.id === clipForVideo.id;
   const shouldHideForGeneratedActive = isActiveClipGenerated && !isThisClipActive;
+
+  // Opacity: hide if this clip should be hidden for generated overlay
   const effectiveOpacity = shouldHideForGeneratedActive ? 0 : renderState.effectiveOpacity;
 
   return (
     <div ref={containerRef} style={{ display: 'contents' }}>
+
       <Sequence from={groupStartFrame} durationInFrames={renderState.finalDuration} premountFor={premountFor} postmountFor={postmountFor}>
         <div style={{
           width: useHighResSizing ? (recording?.width || '100%') : '100%',
@@ -113,11 +124,11 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
         }}>
           <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering}>
             <VideoComponent
-              key={videoUrl}
+              key={`${recording.id}-${groupStartFrame}`}
               src={videoUrl || ''}
               style={{
                 width: '100%', height: '100%',
-                objectFit: 'cover', // Match ImageClipRenderer behavior (was mockupEnabled ? 'cover' : 'contain')
+                objectFit: 'cover',
                 position: 'absolute', top: 0, left: 0,
                 borderRadius: `${cornerRadius}px`,
                 pointerEvents: 'none',
@@ -127,7 +138,9 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
               pauseWhenBuffering={false}
               startFrom={renderStartFrom}
               playbackRate={playbackRate}
-              {...(isRendering ? { onLoadedData: handleVideoReady, onCanPlay: handleVideoReady, onSeeked: handleVideoReady } : {})}
+              onLoadedData={handleLoaded}
+              onCanPlay={handleLoaded}
+              onSeeked={isRendering ? handleVideoReady : undefined}
               onError={(e: any) => {
                 console.error('[VideoClipRenderer] Video error:', { error: e?.target?.error ?? e, videoUrl, recordingId: recording.id });
                 markRenderReady('video-error');
@@ -139,3 +152,4 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     </div>
   );
 });
+

@@ -1,5 +1,16 @@
-import type { Clip } from '@/types/project';
+
+import type { Clip, Recording } from '@/types/project';
 import { msToFrame } from '@/remotion/compositions/utils/frame-time';
+
+export interface PersistedVideoState {
+  recording: Recording;
+  clip: Clip;
+  layoutItem: FrameLayoutItem;
+  // Source time of the background video at the start of the overlay
+  baseSourceTimeMs: number;
+  // Whether the video should be frozen (held at last frame) because the overlay extends past the video end
+  isFrozen: boolean;
+}
 
 export interface FrameLayoutItem {
   clip: Clip;
@@ -10,6 +21,9 @@ export interface FrameLayoutItem {
   groupStartFrame: number; // Start frame of the entire contiguous group
   groupStartSourceIn: number; // Source start time (ms) of the entire contiguous group
   groupDuration: number; // Total duration of the contiguous group
+
+  // Explicitly points to the visual content underneath a generated clip
+  persistedVideoState?: PersistedVideoState | null;
 }
 
 /**
@@ -86,8 +100,6 @@ export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: num
     }
   }
 
-  // Let's just do forward iteration up to limitIndex.
-  // It avoids checking items that haven't started yet.
   const result: FrameLayoutItem[] = [];
   for (let i = 0; i <= limitIndex; i++) {
     const item = layout[i];
@@ -107,7 +119,11 @@ export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: num
  * GROUPING: Assigns a unique groupId to contiguous blocks of clips from the same recording.
  * This allows the renderer to reuse the same video element for seamless playback.
  */
-export function buildFrameLayout(clips: Clip[], fps: number): FrameLayoutItem[] {
+export function buildFrameLayout(
+  clips: Clip[],
+  fps: number,
+  recordingsMap: Map<string, Recording>
+): FrameLayoutItem[] {
   if (!clips || clips.length === 0) return [];
 
   const result: FrameLayoutItem[] = [];
@@ -120,30 +136,25 @@ export function buildFrameLayout(clips: Clip[], fps: number): FrameLayoutItem[] 
   let lastClip: Clip | null = null;
   let lastEndFrame = -1;
 
-  clips.forEach((clip, index) => {
+  // Track the underlying visual layer (Video or Image) for generated overlays
+  let lastVisualItem: FrameLayoutItem | null = null;
+  let lastVisualRecording: Recording | null = null;
+
+  clips.forEach((clip) => {
     const startFrame = msToFrame(clip.startTime, fps);
     const durationFrames = Math.max(1, msToFrame(clip.duration, fps));
     const endFrame = startFrame + durationFrames;
+    const recording = recordingsMap.get(clip.recordingId);
 
     // Check for continuity
     let isContiguous = false;
     if (lastClip && lastClip.recordingId === clip.recordingId) {
-      // Check timeline continuity (no gap)
-      // Allow 1 frame tolerance for rounding errors
       const timelineGap = Math.abs(startFrame - lastEndFrame);
-
-      // Check source continuity
-      // lastClip.sourceOut should match clip.sourceIn
       const lastSourceOut = lastClip.sourceOut ?? (lastClip.sourceIn + lastClip.duration);
       const sourceGap = Math.abs(lastSourceOut - clip.sourceIn);
-
-      // Check for transitions (if there's a transition, we likely want separate players for cross-dissolve)
       const hasTransition = !!lastClip.transitionOut || !!clip.transitionIn;
 
-      // USER REQUEST: Allow grouping even if playback rate changes.
-      // We will handle the time mapping in the renderer.
-
-      if (timelineGap <= 1 && sourceGap <= 50 && !hasTransition) { // 50ms tolerance for source
+      if (timelineGap <= 1 && sourceGap <= 50 && !hasTransition) {
         isContiguous = true;
       }
     }
@@ -176,8 +187,44 @@ export function buildFrameLayout(clips: Clip[], fps: number): FrameLayoutItem[] 
       groupId: currentGroupId,
       groupStartFrame: currentGroupStartFrame,
       groupStartSourceIn: currentGroupStartSourceIn,
-      groupDuration: 0 // Will be updated when group finishes
+      groupDuration: 0, // Will be updated when group finishes
+      persistedVideoState: null
     };
+
+    if (recording) {
+      const isVisual = !recording.sourceType || recording.sourceType === 'video' || recording.sourceType === 'image';
+
+      if (isVisual) {
+        lastVisualItem = item;
+        lastVisualRecording = recording;
+      } else if (recording.sourceType === 'generated' && lastVisualItem && lastVisualRecording) {
+        // Link stored video state using offset from the video's start frame
+        const frameOffset = startFrame - lastVisualItem.startFrame;
+        const isPastEnd = startFrame >= lastVisualItem.endFrame;
+
+        let baseSourceTimeMs: number;
+
+        if (isPastEnd) {
+          // Clamped to last frame of video (freeze state)
+          // We use sourceOut - 1ms to ensure we are within valid video range and effects are active
+          const visualDurationMs = (lastVisualItem.durationFrames / fps) * 1000;
+          const sourceOut = (lastVisualItem.clip.sourceIn || 0) + visualDurationMs * (lastVisualItem.clip.playbackRate || 1);
+          baseSourceTimeMs = sourceOut - 1;
+        } else {
+          // Normal playback
+          const offsetMs = (frameOffset / fps) * 1000;
+          baseSourceTimeMs = (lastVisualItem.clip.sourceIn || 0) + offsetMs * (lastVisualItem.clip.playbackRate || 1);
+        }
+
+        item.persistedVideoState = {
+          recording: lastVisualRecording,
+          clip: lastVisualItem.clip,
+          layoutItem: lastVisualItem,
+          baseSourceTimeMs,
+          isFrozen: isPastEnd
+        };
+      }
+    }
 
     currentGroup.push(item);
   });
@@ -220,16 +267,10 @@ export function getBoundaryOverlapState(opts: {
   // Source dimensions for adaptive overlap
   sourceWidth?: number;
   sourceHeight?: number;
-  // DEPRECATED: isScrubbing no longer affects behavior - unified for SSOT
-  isScrubbing?: boolean;
 }): BoundaryOverlapState {
   const { currentFrame, fps, isRendering, activeLayoutItem, prevLayoutItem, nextLayoutItem, sourceWidth = 1920, sourceHeight = 1080 } = opts;
 
-  // REMOVED: isScrubbing early return that caused frame mismatch between scrub and playback
-  // Now boundary detection is unified for consistent frame display in both modes
-
-  // Shorter overlap for high-res sources to reduce concurrent decode streams
-  // High-res videos (>1080p) use 0.35s overlap, standard uses 0.5s (reduced from 1.0s)
+  // Use shorter overlap for high-res sources to reduce memory pressure
   const isHighRes = sourceWidth > 1920 || sourceHeight > 1080;
   const overlapSeconds = isHighRes ? 0.35 : 0.5;
   const overlapFrames = !isRendering ? Math.max(8, Math.round(fps * overlapSeconds)) : 0;

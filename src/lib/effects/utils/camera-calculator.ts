@@ -11,7 +11,7 @@ import { interpolateMousePosition } from './mouse-interpolation'
 import { calculateZoomScale } from '@/remotion/compositions/utils/zoom-transform'
 import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/lib/effects/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
+
 import { CAMERA_CONFIG, CURSOR_STOP_CONFIG } from '@/lib/effects/config/physics-config'
 
 // Destructure for local use (keeps the rest of the code unchanged)
@@ -869,7 +869,11 @@ export function computeCameraState({
   const clampCursorY = (y: number) => Math.max(cursorClampBounds.minY, Math.min(cursorClampBounds.maxY, y))
 
   // Check for Cinematic Scroll effect
-  const cinematicScrollEffect = EffectsFactory.getActiveEffectAtTime(effects, EffectType.Annotation, timelineMs)
+  const cinematicScrollEffect = effects.find(e =>
+    e.type === EffectType.Annotation &&
+    e.startTime <= timelineMs &&
+    e.endTime > timelineMs
+  )
   const isCinematicScrollEnabled = (cinematicScrollEffect?.data as any)?.kind === 'scrollCinematic' && cinematicScrollEffect?.enabled
 
   const cinematicSmoothing = isCinematicScrollEnabled

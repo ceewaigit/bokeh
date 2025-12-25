@@ -85,10 +85,16 @@ export function resolveClipDataForLayoutItem(args: {
 
   const clipStartFrame = layoutItem.startFrame ?? Math.round((clip.startTime / 1000) * fps)
   const clipDurationFrames = layoutItem.durationFrames ?? Math.max(1, Math.round((clip.duration / 1000) * fps))
-  // Clamp elapsed frames: for the last frame, allow reaching the full duration
-  // This ensures the video shows its final frame at the end of the timeline
-  const clipElapsedFrames = Math.max(0, Math.min(frame - clipStartFrame, clipDurationFrames - 1))
-  const clipElapsedMs = (clipElapsedFrames / fps) * 1000
+  // Calculate elapsed frames with clamping
+  const clipElapsedFramesRaw = frame - clipStartFrame
+  const isLastFrame = clipElapsedFramesRaw >= clipDurationFrames - 1
+  const clipElapsedFrames = Math.max(0, Math.min(clipElapsedFramesRaw, clipDurationFrames - 1))
+  // For the last frame, use actual clip duration minus one frame to reach the true end
+  // This fixes rounding discrepancy where frame-based calculation falls short of video end
+  const frameDurationMs = 1000 / fps
+  const clipElapsedMs = isLastFrame
+    ? Math.max(0, clip.duration - frameDurationMs)
+    : (clipElapsedFrames / fps) * 1000
   const sourceTimeMs = (clip.sourceIn || 0) + clipElapsedMs * (clip.playbackRate || 1)
 
   const timelineEffects = getTimelineEffectsForClip({ effects, frameLayout, clip })

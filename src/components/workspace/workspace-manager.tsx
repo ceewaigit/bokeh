@@ -17,13 +17,14 @@ import { EffectsSidebar } from '../effects-sidebar'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
 import { UtilitiesSidebar } from '../utilities-sidebar'
-import { useProjectStore } from '@/stores/project-store'
+import { useProjectStore, useSelectedClipId } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { Effect, ZoomBlock, CropEffectData } from '@/types/project'
 import { useCropManager } from '@/hooks/useCropManager'
+import { usePlayheadState } from '@/hooks/use-playhead-state'
 import { EffectType } from '@/types/project'
-import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand, registerAllCommands } from '@/lib/commands'
+import { CommandExecutor, UpdateZoomBlockCommand } from '@/lib/commands'
 import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { buildFrameLayout } from '@/lib/timeline/frame-layout'
@@ -31,6 +32,7 @@ import { calculateFullCameraPath } from '@/lib/effects/utils/camera-path-calcula
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getZoomEffects } from '@/lib/effects/effect-filters'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
 import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
@@ -74,14 +76,9 @@ async function loadProjectRecording(
     const videoTracks = project.timeline.tracks.filter(t => t.type === 'video')
     const allClips = videoTracks.flatMap(t => t.clips).sort((a, b) => a.startTime - b.startTime)
     const fps = project.settings.frameRate
-    const frameLayout = buildFrameLayout(allClips, fps)
 
-    // Create a lookup for recordings
-    const metadataMap = new Map()
-    // Pre-load metadata if available (it should be loaded by ProjectIOService above)
-    // ProjectIOService loads metadata into the Recording objects themselves primarily.
-    // However, the calculator expects a separate loadedMetadata map for some lookups if not on recording object.
-    // The current Project structure attaches metadata to the recording object.
+    const recordingsMap = new Map(project.recordings.map(r => [r.id, r]));
+    const frameLayout = buildFrameLayout(allClips, fps, recordingsMap)
 
     const projectStore = useProjectStore.getState()
 
@@ -91,11 +88,8 @@ async function loadProjectRecording(
       fps,
       videoWidth: project.settings.resolution.width,
       videoHeight: project.settings.resolution.height,
-      effects: project.timeline.effects || [], // Global timeline effects
-      // Mock getRecording to find from project
+      effects: project.timeline.effects || [],
       getRecording: (id) => project.recordings.find(r => r.id === id),
-      // We can pass null for loadedMetadata map because our recordings already have per-instance metadata attached
-      // by the loader (ProjectIOService).
       loadedMetadata: undefined
     })
 
@@ -104,10 +98,9 @@ async function loadProjectRecording(
       projectStore.setCameraPathCache(cameraPath)
     }
 
-    // Calculate adaptive zoom limits based on zoom blocks
     const viewportWidth = window.innerWidth
     const allZoomEffects = project.recordings.flatMap((r: any) =>
-      EffectsFactory.getZoomEffects(r.effects || [])
+      getZoomEffects(r.effects || [])
     )
     const zoomBlocks = allZoomEffects.map((e: any) => ({
       startTime: e.startTime,
@@ -140,10 +133,7 @@ export function WorkspaceManager() {
   const {
     currentProject,
     newProject,
-    selectedClipId,
     selectedEffectLayer,
-    playheadClip,
-    playheadRecording,
     play: storePlay,
     pause: storePause,
     seek: storeSeek,
@@ -154,10 +144,7 @@ export function WorkspaceManager() {
     useShallow((s) => ({
       currentProject: s.currentProject,
       newProject: s.newProject,
-      selectedClipId: s.selectedClipId,
       selectedEffectLayer: s.selectedEffectLayer,
-      playheadClip: s.playheadClip,
-      playheadRecording: s.playheadRecording,
       play: s.play,
       pause: s.pause,
       seek: s.seek,
@@ -166,6 +153,12 @@ export function WorkspaceManager() {
       zoom: s.zoom,
     }))
   )
+
+  // Derived selector: selectedClipId from selectedClips (SSOT)
+  const selectedClipId = useSelectedClipId()
+
+  // Computed playhead state (SSOT - derived from currentTime and clips)
+  const { playheadClip, playheadRecording } = usePlayheadState()
 
   // Initialize default wallpaper once on mount
   useEffect(() => {
@@ -192,15 +185,14 @@ export function WorkspaceManager() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const isResizingUtilitiesRef = useRef(false)
 
-  // Command manager for undo/redo support
-  const commandManagerRef = useRef<CommandManager | null>(null)
-  const commandContextRef = useRef<DefaultCommandContext | null>(null)
+  // Command executor for undo/redo support
+  const executorRef = useRef<CommandExecutor | null>(null)
 
-  // Initialize command manager
+  // Initialize command executor
   useEffect(() => {
-    commandContextRef.current = new DefaultCommandContext(useProjectStore)
-    commandManagerRef.current = CommandManager.getInstance(commandContextRef.current)
-    registerAllCommands(commandManagerRef.current)
+    executorRef.current = CommandExecutor.isInitialized()
+      ? CommandExecutor.getInstance()
+      : CommandExecutor.initialize(useProjectStore)
   }, [])
 
   useEffect(() => {
@@ -230,7 +222,7 @@ export function WorkspaceManager() {
   const selectedClip = selectedTrack?.clips.find(c => c.id === selectedClipId) || null
   const selectedTrackType = selectedTrack?.type
 
-  // SINGLE SOURCE OF TRUTH: Get all effects for the current context
+  // Get all effects for the current context
   // Merges timeline.effects (zoom, background, cursor) + recording.effects (recording-scoped non-zoom)
   const contextEffects = useMemo((): Effect[] => {
     if (!currentProject) return []
@@ -255,10 +247,8 @@ export function WorkspaceManager() {
 
   // Effects for preview are derived per-clip inside PreviewAreaRemotion
   const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
-    if (commandManagerRef.current) {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-      const command = new UpdateZoomBlockCommand(freshContext, blockId, updates)
-      commandManagerRef.current.execute(command)
+    if (executorRef.current) {
+      executorRef.current.execute(UpdateZoomBlockCommand, blockId, updates)
     }
   }, [])
 
@@ -303,8 +293,8 @@ export function WorkspaceManager() {
       // Cmd+Z or Ctrl+Z for Undo
       if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
-        if (commandManagerRef.current?.canUndo()) {
-          await commandManagerRef.current.undo()
+        if (executorRef.current?.canUndo()) {
+          await executorRef.current.undo()
         }
       }
 
@@ -312,8 +302,8 @@ export function WorkspaceManager() {
       if (((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') ||
         ((e.metaKey || e.ctrlKey) && e.key === 'y')) {
         e.preventDefault()
-        if (commandManagerRef.current?.canRedo()) {
-          await commandManagerRef.current.redo()
+        if (executorRef.current?.canRedo()) {
+          await executorRef.current.redo()
         }
       }
     }
@@ -338,8 +328,6 @@ export function WorkspaceManager() {
   useEffect(() => {
     if (!playheadClip || !isPlaying || isExporting) return
 
-    // BATTERY OPTIMIZATION: Use longer interval (250ms vs 100ms) since frame-accurate 
-    // boundary detection isn't critical - we just need to stop at clip end
     const syncInterval = setInterval(() => {
       if (!isPlaying || !playheadClip) return
 
@@ -355,7 +343,7 @@ export function WorkspaceManager() {
       if (sourceTimeMs > sourceOutMs) {
         handlePause()
       }
-    }, 250) // Increased from 100ms to 250ms for battery savings
+    }, 250)
 
     playbackIntervalRef.current = syncInterval
 
@@ -382,13 +370,13 @@ export function WorkspaceManager() {
   const handleEffectChange = useCallback((type: EffectType, data: any) => {
     // Get effects from single source of truth
     const baseEffects = contextEffects
-    const commandManager = commandManagerRef.current
+    const executor = executorRef.current
 
-    if (!commandManager) return
+    if (!executor) return
 
     // Helper to execute commands
     const executeCommand = (commandName: string, ...args: any[]) => {
-      commandManager.executeByName(commandName, ...args)
+      executor.executeByName(commandName, ...args)
     }
 
     // Zoom-specific handling
@@ -548,12 +536,11 @@ export function WorkspaceManager() {
 
   // Bulk toggle all keystroke effects
   const handleBulkToggleKeystrokes = useCallback((enabled: boolean) => {
-    const commandManager = commandManagerRef.current
-    if (!commandManager) return
+    if (!executorRef.current) return
 
     const keystrokeEffects = contextEffects.filter(e => e.type === EffectType.Keystroke)
     keystrokeEffects.forEach(effect => {
-      commandManager.executeByName('UpdateEffect', effect.id, { enabled })
+      executorRef.current?.executeByName('UpdateEffect', effect.id, { enabled })
     })
   }, [contextEffects])
 

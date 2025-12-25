@@ -7,7 +7,7 @@ import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEff
 import { EffectType, BackgroundType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getBackgroundEffect, getCursorEffect, getKeystrokeEffect } from '@/lib/effects/effect-filters'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -123,10 +123,10 @@ export function EffectsSidebar({
   const [framingSubTab, setFramingSubTab] = useState<FramingSubTabId>('zoom')
   const tooltipRef = useRef<HTMLDivElement | null>(null)
 
-  // Extract current effects from the array using EffectsFactory helpers
-  const backgroundEffect = effects ? EffectsFactory.getBackgroundEffect(effects) : undefined
-  const cursorEffect = effects ? EffectsFactory.getCursorEffect(effects) : undefined
-  const keystrokeEffect = effects ? EffectsFactory.getKeystrokeEffect(effects) : undefined
+  // Extract current effects from the array using effect-filters helpers
+  const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
+  const cursorEffect = effects ? getCursorEffect(effects) : undefined
+  const keystrokeEffect = effects ? getKeystrokeEffect(effects) : undefined
 
   // Track last selected clip id and previous effect layer type to control auto-tab switching
   const lastClipIdRef = React.useRef<string | null>(null)

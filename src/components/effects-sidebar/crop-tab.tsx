@@ -5,9 +5,9 @@ import { Crop, RotateCcw, Move, Maximize } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
-import type { Clip, Effect, CropEffectData } from '@/types/project'
+import type { Clip, Effect, CropEffect, CropEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getCropEffectForClip, getCropData } from '@/lib/effects/effect-filters'
 import { InfoTooltip } from './info-tooltip'
 
 interface CropTabProps {
@@ -31,9 +31,9 @@ export function CropTab({
 }: CropTabProps) {
   // Get crop effect for the selected clip
   const cropEffect = selectedClip && effects
-    ? EffectsFactory.getCropEffectForClip(effects, selectedClip)
+    ? getCropEffectForClip(effects, selectedClip)
     : undefined
-  const cropData = cropEffect ? EffectsFactory.getCropData(cropEffect) : null
+  const cropData = cropEffect ? getCropData(cropEffect) : null
 
   // Local state for slider values during dragging
   const [localX, setLocalX] = React.useState<number | null>(null)

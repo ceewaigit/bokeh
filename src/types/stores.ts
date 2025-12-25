@@ -26,7 +26,8 @@ export interface ClipboardEffect {
 export interface ProjectStore {
   currentProject: Project | null
   currentTime: number
-  selectedClipId?: string | null
+  // selectedClipId removed - use useSelectedClipId() selector instead
+  // It's derived from selectedClips[selectedClips.length - 1]
   selectedClips: string[]
   selectedEffectLayer: SelectedEffectLayer
   clipboard: {

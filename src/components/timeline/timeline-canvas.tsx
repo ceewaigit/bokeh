@@ -5,9 +5,9 @@ import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { useShallow } from 'zustand/react/shallow'
 import { cn, clamp } from '@/lib/utils'
-import type { Project, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
+import type { Project, ZoomBlock, ZoomEffectData, Effect, PluginEffect, ScreenEffect } from '@/types/project'
 import { EffectType, TrackType, TimelineTrackType } from '@/types/project'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getZoomEffects, getScreenEffects, getAllPluginEffects, getScreenData, getPluginData } from '@/lib/effects/effect-filters'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { useAssetLibraryStore } from '@/stores/asset-library-store'
 
@@ -38,8 +38,7 @@ import { useTimelineSnapping } from '@/hooks/use-timeline-snapping'
 
 // Commands
 import {
-  CommandManager,
-  DefaultCommandContext,
+  CommandExecutor,
   UpdateClipCommand,
   RemoveClipCommand,
   SplitClipCommand,
@@ -146,12 +145,12 @@ export function TimelineCanvas({
   const timelineEffects = currentProject?.timeline.effects || []
 
   const allZoomEffects = useMemo(
-    () => EffectsFactory.getZoomEffects(timelineEffects),
+    () => getZoomEffects(timelineEffects),
     [timelineEffects]
   )
 
   const allScreenEffects = useMemo(
-    () => EffectsFactory.getScreenEffects(timelineEffects),
+    () => getScreenEffects(timelineEffects),
     [timelineEffects]
   )
 
@@ -161,7 +160,7 @@ export function TimelineCanvas({
   )
 
   const allPluginEffects = useMemo(
-    () => EffectsFactory.getAllPluginEffects(timelineEffects),
+    () => getAllPluginEffects(timelineEffects),
     [timelineEffects]
   )
 
@@ -336,12 +335,13 @@ export function TimelineCanvas({
   const pluginTrackHeight = trackHeights.plugin
   const stageWidth = Math.max(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, stageSize.width)
 
-  // Initialize command manager
-  const commandManagerRef = useRef<CommandManager | null>(null)
+  // Initialize command executor
+  const executorRef = useRef<CommandExecutor | null>(null)
 
   useEffect(() => {
-    const ctx = new DefaultCommandContext(useProjectStore)
-    commandManagerRef.current = CommandManager.getInstance(ctx)
+    executorRef.current = CommandExecutor.isInitialized()
+      ? CommandExecutor.getInstance()
+      : CommandExecutor.initialize(useProjectStore)
   }, [])
 
   // Use command-based keyboard shortcuts for editing operations (copy, cut, paste, delete, etc.)
@@ -417,190 +417,107 @@ export function TimelineCanvas({
 
   // Handle popover actions for speed-up suggestions
   const handleApplySpeedUp = useCallback(async (period: SpeedUpPeriod, clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-
-    const context = new DefaultCommandContext(useProjectStore)
-    const command = new ApplySpeedUpCommand(context, clipId, [period], [period.type])
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(ApplySpeedUpCommand, clipId, [period], [period.type])
     setSpeedUpPopover(null)
   }, [])
 
   const handleApplyAllSpeedUps = useCallback(async () => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-
-    const context = new DefaultCommandContext(useProjectStore)
-    const command = new ApplyAllSpeedUpsCommand(context, { applyTyping: true, applyIdle: true })
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(ApplyAllSpeedUpsCommand, { applyTyping: true, applyIdle: true })
     setSpeedUpPopover(null)
   }, [])
 
   // Handle clip drag using command pattern
   const handleClipDragEnd = useCallback(async (clipId: string, newStartTime: number) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new UpdateClipCommand(
-      freshContext,
-      clipId,
-      { startTime: newStartTime }
-    )
-    await manager.execute(command)
-
-    // Keep selection on the moved clip so UI/playhead stay in sync
+    if (!executorRef.current) return
+    await executorRef.current.execute(UpdateClipCommand, clipId, { startTime: newStartTime })
     selectClip(clipId)
   }, [selectClip])
 
   // Handle control actions using command pattern
   const handleSplit = useCallback(async () => {
-    const manager = commandManagerRef.current
-    if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-      const command = new SplitClipCommand(
-        freshContext,
-        selectedClips[0],
-        currentTime
-      )
-      await manager.execute(command)
+    if (selectedClips.length === 1 && executorRef.current) {
+      await executorRef.current.execute(SplitClipCommand, selectedClips[0], currentTime)
     }
   }, [selectedClips, currentTime])
 
   const handleTrimStart = useCallback(async () => {
-    const manager = commandManagerRef.current
-    if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-      const command = new TrimCommand(
-        freshContext,
-        selectedClips[0],
-        currentTime,
-        'start'
-      )
-      await manager.execute(command)
+    if (selectedClips.length === 1 && executorRef.current) {
+      await executorRef.current.execute(TrimCommand, selectedClips[0], currentTime, 'start')
     }
   }, [selectedClips, currentTime])
 
   const handleTrimEnd = useCallback(async () => {
-    const manager = commandManagerRef.current
-    if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-      const command = new TrimCommand(
-        freshContext,
-        selectedClips[0],
-        currentTime,
-        'end'
-      )
-      await manager.execute(command)
+    if (selectedClips.length === 1 && executorRef.current) {
+      await executorRef.current.execute(TrimCommand, selectedClips[0], currentTime, 'end')
     }
   }, [selectedClips, currentTime])
 
   const handleDelete = useCallback(async () => {
-    const manager = commandManagerRef.current
-    if (!manager) return
+    if (!executorRef.current) return
+    const executor = executorRef.current
 
-    // Begin group for multiple deletions
-    if (selectedClips.length > 1) {
-      manager.beginGroup(`delete-${Date.now()}`)
-    }
-
+    if (selectedClips.length > 1) executor.beginGroup(`delete-${Date.now()}`)
     for (const clipId of selectedClips) {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-      const command = new RemoveClipCommand(freshContext, clipId)
-      await manager.execute(command)
+      await executor.execute(RemoveClipCommand, clipId)
     }
-
-    if (selectedClips.length > 1) {
-      await manager.endGroup()
-    }
+    if (selectedClips.length > 1) await executor.endGroup()
 
     clearSelection()
   }, [selectedClips, clearSelection])
 
   const handleDuplicate = useCallback(async () => {
-    const manager = commandManagerRef.current
-    if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-      const command = new DuplicateClipCommand(
-        freshContext,
-        selectedClips[0]
-      )
-      await manager.execute(command)
+    if (selectedClips.length === 1 && executorRef.current) {
+      await executorRef.current.execute(DuplicateClipCommand, selectedClips[0])
     }
   }, [selectedClips])
 
   // Context menu wrappers - reuse existing handlers
   const handleClipSplit = useCallback(async (clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new SplitClipCommand(freshContext, clipId, currentTime)
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(SplitClipCommand, clipId, currentTime)
   }, [currentTime])
 
   const handleClipTrimStart = useCallback(async (clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new TrimCommand(freshContext, clipId, currentTime, 'start')
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(TrimCommand, clipId, currentTime, 'start')
   }, [currentTime])
 
   const handleClipTrimEnd = useCallback(async (clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new TrimCommand(freshContext, clipId, currentTime, 'end')
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(TrimCommand, clipId, currentTime, 'end')
   }, [currentTime])
 
   const handleClipDuplicate = useCallback(async (clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new DuplicateClipCommand(freshContext, clipId)
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(DuplicateClipCommand, clipId)
   }, [])
 
   const handleClipCopy = useCallback(async (clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new CopyCommand(freshContext, clipId)
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(CopyCommand, clipId)
   }, [])
 
   const handleClipCut = useCallback(async (clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new CutCommand(freshContext, clipId)
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(CutCommand, clipId)
   }, [])
 
   const handlePaste = useCallback(async () => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new PasteCommand(freshContext, currentTime)
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(PasteCommand, currentTime)
   }, [currentTime])
 
   const handleClipDelete = useCallback(async (clipId: string) => {
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new RemoveClipCommand(freshContext, clipId)
-    await manager.execute(command)
+    if (!executorRef.current) return
+    await executorRef.current.execute(RemoveClipCommand, clipId)
   }, [])
 
   const handleClipSpeedUp = useCallback(async (clipId: string) => {
-    selectClip(clipId) // Ensure UI syncs
-    const manager = commandManagerRef.current
-    if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore)
-    const command = new ChangePlaybackRateCommand(freshContext, clipId, 2.0)
-    await manager.execute(command)
+    selectClip(clipId)
+    if (!executorRef.current) return
+    await executorRef.current.execute(ChangePlaybackRateCommand, clipId, 2.0)
   }, [selectClip])
 
   // Stage click handler - click to seek and clear selections
@@ -939,7 +856,7 @@ export function TimelineCanvas({
                 const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
 
                 // Get screen effect data for intro/outro
-                const screenData = EffectsFactory.getScreenData(effect)
+                const screenData = (effect as ScreenEffect).data
 
                 const blockElement = (
                   <TimelineEffectBlock
@@ -1059,7 +976,7 @@ export function TimelineCanvas({
                 const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
 
                 // Get plugin name from registry for label
-                const pluginData = EffectsFactory.getPluginData(effect)
+                const pluginData = (effect as PluginEffect).data
                 const plugin = pluginData ? PluginRegistry.get(pluginData.pluginId) : null
                 const label = plugin?.name?.slice(0, 8) || 'Plugin'
 

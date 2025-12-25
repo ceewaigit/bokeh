@@ -5,6 +5,7 @@ export { DefaultCommandContext } from './base/CommandContext'
 export type { CommandContext } from './base/CommandContext'
 export { CommandManager } from './base/CommandManager'
 export type { CommandHistoryEntry } from './base/CommandManager'
+export { CommandExecutor } from './base/CommandExecutor'
 
 // Timeline commands
 export {

@@ -1,82 +1,44 @@
 /**
- * Service for managing timeline playback
- * Handles play/pause/seek logic and animation frames
+ * Service for managing timeline playback state
+ * 
+ * REFACTORED: This service no longer drives time advancement.
+ * The Remotion Player is the single source of truth for frame position.
+ * This service now only manages play/pause state and time clamping.
  */
 
 export class PlaybackService {
-  private animationFrameId: number | null = null
-  private lastTimestamp: number | null = null
   private isPlaying = false
 
   /**
-   * Start playback from current time or beginning if at end
+   * Start playback - just sets state, Player drives time
+   * @param currentTime - Current time in ms (for restart-from-beginning check)
+   * @param duration - Timeline duration in ms
+   * @param onRestart - Callback if time resets to 0 (was at end)
    */
   play(
     currentTime: number,
     duration: number,
-    onUpdate: (newTime: number) => void,
-    onEnd?: () => void
+    onRestart?: () => void
   ): void {
     // If at the end of timeline, restart from beginning
     if (currentTime >= duration) {
-      currentTime = 0
-      onUpdate(0)
+      onRestart?.()
     }
 
     this.isPlaying = true
-    this.lastTimestamp = null
-
-    // Store current time in closure to track properly
-    let playbackTime = currentTime
-
-    const animate = (timestamp: number) => {
-      if (!this.isPlaying) {
-        this.animationFrameId = null
-        return
-      }
-
-      if (this.lastTimestamp === null) {
-        this.lastTimestamp = timestamp
-      }
-
-      const deltaTime = timestamp - this.lastTimestamp
-      this.lastTimestamp = timestamp
-
-      // Calculate new time
-      playbackTime = playbackTime + deltaTime
-
-      // Check if we've reached the end
-      if (playbackTime >= duration) {
-        this.pause()
-        onUpdate(duration)
-        onEnd?.()
-      } else {
-        // Update time and continue
-        onUpdate(playbackTime)
-        this.animationFrameId = requestAnimationFrame(animate)
-      }
-    }
-
-    this.animationFrameId = requestAnimationFrame(animate)
   }
 
   /**
-   * Pause playback and clean up animation frame
+   * Pause playback - just sets state
    */
   pause(): void {
-    if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId)
-      this.animationFrameId = null
-      this.lastTimestamp = null
-    }
     this.isPlaying = false
   }
 
   /**
-   * Seek to a specific time
+   * Seek to a specific time (clamped to valid range)
    */
   seek(time: number, duration: number): number {
-    // Clamp time to valid range
     return Math.max(0, Math.min(duration, time))
   }
 

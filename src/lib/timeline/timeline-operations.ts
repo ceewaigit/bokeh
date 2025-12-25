@@ -1,6 +1,8 @@
 import type { Project, Track, Clip, Effect, Recording } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getCropEffectForClip } from '@/lib/effects/effect-filters'
 
 // Calculate total timeline duration
 export function calculateTimelineDuration(project: Project): number {
@@ -102,9 +104,6 @@ export function reflowClips(
       track.clips[i] = { ...clip, duration: expectedDuration }
     }
   }
-
-  // NO SORTING - array order IS the source of truth
-  // startTime is purely derived from array position
 
   // First clip always starts at 0
   // IMPORTANT: Create NEW clip object to break stale references in memoized contexts
@@ -750,23 +749,29 @@ export function addAssetRecording(
     }
   }
 
-  // 4. Inherit Crop Effect Logic
-  // Only inherit if we found a previous clip AND the effects factory is available
-  if (lastVideoClip) {
-    // We need to import EffectsFactory or pass it in? 
-    // It's a static class, so we can import it if no circular dependency.
-    // timeline-operations.ts doesn't import EffectsFactory yet (except in require).
-    // Let's use the require pattern used in addRecordingToProject
-    const { EffectsFactory } = require('../effects/effects-factory')
+  // 1. Sync Crop Effects
+  // Replaced dynamic require with static import
+  const timelineLikelyEffects = project.timeline.effects || []
 
-    const prevCropEffect = EffectsFactory.getCropEffectForClip(project.timeline.effects || [], lastVideoClip)
-    if (prevCropEffect && prevCropEffect.data) {
+  // We need to find the clip that was *before* the new clip in the timeline
+  // This is `lastVideoClip` if `startTime` was not provided, or the clip
+  // immediately preceding the insertion point if `startTime` was provided.
+  // For simplicity, we'll assume `lastVideoClip` is the "oldClip" to copy from
+  // if it exists, otherwise we don't copy.
+  const oldClip = lastVideoClip // Renaming for clarity in this context
+
+  if (oldClip && newClip) {
+    // If we have an old clip to copy from
+    const existingCrop = getCropEffectForClip(timelineLikelyEffects, oldClip)
+
+    if (existingCrop && existingCrop.data) {
       const newCropEffect = EffectsFactory.createCropEffect({
         clipId: newClip.id,
         startTime: newClip.startTime,
         endTime: newClip.startTime + newClip.duration,
-        cropData: prevCropEffect.data
+        cropData: existingCrop.data as any // Cast to any to avoid union type mismatch, we know it's crop data
       })
+
       EffectsFactory.addEffectToProject(project, newCropEffect)
     }
   }

@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getPluginData } from '@/lib/effects/effect-filters'
 import { getPluginDefaults } from '@/lib/effects/config/plugin-sdk'
-import { useProjectStore } from '@/stores/project-store'
+import { useProjectStore, useSelectedClipId } from '@/stores/project-store'
 import { findClipById } from '@/lib/timeline/timeline-operations'
 import type { ParamDef, NumberParam, EnumParam } from '@/lib/effects/config/plugin-sdk'
 import type { PluginDefinition } from '@/lib/effects/config/plugin-sdk'
@@ -68,7 +69,7 @@ export function PluginsTab() {
     const [hideGeneratedClipEditor, setHideGeneratedClipEditor] = useState(false)
 
     const currentProject = useProjectStore((s) => s.currentProject)
-    const selectedClipId = useProjectStore((s) => s.selectedClipId)
+    const selectedClipId = useSelectedClipId()
     const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
     const updateEffect = useProjectStore((s) => s.updateEffect)
     const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection)
@@ -154,7 +155,7 @@ export function PluginsTab() {
     const handleSelectedParamChange = (key: string, value: unknown) => {
         if (!selectedPluginEffect) return
 
-        const currentData = EffectsFactory.getPluginData(selectedPluginEffect)
+        const currentData = getPluginData(selectedPluginEffect)
         if (!currentData) return
 
         updateEffect(selectedPluginEffect.id, {
@@ -236,7 +237,7 @@ export function PluginsTab() {
 
     // Render Edit Mode
     if (selectedPluginEffect) {
-        const pluginData = EffectsFactory.getPluginData(selectedPluginEffect)
+        const pluginData = getPluginData(selectedPluginEffect)
         if (!pluginData) return null
 
         const pluginDef = PluginRegistry.get(pluginData.pluginId)

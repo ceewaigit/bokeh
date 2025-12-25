@@ -1,15 +1,19 @@
 import { easeInOutCubic } from './zoom-transform';
-import { EffectsFactory } from '@/lib/effects/effects-factory';
 import { SCREEN_EFFECT_PRESETS } from '@/lib/constants/default-effects';
 import { EffectType, ScreenEffectPreset } from '@/types/project';
-import type { Effect } from '@/types/project';
+import type { Effect, ScreenEffect } from '@/types/project';
 
 export function calculateScreenTransform(
     effects: Effect[],
     sourceTimeMs: number
 ): string {
-    const screenBlock = EffectsFactory.getActiveEffectAtTime(effects, EffectType.Screen, sourceTimeMs);
-    const screenData = screenBlock ? EffectsFactory.getScreenData(screenBlock) : null;
+    const screenBlock = effects.find(e =>
+        e.type === EffectType.Screen &&
+        e.enabled &&
+        sourceTimeMs >= e.startTime &&
+        sourceTimeMs <= e.endTime
+    ) as ScreenEffect | undefined;
+    const screenData = screenBlock?.data || null;
 
     if (!screenData) {
         return '';

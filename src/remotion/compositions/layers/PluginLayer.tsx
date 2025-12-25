@@ -14,9 +14,10 @@
 import React, { useMemo } from 'react'
 import { useCurrentFrame, useVideoConfig, AbsoluteFill } from 'remotion'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getAllPluginEffects } from '@/lib/effects/effect-filters'
 import { frameToMs } from '../utils/frame-time'
-import type { Effect, PluginEffectData } from '@/types/project'
+import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
+import { EffectType } from '@/types/project'
 import type { PluginLayerProps } from '@/types'
 import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config/plugin-sdk'
 
@@ -31,7 +32,7 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
   const currentTimeMs = frameToMs(frame, fps)
 
   // Effects list is typically stable while playing; avoid re-filtering/sorting every frame.
-  const allPluginEffects = useMemo(() => EffectsFactory.getAllPluginEffects(effects), [effects])
+  const allPluginEffects = useMemo(() => getAllPluginEffects(effects), [effects])
 
   // Filter to active effects at current time that are enabled
   const activePluginEffects = useMemo(() => {
@@ -45,7 +46,8 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
   const layerThreshold = 100
   const layerFilteredEffects = useMemo(() => {
     return activePluginEffects.filter(effect => {
-      const data = EffectsFactory.getPluginData(effect)
+      const isPlugin = effect.type === EffectType.Plugin
+      const data = isPlugin ? (effect as PluginEffect).data : null
       const zIndex = data?.zIndex ?? 50
       return layer === 'above-cursor' ? zIndex >= layerThreshold : zIndex < layerThreshold
     })
@@ -54,8 +56,8 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
   // Sort by z-index (lower z-index renders first, higher renders on top)
   const sortedEffects = useMemo(() => {
     return [...layerFilteredEffects].sort((a, b) => {
-      const aData = EffectsFactory.getPluginData(a)
-      const bData = EffectsFactory.getPluginData(b)
+      const aData = a.type === EffectType.Plugin ? (a as PluginEffect).data : null
+      const bData = b.type === EffectType.Plugin ? (b as PluginEffect).data : null
       return (aData?.zIndex ?? 50) - (bData?.zIndex ?? 50)
     })
   }, [layerFilteredEffects])

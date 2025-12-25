@@ -1,13 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotateCcw, Zap } from 'lucide-react'
 import type { Clip } from '@/types/project'
-import { useCommandManager } from '@/hooks/use-command-manager'
-import { ChangePlaybackRateCommand } from '@/lib/commands'
+import { CommandExecutor, ChangePlaybackRateCommand } from '@/lib/commands'
 import { useProjectStore } from '@/stores/project-store'
 import { InfoTooltip } from './info-tooltip'
 
@@ -20,8 +19,15 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
   const [playbackRate, setPlaybackRate] = useState(1.0)
   const [introFadeMs, setIntroFadeMs] = useState(0)
   const [outroFadeMs, setOutroFadeMs] = useState(0)
-  const commandManager = useCommandManager()
+  const executorRef = useRef<CommandExecutor | null>(null)
   const updateClip = useProjectStore((s) => s.updateClip)
+
+  // Initialize CommandExecutor
+  useEffect(() => {
+    if (!executorRef.current && CommandExecutor.isInitialized()) {
+      executorRef.current = CommandExecutor.getInstance()
+    }
+  }, [])
 
   // Get the actual selected clip from the store to ensure reactivity
   const selectedClips = useProjectStore((s) => s.selectedClips)
@@ -54,31 +60,20 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
   }
 
   const commitPlaybackRate = async (rate: number) => {
-    if (selectedClip && commandManager) {
+    if (selectedClip && executorRef.current) {
       try {
-        const command = new ChangePlaybackRateCommand(
-          commandManager.getContext(),
-          selectedClip.id,
-          rate
-        )
-        await commandManager.execute(command)
+        await executorRef.current.execute(ChangePlaybackRateCommand, selectedClip.id, rate)
       } catch (error) {
         console.error('Failed to change playback rate:', error)
-        // Revert the slider on error
         setPlaybackRate(selectedClip.playbackRate || 1.0)
       }
     }
   }
 
   const resetPlaybackRate = async () => {
-    if (selectedClip && commandManager) {
+    if (selectedClip && executorRef.current) {
       try {
-        const command = new ChangePlaybackRateCommand(
-          commandManager.getContext(),
-          selectedClip.id,
-          1.0
-        )
-        await commandManager.execute(command)
+        await executorRef.current.execute(ChangePlaybackRateCommand, selectedClip.id, 1.0)
         setPlaybackRate(1.0)
       } catch (error) {
         console.error('Failed to reset playback rate:', error)

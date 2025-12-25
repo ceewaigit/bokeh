@@ -10,8 +10,8 @@ import type { Clip, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
-import { AddEffectCommand, DefaultCommandContext, CommandManager } from '@/lib/commands'
+import { getZoomEffects } from '@/lib/effects/effect-filters'
+import { CommandExecutor, AddEffectCommand } from '@/lib/commands'
 import { DEFAULT_ZOOM_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 
@@ -32,7 +32,7 @@ export function ZoomTab({
   onEffectChange,
   onZoomBlockUpdate
 }: ZoomTabProps) {
-  const zoomEffects = effects ? EffectsFactory.getZoomEffects(effects) : []
+  const zoomEffects = effects ? getZoomEffects(effects) : []
 
   // Local state for slider values during dragging
   const [localScale, setLocalScale] = React.useState<number | null>(null)
@@ -76,9 +76,9 @@ export function ZoomTab({
                   autoScale: 'fill'
                 } as ZoomEffectData
               }
-              const context = new DefaultCommandContext(useProjectStore)
-              const command = new AddEffectCommand(context, newEffect)
-              await CommandManager.getInstance().execute(command)
+              if (CommandExecutor.isInitialized()) {
+                await CommandExecutor.getInstance().execute(AddEffectCommand, newEffect)
+              }
             }}
           >
             <Sparkles className="w-3.5 h-3.5" />

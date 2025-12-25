@@ -117,17 +117,17 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   const { isRendering } = getRemotionEnvironment();
   const { width } = useVideoConfig();
 
+  // Optimization: Create a map of recordings for O(1) lookup
+  const recordingMap = React.useMemo(() => {
+    return new Map(recordings.map(r => [r.id, r]));
+  }, [recordings]);
+
   // Sort clips by start time for consistent rendering
   const sortedClips = React.useMemo(() => {
     return [...clips].sort((a, b) => a.startTime - b.startTime);
   }, [clips]);
 
-  const frameLayout = React.useMemo(() => buildFrameLayout(sortedClips, fps), [sortedClips, fps]);
-
-  // Optimization: Create a map of recordings for O(1) lookup
-  const recordingMap = React.useMemo(() => {
-    return new Map(recordings.map(r => [r.id, r]));
-  }, [recordings]);
+  const frameLayout = React.useMemo(() => buildFrameLayout(sortedClips, fps, recordingMap), [sortedClips, fps, recordingMap]);
 
   // STABILITY: Track previous visible items to prevent unnecessary remounts
   // When play/pause toggles, the same clips should remain mounted
@@ -206,114 +206,114 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
             backgroundColor: backgroundColor ?? '#000',
           }}
         >
-        {/* Background layer must be below the video. Render per-clip to support parallax (mouse-driven) backgrounds. */}
-        <AbsoluteFill style={{ zIndex: 0 }}>
-          {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
-            return (
-              <ClipSequence
-                key={`bg-${clip.id}`}
-                clip={clip}
-                effects={effects}
-                videoWidth={videoWidth}
-                videoHeight={videoHeight}
-                renderSettings={safeRenderSettings}
-                startFrame={startFrame}
-                durationFrames={durationFrames}
-                includeBackground={true}
-                includeKeystrokes={false}
-              />
-            );
-          })}
-        </AbsoluteFill>
+          {/* Background layer must be below the video. Render per-clip to support parallax (mouse-driven) backgrounds. */}
+          <AbsoluteFill style={{ zIndex: 0 }}>
+            {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
+              return (
+                <ClipSequence
+                  key={`bg-${clip.id}`}
+                  clip={clip}
+                  effects={effects}
+                  videoWidth={videoWidth}
+                  videoHeight={videoHeight}
+                  renderSettings={safeRenderSettings}
+                  startFrame={startFrame}
+                  durationFrames={durationFrames}
+                  includeBackground={true}
+                  includeKeystrokes={false}
+                />
+              );
+            })}
+          </AbsoluteFill>
 
-        {/* SharedVideoController provides VideoPositionContext for all children */}
-        <SharedVideoController
-          videoWidth={videoWidth}
-          videoHeight={videoHeight}
-          sourceVideoWidth={sourceVideoWidth}
-          sourceVideoHeight={sourceVideoHeight}
-          effects={effects}
-          cameraSettings={cameraSettings}
-          resources={safeResources}
-          playback={safePlayback}
-          renderSettings={safeRenderSettings}
-          cropSettings={safeCropSettings}
-        >
-          {/* Overlay layers (cursor, keystrokes, etc.) rendered per clip as children */}
-          {/* They now have access to VideoPositionContext! */}
-          {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
-            return (
-              <ClipSequence
-                key={clip.id}
-                clip={clip}
-                effects={effects}
-                videoWidth={videoWidth}
-                videoHeight={videoHeight}
-                renderSettings={safeRenderSettings}
-                startFrame={startFrame}
-                durationFrames={durationFrames}
-                includeBackground={false}
-                includeKeystrokes={!safeRenderSettings.isGlowMode}
-              />
-            );
-          })}
+          {/* SharedVideoController provides VideoPositionContext for all children */}
+          <SharedVideoController
+            videoWidth={videoWidth}
+            videoHeight={videoHeight}
+            sourceVideoWidth={sourceVideoWidth}
+            sourceVideoHeight={sourceVideoHeight}
+            effects={effects}
+            cameraSettings={cameraSettings}
+            resources={safeResources}
+            playback={safePlayback}
+            renderSettings={safeRenderSettings}
+            cropSettings={safeCropSettings}
+          >
+            {/* Overlay layers (cursor, keystrokes, etc.) rendered per clip as children */}
+            {/* They now have access to VideoPositionContext! */}
+            {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
+              return (
+                <ClipSequence
+                  key={clip.id}
+                  clip={clip}
+                  effects={effects}
+                  videoWidth={videoWidth}
+                  videoHeight={videoHeight}
+                  renderSettings={safeRenderSettings}
+                  startFrame={startFrame}
+                  durationFrames={durationFrames}
+                  includeBackground={false}
+                  includeKeystrokes={!safeRenderSettings.isGlowMode}
+                />
+              );
+            })}
 
-          {/* Glue player is an ambient blur; skip extra overlays to keep preview smooth. */}
+            {/* Glue player is an ambient blur; skip extra overlays to keep preview smooth. */}
+            {!safeRenderSettings.isGlowMode && (
+              <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="below-cursor" />
+            )}
+
+            {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
+            {!safeRenderSettings.isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={safeResources.metadataUrls} />}
+
+            {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
+            {/* Only render on main player (large width) to avoid thumbnail instance conflicts */}
+            {useVideoConfig().width > 300 && (
+              <CropEditingLayer
+                isEditingCrop={safeRenderSettings.isEditingCrop}
+                cropData={safeCropSettings.cropData ?? null}
+                onCropChange={safeCropSettings.onCropChange}
+                onCropConfirm={safeCropSettings.onCropConfirm}
+                onCropReset={safeCropSettings.onCropReset}
+              />
+            )}
+          </SharedVideoController>
+
+          {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
           {!safeRenderSettings.isGlowMode && (
-            <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="below-cursor" />
+            <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="above-cursor" />
           )}
 
-          {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
-          {!safeRenderSettings.isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={safeResources.metadataUrls} />}
+          {/* Audio track layer - renders standalone audio clips (imported MP3, WAV, etc.) */}
+          {audioClips.map((audioClip) => {
+            const recording = recordingMap.get(audioClip.recordingId);
+            if (!recording) return null;
 
-          {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
-          {/* Only render on main player (large width) to avoid thumbnail instance conflicts */}
-          {useVideoConfig().width > 300 && (
-            <CropEditingLayer
-              isEditingCrop={safeRenderSettings.isEditingCrop}
-              cropData={safeCropSettings.cropData ?? null}
-              onCropChange={safeCropSettings.onCropChange}
-              onCropConfirm={safeCropSettings.onCropConfirm}
-              onCropReset={safeCropSettings.onCropReset}
-            />
-          )}
-        </SharedVideoController>
+            const audioUrl = getAudioUrl(recording, safeResources.videoFilePaths);
+            if (!audioUrl) return null;
 
-        {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
-        {!safeRenderSettings.isGlowMode && (
-          <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="above-cursor" />
-        )}
+            // Calculate frame positions for this audio clip
+            const startFrame = Math.round((audioClip.startTime / 1000) * fps);
+            const durationFrames = Math.max(1, Math.round((audioClip.duration / 1000) * fps));
+            const playbackRate = audioClip.playbackRate || 1;
+            const sourceInFrame = Math.round(((audioClip.sourceIn || 0) / 1000) * fps);
 
-        {/* Audio track layer - renders standalone audio clips (imported MP3, WAV, etc.) */}
-        {audioClips.map((audioClip) => {
-          const recording = recordingMap.get(audioClip.recordingId);
-          if (!recording) return null;
-
-          const audioUrl = getAudioUrl(recording, safeResources.videoFilePaths);
-          if (!audioUrl) return null;
-
-          // Calculate frame positions for this audio clip
-          const startFrame = Math.round((audioClip.startTime / 1000) * fps);
-          const durationFrames = Math.max(1, Math.round((audioClip.duration / 1000) * fps));
-          const playbackRate = audioClip.playbackRate || 1;
-          const sourceInFrame = Math.round(((audioClip.sourceIn || 0) / 1000) * fps);
-
-          return (
-            <Sequence
-              key={`audio-${audioClip.id}`}
-              from={startFrame}
-              durationInFrames={durationFrames}
-              name={`Audio ${audioClip.id}`}
-            >
-              <Audio
-                src={audioUrl}
-                startFrom={sourceInFrame}
-                playbackRate={playbackRate}
-                volume={1}
-              />
-            </Sequence>
-          );
-        })}
+            return (
+              <Sequence
+                key={`audio-${audioClip.id}`}
+                from={startFrame}
+                durationInFrames={durationFrames}
+                name={`Audio ${audioClip.id}`}
+              >
+                <Audio
+                  src={audioUrl}
+                  startFrom={sourceInFrame}
+                  playbackRate={playbackRate}
+                  volume={1}
+                />
+              </Sequence>
+            );
+          })}
         </AbsoluteFill>
       </PlaybackSettingsProvider>
     </TimeProvider>

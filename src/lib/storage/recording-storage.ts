@@ -8,6 +8,7 @@ import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Project, Recording, Clip, CaptureArea } from '@/types/project'
 import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, AspectRatioPreset } from '@/types/project'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getKeystrokeEffects } from '@/lib/effects/effect-filters'
 import { EffectGenerationService } from '@/lib/effects/effect-generation-service'
 import { isLikelyKeyboardKey, isStandaloneModifierKey } from '@/lib/keyboard/keyboard-utils'
 import { getVideoMetadataFromPath } from '@/lib/utils/video-metadata'
@@ -742,7 +743,7 @@ export class RecordingStorage {
       )
 
       // Log keystroke effect status after regeneration.
-      const keystrokeEffects = EffectsFactory.getKeystrokeEffects(project.timeline.effects || [])
+      const keystrokeEffects = getKeystrokeEffects(project.timeline.effects || [])
       if (keystrokeEffects.length > 0) {
         logger.info(`✅ Created ${keystrokeEffects.length} keystroke effect blocks from typing periods`)
       } else if (keyboardEvents.length > 0) {

@@ -8,7 +8,7 @@ import type { Clip, Effect } from '@/types/project'
 import { ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType, EffectType } from '@/types/effects'
-import { AddEffectCommand, DefaultCommandContext, CommandManager } from '@/lib/commands'
+import { CommandExecutor, AddEffectCommand } from '@/lib/commands'
 import { DEFAULT_SCREEN_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 
@@ -45,9 +45,9 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               data: { preset: ScreenEffectPreset.Subtle }
             }
             // Use command pattern for undo/redo support
-            const context = new DefaultCommandContext(useProjectStore)
-            const command = new AddEffectCommand(context, newEffect)
-            await CommandManager.getInstance().execute(command)
+            if (CommandExecutor.isInitialized()) {
+              await CommandExecutor.getInstance().execute(AddEffectCommand, newEffect)
+            }
           }}
         >
           Add 3D Screen Block

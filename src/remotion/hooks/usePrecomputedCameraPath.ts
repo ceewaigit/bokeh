@@ -2,9 +2,9 @@ import { useMemo, useRef } from 'react'
 import { computeCameraState, ParsedZoomBlock, type CameraPhysicsState } from '@/lib/effects/utils/camera-calculator'
 import { CAMERA_CONFIG } from '@/lib/effects/config/physics-config'
 import { calculateVideoPosition } from '@/remotion/compositions/utils/video-position'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
+
 import { EffectType } from '@/types/project'
-import type { BackgroundEffectData, Effect, Recording, RecordingMetadata } from '@/types/project'
+import type { BackgroundEffect, BackgroundEffectData, Effect, Recording, RecordingMetadata } from '@/types/project'
 import type { CameraPathFrame } from '@/types'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
@@ -162,8 +162,13 @@ export function usePrecomputedCameraPath(args: {
 
     const { recording, sourceTimeMs, effects: clipEffects } = clipData
     const metadata = recording ? loadedMetadata?.get(recording.id) : undefined
-    const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs)
-    const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null
+    const backgroundEffect = clipEffects.find(e =>
+      e.type === EffectType.Background &&
+      e.enabled &&
+      e.startTime <= sourceTimeMs &&
+      e.endTime >= sourceTimeMs
+    ) as BackgroundEffect | undefined
+    const backgroundData = backgroundEffect?.data ?? null
     const padding = backgroundData?.padding || 0
 
     const activeSourceWidth = recording?.width || sourceVideoWidth || videoWidth

@@ -55,7 +55,8 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
       60;
 
     // Calculate duration in frames using frame layout to avoid rounding gaps.
-    const frameLayout = buildFrameLayout(clips, fps);
+    const recordingsMap = new Map(project.recordings.map(r => [r.id, r]));
+    const frameLayout = buildFrameLayout(clips, fps, recordingsMap);
     const durationInFrames = getTimelineDurationInFrames(frameLayout);
 
     // Get source dimensions from first recording

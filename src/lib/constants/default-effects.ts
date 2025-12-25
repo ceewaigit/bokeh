@@ -119,7 +119,7 @@ export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
   maxWidth: 400,
   stylePreset: 'glass',
   showModifierSymbols: true,
-  scale: 3.0  // Large scale for visibility at any composition size
+  scale: 1.5  // Reduced scale for better default appearance
 }
 
 // Store for default wallpaper once loaded

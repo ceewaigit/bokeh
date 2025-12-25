@@ -2,9 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { keyboardManager } from '@/lib/keyboard/keyboard-manager'
 import {
-  CommandManager,
-  DefaultCommandContext,
-  registerAllCommands,
+  CommandExecutor,
   SplitClipCommand,
   TrimCommand,
   DuplicateClipCommand,
@@ -24,257 +22,147 @@ interface UseCommandKeyboardProps {
 }
 
 export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps = {}) {
-  const commandManagerRef = useRef<CommandManager | null>(null)
-  const contextRef = useRef<DefaultCommandContext | null>(null)
+  const executorRef = useRef<CommandExecutor | null>(null)
 
-  // Initialize command manager
+  // Initialize CommandExecutor once
   useEffect(() => {
-    if (!commandManagerRef.current) {
-      contextRef.current = new DefaultCommandContext(useProjectStore)
-      commandManagerRef.current = CommandManager.getInstance(contextRef.current)
-      registerAllCommands(commandManagerRef.current)
-    } else {
-      // Ensure manager has a live context (reads from store accessor)
-      contextRef.current = new DefaultCommandContext(useProjectStore)
-      commandManagerRef.current.setContext(contextRef.current)
+    if (!executorRef.current) {
+      executorRef.current = CommandExecutor.isInitialized()
+        ? CommandExecutor.getInstance()
+        : CommandExecutor.initialize(useProjectStore)
     }
   }, [])
 
   useEffect(() => {
-    if (!enabled || !commandManagerRef.current) return
+    if (!enabled) return
 
-    const manager = commandManagerRef.current
-
-    // Copy handler
-    const handleCopy = async () => {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-
-      try {
-        const command = new CopyCommand(freshContext)
-        const result = await manager.execute(command)
-
-        if (result.success) {
-          if (result.data?.type === 'effect') {
-            const title = result.data.effectType ? result.data.effectType.charAt(0).toUpperCase() + result.data.effectType.slice(1) : 'Effect'
-            toast(`${title} block copied`)
-          } else {
-            toast('Clip copied')
-          }
-        } else {
-          toast.error(result.error as string)
-        }
-      } catch (err) {
-        console.error('[Keyboard] Copy failed:', err)
-        toast.error('Failed to copy')
+    const getExecutor = () => {
+      if (!executorRef.current) {
+        executorRef.current = CommandExecutor.isInitialized()
+          ? CommandExecutor.getInstance()
+          : CommandExecutor.initialize(useProjectStore)
       }
+      return executorRef.current
     }
 
-    // Cut handler
-    const handleCut = async () => {
-      // Update context with fresh store state
-      contextRef.current = new DefaultCommandContext(useProjectStore)
-      const command = new CutCommand(contextRef.current)
-      const result = await manager.execute(command)
-
+    const handleCopy = async () => {
+      const result = await getExecutor().execute(CopyCommand)
       if (result.success) {
-        toast('Clip cut')
+        const msg = result.data?.type === 'effect'
+          ? `${(result.data.effectType || 'Effect').charAt(0).toUpperCase() + (result.data.effectType || 'effect').slice(1)} block copied`
+          : 'Clip copied'
+        toast(msg)
       } else {
         toast.error(result.error as string)
       }
     }
 
-    // Paste handler
+    const handleCut = async () => {
+      const result = await getExecutor().execute(CutCommand)
+      result.success ? toast('Clip cut') : toast.error(result.error as string)
+    }
+
     const handlePaste = async () => {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-
-      try {
-        const command = new PasteCommand(freshContext)
-        const result = await manager.execute(command)
-
-        if (result.success) {
-          if (result.data?.type === 'effect') {
-            // Auto-select pasted effect in sidebar
-            if (result.data.effectType === EffectType.Zoom && result.data.blockId) {
-              useProjectStore.getState().selectEffectLayer(EffectLayerType.Zoom, result.data.blockId)
-            }
-            const title = result.data.effectType ? result.data.effectType.charAt(0).toUpperCase() + result.data.effectType.slice(1) : 'Effect'
-            toast(`${title} block pasted`)
-          } else {
-            toast('Clip pasted')
-          }
-        } else {
-          toast.error(result.error as string)
+      const result = await getExecutor().execute(PasteCommand)
+      if (result.success) {
+        if (result.data?.type === 'effect' && result.data.effectType === EffectType.Zoom && result.data.blockId) {
+          useProjectStore.getState().selectEffectLayer(EffectLayerType.Zoom, result.data.blockId)
         }
-      } catch (err) {
-        console.error('[Keyboard] Paste failed:', err)
-        toast.error('Failed to paste')
+        const msg = result.data?.type === 'effect'
+          ? `${(result.data.effectType || 'Effect').charAt(0).toUpperCase() + (result.data.effectType || 'effect').slice(1)} block pasted`
+          : 'Clip pasted'
+        toast(msg)
+      } else {
+        toast.error(result.error as string)
       }
     }
 
-    // Delete handler
     const handleDelete = async () => {
-      const freshContext = new DefaultCommandContext(useProjectStore)
-
-      // Check if an effect layer is selected
       const effectLayer = useProjectStore.getState().selectedEffectLayer
-
-      // Handle any selected effect layer with an ID
       if (effectLayer?.id) {
-        // Use appropriate command based on effect type
-        let command
-        let effectName = 'Effect'
+        const isZoom = effectLayer.type === EffectLayerType.Zoom
+        const result = isZoom
+          ? await getExecutor().execute(RemoveZoomBlockCommand, effectLayer.id)
+          : await getExecutor().execute(RemoveEffectCommand, effectLayer.id)
 
-        if (effectLayer.type === EffectLayerType.Zoom) {
-          command = new RemoveZoomBlockCommand(freshContext, effectLayer.id)
-          effectName = 'Zoom block'
+        if (result.success) {
+          useProjectStore.getState().clearEffectSelection()
+          const name = isZoom ? 'Zoom block' :
+            effectLayer.type === EffectLayerType.Screen ? 'Screen block' :
+            effectLayer.type === EffectLayerType.Keystroke ? 'Keystroke block' : 'Effect block'
+          toast(`${name} deleted`)
         } else {
-          // Generic handler for Screen, Keystroke, and any other effect types
-          command = new RemoveEffectCommand(freshContext, effectLayer.id)
-          effectName = effectLayer.type === EffectLayerType.Screen ? 'Screen block' :
-            effectLayer.type === EffectLayerType.Keystroke ? 'Keystroke block' :
-              'Effect block'
-        }
-
-        try {
-          const result = await manager.execute(command)
-          if (result.success) {
-            useProjectStore.getState().clearEffectSelection()
-            toast(`${effectName} deleted`)
-          } else {
-            console.error('[Keyboard] Delete effect failed:', result.error)
-            toast.error(result.error as string)
-          }
-        } catch (err) {
-          console.error('[Keyboard] Delete effect failed:', err)
-          toast.error('Failed to delete')
+          toast.error(result.error as string)
         }
         return
       }
 
-      // Fallback: delete selected clip(s)
       const selectedClips = useProjectStore.getState().selectedClips
-      if (selectedClips && selectedClips.length > 0) {
-        try {
-          for (const clipId of selectedClips) {
-            const cmd = new RemoveClipCommand(freshContext, clipId)
-            await manager.execute(cmd)
-          }
-          toast('Clip(s) deleted')
-        } catch (err) {
-          console.error('[Keyboard] Delete clip failed:', err)
-          toast.error('Failed to delete')
+      if (selectedClips.length > 0) {
+        for (const clipId of selectedClips) {
+          await getExecutor().execute(RemoveClipCommand, clipId)
         }
+        toast('Clip(s) deleted')
       }
     }
 
-    // Split handler
     const handleSplit = async () => {
-      const currentStore = useProjectStore.getState()
-      const selectedClips = currentStore.selectedClips
+      const { selectedClips, currentTime } = useProjectStore.getState()
       if (selectedClips.length !== 1) {
         toast.error('Select exactly one clip to split')
         return
       }
-
-      // Update context with fresh store state
-      contextRef.current = new DefaultCommandContext(useProjectStore)
-      const command = new SplitClipCommand(
-        contextRef.current,
-        selectedClips[0],
-        currentStore.currentTime
-      )
-
-      const result = await manager.execute(command)
-
-      if (result.success) {
-        toast('Clip split')
-      } else {
-        toast.error(result.error as string)
-      }
+      const result = await getExecutor().execute(SplitClipCommand, selectedClips[0], currentTime)
+      result.success ? toast('Clip split') : toast.error(result.error as string)
     }
 
     const handleTrimStart = async () => {
-      const currentStore = useProjectStore.getState()
-      const selectedClips = currentStore.selectedClips
+      const { selectedClips, currentTime } = useProjectStore.getState()
       if (selectedClips.length !== 1) {
         toast.error('Select exactly one clip to trim')
         return
       }
-
-      contextRef.current = new DefaultCommandContext(useProjectStore)
-      const command = new TrimCommand(
-        contextRef.current,
-        selectedClips[0],
-        currentStore.currentTime,
-        'start'
-      )
-
-      const result = await manager.execute(command)
-      if (!result.success) {
-        toast.error(result.error as string)
-      }
+      const result = await getExecutor().execute(TrimCommand, selectedClips[0], currentTime, 'start')
+      if (!result.success) toast.error(result.error as string)
     }
 
     const handleTrimEnd = async () => {
-      const currentStore = useProjectStore.getState()
-      const selectedClips = currentStore.selectedClips
+      const { selectedClips, currentTime } = useProjectStore.getState()
       if (selectedClips.length !== 1) {
         toast.error('Select exactly one clip to trim')
         return
       }
-
-      contextRef.current = new DefaultCommandContext(useProjectStore)
-      const command = new TrimCommand(
-        contextRef.current,
-        selectedClips[0],
-        currentStore.currentTime,
-        'end'
-      )
-
-      const result = await manager.execute(command)
-      if (!result.success) {
-        toast.error(result.error as string)
-      }
+      const result = await getExecutor().execute(TrimCommand, selectedClips[0], currentTime, 'end')
+      if (!result.success) toast.error(result.error as string)
     }
 
-    // Duplicate handler
     const handleDuplicate = async () => {
-      const currentStore = useProjectStore.getState()
-      const selectedClips = currentStore.selectedClips
+      const { selectedClips } = useProjectStore.getState()
       if (selectedClips.length === 0) return
 
-      // Begin group for multiple duplications
-      if (selectedClips.length > 1) {
-        manager.beginGroup(`duplicate-${Date.now()}`)
-      }
+      const executor = getExecutor()
+      if (selectedClips.length > 1) executor.beginGroup(`duplicate-${Date.now()}`)
 
       for (const clipId of selectedClips) {
-        contextRef.current = new DefaultCommandContext(useProjectStore)
-        const command = new DuplicateClipCommand(contextRef.current, clipId)
-        await manager.execute(command)
+        await executor.execute(DuplicateClipCommand, clipId)
       }
 
       if (selectedClips.length > 1) {
-        await manager.endGroup()
+        await executor.endGroup()
         toast(`${selectedClips.length} clips duplicated`)
       } else {
         toast('Clip duplicated')
       }
     }
 
-    // Undo/Redo handlers
     const handleUndo = async () => {
-      const result = await manager.undo()
-      if (result.success) {
-        toast('Undone')
-      }
+      const result = await getExecutor().undo()
+      if (result.success) toast('Undone')
     }
 
     const handleRedo = async () => {
-      const result = await manager.redo()
-      if (result.success) {
-        toast('Redone')
-      }
+      const result = await getExecutor().redo()
+      if (result.success) toast('Redone')
     }
 
     // Register keyboard listeners
@@ -304,10 +192,10 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
   }, [enabled])
 
   return {
-    commandManager: commandManagerRef.current,
-    canUndo: () => commandManagerRef.current?.canUndo() || false,
-    canRedo: () => commandManagerRef.current?.canRedo() || false,
-    getUndoDescription: () => commandManagerRef.current?.getUndoDescription() || null,
-    getRedoDescription: () => commandManagerRef.current?.getRedoDescription() || null
+    commandManager: executorRef.current?.getManager() ?? null,
+    canUndo: () => executorRef.current?.canUndo() ?? false,
+    canRedo: () => executorRef.current?.canRedo() ?? false,
+    getUndoDescription: () => executorRef.current?.getUndoDescription() ?? null,
+    getRedoDescription: () => executorRef.current?.getRedoDescription() ?? null
   }
 }

@@ -1,16 +1,17 @@
 /**
  * Resolve video URL for a recording with smart resolution selection
- * 
+ *
  * Handles both preview (proxy/blob URLs) and export (file URLs) environments.
  * Uses proxy when sufficient for target × zoom × retina, otherwise full source.
- * 
+ *
  * Key insight: Once a source is selected for a clip, it stays consistent
  * throughout playback - no switching means no blink.
  */
 
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { getRemotionEnvironment } from 'remotion';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
+import { useUrlLocking } from './useUrlLocking';
 import type { UseVideoUrlProps } from '@/types';
 
 // Re-export shared utilities for backwards compatibility
@@ -48,10 +49,6 @@ export function useVideoUrl({
 }: UseVideoUrlProps): string | undefined {
   const { isRendering } = getRemotionEnvironment();
   const { videoUrls, videoUrlsHighRes, videoFilePaths } = resources || {};
-
-  // URL LOCKING: Prevent URL changes during playback to avoid reload loops
-  // We update this while paused, then freeze it during playback
-  const lockedUrlRef = useRef<string | undefined>(undefined);
 
   const computedUrl = useMemo(() => {
     if (!recording) return undefined;
@@ -187,28 +184,6 @@ export function useVideoUrl({
     return `video-stream://${recording.id}`;
   }, [preferOffthreadVideo, recording, isRendering, videoFilePaths, videoUrls, videoUrlsHighRes, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled]);
 
-  // URL LOCKING LOGIC: Prevent URL switching during playback
-  // Key insight: Lock the URL while PAUSED, so when play starts we use the stable URL
-  // This fixes the timing issue where play state change triggered useMemo recalculation
-  // BEFORE the lock could capture the original URL.
-
-  // Track which recording the lock belongs to
-  const lockedRecordingIdRef = useRef<string | undefined>(undefined);
-
-  if (recording?.id !== lockedRecordingIdRef.current) {
-    // CRITICAL FIX: If the recording changes (e.g. Video A -> Image -> Video B),
-    // we MUST invalidate the lock immediately, otherwise we'll try to play
-    // Video B using Video A's locked URL.
-    lockedUrlRef.current = computedUrl;
-    lockedRecordingIdRef.current = recording?.id;
-  } else if (!isPlaying) {
-    // When paused, always update the locked URL to the current computed URL
-    // This ensures we have the latest URL ready when playback starts
-    lockedUrlRef.current = computedUrl;
-    lockedRecordingIdRef.current = recording?.id;
-  }
-
-  // During playback, return the locked URL (captured when last paused)
-  // This prevents mid-playback URL switches that cause video reloads
-  return isPlaying ? (lockedUrlRef.current ?? computedUrl) : computedUrl;
+  // Use URL locking to prevent mid-playback URL switches that cause video reloads
+  return useUrlLocking(computedUrl, isPlaying, recording?.id);
 }

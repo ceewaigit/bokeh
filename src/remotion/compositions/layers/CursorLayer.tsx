@@ -14,7 +14,7 @@ import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, ease
 import { normalizeClickEvents, normalizeMouseEvents } from '../utils/event-normalizer';
 import { useVideoPosition } from '../../context/VideoPositionContext';
 import { useTimeContext } from '../../context/TimeContext';
-import { EffectsFactory } from '@/lib/effects/effects-factory';
+import { getCursorEffect } from '@/lib/effects/effect-filters';
 import { applyCssTransformToPoint } from '../utils/transform-point';
 import { buildFrameLayout } from '@/lib/timeline/frame-layout';
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
@@ -108,7 +108,18 @@ export const CursorLayer = React.memo(({
     return [...clips].sort((a, b) => a.startTime - b.startTime);
   }, [clips]);
 
-  const frameLayout = useMemo(() => buildFrameLayout(sortedClips, fps), [sortedClips, fps]);
+  const recordingsMap = useMemo(() => {
+    const map = new Map<string, Recording>();
+    // Collect unique recording IDs
+    const recordingIds = new Set(clips.map(c => c.recordingId));
+    recordingIds.forEach(id => {
+      const rec = getRecording(id);
+      if (rec) map.set(id, rec);
+    });
+    return map;
+  }, [clips, getRecording]);
+
+  const frameLayout = useMemo(() => buildFrameLayout(sortedClips, fps, recordingsMap), [sortedClips, fps, recordingsMap]);
 
   const activeClipData = useMemo(() => {
     return getActiveClipDataAtFrame({
@@ -135,9 +146,11 @@ export const CursorLayer = React.memo(({
   const isGeneratedRecording = recording?.sourceType === 'generated';
   const isImageRecording = recording?.sourceType === 'image';
 
-  // For generated clips (not images), we can't show cursor - no events
+  // For generated clips (not images), we typically don't show cursor unless they have synthetic events (e.g. return cursor)
   // For image clips with syntheticMouseEvents, cursor will be shown via normal path
-  const recordingId = (isGeneratedRecording && !isImageRecording) ? null : recording?.id ?? null;
+  const hasSyntheticEvents = recording?.syntheticMouseEvents && recording.syntheticMouseEvents.length > 0;
+  const shouldSkipCursor = isGeneratedRecording && !isImageRecording && !hasSyntheticEvents;
+  const recordingId = shouldSkipCursor ? null : recording?.id ?? null;
 
   // LAZY LOADING: Load metadata on-demand via hook
   const { metadata: lazyMetadata } = useRecordingMetadata({
@@ -152,7 +165,7 @@ export const CursorLayer = React.memo(({
   // All hooks must be called unconditionally; we handle generated recordings at the end
 
   const cursorEffect = useMemo(() => {
-    return activeClipData ? EffectsFactory.getCursorEffect(activeClipData.effects) : undefined;
+    return activeClipData ? getCursorEffect(activeClipData.effects) : undefined;
   }, [activeClipData]);
 
   const cursorData = (cursorEffect?.data as CursorEffectData | undefined);
@@ -616,9 +629,9 @@ export const CursorLayer = React.memo(({
 
   // Don't unmount when hidden - keep component mounted to prevent blinking
   // Instead, return transparent AbsoluteFill
-  // Show cursor for: video clips, image clips with syntheticMouseEvents
-  // Don't show cursor for: generated clips (blank, plugins without cursor data)
-  const shouldShowCursor = (!isGeneratedRecording || isImageRecording) && cursorEffect?.enabled !== false && cursorData && cursorPosition;
+  // Show cursor for: video clips, image clips, and generated clips WITH synthetic events
+  // Don't show cursor for: plain generated clips
+  const shouldShowCursor = (!isGeneratedRecording || isImageRecording || hasSyntheticEvents) && cursorEffect?.enabled !== false && cursorData && cursorPosition;
   const cameraMotionBlur = videoPositionContext.cameraMotionBlur;
   const hasCameraMotionBlur = cameraMotionBlur?.enabled;
 

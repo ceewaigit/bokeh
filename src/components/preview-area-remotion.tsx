@@ -24,41 +24,14 @@ import { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 import { globalBlobManager } from '@/lib/security/blob-url-manager';
 import { useTheme } from '@/contexts/theme-context';
+import { msToFrame } from '@/remotion/compositions/utils/frame-time';
 import type { CropEffectData, Recording } from '@/types/project';
+
+import { AmbientGlowPlayer } from './preview/ambient-glow-player';
 
 type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
 
-// Ambient glow configuration
-const GLOW_CONFIG = {
-  // Ultra low-res player for memory efficiency
-  width: 64,
-  height: 36,
-  // Glow extends beyond video for elegant spread
-  spread: 50,
-};
 
-const GLOW_VISUALS = {
-  dark: {
-    // Softer blur for smooth edges
-    blur: 50,
-    // More visible but still subtle
-    opacity: 0.35,
-    // Gentle brightness
-    brightness: 0.55,
-    // Rich saturation for vibrant colors
-    saturation: 1.4,
-  },
-  light: {
-    // Slightly larger blur for airy glow on light surfaces
-    blur: 70,
-    // Lower opacity to avoid muddy halos
-    opacity: 0.18,
-    // Lift brightness so glow reads on white
-    brightness: 1.1,
-    // Gentle saturation to avoid neon on light mode
-    saturation: 1.1,
-  }
-};
 
 // Scrub throttle configuration (reduces video decode pressure)
 const SCRUB_THROTTLE_MS = 125; // Max 8 seeks per second during scrubbing
@@ -86,6 +59,7 @@ export function PreviewAreaRemotion({
   // Instead, read it directly from the store ref during sync intervals.
   const storeIsPlaying = useProjectStore((s) => s.isPlaying);
   const storePause = useProjectStore((s) => s.pause);
+  const storeSeek = useProjectStore((s) => s.seek);  // For syncing store FROM player
   const isExporting = useExportStore((s) => s.isExporting);
 
   // PERFORMANCE: Track document visibility - pause when window not focused
@@ -117,7 +91,6 @@ export function PreviewAreaRemotion({
   // Derive effective isPlaying - pause if document hidden
   const isPlaying = storeIsPlaying && isDocumentVisible.current;
   const playerRef = useRef<PlayerRef>(null);
-  const glowPlayerRef = useRef<PlayerRef>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const aspectContainerRef = useRef<HTMLDivElement>(null);
 
@@ -125,16 +98,14 @@ export function PreviewAreaRemotion({
   const lastSeekTimeRef = useRef<number>(0);
   const pendingSeekRef = useRef<number | null>(null);
   const scrubTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isScrubbing, setIsScrubbing] = useState(false);
-  const scrubEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // SSOT FIX: isScrubbing removed - same code path for play and scrub
+  const isScrubbing = false;
   const lastIsPlayingRef = useRef<boolean>(false);
   const playbackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const glowPlaybackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // No longer tracking currentTime via prop to avoid re-renders.
   // Access it directly from store when needed.
   const timelineMetadataRef = useRef<TimelineMetadata | null>(null);
-  const lastGlowIsPlayingRef = useRef<boolean>(false);
 
   const safePlay = useCallback((player: PlayerRef | null, label: string) => {
     if (!player) return;
@@ -158,7 +129,7 @@ export function PreviewAreaRemotion({
   const isHighQualityPlaybackEnabled = useWorkspaceStore((s) => s.isHighQualityPlaybackEnabled);
   const isGlowEnabled = useWorkspaceStore((s) => s.isGlowEnabled);
   const { resolvedTheme } = useTheme();
-  const glowVisuals = resolvedTheme === 'light' ? GLOW_VISUALS.light : GLOW_VISUALS.dark;
+
 
   // Calculate timeline metadata (total duration, fps, dimensions)
   const timelineMetadata = useTimelineMetadata(project);
@@ -229,9 +200,10 @@ export function PreviewAreaRemotion({
     return Math.max(0, Math.min(frame, maxFrame));
   };
 
+  // SSOT: Use centralized frame calculation for consistent rounding
   const timeToFrame = (timeMs: number) => {
     if (!timelineMetadata) return 0;
-    return Math.round((timeMs / 1000) * timelineMetadata.fps);
+    return msToFrame(timeMs, timelineMetadata.fps);
   };
 
   useEffect(() => {
@@ -279,34 +251,27 @@ export function PreviewAreaRemotion({
     }
   }, []);
 
-  // Detect scrubbing state and clean up timeouts
-  // We infer scrubbing if NOT playing but time is changing - need to hook into time changes from store
+  // SSOT: frameupdate event listener - the TRUE source of truth sync
+  // Remotion Player fires this on EVERY frame change (playback and seeking)
   useEffect(() => {
-    // Poll for scrub state based on rapid time changes
-    // This is less efficient than the previous direct prop, but saves the massive re-renders.
-    // Actually, simple "is playing" check is usually enough for the UI toggle.
-    if (isPlaying) {
-      setIsScrubbing(false);
-      return;
-    }
+    const player = playerRef.current;
+    if (!player || !timelineMetadata) return;
 
-    const unsubscribe = useProjectStore.subscribe((state, prevState) => {
-      if (state.isPlaying) return;
-      if (state.currentTime !== prevState.currentTime) {
-        setIsScrubbing(true);
-        // Debounce reset
-        if (scrubEndTimeoutRef.current) clearTimeout(scrubEndTimeoutRef.current);
-        scrubEndTimeoutRef.current = setTimeout(() => {
-          setIsScrubbing(false);
-        }, 500);
-      }
-    });
+    const handleFrameUpdate = (e: { detail: { frame: number } }) => {
+      // Only sync during playback - scrub sync is handled separately
+      if (!useProjectStore.getState().isPlaying) return;
+
+      const frame = e.detail.frame;
+      const timeMs = (frame / timelineMetadata.fps) * 1000;
+      storeSeek(timeMs);
+    };
+
+    player.addEventListener('frameupdate', handleFrameUpdate as any);
 
     return () => {
-      unsubscribe();
-      if (scrubEndTimeoutRef.current) clearTimeout(scrubEndTimeoutRef.current);
+      player.removeEventListener('frameupdate', handleFrameUpdate as any);
     };
-  }, [isPlaying]);
+  }, [timelineMetadata, storeSeek]);
 
   // Main player sync effect with throttled scrubbing
   useEffect(() => {
@@ -316,7 +281,6 @@ export function PreviewAreaRemotion({
     if (isExporting) {
       try {
         if (playerRef.current) playerRef.current.pause();
-        if (glowPlayerRef.current) glowPlayerRef.current.pause();
       } catch (e) {
         // Best-effort pause
       }
@@ -330,15 +294,20 @@ export function PreviewAreaRemotion({
     if (isPlaying) {
       // Critical performance behavior:
       // Seeking every tick during playback forces the decoder to constantly re-sync and will tank FPS.
-      // Only seek once when entering play, then periodically correct drift (if any).
+      // Only seek once when entering play, then periodically sync store FROM player.
       if (!lastIsPlayingRef.current) {
         try {
-          // Sync start position
+          // SSOT: Get player's current frame and compare to store
+          const playerFrame = playerRef.current.getCurrentFrame();
           const currentStoreTime = useProjectStore.getState().currentTime;
-          const startFrame = clampFrame(timeToFrame(currentStoreTime));
-          playerRef.current.seekTo(startFrame);
+          const storeFrame = clampFrame(timeToFrame(currentStoreTime));
+
+          // Only seek if there's a significant difference
+          if (Math.abs(playerFrame - storeFrame) > 1) {
+            playerRef.current.seekTo(storeFrame);
+          }
         } catch (e) {
-          console.warn('Failed to seek before play:', e);
+          console.warn('Failed to sync before play:', e);
         }
       }
 
@@ -354,29 +323,8 @@ export function PreviewAreaRemotion({
       }
 
       if (!lastIsPlayingRef.current) {
+        // Start playback
         safePlay(playerRef.current, 'main');
-      }
-
-      // Start/update a drift corrector while playing.
-      if (!playbackSyncIntervalRef.current) {
-        playbackSyncIntervalRef.current = setInterval(() => {
-          const player = playerRef.current;
-          const meta = timelineMetadataRef.current;
-          if (!player || !meta) return;
-
-          try {
-            const currentFrame = player.getCurrentFrame();
-            const currentStoreTime = useProjectStore.getState().currentTime;
-            const desiredFrame = Math.max(0, Math.min(meta.durationInFrames - 1, Math.round((currentStoreTime / 1000) * meta.fps)));
-            const drift = desiredFrame - currentFrame;
-
-            // Allow small drift to avoid fighting the player.
-            // Only correct forward drift; never seek backwards during playback (can look like rewinding/looping).
-            if (drift >= 6) player.seekTo(desiredFrame);
-          } catch {
-            // Best-effort drift correction only
-          }
-        }, 750);
       }
 
       lastIsPlayingRef.current = true;
@@ -388,6 +336,7 @@ export function PreviewAreaRemotion({
       clearInterval(playbackSyncIntervalRef.current);
       playbackSyncIntervalRef.current = null;
     }
+
     lastIsPlayingRef.current = false;
 
     // NOT playing - use throttled seeking to reduce decode pressure
@@ -403,14 +352,6 @@ export function PreviewAreaRemotion({
         const time = state.currentTime;
         const frame = clampFrame(timeToFrame(time));
         throttledSeek(frame);
-        // Also sync glow player manually here if regular sync loop isn't running
-        if (isGlowEnabled && glowPlayerRef.current) {
-          // Debounce glow updates even more
-          const glowFrame = clampFrame(timeToFrame(time));
-          try {
-            glowPlayerRef.current.seekTo(glowFrame);
-          } catch { }
-        }
       }
     });
 
@@ -429,77 +370,8 @@ export function PreviewAreaRemotion({
         clearInterval(playbackSyncIntervalRef.current);
         playbackSyncIntervalRef.current = null;
       }
-      if (glowPlaybackSyncIntervalRef.current) {
-        clearInterval(glowPlaybackSyncIntervalRef.current);
-        glowPlaybackSyncIntervalRef.current = null;
-      }
     };
   }, []);
-
-  // Glow player sync - follows main player but simpler (no audio)
-  // OPTIMIZATION: Skip glow updates during active scrubbing to reduce decode pressure
-  useEffect(() => {
-    if (!glowPlayerRef.current || !timelineMetadata) return;
-
-    // Skip glow player updates during active scrubbing to save memory
-    if (isScrubbing && !isPlaying) {
-      // Just pause the glow player during scrubbing
-      try {
-        if (glowPlaybackSyncIntervalRef.current) {
-          clearInterval(glowPlaybackSyncIntervalRef.current);
-          glowPlaybackSyncIntervalRef.current = null;
-        }
-        lastGlowIsPlayingRef.current = false;
-        glowPlayerRef.current.pause();
-      } catch {
-        // Non-critical
-      }
-      return;
-    }
-
-    // Direct store access
-    const currentTimeMs = useProjectStore.getState().currentTime;
-    const targetFrame = clampFrame(timeToFrame(currentTimeMs));
-
-    try {
-      if (isPlaying) {
-        if (!lastGlowIsPlayingRef.current) {
-          glowPlayerRef.current.seekTo(targetFrame);
-          safePlay(glowPlayerRef.current, 'glow');
-        }
-
-        if (!glowPlaybackSyncIntervalRef.current) {
-          glowPlaybackSyncIntervalRef.current = setInterval(() => {
-            const player = glowPlayerRef.current;
-            const meta = timelineMetadataRef.current;
-            if (!player || !meta) return;
-
-            try {
-              const currentFrame = player.getCurrentFrame();
-              const currentStoreTime = useProjectStore.getState().currentTime;
-              const desiredFrame = Math.max(0, Math.min(meta.durationInFrames - 1, Math.round((currentStoreTime / 1000) * meta.fps)));
-              const drift = desiredFrame - currentFrame;
-              if (drift >= 6) player.seekTo(desiredFrame);
-            } catch {
-              // Best-effort drift correction only
-            }
-          }, 750);
-        }
-        lastGlowIsPlayingRef.current = true;
-      } else {
-        if (glowPlaybackSyncIntervalRef.current) {
-          clearInterval(glowPlaybackSyncIntervalRef.current);
-          glowPlaybackSyncIntervalRef.current = null;
-        }
-        lastGlowIsPlayingRef.current = false;
-        glowPlayerRef.current.pause();
-        // Seek handled by the main effect subscription now
-        glowPlayerRef.current.seekTo(targetFrame);
-      }
-    } catch {
-      // Glow player errors are non-critical
-    }
-  }, [isPlaying, timelineMetadata, isScrubbing]); // Removed currentTime
 
   // Sync volume/mute changes
   useEffect(() => {
@@ -585,28 +457,7 @@ export function PreviewAreaRemotion({
     }
   }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
 
-  const glowPlayerInputProps = useMemo(() => ({
-    ...playerConfig,
-    playback: {
-      isPlaying,
-      isScrubbing,
-      isHighQualityPlaybackEnabled: false, // CRITICAL FIX: Glow is 64x36, never needs high-quality
-      previewMuted: true,
-      previewVolume: 0,
-    },
-    renderSettings: {
-      isGlowMode: true,
-      preferOffthreadVideo: false,
-      enhanceAudio: false,
-      isEditingCrop: false, // No crop overlay in glow
-    },
-    cropSettings: {
-      // No crop interaction in glow
-    },
-    resources: {
-      // Same as main
-    }
-  }), [playerConfig, isEditingCrop, isPlaying, isScrubbing]);
+
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-transparent">
@@ -618,50 +469,61 @@ export function PreviewAreaRemotion({
             <p className="text-sm mt-2">Preview paused to optimize performance</p>
           </div>
         ) : (
-          /* Aspect Ratio Container */
-          <div
-            ref={aspectContainerRef}
-            className="relative w-full max-w-full max-h-full"
-            style={{
-              aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
-              maxWidth: '100%',
-              maxHeight: '100%',
-            }}
-          >
-            {/* Ambient Glow - Low-res Player behind main player */}
-            {/* Toggle via Utilities > Editing > Ambient Glow */}
-            {isGlowEnabled && (
+          <>
+
+            <div
+              ref={aspectContainerRef}
+              className="relative w-full max-w-full max-h-full"
+              style={{
+                aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
+                maxWidth: '100%',
+                maxHeight: '100%',
+              }}
+            >
+              {/* Ambient Glow - Low-res Player behind main player */}
+              {/* Toggle via Utilities > Editing > Ambient Glow */}
+              {isGlowEnabled && (
+                <AmbientGlowPlayer
+                  mainPlayerRef={playerRef}
+                  timelineMetadata={timelineMetadata}
+                  playerConfig={playerConfig}
+                  isPlaying={isPlaying}
+                  isScrubbing={isScrubbing}
+                  playerKey={playerKey}
+                  initialFrame={initialFrame}
+                />
+              )}
+
+              {/* Main Player Container */}
               <div
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: `calc(100% + ${GLOW_CONFIG.spread * 2}px)`,
-                  height: `calc(100% + ${GLOW_CONFIG.spread * 2}px)`,
-                  transform: 'translate(-50%, -50%) translateZ(0)',
-                  filter: `blur(${glowVisuals.blur}px) brightness(${glowVisuals.brightness}) saturate(${glowVisuals.saturation})`,
-                  opacity: glowVisuals.opacity,
-                  zIndex: 0,
-                  borderRadius: 32,
-                  overflow: 'hidden',
-                  pointerEvents: 'none',
-                  mixBlendMode: resolvedTheme === 'light' ? 'screen' : 'normal',
-                }}
+                ref={playerContainerRef}
+                className="absolute inset-0 w-full h-full"
+                style={{ zIndex: 10 }}
               >
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+              .__remotion-player {
+                border-radius: 12px !important;
+                overflow: hidden !important;
+                transform: translateZ(0); /* Force GPU layer */
+              }
+            `}} />
                 <Player
-                  key={`glow-${playerKey}`}
-                  ref={glowPlayerRef}
+                  key={playerKey}
+                  ref={playerRef}
                   component={TimelineComposition as any}
-                  inputProps={glowPlayerInputProps as any}
+                  inputProps={mainPlayerInputProps as any}
                   durationInFrames={timelineMetadata.durationInFrames}
-                  compositionWidth={GLOW_CONFIG.width}
-                  compositionHeight={GLOW_CONFIG.height}
+                  compositionWidth={compositionSize.width}
+                  compositionHeight={compositionSize.height}
                   fps={timelineMetadata.fps}
                   initialFrame={initialFrame}
-                  initiallyMuted={true}
+                  initiallyMuted={false}
                   style={{
                     width: '100%',
                     height: '100%',
+                    objectFit: 'cover',
+                    zIndex: 10,
                   }}
                   controls={false}
                   loop={false}
@@ -674,77 +536,30 @@ export function PreviewAreaRemotion({
                   showPosterWhenUnplayed={false}
                   showPosterWhenEnded={false}
                   moveToBeginningWhenEnded={false}
-                  renderLoading={() => null}
-                  errorFallback={() => null}
+                  renderLoading={() => (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-sm text-muted-foreground">Loading preview...</div>
+                    </div>
+                  )}
+                  errorFallback={({ error }: { error: Error }) => {
+                    console.error('Remotion Player error:', error);
+                    return (
+                      <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 p-4">
+                        <div className="text-center">
+                          <p className="text-red-600 dark:text-red-400 font-medium">
+                            Video playback error
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Please try reloading the video
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }}
                 />
               </div>
-            )}
-
-            {/* Main Player Container */}
-            <div
-              ref={playerContainerRef}
-              className="absolute inset-0 w-full h-full"
-              style={{ zIndex: 10 }}
-            >
-              <style dangerouslySetInnerHTML={{
-                __html: `
-              .__remotion-player {
-                border-radius: 12px !important;
-                overflow: hidden !important;
-                transform: translateZ(0); /* Force GPU layer */
-              }
-            `}} />
-              <Player
-                key={playerKey}
-                ref={playerRef}
-                component={TimelineComposition as any}
-                inputProps={mainPlayerInputProps as any}
-                durationInFrames={timelineMetadata.durationInFrames}
-                compositionWidth={compositionSize.width}
-                compositionHeight={compositionSize.height}
-                fps={timelineMetadata.fps}
-                initialFrame={initialFrame}
-                initiallyMuted={false}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  zIndex: 10,
-                }}
-                controls={false}
-                loop={false}
-                clickToPlay={false}
-                doubleClickToFullscreen={false}
-                spaceKeyToPlayOrPause={false}
-                alwaysShowControls={false}
-                initiallyShowControls={false}
-                showPosterWhenPaused={false}
-                showPosterWhenUnplayed={false}
-                showPosterWhenEnded={false}
-                moveToBeginningWhenEnded={false}
-                renderLoading={() => (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-sm text-muted-foreground">Loading preview...</div>
-                  </div>
-                )}
-                errorFallback={({ error }: { error: Error }) => {
-                  console.error('Remotion Player error:', error);
-                  return (
-                    <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 p-4">
-                      <div className="text-center">
-                        <p className="text-red-600 dark:text-red-400 font-medium">
-                          Video playback error
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Please try reloading the video
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }}
-              />
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

@@ -370,26 +370,65 @@ export interface TimeRemapPeriod {
 }
 
 // Effect entity - timing in source space (recording timestamps)
-export interface Effect {
-  id: string
-  type: EffectType
+export type Effect =
+  | ZoomEffect
+  | CursorEffect
+  | KeystrokeEffect
+  | BackgroundEffect
+  | AnnotationEffect
+  | ScreenEffect
+  | PluginEffect
+  | CropEffect
 
+export interface BaseEffect {
+  id: string
   // Timing in source space (relative to recording start)
-  // For effects on recordings: timestamp in source recording
-  // For global effects on timeline: timeline timestamp
   startTime: number
   endTime: number
-
-  // Effect-specific data
-  data: ZoomEffectData | CursorEffectData | KeystrokeEffectData | BackgroundEffectData | AnnotationData | ScreenEffectData | PluginEffectData | CropEffectData
-
-  // Common properties
   enabled: boolean
   locked?: boolean
-
   // Explicit clip ID binding for clip-scoped effects (Crop, etc.)
-  // When set, this effect is bound to a specific clip and moves with it
   clipId?: string
+}
+
+export interface ZoomEffect extends BaseEffect {
+  type: EffectType.Zoom
+  data: ZoomEffectData
+}
+
+export interface CursorEffect extends BaseEffect {
+  type: EffectType.Cursor
+  data: CursorEffectData
+}
+
+export interface KeystrokeEffect extends BaseEffect {
+  type: EffectType.Keystroke
+  data: KeystrokeEffectData
+}
+
+export interface BackgroundEffect extends BaseEffect {
+  type: EffectType.Background
+  data: BackgroundEffectData
+}
+
+export interface AnnotationEffect extends BaseEffect {
+  type: EffectType.Annotation
+  data: AnnotationData
+}
+
+export interface ScreenEffect extends BaseEffect {
+  type: EffectType.Screen
+  data: ScreenEffectData
+}
+
+export interface PluginEffect extends BaseEffect {
+  type: EffectType.Plugin
+  data: PluginEffectData
+}
+
+export interface CropEffect extends BaseEffect {
+  type: EffectType.Crop
+  data: CropEffectData
 }
 
 export interface ZoomBlock {
