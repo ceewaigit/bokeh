@@ -20,11 +20,11 @@ import { UtilitiesSidebar } from '../utilities-sidebar'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
-import type { Effect } from '@/types/project'
+import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { useCropManager } from '@/hooks/useCropManager'
 import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { usePlayheadState } from '@/hooks/use-playhead-state'
-import { EffectType } from '@/types/project'
+import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
@@ -38,6 +38,7 @@ import { ProjectIOService } from '@/lib/storage/project-io-service'
 import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
 import { useExportStore } from '@/stores/export-store'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
+import { UpdateZoomBlockCommand } from '@/lib/commands'
 import { toast } from 'sonner'
 import { useSelectedClip } from '@/stores/selectors/clip-selectors'
 
@@ -248,6 +249,14 @@ export function WorkspaceManager() {
 
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
   const contextEffects = timelineEffects ?? []
+
+  const selectedZoomEffect = useMemo(() => {
+    if (!selectedEffectLayer || selectedEffectLayer.type !== EffectLayerType.Zoom) return null
+    return contextEffects.find(effect => effect.id === selectedEffectLayer.id) ?? null
+  }, [contextEffects, selectedEffectLayer])
+
+  const selectedZoomData = selectedZoomEffect?.data as ZoomEffectData | undefined
+  const isManualZoom = selectedZoomData?.followStrategy === ZoomFollowStrategy.Manual
 
 
 
@@ -556,6 +565,21 @@ export function WorkspaceManager() {
     handleCropChange
   } = useCropManager(selectedClip)
 
+  const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
+    executorRef.current?.execute(UpdateZoomBlockCommand, blockId, updates)
+  }, [])
+
+  const zoomSettings = useMemo(() => {
+    if (!selectedZoomEffect || !isManualZoom || isEditingCrop) {
+      return { isEditing: false, zoomData: null }
+    }
+
+    return {
+      isEditing: true,
+      zoomData: selectedZoomData ?? null,
+    }
+  }, [selectedZoomEffect, selectedZoomData, isManualZoom, isEditingCrop])
+
 
 
   // Show loading screen when processing
@@ -734,6 +758,7 @@ export function WorkspaceManager() {
                     onCropChange={handleCropChange}
                     onCropConfirm={handleCropConfirm}
                     onCropReset={handleCropReset}
+                    zoomSettings={zoomSettings}
                   />
                 </div>
 
@@ -749,6 +774,7 @@ export function WorkspaceManager() {
                       effects={contextEffects}
                       selectedEffectLayer={selectedEffectLayer}
                       onEffectChange={handleEffectChange}
+                      onZoomBlockUpdate={handleZoomBlockUpdate}
                       onBulkToggleKeystrokes={handleBulkToggleKeystrokes}
                       onAddCrop={handleAddCrop}
                       onRemoveCrop={handleRemoveCrop}

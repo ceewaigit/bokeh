@@ -54,11 +54,14 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
         scale: this.block.scale,
         targetX: this.block.targetX,
         targetY: this.block.targetY,
+        screenWidth: this.block.screenWidth,
+        screenHeight: this.block.screenHeight,
         introMs: this.block.introMs || 300,
         outroMs: this.block.outroMs || 300,
         smoothing: this.block.smoothing ?? 50,
         followStrategy: this.block.followStrategy ?? ZoomFollowStrategy.Mouse,
-        autoScale: this.block.autoScale
+        autoScale: this.block.autoScale,
+        mouseIdlePx: this.block.mouseIdlePx
       } as ZoomEffectData,
       enabled: true
     }

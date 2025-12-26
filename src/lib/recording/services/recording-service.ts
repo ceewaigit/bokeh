@@ -1,6 +1,11 @@
 /**
  * Recording Service - Orchestrates recording strategies and tracking.
  * This is the main entry point for recording operations.
+ *
+ * Supports:
+ * - Screen recording (native or MediaRecorder fallback)
+ * - Webcam recording (optional, via WebcamService)
+ * - Microphone recording (optional, via AudioInputService)
  */
 
 import type { RecordingSettings } from '@/types'
@@ -10,6 +15,8 @@ import { RecordingStrategy, RecordingConfig, RecordingResult, RecordingSourceTyp
 import { NativeRecordingStrategy } from '../strategies/native-recording-strategy'
 import { MediaRecorderStrategy } from '../strategies/media-recorder-strategy'
 import { TrackingService } from './tracking-service'
+import { WebcamService, WebcamRecordingResult } from './webcam-service'
+import { AudioInputService, AudioInputResult } from './audio-input-service'
 import { parseAreaSourceId, isAreaSource, isWindowSource } from '../utils/area-source-parser'
 import { logger } from '@/lib/utils/logger'
 import { PermissionError, ElectronError } from '@/lib/errors'
@@ -22,13 +29,23 @@ interface CaptureArea {
   sourceId: string
 }
 
+// Extended result type to include webcam and microphone recordings
+export interface ExtendedRecordingResult extends ElectronRecordingResult {
+  webcam?: WebcamRecordingResult
+  microphoneAudio?: AudioInputResult
+}
+
 export class RecordingService {
   private strategy: RecordingStrategy | null = null
   private trackingService: TrackingService
+  private webcamService: WebcamService | null = null
+  private audioInputService: AudioInputService | null = null
   private captureArea: CaptureArea | undefined
   private captureWidth = 0
   private captureHeight = 0
   private onlySelf = false
+  private webcamEnabled = false
+  private microphoneEnabled = false
 
   constructor() {
     this.trackingService = new TrackingService()
@@ -68,8 +85,67 @@ export class RecordingService {
 
     try {
       await this.strategy.start(config)
+
+      // Start webcam recording if enabled
+      if (settings.webcam?.enabled && settings.webcam.deviceId) {
+        this.webcamEnabled = true
+        this.webcamService = new WebcamService()
+
+        const resolution = settings.webcam.resolution ?? '1080p'
+        const dimensions = {
+          '720p': { width: 1280, height: 720 },
+          '1080p': { width: 1920, height: 1080 },
+          '4k': { width: 3840, height: 2160 }
+        }[resolution]
+
+        try {
+          await this.webcamService.start({
+            deviceId: settings.webcam.deviceId,
+            width: dimensions.width,
+            height: dimensions.height,
+            // Include microphone in webcam if microphone is enabled and no separate audio input
+            includeMicrophone: settings.microphone?.enabled && !settings.audioInput,
+            microphoneDeviceId: settings.microphone?.deviceId
+          })
+          logger.info('[RecordingService] Webcam recording started')
+        } catch (webcamError) {
+          logger.warn('[RecordingService] Failed to start webcam, continuing without it:', webcamError)
+          this.webcamService = null
+          this.webcamEnabled = false
+        }
+      }
+
+      // Start separate microphone recording if enabled and not captured via webcam
+      const micCapturedViaWebcam = this.webcamEnabled && settings.microphone?.enabled
+      if (settings.microphone?.enabled && settings.microphone.deviceId && !micCapturedViaWebcam) {
+        this.microphoneEnabled = true
+        this.audioInputService = new AudioInputService()
+
+        try {
+          await this.audioInputService.start({
+            deviceId: settings.microphone.deviceId,
+            echoCancellation: settings.microphone.echoCancellation ?? true,
+            noiseSuppression: settings.microphone.noiseSuppression ?? true
+          })
+          logger.info('[RecordingService] Microphone recording started')
+        } catch (micError) {
+          logger.warn('[RecordingService] Failed to start microphone, continuing without it:', micError)
+          this.audioInputService = null
+          this.microphoneEnabled = false
+        }
+      }
+
       await this.showRecordingOverlay()
     } catch (error) {
+      // Clean up any started services on failure
+      if (this.webcamService) {
+        try { await this.webcamService.stop() } catch { }
+        this.webcamService = null
+      }
+      if (this.audioInputService) {
+        try { await this.audioInputService.stop() } catch { }
+        this.audioInputService = null
+      }
       await this.trackingService.stop()
       throw error
     }
@@ -78,7 +154,7 @@ export class RecordingService {
   /**
    * Stops the current recording and returns the result.
    */
-  async stop(): Promise<ElectronRecordingResult> {
+  async stop(): Promise<ExtendedRecordingResult> {
     if (!this.strategy) {
       throw new Error('No recording in progress')
     }
@@ -86,23 +162,53 @@ export class RecordingService {
     let trackingError: unknown
     let metadata: ElectronMetadata[] = []
     let result: RecordingResult
+    let webcamResult: WebcamRecordingResult | undefined
+    let microphoneResult: AudioInputResult | undefined
+
+    // Stop tracking
     try {
       metadata = await this.trackingService.stop()
     } catch (error) {
       trackingError = error
     }
+
+    // Stop webcam recording
+    if (this.webcamService) {
+      try {
+        webcamResult = await this.webcamService.stop()
+        logger.info('[RecordingService] Webcam recording stopped:', webcamResult.videoPath)
+      } catch (webcamError) {
+        logger.error('[RecordingService] Failed to stop webcam:', webcamError)
+      }
+      this.webcamService = null
+    }
+
+    // Stop microphone recording
+    if (this.audioInputService) {
+      try {
+        microphoneResult = await this.audioInputService.stop()
+        logger.info('[RecordingService] Microphone recording stopped:', microphoneResult.audioPath)
+      } catch (micError) {
+        logger.error('[RecordingService] Failed to stop microphone:', micError)
+      }
+      this.audioInputService = null
+    }
+
+    // Stop screen recording
     try {
       result = await this.strategy.stop()
     } finally {
       await this.hideRecordingOverlay()
     }
 
-    const recordingResult: ElectronRecordingResult = {
+    const recordingResult: ExtendedRecordingResult = {
       videoPath: result.videoPath,
       duration: result.duration,
       metadata,
       captureArea: this.captureArea,
-      hasAudio: result.hasAudio
+      hasAudio: result.hasAudio,
+      webcam: webcamResult,
+      microphoneAudio: microphoneResult
     }
 
     // Reset state
@@ -111,6 +217,8 @@ export class RecordingService {
     this.captureWidth = 0
     this.captureHeight = 0
     this.onlySelf = false
+    this.webcamEnabled = false
+    this.microphoneEnabled = false
 
     if (trackingError) {
       logger.warn('[RecordingService] Tracking stop failed; returning video with partial metadata', trackingError)
@@ -125,6 +233,8 @@ export class RecordingService {
   pause(): void {
     this.strategy?.pause()
     this.trackingService.pause()
+    this.webcamService?.pause()
+    this.audioInputService?.pause()
   }
 
   /**
@@ -133,6 +243,29 @@ export class RecordingService {
   resume(): void {
     this.strategy?.resume()
     this.trackingService.resume()
+    this.webcamService?.resume()
+    this.audioInputService?.resume()
+  }
+
+  /**
+   * Get the current webcam stream for preview.
+   */
+  getWebcamStream(): MediaStream | null {
+    return this.webcamService?.getStream() ?? null
+  }
+
+  /**
+   * Check if webcam is currently recording.
+   */
+  isWebcamRecording(): boolean {
+    return this.webcamService?.isRecording() ?? false
+  }
+
+  /**
+   * Check if microphone is currently recording.
+   */
+  isMicrophoneRecording(): boolean {
+    return this.audioInputService?.isRecording() ?? false
   }
 
   canPause(): boolean {

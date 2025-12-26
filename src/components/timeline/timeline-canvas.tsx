@@ -14,6 +14,7 @@ import { TimelineZoomTrack } from './tracks/timeline-zoom-track'
 import { TimelineScreenTrack } from './tracks/timeline-screen-track'
 import { TimelineKeystrokeTrack } from './tracks/timeline-keystroke-track'
 import { TimelinePluginTrack } from './tracks/timeline-plugin-track'
+import { TimelineWebcamTrack } from './tracks/timeline-webcam-track'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -38,6 +39,7 @@ import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 // Commands
 import {
@@ -92,6 +94,7 @@ function TimelineCanvasContent({
     stageWidth,
     stageHeight,
     timelineWidth,
+    containerWidth,
     pixelsPerMs,
     trackHeights,
     trackPositions,
@@ -99,6 +102,7 @@ function TimelineCanvasContent({
     hasScreenTrack,
     hasKeystrokeTrack,
     hasPluginTrack,
+    hasWebcamTrack,
     containerRef,
   } = useTimelineLayout()
 
@@ -118,6 +122,7 @@ function TimelineCanvasContent({
 
   // Local state for scroll and context menu (stageSize moved to context)
   const [scrollLeft, setScrollLeft] = useState(0)
+  const [scrollTop, setScrollTop] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
   const [speedUpPopover, setSpeedUpPopover] = useState<{
     x: number
@@ -131,6 +136,8 @@ function TimelineCanvasContent({
   const colors = useTimelineColors()
   const windowSurfaceMode = useWindowAppearanceStore((s) => s.mode)
   const windowSurfaceOpacity = useWindowAppearanceStore((s) => s.opacity)
+  const previewScale = useWorkspaceStore((s) => s.previewScale)
+  const setPreviewScale = useWorkspaceStore((s) => s.setPreviewScale)
 
   // Force re-render when theme changes by using colors as part of key
   const themeKey = React.useMemo(() => {
@@ -147,6 +154,10 @@ function TimelineCanvasContent({
   )
   const audioTrack = useMemo(
     () => currentProject?.timeline.tracks.find(t => t.type === TrackType.Audio),
+    [currentProject?.timeline.tracks]
+  )
+  const webcamTrack = useMemo(
+    () => currentProject?.timeline.tracks.find(t => t.type === TrackType.Webcam),
     [currentProject?.timeline.tracks]
   )
   const videoClips = useMemo(() => videoTrack?.clips || [], [videoTrack])
@@ -184,6 +195,7 @@ function TimelineCanvasContent({
   const rulerHeight = trackHeights.ruler
   const videoTrackHeight = trackHeights.video
   const audioTrackHeight = trackHeights.audio
+  const webcamTrackHeight = trackHeights.webcam
   const zoomTrackHeight = trackHeights.zoom
   const screenTrackHeight = trackHeights.screen
   const keystrokeTrackHeight = trackHeights.keystroke
@@ -225,6 +237,8 @@ function TimelineCanvasContent({
     return () => clearInterval(interval)
   }, [isPlaying, pixelsPerMs, stageWidth, containerRef])
 
+  const maxScrollLeft = Math.max(0, stageWidth - containerWidth)
+
   // Handle wheel zoom with non-passive listener to prevent default browser zooming
   const wheelDepsRef = useRef({ zoom, onZoomChange, adaptiveZoomLimits })
   useEffect(() => {
@@ -242,13 +256,17 @@ function TimelineCanvasContent({
         const zoomDelta = -e.deltaY * 0.001 // Invert direction and scale
         const newZoom = Math.min(Math.max(zoom + zoomDelta, adaptiveZoomLimits.min), adaptiveZoomLimits.max)
         onZoomChange(newZoom)
+        return
       }
+
+      // Allow both horizontal and vertical scrolling
+      // Don't prevent default for natural scroll in both directions
     }
 
     // passive: false is required to use preventDefault()
     container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
-  }, [containerRef]) // Added containerRef dep
+  }, [containerRef, maxScrollLeft]) // Added containerRef dep
 
   // Handle clip context menu
   const handleClipContextMenu = useCallback((e: { evt: { clientX: number; clientY: number } }, clipId: string) => {
@@ -261,12 +279,10 @@ function TimelineCanvasContent({
     })
   }, [selectClip])
 
-  // onScroll handler updated to just update state
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     setScrollLeft(e.currentTarget.scrollLeft)
+    setScrollTop(e.currentTarget.scrollTop)
   }
-
-
 
   // Handle clip selection
   const handleClipSelect = useCallback((clipId: string) => {
@@ -515,12 +531,14 @@ function TimelineCanvasContent({
         onTrimEnd={handleTrimEnd}
         onDelete={handleDelete}
         onDuplicate={handleDuplicate}
+        previewScale={previewScale}
+        onPreviewScaleChange={setPreviewScale}
         fps={useTimelineMetadata(currentProject)?.fps || 60}
       />
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-transparent select-none outline-none focus:outline-none timeline-container"
+        className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
         tabIndex={0}
         onScroll={handleScroll}
 
@@ -709,9 +727,18 @@ function TimelineCanvasContent({
               width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={audioTrackHeight}
             />
+
+            {hasWebcamTrack && (
+              <TimelineTrack
+                type={TimelineTrackType.Webcam}
+                y={trackPositions.webcam}
+                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                height={webcamTrackHeight}
+              />
+            )}
           </Layer>
 
-          {/* Ruler Layer */}
+          {/* Ruler Layer - Sticky at top during vertical scroll */}
           <Layer>
             <TimelineRuler
               duration={currentProject.timeline.duration}
@@ -719,6 +746,7 @@ function TimelineCanvasContent({
               zoom={zoom}
               pixelsPerMs={pixelsPerMs}
               onSeek={onSeek}
+              offsetY={scrollTop}
             />
           </Layer>
 
@@ -765,6 +793,9 @@ function TimelineCanvasContent({
 
             {/* Plugin blocks */}
             <TimelinePluginTrack />
+
+            {/* Webcam track */}
+            <TimelineWebcamTrack />
 
             {audioClips.map(clip => (
               (() => {

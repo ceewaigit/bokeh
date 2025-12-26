@@ -8,15 +8,12 @@ function modeToVars(mode: WindowSurfaceMode, opacity: number, blurPx: number, is
   if (mode === 'solid') {
     return { opacity: 1, blurPx: 0 }
   }
-  // "clear" means high opacity dark tint with no blur
-  // In light mode, also enforce higher opacity for clear mode
-  if (mode === 'clear') return { opacity: Math.min(0.98, Math.max(isDark ? 0.70 : 0.85, opacity)), blurPx: 0 }
+  // "clear" means bright tint with no blur, but keep translucency visible
+  if (mode === 'clear') return { opacity: Math.min(0.9, Math.max(isDark ? 0.6 : 0.6, opacity)), blurPx: 0 }
 
   // 'glass' and 'custom'
-  // Enforce a minimum opacity (tint) to prevent the "invisible app" issue.
-  // Dark mode needs a higher tint (20%) to look like "smoked glass" and support text contrast.
-  // Light mode uses 25% white tint for that classic frosted look.
-  const minOpacity = isDark ? 0.20 : 0.25
+  // Keep tint light in light mode while avoiding a grey cast.
+  const minOpacity = isDark ? 0.1 : 0.08
   const effectiveOpacity = Math.max(minOpacity, opacity)
 
   return { opacity: Math.min(0.95, Math.max(0, effectiveOpacity)), blurPx: Math.max(0, blurPx) }
@@ -81,10 +78,12 @@ export function WindowAppearanceProvider({ children }: { children: React.ReactNo
     // On macOS, vibrancy enables background blurring behind a transparent window.
     // Use 'under-window' for a light, subtle blur - less aggressive than 'sidebar'
     // This allows the CSS backdrop-filter to be the primary blur control
-    const desiredVibrancy = (mode === 'glass' || mode === 'custom') ? 'under-window' : null
+    const desiredVibrancy = (mode === 'glass' || mode === 'custom')
+      ? (isDark ? 'under-window' : 'light')
+      : null
     window.electronAPI?.setWindowVibrancy?.(desiredVibrancy).catch(() => { })
     window.electronAPI?.setWindowHasShadow?.(mode === 'solid').catch(() => { })
-  }, [mode, opacity, blurPx])
+  }, [mode, opacity, blurPx, isDark])
 
   if (isRecordButton || isAreaSelection) return children
 

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { ZoomIn, ChevronRight, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
@@ -10,12 +10,20 @@ import type { Clip, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { getZoomEffects } from '@/lib/effects/effect-filters'
+import { getCropData, getCropEffectForClip, getZoomEffects } from '@/lib/effects/effect-filters'
 import { EffectStore } from '@/lib/core/effects'
 import { AddEffectCommand } from '@/lib/commands'
 import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { DEFAULT_ZOOM_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
+import { ZoomTargetPreview } from './zoom-target-preview'
+import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
+import { getSourceDimensions, getSourceDimensionsStatic } from '@/lib/core/coordinates'
+import { msToFrame } from '@/remotion/compositions/utils/time/frame-time'
+import { computeCameraState, type CameraPhysicsState } from '@/lib/effects/utils/camera-calculator'
+import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { getCameraOutputContext } from '@/lib/effects/utils/camera-output-context'
 
 interface ZoomTabProps {
   effects: Effect[] | undefined
@@ -35,7 +43,24 @@ export function ZoomTab({
   onZoomBlockUpdate
 }: ZoomTabProps) {
   const executorRef = useCommandExecutor()
+  const project = useProjectStore((s) => s.currentProject)
+  const currentTime = useProjectStore((s) => s.currentTime)
+  const cameraPathCache = useProjectStore((s) => s.cameraPathCache)
+  const timelineMetadata = useTimelineMetadata(project)
   const zoomEffects = effects ? getZoomEffects(effects) : []
+  const cropEffect = selectedClip && effects ? getCropEffectForClip(effects, selectedClip) : null
+  const cropData = cropEffect ? getCropData(cropEffect) : null
+  const activeRecording = useMemo(() => {
+    if (!project?.recordings?.length) return null
+    if (selectedClip) {
+      return project.recordings.find(recording => recording.id === selectedClip.recordingId) ?? null
+    }
+    return project.recordings[0] ?? null
+  }, [project, selectedClip])
+  const sourceDims = useMemo(() => {
+    if (!activeRecording) return null
+    return getSourceDimensionsStatic(activeRecording, activeRecording.metadata ?? null)
+  }, [activeRecording])
 
   // Local state for slider values during dragging
   const [localScale, setLocalScale] = React.useState<number | null>(null)
@@ -43,6 +68,77 @@ export function ZoomTab({
   const [localOutroMs, setLocalOutroMs] = React.useState<number | null>(null)
   const [localMouseIdlePx, setLocalMouseIdlePx] = React.useState<number | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
+
+  const seedManualTargetFromLiveCamera = () => {
+    if (!project || !timelineMetadata) return null
+    const fps = timelineMetadata.fps
+    const frameLayout = TimelineDataService.getFrameLayout(project, fps)
+    const recordingsMap = TimelineDataService.getRecordingsMap(project)
+    const timelineEffects = effects ?? EffectStore.getAll(project)
+    const frame = Math.max(0, msToFrame(currentTime, fps))
+    const clipData = getActiveClipDataAtFrame({
+      frame,
+      frameLayout,
+      fps,
+      effects: timelineEffects,
+      getRecording: (id) => recordingsMap.get(id) ?? null,
+    })
+    if (!clipData) return null
+
+    const {
+      outputWidth,
+      outputHeight,
+      overscan,
+      mockupScreenPosition,
+      forceFollowCursor,
+    } = getCameraOutputContext({
+      clipEffects: clipData.effects,
+      timelineMs: currentTime,
+      compositionWidth: timelineMetadata.width,
+      compositionHeight: timelineMetadata.height,
+      recording: clipData.recording,
+    })
+
+    const seedPhysics: CameraPhysicsState = {
+      x: 0.5,
+      y: 0.5,
+      vx: 0,
+      vy: 0,
+      lastTimeMs: currentTime,
+      lastSourceTimeMs: clipData.sourceTimeMs,
+    }
+
+    const computed = computeCameraState({
+      effects: clipData.effects,
+      timelineMs: currentTime,
+      sourceTimeMs: clipData.sourceTimeMs,
+      recording: clipData.recording,
+      metadata: clipData.recording?.metadata ?? null,
+      outputWidth,
+      outputHeight,
+      overscan,
+      mockupScreenPosition,
+      forceFollowCursor,
+      physics: seedPhysics,
+      deterministic: true,
+    })
+
+    const sourceDimsAtTime = getSourceDimensions(
+      clipData.sourceTimeMs,
+      clipData.recording,
+      clipData.recording?.metadata ?? null
+    )
+
+    const clampedX = Math.max(0, Math.min(1, computed.zoomCenter.x))
+    const clampedY = Math.max(0, Math.min(1, computed.zoomCenter.y))
+
+    return {
+      targetX: clampedX * sourceDimsAtTime.width,
+      targetY: clampedY * sourceDimsAtTime.height,
+      screenWidth: sourceDimsAtTime.width,
+      screenHeight: sourceDimsAtTime.height,
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -102,6 +198,10 @@ export function ZoomTab({
         const followStrategy = zoomData.followStrategy ?? ZoomFollowStrategy.Mouse
         const isFillScreen = zoomData.autoScale === 'fill'
         const isCenterLocked = followStrategy === ZoomFollowStrategy.Center
+        const isManualFocus = followStrategy === ZoomFollowStrategy.Manual
+        const hasManualTarget = isManualFocus
+          && zoomData.targetX != null
+          && zoomData.targetY != null
 
         return (
           <div
@@ -149,14 +249,14 @@ export function ZoomTab({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-medium leading-none">Focus Mode</span>
-                  <InfoTooltip content="Choose whether the zoom tracks the cursor or stays centered." />
+                  <InfoTooltip content="Choose whether the zoom tracks the cursor, stays centered, or locks to a manual focus." />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   className={cn(
                     "px-3 py-2 text-[11px] font-medium rounded-md transition-colors",
-                    !isCenterLocked
+                    !isCenterLocked && !isManualFocus
                       ? "bg-primary text-primary-foreground"
                       : "bg-background/60 text-muted-foreground hover:text-foreground"
                   )}
@@ -170,6 +270,47 @@ export function ZoomTab({
                   }}
                 >
                   Track Cursor
+                </button>
+                <button
+                  className={cn(
+                    "px-3 py-2 text-[11px] font-medium rounded-md transition-colors",
+                    isManualFocus
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background/60 text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => {
+                    if (selectedEffectLayer.id && onZoomBlockUpdate) {
+                      const updates: Partial<ZoomEffectData> = {
+                        followStrategy: ZoomFollowStrategy.Manual,
+                        autoScale: undefined
+                      }
+
+                      const liveSeed = seedManualTargetFromLiveCamera()
+                      if (liveSeed) {
+                        updates.targetX = liveSeed.targetX
+                        updates.targetY = liveSeed.targetY
+                        updates.screenWidth = liveSeed.screenWidth
+                        updates.screenHeight = liveSeed.screenHeight
+                      } else if (timelineMetadata && cameraPathCache && cameraPathCache.length > 0) {
+                        const frame = Math.max(0, Math.min(cameraPathCache.length - 1, msToFrame(currentTime, timelineMetadata.fps)))
+                        const frameData = cameraPathCache[frame]
+                        if (frameData?.zoomCenter) {
+                          const baseWidth = sourceDims?.width ?? zoomData.screenWidth ?? timelineMetadata.width
+                          const baseHeight = sourceDims?.height ?? zoomData.screenHeight ?? timelineMetadata.height
+                          updates.targetX = frameData.zoomCenter.x * baseWidth
+                          updates.targetY = frameData.zoomCenter.y * baseHeight
+                          updates.screenWidth = baseWidth
+                          updates.screenHeight = baseHeight
+                        }
+                      }
+
+                      onZoomBlockUpdate(selectedEffectLayer.id, {
+                        ...updates
+                      })
+                    }
+                  }}
+                >
+                  Manual
                 </button>
                 <button
                   className={cn(
@@ -193,10 +334,43 @@ export function ZoomTab({
                   Center Lock
                 </button>
               </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">
-                Center Lock keeps the view fixed for a clean, professional look
-              </p>
+              <div className="flex items-center justify-between gap-3 text-[10px] text-muted-foreground/70 leading-snug">
+                <span>
+                  {isManualFocus
+                    ? 'Manual focus lets you drag the zoom window in the sidebar preview.'
+                    : 'Center Lock keeps the view fixed for a clean, professional look.'}
+                </span>
+                {isManualFocus && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/80">
+                    <Sparkles className="h-3 w-3" />
+                    Sidebar drag
+                  </span>
+                )}
+              </div>
             </div>
+
+            {isManualFocus && !isFillScreen && (
+              <div className="p-3 rounded-lg border border-border/40 bg-background/30 space-y-3">
+                <ZoomTargetPreview
+                  zoomData={zoomData}
+                  screenWidth={sourceDims?.width ?? zoomData.screenWidth ?? timelineMetadata?.width ?? 1920}
+                  screenHeight={sourceDims?.height ?? zoomData.screenHeight ?? timelineMetadata?.height ?? 1080}
+                  outputWidth={timelineMetadata?.width ?? 1920}
+                  outputHeight={timelineMetadata?.height ?? 1080}
+                  cropData={cropData}
+                  onCommit={(updates) => {
+                    if (selectedEffectLayer.id && onZoomBlockUpdate) {
+                      onZoomBlockUpdate(selectedEffectLayer.id, updates)
+                    }
+                  }}
+                />
+                {!hasManualTarget && (
+                  <div className="text-[10px] text-muted-foreground/70 leading-snug">
+                    Drag inside the preview to set your first focus point.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Easing Controls */}
             <div className="p-4 bg-background/40 rounded-xl space-y-3">

@@ -17,6 +17,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Layers,
+  Monitor,
 
 } from 'lucide-react'
 
@@ -40,6 +41,8 @@ interface TimelineControlsProps {
   onCopy?: () => void
   onPaste?: () => void
   onDuplicate: () => void
+  previewScale?: number
+  onPreviewScaleChange?: (scale: number) => void
   fps?: number
 }
 
@@ -63,6 +66,8 @@ export const TimelineControls = React.memo(({
   onCopy,
   onPaste,
   onDuplicate,
+  previewScale = 1,
+  onPreviewScaleChange,
   fps = 60
 }: TimelineControlsProps) => {
   const hasSelection = selectedClips.length > 0
@@ -74,8 +79,9 @@ export const TimelineControls = React.memo(({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center justify-between px-3 py-1 border-b border-border/30 bg-transparent">
+      <div className="timeline-controls flex items-center justify-between px-3 py-1.5 border-b border-border/40">
         <div className="flex items-center gap-1">
+          <div className="w-px h-4 bg-border/40 mr-1" />
           {/* Playback Controls */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -256,12 +262,25 @@ export const TimelineControls = React.memo(({
         </div>
 
         {/* Timecode Display */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-2.5 py-0.5 bg-muted/40 rounded-lg font-mono text-[11px] tabular-nums text-muted-foreground">
+        <div className="timeline-controls-timecode absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-2.5 py-0.5 rounded-lg font-mono text-[11px] tabular-nums text-muted-foreground">
           {formatTimecode(currentTime, fps)}
         </div>
 
-        {/* Zoom Controls */}
-        <div className="flex items-center gap-1">
+        {/* Preview Size + Zoom Controls */}
+        <div className="flex items-center gap-2">
+          {onPreviewScaleChange && (
+            <div className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1">
+              <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
+              <Slider
+                value={[previewScale]}
+                onValueChange={([value]) => onPreviewScaleChange(value)}
+                min={0.8}
+                max={1.3}
+                step={0.05}
+                className="w-20"
+              />
+            </div>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

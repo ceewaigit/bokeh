@@ -59,6 +59,13 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
           labelText: 'A',
           labelColor: colors.foreground
         }
+      case TimelineTrackType.Webcam:
+        return {
+          bgFill: colors.webcamTrack || colors.muted,
+          bgOpacity: 0.15,
+          labelText: 'W',
+          labelColor: colors.foreground
+        }
     }
   }
 

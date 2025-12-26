@@ -100,101 +100,105 @@ export class CommandManager {
   }
 
   public async undo(): Promise<CommandResult> {
-    if (this.isExecuting) {
-      return {
-        success: false,
-        error: 'Another command is currently executing'
+    return this.enqueue(async () => {
+      if (this.isExecuting) {
+        return {
+          success: false,
+          error: 'Another command is currently executing'
+        }
       }
-    }
 
-    const lastEntry = this.getLastUndoableEntry()
-    if (!lastEntry) {
-      return {
-        success: false,
-        error: 'No commands to undo'
+      const lastEntry = this.getLastUndoableEntry()
+      if (!lastEntry) {
+        return {
+          success: false,
+          error: 'No commands to undo'
+        }
       }
-    }
 
-    try {
-      this.isExecuting = true
-      
-      // Handle grouped commands
-      if (lastEntry.metadata.groupId) {
-        const groupEntries = this.getGroupEntries(lastEntry.metadata.groupId)
-        const results: CommandResult[] = []
-        // Undo in reverse order
-        for (let i = groupEntries.length - 1; i >= 0; i--) {
-          const entry = groupEntries[i]
-          const result = await entry.command.undo()
-          results.push(result)
-          entry.undone = true
-          if (!result.success) {
-            return {
-              success: false,
-              error: `Failed to undo grouped command: ${result.error}`
+      try {
+        this.isExecuting = true
+        
+        // Handle grouped commands
+        if (lastEntry.metadata.groupId) {
+          const groupEntries = this.getGroupEntries(lastEntry.metadata.groupId)
+          const results: CommandResult[] = []
+          // Undo in reverse order
+          for (let i = groupEntries.length - 1; i >= 0; i--) {
+            const entry = groupEntries[i]
+            const result = await entry.command.undo()
+            results.push(result)
+            entry.undone = true
+            if (!result.success) {
+              return {
+                success: false,
+                error: `Failed to undo grouped command: ${result.error}`
+              }
             }
           }
+          return {
+            success: true,
+            data: results
+          }
+        } else {
+          const result = await lastEntry.command.undo()
+          lastEntry.undone = true
+          return result
         }
-        return {
-          success: true,
-          data: results
-        }
-      } else {
-        const result = await lastEntry.command.undo()
-        lastEntry.undone = true
-        return result
+      } finally {
+        this.isExecuting = false
       }
-    } finally {
-      this.isExecuting = false
-    }
+    })
   }
 
   public async redo(): Promise<CommandResult> {
-    if (this.isExecuting) {
-      return {
-        success: false,
-        error: 'Another command is currently executing'
+    return this.enqueue(async () => {
+      if (this.isExecuting) {
+        return {
+          success: false,
+          error: 'Another command is currently executing'
+        }
       }
-    }
 
-    const lastUndoneEntry = this.getLastUndoneEntry()
-    if (!lastUndoneEntry) {
-      return {
-        success: false,
-        error: 'No commands to redo'
+      const lastUndoneEntry = this.getLastUndoneEntry()
+      if (!lastUndoneEntry) {
+        return {
+          success: false,
+          error: 'No commands to redo'
+        }
       }
-    }
 
-    try {
-      this.isExecuting = true
-      
-      // Handle grouped commands
-      if (lastUndoneEntry.metadata.groupId) {
-        const groupEntries = this.getGroupEntries(lastUndoneEntry.metadata.groupId, true)
-        const results: CommandResult[] = []
-        for (const entry of groupEntries) {
-          const result = await entry.command.redo()
-          results.push(result)
-          entry.undone = false
-          if (!result.success) {
-            return {
-              success: false,
-              error: `Failed to redo grouped command: ${result.error}`
+      try {
+        this.isExecuting = true
+        
+        // Handle grouped commands
+        if (lastUndoneEntry.metadata.groupId) {
+          const groupEntries = this.getGroupEntries(lastUndoneEntry.metadata.groupId, true)
+          const results: CommandResult[] = []
+          for (const entry of groupEntries) {
+            const result = await entry.command.redo()
+            results.push(result)
+            entry.undone = false
+            if (!result.success) {
+              return {
+                success: false,
+                error: `Failed to redo grouped command: ${result.error}`
+              }
             }
           }
+          return {
+            success: true,
+            data: results
+          }
+        } else {
+          const result = await lastUndoneEntry.command.redo()
+          lastUndoneEntry.undone = false
+          return result
         }
-        return {
-          success: true,
-          data: results
-        }
-      } else {
-        const result = await lastUndoneEntry.command.redo()
-        lastUndoneEntry.undone = false
-        return result
+      } finally {
+        this.isExecuting = false
       }
-    } finally {
-      this.isExecuting = false
-    }
+    })
   }
 
   public beginGroup(groupId?: string): void {

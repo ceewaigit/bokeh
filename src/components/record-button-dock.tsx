@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRecording } from '@/hooks/use-recording'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
-import { formatTime } from '@/lib/utils'
-import { cn } from '@/lib/utils'
+import { useDeviceStore } from '@/stores/device-store'
+import { formatTime, cn } from '@/lib/utils'
 import { logger } from '@/lib/utils/logger'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { createAreaSourceId } from '@/lib/recording/utils/area-source-parser'
@@ -24,7 +24,10 @@ import {
   FolderOpen,
   ChevronDown,
   Search,
-  X
+  X,
+  Camera,
+  CameraOff,
+  Volume2
 } from 'lucide-react'
 
 interface Source {
@@ -52,13 +55,34 @@ export function RecordButtonDock() {
   const [isLoadingSources, setIsLoadingSources] = useState(true)
   const [showWindowPicker, setShowWindowPicker] = useState(false)
   const [windowSearch, setWindowSearch] = useState('')
+  const [showDevicePicker, setShowDevicePicker] = useState(false)
 
-  const { screenRecording, requestScreenRecording } = usePermissions()
-  const permissionStatus = screenRecording ? 'granted' : 'denied'
+  // Centralized permissions
+  const {
+    screenRecording,
+    camera: cameraPermission,
+    microphone: microphonePermission,
+    requestScreenRecording,
+    requestCamera,
+    requestMicrophone
+  } = usePermissions()
 
   const { startRecording, stopRecording, pauseRecording, resumeRecording, canPause, canResume } = useRecording()
   const { isRecording, isPaused, duration, updateSettings, startCountdown, prepareRecording } = useRecordingSessionStore()
   const setRecordingSettings = useProjectStore((s) => s.setRecordingSettings)
+
+  // Device store - only for device enumeration, not permissions
+  const {
+    webcams,
+    microphones,
+    settings: deviceSettings,
+    isInitialized: devicesInitialized,
+    initialize: initializeDevices,
+    toggleWebcam,
+    toggleMicrophone,
+    selectWebcam,
+    selectMicrophone
+  } = useDeviceStore()
 
   useEffect(() => {
     document.documentElement.style.background = 'transparent'
@@ -82,6 +106,13 @@ export function RecordButtonDock() {
 
   useEffect(() => { initializeDefaultWallpaper() }, [])
 
+  // Initialize device manager
+  useEffect(() => {
+    if (!devicesInitialized) {
+      initializeDevices()
+    }
+  }, [devicesInitialized, initializeDevices])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container || !window.electronAPI?.setWindowContentSize) return
@@ -102,7 +133,7 @@ export function RecordButtonDock() {
       clearTimeout(timer)
       observer.disconnect()
     }
-  }, [isRecording, showWindowPicker])
+  }, [isRecording, showWindowPicker, showDevicePicker])
 
   useEffect(() => {
     if (showWindowPicker && searchInputRef.current) {
@@ -171,12 +202,14 @@ export function RecordButtonDock() {
     setShowWindowPicker(newState)
     if (newState) {
       window.electronAPI?.hideMonitorOverlay?.()
+      setShowDevicePicker(false)
     }
   }
 
   const handleAreaClick = async () => {
     window.electronAPI?.hideMonitorOverlay?.()
     setShowWindowPicker(false)
+    setShowDevicePicker(false)
 
     const result = await window.electronAPI?.selectScreenArea?.()
     const area = result?.area
@@ -191,7 +224,7 @@ export function RecordButtonDock() {
   }
 
   const handleStartRecording = async () => {
-    if (permissionStatus === 'denied') {
+    if (!screenRecording) {
       requestScreenRecording()
       return
     }
@@ -203,6 +236,7 @@ export function RecordButtonDock() {
     window.electronAPI?.hideMonitorOverlay?.()
     window.electronAPI?.hideRecordingOverlay?.()
     setShowWindowPicker(false)
+    setShowDevicePicker(false)
     await initializeDefaultWallpaper()
 
     if (hideDesktopIcons) {
@@ -235,6 +269,34 @@ export function RecordButtonDock() {
     }
     await stopRecording()
     window.electronAPI?.openWorkspace?.()
+  }
+
+  // Device toggle handlers - use centralized permissions
+  const handleToggleWebcam = async () => {
+    if (!deviceSettings.webcam.enabled && !cameraPermission) {
+      const granted = await requestCamera()
+      if (!granted) {
+        logger.warn('[RecordButtonDock] Camera permission denied')
+        return
+      }
+    }
+    toggleWebcam()
+  }
+
+  const handleToggleMicrophone = async () => {
+    if (!deviceSettings.microphone.enabled && !microphonePermission) {
+      const granted = await requestMicrophone()
+      if (!granted) {
+        logger.warn('[RecordButtonDock] Microphone permission denied')
+        return
+      }
+    }
+    toggleMicrophone()
+  }
+
+  const handleDevicePickerToggle = () => {
+    setShowDevicePicker(!showDevicePicker)
+    if (showWindowPicker) setShowWindowPicker(false)
   }
 
   const screens = sources.filter(s => s.type === RecordingSourceType.Screen)
@@ -410,6 +472,97 @@ export function RecordButtonDock() {
         </div>
       )}
 
+      {/* Device Picker - renders ABOVE the dock bar when devices are enabled */}
+      {(deviceSettings.webcam.enabled || deviceSettings.microphone.enabled) && showDevicePicker && (
+        <div
+          className={cn(
+            "w-[260px] p-2.5 rounded-[12px]",
+            "bg-[#1c1c1e]/95 backdrop-blur-xl",
+            "border border-white/[0.08]"
+          )}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-[11px] font-medium text-white/60 uppercase tracking-wide">Devices</span>
+            <button
+              type="button"
+              onClick={() => setShowDevicePicker(false)}
+              className="p-1 rounded hover:bg-white/[0.08] transition-colors"
+            >
+              <X className="w-3 h-3 text-white/40" />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {/* Camera Selection */}
+            {deviceSettings.webcam.enabled && (
+              <div className="p-2 bg-white/[0.04] rounded-[8px]">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Camera className="w-3.5 h-3.5 text-white/50" />
+                  <span className="text-[10px] font-medium text-white/50 uppercase tracking-wide">Camera</span>
+                </div>
+                <div className="space-y-0.5">
+                  {webcams.length === 0 ? (
+                    <div className="py-2 text-center text-[10px] text-white/30">No cameras found</div>
+                  ) : (
+                    webcams.map(cam => (
+                      <button
+                        key={cam.deviceId}
+                        type="button"
+                        onClick={() => selectWebcam(cam.deviceId)}
+                        className={cn(
+                          "w-full px-2 py-1.5 rounded-[4px] text-[11px] text-left truncate",
+                          "transition-all duration-75",
+                          deviceSettings.webcam.deviceId === cam.deviceId
+                            ? "bg-accent/20 text-white font-medium"
+                            : "text-white/60 hover:bg-white/[0.06] hover:text-white/80"
+                        )}
+                        title={cam.label}
+                      >
+                        {cam.label || 'Camera'}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Microphone Selection */}
+            {deviceSettings.microphone.enabled && (
+              <div className="p-2 bg-white/[0.04] rounded-[8px]">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Mic className="w-3.5 h-3.5 text-white/50" />
+                  <span className="text-[10px] font-medium text-white/50 uppercase tracking-wide">Microphone</span>
+                </div>
+                <div className="space-y-0.5">
+                  {microphones.length === 0 ? (
+                    <div className="py-2 text-center text-[10px] text-white/30">No microphones found</div>
+                  ) : (
+                    microphones.map(mic => (
+                      <button
+                        key={mic.deviceId}
+                        type="button"
+                        onClick={() => selectMicrophone(mic.deviceId)}
+                        className={cn(
+                          "w-full px-2 py-1.5 rounded-[4px] text-[11px] text-left truncate",
+                          "transition-all duration-75",
+                          deviceSettings.microphone.deviceId === mic.deviceId
+                            ? "bg-accent/20 text-white font-medium"
+                            : "text-white/60 hover:bg-white/[0.06] hover:text-white/80"
+                        )}
+                        title={mic.label}
+                      >
+                        {mic.label || 'Microphone'}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Main Bar */}
       <div className={barStyle} style={{ ['WebkitAppRegion' as any]: 'drag' }}>
         {/* Source Buttons */}
@@ -472,6 +625,7 @@ export function RecordButtonDock() {
 
         {/* Options */}
         <div className="flex items-center">
+          {/* System Audio */}
           <button
             type="button"
             style={{ WebkitAppRegion: 'no-drag' } as any}
@@ -479,10 +633,81 @@ export function RecordButtonDock() {
             className={optionButtonStyle(audioEnabled)}
             title={audioEnabled ? 'System audio enabled' : 'System audio muted'}
           >
-            {audioEnabled ? <Mic className="w-[12px] h-[12px]" strokeWidth={1.75} /> : <MicOff className="w-[12px] h-[12px]" strokeWidth={1.75} />}
+            {audioEnabled ? <Volume2 className="w-[12px] h-[12px]" strokeWidth={1.75} /> : <MicOff className="w-[12px] h-[12px]" strokeWidth={1.75} />}
             <span>{audioEnabled ? 'System' : 'Muted'}</span>
           </button>
 
+          {/* Webcam Toggle */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+              onClick={handleToggleWebcam}
+              className={cn(
+                optionButtonStyle(deviceSettings.webcam.enabled),
+                deviceSettings.webcam.enabled && "pr-1"
+              )}
+              title={deviceSettings.webcam.enabled ? 'Camera enabled' : 'Camera disabled'}
+            >
+              {deviceSettings.webcam.enabled ? (
+                <Camera className="w-[12px] h-[12px]" strokeWidth={1.75} />
+              ) : (
+                <CameraOff className="w-[12px] h-[12px]" strokeWidth={1.75} />
+              )}
+              <span>Cam</span>
+            </button>
+            {deviceSettings.webcam.enabled && (
+              <button
+                type="button"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                onClick={handleDevicePickerToggle}
+                className="p-1 -ml-1 text-white/30 hover:text-white/60 transition-colors"
+                title="Select camera"
+              >
+                <ChevronDown className={cn(
+                  "w-2.5 h-2.5 transition-transform duration-100",
+                  showDevicePicker && "rotate-180"
+                )} />
+              </button>
+            )}
+          </div>
+
+          {/* Microphone Toggle */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+              onClick={handleToggleMicrophone}
+              className={cn(
+                optionButtonStyle(deviceSettings.microphone.enabled),
+                deviceSettings.microphone.enabled && "pr-1"
+              )}
+              title={deviceSettings.microphone.enabled ? 'Microphone enabled' : 'Microphone disabled'}
+            >
+              {deviceSettings.microphone.enabled ? (
+                <Mic className="w-[12px] h-[12px]" strokeWidth={1.75} />
+              ) : (
+                <MicOff className="w-[12px] h-[12px]" strokeWidth={1.75} />
+              )}
+              <span>Mic</span>
+            </button>
+            {deviceSettings.microphone.enabled && (
+              <button
+                type="button"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                onClick={handleDevicePickerToggle}
+                className="p-1 -ml-1 text-white/30 hover:text-white/60 transition-colors"
+                title="Select microphone"
+              >
+                <ChevronDown className={cn(
+                  "w-2.5 h-2.5 transition-transform duration-100",
+                  showDevicePicker && "rotate-180"
+                )} />
+              </button>
+            )}
+          </div>
+
+          {/* Desktop Icons Toggle */}
           <button
             type="button"
             style={{ WebkitAppRegion: 'no-drag' } as any}

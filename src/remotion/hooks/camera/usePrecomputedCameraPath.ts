@@ -25,12 +25,17 @@ export function usePrecomputedCameraPath(args: {
     cachedPath,
   } = args
 
+  const effectiveCachedPath = isRendering ? cachedPath : null
+
   // 1. Get Frames (Cached or Computed) + Tracking Status
-  const { currentFrameResult, hasCameraTracking } = useCameraPathFrames(args)
+  const { currentFrameResult, hasCameraTracking } = useCameraPathFrames({
+    ...args,
+    cachedPath: effectiveCachedPath,
+  })
 
   // 2. Logic: Should we use precomputed path?
   // We use precomputed (frames) if rendering & tracking is on, OR if we have a cache provided.
-  const shouldPrecompute = (enabled && isRendering && hasCameraTracking) || (cachedPath != null)
+  const shouldPrecompute = (enabled && isRendering && hasCameraTracking) || (effectiveCachedPath != null)
 
   // 3. Get Realtime Physics (only if not precomputing)
   const realtimeResult = useRealtimeCameraPhysics({

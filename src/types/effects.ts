@@ -7,7 +7,8 @@ export enum EffectType {
   Annotation = 'annotation',
   Screen = 'screen',
   Plugin = 'plugin',
-  Crop = 'crop'
+  Crop = 'crop',
+  Webcam = 'webcam'
 }
 
 // Enum for effect layer types (subset of effects that appear in the sidebar)
@@ -19,6 +20,7 @@ export enum EffectLayerType {
   Keystroke = 'keystroke',
   Plugin = 'plugin',
   Crop = 'crop',
+  Webcam = 'webcam'
 }
 
 export type SelectedEffectLayer = { type: EffectLayerType; id?: string } | null

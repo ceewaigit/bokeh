@@ -1,102 +1,190 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
+/**
+ * Unified permission status for all media permissions.
+ * Single source of truth for permission state across the app.
+ */
 export interface PermissionStatus {
-    screenRecording: boolean
-    microphone: boolean
-    isLoading: boolean
+  screenRecording: boolean
+  microphone: boolean
+  camera: boolean
+  isLoading: boolean
 }
 
+/**
+ * Centralized permissions hook.
+ * Handles all permission checking and requesting in one place.
+ *
+ * Usage:
+ * - Use `allRequiredGranted` to gate the app (screen + mic required)
+ * - Use `allGranted` to check if all permissions including camera are granted
+ * - Call `requestCamera` only when user explicitly enables webcam
+ */
 export function usePermissions() {
-    const [status, setStatus] = useState<PermissionStatus>({
-        screenRecording: false,
-        microphone: false,
-        isLoading: true
+  const [status, setStatus] = useState<PermissionStatus>({
+    screenRecording: false,
+    microphone: false,
+    camera: false,
+    isLoading: true
+  })
+
+  const isCheckingRef = useRef(false)
+
+  const checkPermissions = useCallback(async () => {
+    // Prevent concurrent checks
+    if (isCheckingRef.current) return
+    isCheckingRef.current = true
+
+    if (typeof window === 'undefined' || !window.electronAPI) {
+      setStatus({
+        screenRecording: true,
+        microphone: true,
+        camera: true,
+        isLoading: false
+      })
+      isCheckingRef.current = false
+      return
+    }
+
+    try {
+      const [screenResult, micResult, camResult] = await Promise.all([
+        window.electronAPI.checkScreenRecordingPermission(),
+        window.electronAPI.checkMicrophonePermission(),
+        window.electronAPI.checkCameraPermission?.() ?? { granted: false }
+      ])
+
+      setStatus({
+        screenRecording: screenResult.granted,
+        microphone: micResult.granted,
+        camera: camResult.granted,
+        isLoading: false
+      })
+    } catch (error) {
+      console.error('[usePermissions] Failed to check permissions:', error)
+      setStatus(prev => ({ ...prev, isLoading: false }))
+    } finally {
+      isCheckingRef.current = false
+    }
+  }, [])
+
+  const requestScreenRecording = useCallback(async (): Promise<boolean> => {
+    if (!window.electronAPI?.requestScreenRecordingPermission) return false
+
+    try {
+      await window.electronAPI.requestScreenRecordingPermission()
+      // Re-check after system dialog
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await checkPermissions()
+      return true
+    } catch (error) {
+      console.error('[usePermissions] Screen recording request failed:', error)
+      return false
+    }
+  }, [checkPermissions])
+
+  const requestMicrophone = useCallback(async (): Promise<boolean> => {
+    if (!window.electronAPI?.requestMicrophonePermission) return false
+
+    try {
+      const result = await window.electronAPI.requestMicrophonePermission()
+      if (result.granted) {
+        setStatus(prev => ({ ...prev, microphone: true }))
+      }
+      return result.granted
+    } catch (error) {
+      console.error('[usePermissions] Microphone request failed:', error)
+      return false
+    }
+  }, [])
+
+  const requestCamera = useCallback(async (): Promise<boolean> => {
+    if (!window.electronAPI?.requestCameraPermission) {
+      // Fallback: try getUserMedia to trigger browser permission
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        stream.getTracks().forEach(track => track.stop())
+        setStatus(prev => ({ ...prev, camera: true }))
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    try {
+      const result = await window.electronAPI.requestCameraPermission()
+      if (result.granted) {
+        setStatus(prev => ({ ...prev, camera: true }))
+      }
+      return result.granted
+    } catch (error) {
+      console.error('[usePermissions] Camera request failed:', error)
+      return false
+    }
+  }, [])
+
+  // Dev mode helper
+  const setMockPermissions = useCallback(async (permissions: {
+    screen?: boolean
+    microphone?: boolean
+    camera?: boolean
+  }) => {
+    if (window.electronAPI?.setMockPermissions) {
+      await window.electronAPI.setMockPermissions(permissions)
+      checkPermissions()
+    }
+  }, [checkPermissions])
+
+  // Initial check
+  useEffect(() => {
+    checkPermissions()
+  }, [checkPermissions])
+
+  // Listen for permission status changes from backend
+  useEffect(() => {
+    if (!window.electronAPI?.onPermissionStatusChanged) return
+
+    const cleanup = window.electronAPI.onPermissionStatusChanged((_event, data) => {
+      setStatus(prev => ({
+        ...prev,
+        screenRecording: data.screen?.granted ?? prev.screenRecording,
+        microphone: data.microphone?.granted ?? prev.microphone,
+        camera: data.camera?.granted ?? prev.camera,
+        isLoading: false
+      }))
     })
 
-    const checkPermissions = useCallback(async () => {
-        if (typeof window === 'undefined' || !window.electronAPI) {
-            setStatus({
-                screenRecording: true,
-                microphone: true,
-                isLoading: false
-            })
-            return
-        }
+    return cleanup
+  }, [])
 
-        try {
-            const screenResult = await window.electronAPI.checkScreenRecordingPermission()
-            const micResult = await window.electronAPI.checkMicrophonePermission()
+  // Polling for permission changes (useful when welcome screen is shown)
+  const startPolling = useCallback((intervalMs = 1000) => {
+    const intervalId = setInterval(checkPermissions, intervalMs)
+    return () => clearInterval(intervalId)
+  }, [checkPermissions])
 
-            setStatus(prev => ({
-                ...prev,
-                screenRecording: screenResult.granted,
-                microphone: micResult.granted,
-                isLoading: false
-            }))
-        } catch (error) {
-            console.error('Failed to check permissions:', error)
-            setStatus(prev => ({ ...prev, isLoading: false }))
-        }
-    }, [])
+  // Computed values
+  const allRequiredGranted = status.screenRecording && status.microphone
+  const allGranted = status.screenRecording && status.microphone && status.camera
 
-    const requestScreenRecording = useCallback(async () => {
-        if (window.electronAPI?.requestScreenRecordingPermission) {
-            await window.electronAPI.requestScreenRecordingPermission()
-            // Re-check after a short delay to allow system preferences to update
-            setTimeout(checkPermissions, 1000)
-        }
-    }, [checkPermissions])
+  return {
+    // Status
+    ...status,
+    allRequiredGranted,
+    allGranted,
 
-    const requestMicrophone = useCallback(async () => {
-        if (window.electronAPI?.requestMicrophonePermission) {
-            await window.electronAPI.requestMicrophonePermission()
-            setTimeout(checkPermissions, 1000)
-        }
-    }, [checkPermissions])
-
-    // Dev mode helper
-    const setMockPermissions = useCallback(async (permissions: { screen?: boolean; microphone?: boolean }) => {
-        if (window.electronAPI?.setMockPermissions) {
-            await window.electronAPI.setMockPermissions(permissions)
-            checkPermissions()
-        }
-    }, [checkPermissions])
-
-    // Initial check and event listener
-    useEffect(() => {
-        checkPermissions()
-
-        // Listen for updates from backend (e.g. mock changes or polling results)
-        if (window.electronAPI?.onPermissionStatusChanged) {
-            const cleanup = window.electronAPI.onPermissionStatusChanged((_event, data) => {
-                const screenGranted = data.screen.granted
-                const micGranted = data.microphone.granted
-
-                setStatus(prev => ({
-                    ...prev,
-                    screenRecording: screenGranted,
-                    microphone: micGranted,
-                    isLoading: false
-                }))
-            })
-            return cleanup
-        }
-    }, [checkPermissions])
-
-    // Polling helper
-    const startPolling = useCallback((intervalMs = 1000) => {
-        const intervalId = setInterval(checkPermissions, intervalMs)
-        return () => clearInterval(intervalId)
-    }, [checkPermissions])
-
-    return {
-        ...status,
-        checkPermissions,
-        requestScreenRecording,
-        requestMicrophone,
-        setMockPermissions,
-        startPolling
-    }
+    // Actions
+    checkPermissions,
+    requestScreenRecording,
+    requestMicrophone,
+    requestCamera,
+    setMockPermissions,
+    startPolling
+  }
 }
+
+/**
+ * Type for permission names that can be requested.
+ */
+export type PermissionType = 'screenRecording' | 'microphone' | 'camera'

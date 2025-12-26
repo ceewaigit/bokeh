@@ -11,9 +11,9 @@ export const TimelineConfig = {
   MAX_TRACK_HEIGHT: 120,
 
   // Fixed track heights (enables scrolling when content exceeds viewport)
-  MIN_VIDEO_TRACK_HEIGHT: 30,
-  MIN_AUDIO_TRACK_HEIGHT: 20,
-  MIN_EFFECT_TRACK_HEIGHT: 20,
+  MIN_VIDEO_TRACK_HEIGHT: 120,
+  MIN_AUDIO_TRACK_HEIGHT: 80,
+  MIN_EFFECT_TRACK_HEIGHT: 50,
 
   // Snapping behavior
   SNAP_THRESHOLD_MS: 200,

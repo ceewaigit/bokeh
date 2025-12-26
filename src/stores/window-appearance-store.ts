@@ -31,14 +31,14 @@ const PRESETS = {
 
   // Glass: frosted glass aesthetic with strong blur and translucency
   // Higher opacity + high blur = clean, readable, premium feel
-  'glass-light': { mode: 'glass' as const, opacity: 0.40, blurPx: 15 },
-  glass: { mode: 'glass' as const, opacity: 0.60, blurPx: 25 },
-  'glass-strong': { mode: 'glass' as const, opacity: 0.80, blurPx: 40 },
+  'glass-light': { mode: 'glass' as const, opacity: 0.08, blurPx: 18 },
+  glass: { mode: 'glass' as const, opacity: 0.12, blurPx: 26 },
+  'glass-strong': { mode: 'glass' as const, opacity: 0.16, blurPx: 34 },
 
   // Clear: high opacity, no blur (tinted overlay)
-  'clear-light': { mode: 'clear' as const, opacity: 0.75, blurPx: 0 },
-  clear: { mode: 'clear' as const, opacity: 0.85, blurPx: 0 },
-  'clear-strong': { mode: 'clear' as const, opacity: 0.95, blurPx: 0 },
+  'clear-light': { mode: 'clear' as const, opacity: 0.60, blurPx: 0 },
+  clear: { mode: 'clear' as const, opacity: 0.75, blurPx: 0 },
+  'clear-strong': { mode: 'clear' as const, opacity: 0.88, blurPx: 0 },
 } as const
 
 export const useWindowAppearanceStore = create<WindowAppearanceState>()(

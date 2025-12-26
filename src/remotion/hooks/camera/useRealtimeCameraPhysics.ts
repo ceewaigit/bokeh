@@ -1,59 +1,11 @@
 import { useMemo, useRef } from 'react'
 import { computeCameraState, type CameraPhysicsState } from '@/lib/effects/utils/camera-calculator'
 import { CAMERA_CONFIG } from '@/lib/effects/config/physics-config'
-import { calculateVideoPosition } from '@/remotion/compositions/utils/layout/video-position'
-import { getActiveBackgroundEffect } from '@/lib/effects/effect-filters'
-import type { BackgroundEffect, Effect, Recording, RecordingMetadata } from '@/types/project'
+import { getCameraOutputContext } from '@/lib/effects/utils/camera-output-context'
+import type { Effect, Recording, RecordingMetadata } from '@/types/project'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
-import { calculateMockupPosition } from '@/lib/mockups/mockup-transform'
-
-type CameraVideoArea = {
-    drawWidth: number
-    drawHeight: number
-    offsetX: number
-    offsetY: number
-}
-
-function getCameraOutputParams(args: {
-    canvasWidth: number
-    canvasHeight: number
-    videoArea: CameraVideoArea
-    mockupPosition: ReturnType<typeof calculateMockupPosition> | null
-}): { outputWidth: number; outputHeight: number; overscan?: { left: number; right: number; top: number; bottom: number } } {
-    const { canvasWidth, canvasHeight, videoArea, mockupPosition } = args
-    const outputWidth = mockupPosition?.screenWidth ?? canvasWidth
-    const outputHeight = mockupPosition?.screenHeight ?? canvasHeight
-    const outputOffsetX = mockupPosition?.screenX ?? 0
-    const outputOffsetY = mockupPosition?.screenY ?? 0
-
-    if (
-        outputWidth <= 0 ||
-        outputHeight <= 0 ||
-        videoArea.drawWidth <= 0 ||
-        videoArea.drawHeight <= 0
-    ) {
-        return { outputWidth, outputHeight }
-    }
-
-    const relativeOffsetX = videoArea.offsetX - outputOffsetX
-    const relativeOffsetY = videoArea.offsetY - outputOffsetY
-    const leftPx = relativeOffsetX
-    const rightPx = outputWidth - relativeOffsetX - videoArea.drawWidth
-    const topPx = relativeOffsetY
-    const bottomPx = outputHeight - relativeOffsetY - videoArea.drawHeight
-
-    return {
-        outputWidth,
-        outputHeight,
-        overscan: {
-            left: Math.max(0, leftPx / videoArea.drawWidth),
-            right: Math.max(0, rightPx / videoArea.drawWidth),
-            top: Math.max(0, topPx / videoArea.drawHeight),
-            bottom: Math.max(0, bottomPx / videoArea.drawHeight),
-        },
-    }
-}
+import { getZoomBlockAtTime, parseZoomBlocks } from '@/lib/core/camera'
 
 type UseRealtimeCameraPhysicsArgs = {
     enabled: boolean
@@ -91,6 +43,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
     const previewPhysicsRef = useRef<CameraPhysicsState | null>(null)
     const previewLastFrameRef = useRef<number | null>(null)
     const previewLastRecordingIdRef = useRef<string | null>(null)
+    const previewLastZoomSignatureRef = useRef<string | null>(null)
 
     return useMemo(() => {
         if (forceDisabled) return null
@@ -110,65 +63,38 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
         const timelineMs = (currentFrame / fps) * 1000
         const metadata = recording ? loadedMetadata?.get(recording.id) : undefined
         // Use centralized lookup with consistent boundary semantics
-        const backgroundEffect = getActiveBackgroundEffect(clipEffects, timelineMs) as BackgroundEffect | undefined
-        const backgroundData = backgroundEffect?.data ?? null
-        const padding = backgroundData?.padding || 0
-
-        const activeSourceWidth = recording?.width || sourceVideoWidth || videoWidth
-        const activeSourceHeight = recording?.height || sourceVideoHeight || videoHeight
-        const mockupData = backgroundData?.mockup
-        const mockupEnabled = mockupData?.enabled ?? false
-        const mockupPosition = mockupEnabled && mockupData
-            ? calculateMockupPosition(
-                videoWidth,
-                videoHeight,
-                mockupData,
-                activeSourceWidth,
-                activeSourceHeight,
-                padding
-            )
-            : null
-
-        const videoArea: CameraVideoArea = mockupEnabled && mockupPosition
-            ? {
-                drawWidth: mockupPosition.videoWidth,
-                drawHeight: mockupPosition.videoHeight,
-                offsetX: mockupPosition.videoX,
-                offsetY: mockupPosition.videoY,
-            }
-            : (() => {
-                const position = calculateVideoPosition(
-                    videoWidth,
-                    videoHeight,
-                    activeSourceWidth,
-                    activeSourceHeight,
-                    padding
-                )
-                return {
-                    drawWidth: position.drawWidth,
-                    drawHeight: position.drawHeight,
-                    offsetX: position.offsetX,
-                    offsetY: position.offsetY,
-                }
-            })()
-
-        const { outputWidth, outputHeight, overscan } = getCameraOutputParams({
-            canvasWidth: videoWidth,
-            canvasHeight: videoHeight,
-            videoArea,
-            mockupPosition,
+        const {
+            outputWidth,
+            outputHeight,
+            overscan,
+            mockupScreenPosition,
+            forceFollowCursor,
+        } = getCameraOutputContext({
+            clipEffects,
+            timelineMs,
+            compositionWidth: videoWidth,
+            compositionHeight: videoHeight,
+            recording,
+            sourceVideoWidth,
+            sourceVideoHeight,
         })
-        const mockupScreenPosition = mockupEnabled && mockupPosition
-            ? {
-                x: 0,
-                y: 0,
-                width: outputWidth,
-                height: outputHeight,
-            }
-            : undefined
 
         const prevFrame = previewLastFrameRef.current
         const recordingId = recording?.id ?? null
+        const activeZoomBlock = getZoomBlockAtTime(parseZoomBlocks(clipEffects), timelineMs)
+        const zoomSignature = activeZoomBlock
+            ? [
+                activeZoomBlock.id,
+                activeZoomBlock.followStrategy ?? 'mouse',
+                activeZoomBlock.targetX ?? 'none',
+                activeZoomBlock.targetY ?? 'none',
+                activeZoomBlock.screenWidth ?? 'none',
+                activeZoomBlock.screenHeight ?? 'none',
+                activeZoomBlock.autoScale ?? 'none',
+                activeZoomBlock.scale ?? 'none',
+            ].join('|')
+            : 'none'
+        const zoomSignatureChanged = zoomSignature !== previewLastZoomSignatureRef.current
 
         const frameDelta = prevFrame == null ? 0 : currentFrame - prevFrame
         const backstepMs = frameDelta < 0 ? Math.abs((frameDelta / fps) * 1000) : 0
@@ -178,6 +104,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
             previewPhysicsRef.current == null ||
             prevFrame == null ||
             recordingId !== previewLastRecordingIdRef.current ||
+            zoomSignatureChanged ||
             // Reset on backwards scrubs (true seek).
             // Allow tiny backwards drift (pause/resume rounding) without resetting physics.
             frameDelta < 0 && !isMinorBackstep
@@ -202,7 +129,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
                 outputHeight,
                 overscan,
                 mockupScreenPosition,
-                forceFollowCursor: Boolean(mockupEnabled && mockupPosition),
+                forceFollowCursor,
                 physics: seedPhysics,
                 deterministic: true,
             })
@@ -223,7 +150,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
             outputHeight,
             overscan,
             mockupScreenPosition,
-            forceFollowCursor: Boolean(mockupEnabled && mockupPosition),
+            forceFollowCursor,
             physics: previewPhysicsRef.current!,
             deterministic: false,
         })
@@ -231,6 +158,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
         previewPhysicsRef.current = computed.physics
         previewLastFrameRef.current = currentFrame
         previewLastRecordingIdRef.current = recordingId
+        previewLastZoomSignatureRef.current = zoomSignature
 
         return { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter }
     }, [

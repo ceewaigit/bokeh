@@ -433,6 +433,14 @@ export class RecordingStorage {
             clips: [],
             muted: false,
             locked: false
+          },
+          {
+            id: 'webcam-1',
+            name: 'Webcam',
+            type: TrackType.Webcam,
+            clips: [],
+            muted: false,
+            locked: false
           }
         ],
         duration: 0,
@@ -533,8 +541,9 @@ export class RecordingStorage {
     projectName?: string,
     captureArea?: CaptureArea,
     hasAudio?: boolean,
-    durationOverrideMs?: number
-  ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
+    durationOverrideMs?: number,
+    webcamResult?: { videoPath: string; duration: number; hasAudio?: boolean }
+  ): Promise<{ project: Project; videoPath: string; projectPath: string; webcamVideoPath?: string } | null> {
     if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
       return null
     }
@@ -731,6 +740,72 @@ export class RecordingStorage {
 
       project.timeline.duration = duration
 
+      // Handle webcam recording if present
+      let webcamVideoFilePath: string | undefined
+      if (webcamResult?.videoPath && window.electronAPI?.moveFile) {
+        const webcamRecordingId = `webcam-${Date.now()}`
+        const webcamFolder = `${projectFolder}/${webcamRecordingId}`
+        const webcamExt = webcamResult.videoPath.toLowerCase().endsWith('.mov') ? 'mov' :
+          webcamResult.videoPath.toLowerCase().endsWith('.mp4') ? 'mp4' : 'webm'
+        const webcamFileName = `${webcamRecordingId}.${webcamExt}`
+        webcamVideoFilePath = `${webcamFolder}/${webcamFileName}`
+
+        try {
+          const webcamMoveResult = await window.electronAPI.moveFile(webcamResult.videoPath, webcamVideoFilePath)
+          if (webcamMoveResult?.success) {
+            // Get webcam video metadata
+            let webcamWidth = 1920
+            let webcamHeight = 1080
+            let webcamDuration = webcamResult.duration || duration
+
+            try {
+              const webcamMeta = await getVideoMetadataFromPath(webcamVideoFilePath)
+              if (webcamMeta.width > 0) webcamWidth = webcamMeta.width
+              if (webcamMeta.height > 0) webcamHeight = webcamMeta.height
+              if (webcamMeta.duration > 0) webcamDuration = webcamMeta.duration
+            } catch (e) {
+              logger.warn('[Recording Storage] Failed to read webcam metadata, using defaults')
+            }
+
+            // Create webcam Recording
+            const webcamRecording: Recording = {
+              id: webcamRecordingId,
+              filePath: `${webcamRecordingId}/${webcamFileName}`,
+              duration: webcamDuration,
+              width: webcamWidth,
+              height: webcamHeight,
+              frameRate: 30,
+              hasAudio: webcamResult.hasAudio || false,
+              folderPath: webcamFolder,
+              sourceType: 'video',
+              effects: []
+            }
+            project.recordings.push(webcamRecording)
+
+            // Create webcam clip matching screen recording duration
+            const webcamClip: Clip = {
+              id: `webcam-clip-${Date.now()}`,
+              recordingId: webcamRecordingId,
+              startTime: 0,
+              duration: Math.min(webcamDuration, duration),
+              sourceIn: 0,
+              sourceOut: Math.min(webcamDuration, duration)
+            }
+
+            const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
+            if (webcamTrack) {
+              webcamTrack.clips.push(webcamClip)
+            }
+
+            logger.info(`[Recording Storage] Webcam recording saved: ${webcamVideoFilePath}`)
+          } else {
+            logger.warn('[Recording Storage] Failed to move webcam file')
+          }
+        } catch (webcamError) {
+          logger.error('[Recording Storage] Error saving webcam recording:', webcamError)
+        }
+      }
+
       // Create effects on the recording itself (in source space)
       EffectsFactory.createInitialEffectsForRecording(recording)
 
@@ -778,7 +853,8 @@ export class RecordingStorage {
       return {
         project,
         videoPath: videoFilePath,
-        projectPath: projectPath || ''
+        projectPath: projectPath || '',
+        webcamVideoPath: webcamVideoFilePath
       }
     } catch (error) {
       logger.error('Failed to save recording with project:', error)

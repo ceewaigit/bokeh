@@ -21,6 +21,7 @@ interface WorkspaceStore {
   propertiesPanelWidth: number
   utilitiesPanelWidth: number  // Left sidebar width
   timelineHeight: number
+  previewScale: number
 
   // Navigation
   currentView: WorkspaceView
@@ -39,6 +40,7 @@ interface WorkspaceStore {
   setPropertiesPanelWidth: (width: number) => void
   setUtilitiesPanelWidth: (width: number) => void
   setTimelineHeight: (height: number) => void
+  setPreviewScale: (scale: number) => void
   setActiveUtilityTab: (tab: UtilityTabId) => void
   setCurrentView: (view: WorkspaceView) => void
 
@@ -59,6 +61,7 @@ const defaultWorkspaceState = {
   propertiesPanelWidth: 400,
   utilitiesPanelWidth: 400,  // Default open width
   timelineHeight: 250,  // Default height in px (will respect 30vh minimum)
+  previewScale: 1,
   currentView: 'library' as WorkspaceView,
   activeUtilityTab: 'import' as UtilityTabId,
 }
@@ -109,6 +112,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         const minHeight = Math.max(200, window.innerHeight * 0.3)
         const maxHeight = window.innerHeight * 0.5
         set({ timelineHeight: Math.max(minHeight, Math.min(maxHeight, height)) })
+      },
+
+      setPreviewScale: (scale: number) => {
+        set({ previewScale: Math.max(0.8, Math.min(1.8, scale)) })
       },
 
       setActiveUtilityTab: (tab: UtilityTabId) => {
@@ -189,6 +196,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         propertiesPanelWidth: state.propertiesPanelWidth,
         utilitiesPanelWidth: state.utilitiesPanelWidth,
         timelineHeight: state.timelineHeight,
+        previewScale: state.previewScale,
         activeUtilityTab: state.activeUtilityTab,
       }),
     }

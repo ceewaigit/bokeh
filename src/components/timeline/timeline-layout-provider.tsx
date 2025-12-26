@@ -19,26 +19,31 @@ export interface TrackHeights {
   speedUpBarSpace: number
   video: number
   audio: number
+  webcam: number
   zoom: number
   screen: number
   keystroke: number
   plugin: number
+  screenGroupHeader: number
 }
 
 export interface TrackPositions {
   ruler: number
+  screenGroupHeader: number
   video: number
   zoom: number
   screen: number
   keystroke: number
   plugin: number
   audio: number
+  webcam: number
 }
 
 export interface TimelineLayoutContextValue {
   stageWidth: number
   stageHeight: number
   containerHeight: number
+  containerWidth: number
   timelineWidth: number
   duration: number
   zoom: number
@@ -50,8 +55,11 @@ export interface TimelineLayoutContextValue {
   hasKeystrokeTrack: boolean
   hasPluginTrack: boolean
   hasCropTrack: boolean
+  hasWebcamTrack: boolean
+  isScreenGroupCollapsed: boolean
   hasSpeedUpSuggestions: { typing: boolean; idle: boolean }
   showTypingSuggestions: boolean
+  toggleScreenGroupCollapsed: () => void
   containerRef: RefObject<HTMLDivElement>
 }
 
@@ -73,56 +81,51 @@ interface TimelineLayoutProviderProps {
   children: React.ReactNode
 }
 
+// Group header height constant
+const SCREEN_GROUP_HEADER_HEIGHT = 24
+
 /**
- * Calculate track heights as percentages of available space.
- * This ensures tracks fill the container responsively.
+ * Calculate fixed track heights.
+ * Uses fixed sizes to allow content overflow for scrolling.
  */
 function calculateTrackHeights(
-  containerHeight: number,
+  _containerHeight: number, // Kept for API compatibility but unused
   trackExistence: {
     hasZoomTrack: boolean
     hasScreenTrack: boolean
     hasKeystrokeTrack: boolean
     hasPluginTrack: boolean
+    hasWebcamTrack: boolean
   },
   hasSpeedUpSuggestions: { typing: boolean; idle: boolean },
-  showTypingSuggestions: boolean
+  showTypingSuggestions: boolean,
+  isScreenGroupCollapsed: boolean
 ): TrackHeights {
-  const { hasZoomTrack, hasScreenTrack, hasKeystrokeTrack, hasPluginTrack } = trackExistence
+  const { hasZoomTrack, hasScreenTrack, hasKeystrokeTrack, hasPluginTrack, hasWebcamTrack } = trackExistence
   const hasSuggestions = hasSpeedUpSuggestions.typing || hasSpeedUpSuggestions.idle
 
   const rulerHeight = TimelineConfig.RULER_HEIGHT
   const speedUpBarSpace = (showTypingSuggestions && hasSuggestions) ? 24 : 0
+  const screenGroupHeaderHeight = SCREEN_GROUP_HEADER_HEIGHT
 
-  // Available height for tracks (excluding ruler and speed-up bar)
-  const availableHeight = containerHeight - rulerHeight - speedUpBarSpace
-
-  // Count active tracks
-  const effectTrackCount =
-    (hasZoomTrack ? 1 : 0) +
-    (hasScreenTrack ? 1 : 0) +
-    (hasKeystrokeTrack ? 1 : 0) +
-    (hasPluginTrack ? 1 : 0)
-
-  // Distribute height more evenly across tracks
-  // Video and audio are slightly larger, effect tracks share the rest equally
-  const videoPercent = 0.27
-  const audioPercent = 0.15
-  const effectPercent = effectTrackCount > 0 ? (1 - videoPercent - audioPercent) / effectTrackCount : 0
-
-  const videoHeight = Math.floor(availableHeight * videoPercent)
-  const audioHeight = Math.floor(availableHeight * audioPercent)
-  const effectHeight = Math.floor(availableHeight * effectPercent)
+  // Use FIXED heights - no proportional scaling
+  // This allows content to overflow for scrolling
+  const videoHeight = TimelineConfig.MIN_VIDEO_TRACK_HEIGHT || 80
+  const audioHeight = isScreenGroupCollapsed ? 0 : (TimelineConfig.MIN_AUDIO_TRACK_HEIGHT || 50)
+  const effectHeight = TimelineConfig.MIN_EFFECT_TRACK_HEIGHT || 36
+  const webcamHeight = hasWebcamTrack ? 50 : 0
 
   return {
     ruler: rulerHeight,
     speedUpBarSpace,
+    screenGroupHeader: screenGroupHeaderHeight,
     video: videoHeight,
     audio: audioHeight,
-    zoom: hasZoomTrack ? effectHeight : 0,
-    screen: hasScreenTrack ? effectHeight : 0,
-    keystroke: hasKeystrokeTrack ? effectHeight : 0,
-    plugin: hasPluginTrack ? effectHeight : 0
+    webcam: webcamHeight,
+    zoom: hasZoomTrack && !isScreenGroupCollapsed ? effectHeight : 0,
+    screen: hasScreenTrack && !isScreenGroupCollapsed ? effectHeight : 0,
+    keystroke: hasKeystrokeTrack && !isScreenGroupCollapsed ? effectHeight : 0,
+    plugin: hasPluginTrack && !isScreenGroupCollapsed ? effectHeight : 0
   }
 }
 
@@ -136,39 +139,52 @@ function calculateTrackPositions(
     hasScreenTrack: boolean
     hasKeystrokeTrack: boolean
     hasPluginTrack: boolean
-  }
+    hasWebcamTrack: boolean
+  },
+  isScreenGroupCollapsed: boolean
 ): TrackPositions {
-  const { hasZoomTrack, hasScreenTrack, hasKeystrokeTrack, hasPluginTrack } = trackExistence
+  const { hasZoomTrack, hasScreenTrack, hasKeystrokeTrack, hasPluginTrack, hasWebcamTrack } = trackExistence
 
   let y = 0
   const rulerY = y
   y += trackHeights.ruler
 
+  // Screen Group Header
+  const screenGroupHeaderY = y
+  y += trackHeights.screenGroupHeader
+
+  // Screen Group Content (Video, effects, Audio)
   const videoY = y
   y += trackHeights.video + trackHeights.speedUpBarSpace
 
   const zoomY = y
-  if (hasZoomTrack) y += trackHeights.zoom
+  if (hasZoomTrack && !isScreenGroupCollapsed) y += trackHeights.zoom
 
   const screenY = y
-  if (hasScreenTrack) y += trackHeights.screen
+  if (hasScreenTrack && !isScreenGroupCollapsed) y += trackHeights.screen
 
   const keystrokeY = y
-  if (hasKeystrokeTrack) y += trackHeights.keystroke
+  if (hasKeystrokeTrack && !isScreenGroupCollapsed) y += trackHeights.keystroke
 
   const pluginY = y
-  if (hasPluginTrack) y += trackHeights.plugin
+  if (hasPluginTrack && !isScreenGroupCollapsed) y += trackHeights.plugin
 
   const audioY = y
+  if (!isScreenGroupCollapsed) y += trackHeights.audio
+
+  // Webcam Track (separate from screen group)
+  const webcamY = y
 
   return {
     ruler: rulerY,
+    screenGroupHeader: screenGroupHeaderY,
     video: videoY,
     zoom: zoomY,
     screen: screenY,
     keystroke: keystrokeY,
     plugin: pluginY,
-    audio: audioY
+    audio: audioY,
+    webcam: webcamY
   }
 }
 
@@ -194,12 +210,17 @@ function detectSpeedUpSuggestions(project: { recordings?: Array<{ metadata?: { d
 export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 800, height: 300 })
+  const [isScreenGroupCollapsed, setIsScreenGroupCollapsed] = useState(false)
 
   const zoom = useProjectStore((s) => s.zoom)
   const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
   const currentProject = useProjectStore((s) => s.currentProject)
   const duration = useTimelineDuration()
   const trackExistence = useTrackExistence()
+
+  const toggleScreenGroupCollapsed = React.useCallback(() => {
+    setIsScreenGroupCollapsed(prev => !prev)
+  }, [])
 
   const hasSpeedUpSuggestions = useMemo(
     () => detectSpeedUpSuggestions(currentProject),
@@ -218,14 +239,30 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
   // Calculate track heights as percentages of container
   const trackHeights = useMemo(
-    () => calculateTrackHeights(containerSize.height, trackExistence, hasSpeedUpSuggestions, showTypingSuggestions),
-    [containerSize.height, trackExistence, hasSpeedUpSuggestions, showTypingSuggestions]
+    () => calculateTrackHeights(containerSize.height, trackExistence, hasSpeedUpSuggestions, showTypingSuggestions, isScreenGroupCollapsed),
+    [containerSize.height, trackExistence, hasSpeedUpSuggestions, showTypingSuggestions, isScreenGroupCollapsed]
   )
 
   const trackPositions = useMemo(
-    () => calculateTrackPositions(trackHeights, trackExistence),
-    [trackHeights, trackExistence]
+    () => calculateTrackPositions(trackHeights, trackExistence, isScreenGroupCollapsed),
+    [trackHeights, trackExistence, isScreenGroupCollapsed]
   )
+
+  // Calculate total content height from track heights
+  const contentHeight = useMemo(() => {
+    const totalTrackHeight =
+      trackHeights.ruler +
+      trackHeights.screenGroupHeader +
+      trackHeights.speedUpBarSpace +
+      trackHeights.video +
+      trackHeights.audio +
+      trackHeights.webcam +
+      trackHeights.zoom +
+      trackHeights.screen +
+      trackHeights.keystroke +
+      trackHeights.plugin
+    return totalTrackHeight
+  }, [trackHeights])
 
   useEffect(() => {
     let rafId: number | null = null
@@ -256,8 +293,9 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
   const value = useMemo<TimelineLayoutContextValue>(() => ({
     stageWidth: Math.max(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, containerSize.width),
-    stageHeight: containerSize.height,
+    stageHeight: Math.max(containerSize.height, contentHeight),
     containerHeight: containerSize.height,
+    containerWidth: containerSize.width,
     timelineWidth,
     duration,
     zoom,
@@ -269,20 +307,26 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     hasKeystrokeTrack: trackExistence.hasKeystrokeTrack,
     hasPluginTrack: trackExistence.hasPluginTrack,
     hasCropTrack: trackExistence.hasCropTrack,
+    hasWebcamTrack: trackExistence.hasWebcamTrack,
+    isScreenGroupCollapsed,
     hasSpeedUpSuggestions,
     showTypingSuggestions,
+    toggleScreenGroupCollapsed,
     containerRef
   }), [
     timelineWidth,
     containerSize,
+    contentHeight,
     duration,
     zoom,
     pixelsPerMs,
     trackHeights,
     trackPositions,
     trackExistence,
+    isScreenGroupCollapsed,
     hasSpeedUpSuggestions,
-    showTypingSuggestions
+    showTypingSuggestions,
+    toggleScreenGroupCollapsed
   ])
 
   return (

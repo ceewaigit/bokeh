@@ -54,7 +54,13 @@ const electronAPI = {
   requestMicrophonePermission: () =>
     ipcRenderer.invoke('request-microphone-permission'),
 
-  setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean }) =>
+  checkCameraPermission: () =>
+    ipcRenderer.invoke('check-camera-permission'),
+
+  requestCameraPermission: () =>
+    ipcRenderer.invoke('request-camera-permission'),
+
+  setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean; camera?: boolean }) =>
     ipcRenderer.invoke('set-mock-permissions', permissions),
 
   startPermissionMonitoring: () =>

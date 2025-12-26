@@ -4,7 +4,8 @@
  */
 
 export { ElectronRecorder } from './electron-recorder'
-export type { 
+export type { ExtendedRecordingResult } from './services/recording-service'
+export type {
   ElectronRecordingResult,
   ElectronMetadata
 } from '@/types/recording'

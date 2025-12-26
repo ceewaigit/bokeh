@@ -39,11 +39,28 @@ export const RemotionRoot: React.FC = () => {
         }}
         defaultProps={{
           clips: [],
+          audioClips: [],
           recordings: [],
           effects: [],
           videoWidth: 1920,
           videoHeight: 1080,
           fps: 30,
+          resources: {},
+          playback: {
+            isPlaying: false,
+            isScrubbing: false,
+            isHighQualityPlaybackEnabled: false,
+            previewMuted: true,
+            previewVolume: 0,
+          },
+          renderSettings: {
+            isGlowMode: false,
+            preferOffthreadVideo: false,
+            enhanceAudio: false,
+            isEditingCrop: false,
+          },
+          cropSettings: {},
+          zoomSettings: { isEditing: false, zoomData: null },
         }}
       />
     </>

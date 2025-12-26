@@ -6,7 +6,8 @@ export class PermissionService {
     private checkInterval: NodeJS.Timeout | null = null
     private _screenRecordingGranted: boolean = false
     private _microphoneGranted: boolean = false
-    private _mockPermissions: { screen?: boolean; microphone?: boolean } = {}
+    private _cameraGranted: boolean = false
+    private _mockPermissions: { screen?: boolean; microphone?: boolean; camera?: boolean } = {}
 
     private constructor() {
         this.checkInitialPermissions()
@@ -27,10 +28,14 @@ export class PermissionService {
             const micStatus = systemPreferences.getMediaAccessStatus('microphone')
             this._microphoneGranted = micStatus === 'granted'
 
-            console.log('🔐 PermissionService initialized. Screen:', status, 'Mic:', micStatus)
+            const camStatus = systemPreferences.getMediaAccessStatus('camera')
+            this._cameraGranted = camStatus === 'granted'
+
+            console.log('🔐 PermissionService initialized. Screen:', status, 'Mic:', micStatus, 'Camera:', camStatus)
         } else {
             this._screenRecordingGranted = true
             this._microphoneGranted = true
+            this._cameraGranted = true
         }
     }
 
@@ -42,14 +47,19 @@ export class PermissionService {
         return this._mockPermissions.microphone ?? this._microphoneGranted
     }
 
-    public setMockPermissions(permissions: { screen?: boolean; microphone?: boolean }) {
+    public get isCameraGranted(): boolean {
+        return this._mockPermissions.camera ?? this._cameraGranted
+    }
+
+    public setMockPermissions(permissions: { screen?: boolean; microphone?: boolean; camera?: boolean }) {
         this._mockPermissions = { ...this._mockPermissions, ...permissions }
         console.log('🔧 Mock permissions updated:', this._mockPermissions)
 
         // Broadcast change to all windows
         const result = {
             screen: this.checkScreenRecordingPermission(),
-            microphone: { status: this.isMicrophoneGranted ? 'granted' : 'denied', granted: this.isMicrophoneGranted }
+            microphone: { status: this.isMicrophoneGranted ? 'granted' : 'denied', granted: this.isMicrophoneGranted },
+            camera: { status: this.isCameraGranted ? 'granted' : 'denied', granted: this.isCameraGranted }
         }
 
         BrowserWindow.getAllWindows().forEach(window => {
@@ -163,6 +173,52 @@ export class PermissionService {
         }
     }
 
+    public async checkCameraPermission(): Promise<{ status: string; granted: boolean }> {
+        if (this._mockPermissions.camera !== undefined) {
+            return {
+                status: this._mockPermissions.camera ? 'granted' : 'denied',
+                granted: this._mockPermissions.camera
+            }
+        }
+
+        if (process.platform !== 'darwin') {
+            return { status: 'not-applicable', granted: true }
+        }
+
+        try {
+            const status = systemPreferences.getMediaAccessStatus('camera')
+            this._cameraGranted = status === 'granted'
+            return { status, granted: this._cameraGranted }
+        } catch (error) {
+            console.error('❌ Error checking camera permission:', error)
+            return { status: 'unknown', granted: false }
+        }
+    }
+
+    public async requestCameraPermission(): Promise<{ status: string; granted: boolean }> {
+        if (this._mockPermissions.camera !== undefined) {
+            return {
+                status: this._mockPermissions.camera ? 'granted' : 'denied',
+                granted: this._mockPermissions.camera
+            }
+        }
+
+        if (process.platform !== 'darwin') {
+            return { status: 'not-applicable', granted: true }
+        }
+
+        try {
+            console.log('📷 Requesting camera permission...')
+            const granted = await systemPreferences.askForMediaAccess('camera')
+            this._cameraGranted = granted
+            const status = systemPreferences.getMediaAccessStatus('camera')
+            return { status, granted }
+        } catch (error) {
+            console.error('❌ Error requesting camera permission:', error)
+            return { status: 'unknown', granted: false }
+        }
+    }
+
     public startMonitoring(sender: Electron.WebContents) {
         if (process.platform !== 'darwin') return
 
@@ -173,14 +229,16 @@ export class PermissionService {
             try {
                 const screenResult = this.checkScreenRecordingPermission()
                 const micResult = await this.checkMicrophonePermission()
+                const camResult = await this.checkCameraPermission()
 
                 // Send consolidated status
                 sender.send('permission-status-changed', {
                     screen: screenResult,
-                    microphone: micResult
+                    microphone: micResult,
+                    camera: camResult
                 })
 
-                if (screenResult.granted && micResult.granted) {
+                if (screenResult.granted && micResult.granted && camResult.granted) {
                     // console.log('✅ All permissions granted during monitoring')
                 }
             } catch (error) {

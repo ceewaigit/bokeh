@@ -13,7 +13,8 @@ import type {
   KeystrokeEffectData,
   ScreenEffectData,
   CropEffectData,
-  PluginEffectData
+  PluginEffectData,
+  WebcamEffectData
 } from '@/types/project'
 import { EffectType } from '@/types/project'
 
@@ -105,6 +106,20 @@ export function hasEnabledKeystrokeEffects(effects: Effect[]): boolean {
 
 export function getBackgroundEffect(effects: Effect[]): Effect | undefined {
   return effects.find(e => e.type === EffectType.Background && e.enabled)
+}
+
+// --- Webcam Effects ---
+
+export function getWebcamEffect(effects: Effect[]): Effect | undefined {
+  return effects.find(e => e.type === EffectType.Webcam)
+}
+
+export function getWebcamData(effect: Effect): WebcamEffectData | null {
+  return effect.type === EffectType.Webcam ? effect.data : null
+}
+
+export function hasWebcamEffect(effects: Effect[]): boolean {
+  return effects.some(e => e.type === EffectType.Webcam && e.enabled)
 }
 
 // --- Crop Effects ---

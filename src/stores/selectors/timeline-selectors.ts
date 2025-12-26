@@ -8,7 +8,7 @@
 import { useMemo } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { EffectStore } from '@/lib/core/effects'
-import { EffectType } from '@/types/project'
+import { EffectType, TrackType } from '@/types/project'
 import type { Effect } from '@/types/project'
 
 /**
@@ -62,18 +62,28 @@ export interface TrackExistence {
   hasKeystrokeTrack: boolean
   hasPluginTrack: boolean
   hasCropTrack: boolean
+  hasWebcamTrack: boolean
 }
 
 export function useTrackExistence(): TrackExistence {
   const { zoom, screen, keystroke, plugin, crop } = useEffectsByType()
+  const project = useProjectStore((s) => s.currentProject)
+
+  // Check if project has a webcam track (show even when empty for drop zone)
+  const hasWebcamTrack = useMemo(() => {
+    if (!project?.timeline?.tracks) return false
+    const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
+    return !!webcamTrack
+  }, [project?.timeline?.tracks])
 
   return useMemo(() => ({
     hasZoomTrack: zoom.length > 0,
     hasScreenTrack: screen.length > 0,
     hasKeystrokeTrack: keystroke.length > 0,
     hasPluginTrack: plugin.length > 0,
-    hasCropTrack: crop.length > 0
-  }), [zoom.length, screen.length, keystroke.length, plugin.length, crop.length])
+    hasCropTrack: crop.length > 0,
+    hasWebcamTrack
+  }), [zoom.length, screen.length, keystroke.length, plugin.length, crop.length, hasWebcamTrack])
 }
 
 /**

@@ -186,6 +186,10 @@ export function AmbientGlowPlayer({
         cropSettings: {
             // No crop interaction in glow
         },
+        zoomSettings: {
+            isEditing: false,
+            zoomData: null,
+        },
         resources: {
             videoUrls: undefined,
 

@@ -13,6 +13,7 @@ export { EffectType } from './effects'
 export enum TrackType {
   Video = 'video',
   Audio = 'audio',
+  Webcam = 'webcam',
   Annotation = 'annotation'
 }
 
@@ -20,10 +21,19 @@ export enum TrackType {
 export enum TimelineTrackType {
   Video = 'video',
   Audio = 'audio',
+  Webcam = 'webcam',
   Zoom = 'zoom',
   Screen = 'screen',
   Keystroke = 'keystroke',
   Plugin = 'plugin'
+}
+
+// Track group for collapsible sections
+export interface TrackGroup {
+  id: string
+  name: string
+  collapsed: boolean
+  trackTypes: TimelineTrackType[]
 }
 
 export enum TransitionType {
@@ -384,6 +394,7 @@ export type Effect =
   | ScreenEffect
   | PluginEffect
   | CropEffect
+  | WebcamEffect
 
 export interface BaseEffect {
   id: string
@@ -436,6 +447,11 @@ export interface CropEffect extends BaseEffect {
   data: CropEffectData
 }
 
+export interface WebcamEffect extends BaseEffect {
+  type: EffectType.Webcam
+  data: WebcamEffectData
+}
+
 export interface ZoomBlock {
   id: string
   startTime: number
@@ -451,6 +467,7 @@ export interface ZoomBlock {
   followStrategy?: ZoomFollowStrategy
   autoScale?: 'fill'
   smoothing?: number
+  mouseIdlePx?: number
 }
 
 // Background type enum
@@ -495,7 +512,8 @@ export enum CursorStyle {
 // Zoom follow strategy enum
 export enum ZoomFollowStrategy {
   Mouse = 'mouse',
-  Center = 'center'
+  Center = 'center',
+  Manual = 'manual'
 }
 
 // Keystroke position enum
@@ -822,4 +840,76 @@ export interface CropEffectData {
   width: number
   /** Height of crop region (0-1 normalized to source video height) */
   height: number
+}
+
+// Webcam shape options
+export type WebcamShape = 'circle' | 'rounded-rect' | 'squircle' | 'rectangle'
+
+// Webcam position anchor points
+export type WebcamAnchor =
+  | 'top-left' | 'top-center' | 'top-right'
+  | 'center-left' | 'center' | 'center-right'
+  | 'bottom-left' | 'bottom-center' | 'bottom-right'
+
+// Webcam animation types
+export type WebcamEntryAnimation = 'none' | 'fade' | 'scale' | 'slide' | 'bounce'
+export type WebcamExitAnimation = 'none' | 'fade' | 'scale'
+export type WebcamPipAnimation = 'none' | 'float' | 'breathe'
+
+export interface WebcamEffectData {
+  // Position & Size
+  position: {
+    x: number  // 0-100 percentage of canvas width
+    y: number  // 0-100 percentage of canvas height
+    anchor: WebcamAnchor
+  }
+  size: number  // 5-50 percentage of canvas width
+
+  // Shape
+  shape: WebcamShape
+  cornerRadius: number  // 0-50 pixels for rounded-rect/squircle
+
+  // Border
+  borderEnabled: boolean
+  borderWidth: number  // 0-10 pixels
+  borderColor: string
+  borderGradient?: {
+    colors: string[]
+    angle: number
+  }
+
+  // Shadow
+  shadowEnabled: boolean
+  shadowColor: string
+  shadowBlur: number  // 0-50 pixels
+  shadowOffsetX: number
+  shadowOffsetY: number
+
+  // Background blur (webcam background only, not video content)
+  backgroundBlur: boolean
+  backgroundBlurAmount: number  // 0-20 pixels
+
+  // Animations
+  animations: {
+    entry: {
+      type: WebcamEntryAnimation
+      durationMs: number
+      from?: number  // Scale/opacity start value
+    }
+    exit: {
+      type: WebcamExitAnimation
+      durationMs: number
+    }
+    pip: {
+      type: WebcamPipAnimation
+      amplitude?: number  // For float/breathe
+      period?: number  // Animation cycle in ms
+    }
+  }
+
+  // Mirror/flip the webcam horizontally (common preference)
+  mirror: boolean
+
+  // Opacity (0-1)
+  opacity: number
 }

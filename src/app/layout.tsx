@@ -1,11 +1,21 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google"
 import LayoutClient from "./layout-client"
 import "./globals.css"
 
-const inter = Inter({
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-ui",
+})
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  variable: "--font-display",
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
 })
 
 export const metadata: Metadata = {
@@ -29,7 +39,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning className="h-full">
-      <body className={`${inter.variable} font-sans antialiased h-full overflow-hidden`}>
+      <body className={`${instrumentSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased h-full overflow-hidden`}>
         <LayoutClient>
           {children}
         </LayoutClient>

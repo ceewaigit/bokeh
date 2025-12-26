@@ -19,15 +19,15 @@ import { cn, clamp } from "@/lib/utils"
 
 // Preset definitions matching the store - modern glassmorphism
 const GLASS_PRESETS = {
-    light: { opacity: 0.05, blurPx: 2 },
-    medium: { opacity: 0.10, blurPx: 4 },
-    strong: { opacity: 0.20, blurPx: 6 },
+    light: { opacity: 0.08, blurPx: 18 },
+    medium: { opacity: 0.12, blurPx: 26 },
+    strong: { opacity: 0.16, blurPx: 34 },
 } as const
 
 const CLEAR_PRESETS = {
-    light: { opacity: 0.75, blurPx: 0 },
-    medium: { opacity: 0.85, blurPx: 0 },
-    strong: { opacity: 0.95, blurPx: 0 },
+    light: { opacity: 0.60, blurPx: 0 },
+    medium: { opacity: 0.75, blurPx: 0 },
+    strong: { opacity: 0.88, blurPx: 0 },
 } as const
 
 interface AppearanceToggleProps {
@@ -68,8 +68,8 @@ export function AppearanceToggle({
     }
 
     // Opacity controls - allow full range for glass/custom
-    const opacityMin = mode === "glass" || mode === "custom" ? 0 : 70
-    const opacityMax = mode === "glass" || mode === "custom" ? 90 : 98
+    const opacityMin = mode === "glass" || mode === "custom" ? 0 : 40
+    const opacityMax = mode === "glass" || mode === "custom" ? 90 : 90
     const opacityPct = Math.round(opacity * 100)
 
     const blurMin = 0
@@ -122,10 +122,10 @@ export function AppearanceToggle({
                             Solid
                         </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="clear" className="text-xs">
-                            Clear
+                            Glass
                         </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="glass" className="text-xs">
-                            Glass
+                            Frosted
                         </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
 

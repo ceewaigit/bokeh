@@ -1,5 +1,5 @@
 import React from 'react'
-import { Line, Text, Rect } from 'react-konva'
+import { Line, Text, Rect, Group } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -12,9 +12,10 @@ interface TimelineRulerProps {
   zoom: number
   pixelsPerMs: number
   onSeek?: (time: number) => void
+  offsetY?: number  // Used to keep ruler sticky during vertical scroll
 }
 
-export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPerMs, onSeek }: TimelineRulerProps) => {
+export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPerMs, onSeek, offsetY = 0 }: TimelineRulerProps) => {
   const colors = useTimelineColors()
   const [isHovering, setIsHovering] = React.useState(false)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
@@ -119,7 +120,7 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
       }}
       style={{ cursor: onSeek ? (isScrubbing ? 'grabbing' : 'pointer') : 'default' }}
       listening={Boolean(onSeek)}
-      opacity={isHovering ? 0.98 : 0.9}
+      opacity={colors.isGlassMode ? (isHovering ? 0.32 : 0.24) : (isHovering ? 0.98 : 0.9)}
     />
   )
 
@@ -178,5 +179,5 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
     }
   }
 
-  return <>{marks}</>
+  return <Group y={offsetY}>{marks}</Group>
 })

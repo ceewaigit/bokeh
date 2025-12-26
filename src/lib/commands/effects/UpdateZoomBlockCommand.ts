@@ -58,19 +58,30 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
       scale: zoomData.scale,
       targetX: zoomData.targetX,
       targetY: zoomData.targetY,
+      screenWidth: zoomData.screenWidth,
+      screenHeight: zoomData.screenHeight,
       introMs: zoomData.introMs,
-      outroMs: zoomData.outroMs
+      outroMs: zoomData.outroMs,
+      smoothing: zoomData.smoothing,
+      followStrategy: zoomData.followStrategy,
+      autoScale: zoomData.autoScale,
+      mouseIdlePx: zoomData.mouseIdlePx
     }
 
     // Update the effect with new zoom data
     const updatedData = {
       ...zoomData,
       scale: this.updates.scale ?? zoomData.scale,
-      targetX: this.updates.targetX ?? zoomData.targetX,
-      targetY: this.updates.targetY ?? zoomData.targetY,
+      targetX: 'targetX' in this.updates ? this.updates.targetX : zoomData.targetX,
+      targetY: 'targetY' in this.updates ? this.updates.targetY : zoomData.targetY,
+      screenWidth: 'screenWidth' in this.updates ? this.updates.screenWidth : zoomData.screenWidth,
+      screenHeight: 'screenHeight' in this.updates ? this.updates.screenHeight : zoomData.screenHeight,
       introMs: this.updates.introMs ?? zoomData.introMs,
       outroMs: this.updates.outroMs ?? zoomData.outroMs,
-      smoothing: this.updates.smoothing ?? zoomData.smoothing
+      smoothing: this.updates.smoothing ?? zoomData.smoothing,
+      followStrategy: 'followStrategy' in this.updates ? this.updates.followStrategy : zoomData.followStrategy,
+      autoScale: 'autoScale' in this.updates ? this.updates.autoScale : zoomData.autoScale,
+      mouseIdlePx: 'mouseIdlePx' in this.updates ? this.updates.mouseIdlePx : zoomData.mouseIdlePx
     }
 
     store.updateEffect(this.blockId, {
@@ -102,9 +113,14 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
         scale: this.originalBlock.scale || 2,
         targetX: this.originalBlock.targetX,
         targetY: this.originalBlock.targetY,
+        screenWidth: this.originalBlock.screenWidth,
+        screenHeight: this.originalBlock.screenHeight,
         introMs: this.originalBlock.introMs || 300,
         outroMs: this.originalBlock.outroMs || 300,
-        smoothing: this.originalBlock.smoothing ?? 50
+        smoothing: this.originalBlock.smoothing ?? 50,
+        followStrategy: this.originalBlock.followStrategy,
+        autoScale: this.originalBlock.autoScale,
+        mouseIdlePx: this.originalBlock.mouseIdlePx
       }
     })
 
@@ -124,11 +140,16 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
       const updatedData = {
         ...zoomData,
         scale: this.updates.scale ?? zoomData.scale,
-        targetX: this.updates.targetX ?? zoomData.targetX,
-        targetY: this.updates.targetY ?? zoomData.targetY,
+        targetX: 'targetX' in this.updates ? this.updates.targetX : zoomData.targetX,
+        targetY: 'targetY' in this.updates ? this.updates.targetY : zoomData.targetY,
+        screenWidth: 'screenWidth' in this.updates ? this.updates.screenWidth : zoomData.screenWidth,
+        screenHeight: 'screenHeight' in this.updates ? this.updates.screenHeight : zoomData.screenHeight,
         introMs: this.updates.introMs ?? zoomData.introMs,
         outroMs: this.updates.outroMs ?? zoomData.outroMs,
-        smoothing: this.updates.smoothing ?? zoomData.smoothing
+        smoothing: this.updates.smoothing ?? zoomData.smoothing,
+        followStrategy: 'followStrategy' in this.updates ? this.updates.followStrategy : zoomData.followStrategy,
+        autoScale: 'autoScale' in this.updates ? this.updates.autoScale : zoomData.autoScale,
+        mouseIdlePx: 'mouseIdlePx' in this.updates ? this.updates.mouseIdlePx : zoomData.mouseIdlePx
       }
 
       store.updateEffect(this.blockId, {

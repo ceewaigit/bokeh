@@ -11,6 +11,7 @@ import type {
   ScrollEvent,
   KeyboardEvent,
   CropEffectData,
+  ZoomEffectData,
 } from './project';
 import type { MockupPositionResult } from '@/lib/mockups/mockup-transform';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
@@ -55,6 +56,11 @@ export interface CropSettings {
   onCropChange?: (cropData: CropEffectData) => void;
   onCropConfirm?: () => void;
   onCropReset?: () => void;
+}
+
+export interface ZoomSettings {
+  isEditing: boolean;
+  zoomData?: ZoomEffectData | null;
 }
 
 // ============================================================================
@@ -304,6 +310,7 @@ export interface TimelineCompositionProps {
   playback: PlaybackSettings;
   renderSettings: RenderSettings;
   cropSettings: CropSettings;
+  zoomSettings: ZoomSettings;
 }
 
 export interface SharedVideoControllerProps {

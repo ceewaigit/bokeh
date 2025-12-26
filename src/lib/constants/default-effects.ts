@@ -1,4 +1,4 @@
-import type { BackgroundEffectData, CursorEffectData, CursorMotionPreset, KeystrokeEffectData, ParallaxLayer, ScreenEffectData, ZoomEffectData } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, CursorMotionPreset, KeystrokeEffectData, ParallaxLayer, ScreenEffectData, ZoomEffectData, WebcamEffectData } from '@/types/project'
 import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset, ZoomFollowStrategy } from '@/types/project'
 
 // Re-export schema helpers for gradual migration
@@ -120,6 +120,80 @@ export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
   stylePreset: 'glass',
   showModifierSymbols: true,
   scale: 1
+}
+
+// Default webcam effect data - Apple-quality PiP styling
+export const DEFAULT_WEBCAM_DATA: WebcamEffectData = {
+  // Position in bottom-right corner with slight offset
+  position: {
+    x: 88,
+    y: 82,
+    anchor: 'bottom-right'
+  },
+  size: 18, // 18% of canvas width - compact but visible
+
+  // Circle shape for clean, modern look
+  shape: 'circle',
+  cornerRadius: 24, // Used for rounded-rect/squircle
+
+  // Subtle white border
+  borderEnabled: true,
+  borderWidth: 3,
+  borderColor: '#ffffff',
+
+  // Soft shadow for depth
+  shadowEnabled: true,
+  shadowColor: 'rgba(0, 0, 0, 0.25)',
+  shadowBlur: 24,
+  shadowOffsetX: 0,
+  shadowOffsetY: 8,
+
+  // No background blur by default
+  backgroundBlur: false,
+  backgroundBlurAmount: 10,
+
+  // Smooth animations
+  animations: {
+    entry: {
+      type: 'scale',
+      durationMs: 350,
+      from: 0.8
+    },
+    exit: {
+      type: 'fade',
+      durationMs: 250
+    },
+    pip: {
+      type: 'none' // Can enable 'float' or 'breathe' for subtle motion
+    }
+  },
+
+  // Mirror by default (natural for webcam)
+  mirror: true,
+
+  // Full opacity
+  opacity: 1.0
+}
+
+// Webcam shape presets for quick selection
+export const WEBCAM_SHAPE_PRESETS = {
+  circle: { shape: 'circle' as const, cornerRadius: 0 },
+  'rounded-rect': { shape: 'rounded-rect' as const, cornerRadius: 16 },
+  squircle: { shape: 'squircle' as const, cornerRadius: 32 },
+  rectangle: { shape: 'rectangle' as const, cornerRadius: 0 }
+}
+
+// Webcam position presets (percentage-based)
+export const WEBCAM_POSITION_PRESETS = {
+  'top-left': { x: 12, y: 12, anchor: 'top-left' as const },
+  'top-center': { x: 50, y: 12, anchor: 'top-center' as const },
+  'top-right': { x: 88, y: 12, anchor: 'top-right' as const },
+  'center-left': { x: 12, y: 50, anchor: 'center-left' as const },
+  'center': { x: 50, y: 50, anchor: 'center' as const },
+  'center-right': { x: 88, y: 50, anchor: 'center-right' as const },
+  'bottom-left': { x: 12, y: 82, anchor: 'bottom-left' as const },
+  'bottom-center': { x: 50, y: 82, anchor: 'bottom-center' as const },
+  'bottom-right': { x: 88, y: 82, anchor: 'bottom-right' as const }
 }
 
 // Store for default wallpaper once loaded

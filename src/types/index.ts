@@ -18,11 +18,28 @@ export enum AudioInput {
   None = 'none'
 }
 
+// Webcam recording configuration
+export interface WebcamConfig {
+  enabled: boolean
+  deviceId: string
+  resolution?: '720p' | '1080p' | '4k'
+}
+
+// Microphone recording configuration
+export interface MicrophoneConfig {
+  enabled: boolean
+  deviceId: string
+  echoCancellation?: boolean
+  noiseSuppression?: boolean
+}
+
 // Session-specific settings managed by RecordingSessionStore
 export interface SessionSettings {
   area: RecordingArea
   audioInput: AudioInput
   sourceId?: string
+  webcam?: WebcamConfig
+  microphone?: MicrophoneConfig
 }
 
 // Full settings payload sent to IPC (composed of SessionSettings + ProjectSettings)

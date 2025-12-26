@@ -235,6 +235,7 @@ export function computeCameraState({
   const followStrategy = activeZoomBlock?.followStrategy
   const shouldFollowMouse = followStrategy === 'mouse' || followStrategy == null
   const shouldCenterLock = followStrategy === 'center'
+  const isManualFocus = followStrategy === 'manual'
 
   let targetCenter = isDeterministic ? { x: 0.5, y: 0.5 } : { x: physics.x, y: physics.y }
   const followCursor = cursorIsFrozen && frozenTarget ? frozenTarget : { x: cursorNormX, y: cursorNormY }
@@ -245,6 +246,8 @@ export function computeCameraState({
   })()
 
   if (activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')) {
+    targetCenter = { x: 0.5, y: 0.5 }
+  } else if (activeZoomBlock && isManualFocus && (activeZoomBlock.targetX == null || activeZoomBlock.targetY == null)) {
     targetCenter = { x: 0.5, y: 0.5 }
   } else if (activeZoomBlock && !shouldFollowMouse && activeZoomBlock.targetX != null && activeZoomBlock.targetY != null) {
     const sw = activeZoomBlock.screenWidth || sourceWidth

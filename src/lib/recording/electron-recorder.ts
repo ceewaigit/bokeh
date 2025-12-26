@@ -4,8 +4,7 @@
  */
 
 import type { RecordingSettings } from '@/types'
-import type { ElectronRecordingResult } from '@/types/recording'
-import { RecordingService } from './services/recording-service'
+import { RecordingService, ExtendedRecordingResult } from './services/recording-service'
 import { logger } from '@/lib/utils/logger'
 
 export class ElectronRecorder {
@@ -20,7 +19,7 @@ export class ElectronRecorder {
     return this.service.start(recordingSettings)
   }
 
-  async stopRecording(): Promise<ElectronRecordingResult> {
+  async stopRecording(): Promise<ExtendedRecordingResult> {
     return this.service.stop()
   }
 

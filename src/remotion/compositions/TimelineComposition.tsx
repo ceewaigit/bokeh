@@ -205,6 +205,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
             onCropReset={cropSettings.onCropReset}
           />
         )}
+
       </SharedVideoController>
 
       {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
@@ -263,6 +264,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) =
     playback,
     renderSettings,
     cropSettings,
+    zoomSettings,
   } = props;
 
   // FAIL-FAST validations
@@ -270,6 +272,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) =
   if (!playback) throw new Error('[TimelineComposition] Missing required prop: playback');
   if (!renderSettings) throw new Error('[TimelineComposition] Missing required prop: renderSettings');
   if (!cropSettings) throw new Error('[TimelineComposition] Missing required prop: cropSettings');
+  if (!zoomSettings) throw new Error('[TimelineComposition] Missing required prop: zoomSettings');
 
   const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
 

@@ -28,7 +28,15 @@ export function registerPermissionHandlers(): void {
     return permissionService.requestMicrophonePermission()
   })
 
-  ipcMain.handle('set-mock-permissions', async (_, permissions: { screen?: boolean; microphone?: boolean }) => {
+  ipcMain.handle('check-camera-permission', async () => {
+    return permissionService.checkCameraPermission()
+  })
+
+  ipcMain.handle('request-camera-permission', async () => {
+    return permissionService.requestCameraPermission()
+  })
+
+  ipcMain.handle('set-mock-permissions', async (_, permissions: { screen?: boolean; microphone?: boolean; camera?: boolean }) => {
     permissionService.setMockPermissions(permissions)
   })
 }

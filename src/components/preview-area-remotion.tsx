@@ -15,7 +15,7 @@
 
 'use client';
 
-import React, { useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react';
 import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/remotion/compositions/TimelineComposition';
 import { useProjectStore } from '@/stores/project-store';
@@ -26,8 +26,10 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/lib/utils/resolution-utils';
 import type { CropEffectData } from '@/types/project';
+import type { ZoomSettings } from '@/types/remotion';
 
 import { AmbientGlowPlayer } from './preview/ambient-glow-player';
+import { useWorkspaceStore } from '@/stores/workspace-store';
 
 type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
 
@@ -41,6 +43,7 @@ interface PreviewAreaRemotionProps {
   onCropChange?: (cropData: CropEffectData) => void;
   onCropConfirm?: () => void;
   onCropReset?: () => void;
+  zoomSettings?: ZoomSettings;
 }
 
 import { useExportStore } from '@/stores/export-store';
@@ -51,6 +54,7 @@ export function PreviewAreaRemotion({
   onCropChange,
   onCropConfirm,
   onCropReset,
+  zoomSettings,
 }: PreviewAreaRemotionProps) {
   // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders
   // WARNING: Do NOT subscribe to currentTime here. It updates 60fps and will re-render this entire tree.
@@ -91,6 +95,8 @@ export function PreviewAreaRemotion({
   const playerRef = useRef<PlayerRef>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const aspectContainerRef = useRef<HTMLDivElement>(null);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
+  const [previewViewportSize, setPreviewViewportSize] = useState({ width: 0, height: 0 });
 
   // Throttle state for scrub optimization
   const lastSeekTimeRef = useRef<number>(0);
@@ -129,6 +135,7 @@ export function PreviewAreaRemotion({
   const isHighQualityPlaybackEnabled = usePreviewSettingsStore((s) => s.highQuality);
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow);
   const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity);
+  const previewScale = useWorkspaceStore((s) => s.previewScale);
 
   // Calculate timeline metadata (total duration, fps, dimensions)
   const timelineMetadata = useTimelineMetadata(project);
@@ -171,6 +178,29 @@ export function PreviewAreaRemotion({
 
     return { width, height };
   }, [timelineMetadata, isHighQualityPlaybackEnabled]);
+
+  const previewFrameBounds = useMemo(() => {
+    const capWidth = PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * previewScale;
+    const capHeight = PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * previewScale;
+    const viewportWidth = previewViewportSize.width || capWidth;
+    const viewportHeight = previewViewportSize.height || capHeight;
+    const maxWidth = Math.min(viewportWidth, capWidth);
+    const maxHeight = Math.min(viewportHeight, capHeight);
+
+    if (!timelineMetadata) {
+      return { width: maxWidth, height: maxHeight };
+    }
+
+    const aspectRatio = timelineMetadata.width / timelineMetadata.height;
+    const widthFromHeight = maxHeight * aspectRatio;
+    const heightFromWidth = maxWidth / aspectRatio;
+
+    if (widthFromHeight <= maxWidth) {
+      return { width: widthFromHeight, height: maxHeight };
+    }
+
+    return { width: maxWidth, height: heightFromWidth };
+  }, [previewScale, timelineMetadata, previewViewportSize.width, previewViewportSize.height]);
 
   // Ensure all videos are loaded
   useEffect(() => {
@@ -468,6 +498,27 @@ export function PreviewAreaRemotion({
     }
   }, [volume, muted]);
 
+  useEffect(() => {
+    if (!previewViewportRef.current) return;
+    let rafId: number | null = null;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        setPreviewViewportSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      });
+    });
+    observer.observe(previewViewportRef.current);
+    return () => {
+      observer.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, []);
+
   // Calculate initial frame
   // Only needs to run once or when metadata changes
   const initialFrame = useMemo(() => {
@@ -523,6 +574,7 @@ export function PreviewAreaRemotion({
         onCropConfirm,
         onCropReset,
       },
+      zoomSettings: zoomSettings ?? { isEditing: false, zoomData: null },
       // Group: VideoResources
       resources: {
         // In preview we might rely on blobs or fallback.
@@ -534,7 +586,7 @@ export function PreviewAreaRemotion({
         metadataUrls: undefined,
       }
     }
-  }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
+  }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, zoomSettings, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
 
 
 
@@ -548,98 +600,105 @@ export function PreviewAreaRemotion({
             <p className="text-sm mt-2">Preview paused to optimize performance</p>
           </div>
         ) : (
-          <>
-
+          <div ref={previewViewportRef} className="relative w-full h-full flex items-center justify-center">
             <div
-              ref={aspectContainerRef}
-              className="relative w-full max-w-full max-h-full"
+              className="relative"
               style={{
-                aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
-                maxWidth: '100%',
-                maxHeight: '100%',
+                width: `${previewFrameBounds.width}px`,
+                height: `${previewFrameBounds.height}px`,
               }}
             >
-              {/* Ambient Glow - Low-res Player behind main player */}
-              {/* Toggle via Utilities > Editing > Ambient Glow */}
-              {isGlowEnabled && (
-                <AmbientGlowPlayer
-                  mainPlayerRef={playerRef}
-                  timelineMetadata={timelineMetadata}
-                  playerConfig={playerConfig}
-                  isPlaying={isPlaying}
-                  isScrubbing={isScrubbing}
-                  playerKey={playerKey}
-                  initialFrame={initialFrame}
-                  glowIntensity={glowIntensity}
-                />
-              )}
-
-              {/* Main Player Container */}
-              <div
-                ref={playerContainerRef}
-                className="absolute inset-0 w-full h-full"
-                style={{ zIndex: 10 }}
-              >
-                <style dangerouslySetInnerHTML={{
-                  __html: `
-              .__remotion-player {
-                border-radius: 12px !important;
-                overflow: hidden !important;
-                transform: translateZ(0); /* Force GPU layer */
-              }
-            `}} />
-                <Player
-                  key={playerKey}
-                  ref={playerRef}
-                  component={TimelineComposition as any}
-                  inputProps={mainPlayerInputProps as any}
-                  durationInFrames={timelineMetadata.durationInFrames}
-                  compositionWidth={compositionSize.width}
-                  compositionHeight={compositionSize.height}
-                  fps={timelineMetadata.fps}
-                  initialFrame={initialFrame}
-                  initiallyMuted={false}
+              <div className="rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.14)] h-full w-full">
+                <div
+                  ref={aspectContainerRef}
+                  className="relative w-full h-full"
                   style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    zIndex: 10,
+                    aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
                   }}
-                  controls={false}
-                  loop={false}
-                  clickToPlay={false}
-                  doubleClickToFullscreen={false}
-                  spaceKeyToPlayOrPause={false}
-                  alwaysShowControls={false}
-                  initiallyShowControls={false}
-                  showPosterWhenPaused={false}
-                  showPosterWhenUnplayed={false}
-                  showPosterWhenEnded={false}
-                  moveToBeginningWhenEnded={false}
-                  renderLoading={() => (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-sm text-muted-foreground">Loading preview...</div>
-                    </div>
+                >
+                  {/* Ambient Glow - Low-res Player behind main player */}
+                  {/* Toggle via Utilities > Editing > Ambient Glow */}
+                  {isGlowEnabled && (
+                    <AmbientGlowPlayer
+                      mainPlayerRef={playerRef}
+                      timelineMetadata={timelineMetadata}
+                      playerConfig={playerConfig}
+                      isPlaying={isPlaying}
+                      isScrubbing={isScrubbing}
+                      playerKey={playerKey}
+                      initialFrame={initialFrame}
+                      glowIntensity={glowIntensity}
+                    />
                   )}
-                  errorFallback={({ error }: { error: Error }) => {
-                    console.error('Remotion Player error:', error);
-                    return (
-                      <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 p-4">
-                        <div className="text-center">
-                          <p className="text-red-600 dark:text-red-400 font-medium">
-                            Video playback error
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Please try reloading the video
-                          </p>
+
+                  {/* Main Player Container */}
+                  <div
+                    ref={playerContainerRef}
+                    className="absolute inset-0 w-full h-full"
+                    style={{ zIndex: 10 }}
+                  >
+                    <style dangerouslySetInnerHTML={{
+                      __html: `
+                  .__remotion-player {
+                    border-radius: 16px !important;
+                    overflow: hidden !important;
+                    transform: translateZ(0); /* Force GPU layer */
+                  }
+                `}} />
+                    <Player
+                      key={playerKey}
+                      ref={playerRef}
+                      component={TimelineComposition as any}
+                      inputProps={mainPlayerInputProps as any}
+                      durationInFrames={timelineMetadata.durationInFrames}
+                      compositionWidth={compositionSize.width}
+                      compositionHeight={compositionSize.height}
+                      fps={timelineMetadata.fps}
+                      initialFrame={initialFrame}
+                      initiallyMuted={false}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        zIndex: 10,
+                      }}
+                      controls={false}
+                      loop={false}
+                      clickToPlay={false}
+                      doubleClickToFullscreen={false}
+                      spaceKeyToPlayOrPause={false}
+                      alwaysShowControls={false}
+                      initiallyShowControls={false}
+                      showPosterWhenPaused={false}
+                      showPosterWhenUnplayed={false}
+                      showPosterWhenEnded={false}
+                      moveToBeginningWhenEnded={false}
+                      renderLoading={() => (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-sm text-muted-foreground">Loading preview...</div>
                         </div>
-                      </div>
-                    );
-                  }}
-                />
+                      )}
+                      errorFallback={({ error }: { error: Error }) => {
+                        console.error('Remotion Player error:', error);
+                        return (
+                          <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 p-4">
+                            <div className="text-center">
+                              <p className="text-red-600 dark:text-red-400 font-medium">
+                                Video playback error
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Please try reloading the video
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

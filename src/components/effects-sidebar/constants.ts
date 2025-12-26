@@ -28,6 +28,7 @@ import {
   Bot,
   SlidersHorizontal,
   LayoutGrid,
+  Camera,
 } from 'lucide-react'
 
 export enum SidebarTabId {
@@ -35,6 +36,7 @@ export enum SidebarTabId {
   Style = 'style',
   Pointer = 'pointer',
   Framing = 'framing',
+  Webcam = 'webcam',
   Canvas = 'canvas',
   Advanced = 'advanced',
 }
@@ -44,6 +46,7 @@ export const SIDEBAR_TABS = [
   { id: SidebarTabId.Style, icon: Palette, label: 'Appearance' },
   { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Cursor & Keys' },
   { id: SidebarTabId.Framing, icon: Crop, label: 'Zoom & Crop' },
+  { id: SidebarTabId.Webcam, icon: Camera, label: 'Webcam' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Canvas' },
   { id: SidebarTabId.Advanced, icon: Bot, label: 'Settings' },
 ] as const

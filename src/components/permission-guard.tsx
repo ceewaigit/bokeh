@@ -5,56 +5,64 @@ import { WelcomeScreen } from './welcome-screen'
 import { usePermissions } from '@/hooks/use-permissions'
 
 interface PermissionGuardProps {
-    children: React.ReactNode
+  children: React.ReactNode
 }
 
-export const PermissionGuard: React.FC<PermissionGuardProps> = ({ children }) => {
-    const { screenRecording, microphone, isLoading, startPolling, requestScreenRecording, requestMicrophone } = usePermissions()
-    const [showWelcome, setShowWelcome] = useState(false)
+/**
+ * Guards the app until required permissions are granted.
+ * Shows the welcome screen when screen recording permission is missing.
+ */
+export function PermissionGuard({ children }: PermissionGuardProps) {
+  const {
+    screenRecording,
+    microphone,
+    camera,
+    isLoading,
+    allRequiredGranted,
+    startPolling,
+    requestScreenRecording,
+    requestMicrophone,
+    requestCamera
+  } = usePermissions()
 
-    // React to permission changes
-    useEffect(() => {
-        if (!isLoading) {
-            if (!screenRecording) {
-                setShowWelcome(true)
-            } else {
-                setShowWelcome(false)
-            }
-        }
-    }, [isLoading, screenRecording])
+  const [showWelcome, setShowWelcome] = useState(false)
 
-    // Polling effect - only runs when welcome screen is visible
-    useEffect(() => {
-        if (!showWelcome) return
-        return startPolling(1000)
-    }, [showWelcome, startPolling])
-
-    const handleGrantScreenRecording = async () => {
-        await requestScreenRecording()
+  // Show welcome screen if required permissions are missing
+  useEffect(() => {
+    if (!isLoading) {
+      setShowWelcome(!allRequiredGranted)
     }
+  }, [isLoading, allRequiredGranted])
 
-    const handleGrantMicrophone = async () => {
-        await requestMicrophone()
+  // Poll for permission changes while welcome screen is visible
+  useEffect(() => {
+    if (!showWelcome) return
+    return startPolling(1000)
+  }, [showWelcome, startPolling])
+
+  const handleContinue = () => {
+    if (allRequiredGranted) {
+      setShowWelcome(false)
     }
+  }
 
-    const handleContinue = () => {
-        setShowWelcome(false)
-    }
+  // Loading state
+  if (isLoading) {
+    return null
+  }
 
-    if (isLoading) {
-        return null // Or a loading spinner if desired
-    }
+  // Welcome screen
+  if (showWelcome) {
+    return (
+      <WelcomeScreen
+        permissions={{ screenRecording, microphone, camera }}
+        onGrantScreenRecording={requestScreenRecording}
+        onGrantMicrophone={requestMicrophone}
+        onGrantCamera={requestCamera}
+        onContinue={handleContinue}
+      />
+    )
+  }
 
-    if (showWelcome) {
-        return (
-            <WelcomeScreen
-                permissions={{ screenRecording, microphone }}
-                onGrantScreenRecording={handleGrantScreenRecording}
-                onGrantMicrophone={handleGrantMicrophone}
-                onContinue={handleContinue}
-            />
-        )
-    }
-
-    return <>{children}</>
+  return <>{children}</>
 }

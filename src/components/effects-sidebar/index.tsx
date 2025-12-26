@@ -3,16 +3,17 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 
 import { cn } from '@/lib/utils'
-import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEffectData } from '@/types/project'
+import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect } from '@/lib/effects/effect-filters'
+import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffect } from '@/lib/effects/effect-filters'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
 import { TrackType } from '@/types/project'
+import { useTrackExistence } from '@/stores/selectors/timeline-selectors'
 
 import { BackgroundTab } from './background-tab'
 import { CursorTab } from './cursor-tab'
@@ -24,6 +25,7 @@ import { CropTab } from './crop-tab'
 import { ClipTab } from './clip-tab'
 import { AdvancedTab } from './advanced-tab'
 import { CanvasTab } from './canvas-tab'
+import { WebcamTab } from './webcam-tab'
 import { AnimatePresence, motion } from 'framer-motion'
 
 interface EffectsSidebarProps {
@@ -122,10 +124,14 @@ export function EffectsSidebar({
   const tooltipRef = useRef<HTMLDivElement | null>(null)
   const lastAutoOpenedCropClipRef = useRef<string | null>(null)
 
+  // Check if webcam track has content
+  const { hasWebcamTrack } = useTrackExistence()
+
   // Extract current effects from the array using effect-filters helpers
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
   const cursorEffect = effects ? getCursorEffect(effects) : undefined
   const keystrokeEffect = effects ? getKeystrokeEffect(effects) : undefined
+  const webcamEffect = effects ? getWebcamEffect(effects) : undefined
 
   // Track last selected clip id and previous effect layer type to control auto-tab switching
   const lastClipIdRef = React.useRef<string | null>(null)
@@ -188,6 +194,9 @@ export function EffectsSidebar({
         setActiveTab(SidebarTabId.Style)
         setStyleSubTab('screen')
         return
+      case EffectLayerType.Webcam:
+        setActiveTab(SidebarTabId.Webcam)
+        return
       case EffectLayerType.Cursor:
         setActiveTab(SidebarTabId.Pointer)
         setPointerSubTab('cursor')
@@ -249,14 +258,24 @@ export function EffectsSidebar({
   }, [cursorEffect, keystrokeEffect, onEffectChange])
 
   const visibleTabs = React.useMemo(() => {
-    return SIDEBAR_TABS.filter((tab) => tab.id !== SidebarTabId.Clip || !!selectedClip)
-  }, [selectedClip])
+    return SIDEBAR_TABS.filter((tab) => {
+      // Only show Clip tab when a clip is selected
+      if (tab.id === SidebarTabId.Clip) return !!selectedClip
+      // Only show Webcam tab when there's webcam content on the timeline
+      if (tab.id === SidebarTabId.Webcam) return hasWebcamTrack
+      return true
+    })
+  }, [selectedClip, hasWebcamTrack])
 
   useEffect(() => {
     if (!selectedClip && activeTab === SidebarTabId.Clip) {
       setActiveTab(SidebarTabId.Style)
     }
-  }, [activeTab, selectedClip])
+    // Switch away from Webcam tab if webcam content is removed
+    if (!hasWebcamTrack && activeTab === SidebarTabId.Webcam) {
+      setActiveTab(SidebarTabId.Style)
+    }
+  }, [activeTab, selectedClip, hasWebcamTrack])
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = useCallback((updates: any) => {
@@ -420,6 +439,7 @@ export function EffectsSidebar({
                           />
                         </motion.div>
                       )}
+
                     </AnimatePresence>
                   </motion.div>
                 )}
@@ -551,6 +571,28 @@ export function EffectsSidebar({
                         </motion.div>
                       )}
                     </AnimatePresence>
+                  </motion.div>
+                )}
+
+                {activeTab === SidebarTabId.Webcam && (
+                  <motion.div
+                    key="webcam"
+                    variants={tabVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="space-y-3"
+                  >
+                    <WebcamTab
+                      webcamEffect={webcamEffect}
+                      onUpdateWebcam={(updates) => {
+                        const current = webcamEffect?.data as WebcamEffectData | undefined
+                        if (current) {
+                          onEffectChange(EffectType.Webcam, { ...current, ...updates })
+                        }
+                      }}
+                      onEffectChange={onEffectChange}
+                    />
                   </motion.div>
                 )}
 

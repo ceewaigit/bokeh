@@ -190,7 +190,8 @@ export function useRecordingLifecycle({
                     projectName,
                     result.captureArea,
                     result.hasAudio,
-                    result.duration
+                    result.duration,
+                    result.webcam
                 )
 
                 if (saved) {
@@ -207,6 +208,17 @@ export function useRecordingLifecycle({
                         const videoUrl = await window.electronAPI.getVideoUrl(result.videoPath)
                         if (videoUrl) {
                             RecordingStorage.setBlobUrl(recordingId, videoUrl)
+                        }
+                    }
+
+                    // Cache webcam video URL if present
+                    if (saved.webcamVideoPath) {
+                        const webcamRecording = saved.project.recordings.find(r => r.id.startsWith('webcam-'))
+                        if (webcamRecording && window.electronAPI?.getVideoUrl) {
+                            const webcamUrl = await window.electronAPI.getVideoUrl(saved.webcamVideoPath)
+                            if (webcamUrl) {
+                                RecordingStorage.setBlobUrl(webcamRecording.id, webcamUrl)
+                            }
                         }
                     }
                 }

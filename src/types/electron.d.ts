@@ -30,12 +30,15 @@ export interface ElectronAPI {
   requestScreenRecordingPermission: () => Promise<{ opened: boolean; status: string; granted: boolean }>
   checkMicrophonePermission: () => Promise<{ status: string; granted: boolean }>
   requestMicrophonePermission: () => Promise<{ status: string; granted: boolean }>
-  setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean }) => Promise<void>
+  checkCameraPermission?: () => Promise<{ status: string; granted: boolean }>
+  requestCameraPermission?: () => Promise<{ status: string; granted: boolean }>
+  setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean; camera?: boolean }) => Promise<void>
   startPermissionMonitoring?: () => Promise<void>
   stopPermissionMonitoring?: () => Promise<void>
   onPermissionStatusChanged?: (callback: (event: any, data: {
     screen: { status: string; granted: boolean };
     microphone: { status: string; granted: boolean };
+    camera?: { status: string; granted: boolean };
   }) => void) => () => void
 
   // Mouse tracking

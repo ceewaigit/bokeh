@@ -55,7 +55,8 @@ export class CopyCommand extends Command<CopyResult> {
         [EffectLayerType.Keystroke]: EffectType.Keystroke,
         [EffectLayerType.Screen]: EffectType.Screen,
         [EffectLayerType.Plugin]: EffectType.Plugin,
-        [EffectLayerType.Crop]: EffectType.Crop
+        [EffectLayerType.Crop]: EffectType.Crop,
+        [EffectLayerType.Webcam]: EffectType.Webcam
       }
 
       const effectType = effectTypeMap[selectedEffectLayer.type]
