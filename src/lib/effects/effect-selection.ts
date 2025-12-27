@@ -7,7 +7,7 @@ export function resolveEffectIdForType(
   selectedEffectLayer: SelectedEffectLayer | undefined,
   effectType: EffectType
 ): string | null {
-  if (selectedEffectLayer?.id && selectedEffectLayer.type === effectType) {
+  if (selectedEffectLayer?.id && selectedEffectLayer.type === (effectType as unknown as typeof selectedEffectLayer.type)) {
     return selectedEffectLayer.id
   }
 

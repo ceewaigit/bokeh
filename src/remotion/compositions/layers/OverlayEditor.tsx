@@ -8,7 +8,7 @@
  * window-level mouse listeners, and normalized 0-100% coordinates.
  */
 
-import React, { useCallback, useRef, useState, useEffect } from 'react'
+import React, { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { AbsoluteFill, getRemotionEnvironment } from 'remotion'
 import { useVideoPosition } from '../../context/layout/VideoPositionContext'
 import { useProjectStore } from '@/stores/project-store'
@@ -50,14 +50,11 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
 
   // Store state and actions
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
-  const isEditingOverlay = useProjectStore((s) => s.isEditingOverlay)
   const editingOverlayId = useProjectStore((s) => s.editingOverlayId)
-  const editingOverlayPosition = useProjectStore((s) => s.editingOverlayPosition)
 
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer)
   const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection)
   const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay)
-  const updateEditingOverlay = useProjectStore((s) => s.updateEditingOverlay)
   const stopEditingOverlay = useProjectStore((s) => s.stopEditingOverlay)
   const updateEffect = useProjectStore((s) => s.updateEffect)
 
@@ -75,6 +72,20 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
     width: videoPosition.drawWidth,
     height: videoPosition.drawHeight,
   }
+
+  const editingOverlayPosition = useMemo(() => {
+    if (!editingOverlayId) return null
+    const effect = effects.find((e) => e.id === editingOverlayId)
+    if (!effect) return null
+    const bounds = getEffectBounds(effect, videoRect)
+    if (!bounds) return null
+    return {
+      x: ((bounds.x + bounds.width / 2 - videoRect.x) / videoRect.width) * 100,
+      y: ((bounds.y + bounds.height / 2 - videoRect.y) / videoRect.height) * 100,
+      width: bounds.width,
+      height: bounds.height,
+    }
+  }, [editingOverlayId, effects, videoRect])
 
   // Get the selected effect
   const selectedEffect = selectedEffectLayer?.id
@@ -163,14 +174,12 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
       }
 
       newPosition = clampPosition(newPosition)
-      updateEditingOverlay(newPosition)
-
       // Update effect position in store
       updateEffect(editingOverlayId, {
         data: { position: { x: newPosition.x, y: newPosition.y, width: newPosition.width, height: newPosition.height } },
       })
     },
-    [isDragging, dragType, dragStart, initialPosition, editingOverlayId, videoRect, updateEditingOverlay, updateEffect]
+    [isDragging, dragType, dragStart, initialPosition, editingOverlayId, videoRect, updateEffect]
   )
 
   // Handle mouse up
@@ -195,7 +204,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   // Keyboard shortcuts (only when element selected)
   useEffect(() => {
     const effectId = selectedEffectLayer?.id
-    if (!effectId || !editingOverlayPosition) return
+          if (!effectId || !editingOverlayPosition) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't handle if typing in an input
@@ -219,7 +228,6 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               ...editingOverlayPosition,
               y: editingOverlayPosition.y - step
             })
-            updateEditingOverlay(newPos)
             updateEffect(effectId, {
               data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
             })
@@ -233,7 +241,6 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               ...editingOverlayPosition,
               y: editingOverlayPosition.y + step
             })
-            updateEditingOverlay(newPos)
             updateEffect(effectId, {
               data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
             })
@@ -247,7 +254,6 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               ...editingOverlayPosition,
               x: editingOverlayPosition.x - step
             })
-            updateEditingOverlay(newPos)
             updateEffect(effectId, {
               data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
             })
@@ -261,7 +267,6 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               ...editingOverlayPosition,
               x: editingOverlayPosition.x + step
             })
-            updateEditingOverlay(newPos)
             updateEffect(effectId, {
               data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
             })
@@ -278,7 +283,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEffectLayer, editingOverlayPosition, updateEffect, updateEditingOverlay, clearEffectSelection, stopEditingOverlay])
+  }, [selectedEffectLayer, editingOverlayPosition, updateEffect, clearEffectSelection, stopEditingOverlay])
 
   // Handle click on canvas (selection)
   const handleCanvasClick = useCallback(
@@ -314,7 +319,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               width: bounds.width,
               height: bounds.height,
             }
-            startEditingOverlay(effect.id, position)
+            startEditingOverlay(effect.id)
           }
         }
       } else {

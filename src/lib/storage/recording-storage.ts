@@ -239,15 +239,15 @@ export class RecordingStorage {
       for (const name of list) {
         const filePath = this.joinPath(recordingFolder, name)
         const res = await api.readLocalFile!(filePath)
-        if (res?.success && res.data) {
-          try {
-            const json = JSON.parse(new TextDecoder().decode(res.data))
-            const arr = (json && Object.values(json)[0]) as any[]
-            if (Array.isArray(arr)) all.push(...arr)
-          } catch (e) {
-            logger.error('Failed parsing metadata chunk', name, e)
-          }
+        if (!res?.success || !res.data) {
+          throw new Error(`Failed to read metadata chunk: ${filePath}`)
         }
+        const json = JSON.parse(new TextDecoder().decode(res.data))
+        const arr = (json && Object.values(json)[0]) as any[]
+        if (!Array.isArray(arr)) {
+          throw new Error(`Invalid metadata chunk format: ${filePath}`)
+        }
+        all.push(...arr)
       }
       return all
     }

@@ -11,6 +11,7 @@ import { PluginRegistry } from '@/lib/effects/config/plugin-registry';
 import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config/plugin-sdk';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
+import { assertDefined } from '@/lib/errors';
 
 interface GeneratedClipRendererProps {
   clipForVideo: Clip;
@@ -47,13 +48,14 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
   });
 
   // Plugin lookup
-  const generatedPluginId = recording.generatedSource?.pluginId;
-  const generatedPlugin = generatedPluginId ? PluginRegistry.get(generatedPluginId) : null;
-
-  if (!generatedPlugin) {
-    console.warn('[GeneratedClipRenderer] Plugin not found:', generatedPluginId);
-    return null;
-  }
+  const generatedPluginId = assertDefined(
+    recording.generatedSource?.pluginId,
+    '[GeneratedClipRenderer] Missing generated plugin id'
+  );
+  const generatedPlugin = assertDefined(
+    PluginRegistry.get(generatedPluginId),
+    `[GeneratedClipRenderer] Plugin not found: ${generatedPluginId}`
+  );
 
   // Plugin rendering
   const renderWidth = recording.width || compositionWidth;
@@ -68,12 +70,7 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
     params: recording.generatedSource?.params ?? {}, frame: frameContext, width: renderWidth, height: renderHeight,
   };
 
-  let generatedContent: React.ReactNode = null;
-  try {
-    generatedContent = generatedPlugin.render(renderProps);
-  } catch (err) {
-    console.error(`[GeneratedClipRenderer] Render error for plugin "${generatedPluginId}":`, err);
-  }
+  const generatedContent = generatedPlugin.render(renderProps);
 
   return (
     <Sequence from={groupStartFrame} durationInFrames={renderState.finalDuration}>

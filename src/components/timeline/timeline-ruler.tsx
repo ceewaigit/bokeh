@@ -5,30 +5,22 @@ import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { formatTime } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
+import { useTimelineLayout } from './timeline-layout-provider'
+import { useTimelineContext } from './TimelineContext'
 
-interface TimelineRulerProps {
-  duration: number
-  stageWidth: number
-  zoom: number
-  pixelsPerMs: number
-  onSeek?: (time: number) => void
-  onScrubStart?: (e: any) => void
-  onScrubMove?: (e: any) => void
-  onScrubEnd?: () => void
-  offsetY?: number  // Used to keep ruler sticky during vertical scroll
-}
-
-export const TimelineRuler = React.memo(({
-  duration,
-  stageWidth,
-  zoom,
-  pixelsPerMs,
-  onSeek,
-  onScrubStart,
-  onScrubMove,
-  onScrubEnd,
-  offsetY = 0
-}: TimelineRulerProps) => {
+export const TimelineRuler = React.memo(() => {
+  const {
+    duration,
+    stageWidth,
+    zoom,
+    pixelsPerMs
+  } = useTimelineLayout()
+  const {
+    onScrubStart,
+    onScrubMove,
+    onScrubEnd,
+    scrollTop
+  } = useTimelineContext()
   const colors = useTimelineColors()
   const [isHovering, setIsHovering] = React.useState(false)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
@@ -51,16 +43,10 @@ export const TimelineRuler = React.memo(({
       onTouchMove={onScrubMove}
       onMouseUp={onScrubEnd}
       onTouchEnd={onScrubEnd}
-      onMouseEnter={() => {
-        if (!onSeek) return
-        setIsHovering(true)
-      }}
-      onMouseLeave={() => {
-        if (!onSeek) return
-        setIsHovering(false)
-      }}
-      style={{ cursor: onSeek ? (isScrubbing ? 'grabbing' : 'pointer') : 'default' }}
-      listening={Boolean(onSeek)}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      style={{ cursor: isScrubbing ? 'grabbing' : 'pointer' }}
+      listening={true}
       opacity={colors.isGlassMode ? (isHovering ? 0.32 : 0.24) : (isHovering ? 0.98 : 0.9)}
     />
   )
@@ -120,5 +106,5 @@ export const TimelineRuler = React.memo(({
     }
   }
 
-  return <Group y={offsetY}>{marks}</Group>
+  return <Group y={scrollTop}>{marks}</Group>
 })

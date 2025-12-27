@@ -13,7 +13,6 @@ interface RecordingStore extends RecordingState {
   setRecording: (isRecording: boolean) => void
   setPaused: (isPaused: boolean) => void
   setDuration: (duration: number) => void
-  setStatus: (status: RecordingState['status']) => void
 
   // Settings management
   updateSettings: (settings: Partial<SessionSettings>) => void
@@ -47,26 +46,21 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   isRecording: false,
   isPaused: false,
   duration: 0,
-  status: 'idle',
   settings: defaultSettings,
   countdownActive: false,
   selectedDisplayId: undefined,
 
   setRecording: (isRecording) =>
     set((state) => ({
-      isRecording,
-      status: isRecording ? 'recording' : state.isPaused ? 'paused' : 'idle'
+      isRecording
     })),
 
   setPaused: (isPaused) =>
     set((state) => ({
-      isPaused,
-      status: isPaused ? 'paused' : state.isRecording ? 'recording' : 'idle'
+      isPaused
     })),
 
   setDuration: (duration) => set({ duration }),
-
-  setStatus: (status) => set({ status }),
 
 
 
@@ -131,7 +125,6 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
       isRecording: false,
       isPaused: false,
       duration: 0,
-      status: 'idle',
       settings: defaultSettings,
       countdownActive: false,
       selectedDisplayId: undefined

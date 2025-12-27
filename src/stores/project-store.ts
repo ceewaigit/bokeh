@@ -23,17 +23,46 @@ import { createSettingsSlice } from './slices/settings-slice'
 import { createProgressSlice } from './slices/progress-slice'
 import type { ProjectStore } from './slices/types'
 
+const cacheInvalidationMiddleware =
+  <T extends ProjectStore>(config: (set: any, get: any, api: any) => T) =>
+    (set: any, get: any, api: any) =>
+      config(
+        (args: any, replace?: boolean) => {
+          const prevTimeline = get().currentProject?.timeline
+          const prevRecordings = get().currentProject?.recordings
+          const prevEffects = get().currentProject?.effects
+
+          set(args, replace)
+
+          const nextTimeline = get().currentProject?.timeline
+          const nextRecordings = get().currentProject?.recordings
+          const nextEffects = get().currentProject?.effects
+
+          if (
+            prevTimeline !== nextTimeline ||
+            prevRecordings !== nextRecordings ||
+            prevEffects !== nextEffects
+          ) {
+            get().invalidateAllCaches()
+          }
+        },
+        get,
+        api
+      )
+
 // Compose all slices into the main store
 export const useProjectStore = create<ProjectStore>()(
-  immer((...a) => ({
-    ...createCoreSlice(...a),
-    ...createTimelineSlice(...a),
-    ...createSelectionSlice(...a),
-    ...createPlaybackSlice(...a),
-    ...createCacheSlice(...a),
-    ...createSettingsSlice(...a),
-    ...createProgressSlice(...a),
-  }))
+  cacheInvalidationMiddleware(
+    immer((...a) => ({
+      ...createCoreSlice(...a),
+      ...createTimelineSlice(...a),
+      ...createSelectionSlice(...a),
+      ...createPlaybackSlice(...a),
+      ...createCacheSlice(...a),
+      ...createSettingsSlice(...a),
+      ...createProgressSlice(...a),
+    }))
+  )
 )
 
 // Derived selector: selectedClipId is always the last item in selectedClips

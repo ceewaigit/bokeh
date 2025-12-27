@@ -1,6 +1,6 @@
 import { EffectType } from '@/types/effects'
 
-const BLOCK_EFFECT_DEFAULT_DURATION: Record<EffectType, number> = {
+const BLOCK_EFFECT_DEFAULT_DURATION: Partial<Record<EffectType, number>> = {
   [EffectType.Keystroke]: 5000,
   [EffectType.Screen]: 3000,
   [EffectType.Webcam]: 5000

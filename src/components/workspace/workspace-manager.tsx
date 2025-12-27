@@ -14,6 +14,7 @@ const PluginCreator = dynamic(
   { ssr: false }
 )
 import { EffectsSidebar } from '../effects-sidebar'
+import { EffectsSidebarProvider } from '../effects-sidebar/EffectsSidebarContext'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
 import { UtilitiesSidebar } from '../utilities-sidebar'
@@ -24,6 +25,7 @@ import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { useCropManager } from '@/hooks/useCropManager'
 import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { usePlayheadState } from '@/hooks/use-playhead-state'
+import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
@@ -37,7 +39,6 @@ import { applyEffectChange } from '@/lib/effects/effect-change'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
 import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
-import { useExportStore } from '@/stores/export-store'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { UpdateZoomBlockCommand } from '@/lib/commands'
 import { toast } from 'sonner'
@@ -162,7 +163,7 @@ export function WorkspaceManager() {
 
   const selectedClipResult = useSelectedClip()
   const selectedClip = selectedClipResult?.clip ?? null
-  const selectedTrackType = selectedClipResult?.track.type
+  const timelineMetadata = useTimelineMetadata(currentProject)
 
   // Computed playhead state (SSOT - derived from currentTime and clips)
   const { playheadClip, playheadRecording } = usePlayheadState()
@@ -209,7 +210,7 @@ export function WorkspaceManager() {
     }))
   )
 
-  const isExporting = useExportStore((s) => s.isExporting)
+  const isExporting = useProjectStore((s) => s.progress.isProcessing)
   const clearLibrary = useRecordingsLibraryStore((s) => s.clearLibrary)
 
 
@@ -716,14 +717,25 @@ export function WorkspaceManager() {
                   {(() => {
                     return null;
                   })()}
-                  <PreviewAreaRemotion
-                    isEditingCrop={isEditingCrop}
-                    cropData={editingCropData}
-                    onCropChange={handleCropChange}
-                    onCropConfirm={handleCropConfirm}
-                    onCropReset={handleCropReset}
-                    zoomSettings={zoomSettings}
-                  />
+                  {timelineMetadata ? (
+                    <PreviewAreaRemotion
+                      isEditingCrop={isEditingCrop}
+                      cropData={editingCropData}
+                      onCropChange={handleCropChange}
+                      onCropConfirm={handleCropConfirm}
+                      onCropReset={handleCropReset}
+                      zoomSettings={zoomSettings}
+                    />
+                  ) : (
+                    <div className="relative w-full h-full overflow-hidden bg-transparent">
+                      <div className="absolute inset-0 flex items-center justify-center p-8">
+                        <div className="text-gray-500 text-center">
+                          <p className="text-lg font-medium mb-2">No timeline data</p>
+                          <p className="text-sm">Create or select a project to preview</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Properties Panel - Fixed width when open, same height as preview */}
@@ -744,21 +756,19 @@ export function WorkspaceManager() {
                     className="bg-transparent overflow-hidden flex-shrink-0"
                     style={{ width: `${dragPropertiesWidth ?? propertiesPanelWidth}px` }}
                   >
-                    <EffectsSidebar
-                      className="h-full w-full"
-                      selectedClip={selectedClip}
-                      effects={contextEffects}
-                      selectedEffectLayer={selectedEffectLayer}
-                      onEffectChange={handleEffectChange}
-                      onZoomBlockUpdate={handleZoomBlockUpdate}
-                      onBulkToggleKeystrokes={handleBulkToggleKeystrokes}
-                      onAddCrop={handleAddCrop}
-                      onRemoveCrop={handleRemoveCrop}
-                      onUpdateCrop={handleUpdateCrop}
-                      onStartEditCrop={handleStartEditCrop}
-                      isEditingCrop={isEditingCrop}
-                      selectedTrackType={selectedTrackType}
-                    />
+                    <EffectsSidebarProvider
+                      value={{
+                        onEffectChange: handleEffectChange,
+                        onZoomBlockUpdate: handleZoomBlockUpdate,
+                        onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
+                        onAddCrop: handleAddCrop,
+                        onRemoveCrop: handleRemoveCrop,
+                        onUpdateCrop: handleUpdateCrop,
+                        onStartEditCrop: handleStartEditCrop
+                      }}
+                    >
+                      <EffectsSidebar className="h-full w-full" />
+                    </EffectsSidebarProvider>
                   </div>
                   </>
                 )}

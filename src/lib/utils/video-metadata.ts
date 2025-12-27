@@ -44,7 +44,10 @@ export async function getVideoDuration(videoUrl: string): Promise<number> {
   }
 
   // Create promise and cache it immediately to deduplicate concurrent calls
-  const promise = loadVideoDurationInternal(videoUrl)
+  const promise = loadVideoDurationInternal(videoUrl).catch((error) => {
+    durationCache.delete(videoUrl)
+    throw error
+  })
   durationCache.set(videoUrl, promise)
   return promise
 }
@@ -54,7 +57,7 @@ async function loadVideoDurationInternal(videoUrl: string): Promise<number> {
   await acquireVideoSlot()
 
   try {
-    return await new Promise((resolve) => {
+    return await new Promise((resolve, reject) => {
       const video = document.createElement('video')
       video.preload = 'metadata'
       let timeoutId: number | null = null
@@ -77,12 +80,16 @@ async function loadVideoDurationInternal(videoUrl: string): Promise<number> {
       const onMetadata = () => {
         const duration = video.duration
         cleanup()
-        resolve(isNaN(duration) || !isFinite(duration) ? 0 : duration * 1000) // Return in milliseconds
+        if (isNaN(duration) || !isFinite(duration)) {
+          reject(new Error('Invalid video duration'))
+          return
+        }
+        resolve(duration * 1000) // Return in milliseconds
       }
 
       const onError = () => {
         cleanup()
-        resolve(0) // Return 0 on error instead of rejecting
+        reject(new Error('Failed to load video duration'))
       }
 
       video.addEventListener('loadedmetadata', onMetadata)
@@ -91,14 +98,14 @@ async function loadVideoDurationInternal(videoUrl: string): Promise<number> {
       // Set a timeout to prevent hanging
       timeoutId = window.setTimeout(() => {
         cleanup()
-        resolve(0)
+        reject(new Error('Video duration load timeout'))
       }, 5000)
 
       video.src = videoUrl
     })
   } catch (error) {
     releaseVideoSlot() // Ensure slot is released on error
-    return 0
+    throw error
   }
 }
 

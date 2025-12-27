@@ -8,6 +8,7 @@ import { useProjectStore } from '@/stores/project-store'
 import type { Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 
 export function AdvancedTab({
   effects,
@@ -16,8 +17,8 @@ export function AdvancedTab({
   effects: Effect[] | undefined
   onEffectChange: (type: EffectType, data: any) => void
 }) {
-  const camera = useProjectStore((s) => s.settings.camera)
-  const updateSettings = useProjectStore((s) => s.updateSettings)
+  const camera = useProjectStore((s) => s.currentProject?.settings.camera ?? DEFAULT_PROJECT_SETTINGS.camera)
+  const setCameraSettings = useProjectStore((s) => s.setCameraSettings)
 
   const [localSmoothing, setLocalSmoothing] = React.useState<number | null>(null)
   const [motionBlurIntensity, setMotionBlurIntensity] = React.useState(camera.motionBlurIntensity ?? 40)
@@ -131,9 +132,7 @@ export function AdvancedTab({
               value={[motionBlurIntensity]}
               onValueChange={([value]) => setMotionBlurIntensity(value)}
               onValueCommit={([value]) =>
-                updateSettings({
-                  camera: { ...camera, motionBlurIntensity: value, motionBlurEnabled: value > 0 },
-                })
+                setCameraSettings({ motionBlurIntensity: value, motionBlurEnabled: value > 0 })
               }
               min={0}
               max={100}
@@ -150,12 +149,9 @@ export function AdvancedTab({
               value={[motionBlurThreshold]}
               onValueChange={([value]) => setMotionBlurThreshold(value)}
               onValueCommit={([value]) =>
-                updateSettings({
-                  camera: {
-                    ...camera,
-                    motionBlurThreshold: value,
-                    motionBlurEnabled: (motionBlurIntensity ?? 0) > 0,
-                  },
+                setCameraSettings({
+                  motionBlurThreshold: value,
+                  motionBlurEnabled: (motionBlurIntensity ?? 0) > 0,
                 })
               }
               min={0}
@@ -187,9 +183,7 @@ export function AdvancedTab({
             value={[refocusBlurIntensity]}
             onValueChange={([value]) => setRefocusBlurIntensity(value)}
             onValueCommit={([value]) =>
-              updateSettings({
-                camera: { ...camera, refocusBlurIntensity: value, refocusBlurEnabled: value > 0 },
-              })
+              setCameraSettings({ refocusBlurIntensity: value, refocusBlurEnabled: value > 0 })
             }
             min={0}
             max={100}

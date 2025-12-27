@@ -261,6 +261,7 @@ export interface SafeVideoProps extends Omit<VideoHTMLAttributes<HTMLVideoElemen
   endAt?: number;
   playbackRate?: number;
   volume?: number;
+  pauseWhenBuffering?: boolean;
 }
 
 export interface AudioEnhancerWrapperProps {

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
 import Konva from 'konva'
 
-import type { Clip, Recording } from '@/types/project'
+import type { Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
@@ -20,30 +20,15 @@ import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 
 import { useProjectStore } from '@/stores/project-store'
 import { usePreviewSettingsStore } from '@/stores/preview-settings-store'
+import { useAudioClips, useRecordingById, useVideoClips } from '@/stores/selectors/clip-selectors'
+import { useTimelineContext } from './TimelineContext'
 
 interface TimelineClipProps {
   clip: Clip
-  recording?: Recording | null
   trackType: TrackType.Video | TrackType.Audio
   trackY: number
   trackHeight: number
-  pixelsPerMs: number
   isSelected: boolean
-  otherClipsInTrack?: Clip[]
-  onSelect: (clipId: string) => void
-  onDragPreview?: (clipId: string, proposedStartTime: number) => void
-  onDragCommit?: (clipId: string, proposedStartTime: number) => void
-  onContextMenu?: (e: any, clipId: string) => void
-  onTrimStart?: (clipId: string, newStartTime: number) => void
-  onTrimEnd?: (clipId: string, newEndTime: number) => void
-  displayStartTime?: number
-  onOpenSpeedUpSuggestion?: (opts: {
-    x: number
-    y: number
-    period: SpeedUpPeriod
-    allTypingPeriods: SpeedUpPeriod[]
-    allIdlePeriods: SpeedUpPeriod[]
-  }) => void
 }
 
 // Minimum clip duration in milliseconds (enforced during edge trimming)
@@ -51,23 +36,25 @@ const MIN_CLIP_DURATION_MS = 1000 // 1 second minimum
 
 const TimelineClipComponent = ({
   clip,
-  recording,
   trackType,
   trackY,
   trackHeight,
-  pixelsPerMs,
   isSelected,
-  otherClipsInTrack = [],
-  onSelect,
-  onDragPreview,
-  onDragCommit,
-  onContextMenu,
-  onTrimStart,
-  onTrimEnd,
-  displayStartTime,
-  onOpenSpeedUpSuggestion
 }: TimelineClipProps) => {
-
+  const {
+    pixelsPerMs,
+    dragPreview,
+    onSelect,
+    onDragPreview,
+    onDragCommit,
+    onContextMenu,
+    onTrimStart,
+    onTrimEnd
+  } = useTimelineContext()
+  const recording = useRecordingById(clip.recordingId)
+  const videoClips = useVideoClips()
+  const audioClips = useAudioClips()
+  const otherClipsInTrack = trackType === TrackType.Video ? videoClips : audioClips
 
   const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -91,6 +78,12 @@ const TimelineClipComponent = ({
   const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
   const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
   const isGeneratedClip = trackType === TrackType.Video && recording?.sourceType === 'generated'
+  // Max 10 thumbnails per clip to balance visual variety vs performance
+  const MAX_THUMBNAILS_PER_CLIP = 10
+  const [thumbnails, setThumbnails] = useState<HTMLImageElement[]>([])
+  const previewStartTime = dragPreview?.trackType === trackType && dragPreview.clipId !== clip.id
+    ? dragPreview.startTimes[clip.id]
+    : undefined
   const withAlpha = useCallback((color: string, alpha: number): string => {
     if (!color) return ''
     if (color.startsWith('hsla') || color.startsWith('rgba')) return color
@@ -131,7 +124,7 @@ const TimelineClipComponent = ({
     ? trimPreview.endTime - trimPreview.startTime
     : clip.duration
 
-  const visualStartTime = displayStartTime ?? effectiveStartTime
+  const visualStartTime = previewStartTime ?? effectiveStartTime
   const clipX = TimeConverter.msToPixels(visualStartTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
   const clipWidth = Math.max(
     TimelineConfig.MIN_CLIP_WIDTH,
@@ -155,33 +148,29 @@ const TimelineClipComponent = ({
     if (!recording?.hasAudio || !recording?.filePath) return
 
     const loadWaveform = async () => {
-      try {
-        // Get or load video URL
-        let blobUrl = RecordingStorage.getBlobUrl(recording.id)
-        if (!blobUrl && recording.filePath) {
-          blobUrl = await globalBlobManager.loadVideos({
-            id: recording.id,
-            filePath: recording.filePath,
-            folderPath: recording.folderPath
-          })
-        }
+      // Get or load video URL
+      let blobUrl = RecordingStorage.getBlobUrl(recording.id)
+      if (!blobUrl && recording.filePath) {
+        blobUrl = await globalBlobManager.loadVideos({
+          id: recording.id,
+          filePath: recording.filePath,
+          folderPath: recording.folderPath
+        })
+      }
 
-        if (!blobUrl) return
+      if (!blobUrl) return
 
-        // Analyze audio and extract waveform
-        const waveform = await WaveformAnalyzer.analyzeAudio(
-          blobUrl,
-          clip.id,
-          clip.sourceIn,
-          clip.sourceOut - clip.sourceIn,
-          50 // Samples per second for smooth visualization
-        )
+      // Analyze audio and extract waveform
+      const waveform = await WaveformAnalyzer.analyzeAudio(
+        blobUrl,
+        clip.id,
+        clip.sourceIn,
+        clip.sourceOut - clip.sourceIn,
+        50 // Samples per second for smooth visualization
+      )
 
-        if (waveform) {
-          setWaveformData(waveform)
-        }
-      } catch (error) {
-        console.warn('Failed to load waveform:', error)
+      if (waveform) {
+        setWaveformData(waveform)
       }
     }
 
@@ -196,18 +185,12 @@ const TimelineClipComponent = ({
       return
     }
 
-    try {
-      // Use unified detection service - handles caching internally
-      const effectiveMetadata = lazyMetadata || recording.metadata
-      const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip, effectiveMetadata)
+    // Use unified detection service - handles caching internally
+    const effectiveMetadata = lazyMetadata || recording.metadata
+    const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip, effectiveMetadata)
 
-      setTypingPeriods(suggestions.typing)
-      setIdlePeriods(suggestions.idle)
-    } catch (error) {
-      console.warn('Failed to analyze activity patterns:', error)
-      setTypingPeriods([])
-      setIdlePeriods([])
-    }
+    setTypingPeriods(suggestions.typing)
+    setIdlePeriods(suggestions.idle)
   }, [
     recording?.id,
     lazyMetadata?.keyboardEvents,
@@ -237,11 +220,6 @@ const TimelineClipComponent = ({
     return recording.filePath
   }, [recording?.filePath, recording?.folderPath])
 
-  // Multiple thumbnails at evenly spaced source positions for video clips
-  // Max 10 thumbnails per clip to balance visual variety vs performance
-  const MAX_THUMBNAILS_PER_CLIP = 10
-  const [thumbnails, setThumbnails] = useState<HTMLImageElement[]>([])
-
   useEffect(() => {
     if (!showTimelineThumbnails) {
       setThumbnails([])
@@ -252,84 +230,80 @@ const TimelineClipComponent = ({
     let cancelled = false
 
     const loadThumbnails = async () => {
-      try {
-        const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+      const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
 
-        // Fast path for image clips (e.g. Cursor Return clips)
-        if (recording.sourceType === 'image') {
-          const img = document.createElement('img')
-          let src = resolvedVideoPath
+      // Fast path for image clips (e.g. Cursor Return clips)
+      if (recording.sourceType === 'image') {
+        const img = document.createElement('img')
+        let src = resolvedVideoPath
 
-          // Handle local paths by using video-stream protocol to bypass security restrictions
-          if (src && src.startsWith('/')) {
-            src = `video-stream://local/${encodeURIComponent(src)}`
-          }
-
-          img.src = src
-          img.onload = () => {
-            if (!cancelled) setThumbnails([img])
-          }
-          img.onerror = (_e) => {
-            console.warn('[TimelineClip] Failed to load image thumbnail:', src)
-          }
-          return
+        // Handle local paths by using video-stream protocol to bypass security restrictions
+        if (src && src.startsWith('/')) {
+          src = `video-stream://local/${encodeURIComponent(src)}`
         }
 
-        const sourceAspectRatio = recording.width && recording.height
-          ? recording.width / recording.height
-          : 16 / 9
-        const thumbWidth = Math.max(1, Math.round(thumbHeight * sourceAspectRatio))
-
-        // Calculate tile count based on clip's source duration (not pixel width)
-        // Approximately one thumbnail per 5 seconds of source video
-        const sourceDurationSec = (clip.sourceOut - clip.sourceIn) / 1000
-        const tileCount = Math.min(MAX_THUMBNAILS_PER_CLIP, Math.max(1, Math.ceil(sourceDurationSec / 5)))
-        const sourceDuration = clip.sourceOut - clip.sourceIn
-
-        const loadedThumbs: HTMLImageElement[] = new Array(tileCount)
-
-        // Load all thumbnails in parallel for speed
-        const loadPromises = Array.from({ length: tileCount }, async (_, i) => {
-          if (cancelled) return
-
-          // Calculate source timestamp for this tile position
-          const tileProgress = tileCount > 1 ? i / (tileCount - 1) : 0.5
-          const sourceTime = clip.sourceIn + sourceDuration * tileProgress
-          const timestamp = sourceTime / (recording.duration || 1)
-
-          const cacheKey = `${clip.id}_${recording.id}_t${i}_${Math.round(sourceTime)}_${thumbWidth}x${thumbHeight}`
-
-          const dataUrl = await ThumbnailGenerator.generateThumbnail(
-            resolvedVideoPath,
-            cacheKey,
-            {
-              width: thumbWidth,
-              height: thumbHeight,
-              timestamp
-            }
-          )
-
-          if (cancelled || !dataUrl) return
-
-          const img = document.createElement('img')
-          img.src = dataUrl
-          await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve()
-            img.onerror = reject
-          })
-
-          if (!cancelled) {
-            loadedThumbs[i] = img
-          }
+        img.src = src
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve()
+          img.onerror = () => reject(new Error(`[TimelineClip] Failed to load image thumbnail: ${src}`))
         })
 
-        await Promise.all(loadPromises)
+        if (!cancelled) setThumbnails([img])
+        return
+      }
+
+      const sourceAspectRatio = recording.width && recording.height
+        ? recording.width / recording.height
+        : 16 / 9
+      const thumbWidth = Math.max(1, Math.round(thumbHeight * sourceAspectRatio))
+
+      // Calculate tile count based on clip's source duration (not pixel width)
+      // Approximately one thumbnail per 5 seconds of source video
+      const sourceDurationSec = (clip.sourceOut - clip.sourceIn) / 1000
+      const tileCount = Math.min(MAX_THUMBNAILS_PER_CLIP, Math.max(1, Math.ceil(sourceDurationSec / 5)))
+      const sourceDuration = clip.sourceOut - clip.sourceIn
+
+      const loadedThumbs: HTMLImageElement[] = new Array(tileCount)
+
+      // Load all thumbnails in parallel for speed
+      const loadPromises = Array.from({ length: tileCount }, async (_, i) => {
+        if (cancelled) return
+
+        // Calculate source timestamp for this tile position
+        const tileProgress = tileCount > 1 ? i / (tileCount - 1) : 0.5
+        const sourceTime = clip.sourceIn + sourceDuration * tileProgress
+        const timestamp = sourceTime / (recording.duration || 1)
+
+        const cacheKey = `${clip.id}_${recording.id}_t${i}_${Math.round(sourceTime)}_${thumbWidth}x${thumbHeight}`
+
+        const dataUrl = await ThumbnailGenerator.generateThumbnail(
+          resolvedVideoPath,
+          cacheKey,
+          {
+            width: thumbWidth,
+            height: thumbHeight,
+            timestamp
+          }
+        )
+
+        if (cancelled || !dataUrl) return
+
+        const img = document.createElement('img')
+        img.src = dataUrl
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve()
+          img.onerror = () => reject(new Error(`[TimelineClip] Failed to load thumbnail for ${cacheKey}`))
+        })
 
         if (!cancelled) {
-          setThumbnails([...loadedThumbs.filter(Boolean)])
+          loadedThumbs[i] = img
         }
-      } catch (error) {
-        // Failed to load thumbnails - will show placeholder
+      })
+
+      await Promise.all(loadPromises)
+
+      if (!cancelled) {
+        setThumbnails([...loadedThumbs.filter(Boolean)])
       }
     }
 
@@ -493,7 +467,7 @@ const TimelineClipComponent = ({
           0,
           TimeConverter.pixelsToMs(draggedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
         )
-        onDragPreview?.(clip.id, proposedStartTime)
+        onDragPreview(clip.id, trackType, proposedStartTime)
       }}
       onDragEnd={(e) => {
         setIsDragging(false)
@@ -503,7 +477,7 @@ const TimelineClipComponent = ({
           0,
           TimeConverter.pixelsToMs(finalX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
         )
-        onDragCommit?.(clip.id, proposedStartTime)
+        onDragCommit(clip.id, trackType, proposedStartTime)
         setIsValidPosition(true)
       }}
       onClick={() => {
@@ -518,10 +492,8 @@ const TimelineClipComponent = ({
         e.cancelBubble = true
       }}
       onContextMenu={(e) => {
-        if (onContextMenu) {
-          e.evt.preventDefault()
-          onContextMenu(e, clip.id)
-        }
+        e.evt.preventDefault()
+        onContextMenu(e, clip.id)
       }}
       onMouseEnter={() => {
         if (!trimEdge) {
@@ -882,7 +854,6 @@ const TimelineClipComponent = ({
           clip={clip}
           clipWidth={clipWidth}
           pixelsPerMs={pixelsPerMs}
-          onOpenSuggestion={onOpenSpeedUpSuggestion}
         />
       )}
 
@@ -991,12 +962,8 @@ const TimelineClipComponent = ({
 
 export const TimelineClip = React.memo(TimelineClipComponent, (prev, next) => {
   return prev.clip === next.clip &&
-    prev.recording === next.recording &&
     prev.trackType === next.trackType &&
     prev.trackY === next.trackY &&
     prev.trackHeight === next.trackHeight &&
-    prev.pixelsPerMs === next.pixelsPerMs &&
-    prev.isSelected === next.isSelected &&
-    prev.otherClipsInTrack === next.otherClipsInTrack &&
-    prev.displayStartTime === next.displayStartTime
+    prev.isSelected === next.isSelected
 })

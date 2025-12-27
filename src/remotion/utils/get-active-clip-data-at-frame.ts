@@ -4,6 +4,7 @@ import type { ActiveClipDataAtFrame } from '@/types'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import { findActiveFrameLayoutIndex } from '@/lib/timeline/frame-layout'
 import { clipRelativeToSource } from '@/lib/timeline/time-space-converter'
+import { msToFrameFloor } from '@/remotion/compositions/utils/time/frame-time'
 
 // Cache timeline-space effect overlap per (effects array ref, frameLayout array ref, clip.id).
 // This dramatically reduces per-frame allocations during playback and during camera path precompute.
@@ -90,8 +91,8 @@ export function resolveClipDataForLayoutItem(args: {
   const recording = getRecording(clip.recordingId)
   if (!recording) return null
 
-  const clipStartFrame = layoutItem.startFrame ?? Math.round((clip.startTime / 1000) * fps)
-  const clipDurationFrames = layoutItem.durationFrames ?? Math.max(1, Math.round((clip.duration / 1000) * fps))
+  const clipStartFrame = layoutItem.startFrame ?? msToFrameFloor(clip.startTime, fps)
+  const clipDurationFrames = layoutItem.durationFrames ?? Math.max(1, Math.ceil((clip.duration / 1000) * fps))
   // Calculate elapsed frames with clamping
   const clipElapsedFramesRaw = frame - clipStartFrame
   const isLastFrame = clipElapsedFramesRaw >= clipDurationFrames - 1
@@ -138,7 +139,7 @@ const activeEffectsCache = new Map<string, Effect[]>();
 
 /**
  * Clear the active effects cache.
- * Called by invalidateCaches() when clips/effects change.
+ * Call this when clips/effects change.
  */
 export function clearActiveEffectsCache(): void {
   activeEffectsCache.clear();

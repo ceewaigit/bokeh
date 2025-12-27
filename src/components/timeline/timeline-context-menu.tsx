@@ -3,20 +3,12 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2, Zap } from 'lucide-react'
+import { useTimelineContext } from './TimelineContext'
 
 interface TimelineContextMenuProps {
   x: number
   y: number
   clipId: string
-  onSplit: (clipId: string) => void | Promise<void>
-  onTrimStart: (clipId: string) => void | Promise<void>
-  onTrimEnd: (clipId: string) => void | Promise<void>
-  onDuplicate: (clipId: string) => void | Promise<void>
-  onCut: (clipId: string) => void | Promise<void>
-  onCopy: (clipId: string) => void | Promise<void>
-  onPaste: () => void | Promise<void>
-  onDelete: (clipId: string) => void | Promise<void>
-  onSpeedUp: (clipId: string) => void | Promise<void>
   onClose: () => void
 }
 
@@ -24,17 +16,19 @@ export const TimelineContextMenu = React.memo(({
   x,
   y,
   clipId,
-  onSplit,
-  onTrimStart,
-  onTrimEnd,
-  onDuplicate,
-  onCut,
-  onCopy,
-  onPaste,
-  onDelete,
-  onSpeedUp,
   onClose
 }: TimelineContextMenuProps) => {
+  const {
+    onSplitClip,
+    onTrimClipStart,
+    onTrimClipEnd,
+    onDuplicateClip,
+    onCutClip,
+    onCopyClip,
+    onPasteClip,
+    onDeleteClip,
+    onSpeedUpClip
+  } = useTimelineContext()
   const menuRef = useRef<HTMLDivElement>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [position, setPosition] = useState<{ left: number; top: number }>({ left: x, top: y })
@@ -117,7 +111,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onSplit(clipId))}
+        onClick={() => void handleAction(() => onSplitClip(clipId))}
       >
         <Scissors className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Split at Playhead</span>
@@ -126,7 +120,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onTrimStart(clipId))}
+        onClick={() => void handleAction(() => onTrimClipStart(clipId))}
       >
         <ChevronsLeft className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Trim Start to Playhead</span>
@@ -135,7 +129,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onTrimEnd(clipId))}
+        onClick={() => void handleAction(() => onTrimClipEnd(clipId))}
       >
         <ChevronsRight className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Trim End to Playhead</span>
@@ -145,7 +139,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onCut(clipId))}
+        onClick={() => void handleAction(() => onCutClip(clipId))}
       >
         <span className="w-4 h-4 justify-self-center" aria-hidden />
         <span className="truncate text-left">Cut</span>
@@ -154,7 +148,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onCopy(clipId))}
+        onClick={() => void handleAction(() => onCopyClip(clipId))}
       >
         <Copy className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Copy</span>
@@ -163,7 +157,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onPaste())}
+        onClick={() => void handleAction(() => onPasteClip())}
       >
         <span className="w-4 h-4 justify-self-center" aria-hidden />
         <span className="truncate text-left">Paste</span>
@@ -173,7 +167,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onDuplicate(clipId))}
+        onClick={() => void handleAction(() => onDuplicateClip(clipId))}
       >
         <Layers className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Duplicate</span>
@@ -182,7 +176,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onSpeedUp(clipId))}
+        onClick={() => void handleAction(() => onSpeedUpClip(clipId))}
       >
         <Zap className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Speed Up (2x)</span>
@@ -192,7 +186,7 @@ export const TimelineContextMenu = React.memo(({
       <button
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-sm"
         disabled={isBusy}
-        onClick={() => void handleAction(() => onDelete(clipId))}
+        onClick={() => void handleAction(() => onDeleteClip(clipId))}
       >
         <Trash2 className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Delete</span>

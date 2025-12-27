@@ -8,6 +8,7 @@ import { precomputeCursorSmoothingCache } from '@/lib/effects/utils/cursor-calcu
 import { precomputeCameraCaches } from '@/lib/effects/utils/camera-calculator'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { EffectStore } from '@/lib/core/effects'
+import { InvalidPathError, MissingVideoError } from '@/lib/errors'
 
 /**
  * Options for loadProjectFromRecording
@@ -146,136 +147,65 @@ export class ProjectIOService {
       const rec = project.recordings[i]
       onProgress?.(`Setting up video ${i + 1} of ${project.recordings.length}...`)
 
-      // 1. Resolve and Repair folderPath FIRST
+      // 1. Resolve folderPath FIRST
       // This is critical because video path resolution depends on folderPath
       if (rec.folderPath) {
-        let activeFolderPath = rec.folderPath
-        let folderExists = false
-
-        // Check if current path works (absolute)
-        if (activeFolderPath.startsWith('/') && window.electronAPI?.fileExists) {
-          folderExists = await window.electronAPI.fileExists(activeFolderPath)
+        let resolvedFolderPath = rec.folderPath
+        if (!resolvedFolderPath.startsWith('/')) {
+          resolvedFolderPath = `${projectDir}/${resolvedFolderPath}`
         }
 
-        // If stale absolute path, try to rebase relative to project directory
-        if (!folderExists && window.electronAPI?.fileExists) {
-          const folderName = activeFolderPath.split('/').pop() || activeFolderPath
-          const rebasedPath = `${projectDir}/${folderName}`
-
-          if (await window.electronAPI.fileExists(rebasedPath)) {
-            console.log(`[ProjectIO] 🔧 Repaired stale folder path: ${activeFolderPath} -> ${rebasedPath}`)
-            activeFolderPath = rebasedPath
-          } else {
-            // Try ID-based fallback (most reliable unique identifier)
-            const idPath = `${projectDir}/${rec.id}`
-            if (await window.electronAPI.fileExists(idPath)) {
-              console.log(`[ProjectIO] 🔧 Repaired using ID fallback: ${activeFolderPath} -> ${idPath}`)
-              activeFolderPath = idPath
-            }
-            // Try one level up (legacy structure compatibility or just relative)
-            else if (!activeFolderPath.startsWith('/')) {
-              const relativePath = `${projectDir}/${activeFolderPath}`
-              if (await window.electronAPI.fileExists(relativePath)) {
-                activeFolderPath = relativePath
-              }
-            }
+        if (window.electronAPI?.fileExists) {
+          const folderExists = await window.electronAPI.fileExists(resolvedFolderPath)
+          if (!folderExists) {
+            throw new InvalidPathError(`[ProjectIO] Recording folder not found: ${resolvedFolderPath}`)
           }
         }
 
-        rec.folderPath = activeFolderPath
+        rec.folderPath = resolvedFolderPath
       }
 
       if (rec.filePath) {
-        try {
-          // Resolve video path relative to project file location
-          let videoPath = rec.filePath
+        // Resolve video path relative to project file location
+        let videoPath = rec.filePath
+        if (!videoPath.startsWith('/')) {
+          videoPath = `${projectDir}/${videoPath}`
+        }
 
-          // Check if absolute path exists, otherwise fallback to relative
-          let absoluteExists = false
-          if (videoPath.startsWith('/') && window.electronAPI?.fileExists) {
-            absoluteExists = await window.electronAPI.fileExists(videoPath)
+        rec.filePath = videoPath
+
+        // Also resolve imageSource.imagePath if present (for image clips like cursor return freeze frames)
+        if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
+          const resolvedImagePath = `${projectDir}/${rec.imageSource.imagePath}`
+          console.log(`[ProjectIO] 🖼️ Resolving imageSource.imagePath: ${rec.imageSource.imagePath} -> ${resolvedImagePath}`)
+          rec.imageSource.imagePath = resolvedImagePath
+        }
+
+        // For image clips, also sync filePath to resolved imageSource path
+        if (rec.sourceType === 'image' && rec.imageSource?.imagePath && rec.imageSource.imagePath.startsWith('/')) {
+          console.log(`[ProjectIO] 🖼️ Syncing filePath for image clip: ${rec.filePath} -> ${rec.imageSource.imagePath}`)
+          rec.filePath = rec.imageSource.imagePath
+        }
+
+        // Validate file exists before loading
+        if (window.electronAPI?.fileExists) {
+          const exists = await window.electronAPI.fileExists(rec.filePath)
+          if (!exists) {
+            rec.isMissing = true
+            throw new MissingVideoError(`[ProjectIO] Recording file missing: ${rec.filePath} (sourceType: ${rec.sourceType})`)
           }
+        }
 
-          if (!absoluteExists) {
-            // Try diverse path strategies
-            const fileName = videoPath.split('/').pop() || videoPath
-            const candidates = []
+        // Validate and fix recording properties if needed
+        await this.validateAndFixRecording(rec, project, onProgress)
 
-            // 1. Nested in recording folder (new standard)
-            if (rec.folderPath) {
-              candidates.push(`${rec.folderPath}/${fileName}`)
-            }
-
-            // 2. Flat in project dir (legacy/direct)
-            candidates.push(`${projectDir}/${fileName}`)
-
-            // 3. Flat in recording folder but maybe folderPath is wrong - assume logic based on ID
-            //    e.g. Project/recording-ID/recording-ID.mov
-            candidates.push(`${projectDir}/${rec.id}/${fileName}`)
-
-            // 4. Try just the relative path as stored (if it was relative)
-            if (!videoPath.startsWith('/')) {
-              candidates.push(`${projectDir}/${videoPath}`)
-            }
-
-            // Check all candidates
-            let found = false
-            for (const candidate of candidates) {
-              if (window.electronAPI?.fileExists && await window.electronAPI.fileExists(candidate)) {
-                videoPath = candidate
-                found = true
-                console.log(`[ProjectIO] Found video at candidate: ${videoPath}`)
-                break
-              }
-            }
-
-            if (!found) {
-              console.warn(`[ProjectIO] Could not find video. Tried:`, candidates)
-            }
-          }
-          rec.filePath = videoPath
-
-          // Also resolve imageSource.imagePath if present (for image clips like cursor return freeze frames)
-          if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
-            const resolvedImagePath = `${projectDir}/${rec.imageSource.imagePath}`
-            console.log(`[ProjectIO] 🖼️ Resolving imageSource.imagePath: ${rec.imageSource.imagePath} -> ${resolvedImagePath}`)
-            rec.imageSource.imagePath = resolvedImagePath
-          }
-
-          // For image clips, also sync filePath to resolved imageSource path
-          if (rec.sourceType === 'image' && rec.imageSource?.imagePath && rec.imageSource.imagePath.startsWith('/')) {
-            console.log(`[ProjectIO] 🖼️ Syncing filePath for image clip: ${rec.filePath} -> ${rec.imageSource.imagePath}`)
-            rec.filePath = rec.imageSource.imagePath
-          }
-
-          // Validate file exists before loading
-          if (window.electronAPI?.fileExists) {
-            const exists = await window.electronAPI.fileExists(rec.filePath)
-            if (!exists) {
-              rec.isMissing = true
-              console.warn(`[ProjectIO] ❌ Recording file missing: ${rec.filePath} (sourceType: ${rec.sourceType})`)
-              continue
-            }
-          }
-
-          // Validate and fix recording properties if needed
-          await this.validateAndFixRecording(rec, project, onProgress)
-
-          // ASYNC PROXY GENERATION: Don't block project load
-          // Video will play from original source while proxy generates in background
-          // Once proxy is ready, future loads will use it instantly
-          // SKIP for image clips - static images don't need video proxy conversion
-          if (rec.sourceType !== 'image') {
-            this.ensurePreviewProxy(rec, onProgress).catch(e =>
-              console.warn('[ProjectIO] Preview proxy generation failed:', e)
-            )
-            this.ensureGlowProxy(rec).catch(e =>
-              console.warn('[ProjectIO] Glow proxy generation failed:', e)
-            )
-          }
-
-        } catch (error) {
-          console.error('Failed to load recording from project:', error)
+        // ASYNC PROXY GENERATION: Don't block project load
+        // Video will play from original source while proxy generates in background
+        // Once proxy is ready, future loads will use it instantly
+        // SKIP for image clips - static images don't need video proxy conversion
+        if (rec.sourceType !== 'image') {
+          void this.ensurePreviewProxy(rec, onProgress)
+          void this.ensureGlowProxy(rec)
         }
       }
     }

@@ -6,24 +6,18 @@ import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { clamp, formatTime } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
+import { useTimelineLayout } from './timeline-layout-provider'
+import { useTimelineContext } from './TimelineContext'
 
-interface TimelinePlayheadProps {
-  currentTime: number
-  totalHeight: number
-  pixelsPerMs: number
-  timelineWidth: number
-  maxTime: number
-  onSeek: (time: number) => void
-}
-
-export const TimelinePlayhead = React.memo(({
-  currentTime,
-  totalHeight,
-  pixelsPerMs,
-  timelineWidth,
-  maxTime,
-  onSeek
-}: TimelinePlayheadProps) => {
+export const TimelinePlayhead = React.memo(() => {
+  const {
+    stageHeight: totalHeight,
+    pixelsPerMs,
+    timelineWidth,
+    duration: maxTime
+  } = useTimelineLayout()
+  const { onSeek } = useTimelineContext()
+  const currentTime = useProjectStore((s) => s.currentTime)
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)

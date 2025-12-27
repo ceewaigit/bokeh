@@ -6,6 +6,7 @@
 import type { Recording, RecordingMetadata, CaptureArea } from '@/types'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { logger } from '@/lib/utils/logger'
+import { assertDefined } from '@/lib/errors'
 
 export interface MetadataLoadResult {
   recordingId: string
@@ -37,23 +38,16 @@ export class MetadataLoader {
 
     // Create load tasks for each recording
     const loadTasks = recordingsSnapshot.map(async (recording) => {
-      const recordingId = this.safeGet<string>(recording, 'id') ?? recording.id
+      const recordingId = assertDefined(
+        this.safeGet<string>(recording, 'id') ?? recording.id,
+        'Encountered recording without id while loading metadata'
+      )
 
-      if (!recordingId) {
-        logger.error('Encountered recording without id while loading metadata')
-        return { recordingId: 'unknown', metadata: null, cached: false }
+      const metadata = await this.loadRecordingMetadata(recording)
+      if (metadata) {
+        results.set(recordingId, metadata)
       }
-
-      try {
-        const metadata = await this.loadRecordingMetadata(recording)
-        if (metadata) {
-          results.set(recordingId, metadata)
-        }
-        return { recordingId, metadata, cached: false }
-      } catch (error) {
-        logger.error(`Failed to load metadata for recording ${recordingId}:`, error)
-        return { recordingId, metadata: null, cached: false }
-      }
+      return { recordingId, metadata, cached: false }
     })
 
     // Execute all loads in parallel
@@ -71,12 +65,10 @@ export class MetadataLoader {
    * Load metadata for a single recording (with caching)
    */
   async loadRecordingMetadata(recording: Recording): Promise<RecordingMetadata | null> {
-    const recordingId = this.safeGet<string>(recording, 'id') ?? recording.id;
-
-    if (!recordingId) {
-      logger.error('Attempted to load metadata for recording without id');
-      return null;
-    }
+    const recordingId = assertDefined(
+      this.safeGet<string>(recording, 'id') ?? recording.id,
+      'Attempted to load metadata for recording without id'
+    );
 
     // Check memory cache first
     const cached = RecordingStorage.getMetadata(recordingId)
@@ -129,7 +121,7 @@ export class MetadataLoader {
     const existingPromise = this.loadPromises.get(recordingId)
     if (existingPromise) {
       const result = await existingPromise
-      return result || this.createEmptyMetadata()
+      return assertDefined(result, `Metadata load returned null for recording ${recordingId}`)
     }
 
     // Create new load promise
@@ -141,7 +133,7 @@ export class MetadataLoader {
       if (metadata) {
         RecordingStorage.setMetadata(recordingId, metadata)
       }
-      return metadata || this.createEmptyMetadata()
+      return assertDefined(metadata, `Metadata load returned null for recording ${recordingId}`)
     } finally {
       this.loadPromises.delete(recordingId)
     }
@@ -159,25 +151,19 @@ export class MetadataLoader {
     // Fetch all chunks in parallel for each event type
     const fetchChunks = async (urls?: string[]): Promise<any[]> => {
       if (!urls?.length) return []
-      try {
-        const results = await Promise.all(
-          urls.map(async (url) => {
-            const response = await fetch(url)
-            if (!response.ok) {
-              logger.warn(`Failed to fetch metadata chunk: ${url} (${response.status})`)
-              return null
-            }
-            return response.json()
-          })
-        )
-        // Combine arrays from each chunk (each chunk has shape { eventType: [...events] })
-        return results
-          .filter(Boolean)
-          .flatMap((r) => (Object.values(r)[0] as any[]) || [])
-      } catch (error) {
-        logger.error(`Error fetching metadata chunks for ${recordingId}:`, error)
-        return []
-      }
+      const results = await Promise.all(
+        urls.map(async (url) => {
+          const response = await fetch(url)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch metadata chunk: ${url} (${response.status})`)
+          }
+          return response.json()
+        })
+      )
+      // Combine arrays from each chunk (each chunk has shape { eventType: [...events] })
+      return results
+        .filter(Boolean)
+        .flatMap((r) => (Object.values(r)[0] as any[]) || [])
     }
 
     const [mouseEvents, keyboardEvents, clickEvents, scrollEvents, screenEvents] =

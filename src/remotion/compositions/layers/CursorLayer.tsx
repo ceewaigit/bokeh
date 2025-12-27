@@ -59,19 +59,15 @@ class CursorImagePreloader {
     ];
 
     const imagePromises = cursorTypesToPreload.map((type) => {
-      return new Promise<void>((resolve) => {
+      return new Promise<void>((resolve, reject) => {
         const src = getCursorImagePath(type);
         const img = new Image();
-
-        // Also fetch to ensure browser cache (though Remotion may not use it)
-        fetch(src, { cache: 'force-cache' }).catch(() => { });
 
         img.onload = () => {
           resolve();
         };
         img.onerror = () => {
-          console.warn(`Failed to preload cursor: ${type}`);
-          resolve();
+          reject(new Error(`Failed to preload cursor: ${type}`));
         };
         img.src = src;
       });
@@ -172,8 +168,10 @@ export const CursorLayer = React.memo(({
         continueRender(handle);
       })
       .catch((err) => {
-        console.error('Error preloading cursor images:', err);
         continueRender(handle);
+        setTimeout(() => {
+          throw err;
+        }, 0);
       });
   }, []);
 

@@ -22,6 +22,7 @@ import { TimelineGhostPlayhead } from './timeline-ghost-playhead'
 import { SpeedUpSuggestionPopover } from './speed-up-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
+import { TimelineContextProvider } from './TimelineContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 import { ApplySpeedUpCommand } from '@/lib/commands/timeline/ApplySpeedUpCommand'
@@ -37,8 +38,6 @@ import { addAssetRecording } from '@/lib/timeline/timeline-operations'
 import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
-import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
-import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useTimelineScrub } from '@/hooks/use-timeline-scrub'
 import { getTimelineTimeFromX } from '@/lib/timeline/seek-utils'
 
@@ -85,10 +84,8 @@ function TimelineCanvasContent({
   onZoomChange
 }: TimelineCanvasProps) {
   // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders every frame
-  const currentTime = useProjectStore((s) => s.currentTime)
   const isPlaying = useProjectStore((s) => s.isPlaying)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
-  const hoverTime = useProjectStore((s) => s.hoverTime)
   const setHoverTime = useProjectStore((s) => s.setHoverTime)
   const draggingAsset = useAssetLibraryStore((s) => s.draggingAsset)
   const [dragTime, setDragTime] = useState<number | null>(null)
@@ -142,8 +139,6 @@ function TimelineCanvasContent({
   const colors = useTimelineColors()
   const windowSurfaceMode = useWindowAppearanceStore((s) => s.mode)
   const windowSurfaceOpacity = useWindowAppearanceStore((s) => s.opacity)
-  const previewScale = useWorkspaceStore((s) => s.previewScale)
-  const setPreviewScale = useWorkspaceStore((s) => s.setPreviewScale)
 
   // Force re-render when theme changes by using colors as part of key
   const themeKey = React.useMemo(() => {
@@ -497,6 +492,16 @@ function TimelineCanvasContent({
     clearPreview()
   }, [buildContiguousPreview, clearPreview, getClipsForTrack])
 
+  const handleOpenSpeedUpSuggestion = useCallback((clipId: string, opts: {
+    x: number
+    y: number
+    period: SpeedUpPeriod
+    allTypingPeriods: SpeedUpPeriod[]
+    allIdlePeriods: SpeedUpPeriod[]
+  }) => {
+    setSpeedUpPopover({ ...opts, clipId })
+  }, [])
+
   useEffect(() => {
     const handleWindowDragEnd = () => resetAssetDragState(true)
     const handleWindowDrop = () => resetAssetDragState(true)
@@ -507,22 +512,6 @@ function TimelineCanvasContent({
       window.removeEventListener('drop', handleWindowDrop)
     }
   }, [resetAssetDragState])
-
-  const handleVideoDragPreview = useCallback((clipId: string, proposedStartTime: number) => {
-    handleDragPreview(clipId, TrackType.Video, proposedStartTime)
-  }, [handleDragPreview])
-
-  const handleVideoDragCommit = useCallback((clipId: string, proposedStartTime: number) => {
-    handleDragCommit(clipId, TrackType.Video, proposedStartTime)
-  }, [handleDragCommit])
-
-  const handleAudioDragPreview = useCallback((clipId: string, proposedStartTime: number) => {
-    handleDragPreview(clipId, TrackType.Audio, proposedStartTime)
-  }, [handleDragPreview])
-
-  const handleAudioDragCommit = useCallback((clipId: string, proposedStartTime: number) => {
-    handleDragCommit(clipId, TrackType.Audio, proposedStartTime)
-  }, [handleDragCommit])
 
   // Handle popover actions for speed-up suggestions
   const handleApplySpeedUp = useCallback(async (period: SpeedUpPeriod, clipId: string) => {
@@ -640,6 +629,76 @@ function TimelineCanvasContent({
     useProjectStore.getState().trimClipEnd(clipId, newEndTime)
   }, [])
 
+  const timelineContextValue = useMemo(() => ({
+    pixelsPerMs,
+    dragPreview,
+    scrollTop,
+    minZoom: adaptiveZoomLimits.min,
+    maxZoom: adaptiveZoomLimits.max,
+    onPlay,
+    onPause,
+    onSeek,
+    onZoomChange,
+    onScrubStart: handleScrubStart,
+    onScrubMove: handleScrubMove,
+    onScrubEnd: handleScrubEnd,
+    onSelect: handleClipSelect,
+    onDragPreview: handleDragPreview,
+    onDragCommit: handleDragCommit,
+    onContextMenu: handleClipContextMenu,
+    onTrimStart: handleClipEdgeTrimStart,
+    onTrimEnd: handleClipEdgeTrimEnd,
+    onOpenSpeedUpSuggestion: handleOpenSpeedUpSuggestion,
+    onSplitClip: handleClipSplit,
+    onTrimClipStart: handleClipTrimStart,
+    onTrimClipEnd: handleClipTrimEnd,
+    onDuplicateClip: handleClipDuplicate,
+    onCutClip: handleClipCut,
+    onCopyClip: handleClipCopy,
+    onPasteClip: handlePaste,
+    onDeleteClip: handleClipDelete,
+    onSpeedUpClip: handleClipSpeedUp,
+    onSplitSelected: handleSplit,
+    onTrimStartSelected: handleTrimStart,
+    onTrimEndSelected: handleTrimEnd,
+    onDeleteSelected: handleDelete,
+    onDuplicateSelected: handleDuplicate
+  }), [
+    pixelsPerMs,
+    dragPreview,
+    scrollTop,
+    adaptiveZoomLimits.min,
+    adaptiveZoomLimits.max,
+    onPlay,
+    onPause,
+    onSeek,
+    onZoomChange,
+    handleScrubStart,
+    handleScrubMove,
+    handleScrubEnd,
+    handleClipSelect,
+    handleDragPreview,
+    handleDragCommit,
+    handleClipContextMenu,
+    handleClipEdgeTrimStart,
+    handleClipEdgeTrimEnd,
+    handleOpenSpeedUpSuggestion,
+    handleClipSplit,
+    handleClipTrimStart,
+    handleClipTrimEnd,
+    handleClipDuplicate,
+    handleClipCut,
+    handleClipCopy,
+    handlePaste,
+    handleClipDelete,
+    handleClipSpeedUp,
+    handleSplit,
+    handleTrimStart,
+    handleTrimEnd,
+    handleDelete,
+    handleDuplicate
+  ])
+
   const handleStageScrubStart = useCallback((e: any) => {
     const target = e.target
     if (target?.name?.() === 'timeline-ruler') return
@@ -659,190 +718,171 @@ function TimelineCanvasContent({
   const backgroundOpacity = windowSurfaceMode === 'solid' ? 1 : 0
 
   return (
-    <div className={cn("flex flex-col h-full w-full", className)}>
-      <TimelineControls
-        isPlaying={isPlaying}
-        zoom={zoom}
-        currentTime={currentTime}
-        maxDuration={currentProject.timeline.duration}
-        minZoom={adaptiveZoomLimits.min}
-        maxZoom={adaptiveZoomLimits.max}
-        selectedClips={selectedClips}
-        onPlay={onPlay}
-        onPause={onPause}
-        onSeek={onSeek}
-        onZoomChange={onZoomChange}
-        onSplit={handleSplit}
-        onTrimStart={handleTrimStart}
-        onTrimEnd={handleTrimEnd}
-        onDelete={handleDelete}
-        onDuplicate={handleDuplicate}
-        previewScale={previewScale}
-        onPreviewScaleChange={setPreviewScale}
-        fps={useTimelineMetadata(currentProject)?.fps || 60}
-      />
+    <TimelineContextProvider value={timelineContextValue}>
+      <div className={cn("flex flex-col h-full w-full", className)}>
+        <TimelineControls />
 
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
-        tabIndex={0}
-        onScroll={handleScroll}
-        onMouseLeave={() => scheduleHoverUpdate(null)}
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
+          tabIndex={0}
+          onScroll={handleScroll}
+          onMouseLeave={() => scheduleHoverUpdate(null)}
 
-        onMouseDown={() => {
-          // Ensure container maintains focus for keyboard events
-          containerRef.current?.focus()
-        }}
-        onDragOver={(e) => {
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'copy'
-
-          if (draggingAsset) {
-            const rect = e.currentTarget.getBoundingClientRect()
-            const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
-            const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
-            const assetDuration = draggingAsset.metadata?.duration || 5000
-            const targetTrack = getAssetDropTrackType(draggingAsset.type, stageY)
-            if (!targetTrack) {
-              setDragTime(null)
-              setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
-              return
-            }
-
-            const snappedX = getSnappedDragX({
-              proposedX: stageX,
-              blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
-              blocks: getClipBlocksForTrack(targetTrack),
-              pixelsPerMs
-            })
-            const proposedTime = Math.max(
-              0,
-              TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-            )
-
-            const preview = ClipPositioning.computeContiguousPreview(
-              getClipsForTrack(targetTrack),
-              proposedTime,
-              { durationMs: assetDuration }
-            )
-            if (preview) {
-              setDragPreview({
-                clipId: '__asset__',
-                trackType: targetTrack,
-                startTimes: preview.startTimes,
-                insertIndex: preview.insertIndex
-              })
-              setDragTime(preview.insertTime)
-              setDragAssetTrackType(targetTrack)
-            } else {
-              setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
-              setDragTime(proposedTime)
-              setDragAssetTrackType(targetTrack)
-            }
-          }
-        }}
-        onDragLeave={(e) => {
-          const relatedTarget = e.relatedTarget as Node | null
-          if (relatedTarget && e.currentTarget.contains(relatedTarget)) return
-          resetAssetDragState(false)
-        }}
-        onDrop={(e) => {
-          e.preventDefault()
-          const assetData = e.dataTransfer.getData('application/x-bokeh-asset')
-          if (!assetData && !draggingAsset) {
-            resetAssetDragState(true)
-            return
-          }
-
-          try {
-            const asset = assetData ? JSON.parse(assetData) : {
-              path: draggingAsset!.path,
-              duration: draggingAsset!.metadata?.duration || 0,
-              width: draggingAsset!.metadata?.width || 0,
-              height: draggingAsset!.metadata?.height || 0,
-              type: draggingAsset!.type,
-              name: draggingAsset!.name
-            }
-            const rect = e.currentTarget.getBoundingClientRect()
-            const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
-            const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
-            const assetDuration = asset.duration || 5000
-            const targetTrack = getAssetDropTrackType(asset.type, stageY) ?? dragAssetTrackType
-            if (!targetTrack) {
-              setDragAssetTrackType(null)
-              return
-            }
-            const snappedX = getSnappedDragX({
-              proposedX: stageX,
-              blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
-              blocks: getClipBlocksForTrack(targetTrack),
-              pixelsPerMs
-            })
-            const proposedTime = Math.max(
-              0,
-              TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-            )
-            const preview = ClipPositioning.computeContiguousPreview(
-              getClipsForTrack(targetTrack),
-              proposedTime,
-              { durationMs: assetDuration }
-            )
-
-            // Use the shared helper to add the asset intelligently
-            // (Creates recording, adds to project, keeps crops independent by default)
-            useProjectStore.getState().updateProjectData((project: Project) => {
-              const updatedProject = { ...project }
-              if (preview) {
-                addAssetRecording(updatedProject, asset, { insertIndex: preview.insertIndex, trackType: targetTrack })
-              } else {
-                addAssetRecording(updatedProject, asset, { startTime: proposedTime, trackType: targetTrack })
-              }
-              return updatedProject
-            })
-            setDragAssetTrackType(null)
-
-          } catch (err) {
-            console.error('Failed to parse asset data on drop', err)
-          } finally {
-            resetAssetDragState(true)
-          }
-        }}
-        style={{
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          MozUserSelect: 'none',
-          msUserSelect: 'none',
-          outline: 'none'
-        }}
-      >
-        <Stage
-          key={themeKey}
-          width={stageWidth}
-          height={stageHeight}
-          onMouseDown={handleStageScrubStart}
-          onTouchStart={handleStageScrubStart}
-          onMouseUp={handleScrubEnd}
-          onTouchEnd={handleScrubEnd}
-          onMouseMove={(e) => {
-            if (handleScrubMove(e)) return
-            const stage = e.target.getStage()
-            const pointerPos = stage?.getPointerPosition()
-            if (!pointerPos) return
-
-            const time = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
-            scheduleHoverUpdate(time)
-
+          onMouseDown={() => {
+            // Ensure container maintains focus for keyboard events
+            containerRef.current?.focus()
           }}
-          onTouchMove={(e) => {
-            handleScrubMove(e)
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'copy'
+
+            if (draggingAsset) {
+              const rect = e.currentTarget.getBoundingClientRect()
+              const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
+              const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
+              const assetDuration = draggingAsset.metadata?.duration || 5000
+              const targetTrack = getAssetDropTrackType(draggingAsset.type, stageY)
+              if (!targetTrack) {
+                setDragTime(null)
+                setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
+                return
+              }
+
+              const snappedX = getSnappedDragX({
+                proposedX: stageX,
+                blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
+                blocks: getClipBlocksForTrack(targetTrack),
+                pixelsPerMs
+              })
+              const proposedTime = Math.max(
+                0,
+                TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+              )
+
+              const preview = ClipPositioning.computeContiguousPreview(
+                getClipsForTrack(targetTrack),
+                proposedTime,
+                { durationMs: assetDuration }
+              )
+              if (preview) {
+                setDragPreview({
+                  clipId: '__asset__',
+                  trackType: targetTrack,
+                  startTimes: preview.startTimes,
+                  insertIndex: preview.insertIndex
+                })
+                setDragTime(preview.insertTime)
+                setDragAssetTrackType(targetTrack)
+              } else {
+                setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
+                setDragTime(proposedTime)
+                setDragAssetTrackType(targetTrack)
+              }
+            }
+          }}
+          onDragLeave={(e) => {
+            const relatedTarget = e.relatedTarget as Node | null
+            if (relatedTarget && e.currentTarget.contains(relatedTarget)) return
+            resetAssetDragState(false)
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            const assetData = e.dataTransfer.getData('application/x-bokeh-asset')
+            if (!assetData && !draggingAsset) {
+              resetAssetDragState(true)
+              return
+            }
+
+            try {
+              const asset = assetData ? JSON.parse(assetData) : {
+                path: draggingAsset!.path,
+                duration: draggingAsset!.metadata?.duration || 0,
+                width: draggingAsset!.metadata?.width || 0,
+                height: draggingAsset!.metadata?.height || 0,
+                type: draggingAsset!.type,
+                name: draggingAsset!.name
+              }
+              const rect = e.currentTarget.getBoundingClientRect()
+              const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
+              const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
+              const assetDuration = asset.duration || 5000
+              const targetTrack = getAssetDropTrackType(asset.type, stageY) ?? dragAssetTrackType
+              if (!targetTrack) {
+                setDragAssetTrackType(null)
+                return
+              }
+              const snappedX = getSnappedDragX({
+                proposedX: stageX,
+                blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
+                blocks: getClipBlocksForTrack(targetTrack),
+                pixelsPerMs
+              })
+              const proposedTime = Math.max(
+                0,
+                TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+              )
+              const preview = ClipPositioning.computeContiguousPreview(
+                getClipsForTrack(targetTrack),
+                proposedTime,
+                { durationMs: assetDuration }
+              )
+
+              // Use the shared helper to add the asset intelligently
+              // (Creates recording, adds to project, keeps crops independent by default)
+              useProjectStore.getState().updateProjectData((project: Project) => {
+                const updatedProject = { ...project }
+                if (preview) {
+                  addAssetRecording(updatedProject, asset, { insertIndex: preview.insertIndex, trackType: targetTrack })
+                } else {
+                  addAssetRecording(updatedProject, asset, { startTime: proposedTime, trackType: targetTrack })
+                }
+                return updatedProject
+              })
+              setDragAssetTrackType(null)
+
+            } catch (err) {
+              console.error('Failed to parse asset data on drop', err)
+            } finally {
+              resetAssetDragState(true)
+            }
           }}
           style={{
             userSelect: 'none',
             WebkitUserSelect: 'none',
             MozUserSelect: 'none',
-            msUserSelect: 'none'
+            msUserSelect: 'none',
+            outline: 'none'
           }}
         >
+          <Stage
+            key={themeKey}
+            width={stageWidth}
+            height={stageHeight}
+            onMouseDown={handleStageScrubStart}
+            onTouchStart={handleStageScrubStart}
+            onMouseUp={handleScrubEnd}
+            onTouchEnd={handleScrubEnd}
+            onMouseMove={(e) => {
+              if (handleScrubMove(e)) return
+              const stage = e.target.getStage()
+              const pointerPos = stage?.getPointerPosition()
+              if (!pointerPos) return
+
+              const time = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
+              scheduleHoverUpdate(time)
+
+            }}
+            onTouchMove={(e) => {
+              handleScrubMove(e)
+            }}
+            style={{
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              MozUserSelect: 'none',
+              msUserSelect: 'none'
+            }}
+          >
           {/* Background Layer */}
           <Layer>
             <Rect
@@ -937,50 +977,22 @@ function TimelineCanvasContent({
 
           {/* Ruler Layer - Sticky at top during vertical scroll */}
           <Layer>
-            <TimelineRuler
-              duration={currentProject.timeline.duration}
-              stageWidth={stageWidth}
-              zoom={zoom}
-              pixelsPerMs={pixelsPerMs}
-              onSeek={onSeek}
-              onScrubStart={handleScrubStart}
-              onScrubMove={handleScrubMove}
-              onScrubEnd={handleScrubEnd}
-              offsetY={scrollTop}
-            />
+            <TimelineRuler />
           </Layer>
 
           {/* Clips Layer */}
           <Layer>
             {/* Video clips - Uses memoized videoClips */}
-            {videoClips.map((clip) => {
-              const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
-              const previewStartTime = dragPreview?.trackType === TrackType.Video && dragPreview.clipId !== clip.id
-                ? dragPreview.startTimes[clip.id]
-                : undefined
-              // Merge effects from recording (zoom) and timeline (global)
-              return (
-                <TimelineClip
-                  key={clip.id}
-                  clip={clip}
-                  recording={recording}
-                  trackType={TrackType.Video}
-                  trackY={trackPositions.video}
-                  trackHeight={videoTrackHeight}
-                  pixelsPerMs={pixelsPerMs}
-                  isSelected={selectedClips.includes(clip.id)}
-                  otherClipsInTrack={videoClips}
-                  onSelect={handleClipSelect}
-                  onDragPreview={handleVideoDragPreview}
-                  onDragCommit={handleVideoDragCommit}
-                  onContextMenu={handleClipContextMenu}
-                  onTrimStart={handleClipEdgeTrimStart}
-                  onTrimEnd={handleClipEdgeTrimEnd}
-                  onOpenSpeedUpSuggestion={(opts) => setSpeedUpPopover({ ...opts, clipId: clip.id })}
-                  displayStartTime={previewStartTime}
-                />
-              )
-            })}
+            {videoClips.map((clip) => (
+              <TimelineClip
+                key={clip.id}
+                clip={clip}
+                trackType={TrackType.Video}
+                trackY={trackPositions.video}
+                trackHeight={videoTrackHeight}
+                isSelected={selectedClips.includes(clip.id)}
+              />
+            ))}
 
             {/* Effect tracks - rendered from registry */}
             <TimelineEffectTracks />
@@ -988,54 +1000,24 @@ function TimelineCanvasContent({
             {/* Webcam track */}
             <TimelineWebcamTrack />
 
-            {audioClips.map(clip => (
-              (() => {
-                const previewStartTime = dragPreview?.trackType === TrackType.Audio && dragPreview.clipId !== clip.id
-                  ? dragPreview.startTimes[clip.id]
-                  : undefined
-                return (
-                  <TimelineClip
-                    key={clip.id}
-                    clip={clip}
-                    trackType={TrackType.Audio}
-                    trackY={trackPositions.audio}
-                    trackHeight={audioTrackHeight}
-                    pixelsPerMs={pixelsPerMs}
-                    isSelected={selectedClips.includes(clip.id)}
-                    otherClipsInTrack={audioClips}
-                    onSelect={handleClipSelect}
-                    onDragPreview={handleAudioDragPreview}
-                    onDragCommit={handleAudioDragCommit}
-                    onContextMenu={handleClipContextMenu}
-                    onTrimStart={handleClipEdgeTrimStart}
-                    onTrimEnd={handleClipEdgeTrimEnd}
-                    displayStartTime={previewStartTime}
-                  />
-                )
-              })()
+            {audioClips.map((clip) => (
+              <TimelineClip
+                key={clip.id}
+                clip={clip}
+                trackType={TrackType.Audio}
+                trackY={trackPositions.audio}
+                trackHeight={audioTrackHeight}
+                isSelected={selectedClips.includes(clip.id)}
+              />
             ))}
           </Layer>
 
           {/* Playhead Layer */}
           <Layer>
-            {hoverTime !== null && !isScrubbing && (
-              <TimelineGhostPlayhead
-                hoverTime={hoverTime}
-                totalHeight={stageHeight}
-                pixelsPerMs={pixelsPerMs}
-                maxTime={currentProject.timeline.duration}
-              />
-            )}
-            <TimelinePlayhead
-              currentTime={currentTime}
-              totalHeight={stageHeight}
-              pixelsPerMs={pixelsPerMs}
-              timelineWidth={timelineWidth}
-              maxTime={currentProject.timeline.duration}
-              onSeek={onSeek}
-            />
+            <TimelineGhostPlayhead />
+            <TimelinePlayhead />
           </Layer>
-        </Stage>
+          </Stage>
 
         {/* Context Menu */}
         {contextMenu && (
@@ -1043,15 +1025,6 @@ function TimelineCanvasContent({
             x={contextMenu.x}
             y={contextMenu.y}
             clipId={contextMenu.clipId}
-            onSplit={handleClipSplit}
-            onTrimStart={handleClipTrimStart}
-            onTrimEnd={handleClipTrimEnd}
-            onDuplicate={handleClipDuplicate}
-            onCut={handleClipCut}
-            onCopy={handleClipCopy}
-            onPaste={handlePaste}
-            onDelete={handleClipDelete}
-            onSpeedUp={handleClipSpeedUp}
             onClose={() => setContextMenu(null)}
           />
         )}
@@ -1131,6 +1104,7 @@ function TimelineCanvasContent({
           />
         )}
       </div>
-    </div >
+      </div>
+    </TimelineContextProvider>
   )
 }

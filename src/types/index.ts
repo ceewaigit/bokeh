@@ -2,7 +2,6 @@ export interface RecordingState {
   isRecording: boolean
   isPaused: boolean
   duration: number
-  status: 'idle' | 'preparing' | 'recording' | 'paused' | 'processing'
 }
 
 export enum RecordingArea {

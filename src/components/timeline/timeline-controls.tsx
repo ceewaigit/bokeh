@@ -12,8 +12,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { formatTimecode } from '@/lib/utils/time'
 import { useTimelineLayout } from './timeline-layout-provider'
+import { useTimelineContext } from './TimelineContext'
 import { TimelineTrackType } from '@/types/project'
 import { useProjectStore } from '@/stores/project-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
+import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
+import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
 import {
   Scissors,
   Play,
@@ -21,8 +25,6 @@ import {
   SkipBack,
   SkipForward,
   Trash2,
-  Copy,
-  Clipboard,
   ChevronsLeft,
   ChevronsRight,
   Layers,
@@ -107,59 +109,32 @@ function TrackVisibilityDropdown() {
   )
 }
 
-interface TimelineControlsProps {
-  isPlaying: boolean
-  currentTime: number
-  maxDuration: number
-  zoom: number
-  minZoom?: number // Dynamic minimum zoom (default: 0.05)
-  maxZoom?: number // Dynamic maximum zoom (default: 5)
-  selectedClips: string[]
-  copiedClip?: any
-  onPlay: () => void
-  onPause: () => void
-  onSeek: (time: number) => void
-  onZoomChange: (zoom: number) => void
-  onSplit: () => void
-  onTrimStart: () => void
-  onTrimEnd: () => void
-  onDelete: () => void
-  onCopy?: () => void
-  onPaste?: () => void
-  onDuplicate: () => void
-  previewScale?: number
-  onPreviewScaleChange?: (scale: number) => void
-  fps?: number
-}
-
-export const TimelineControls = React.memo(({
-  isPlaying,
-  currentTime,
-  maxDuration,
-  zoom,
-  minZoom = 0.05,
-  maxZoom = 5,
-  selectedClips,
-  copiedClip,
-  onPlay,
-  onPause,
-  onSeek,
-  onZoomChange,
-  onSplit,
-  onTrimStart,
-  onTrimEnd,
-  onDelete,
-  onCopy,
-  onPaste,
-  onDuplicate,
-  previewScale = 1,
-  onPreviewScaleChange,
-  fps = 60
-}: TimelineControlsProps) => {
+export const TimelineControls = React.memo(() => {
+  const {
+    onPlay,
+    onPause,
+    onSeek,
+    onZoomChange,
+    onSplitSelected,
+    onTrimStartSelected,
+    onTrimEndSelected,
+    onDeleteSelected,
+    onDuplicateSelected,
+    minZoom,
+    maxZoom
+  } = useTimelineContext()
+  const { duration: maxDuration, zoom } = useTimelineLayout()
+  const currentProject = useProjectStore((s) => s.currentProject)
+  const currentTime = useProjectStore((s) => s.currentTime)
+  const isPlaying = useProjectStore((s) => s.isPlaying)
+  const selectedClips = useProjectStore((s) => s.selectedClips ?? [])
+  const previewScale = useWorkspaceStore((s) => s.previewScale)
+  const setPreviewScale = useWorkspaceStore((s) => s.setPreviewScale)
+  const fps = useTimelineMetadata(currentProject)?.fps || 60
   const hasSelection = selectedClips.length > 0
   const hasSingleSelection = selectedClips.length === 1
-  const audio = useProjectStore((s) => s.settings.audio)
-  const updateSettings = useProjectStore((s) => s.updateSettings)
+  const audio = useProjectStore((s) => s.currentProject?.settings.audio ?? DEFAULT_PROJECT_SETTINGS.audio)
+  const setAudioSettings = useProjectStore((s) => s.setAudioSettings)
   const { volume, muted } = audio
   const [lastChangedControl, setLastChangedControl] = React.useState<'volume' | 'preview' | 'zoom'>('zoom')
   const [hoveredControl, setHoveredControl] = React.useState<'volume' | 'preview' | 'zoom' | null>(null)
@@ -255,7 +230,7 @@ export const TimelineControls = React.memo(({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={onSplit}
+                    onClick={onSplitSelected}
                     className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <Scissors className="w-3.5 h-3.5" />
@@ -271,7 +246,7 @@ export const TimelineControls = React.memo(({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={onTrimStart}
+                    onClick={onTrimStartSelected}
                     className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <ChevronsLeft className="w-3.5 h-3.5" />
@@ -287,7 +262,7 @@ export const TimelineControls = React.memo(({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={onTrimEnd}
+                    onClick={onTrimEndSelected}
                     className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <ChevronsRight className="w-3.5 h-3.5" />
@@ -303,7 +278,7 @@ export const TimelineControls = React.memo(({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={onDuplicate}
+                    onClick={onDuplicateSelected}
                     className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                   >
                     <Layers className="w-3.5 h-3.5" />
@@ -322,7 +297,7 @@ export const TimelineControls = React.memo(({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={onDelete}
+                onClick={onDeleteSelected}
                 disabled={!hasSelection}
                 className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
               >
@@ -333,45 +308,6 @@ export const TimelineControls = React.memo(({
               <span>Delete selected (Del)</span>
             </TooltipContent>
           </Tooltip>
-
-          {onCopy && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onCopy}
-                  disabled={!hasSingleSelection}
-                  className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Copy clip (⌘C)</span>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {onPaste && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onPaste}
-                  disabled={!copiedClip}
-                  className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
-                >
-                  <Clipboard className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Paste clip (⌘V)</span>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
 
         </div>
 
@@ -395,7 +331,7 @@ export const TimelineControls = React.memo(({
                   type="button"
                   onClick={() => {
                     setLastChangedControl('volume')
-                    updateSettings({ audio: { ...audio, muted: !muted } })
+                    setAudioSettings({ muted: !muted })
                   }}
                   className="flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                   aria-label={muted ? 'Unmute' : 'Mute'}
@@ -416,7 +352,7 @@ export const TimelineControls = React.memo(({
                 value={[volume]}
                 onValueChange={([value]) => {
                   setLastChangedControl('volume')
-                  updateSettings({ audio: { ...audio, volume: value } })
+                  setAudioSettings({ volume: value })
                 }}
                 min={0}
                 max={200}
@@ -425,30 +361,28 @@ export const TimelineControls = React.memo(({
               />
             </div>
           </div>
-          {onPreviewScaleChange && (
-            <div
-              className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1"
-              onMouseEnter={() => setHoveredControl('preview')}
-              onMouseLeave={() => setHoveredControl(null)}
-              onFocusCapture={() => handleControlFocus('preview')}
-              onBlurCapture={handleControlBlur}
-            >
-              <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
-              <div style={getSliderWrapperStyle('preview')} aria-hidden={expandedControl !== 'preview'}>
-                <Slider
-                  value={[previewScale]}
-                  onValueChange={([value]) => {
-                    setLastChangedControl('preview')
-                    onPreviewScaleChange(value)
-                  }}
-                  min={0.8}
-                  max={1.3}
-                  step={0.05}
-                  className="w-20"
-                />
-              </div>
+          <div
+            className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1"
+            onMouseEnter={() => setHoveredControl('preview')}
+            onMouseLeave={() => setHoveredControl(null)}
+            onFocusCapture={() => handleControlFocus('preview')}
+            onBlurCapture={handleControlBlur}
+          >
+            <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
+            <div style={getSliderWrapperStyle('preview')} aria-hidden={expandedControl !== 'preview'}>
+              <Slider
+                value={[previewScale]}
+                onValueChange={([value]) => {
+                  setLastChangedControl('preview')
+                  setPreviewScale(value)
+                }}
+                min={0.8}
+                max={1.3}
+                step={0.05}
+                className="w-20"
+              />
             </div>
-          )}
+          </div>
           <div
             className="flex items-center gap-2"
             onMouseEnter={() => setHoveredControl('zoom')}

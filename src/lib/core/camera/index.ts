@@ -6,7 +6,7 @@
  */
 
 // Zoom blocks
-export { parseZoomBlocks, getZoomBlockAtTime } from './zoom-blocks'
+export { parseZoomBlocks, getZoomBlockAtTime, areEffectsEqual } from './zoom-blocks'
 export type { ParsedZoomBlock } from './zoom-blocks'
 
 // Dead zone and follow

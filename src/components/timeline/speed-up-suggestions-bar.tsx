@@ -10,6 +10,7 @@ import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { TimeConverter, sourceToTimeline } from '@/lib/timeline/time-space-converter'
 import type { Clip } from '@/types/project'
+import { useTimelineContext } from './TimelineContext'
 
 // Color schemes by type and intensity
 const COLORS = {
@@ -37,13 +38,6 @@ export interface SpeedUpSuggestionsBarProps {
   clip: Clip
   clipWidth: number
   pixelsPerMs: number
-  onOpenSuggestion?: (opts: {
-    x: number
-    y: number
-    period: SpeedUpPeriod
-    allTypingPeriods: SpeedUpPeriod[]
-    allIdlePeriods: SpeedUpPeriod[]
-  }) => void
 }
 
 // Individual suggestion bar component with hover state
@@ -59,7 +53,13 @@ const SuggestionBar: React.FC<{
   timeSavedSec: number
   typingPeriods: SpeedUpPeriod[]
   idlePeriods: SpeedUpPeriod[]
-  onOpenSuggestion?: SpeedUpSuggestionsBarProps['onOpenSuggestion']
+  onOpenSuggestion: (opts: {
+    x: number
+    y: number
+    period: SpeedUpPeriod
+    allTypingPeriods: SpeedUpPeriod[]
+    allIdlePeriods: SpeedUpPeriod[]
+  }) => void
 }> = ({
   period,
   x,
@@ -106,15 +106,13 @@ const SuggestionBar: React.FC<{
 
     const handleClick = useCallback((e: any) => {
       e.cancelBubble = true
-      if (onOpenSuggestion) {
-        onOpenSuggestion({
-          x: e.evt.clientX,
-          y: e.evt.clientY - 44,
-          period,
-          allTypingPeriods: typingPeriods,
-          allIdlePeriods: idlePeriods
-        })
-      }
+      onOpenSuggestion({
+        x: e.evt.clientX,
+        y: e.evt.clientY - 44,
+        period,
+        allTypingPeriods: typingPeriods,
+        allIdlePeriods: idlePeriods
+      })
     }, [onOpenSuggestion, period, typingPeriods, idlePeriods])
 
     // Calculate visual properties based on state
@@ -216,9 +214,18 @@ export const SpeedUpSuggestionsBar: React.FC<SpeedUpSuggestionsBarProps> = ({
   idlePeriods,
   clip,
   clipWidth,
-  pixelsPerMs,
-  onOpenSuggestion
+  pixelsPerMs
 }) => {
+  const { onOpenSpeedUpSuggestion } = useTimelineContext()
+  const handleOpenSuggestion = useCallback((opts: {
+    x: number
+    y: number
+    period: SpeedUpPeriod
+    allTypingPeriods: SpeedUpPeriod[]
+    allIdlePeriods: SpeedUpPeriod[]
+  }) => {
+    onOpenSpeedUpSuggestion(clip.id, opts)
+  }, [clip.id, onOpenSpeedUpSuggestion])
   const hasTyping = typingPeriods.length > 0
   const hasIdle = idlePeriods.length > 0
 
@@ -282,7 +289,7 @@ export const SpeedUpSuggestionsBar: React.FC<SpeedUpSuggestionsBarProps> = ({
         timeSavedSec={timeSavedSec}
         typingPeriods={typingPeriods}
         idlePeriods={idlePeriods}
-        onOpenSuggestion={onOpenSuggestion}
+        onOpenSuggestion={handleOpenSuggestion}
       />
     )
   }

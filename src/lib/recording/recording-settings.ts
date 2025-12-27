@@ -1,26 +1,27 @@
-import type { RecordingSettings, SessionSettings } from '@/types'
+import type { RecordingSettings, SessionSettings, ProjectSettings } from '@/types'
 import type { StoreSettings } from '@/stores/slices/types'
 
 export function buildRecordingSettings(
   session: SessionSettings,
-  projectSettings: StoreSettings
+  projectSettings: ProjectSettings,
+  uiSettings: StoreSettings
 ): RecordingSettings {
   if (!session.sourceId) {
     throw new Error('Recording source is missing')
   }
 
-  const framerate = projectSettings.framerate as 30 | 60
+  const framerate = projectSettings.frameRate as 30 | 60
   if (framerate !== 30 && framerate !== 60) {
-    throw new Error(`Unsupported recording framerate: ${projectSettings.framerate}`)
+    throw new Error(`Unsupported recording framerate: ${projectSettings.frameRate}`)
   }
 
   return {
     ...session,
-    quality: projectSettings.quality,
+    quality: uiSettings.quality,
     framerate,
-    format: projectSettings.format,
-    lowMemoryEncoder: projectSettings.recording.lowMemoryEncoder,
-    useMacOSDefaults: projectSettings.recording.useMacOSDefaults,
-    includeAppWindows: projectSettings.recording.includeAppWindows
+    format: uiSettings.format,
+    lowMemoryEncoder: uiSettings.recording.lowMemoryEncoder,
+    useMacOSDefaults: uiSettings.recording.useMacOSDefaults,
+    includeAppWindows: uiSettings.recording.includeAppWindows
   }
 }

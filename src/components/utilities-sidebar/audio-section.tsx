@@ -7,6 +7,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { audioEnhancementManager, ENHANCEMENT_PRESETS } from '@/lib/audio/audio-enhancement-manager'
 import type { AudioEnhancementPreset, AudioEnhancementSettings } from '@/types/project'
+import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 
 const PRESET_LABELS: Record<AudioEnhancementPreset, string> = {
     off: 'Off',
@@ -25,8 +26,8 @@ const PRESET_DESCRIPTIONS: Record<AudioEnhancementPreset, string> = {
 }
 
 export function AudioSection() {
-    const audio = useProjectStore((s) => s.settings.audio)
-    const updateSettings = useProjectStore((s) => s.updateSettings)
+    const audio = useProjectStore((s) => s.currentProject?.settings.audio ?? DEFAULT_PROJECT_SETTINGS.audio)
+    const setAudioSettings = useProjectStore((s) => s.setAudioSettings)
     const { volume, muted, fadeInDuration = 0.5, fadeOutDuration = 0.5 } = audio
     const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -39,23 +40,17 @@ export function AudioSection() {
         : ENHANCEMENT_PRESETS[currentPreset]
 
     const updateAudioSettings = (key: keyof typeof audio, value: any) => {
-        updateSettings({
-            audio: {
-                ...audio,
-                [key]: value
-            }
+        setAudioSettings({
+            [key]: value
         })
     }
 
     const handlePresetChange = (preset: AudioEnhancementPreset) => {
         const isEnabled = preset !== 'off'
 
-        updateSettings({
-            audio: {
-                ...audio,
-                enhanceAudio: isEnabled,
-                enhancementPreset: preset,
-            }
+        setAudioSettings({
+            enhanceAudio: isEnabled,
+            enhancementPreset: preset,
         })
 
         if (isEnabled) {
@@ -65,13 +60,10 @@ export function AudioSection() {
 
     const handleCustomSettingChange = (key: keyof AudioEnhancementSettings, value: number) => {
         const newSettings = { ...customSettings, [key]: value }
-        updateSettings({
-            audio: {
-                ...audio,
-                customEnhancement: newSettings,
-                enhancementPreset: 'custom',
-                enhanceAudio: true,
-            }
+        setAudioSettings({
+            customEnhancement: newSettings,
+            enhancementPreset: 'custom',
+            enhanceAudio: true,
         })
         audioEnhancementManager.applyPreset('custom', newSettings)
     }

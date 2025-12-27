@@ -7,7 +7,7 @@
  * - Effect inheritance from previous video clip (for generated/image clips)
  */
 
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { Effect, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import type { ActiveClipDataAtFrame } from '@/types';
@@ -58,6 +58,7 @@ export function useEffectiveClipData({
     prevLayoutItem,
     nextLayoutItem,
 }: UseEffectiveClipDataOptions): UseEffectiveClipDataResult {
+    const lastValidClipDataRef = useRef<ActiveClipDataAtFrame | null>(null);
 
     return useMemo(() => {
         let clipData = activeClipData;
@@ -81,6 +82,10 @@ export function useEffectiveClipData({
                     getRecording,
                 });
             }
+        }
+
+        if (!clipData && lastValidClipDataRef.current && !isRendering) {
+            clipData = lastValidClipDataRef.current;
         }
 
         // 2. RESOLVE PERSISTED/INHERITED VIDEO STATE
@@ -139,6 +144,10 @@ export function useEffectiveClipData({
                 effects,
                 getRecording,
             });
+        }
+
+        if (clipData) {
+            lastValidClipDataRef.current = clipData;
         }
 
         return {

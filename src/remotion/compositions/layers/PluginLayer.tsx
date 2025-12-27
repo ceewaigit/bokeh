@@ -20,6 +20,7 @@ import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import type { PluginLayerProps } from '@/types'
 import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config/plugin-sdk'
+import { assertDefined } from '@/lib/errors'
 
 export const PluginLayer: React.FC<PluginLayerProps> = ({
   effects,
@@ -101,12 +102,10 @@ const PluginEffectRenderer: React.FC<PluginEffectRendererProps> = ({
   height
 }) => {
   const pluginData = effect.data as PluginEffectData
-  const plugin = PluginRegistry.get(pluginData.pluginId)
-
-  if (!plugin) {
-    console.warn(`[PluginLayer] Plugin not found: ${pluginData.pluginId}`)
-    return null
-  }
+  const plugin = assertDefined(
+    PluginRegistry.get(pluginData.pluginId),
+    `[PluginLayer] Plugin not found: ${pluginData.pluginId}`
+  )
 
   // Calculate progress through effect duration
   const duration = effect.endTime - effect.startTime
@@ -155,26 +154,21 @@ const PluginEffectRenderer: React.FC<PluginEffectRendererProps> = ({
     height: '100%',
   }
 
-  try {
-    const rendered = plugin.render(renderProps)
+  const rendered = plugin.render(renderProps)
 
-    return (
-      <div
-        data-effect-id={effect.id}
-        data-plugin-id={pluginData.pluginId}
-        style={{
-          ...positionStyle,
-          zIndex: pluginData.zIndex ?? 50,
-          pointerEvents: 'none'
-        }}
-      >
-        {rendered}
-      </div>
-    )
-  } catch (err) {
-    console.error(`[PluginLayer] Render error for plugin "${pluginData.pluginId}":`, err)
-    return null
-  }
+  return (
+    <div
+      data-effect-id={effect.id}
+      data-plugin-id={pluginData.pluginId}
+      style={{
+        ...positionStyle,
+        zIndex: pluginData.zIndex ?? 50,
+        pointerEvents: 'none'
+      }}
+    >
+      {rendered}
+    </div>
+  )
 }
 
 export default PluginLayer

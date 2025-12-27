@@ -115,9 +115,8 @@ export class ThumbnailGenerator {
       timestamp = 0.1 // 10% into video by default
     } = options
 
-    // Safety check: Don't attempt to generate thumbnails for empty paths (e.g. generated clips)
     if (!videoPath) {
-      return null
+      throw new Error('Thumbnail generation requires a valid video path')
     }
 
     // Check cache first
@@ -171,9 +170,6 @@ export class ThumbnailGenerator {
       }
 
       return thumbnail
-    } catch (error) {
-      logger.error('Thumbnail generation failed:', error)
-      return null
     } finally {
       this.generating.delete(cacheKey)
     }
@@ -192,7 +188,7 @@ export class ThumbnailGenerator {
     const pooledVideo = await this.acquireVideo()
     const video = pooledVideo.element
 
-    return new Promise(async (resolve) => {
+    return new Promise(async (resolve, reject) => {
       let resolved = false
 
       const finish = (result: string | null) => {
@@ -202,8 +198,11 @@ export class ThumbnailGenerator {
         resolve(result)
       }
 
-      const handleError = () => {
-        finish(null)
+      const handleError = (error: Error) => {
+        if (resolved) return
+        resolved = true
+        this.releaseVideo(pooledVideo)
+        reject(error)
       }
 
       // One-time event listeners - MUST be added before loading
@@ -217,7 +216,7 @@ export class ThumbnailGenerator {
           const sourceWidth = video.videoWidth
           const sourceHeight = video.videoHeight
           if (!sourceWidth || !sourceHeight) {
-            handleError()
+            handleError(new Error('Failed to read video dimensions for thumbnail'))
             return
           }
 
@@ -234,7 +233,7 @@ export class ThumbnailGenerator {
 
           const ctx = canvas.getContext('2d')
           if (!ctx) {
-            handleError()
+            handleError(new Error('Failed to acquire canvas context for thumbnail'))
             return
           }
 
@@ -247,24 +246,24 @@ export class ThumbnailGenerator {
 
           finish(dataUrl)
         } catch (error) {
-          handleError()
+          handleError(error instanceof Error ? error : new Error('Failed to render thumbnail'))
         }
       }
 
       const onError = () => {
-        handleError()
+        handleError(new Error('Failed to load video for thumbnail generation'))
       }
 
       // Get video URL from Electron API
       try {
         if (!window.electronAPI?.getVideoUrl) {
-          handleError()
+          handleError(new Error('Electron API unavailable for thumbnail generation'))
           return
         }
 
         const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
         if (!videoUrl) {
-          handleError()
+          handleError(new Error('Failed to resolve video URL for thumbnail generation'))
           return
         }
 
@@ -281,7 +280,7 @@ export class ThumbnailGenerator {
         video.src = videoUrl
         video.load()
       } catch (error) {
-        handleError()
+        handleError(error instanceof Error ? error : new Error('Failed to prepare thumbnail generation'))
         return
       }
 
@@ -292,7 +291,7 @@ export class ThumbnailGenerator {
           video.removeEventListener('loadedmetadata', onMetadata)
           video.removeEventListener('seeked', onSeeked)
           video.removeEventListener('error', onError)
-          handleError()
+          handleError(new Error('Thumbnail generation timed out'))
         }
       }, 5000)
     })
@@ -435,13 +434,7 @@ export class ThumbnailGenerator {
     for (let i = 0; i < videos.length; i += batchSize) {
       const batch = videos.slice(i, i + batchSize)
       await Promise.all(
-        batch.map(video =>
-          this.generateThumbnail(video.path, video.key, options)
-            .catch(err => {
-              logger.error(`Failed to preload thumbnail for ${video.key}:`, err)
-              return null
-            })
-        )
+        batch.map(video => this.generateThumbnail(video.path, video.key, options))
       )
     }
   }

@@ -19,8 +19,7 @@ import { WaveformAnalyzer } from '@/lib/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { CommandManager } from '@/lib/commands/base/CommandManager'
 import type { CreateCoreSlice } from './types'
-import { resetSelectionState, DEFAULT_SETTINGS, syncProjectSettingsToStore } from './utils'
-import { applyStoreSettingsToProject } from '@/lib/settings/project-settings-sync'
+import { resetSelectionState, DEFAULT_SETTINGS } from './utils'
 
 export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   // State
@@ -43,7 +42,6 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
 
     set((state) => {
       state.currentProject = project
-      syncProjectSettingsToStore(state, project)
       resetSelectionState(state)
     })
 
@@ -76,7 +74,6 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
 
       set((state) => {
         state.currentProject = project
-        syncProjectSettingsToStore(state, project)
         resetSelectionState(state)
       })
     } catch (error) {
@@ -86,7 +83,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   },
 
   saveCurrentProject: async () => {
-    const { currentProject, settings } = get()
+    const { currentProject } = get()
     if (!currentProject) return
 
     console.log('[CoreSlice] saveCurrentProject called')
@@ -95,7 +92,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       // Persist store-level settings that affect rendering/export into the project payload.
       // We do this at save-time to avoid making the entire app re-render on every UI slider tick.
       const projectToSave = {
-        ...applyStoreSettingsToProject(currentProject, settings),
+        ...currentProject,
         modifiedAt: new Date().toISOString(),
       }
 

@@ -23,6 +23,7 @@ import { cn, clamp } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ExportFormat, QualityLevel, AspectRatioPreset } from '@/types/project'
 import { calculateCanvasDimensions, getAspectRatioPreset } from '@/lib/constants/aspect-ratio-presets'
+import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 
 interface ExportDialogProps {
   isOpen: boolean
@@ -49,7 +50,6 @@ type UiMachineProfile = {
 
 export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const {
-    isExporting,
     lastExport,
     exportProject,
     exportAsGIF,
@@ -60,6 +60,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
   const currentProject = useProjectStore((s) => s.currentProject)
   const progress = useProjectStore((s) => s.progress)
+  const isExporting = progress.isProcessing
+  const uiSettings = useProjectStore((s) => s.settings)
+  const projectSettings = useProjectStore((s) => s.currentProject?.settings ?? DEFAULT_PROJECT_SETTINGS)
 
   // Get canvas settings and source resolution
   const canvasSettings = currentProject?.settings.canvas
@@ -192,7 +195,6 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const setProjectFramerate = useProjectStore((s) => s.setFramerate)
   const setProjectFormat = useProjectStore((s) => s.setFormat)
   const setProjectQuality = useProjectStore((s) => s.setQuality)
-  const projectSettings = useProjectStore((s) => s.settings)
 
   const [machineProfile, setMachineProfile] = useState<UiMachineProfile | null>(null)
 
@@ -323,9 +325,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         await exportAsGIF(currentProject, gifSettings)
       } else {
         const settings: import('@/types/export').ExportSettings = {
-          format: projectSettings.format,
-          framerate: projectSettings.framerate,
-          quality: projectSettings.quality,
+          format: uiSettings.format,
+          framerate: projectSettings.frameRate,
+          quality: uiSettings.quality,
           resolution: projectSettings.resolution,
           outputPath: '', // Handled by engine/storage
           enhanceAudio: projectSettings.audio?.enhanceAudio
@@ -345,7 +347,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
       mime === 'video/mp4' ? 'mp4' :
         mime === 'video/webm' ? 'webm' :
           mime === 'image/gif' ? 'gif' :
-            (projectSettings.format === ExportFormat.GIF ? 'gif' : projectSettings.format.toLowerCase())
+            (uiSettings.format === ExportFormat.GIF ? 'gif' : uiSettings.format.toLowerCase())
     const filename = `${currentProject?.name || 'export'}.${extension}`
     try {
       await saveLastExport(filename)

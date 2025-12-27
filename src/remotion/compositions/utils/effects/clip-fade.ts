@@ -17,17 +17,18 @@ export function calculateClipFadeOpacity(opts: FadeOpacityOptions): number {
   } = opts;
 
   let fadeOpacity = 1;
+  const smoothstep = (t: number) => t * t * (3 - 2 * t);
 
   // Intro fade (fade in from minOpacity to 1)
   if (introFadeDuration > 0 && localFrame >= 0 && localFrame < introFadeDuration) {
-    const progress = localFrame / introFadeDuration;
+    const progress = smoothstep(localFrame / introFadeDuration);
     fadeOpacity = minOpacity + (1 - minOpacity) * progress;
   }
 
   // Outro fade (fade out from 1 to minOpacity)
   const outroStartFrame = durationFrames - outroFadeDuration;
   if (outroFadeDuration > 0 && localFrame >= outroStartFrame) {
-    const outroProgress = (localFrame - outroStartFrame) / outroFadeDuration;
+    const outroProgress = smoothstep((localFrame - outroStartFrame) / outroFadeDuration);
     const outroOpacity = 1 - (1 - minOpacity) * outroProgress;
     fadeOpacity = Math.min(fadeOpacity, outroOpacity);
   }

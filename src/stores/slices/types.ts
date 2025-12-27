@@ -14,12 +14,10 @@ import type {
   ZoomEffectData,
   CursorEffectData,
   BackgroundEffectData,
-  CropEffectData,
   MouseEvent as ProjectMouseEvent,
   QualityLevel,
   ExportFormat
 } from '@/types/project'
-import type { PositionData } from '@/lib/canvas-editor/coordinate-utils'
 import type { EffectType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
 import type { CameraPathFrame } from '@/types/remotion'
@@ -35,28 +33,10 @@ import type { ClipboardEffect } from '@/types/stores'
 // =============================================================================
 
 export interface StoreSettings {
-  // Unified Settings (formerly scattered)
   quality: QualityLevel
-  resolution: { width: number; height: number }
-  framerate: number
   format: ExportFormat
 
   showTypingSuggestions: boolean
-  audio: {
-    volume: number
-    muted: boolean
-    fadeInDuration: number
-    fadeOutDuration: number
-    enhanceAudio: boolean
-    enhancementPreset?: 'off' | 'subtle' | 'balanced' | 'broadcast' | 'custom'
-    customEnhancement?: {
-      threshold: number
-      ratio: number
-      attack: number
-      release: number
-      knee: number
-    }
-  }
   editing: {
     snapToGrid: boolean
     showWaveforms: boolean
@@ -98,11 +78,9 @@ export interface SelectionSliceState {
   // Crop Editing State
   isEditingCrop: boolean
   editingCropId: string | null
-  editingCropData: CropEffectData | null
   // Overlay Editing State (for dragging/resizing positioned elements)
   isEditingOverlay: boolean
   editingOverlayId: string | null
-  editingOverlayPosition: PositionData | null
 }
 
 export interface PlaybackSliceState {
@@ -225,13 +203,11 @@ export interface SelectionSliceActions {
   clearClipboard: () => void
 
   // Crop Editing Actions
-  startEditingCrop: (effectId: string, data: CropEffectData) => void
-  updateEditingCrop: (updates: Partial<CropEffectData>) => void
+  startEditingCrop: (effectId: string) => void
   stopEditingCrop: () => void
 
   // Overlay Editing Actions (for positioned elements like plugins, annotations, webcam)
-  startEditingOverlay: (effectId: string, position: PositionData) => void
-  updateEditingOverlay: (updates: Partial<PositionData>) => void
+  startEditingOverlay: (effectId: string) => void
   stopEditingOverlay: () => void
 }
 
@@ -269,10 +245,10 @@ export interface SettingsSliceActions {
   setFormat: (format: ExportFormat) => void
   updateSettings: (updates: Partial<StoreSettings>) => void
   // Helpers for common updates
-  setAudioSettings: (updates: Partial<StoreSettings['audio']>) => void
   setEditingSettings: (updates: Partial<StoreSettings['editing']>) => void
-  setCameraSettings: (updates: Partial<StoreSettings['camera']>) => void
   setRecordingSettings: (updates: Partial<StoreSettings['recording']>) => void
+  setAudioSettings: (updates: Partial<Project['settings']['audio']>) => void
+  setCameraSettings: (updates: Partial<Project['settings']['camera']>) => void
 }
 
 export interface ProgressSliceActions {

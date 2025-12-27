@@ -3,9 +3,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 
 import { cn } from '@/lib/utils'
-import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
-import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffects } from '@/lib/effects/effect-filters'
 import { resolveEffectIdForType } from '@/lib/effects/effect-selection'
@@ -30,24 +29,13 @@ import { WebcamTab } from './webcam-tab'
 import { AnnotationsTab } from './annotations-tab'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useProjectStore } from '@/stores/project-store'
+import { useSelectedClip } from '@/stores/selectors/clip-selectors'
+import { useEffectsSidebarContext } from './EffectsSidebarContext'
 
 const springConfig = { type: "spring", stiffness: 380, damping: 28 } as const
 
 interface EffectsSidebarProps {
   className?: string
-  selectedClip: Clip | null
-  effects: Effect[] | undefined
-  selectedEffectLayer?: SelectedEffectLayer
-  onEffectChange: (type: EffectType, data: any) => void
-  onZoomBlockUpdate?: (blockId: string, updates: any) => void
-  onBulkToggleKeystrokes?: (enabled: boolean) => void
-  onAddCrop?: () => void
-  onRemoveCrop?: (effectId: string) => void
-  onUpdateCrop?: (effectId: string, updates: any) => void
-  onStartEditCrop?: () => void
-
-  isEditingCrop?: boolean
-  selectedTrackType?: TrackType
 }
 
 type StyleSubTabId = 'background' | 'frame' | 'screen'
@@ -134,21 +122,25 @@ const tabVariants = {
 }
 
 export function EffectsSidebar({
-  className,
-  selectedClip,
-  effects,
-  selectedEffectLayer,
-  onEffectChange,
-  onZoomBlockUpdate,
-  onBulkToggleKeystrokes,
-  onAddCrop,
-  onRemoveCrop,
-  onUpdateCrop,
-  onStartEditCrop,
-  isEditingCrop,
-  selectedTrackType,
+  className
 }: EffectsSidebarProps) {
+  const {
+    onEffectChange,
+    onZoomBlockUpdate,
+    onBulkToggleKeystrokes,
+    onAddCrop,
+    onRemoveCrop,
+    onUpdateCrop,
+    onStartEditCrop
+  } = useEffectsSidebarContext()
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer)
+  const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
+  const isEditingCrop = useProjectStore((s) => s.isEditingCrop)
+  const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
+  const effects = timelineEffects ?? []
+  const selectedClipResult = useSelectedClip()
+  const selectedClip = selectedClipResult?.clip ?? null
+  const selectedTrackType = selectedClipResult?.track.type
   const [activeTab, setActiveTab] = useState<SidebarTabId>(() =>
     selectedClip ? SidebarTabId.Clip : SidebarTabId.Style
   )

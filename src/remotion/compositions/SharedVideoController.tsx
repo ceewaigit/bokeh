@@ -29,7 +29,9 @@ import {
 } from './utils/transforms/zoom-transform';
 import { calculateCameraMotionBlur } from './utils/effects/camera-motion-blur';
 import type { SharedVideoControllerProps } from '@/types';
+import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import {
+  findActiveFrameLayoutItems,
   getBoundaryOverlapState,
 } from '@/lib/timeline/frame-layout';
 import { usePrecomputedCameraPath } from '@/remotion/hooks/camera/usePrecomputedCameraPath';
@@ -83,6 +85,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const previewIsScrubbing = useProjectStore((s) => s.isScrubbing);
   const isScrubbing = isRendering ? playback.isScrubbing : previewIsScrubbing;
   const { isEditingCrop, preferOffthreadVideo } = renderSettings;
+  const useOffthreadVideo = isRendering && preferOffthreadVideo;
 
   const currentTimeMs = frameToMs(currentFrame, fps);
   const cameraPathCache = useProjectStore((s) => s.cameraPathCache);
@@ -102,15 +105,77 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const layoutNav = useLayoutNavigation(currentFrame);
   const { activeIndex: activeLayoutIndex, activeItem: activeLayoutItem, prevItem: prevLayoutItem, nextItem: nextLayoutItem } = layoutNav;
 
+  const visualLayoutNav = useMemo(() => {
+    const isVisualItem = (item: FrameLayoutItem | null) => {
+      if (!item) return false;
+      const recording = recordingsMap.get(item.clip.recordingId);
+      return recording?.sourceType === 'video' || recording?.sourceType === 'image';
+    };
+
+    const activeItems = findActiveFrameLayoutItems(frameLayout, currentFrame);
+    let activeVisualItem: FrameLayoutItem | null = null;
+    for (const item of activeItems) {
+      if (isVisualItem(item) && (!activeVisualItem || item.startFrame > activeVisualItem.startFrame)) {
+        activeVisualItem = item;
+      }
+    }
+
+    const activeVisualIndex = activeVisualItem
+      ? frameLayout.findIndex((item) => item.clip.id === activeVisualItem?.clip.id)
+      : -1;
+
+    let prevVisualItem: FrameLayoutItem | null = null;
+    for (let i = activeVisualIndex - 1; i >= 0; i -= 1) {
+      const candidate = frameLayout[i];
+      if (isVisualItem(candidate)) {
+        prevVisualItem = candidate;
+        break;
+      }
+    }
+
+    let nextVisualItem: FrameLayoutItem | null = null;
+    for (let i = activeVisualIndex + 1; i < frameLayout.length; i += 1) {
+      const candidate = frameLayout[i];
+      if (isVisualItem(candidate)) {
+        nextVisualItem = candidate;
+        break;
+      }
+    }
+
+    return {
+      activeVisualItem,
+      prevVisualItem,
+      nextVisualItem,
+    };
+  }, [frameLayout, recordingsMap, currentFrame]);
+
+  const renderActiveLayoutItem = visualLayoutNav.activeVisualItem ?? activeLayoutItem;
+  const renderPrevLayoutItem = visualLayoutNav.prevVisualItem ?? prevLayoutItem;
+  const renderNextLayoutItem = visualLayoutNav.nextVisualItem ?? nextLayoutItem;
+
   // ==========================================================================
   // BOUNDARY STATE
   // ==========================================================================
   const boundaryState = useMemo(() => {
     return getBoundaryOverlapState({
-      currentFrame, fps, isRendering, activeLayoutItem, prevLayoutItem, nextLayoutItem,
+      currentFrame,
+      fps,
+      isRendering,
+      activeLayoutItem: renderActiveLayoutItem,
+      prevLayoutItem: renderPrevLayoutItem,
+      nextLayoutItem: renderNextLayoutItem,
       sourceWidth: sourceVideoWidth, sourceHeight: sourceVideoHeight,
     });
-  }, [currentFrame, fps, isRendering, activeLayoutItem, prevLayoutItem, nextLayoutItem, sourceVideoWidth, sourceVideoHeight]);
+  }, [
+    currentFrame,
+    fps,
+    isRendering,
+    renderActiveLayoutItem,
+    renderPrevLayoutItem,
+    renderNextLayoutItem,
+    sourceVideoWidth,
+    sourceVideoHeight,
+  ]);
 
   const { isNearBoundaryStart, isNearBoundaryEnd, shouldHoldPrevFrame, overlapFrames } = boundaryState;
 
@@ -262,12 +327,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     currentFrame,
     fps,
     isRendering,
-    isScrubbing,
     recordingsMap,
-    activeLayoutIndex,
-    activeLayoutItem,
-    prevLayoutItem,
-    nextLayoutItem,
+    prevLayoutItem: renderPrevLayoutItem,
+    nextLayoutItem: renderNextLayoutItem,
     shouldHoldPrevFrame,
     isNearBoundaryEnd,
   });
@@ -290,8 +352,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
       if (recording.sourceType === 'video') {
         return (
-            <VideoClipRenderer
-              key={item.groupId}
+          <VideoClipRenderer
+            key={item.groupId}
             clipForVideo={item.clip}
             recording={recording}
             startFrame={item.startFrame}
@@ -304,15 +366,15 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             drawHeight={layout.drawHeight}
             maxZoomScale={maxZoom}
             currentZoomScale={currentScale}
-            activeLayoutItem={activeLayoutItem}
-            prevLayoutItem={prevLayoutItem}
-            nextLayoutItem={nextLayoutItem}
+            activeLayoutItem={renderActiveLayoutItem}
+            prevLayoutItem={renderPrevLayoutItem}
+            nextLayoutItem={renderNextLayoutItem}
             shouldHoldPrevFrame={shouldHoldPrevFrame}
             isNearBoundaryEnd={isNearBoundaryEnd}
             overlapFrames={overlapFrames}
             markRenderReady={markRenderReady}
             handleVideoReady={handleVideoReady}
-            VideoComponent={preferOffthreadVideo ? OffthreadVideo : Video}
+            VideoComponent={useOffthreadVideo ? OffthreadVideo : Video}
             premountFor={preloadFrames}
             postmountFor={preloadFrames}
           />
@@ -335,9 +397,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             drawHeight={layout.drawHeight}
             compositionWidth={width}
             compositionHeight={height}
-            activeLayoutItem={activeLayoutItem}
-            prevLayoutItem={prevLayoutItem}
-            nextLayoutItem={nextLayoutItem}
+            activeLayoutItem={renderActiveLayoutItem}
+            prevLayoutItem={renderPrevLayoutItem}
+            nextLayoutItem={renderNextLayoutItem}
             shouldHoldPrevFrame={shouldHoldPrevFrame}
             isNearBoundaryEnd={isNearBoundaryEnd}
             overlapFrames={overlapFrames}
@@ -375,8 +437,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     renderableItems, recordingsMap, width, height, zoomTransform, effects,
     currentFrame, fps, isRendering, layout,
     activeLayoutItem, prevLayoutItem, nextLayoutItem,
+    renderActiveLayoutItem, renderPrevLayoutItem, renderNextLayoutItem,
     shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
-    markRenderReady, handleVideoReady, preferOffthreadVideo
+    markRenderReady, handleVideoReady, useOffthreadVideo
   ]);
 
   // ==========================================================================

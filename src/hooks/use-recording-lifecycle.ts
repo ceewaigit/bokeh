@@ -8,6 +8,7 @@ import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { logger } from '@/lib/utils/logger'
 import { RecordingError, RecordingErrorCode, PermissionError, ElectronError } from '@/lib/errors'
 import { buildRecordingSettings } from '@/lib/recording/recording-settings'
+import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 
 export interface UseRecordingLifecycleProps {
     onDurationUpdate: (duration: number) => void
@@ -30,8 +31,7 @@ export function useRecordingLifecycle({
         isRecording,
         isPaused,
         setRecording,
-        setPaused,
-        setStatus
+        setPaused
     } = useRecordingSessionStore()
 
     // Initialize recorder
@@ -84,17 +84,16 @@ export function useRecordingLifecycle({
         }
 
         try {
-            setStatus('preparing')
-
             // Get settings from both stores
             const sessionSettings = useRecordingSessionStore.getState().settings
-            const projectSettings = useProjectStore.getState().settings
+            const project = useProjectStore.getState().currentProject
+            const uiSettings = useProjectStore.getState().settings
+            const projectSettings = project?.settings ?? DEFAULT_PROJECT_SETTINGS
 
-            const recordingSettings = buildRecordingSettings(sessionSettings, projectSettings)
+            const recordingSettings = buildRecordingSettings(sessionSettings, projectSettings, uiSettings)
 
             // Optimistic UI: enter recording mode immediately
             setRecording(true)
-            setStatus('recording')
             onDurationUpdate(0)
             onTimerStart(0)
 
@@ -110,7 +109,6 @@ export function useRecordingLifecycle({
 
         } catch (error) {
             handleRecordingError(error)
-            setStatus('idle')
             setRecording(false)
             onTimerStop()
             onDurationUpdate(0)
@@ -119,7 +117,7 @@ export function useRecordingLifecycle({
                 (window as any).__screenRecorderActive = false
             }
         }
-    }, [isRecording, setRecording, setStatus, handleRecordingError, onDurationUpdate, onTimerStart, onTimerStop])
+    }, [isRecording, setRecording, handleRecordingError, onDurationUpdate, onTimerStart, onTimerStop])
 
     const stopRecording = useCallback(async () => {
         logger.debug('useRecording.stopRecording called')
@@ -142,7 +140,6 @@ export function useRecordingLifecycle({
 
             // Immediately update state to prevent double-stops
             setRecording(false)
-            setStatus('processing')
 
             onTimerStop()
 
@@ -156,7 +153,6 @@ export function useRecordingLifecycle({
 
             // Reset remaining state
             setPaused(false)
-            setStatus('idle')
 
             // Clear global recording state
             if (typeof window !== 'undefined') {
@@ -237,7 +233,6 @@ export function useRecordingLifecycle({
             onDurationUpdate(0)
             setRecording(false)
             setPaused(false)
-            setStatus('idle')
 
             if (typeof window !== 'undefined') {
                 (window as any).__screenRecorderActive = false
@@ -245,7 +240,7 @@ export function useRecordingLifecycle({
 
             return null
         }
-    }, [setRecording, setPaused, setStatus, onTimerStop, onDurationUpdate])
+    }, [setRecording, setPaused, onTimerStop, onDurationUpdate])
 
     const pauseRecording = useCallback(() => {
         if (recorderRef.current && isRecording && !isPaused) {

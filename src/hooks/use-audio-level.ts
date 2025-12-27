@@ -11,6 +11,7 @@ interface UseAudioLevelOptions {
   deviceId: string | null
   enabled?: boolean
   smoothing?: number
+  mode?: 'monitor' | 'recording'
 }
 
 interface AudioLevelState {
@@ -21,7 +22,7 @@ interface AudioLevelState {
 }
 
 export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
-  const { deviceId, enabled = true, smoothing = 0.8 } = options
+  const { deviceId, enabled = true, smoothing = 0.8, mode = 'monitor' } = options
 
   const [state, setState] = useState<AudioLevelState>({
     level: 0,
@@ -37,6 +38,7 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const rafRef = useRef<number | null>(null)
+  const audioInputService = getAudioInputService()
 
   const stopMonitoring = useCallback(() => {
     if (rafRef.current) {
@@ -72,6 +74,7 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
   }, [])
 
   const startMonitoring = useCallback(async () => {
+    if (mode !== 'monitor') return
     if (!deviceId) return
 
     stopMonitoring()
@@ -144,10 +147,11 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
         isMonitoring: false
       }))
     }
-  }, [deviceId, smoothing, stopMonitoring])
+  }, [deviceId, mode, smoothing, stopMonitoring])
 
   // Start/stop monitoring based on enabled state and deviceId
   useEffect(() => {
+    if (mode !== 'monitor') return
     if (enabled && deviceId) {
       startMonitoring()
     } else {
@@ -157,23 +161,64 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
     return () => {
       stopMonitoring()
     }
-  }, [enabled, deviceId, startMonitoring, stopMonitoring])
+  }, [enabled, deviceId, mode, startMonitoring, stopMonitoring])
+
+  useEffect(() => {
+    if (mode !== 'recording') return
+    if (!enabled) {
+      setState(prev => ({
+        ...prev,
+        level: 0,
+        peak: 0,
+        isMonitoring: false,
+        error: null
+      }))
+      return
+    }
+
+    setState(prev => ({
+      ...prev,
+      isMonitoring: audioInputService.isRecording(),
+      error: null
+    }))
+
+    const unsubscribe = audioInputService.onAudioLevel((level) => {
+      if (level > peakRef.current) {
+        peakRef.current = level
+      }
+
+      setState(prev => ({
+        ...prev,
+        level,
+        peak: peakRef.current,
+        isMonitoring: audioInputService.isRecording()
+      }))
+    })
+
+    if (peakDecayRef.current) {
+      clearInterval(peakDecayRef.current)
+    }
+    peakDecayRef.current = setInterval(() => {
+      peakRef.current = Math.max(0, peakRef.current - 0.02)
+    }, 50)
+
+    return () => {
+      unsubscribe()
+      if (peakDecayRef.current) {
+        clearInterval(peakDecayRef.current)
+        peakDecayRef.current = null
+      }
+    }
+  }, [audioInputService, enabled, mode])
 
   return state
 }
 
 /**
  * Hook for getting audio level during recording.
- * Uses the AudioInputService if recording, otherwise monitors directly.
+ * Deprecated: prefer useAudioLevel({ mode: 'recording' }).
  */
 export function useRecordingAudioLevel(): number {
-  const [level, setLevel] = useState(0)
-  const audioInputService = getAudioInputService()
-
-  useEffect(() => {
-    const unsubscribe = audioInputService.onAudioLevel(setLevel)
-    return unsubscribe
-  }, [])
-
-  return audioInputService.isRecording() ? level : 0
+  const { level } = useAudioLevel({ deviceId: null, enabled: true, mode: 'recording' })
+  return level
 }

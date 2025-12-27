@@ -10,6 +10,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { memoryMonitor } from '@/lib/utils/memory-monitor'
 import { resolveProjectRoot } from '@/lib/storage/recording-storage'
 import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { assertDefined } from '@/lib/errors'
 
 export interface ExportProgress {
   progress: number
@@ -77,12 +78,11 @@ export class ExportEngine {
       logger.info(`Export: ${processedTimeline.clipCount} clips, duration: ${processedTimeline.totalDuration}ms`);
 
       // Extract project folder from project file path
-      let projectFolder: string | undefined
-      if (project.filePath) {
-        const fileExists = typeof window !== 'undefined' ? window.electronAPI?.fileExists : undefined
-        projectFolder = await resolveProjectRoot(project.filePath, fileExists)
-        logger.info(`Project folder: ${projectFolder}`)
-      }
+      const projectPath = assertDefined(project.filePath, 'Project must be saved before export')
+      const fileExists = typeof window !== 'undefined' ? window.electronAPI?.fileExists : undefined
+      const projectFolder = await resolveProjectRoot(projectPath, fileExists)
+      assertDefined(projectFolder, 'Failed to resolve project folder for export')
+      logger.info(`Project folder: ${projectFolder}`)
 
       onProgress?.({
         progress: 2,

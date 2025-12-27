@@ -2,7 +2,7 @@ import { Command, CommandResult } from './Command'
 import { CommandContext, DefaultCommandContext } from './CommandContext'
 import { CommandManager } from './CommandManager'
 import { registerAllCommands } from '../index'
-import type { ProjectStore } from '@/types/stores'
+import type { ProjectStore } from '@/stores/slices/types'
 
 type StoreAccessor = { getState: () => ProjectStore }
 

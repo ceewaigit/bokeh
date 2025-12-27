@@ -47,8 +47,8 @@ const GLOW_VISUALS = {
 
 interface AmbientGlowPlayerProps {
     mainPlayerRef: React.RefObject<PlayerRef>;
-    timelineMetadata: TimelineMetadata;
-    playerConfig: PlayerConfig;
+    timelineMetadata: TimelineMetadata | null;
+    playerConfig: PlayerConfig | null;
     isPlaying: boolean;
     isScrubbing: boolean;
     playerKey: string;
@@ -66,6 +66,8 @@ export function AmbientGlowPlayer({
     initialFrame,
     glowIntensity,
 }: AmbientGlowPlayerProps) {
+    if (!timelineMetadata || !playerConfig) return null;
+
     const glowPlayerRef = useRef<PlayerRef>(null);
     const lastGlowIsPlayingRef = useRef<boolean>(false);
     const lastFrameSyncMsRef = useRef<number>(0);
@@ -79,30 +81,17 @@ export function AmbientGlowPlayer({
     const glowSaturation = glowVisuals.saturation * (0.95 + 0.2 * Math.pow(clampedIntensity, 1.1));
 
     const clampFrame = useCallback((frame: number) => {
-        if (!timelineMetadata) return Math.max(0, frame);
         const maxFrame = timelineMetadata.durationInFrames - 1;
         return Math.max(0, Math.min(frame, maxFrame));
     }, [timelineMetadata]);
 
     const timeToFrame = useCallback((timeMs: number) => {
-        if (!timelineMetadata) return 0;
         return msToFrame(timeMs, timelineMetadata.fps);
     }, [timelineMetadata]);
 
-    const safePlay = useCallback((player: PlayerRef | null, label: string) => {
+    const safePlay = useCallback((player: PlayerRef | null) => {
         if (!player) return;
-
-        try {
-            const result: unknown = (player as PlayerRef & { play: () => unknown }).play();
-            if (result && typeof (result as Promise<void>).catch === 'function') {
-                (result as Promise<void>).catch((err) => {
-                    if (err?.name === 'AbortError') return;
-                    console.warn(`[AmbientGlowPlayer] Failed to play ${label}:`, err);
-                });
-            }
-        } catch (err) {
-            console.warn(`[AmbientGlowPlayer] Failed to play ${label}:`, err);
-        }
+        return (player as PlayerRef & { play: () => unknown }).play();
     }, []);
 
     const lastSeekTimeRef = useRef<number>(0);
@@ -111,9 +100,6 @@ export function AmbientGlowPlayer({
     const SCRUB_THROTTLE_MS = 125;
 
     const glowSize = useMemo(() => {
-        if (!timelineMetadata) {
-            return { width: GLOW_CONFIG.minSize, height: GLOW_CONFIG.minSize };
-        }
         const maxDim = Math.max(timelineMetadata.width, timelineMetadata.height);
         const scale = Math.min(1, GLOW_CONFIG.maxSize / maxDim);
         const width = Math.max(GLOW_CONFIG.minSize, Math.round(timelineMetadata.width * scale));
@@ -134,12 +120,8 @@ export function AmbientGlowPlayer({
             }
             scrubTimeoutRef.current = setTimeout(() => {
                 if (pendingSeekRef.current !== null && glowPlayerRef.current) {
-                    try {
-                        glowPlayerRef.current.seekTo(pendingSeekRef.current);
-                        lastSeekTimeRef.current = Date.now();
-                    } catch {
-                        // Best-effort seek
-                    }
+                    glowPlayerRef.current.seekTo(pendingSeekRef.current);
+                    lastSeekTimeRef.current = Date.now();
                     pendingSeekRef.current = null;
                 }
                 scrubTimeoutRef.current = null;
@@ -147,12 +129,8 @@ export function AmbientGlowPlayer({
             return;
         }
 
-        try {
-            glowPlayerRef.current.seekTo(targetFrame);
-            lastSeekTimeRef.current = now;
-        } catch {
-            // Best-effort seek
-        }
+        glowPlayerRef.current.seekTo(targetFrame);
+        lastSeekTimeRef.current = now;
     }, []);
 
     useEffect(() => {
@@ -166,28 +144,24 @@ export function AmbientGlowPlayer({
 
     // Glow player sync - follows main player but simpler (no audio)
     useEffect(() => {
-        if (!glowPlayerRef.current || !timelineMetadata) return;
+        if (!glowPlayerRef.current) return;
 
         // Direct store access for syncing when not playing
 
         const currentTimeMs = useProjectStore.getState().currentTime;
         const targetFrame = clampFrame(timeToFrame(currentTimeMs));
 
-        try {
-            if (isPlaying) {
-                if (!lastGlowIsPlayingRef.current) {
-                    glowPlayerRef.current.seekTo(targetFrame);
-                    safePlay(glowPlayerRef.current, 'glow');
-                }
-
-                lastGlowIsPlayingRef.current = true;
-            } else {
-                lastGlowIsPlayingRef.current = false;
-                glowPlayerRef.current.pause();
+        if (isPlaying) {
+            if (!lastGlowIsPlayingRef.current) {
                 glowPlayerRef.current.seekTo(targetFrame);
+                safePlay(glowPlayerRef.current);
             }
-        } catch {
-            // Glow player errors are non-critical
+
+            lastGlowIsPlayingRef.current = true;
+        } else {
+            lastGlowIsPlayingRef.current = false;
+            glowPlayerRef.current.pause();
+            glowPlayerRef.current.seekTo(targetFrame);
         }
     }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, safePlay]);
 
@@ -215,7 +189,7 @@ export function AmbientGlowPlayer({
     useEffect(() => {
         const glowPlayer = glowPlayerRef.current;
         const mainPlayer = mainPlayerRef.current;
-        if (!glowPlayer || !mainPlayer || !timelineMetadata) return;
+        if (!glowPlayer || !mainPlayer) return;
 
         const handleFrameUpdate = (e: { detail: { frame: number } }) => {
             if (!isPlaying || isScrubbing) return;
@@ -225,21 +199,11 @@ export function AmbientGlowPlayer({
             lastFrameSyncMsRef.current = now;
 
             const targetFrame = clampFrame(e.detail.frame);
-            let currentGlowFrame = 0;
-
-            try {
-                currentGlowFrame = glowPlayer.getCurrentFrame();
-            } catch {
-                return;
-            }
+            const currentGlowFrame = glowPlayer.getCurrentFrame();
 
             if (Math.abs(currentGlowFrame - targetFrame) <= 2) return;
 
-            try {
-                glowPlayer.seekTo(targetFrame);
-            } catch {
-                // Best-effort sync only
-            }
+            glowPlayer.seekTo(targetFrame);
         };
 
         mainPlayer.addEventListener('frameupdate', handleFrameUpdate as any);
@@ -269,7 +233,7 @@ export function AmbientGlowPlayer({
         });
     }, [playerConfig, isPlaying, isScrubbing]);
 
-    if (!timelineMetadata || !glowPlayerInputProps) return null;
+    if (!glowPlayerInputProps) return null;
 
     return (
         <div

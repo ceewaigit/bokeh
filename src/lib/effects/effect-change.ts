@@ -55,7 +55,7 @@ function ensureGlobalEffect(
     endTime: Number.MAX_SAFE_INTEGER,
     data,
     enabled: enabled ?? true
-  }
+  } as Effect
 
   context.executeCommand('AddEffect', newEffect)
 }

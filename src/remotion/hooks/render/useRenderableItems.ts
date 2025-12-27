@@ -12,17 +12,14 @@
 import { useMemo, useRef } from 'react';
 import type { Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
-import { findActiveFrameLayoutItems, getVisibleFrameLayout } from '@/lib/timeline/frame-layout';
+import { getVisibleFrameLayout } from '@/lib/timeline/frame-layout';
 
 interface UseRenderableItemsOptions {
   frameLayout: FrameLayoutItem[];
   currentFrame: number;
   fps: number;
   isRendering: boolean;
-  isScrubbing: boolean;
   recordingsMap: Map<string, Recording>;
-  activeLayoutIndex: number;
-  activeLayoutItem: FrameLayoutItem | null;
   prevLayoutItem: FrameLayoutItem | null;
   nextLayoutItem: FrameLayoutItem | null;
   shouldHoldPrevFrame: boolean;
@@ -39,108 +36,16 @@ export function useRenderableItems({
   currentFrame,
   fps,
   isRendering,
-  isScrubbing,
   recordingsMap,
-  activeLayoutIndex,
-  activeLayoutItem,
   prevLayoutItem,
   nextLayoutItem,
   shouldHoldPrevFrame,
   isNearBoundaryEnd,
 }: UseRenderableItemsOptions): FrameLayoutItem[] {
-  // MEMORY FIX: Scrub keep-alive disabled - was causing VTDecoder leak (3.5GB+)
-  const keepVideoWarmOnScrub = false;
-
-  // STABILITY: Track previous renderable items to prevent unnecessary remounts
   const prevRenderableIdsRef = useRef<string>('');
   const prevRenderableItemsRef = useRef<FrameLayoutItem[]>([]);
 
   return useMemo(() => {
-    // Helper: Check if a layout item is a generated (non-video) clip
-    const isGeneratedItem = (item: FrameLayoutItem | null) => {
-      if (!item) return false;
-      return recordingsMap.get(item.clip.recordingId)?.sourceType === 'generated';
-    };
-
-    // Helper: Find previous non-generated clip
-    const findPrevVideo = (startIndex: number) => {
-      for (let i = startIndex - 1; i >= 0; i -= 1) {
-        const candidate = frameLayout[i];
-        if (!isGeneratedItem(candidate)) return candidate;
-      }
-      return null;
-    };
-
-    // Helper: Find next non-generated clip
-    const findNextVideo = (startIndex: number) => {
-      for (let i = startIndex + 1; i < frameLayout.length; i += 1) {
-        const candidate = frameLayout[i];
-        if (!isGeneratedItem(candidate)) return candidate;
-      }
-      return null;
-    };
-
-    // PREVIEW MODE: Optimize to minimize concurrent decoders
-    if (!isRendering && activeLayoutItem) {
-      // Idle preview: only render clips active at the current frame.
-      // This avoids keeping neighbor decoders alive when the playhead is parked.
-      if (!isScrubbing) {
-        const activeItems = findActiveFrameLayoutItems(frameLayout, currentFrame);
-        const uniqueItems = new Map<string, FrameLayoutItem>();
-        if (activeItems.length === 0 && activeLayoutItem) {
-          uniqueItems.set(activeLayoutItem.groupId, activeLayoutItem);
-        } else {
-          for (const item of activeItems) {
-            if (!uniqueItems.has(item.groupId)) {
-              uniqueItems.set(item.groupId, item);
-            }
-          }
-        }
-        return Array.from(uniqueItems.values()).sort(
-          (a, b) => a.startFrame - b.startFrame
-        );
-      }
-
-      const itemsByGroupId = new Map<string, FrameLayoutItem>();
-      const activeIsGenerated = isGeneratedItem(activeLayoutItem);
-      // Enable A/B buffering for smooth transitions (prev/next clips)
-      // We respect shouldHoldPrevFrame/isNearBoundaryEnd to keep neighbors alive during transitions
-      const shouldIncludePrevVideo = keepVideoWarmOnScrub || activeIsGenerated || (shouldHoldPrevFrame && !!prevLayoutItem);
-      const shouldIncludeNextVideo = keepVideoWarmOnScrub || activeIsGenerated || (isNearBoundaryEnd && !!nextLayoutItem);
-
-      // Include prev video clip if needed (for warm transition from generated)
-      if (shouldIncludePrevVideo) {
-        // First try finding the semantic "prev video" (skipping generated items)
-        let prevVideo = findPrevVideo(activeLayoutIndex);
-
-        // Fallback: If we assume standard A/B cut, just grab the previous layout item
-        // This ensures that even if there are weird generated clips involved, we hold onto the neighbor
-        if (!prevVideo && prevLayoutItem) {
-          prevVideo = prevLayoutItem;
-        }
-
-        if (prevVideo && !itemsByGroupId.has(prevVideo.groupId)) {
-          itemsByGroupId.set(prevVideo.groupId, prevVideo);
-        }
-      }
-
-      // Include next video clip if needed (for warm transition to generated)
-      if (shouldIncludeNextVideo) {
-        const nextVideo = findNextVideo(activeLayoutIndex);
-        if (nextVideo && !itemsByGroupId.has(nextVideo.groupId)) {
-          itemsByGroupId.set(nextVideo.groupId, nextVideo);
-        }
-      }
-
-      // Active clip always wins when sharing group with neighbors
-      itemsByGroupId.set(activeLayoutItem.groupId, activeLayoutItem);
-
-      return Array.from(itemsByGroupId.values()).sort(
-        (a, b) => a.startFrame - b.startFrame
-      );
-    }
-
-    // EXPORT MODE: Use full visibility calculation for correctness
     const items = getVisibleFrameLayout({
       frameLayout,
       currentFrame,
@@ -192,7 +97,6 @@ export function useRenderableItems({
       return prevRenderableItemsRef.current;
     }
 
-    // GroupIds changed - update refs and return new array
     prevRenderableIdsRef.current = currentIds;
     prevRenderableItemsRef.current = sortedItems;
     return sortedItems;
@@ -201,12 +105,8 @@ export function useRenderableItems({
     currentFrame,
     fps,
     isRendering,
-    isScrubbing,
-    keepVideoWarmOnScrub,
-    activeLayoutIndex,
     prevLayoutItem,
     nextLayoutItem,
-    activeLayoutItem,
     shouldHoldPrevFrame,
     isNearBoundaryEnd,
     recordingsMap,

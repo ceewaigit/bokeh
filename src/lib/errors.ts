@@ -57,3 +57,23 @@ export class MemoryError extends Error {
   }
 }
 
+export class MissingVideoError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'MissingVideoError'
+  }
+}
+
+export class InvalidPathError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'InvalidPathError'
+  }
+}
+
+export function assertDefined<T>(value: T | null | undefined, message: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(message)
+  }
+  return value
+}

@@ -12,6 +12,7 @@ import { metadataLoader } from '@/lib/export/metadata-loader';
 import type { Recording, RecordingMetadata } from '@/types/project';
 import type { UseRecordingMetadataOptions, UseRecordingMetadataResult } from '@/types';
 import { logger } from '@/lib/utils/logger';
+import { assertDefined } from '@/lib/errors';
 
 /**
  * Empty metadata to return when no data is available
@@ -54,6 +55,16 @@ export function useRecordingMetadata({
       return;
     }
 
+    if (isRendering) {
+      const exportMetadataUrls = assertDefined(
+        metadataUrls,
+        `Metadata URLs are required for recording ${recordingId} during export`
+      ) as NonNullable<typeof metadataUrls>;
+      assertDefined(exportMetadataUrls[recordingId], `Missing metadata URL set for recording ${recordingId}`);
+    } else if (!inlineMetadata && (!folderPath || !metadataChunks)) {
+      throw new Error(`Missing metadata inputs for recording ${recordingId}`);
+    }
+
     // PRIORITY 1: Check cache first
     const cached = RecordingStorage.getMetadata(recordingId);
     if (cached) {
@@ -83,29 +94,29 @@ export function useRecordingMetadata({
 
         if (isRendering) {
           // EXPORT MODE: Load from HTTP URLs
-          const urlSet = metadataUrls?.[recordingId];
-          if (urlSet) {
-            loadedMetadata = await metadataLoader.loadMetadataFromUrls(recordingId, urlSet);
-          } else {
-            logger.warn(`No metadata URLs found for recording ${recordingId} during export`);
-            loadedMetadata = EMPTY_METADATA;
-          }
+          const exportMetadataUrls = assertDefined(
+            metadataUrls,
+            `Metadata URLs are required for recording ${recordingId} during export`
+          ) as NonNullable<typeof metadataUrls>;
+          const urlSet = assertDefined(
+            exportMetadataUrls[recordingId],
+            `Missing metadata URL set for recording ${recordingId}`
+          );
+          loadedMetadata = await metadataLoader.loadMetadataFromUrls(recordingId, urlSet);
         } else {
           // PREVIEW MODE: Load from local files via electronAPI
-          if (folderPath && metadataChunks) {
-            // Create a minimal recording object for the loader
-            const partialRecording = {
-              id: recordingId,
-              folderPath,
-              metadataChunks,
-            } as Recording;
+          const resolvedFolderPath = assertDefined(folderPath, `Missing folderPath for recording ${recordingId}`);
+          const resolvedChunks = assertDefined(metadataChunks, `Missing metadataChunks for recording ${recordingId}`);
 
-            const result = await metadataLoader.loadRecordingMetadata(partialRecording);
-            loadedMetadata = result || EMPTY_METADATA;
-          } else {
-            logger.debug(`No folderPath or metadataChunks for recording ${recordingId}, using empty metadata`);
-            loadedMetadata = EMPTY_METADATA;
-          }
+          // Create a minimal recording object for the loader
+          const partialRecording = {
+            id: recordingId,
+            folderPath: resolvedFolderPath,
+            metadataChunks: resolvedChunks,
+          } as Recording;
+
+          const result = await metadataLoader.loadRecordingMetadata(partialRecording);
+          loadedMetadata = assertDefined(result, `Failed to load metadata for recording ${recordingId}`);
         }
 
         setMetadata(loadedMetadata);
@@ -113,7 +124,7 @@ export function useRecordingMetadata({
         const loadError = err instanceof Error ? err : new Error(String(err));
         logger.error(`Failed to load metadata for recording ${recordingId}:`, loadError);
         setError(loadError);
-        setMetadata(EMPTY_METADATA);
+        throw loadError;
       } finally {
         setIsLoading(false);
 

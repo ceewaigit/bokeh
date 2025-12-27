@@ -62,12 +62,10 @@ export class PasteCommand extends Command<PasteResult> {
 
       // Zoom effects are recording-scoped and playhead-based
       if (route === 'zoom') {
-        console.log('[PasteCommand] Pasting zoom effect (timeline-based)')
         const zoomData = effectData as unknown as ZoomEffectData
 
         // Get current playhead position - this IS the timeline position for the new effect
         const currentTimelineTime = currentTime
-        console.log('[PasteCommand] Playhead position (timeline-space):', currentTimelineTime)
 
         // Find clip at playhead for recording reference (optional, for mouse event access)
         const allClips = project.timeline.tracks.flatMap(t => t.clips)
@@ -80,13 +78,10 @@ export class PasteCommand extends Command<PasteResult> {
 
           // Use first clip's recording as fallback, but paste at timeline position
           const firstClip = allClips.sort((a, b) => a.startTime - b.startTime)[0]
-          console.log('[PasteCommand] Playhead not on clip, using first clip for recording:', firstClip.id)
 
           // Paste at timeline position directly (no source conversion)
           return this.createZoomBlock(zoomData, firstClip.recordingId, currentTimelineTime, project, clipboardDuration)
         }
-
-        console.log('[PasteCommand] Clip at playhead:', clipAtPlayhead.id, 'recordingId:', clipAtPlayhead.recordingId)
 
         // Paste at timeline position directly (no source conversion)
         return this.createZoomBlock(zoomData, clipAtPlayhead.recordingId, currentTimelineTime, project, clipboardDuration)
@@ -198,7 +193,7 @@ export class PasteCommand extends Command<PasteResult> {
     project: any,
     durationMs?: number
   ): Promise<CommandResult<PasteResult>> {
-    const resolvedDuration = Number.isFinite(durationMs) && durationMs > 0
+    const resolvedDuration = typeof durationMs === 'number' && durationMs > 0
       ? durationMs
       : 5000
     // Default duration in TIMELINE space

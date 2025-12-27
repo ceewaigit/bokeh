@@ -112,7 +112,7 @@ export function RecordButtonDock() {
       if (isRecording) {
         logger.warn('RecordButtonDock unmounting while recording - forcing stop')
         useRecordingSessionStore.getState().setRecording(false)
-        useRecordingSessionStore.getState().setStatus('idle')
+        useRecordingSessionStore.getState().setPaused(false)
       }
     }
   }, [])

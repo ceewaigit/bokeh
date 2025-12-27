@@ -8,7 +8,7 @@ import { findClipById, executeTrimClipEnd, updateClipInTrack, removeClipFromTrac
 import { TrackType, type Project, type Clip } from '@/types/project'
 import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
 import { DEFAULT_STORE_SETTINGS } from '@/lib/settings/defaults'
-import type { ProjectStore } from '@/types/stores'
+import type { ProjectStore } from '@/stores/slices/types'
 
 function createProjectWithAudioClip(): Project {
   const createdAt = new Date(0).toISOString()
@@ -55,31 +55,40 @@ function createProjectWithAudioClip(): Project {
 }
 
 function createStoreAccessor(project: Project): { getState: () => ProjectStore } {
-  const state: ProjectStore = {
+  const state = {
     currentProject: project,
     currentTime: 0,
     selectedClips: ['clip-a1'],
     selectedEffectLayer: null,
     clipboard: {},
+    isEditingCrop: false,
+    editingCropId: null,
+    isEditingOverlay: false,
+    editingOverlayId: null,
+    isPlaying: false,
+    isScrubbing: false,
+    hoverTime: null,
+    zoom: 1,
+    zoomManuallyAdjusted: false,
 
-    addClip: (clipOrRecordingId, startTime) => {
+    addClip: (clipOrRecordingId: Clip | string, startTime?: number) => {
       if (!state.currentProject) return
       addClipToTrack(state.currentProject, clipOrRecordingId as any, startTime)
     },
-    removeClip: (clipId) => {
+    removeClip: (clipId: string) => {
       if (!state.currentProject) return
       removeClipFromTrack(state.currentProject, clipId)
       state.selectedClips = state.selectedClips.filter(id => id !== clipId)
     },
-    updateClip: (clipId, updates, options) => {
+    updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean; maintainContiguous?: boolean }) => {
       if (!state.currentProject) return
       updateClipInTrack(state.currentProject, clipId, updates, options)
     },
-    restoreClip: (trackId, clip, index) => {
+    restoreClip: (trackId: string, clip: Clip, index: number) => {
       if (!state.currentProject) return
       restoreClipToTrack(state.currentProject, trackId, clip, index)
     },
-    selectClip: (clipId, multi) => {
+    selectClip: (clipId: string | null, multi?: boolean) => {
       if (!clipId) {
         state.selectedClips = []
         return
@@ -94,16 +103,16 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore }
         state.selectedClips = [clipId]
       }
     },
-    splitClip: (clipId, splitTime) => {
+    splitClip: (clipId: string, splitTime: number) => {
       if (!state.currentProject) return
       executeSplitClip(state.currentProject, clipId, splitTime)
     },
     trimClipStart: () => { },
-    trimClipEnd: (clipId, newEndTime) => {
+    trimClipEnd: (clipId: string, newEndTime: number) => {
       if (!state.currentProject) return
       executeTrimClipEnd(state.currentProject, clipId, newEndTime)
     },
-    duplicateClip: (clipId) => {
+    duplicateClip: (clipId: string) => {
       if (!state.currentProject) return null
       const newClip = duplicateClipInTrack(state.currentProject, clipId)
       if (!newClip) return null
@@ -117,14 +126,14 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore }
     removeEffect: () => { },
     updateEffect: () => { },
     getEffectsAtTimeRange: () => [],
-    regenerateAllEffects: () => { },
+    regenerateAllEffects: async () => { },
     applyTypingSpeedToClip: () => ({ affectedClips: [], originalClips: [] }),
     applySpeedUpToClip: () => ({ affectedClips: [], originalClips: [] }),
     cacheTypingPeriods: () => { },
     cacheIdlePeriods: () => { },
     restoreClipsFromUndo: () => { },
     settings: { ...DEFAULT_STORE_SETTINGS }
-  }
+  } as unknown as ProjectStore
 
   return { getState: () => state }
 }

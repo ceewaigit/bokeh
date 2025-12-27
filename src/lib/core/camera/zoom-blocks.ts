@@ -28,6 +28,7 @@ export interface ParsedZoomBlock {
 // Cache parsed zoom blocks per effects array reference.
 // Important: Do NOT sort/reorder blocks here, since overlapping blocks rely on original ordering.
 const zoomBlocksCache = new WeakMap<Effect[], ParsedZoomBlock[]>()
+let lastLookup: { blocks: ParsedZoomBlock[]; result: ParsedZoomBlock | undefined } | null = null
 
 const ZOOM_BLOCK_END_EPSILON_MS = 40
 const ZOOM_BLOCK_START_EPSILON_MS = 40
@@ -64,6 +65,14 @@ export function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
 
     zoomBlocksCache.set(effects, parsed)
     return parsed
+}
+
+export function areEffectsEqual(a: Effect[], b: Effect[]): boolean {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false
+    }
+    return true
 }
 
 function requireZoomEffectData(effect: Effect): ZoomEffectData {
@@ -127,9 +136,19 @@ function isValidFollowStrategy(strategy: ZoomFollowStrategy): boolean {
  * Supports fuzzy matching for gaps/rounding at block boundaries.
  */
 export function getZoomBlockAtTime(zoomBlocks: ParsedZoomBlock[], timelineMs: number): ParsedZoomBlock | undefined {
+    if (lastLookup?.blocks === zoomBlocks && lastLookup.result) {
+        const block = lastLookup.result
+        if (timelineMs >= block.startTime && timelineMs <= block.endTime) {
+            return block
+        }
+    }
+
     // 1. Strict match (preferred)
     const exact = zoomBlocks.find(b => timelineMs >= b.startTime && timelineMs <= b.endTime)
-    if (exact) return exact
+    if (exact) {
+        lastLookup = { blocks: zoomBlocks, result: exact }
+        return exact
+    }
 
     // 2. Fuzzy match (gaps/rounding)
     // Find block with smallest distance to timelineMs
@@ -155,5 +174,6 @@ export function getZoomBlockAtTime(zoomBlocks: ParsedZoomBlock[], timelineMs: nu
             }
         }
     }
+    lastLookup = { blocks: zoomBlocks, result: best }
     return best
 }

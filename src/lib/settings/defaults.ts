@@ -29,18 +29,9 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
 
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   quality: QualityLevel.High,
-  resolution: { width: 1920, height: 1080 },
-  framerate: 60,
   format: ExportFormat.MP4,
 
   showTypingSuggestions: true,
-  audio: {
-    volume: 100,
-    muted: false,
-    fadeInDuration: 0.5,
-    fadeOutDuration: 0.5,
-    enhanceAudio: false
-  },
   editing: {
     snapToGrid: true,
     showWaveforms: false,

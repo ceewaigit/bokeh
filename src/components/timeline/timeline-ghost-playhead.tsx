@@ -4,21 +4,15 @@ import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { clamp } from '@/lib/utils'
+import { useProjectStore } from '@/stores/project-store'
+import { useTimelineLayout } from './timeline-layout-provider'
 
-interface TimelineGhostPlayheadProps {
-  hoverTime: number
-  totalHeight: number
-  pixelsPerMs: number
-  maxTime: number
-}
-
-export const TimelineGhostPlayhead = React.memo(({
-  hoverTime,
-  totalHeight,
-  pixelsPerMs,
-  maxTime
-}: TimelineGhostPlayheadProps) => {
+export const TimelineGhostPlayhead = React.memo(() => {
+  const { stageHeight: totalHeight, pixelsPerMs, duration: maxTime } = useTimelineLayout()
+  const hoverTime = useProjectStore((s) => s.hoverTime)
+  const isScrubbing = useProjectStore((s) => s.isScrubbing)
   const colors = useTimelineColors()
+  if (hoverTime === null || isScrubbing) return null
   const time = clamp(hoverTime, 0, maxTime)
   const x = TimeConverter.msToPixels(time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 

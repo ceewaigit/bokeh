@@ -143,7 +143,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
         }}>
           <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
             <VideoComponent
-              key={`${recording.id}-${groupStartFrame}`}
+              key={recording.id}
               src={videoUrl || ''}
               style={{
                 width: '100%', height: '100%',
@@ -164,8 +164,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
               onCanPlay={handleLoaded}
               onSeeked={isRendering ? handleVideoReady : undefined}
               onError={(e: any) => {
-                console.error('[VideoClipRenderer] Video error:', { error: e?.target?.error ?? e, videoUrl, recordingId: recording.id });
-                markRenderReady('video-error');
+                throw new Error(`[VideoClipRenderer] Video error for ${recording.id}: ${e?.target?.error ?? e}`);
               }}
             />
           </AudioEnhancerWrapper>

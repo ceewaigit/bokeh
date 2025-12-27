@@ -1,6 +1,6 @@
 
 import type { Clip, Recording } from '@/types/project';
-import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
+import { msToFrame, msToFrameFloor } from '@/remotion/compositions/utils/time/frame-time';
 
 export interface PersistedVideoState {
   recording: Recording;
@@ -150,8 +150,8 @@ export function buildFrameLayout(
   let lastVisualRecording: Recording | null = null;
 
   clips.forEach((clip) => {
-    const startFrame = msToFrame(clip.startTime, fps);
-    const durationFrames = Math.max(1, msToFrame(clip.duration, fps));
+    const startFrame = msToFrameFloor(clip.startTime, fps);
+    const durationFrames = Math.max(1, Math.ceil((clip.duration / 1000) * fps));
     const endFrame = startFrame + durationFrames;
     const recording = recordingsMap.get(clip.recordingId);
 
@@ -351,13 +351,63 @@ export function getVisibleFrameLayout(opts: {
   }
 
   // Preview: render active clips + boundary overlap for smooth transitions
+  const items = [...activeItems];
   if (shouldHoldPrevFrame && prevLayoutItem) {
-    return [...activeItems, prevLayoutItem];
+    items.push(prevLayoutItem);
   }
-
   if (isNearBoundaryEnd && nextLayoutItem) {
-    return [...activeItems, nextLayoutItem];
+    items.push(nextLayoutItem);
   }
 
-  return activeItems;
+  // Boundary safety: keep clips that just ended at this frame for 1 frame
+  // to avoid a single-frame gap when timeline state doesn't include neighbors.
+  for (let i = 0; i < frameLayout.length; i += 1) {
+    const item = frameLayout[i];
+    if (item.endFrame === currentFrame) {
+      items.push(item);
+    }
+    if (item.startFrame === currentFrame && i > 0) {
+      items.push(frameLayout[i - 1]);
+    }
+  }
+
+  // Include fade neighbors for smooth preview transitions.
+  for (const item of activeItems) {
+    const prev = frameLayout.find(p => p.endFrame === item.startFrame);
+    if (
+      prev &&
+      item.clip.introFadeMs &&
+      currentFrame < item.startFrame + Math.round((item.clip.introFadeMs / 1000) * fps)
+    ) {
+      items.push(prev);
+    }
+
+    const next = frameLayout.find(n => n.startFrame === item.endFrame);
+    if (
+      next &&
+      item.clip.outroFadeMs &&
+      currentFrame >= item.endFrame - Math.round((item.clip.outroFadeMs / 1000) * fps)
+    ) {
+      items.push(next);
+    }
+  }
+
+  // Extra safety: keep near-boundary neighbors for a tiny window to avoid flicker.
+  const boundaryHoldFrames = Math.max(2, Math.round(fps * 0.12));
+  for (const item of frameLayout) {
+    if (
+      item.endFrame >= currentFrame - boundaryHoldFrames &&
+      item.endFrame <= currentFrame
+    ) {
+      items.push(item);
+    }
+    if (
+      item.startFrame >= currentFrame &&
+      item.startFrame <= currentFrame + boundaryHoldFrames
+    ) {
+      items.push(item);
+    }
+  }
+
+  return items;
 }

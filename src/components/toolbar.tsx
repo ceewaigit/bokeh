@@ -57,8 +57,9 @@ export function Toolbar({
   const {
     isRecording,
     duration,
-    status
+    isPaused
   } = useRecordingSessionStore()
+  const status = isRecording ? (isPaused ? 'paused' : 'recording') : 'idle'
 
   const [propertiesOpen, setPropertiesOpen] = useState(true)
   const [isSnapshotting, setIsSnapshotting] = useState(false)
@@ -213,11 +214,10 @@ export function Toolbar({
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
               status === 'recording' && "bg-red-500 animate-pulse",
-              status === 'processing' && "bg-yellow-500 animate-pulse",
-              status === 'preparing' && "bg-blue-500 animate-pulse"
+              status === 'paused' && "bg-yellow-500"
             )} />
             <span className="text-[10px] font-medium uppercase tracking-wider">
-              {status === 'processing' ? 'Saving' : status}
+              {status}
             </span>
             {isRecording && (
               <span className="font-mono text-[10px] text-muted-foreground/70">

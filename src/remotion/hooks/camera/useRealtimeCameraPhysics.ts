@@ -5,7 +5,7 @@ import { getCameraOutputContext } from '@/lib/effects/utils/camera-output-contex
 import type { Effect, Recording, RecordingMetadata } from '@/types/project'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
-import { getZoomBlockAtTime, parseZoomBlocks } from '@/lib/core/camera'
+import { areEffectsEqual, getZoomBlockAtTime, parseZoomBlocks } from '@/lib/core/camera'
 
 type UseRealtimeCameraPhysicsArgs = {
     enabled: boolean
@@ -44,6 +44,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
     const previewLastFrameRef = useRef<number | null>(null)
     const previewLastRecordingIdRef = useRef<string | null>(null)
     const previewLastZoomSignatureRef = useRef<string | null>(null)
+    const stableEffectsRef = useRef<Effect[]>([])
 
     return useMemo(() => {
         if (forceDisabled) return null
@@ -60,6 +61,12 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
         }
 
         const { recording, sourceTimeMs, effects: clipEffects } = clipData
+        const stableEffects = areEffectsEqual(stableEffectsRef.current, clipEffects)
+            ? stableEffectsRef.current
+            : clipEffects
+        if (stableEffectsRef.current !== stableEffects) {
+            stableEffectsRef.current = stableEffects
+        }
         const timelineMs = (currentFrame / fps) * 1000
         const metadata = recording ? loadedMetadata?.get(recording.id) : undefined
         // Use centralized lookup with consistent boundary semantics
@@ -70,7 +77,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
             mockupScreenPosition,
             forceFollowCursor,
         } = getCameraOutputContext({
-            clipEffects,
+            clipEffects: stableEffects,
             timelineMs,
             compositionWidth: videoWidth,
             compositionHeight: videoHeight,
@@ -81,7 +88,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
 
         const prevFrame = previewLastFrameRef.current
         const recordingId = recording?.id ?? null
-        const activeZoomBlock = getZoomBlockAtTime(parseZoomBlocks(clipEffects), timelineMs)
+        const activeZoomBlock = getZoomBlockAtTime(parseZoomBlocks(stableEffects), timelineMs)
         const zoomSignature = activeZoomBlock
             ? [
                 activeZoomBlock.id,
@@ -120,7 +127,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
             }
             // Seed physics from deterministic center so seeks/pause don't replay a pan from center.
             const seed = computeCameraState({
-                effects: clipEffects,
+                effects: stableEffects,
                 timelineMs,
                 sourceTimeMs,
                 recording,
@@ -141,7 +148,7 @@ export function useRealtimeCameraPhysics(args: UseRealtimeCameraPhysicsArgs) {
         }
 
         const computed = computeCameraState({
-            effects: clipEffects,
+            effects: stableEffects,
             timelineMs,
             sourceTimeMs,
             recording,

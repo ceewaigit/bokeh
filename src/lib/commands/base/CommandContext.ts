@@ -1,7 +1,7 @@
 import type { Project, Clip, Track, Recording } from '@/types/project'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import type { SelectedEffectLayer } from '@/types/effects'
-import type { ProjectStore, ClipboardEffect } from '@/types/stores'
+import type { ProjectStore, ClipboardEffect } from '@/stores/slices/types'
 
 export interface CommandContext {
   getProject(): Project | null

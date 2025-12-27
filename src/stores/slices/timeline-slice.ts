@@ -37,7 +37,6 @@ import { captureLastFrame } from '@/lib/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/lib/cursor/synthetic-events'
 import { EffectStore } from '@/lib/core/effects'
 import type { CreateTimelineSlice } from './types'
-import { invalidateCaches } from './utils'
 
 export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     // State
@@ -66,8 +65,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                     state.settings.editing.showWaveforms = true
                 }
 
-                // Invalidate cache on clip add
-                invalidateCaches(state)
             }
         })
     },
@@ -119,8 +116,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             project.timeline.duration = calculateTimelineDuration(project)
             project.modifiedAt = new Date().toISOString()
 
-            // Invalidate cache
-            invalidateCaches(state)
 
             EffectsFactory.syncKeystrokeEffects(project)
 
@@ -185,8 +180,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             project.timeline.duration = calculateTimelineDuration(project)
             project.modifiedAt = new Date().toISOString()
 
-            // Invalidate cache
-            invalidateCaches(state)
 
             state.selectedClips = [clip.id]
 
@@ -359,7 +352,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             set((state) => {
                 if (!state.currentProject) return
                 EffectStore.addMany(state.currentProject, clonedEffects)
-                invalidateCaches(state)
             })
         }
     },
@@ -398,8 +390,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
             state.currentProject.modifiedAt = new Date().toISOString()
 
-            // Invalidate cache
-            invalidateCaches(state)
 
             // Sync effects
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
@@ -429,8 +419,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 // Always clean up clip-specific resources
                 ProjectCleanupService.cleanupClipResources(clipId)
 
-                // Invalidate cache on clip removal (also forces new project reference)
-                invalidateCaches(state)
             }
         })
     },
@@ -452,8 +440,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Clip timing/position can change; keep derived keystroke blocks aligned.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
-            // Invalidate cache
-            invalidateCaches(state)
 
             // Maintain playhead relative position inside the edited clip
             const updatedResult = findClipById(state.currentProject, clipId)
@@ -505,8 +491,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Split changes clip boundaries; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
-            // Invalidate cache
-            invalidateCaches(state)
 
             const { firstClip } = result
 
@@ -530,7 +514,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
-            invalidateCaches(state)
         })
     },
 
@@ -544,7 +527,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
-            invalidateCaches(state)
         })
     },
 
@@ -562,8 +544,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Duplicated clips should get matching derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
-            // Invalidate cache
-            invalidateCaches(state)
 
             // Select the duplicated clip
             state.selectedClips = [newClip.id]
@@ -661,8 +641,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
                 state.currentProject.modifiedAt = new Date().toISOString()
 
-                // Invalidate cache
-                invalidateCaches(state)
                 break
             }
         })
@@ -775,8 +753,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
             state.currentProject.modifiedAt = new Date().toISOString()
 
-            // Invalidate cache
-            invalidateCaches(state)
         })
     },
 
@@ -789,8 +765,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (removed) {
                 state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
                 state.currentProject.modifiedAt = new Date().toISOString()
-                // Invalidate cache
-                invalidateCaches(state)
             }
         })
     },
@@ -804,8 +778,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (updated) {
                 state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
                 state.currentProject.modifiedAt = new Date().toISOString()
-                // Invalidate cache
-                invalidateCaches(state)
             }
         })
     },
@@ -837,8 +809,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 EffectGenerationService.regenerateAllEffects(state.currentProject, config, metadataByRecordingId)
                 // playhead state computed via hook
 
-                // Invalidate cache
-                invalidateCaches(state)
             }
         })
     }

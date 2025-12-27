@@ -7,7 +7,6 @@ import { useProjectStore } from './project-store'
 
 interface ExportStore {
   engine: ExportEngine | null
-  isExporting: boolean
   lastExport: Blob | null
   lastExportSettings: ExportSettings | null
 
@@ -36,14 +35,13 @@ export const useExportStore = create<ExportStore>((set, get) => {
 
   return {
     engine: null,
-    isExporting: false,
     lastExport: null,
     lastExportSettings: null,
 
     getEngine,
 
     exportProject: async (project, settings) => {
-      set({ isExporting: true, lastExport: null, lastExportSettings: settings })
+      set({ lastExport: null, lastExportSettings: settings })
 
       // Start unified progress
       useProjectStore.getState().startProcessing('Exporting Project...')
@@ -73,7 +71,6 @@ export const useExportStore = create<ExportStore>((set, get) => {
         console.log(`Export successful: ${result.size} bytes`)
 
         set({
-          isExporting: false,
           lastExport: result,
         })
 
@@ -83,8 +80,6 @@ export const useExportStore = create<ExportStore>((set, get) => {
       } catch (error) {
         // Fail unified progress
         useProjectStore.getState().failProcessing(error instanceof Error ? error.message : 'Export failed')
-
-        set({ isExporting: false })
       }
     },
 
@@ -98,7 +93,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
         framerate: 10
       }
 
-      set({ isExporting: true, lastExport: null, lastExportSettings: gifSettings })
+      set({ lastExport: null, lastExportSettings: gifSettings })
 
       // Start unified progress
       useProjectStore.getState().startProcessing('Exporting GIF...')
@@ -122,7 +117,6 @@ export const useExportStore = create<ExportStore>((set, get) => {
         }
 
         set({
-          isExporting: false,
           lastExport: result,
         })
 
@@ -132,8 +126,6 @@ export const useExportStore = create<ExportStore>((set, get) => {
       } catch (error) {
         // Fail unified progress
         useProjectStore.getState().failProcessing(error instanceof Error ? error.message : 'GIF export failed')
-
-        set({ isExporting: false })
       }
     },
 
@@ -146,7 +138,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
         console.error('Failed to cancel export:', e)
       }
       useProjectStore.getState().resetProgress()
-      set({ isExporting: false, lastExport: null })
+      set({ lastExport: null })
     },
 
     saveLastExport: async (defaultFilename) => {
@@ -190,7 +182,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
     reset: () => {
       // Reset state - this will release the lastExport blob reference
       useProjectStore.getState().resetProgress()
-      set({ isExporting: false, lastExport: null, lastExportSettings: null })
+      set({ lastExport: null, lastExportSettings: null })
     }
   }
 })

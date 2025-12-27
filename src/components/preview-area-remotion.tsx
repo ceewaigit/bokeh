@@ -19,6 +19,7 @@ import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/remotion/compositions/TimelineComposition';
 import { useProjectStore } from '@/stores/project-store';
+import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults';
 import { usePreviewSettingsStore } from '@/stores/preview-settings-store';
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
@@ -34,6 +35,7 @@ import { calculateCursorState } from '@/lib/effects/utils/cursor-calculator';
 import { PlayheadService, type PlayheadState } from '@/lib/timeline/playhead-service';
 import { normalizeClickEvents, normalizeMouseEvents } from '@/remotion/compositions/utils/events/event-normalizer';
 import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, getCursorImagePath } from '@/lib/effects/cursor-types';
+import { assertDefined } from '@/lib/errors';
 
 import { AmbientGlowPlayer } from './preview/ambient-glow-player';
 import { useWorkspaceStore } from '@/stores/workspace-store';
@@ -42,7 +44,6 @@ import { EffectType } from '@/types/project';
 import { EffectStore } from '@/lib/core/effects';
 import { WebcamOverlay } from './preview/webcam-overlay';
 
-type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
 type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | null;
 type CursorOverlay = {
   left: number;
@@ -67,7 +68,6 @@ interface PreviewAreaRemotionProps {
   zoomSettings?: ZoomSettings;
 }
 
-import { useExportStore } from '@/stores/export-store';
 
 export function PreviewAreaRemotion({
   isEditingCrop,
@@ -83,8 +83,7 @@ export function PreviewAreaRemotion({
   const storeIsPlaying = useProjectStore((s) => s.isPlaying);
   const storePause = useProjectStore((s) => s.pause);
   const storeSeekFromPlayer = useProjectStore((s) => s.seekFromPlayer);  // For syncing store FROM player
-  const timelineMutationCounter = useProjectStore((s) => s.timelineMutationCounter);
-  const isExporting = useExportStore((s) => s.isExporting);
+  const isExporting = useProjectStore((s) => s.progress.isProcessing);
 
   // PERFORMANCE: Track document visibility - pause when window not focused
   const isDocumentVisible = useRef(true);
@@ -146,30 +145,19 @@ export function PreviewAreaRemotion({
 
   // No longer tracking currentTime via prop to avoid re-renders.
   // Access it directly from store when needed.
-  const timelineMetadataRef = useRef<TimelineMetadata | null>(null);
 
-  const safePlay = useCallback((player: PlayerRef | null, label: string) => {
-    if (!player) return;
-
-    try {
-      const result: unknown = (player as PlayerRef & { play: () => unknown }).play();
-      if (result && typeof (result as Promise<void>).catch === 'function') {
-        (result as Promise<void>).catch((err) => {
-          if (err?.name === 'AbortError') return;
-          console.warn(`[PreviewAreaRemotion] Failed to play ${label}:`, err);
-        });
-      }
-    } catch (err) {
-      console.warn(`[PreviewAreaRemotion] Failed to play ${label}:`, err);
-    }
+  const safePlay = useCallback((player: PlayerRef | null) => {
+    const resolvedPlayer = assertDefined(player, '[PreviewAreaRemotion] Player ref missing')
+    return (resolvedPlayer as PlayerRef & { play: () => unknown }).play()
   }, []);
 
   const project = useProjectStore((s) => s.currentProject);
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer);
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer);
-  const volume = useProjectStore((s) => s.settings.audio.volume);
-  const muted = useProjectStore((s) => s.settings.audio.muted);
-  const cameraSettings = useProjectStore((s) => s.settings.camera);
+  const projectSettings = useProjectStore((s) => s.currentProject?.settings);
+  const volume = projectSettings?.audio.volume ?? DEFAULT_PROJECT_SETTINGS.audio.volume;
+  const muted = projectSettings?.audio.muted ?? DEFAULT_PROJECT_SETTINGS.audio.muted;
+  const cameraSettings = projectSettings?.camera ?? DEFAULT_PROJECT_SETTINGS.camera;
   const isHighQualityPlaybackEnabled = usePreviewSettingsStore((s) => s.highQuality);
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow);
   const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity);
@@ -178,7 +166,10 @@ export function PreviewAreaRemotion({
   const toggleProperties = useWorkspaceStore((s) => s.toggleProperties);
 
   // Calculate timeline metadata (total duration, fps, dimensions)
-  const timelineMetadata = useTimelineMetadata(project);
+  const timelineMetadata = assertDefined(
+    useTimelineMetadata(project),
+    'PreviewAreaRemotion requires timeline metadata before rendering.'
+  );
 
   const projectEffects = useMemo(() => {
     if (!project) return [];
@@ -264,7 +255,7 @@ export function PreviewAreaRemotion({
   }, []);
 
   const resolveCursorOverlay = useCallback((rect: DOMRect): CursorOverlay | null => {
-    if (!project || !timelineMetadata || !canSelectCursor) return null;
+    if (!project || !canSelectCursor) return null;
     const timeMs = useProjectStore.getState().currentTime;
     const nextPlayheadState = PlayheadService.updatePlayheadState(project, timeMs, playheadStateRef.current);
     playheadStateRef.current = nextPlayheadState;
@@ -442,19 +433,20 @@ export function PreviewAreaRemotion({
   }, [setHoverState]);
 
   // Build partial player configuration props
-  const playerConfig = usePlayerConfiguration(
-    project,
-    timelineMetadata?.width || 1920,
-    timelineMetadata?.height || 1080,
-    timelineMetadata?.fps || 30,
-    cameraSettings
+  const playerConfig = assertDefined(
+    usePlayerConfiguration(
+      project,
+      timelineMetadata.width,
+      timelineMetadata.height,
+      timelineMetadata.fps,
+      cameraSettings
+    ),
+    'PreviewAreaRemotion requires a valid player configuration.'
   );
 
   // Calculate composition size for preview
   // On Retina displays (DPR >= 2), use higher resolution for crisp keystroke rendering
   const compositionSize = useMemo(() => {
-    if (!timelineMetadata) return { width: 1280, height: 720 };
-
     const videoWidth = timelineMetadata.width;
     const videoHeight = timelineMetadata.height;
     const videoAspectRatio = videoWidth / videoHeight;
@@ -488,10 +480,6 @@ export function PreviewAreaRemotion({
     const maxWidth = Math.min(viewportWidth, capWidth);
     const maxHeight = Math.min(viewportHeight, capHeight);
 
-    if (!timelineMetadata) {
-      return { width: maxWidth, height: maxHeight };
-    }
-
     const aspectRatio = timelineMetadata.width / timelineMetadata.height;
     const widthFromHeight = maxHeight * aspectRatio;
     const heightFromWidth = maxWidth / aspectRatio;
@@ -510,15 +498,11 @@ export function PreviewAreaRemotion({
     const loadVideos = async () => {
       for (const recording of project.recordings) {
         if (recording.filePath) {
-          try {
-            await globalBlobManager.loadVideos({
-              id: recording.id,
-              filePath: recording.filePath,
-              folderPath: recording.folderPath
-            });
-          } catch (error) {
-            console.warn(`Failed to load video for recording ${recording.id}:`, error);
-          }
+          await globalBlobManager.loadVideos({
+            id: recording.id,
+            filePath: recording.filePath,
+            folderPath: recording.folderPath
+          });
         }
       }
     };
@@ -527,31 +511,21 @@ export function PreviewAreaRemotion({
   }, [project?.recordings]);
 
   const clampFrame = (frame: number) => {
-    if (!timelineMetadata) return Math.max(0, frame);
     const maxFrame = timelineMetadata.durationInFrames - 1;
     return Math.max(0, Math.min(frame, maxFrame));
   };
 
   // SSOT: Use centralized frame calculation for consistent rounding
   const timeToFrame = (timeMs: number) => {
-    if (!timelineMetadata) return 0;
     return msToFrame(timeMs, timelineMetadata.fps);
   };
 
-  useEffect(() => {
-    timelineMetadataRef.current = timelineMetadata;
-  }, [timelineMetadata]);
 
   // Throttled seek function to reduce video decode pressure
   const throttledSeek = useCallback((targetFrame: number) => {
     if (!playerRef.current) return;
 
-    let currentFrame = 0;
-    try {
-      currentFrame = playerRef.current.getCurrentFrame();
-    } catch {
-      // Best-effort; if we can't read current frame, proceed with seek.
-    }
+    const currentFrame = playerRef.current.getCurrentFrame();
     if (Math.abs(currentFrame - targetFrame) <= 1) {
       return;
     }
@@ -570,23 +544,14 @@ export function PreviewAreaRemotion({
 
       scrubTimeoutRef.current = setTimeout(() => {
         if (pendingSeekRef.current !== null && playerRef.current) {
-          let pendingCurrentFrame = 0;
-          try {
-            pendingCurrentFrame = playerRef.current.getCurrentFrame();
-          } catch {
-            // Best-effort
-          }
+          const pendingCurrentFrame = playerRef.current.getCurrentFrame();
           if (Math.abs(pendingCurrentFrame - pendingSeekRef.current) <= 1) {
             pendingSeekRef.current = null;
             scrubTimeoutRef.current = null;
             return;
           }
-          try {
-            playerRef.current.seekTo(pendingSeekRef.current);
-            lastSeekTimeRef.current = Date.now();
-          } catch (e) {
-            console.warn('Failed to throttled seek:', e);
-          }
+          playerRef.current.seekTo(pendingSeekRef.current);
+          lastSeekTimeRef.current = Date.now();
           pendingSeekRef.current = null;
         }
         scrubTimeoutRef.current = null;
@@ -596,12 +561,8 @@ export function PreviewAreaRemotion({
     }
 
     // Seek immediately
-    try {
-      playerRef.current.seekTo(targetFrame);
-      lastSeekTimeRef.current = now;
-    } catch (e) {
-      console.warn('Failed to seek:', e);
-    }
+    playerRef.current.seekTo(targetFrame);
+    lastSeekTimeRef.current = now;
   }, []);
 
   useEffect(() => {
@@ -615,7 +576,7 @@ export function PreviewAreaRemotion({
 
   // Hover preview sync: seek to hover position without mutating currentTime.
   useEffect(() => {
-    if (!playerRef.current || !timelineMetadata) return;
+    if (!playerRef.current) return;
 
     let prevHoverTime = useProjectStore.getState().hoverTime;
     const unsubscribe = useProjectStore.subscribe((state) => {
@@ -637,7 +598,7 @@ export function PreviewAreaRemotion({
   // Remotion Player fires this on EVERY frame change (playback and seeking)
   useEffect(() => {
     const player = playerRef.current;
-    if (!player || !timelineMetadata) return;
+    if (!player) return;
 
     const handleFrameUpdate = (e: { detail: { frame: number } }) => {
       // Only sync during playback - scrub sync is handled separately
@@ -662,28 +623,20 @@ export function PreviewAreaRemotion({
 
   // Scrub behavior: pause player while dragging, resume from final position.
   useEffect(() => {
-    if (!playerRef.current || !timelineMetadata) return;
+    if (!playerRef.current) return;
     const player = playerRef.current;
 
     if (isScrubbing) {
       wasPlayingBeforeScrubRef.current = isPlaying;
-      try {
-        player.pause();
-      } catch {
-        // Best-effort pause
-      }
+      player.pause();
       return;
     }
 
     if (wasPlayingBeforeScrubRef.current && isPlaying) {
       const time = useProjectStore.getState().currentTime;
       const targetFrame = clampFrame(timeToFrame(time));
-      try {
-        player.seekTo(targetFrame);
-        safePlay(player, 'main');
-      } catch (e) {
-        console.warn('Failed to resume after scrub:', e);
-      }
+      player.seekTo(targetFrame);
+      safePlay(player);
     }
 
     wasPlayingBeforeScrubRef.current = false;
@@ -691,7 +644,7 @@ export function PreviewAreaRemotion({
 
   // Allow intentional seeks during playback (e.g. ruler click) without pausing.
   useEffect(() => {
-    if (!playerRef.current || !timelineMetadata || !isPlaying || isExporting || isScrubbing) return;
+    if (!playerRef.current || !isPlaying || isExporting || isScrubbing) return;
 
     let prevTime = useProjectStore.getState().currentTime;
 
@@ -706,22 +659,12 @@ export function PreviewAreaRemotion({
       if (!player) return;
 
       const targetFrame = clampFrame(timeToFrame(nextTime));
-      let playerFrame = 0;
-
-      try {
-        playerFrame = player.getCurrentFrame();
-      } catch {
-        return;
-      }
+      const playerFrame = player.getCurrentFrame();
 
       if (Math.abs(playerFrame - targetFrame) <= 2) return;
 
-      try {
-        player.seekTo(targetFrame);
-        safePlay(player, 'main');
-      } catch (e) {
-        console.warn('Failed to seek during playback:', e);
-      }
+      player.seekTo(targetFrame);
+      safePlay(player);
     });
 
     return () => unsubscribe();
@@ -729,15 +672,11 @@ export function PreviewAreaRemotion({
 
   // Main player sync effect with throttled scrubbing
   useEffect(() => {
-    if (!playerRef.current || !timelineMetadata) return;
+    if (!playerRef.current) return;
 
     // EXPORT OPTIMIZATION: Pause preview during export
     if (isExporting) {
-      try {
-        if (playerRef.current) playerRef.current.pause();
-      } catch (e) {
-        // Best-effort pause
-      }
+      if (playerRef.current) playerRef.current.pause();
       return; // Skip all other sync logic
     }
 
@@ -750,32 +689,24 @@ export function PreviewAreaRemotion({
       // Seeking every tick during playback forces the decoder to constantly re-sync and will tank FPS.
       // Only seek once when entering play, then periodically sync store FROM player.
       if (!lastIsPlayingRef.current) {
-        try {
-          const playerFrame = playerRef.current.getCurrentFrame();
-          const currentStoreTime = useProjectStore.getState().currentTime;
-          const storeFrame = clampFrame(timeToFrame(currentStoreTime));
-          if (Math.abs(playerFrame - storeFrame) > 1) {
-            playerRef.current.seekTo(storeFrame);
-          }
-        } catch (e) {
-          console.warn('Failed to sync before play:', e);
+        const playerFrame = playerRef.current.getCurrentFrame();
+        const currentStoreTime = useProjectStore.getState().currentTime;
+        const storeFrame = clampFrame(timeToFrame(currentStoreTime));
+        if (Math.abs(playerFrame - storeFrame) > 1) {
+          playerRef.current.seekTo(storeFrame);
         }
       }
 
-      try {
-        if (muted) {
-          playerRef.current.mute();
-        } else {
-          playerRef.current.unmute();
-        }
-        playerRef.current.setVolume(Math.min(volume / 100, 1));
-      } catch {
-        // Best-effort
+      if (muted) {
+        playerRef.current.mute();
+      } else {
+        playerRef.current.unmute();
       }
+      playerRef.current.setVolume(Math.min(volume / 100, 1));
 
       if (!lastIsPlayingRef.current) {
         // Start playback
-        safePlay(playerRef.current, 'main');
+        safePlay(playerRef.current);
       }
 
       lastIsPlayingRef.current = true;
@@ -791,11 +722,7 @@ export function PreviewAreaRemotion({
     lastIsPlayingRef.current = false;
 
     // NOT playing - use throttled seeking to reduce decode pressure
-    try {
-      playerRef.current.pause();
-    } catch (e) {
-      console.warn('Failed to pause:', e);
-    }
+    playerRef.current.pause();
 
     // PERFORMANCE: Subscribe only to currentTime changes, not all store mutations
     // Track previous time to filter out unrelated state changes
@@ -833,16 +760,12 @@ export function PreviewAreaRemotion({
   useEffect(() => {
     if (!playerRef.current) return;
 
-    try {
-      if (muted) {
-        playerRef.current.mute();
-      } else {
-        playerRef.current.unmute();
-      }
-      playerRef.current.setVolume(Math.min(volume / 100, 1));
-    } catch (e) {
-      console.warn('Failed to update volume:', e);
+    if (muted) {
+      playerRef.current.mute();
+    } else {
+      playerRef.current.unmute();
     }
+    playerRef.current.setVolume(Math.min(volume / 100, 1));
   }, [volume, muted]);
 
   useEffect(() => {
@@ -869,40 +792,27 @@ export function PreviewAreaRemotion({
   // Calculate initial frame
   // Only needs to run once or when metadata changes
   const initialFrame = useMemo(() => {
-    if (!timelineMetadata) return 0;
     const storeTime = useProjectStore.getState().currentTime;
     return clampFrame(timeToFrame(storeTime));
   }, [timelineMetadata]); // Removed currentTime
 
   // Player key for re-render on clip changes
   const playerKey = useMemo(() => {
-    const clips = project?.timeline.tracks.flatMap(t => t.clips) || [];
-    const clipsKey = clips.map(c => `${c.id}:${c.startTime}:${c.duration}:${c.sourceIn}:${c.sourceOut}`).join('|');
-    return `${clipsKey}-${timelineMutationCounter ?? 0}`;
-  }, [project?.timeline.tracks, timelineMutationCounter]);
+    if (!project || !timelineMetadata) return "player-empty";
+    const recordingIds = project.recordings
+      .map((recording) => recording.id)
+      .sort()
+      .join(",");
+    return `player-${timelineMetadata.durationInFrames}-${timelineMetadata.fps}-${timelineMetadata.width}-${timelineMetadata.height}-${recordingIds}`;
+  }, [project?.recordings, timelineMetadata]);
 
   // Reset playback state ref when the Remotion Player remounts
   useEffect(() => {
     lastIsPlayingRef.current = false;
   }, [playerKey]);
 
-  // Show loading state if no data
-  if (!timelineMetadata || !playerConfig) {
-    return (
-      <div className="relative w-full h-full overflow-hidden bg-transparent">
-        <div className="absolute inset-0 flex items-center justify-center p-8">
-          <div className="text-gray-500 text-center">
-            <p className="text-lg font-medium mb-2">No timeline data</p>
-            <p className="text-sm">Create or select a project to preview</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Memoize inputProps using the new structure for TimelineComposition
   const mainPlayerInputProps = useMemo(() => {
-    if (!playerConfig) return null;
     return buildTimelineCompositionInput(playerConfig, {
       playback: {
         // NOTE: isPlaying/isScrubbing are intentionally false here to prevent Player re-renders.

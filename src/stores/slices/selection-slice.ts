@@ -18,12 +18,10 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
   // Crop Editing State
   isEditingCrop: false,
   editingCropId: null,
-  editingCropData: null,
 
   // Overlay Editing State
   isEditingOverlay: false,
   editingOverlayId: null,
-  editingOverlayPosition: null,
 
   // Actions
   selectClip: (clipId, multi = false) => {
@@ -103,19 +101,10 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
   },
 
   // Crop Editing Actions
-  startEditingCrop: (effectId, data) => {
+  startEditingCrop: (effectId) => {
     set((state) => {
       state.isEditingCrop = true
       state.editingCropId = effectId
-      state.editingCropData = data
-    })
-  },
-
-  updateEditingCrop: (updates) => {
-    set((state) => {
-      if (state.editingCropData) {
-        state.editingCropData = { ...state.editingCropData, ...updates }
-      }
     })
   },
 
@@ -123,24 +112,14 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
     set((state) => {
       state.isEditingCrop = false
       state.editingCropId = null
-      state.editingCropData = null
     })
   },
 
   // Overlay Editing Actions
-  startEditingOverlay: (effectId, position) => {
+  startEditingOverlay: (effectId) => {
     set((state) => {
       state.isEditingOverlay = true
       state.editingOverlayId = effectId
-      state.editingOverlayPosition = position
-    })
-  },
-
-  updateEditingOverlay: (updates) => {
-    set((state) => {
-      if (state.editingOverlayPosition) {
-        state.editingOverlayPosition = { ...state.editingOverlayPosition, ...updates }
-      }
     })
   },
 
@@ -148,7 +127,6 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
     set((state) => {
       state.isEditingOverlay = false
       state.editingOverlayId = null
-      state.editingOverlayPosition = null
     })
   }
 })
