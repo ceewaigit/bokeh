@@ -10,13 +10,16 @@
  */
 
 import React, { useMemo } from 'react';
-import { Video, Sequence, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
+import { Video, Sequence, useCurrentFrame, interpolate, spring, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { Effect, WebcamEffectData, Clip, Recording } from '@/types/project';
 import { getWebcamEffect } from '@/lib/effects/effect-filters';
 import { DEFAULT_WEBCAM_DATA } from '@/lib/constants/default-effects';
 import { getWebcamLayout } from '@/lib/effects/utils/webcam-layout';
 import { clampCropData, DEFAULT_CROP_DATA } from '../utils/transforms/crop-transform';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
+import { useVideoContainerCleanup } from '@/remotion/hooks/media/useVTDecoderCleanup';
+import { SafeVideo } from '@/remotion/components/video-helpers';
+import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 
 interface WebcamLayerProps {
   effects: Effect[];
@@ -53,6 +56,14 @@ export const WebcamLayer = React.memo(({
 }: WebcamLayerProps) => {
   const frame = useCurrentFrame();
   const { fps, width: compositionWidth, height: compositionHeight } = useVideoConfig();
+  const { playback } = usePlaybackSettings();
+  const { isRendering } = getRemotionEnvironment();
+  // Keep component type stable during preview to avoid VTDecoder churn/blink.
+  const useSafeVideo = isRendering;
+  const WebcamVideo = useSafeVideo ? SafeVideo : Video;
+  const preload = 'auto';
+  const effectiveVolume = Math.max(0, Math.min(1, playback.previewVolume ?? 1));
+  const shouldMuteAudio = playback.previewMuted || effectiveVolume <= 0 || !webcamRecording?.hasAudio;
 
   // Get zoom scale from VideoPositionContext for inverse scaling
   const { zoomTransform } = useVideoPosition();
@@ -83,6 +94,8 @@ export const WebcamLayer = React.memo(({
     effectStartFrame,
     effectEndFrame
   );
+
+  const webcamContainerRef = useVideoContainerCleanup(webcamVideoUrl);
 
   // Don't render if no webcam video, clip, or effect
   const hasWebcam = Boolean(webcamVideoUrl && webcamClip && effectToUse?.enabled !== false);
@@ -222,15 +235,17 @@ export const WebcamLayer = React.memo(({
         }}
         data-webcam-overlay="true"
       >
-        <div style={sourceStyle}>
+        <div style={sourceStyle} ref={webcamContainerRef}>
           {/* Wrap Video in Sequence so it has its own frame context starting from 0 */}
           <Sequence from={effectStartFrame} durationInFrames={durationFrames} layout="none">
-            <Video
+            <WebcamVideo
               src={webcamVideoUrl}
               style={webcamStyle}
               startFrom={sourceInFrame}
-              volume={1}
-              muted={false}
+              volume={effectiveVolume}
+              muted={shouldMuteAudio}
+              preload={preload}
+              playsInline={true}
             />
           </Sequence>
         </div>

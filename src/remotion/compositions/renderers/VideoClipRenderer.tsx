@@ -9,7 +9,7 @@
  * layout data via props from SharedVideoController.
  */
 import React, { useCallback } from 'react';
-import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
+import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment, Video } from 'remotion';
 import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
@@ -68,8 +68,10 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Get settings from context
   const { playback, renderSettings, resources } = usePlaybackSettings();
-  const { isPlaying, isHighQualityPlaybackEnabled } = playback;
+  const { isPlaying, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
   const { isGlowMode, preferOffthreadVideo, enhanceAudio } = renderSettings;
+  // KISS: Just use the VideoComponent directly - Remotion handles playback natively
+  const preload = 'auto';
 
   // Video URL resolution
   const videoUrl = useVideoUrl({
@@ -111,6 +113,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   devAssert(fps > 0, `fps must be positive, got ${fps}`)
 
   const startFromFrames = msToFrame(groupStartSourceIn ?? 0, fps);
+  const endAtFrames = Math.max(startFromFrames, startFromFrames + Math.max(1, groupDuration) - 1);
 
   // Opacity adjustment for generated active clip
   const isActiveClipGenerated = activeLayoutItem?.clip.recordingId?.startsWith('generated-');
@@ -119,6 +122,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Opacity: hide if this clip should be hidden for generated overlay
   const effectiveOpacity = shouldHideForGeneratedActive ? 0 : renderState.effectiveOpacity;
+  const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1));
+  const shouldMuteAudio = previewMuted || effectiveVolume <= 0 || !recording?.hasAudio || renderState.isPreloading;
 
   return (
     <div ref={containerRef} style={{ display: 'contents' }}>
@@ -136,7 +141,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           left: 0,
           opacity: effectiveOpacity,
         }}>
-          <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering}>
+          <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
             <VideoComponent
               key={`${recording.id}-${groupStartFrame}`}
               src={videoUrl || ''}
@@ -147,10 +152,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                 borderRadius: `${cornerRadius}px`,
                 pointerEvents: 'none',
               }}
-              volume={1}
-              muted={false}
+              volume={effectiveVolume}
+              muted={shouldMuteAudio}
+              preload={preload}
+              playsInline={true}
               pauseWhenBuffering={false}
               startFrom={startFromFrames}
+              endAt={endAtFrames}
               playbackRate={playbackRate}
               onLoadedData={handleLoaded}
               onCanPlay={handleLoaded}

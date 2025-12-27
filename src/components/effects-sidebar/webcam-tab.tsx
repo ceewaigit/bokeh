@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Effect, WebcamEffectData, WebcamShape, WebcamAnchor, WebcamEntryAnimation, WebcamExitAnimation, WebcamPipAnimation, CropEffectData } from '@/types/project'
-import { EffectType, TrackType } from '@/types/project'
+import { EffectType } from '@/types/project'
 import { DEFAULT_WEBCAM_DATA, WEBCAM_POSITION_PRESETS, WEBCAM_SHAPE_PRESETS } from '@/lib/constants/default-effects'
 import { DEFAULT_CROP_DATA, clampCropData } from '@/remotion/compositions/utils/transforms/crop-transform'
 import { useProjectStore } from '@/stores/project-store'
 import { CropOverlay } from '@/components/crop-overlay/CropOverlay'
 import { InfoTooltip } from './info-tooltip'
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 
 interface WebcamTabProps {
   webcamEffect: Effect | undefined
@@ -117,18 +118,35 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
     handleUpdate({ position: preset })
   }
 
+  const recordingsMap = useMemo(() => {
+    if (!project) return new Map()
+    return TimelineDataService.getRecordingsMap(project)
+  }, [project])
+
+  const webcamClips = useMemo(() => {
+    if (!project) return []
+    return TimelineDataService.getWebcamClips(project)
+  }, [project])
+
   const webcamClip = useMemo(() => {
-    if (!project?.timeline?.tracks) return null
-    const track = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
-    return track?.clips?.[0] ?? null
-  }, [project?.timeline?.tracks])
+    if (!webcamEffect || webcamClips.length === 0) return null
+    const duration = Math.max(0, webcamEffect.endTime - webcamEffect.startTime)
+    const targetTime = webcamEffect.startTime + duration / 2
+    const clipAtTime = webcamClips.find(
+      (clip) => targetTime >= clip.startTime && targetTime < clip.startTime + clip.duration
+    )
+    if (clipAtTime && recordingsMap.has(clipAtTime.recordingId)) return clipAtTime
+    return webcamClips.find(clip => recordingsMap.has(clip.recordingId)) ?? null
+  }, [webcamClips, webcamEffect, recordingsMap])
 
   const webcamRecording = useMemo(() => {
-    if (!project?.recordings || !webcamClip) return null
-    return project.recordings.find(r => r.id === webcamClip.recordingId) ?? null
-  }, [project?.recordings, webcamClip])
+    if (!webcamClip) return null
+    return recordingsMap.get(webcamClip.recordingId) ?? null
+  }, [recordingsMap, webcamClip])
 
-  const hasWebcamFootage = Boolean(webcamClip && webcamRecording)
+  const hasWebcamFootage = useMemo(() => {
+    return webcamClips.some(clip => recordingsMap.has(clip.recordingId))
+  }, [webcamClips, recordingsMap])
 
   const webcamPreviewSrc = useMemo(() => {
     if (!webcamRecording?.filePath) return null
@@ -203,6 +221,16 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
         <Video className="mx-auto mb-3 h-8 w-8 opacity-50" />
         <p className="text-[12px] font-medium">No webcam footage in this project.</p>
         <p className="mt-1 text-[12px]">Import or record with webcam enabled to use these settings.</p>
+      </div>
+    )
+  }
+
+  if (!webcamEffect) {
+    return (
+      <div className="rounded-lg border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground">
+        <Video className="mx-auto mb-3 h-8 w-8 opacity-50" />
+        <p className="text-[12px] font-medium">Select a webcam block to edit settings.</p>
+        <p className="mt-1 text-[12px]">Choose a webcam block on the timeline to customize it.</p>
       </div>
     )
   }

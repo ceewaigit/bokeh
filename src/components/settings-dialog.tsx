@@ -54,6 +54,7 @@ export function SettingsDialog() {
   const isHighQualityPlaybackEnabled = usePreviewSettingsStore((s) => s.highQuality)
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow)
   const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity)
+  const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
   const setPreviewSettings = usePreviewSettingsStore((s) => s.setPreviewSettings)
 
   const recordingSettings = useProjectStore((s) => s.settings.recording)
@@ -151,6 +152,11 @@ export function SettingsDialog() {
                     label="High-Quality Playback"
                     checked={isHighQualityPlaybackEnabled}
                     onChange={(c) => setPreviewSettings({ highQuality: c })}
+                  />
+                  <SettingRow
+                    label="Timeline Thumbnails"
+                    checked={showTimelineThumbnails}
+                    onChange={(c) => setPreviewSettings({ showTimelineThumbnails: c })}
                   />
                   <SettingRow
                     label="Ambient Glow"

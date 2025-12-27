@@ -44,8 +44,12 @@ const CROSSFADE_TIME = 0.05; // 50ms
 
 class AudioEnhancementManager {
   private static instance: AudioEnhancementManager;
+  private static readonly MAX_ACTIVE_GRAPHS = 16;
+  private static readonly MAX_STREAMS = 40; // Leave headroom below browser's 50 limit
   private graphs = new WeakMap<HTMLVideoElement, AudioGraph>();
   private sources = new WeakMap<HTMLVideoElement, MediaElementAudioSourceNode>();
+  private activeVideos = new Set<HTMLVideoElement>();
+  private activeStreamCount = 0; // Track output streams to prevent "50 stream limit" errors
   private currentSettings: AudioEnhancementSettings = ENHANCEMENT_PRESETS.balanced;
 
   static getInstance(): AudioEnhancementManager {
@@ -64,6 +68,14 @@ class AudioEnhancementManager {
     }
 
     const ctx = getSharedAudioContext();
+    if (!ctx) {
+      return false;
+    }
+    if (this.activeVideos.size >= AudioEnhancementManager.MAX_ACTIVE_GRAPHS ||
+        this.activeStreamCount >= AudioEnhancementManager.MAX_STREAMS) {
+      console.warn('[AudioEnhancementManager] Stream budget exhausted, skipping enhance for new video.');
+      return false;
+    }
 
     try {
       let source = this.sources.get(video);
@@ -85,11 +97,13 @@ class AudioEnhancementManager {
       source.connect(dryGain);
       wetGain.connect(ctx.destination);
       dryGain.connect(ctx.destination);
+      this.activeStreamCount += 2; // wet + dry each connect to destination
 
       wetGain.gain.value = enhanced ? 1 : 0;
       dryGain.gain.value = enhanced ? 0 : 1;
 
       this.graphs.set(video, { compressor, wetGain, dryGain, isEnhanced: enhanced });
+      this.activeVideos.add(video);
       return true;
     } catch (e) {
       console.warn('[AudioEnhancementManager] Failed to create graph:', e);
@@ -109,6 +123,7 @@ class AudioEnhancementManager {
     if (!graph || graph.isEnhanced === enhanced) return;
 
     const ctx = getSharedAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
 
     graph.wetGain.gain.cancelScheduledValues(now);
@@ -134,15 +149,18 @@ class AudioEnhancementManager {
       graph.wetGain.disconnect();
       graph.dryGain.disconnect();
 
-      // Disconnect the source node to detach it from the graph nodes
-      // We keep the source node in 'this.sources' because we can't recreate it
-      // but we must disconnect it so it doesn't feed into disconnected nodes (optimization)
+      // Disconnect and delete the source node
+      // Note: MediaElementAudioSourceNode can only be created once per video element,
+      // but we delete it from the map so a fresh source is created if re-registered
       const source = this.sources.get(video);
       if (source) {
         source.disconnect();
+        this.sources.delete(video);
       }
 
       this.graphs.delete(video);
+      this.activeVideos.delete(video);
+      this.activeStreamCount = Math.max(0, this.activeStreamCount - 2);
     } catch (e) {
       console.warn('[AudioEnhancementManager] Failed to cleanup graph:', e);
     }

@@ -82,6 +82,7 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
   const getColor = () => {
     const key = config.colorKey
     if (key === 'zoomBlock') return colors.zoomBlock
+    if (key === 'screenBlock') return colors.screenBlock
     if (key === 'warning') return colors.warning
     if (key === 'primary') return colors.primary
     if (key === 'muted') return colors.muted

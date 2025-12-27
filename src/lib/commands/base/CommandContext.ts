@@ -1,4 +1,5 @@
 import type { Project, Clip, Track, Recording } from '@/types/project'
+import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import type { SelectedEffectLayer } from '@/types/effects'
 import type { ProjectStore, ClipboardEffect } from '@/types/stores'
 
@@ -92,22 +93,7 @@ export function findNextValidPosition(
   desiredStart: number,
   duration: number
 ): number {
-  const GAP_BETWEEN_CLIPS = 0 // enforce contiguous layout by default
-  const otherClips = track.clips
-    .filter(c => c.id !== clipId)
-    .sort((a, b) => a.startTime - b.startTime)
-
-  let proposedStart = desiredStart
-  for (const other of otherClips) {
-    const otherEnd = other.startTime + other.duration
-    // If overlap, move proposed start to after the other clip with no gap
-    if (proposedStart < otherEnd && (proposedStart + duration) > other.startTime) {
-      proposedStart = otherEnd + GAP_BETWEEN_CLIPS
-    }
-  }
-
-  // Ensure start is not negative
-  return Math.max(0, proposedStart)
+  return ClipPositioning.findNextValidPosition(desiredStart, duration, track.clips, clipId)
 }
 
 // Re-export calculateTimelineDuration from timeline-operations for backward compatibility

@@ -47,6 +47,22 @@ export function cleanupVideoDecodersInContainer(
   });
 }
 
+function cleanupTrackedVideos(
+  videos: HTMLVideoElement[] | null,
+  urlToCleanup?: string
+): void {
+  if (!videos || videos.length === 0) return;
+  videos.forEach((video) => {
+    if (urlToCleanup) {
+      if (video.src === urlToCleanup || video.currentSrc === urlToCleanup) {
+        cleanupVideoDecoder(video);
+      }
+    } else {
+      cleanupVideoDecoder(video);
+    }
+  });
+}
+
 // ============================================================================
 // HOOKS (SSOT for cleanup logic)
 // ============================================================================
@@ -58,15 +74,26 @@ export function cleanupVideoDecodersInContainer(
 export function useVideoContainerCleanup(videoUrl: string | undefined) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevVideoUrlRef = useRef<string | undefined>(undefined);
+  const trackedVideosRef = useRef<HTMLVideoElement[]>([]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    trackedVideosRef.current = Array.from(container.querySelectorAll('video'));
+  });
 
   useEffect(() => {
     const container = containerRef.current;
     const prevUrl = prevVideoUrlRef.current;
     if (prevUrl !== undefined && prevUrl !== videoUrl) {
       cleanupVideoDecodersInContainer(container, prevUrl);
+      cleanupTrackedVideos(trackedVideosRef.current, prevUrl);
     }
     prevVideoUrlRef.current = videoUrl;
-    return () => cleanupVideoDecodersInContainer(container);
+    return () => {
+      cleanupVideoDecodersInContainer(container);
+      cleanupTrackedVideos(trackedVideosRef.current);
+    };
   }, [videoUrl]);
 
   return containerRef;

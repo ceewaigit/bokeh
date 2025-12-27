@@ -112,6 +112,7 @@ export function PreviewAreaRemotion({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [storeIsPlaying, storePause]);
 
+
   // Derive effective isPlaying - pause if document hidden
   const isPlaying = storeIsPlaying && isDocumentVisible.current;
   const playerRef = useRef<PlayerRef>(null);
@@ -141,6 +142,7 @@ export function PreviewAreaRemotion({
   const wasPlayingBeforeScrubRef = useRef(false);
   const lastIsPlayingRef = useRef<boolean>(false);
   const playbackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // No longer tracking currentTime via prop to avoid re-renders.
   // Access it directly from store when needed.
@@ -544,6 +546,16 @@ export function PreviewAreaRemotion({
   const throttledSeek = useCallback((targetFrame: number) => {
     if (!playerRef.current) return;
 
+    let currentFrame = 0;
+    try {
+      currentFrame = playerRef.current.getCurrentFrame();
+    } catch {
+      // Best-effort; if we can't read current frame, proceed with seek.
+    }
+    if (Math.abs(currentFrame - targetFrame) <= 1) {
+      return;
+    }
+
     const now = Date.now();
     const timeSinceLastSeek = now - lastSeekTimeRef.current;
 
@@ -558,6 +570,17 @@ export function PreviewAreaRemotion({
 
       scrubTimeoutRef.current = setTimeout(() => {
         if (pendingSeekRef.current !== null && playerRef.current) {
+          let pendingCurrentFrame = 0;
+          try {
+            pendingCurrentFrame = playerRef.current.getCurrentFrame();
+          } catch {
+            // Best-effort
+          }
+          if (Math.abs(pendingCurrentFrame - pendingSeekRef.current) <= 1) {
+            pendingSeekRef.current = null;
+            scrubTimeoutRef.current = null;
+            return;
+          }
           try {
             playerRef.current.seekTo(pendingSeekRef.current);
             lastSeekTimeRef.current = Date.now();
@@ -728,12 +751,9 @@ export function PreviewAreaRemotion({
       // Only seek once when entering play, then periodically sync store FROM player.
       if (!lastIsPlayingRef.current) {
         try {
-          // SSOT: Get player's current frame and compare to store
           const playerFrame = playerRef.current.getCurrentFrame();
           const currentStoreTime = useProjectStore.getState().currentTime;
           const storeFrame = clampFrame(timeToFrame(currentStoreTime));
-
-          // Only seek if there's a significant difference
           if (Math.abs(playerFrame - storeFrame) > 1) {
             playerRef.current.seekTo(storeFrame);
           }
@@ -792,8 +812,7 @@ export function PreviewAreaRemotion({
       }
     });
 
-    // Initial seek to current time
-    throttledSeek(targetFrame);
+    // Initial seek to current time is intentionally skipped to avoid pause flicker.
 
     return () => {
       unsubscribe();
@@ -886,8 +905,11 @@ export function PreviewAreaRemotion({
     if (!playerConfig) return null;
     return buildTimelineCompositionInput(playerConfig, {
       playback: {
-        isPlaying,
-        isScrubbing,
+        // NOTE: isPlaying/isScrubbing are intentionally false here to prevent Player re-renders.
+        // SharedVideoController reads these from Zustand store directly for preview mode.
+        // These props are only used during render mode (export).
+        isPlaying: false,
+        isScrubbing: false,
         isHighQualityPlaybackEnabled,
         previewMuted: muted,
         previewVolume: Math.min(volume / 100, 1),
@@ -905,7 +927,7 @@ export function PreviewAreaRemotion({
       },
       zoomSettings,
     })
-  }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, zoomSettings, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
+  }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, zoomSettings, isHighQualityPlaybackEnabled, muted, volume]);
 
 
 

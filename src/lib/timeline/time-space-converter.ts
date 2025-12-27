@@ -137,8 +137,12 @@ export function sourceToClipRelative(sourceMs: number, clip: Clip): number {
  * @param clip - The clip to convert for
  * @returns Source recording time in milliseconds
  */
-export function clipRelativeToSource(clipRelativeMs: number, clip: Clip): number {
-  const sourceIn = clip.sourceIn || 0
+export function clipRelativeToSource(clipRelativeMs: number, clip: Clip, fps?: number): number {
+  const rawSourceIn = clip.sourceIn || 0
+  // When fps is provided, align sourceIn to frame boundaries to match Remotion startFrom.
+  const sourceIn = fps
+    ? (Math.round((rawSourceIn / 1000) * fps) / fps) * 1000
+    : rawSourceIn
   const baseRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
 
   // Handle time remapping if present

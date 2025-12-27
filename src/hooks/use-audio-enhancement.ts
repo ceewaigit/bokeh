@@ -27,19 +27,50 @@ export function useAudioEnhancement(
       return;
     }
 
-    // Register on first encounter, update on subsequent changes
-    if (!audioEnhancementManager.hasVideo(videoElement)) {
-      audioEnhancementManager.registerVideoElement(videoElement, enabled);
-      lastEnabled.current = enabled;
-    } else if (lastEnabled.current !== enabled) {
-      audioEnhancementManager.setVideoEnhanced(videoElement, enabled);
-      lastEnabled.current = enabled;
+    const ensureRegistered = () => {
+      if (!audioEnhancementManager.hasVideo(videoElement)) {
+        audioEnhancementManager.registerVideoElement(videoElement, true);
+      }
+      audioEnhancementManager.setVideoEnhanced(videoElement, true);
+      lastEnabled.current = true;
+    };
+
+    const ensureUnregistered = () => {
+      if (audioEnhancementManager.hasVideo(videoElement)) {
+        audioEnhancementManager.unregisterVideoElement(videoElement);
+      }
+      lastEnabled.current = false;
+    };
+
+    // Only attach WebAudio graph when enhancement is enabled and video is playing.
+    if (!enabled) {
+      ensureUnregistered();
+      return;
     }
 
-    // Cleanup: unregister when component unmounts or video element changes
+    const handlePlay = () => ensureRegistered();
+    const handlePause = () => ensureUnregistered();
+
+    if (!videoElement.paused && !videoElement.ended) {
+      ensureRegistered();
+    } else {
+      ensureUnregistered();
+    }
+
+    videoElement.addEventListener('play', handlePlay);
+    videoElement.addEventListener('playing', handlePlay);
+    videoElement.addEventListener('pause', handlePause);
+    videoElement.addEventListener('ended', handlePause);
+    videoElement.addEventListener('emptied', handlePause);
+
+    // Cleanup: unregister and remove listeners when component unmounts or video element changes
     return () => {
-      audioEnhancementManager.unregisterVideoElement(videoElement);
-      lastEnabled.current = null;
+      ensureUnregistered();
+      videoElement.removeEventListener('play', handlePlay);
+      videoElement.removeEventListener('playing', handlePlay);
+      videoElement.removeEventListener('pause', handlePause);
+      videoElement.removeEventListener('ended', handlePause);
+      videoElement.removeEventListener('emptied', handlePause);
     };
   }, [videoElement, enabled]);
 }

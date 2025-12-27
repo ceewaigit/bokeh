@@ -125,12 +125,12 @@ export const getTimelineColors = () => {
       : (isDark ? 'rgba(35, 35, 40, 0.6)' : 'rgba(240, 240, 245, 0.7)'),
     playhead: getCSSVar('--destructive') || 'hsl(263, 70%, 60%)',
     zoomBlock: getCSSVar('--primary') || 'hsl(263, 70%, 50%)',
-    screenBlock: getCSSVar('--info') || 'hsl(200, 85%, 55%)',
+    screenBlock: getCSSVar('--info') || (isDark ? 'hsl(152, 55%, 45%)' : 'hsl(152, 55%, 35%)'),
 
     // Webcam track colors
-    webcamClip: 'hsl(262, 83%, 58%)',
+    webcamClip: 'hsl(196, 82%, 52%)',
     webcamCircle: 'rgba(255, 255, 255, 0.15)',
-    webcamTrack: isDark ? 'rgba(139, 92, 246, 0.1)' : 'rgba(139, 92, 246, 0.08)',
+    webcamTrack: isDark ? 'rgba(34, 211, 238, 0.12)' : 'rgba(34, 211, 238, 0.09)',
     clipSelected: getCSSVar('--primary') || 'hsl(263, 70%, 50%)',
   }
 }
@@ -167,10 +167,10 @@ const getDefaultColors = () => ({
   trackBackground: 'rgba(35, 35, 40, 0.6)',
   playhead: 'hsl(263, 70%, 60%)',
   zoomBlock: 'hsl(263, 70%, 65%)',
-  screenBlock: 'hsl(200, 85%, 55%)',
-  webcamClip: 'hsl(262, 83%, 58%)',
+  screenBlock: 'hsl(152, 55%, 35%)',
+  webcamClip: 'hsl(196, 82%, 52%)',
   webcamCircle: 'rgba(255, 255, 255, 0.15)',
-  webcamTrack: 'rgba(139, 92, 246, 0.1)',
+  webcamTrack: 'rgba(34, 211, 238, 0.12)',
   clipSelected: 'hsl(263, 70%, 50%)',
 })
 

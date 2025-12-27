@@ -3,7 +3,7 @@ import { Rect, Text, Transformer, Line, Group } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
-import { getSnappedDragX, hasOverlap } from '@/lib/timeline/drag-positioning'
+import { getNearestAvailableDragX } from '@/lib/timeline/drag-positioning'
 import Konva from 'konva'
 
 interface TimelineTimeBlock {
@@ -306,6 +306,7 @@ export const TimelineEffectBlock = React.memo(({
   }
 
   const curvePoints = generateZoomCurve()
+  const durationMs = Math.max(0, endTime - startTime)
 
   if (safeHeight < 4) return null
 
@@ -318,8 +319,16 @@ export const TimelineEffectBlock = React.memo(({
         draggable={!isTransforming}
         dragBoundFunc={(pos) => {
           const constrainedX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, pos.x)
+          const snappedX = getNearestAvailableDragX({
+            proposedX: constrainedX,
+            blockWidthPx: safeWidth,
+            durationMs,
+            blocks: allBlocks,
+            pixelsPerMs,
+            excludeId: blockId
+          })
           return {
-            x: constrainedX,
+            x: snappedX,
             y: y
           }
         }}
@@ -330,38 +339,20 @@ export const TimelineEffectBlock = React.memo(({
         onDragEnd={(e) => {
           setIsDragging(false)
           const draggedX = e.target.x()
-
-          const snappedX = getSnappedDragX({
+          const snappedX = getNearestAvailableDragX({
             proposedX: draggedX,
-            blockWidth: safeWidth,
+            blockWidthPx: safeWidth,
+            durationMs,
             blocks: allBlocks,
             pixelsPerMs,
             excludeId: blockId
           })
-
           const newStartTime = TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-          const duration = endTime - startTime
-          const newEndTime = newStartTime + duration
-
-          const wouldOverlap = hasOverlap({
-            proposedStartTime: newStartTime,
-            proposedEndTime: newEndTime,
-            blocks: allBlocks,
-            excludeId: blockId
+          const newEndTime = newStartTime + durationMs
+          onUpdate({
+            startTime: Math.max(0, newStartTime),
+            endTime: Math.max(0, newEndTime)
           })
-
-          if (wouldOverlap) {
-            if (groupRef.current) {
-              groupRef.current.x(x)
-              groupRef.current.getLayer()?.batchDraw()
-            }
-            onSelect()
-          } else {
-            onUpdate({
-              startTime: Math.max(0, newStartTime),
-              endTime: Math.max(0, newEndTime)
-            })
-          }
         }}
         onClick={(e) => {
           e.cancelBubble = true

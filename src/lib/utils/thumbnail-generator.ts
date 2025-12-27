@@ -30,7 +30,7 @@ export class ThumbnailGenerator {
   private static readonly POOL_SIZE = 2
   private static videoPool: PooledVideo[] = []
   private static poolInitialized = false
-  private static pendingRequests: Array<() => void> = []
+  private static pendingRequests: Array<(video: PooledVideo) => void> = []
 
   /**
    * Initialize the video pool
@@ -74,13 +74,7 @@ export class ThumbnailGenerator {
 
     // If no free element, wait for one
     return new Promise<PooledVideo>((resolve) => {
-      this.pendingRequests.push(() => {
-        const nextFree = this.videoPool.find(v => !v.inUse)
-        if (nextFree) {
-          nextFree.inUse = true
-          resolve(nextFree)
-        }
-      })
+      this.pendingRequests.push(resolve)
     })
   }
 
@@ -95,12 +89,12 @@ export class ThumbnailGenerator {
     video.element.removeAttribute('src')
     video.element.load() // Force unload of media resource
 
-    // Process next pending request immediately
+    // Hand off to next pending request immediately to avoid race conditions
     if (this.pendingRequests.length > 0) {
       const nextRequest = this.pendingRequests.shift()
       if (nextRequest) {
-        // Minimal delay - just yield to event loop
-        setTimeout(nextRequest, 10)
+        video.inUse = true
+        nextRequest(video)
       }
     }
   }

@@ -11,6 +11,7 @@ export type PreviewSettings = {
   highQuality: boolean
   showGlow: boolean
   glowIntensity: number
+  showTimelineThumbnails: boolean
 }
 
 type PreviewSettingsStore = PreviewSettings & {
@@ -27,6 +28,7 @@ const defaultPreviewSettings: PreviewSettings = {
   highQuality: false,
   showGlow: false,
   glowIntensity: 1,
+  showTimelineThumbnails: true,
 }
 
 export const usePreviewSettingsStore = create<PreviewSettingsStore>()(
@@ -44,6 +46,12 @@ export const usePreviewSettingsStore = create<PreviewSettingsStore>()(
       version: 2,
       migrate: (persistedState) => {
         const state = persistedState as PreviewSettingsStore
+        if (typeof state.showTimelineThumbnails !== 'boolean') {
+          return {
+            ...state,
+            showTimelineThumbnails: defaultPreviewSettings.showTimelineThumbnails,
+          }
+        }
         if (
           state.guideColor === 'rgba(255, 255, 255, 0.5)' &&
           state.guideOpacity === 0.5
@@ -66,6 +74,7 @@ export const usePreviewSettingsStore = create<PreviewSettingsStore>()(
         highQuality: state.highQuality,
         showGlow: state.showGlow,
         glowIntensity: state.glowIntensity,
+        showTimelineThumbnails: state.showTimelineThumbnails,
       }),
     }
   )

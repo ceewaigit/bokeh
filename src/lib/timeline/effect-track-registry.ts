@@ -15,7 +15,7 @@ export interface EffectTrackConfig {
   /** Order in which tracks appear (lower = higher on timeline) */
   order: number
   /** Color key from useTimelineColors() */
-  colorKey: 'zoomBlock' | 'warning' | 'primary' | 'muted'
+  colorKey: 'zoomBlock' | 'screenBlock' | 'warning' | 'primary' | 'muted'
   /** Generate label for individual blocks */
   getBlockLabel: (effect: Effect) => string
   /** EffectLayerType for selection */
@@ -41,7 +41,7 @@ export const EFFECT_TRACK_REGISTRY: Partial<Record<EffectType, EffectTrackConfig
   [EffectType.Screen]: {
     label: 'Screen',
     order: 1,
-    colorKey: 'muted',
+    colorKey: 'screenBlock',
     layerType: EffectLayerType.Screen,
     getBlockLabel: () => 'Screen'
   },

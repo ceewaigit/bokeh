@@ -19,6 +19,7 @@ import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadat
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 
 import { useProjectStore } from '@/stores/project-store'
+import { usePreviewSettingsStore } from '@/stores/preview-settings-store'
 
 interface TimelineClipProps {
   clip: Clip
@@ -88,7 +89,30 @@ const TimelineClipComponent = ({
   const colors = useTimelineColors()
   const showWaveforms = useProjectStore((s) => s.settings.editing.showWaveforms ?? true)
   const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
+  const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
   const isGeneratedClip = trackType === TrackType.Video && recording?.sourceType === 'generated'
+  const withAlpha = useCallback((color: string, alpha: number): string => {
+    if (!color) return ''
+    if (color.startsWith('hsla') || color.startsWith('rgba')) return color
+
+    if (color.startsWith('hsl(')) {
+      let content = color.substring(4, color.length - 1)
+      if (!content.includes(',')) {
+        content = content.replace(/\s+/g, ', ')
+      }
+      return `hsla(${content}, ${alpha})`
+    }
+
+    if (color.startsWith('rgb(')) {
+      let content = color.substring(4, color.length - 1)
+      if (!content.includes(',')) {
+        content = content.replace(/\s+/g, ', ')
+      }
+      return `rgba(${content}, ${alpha})`
+    }
+
+    return color
+  }, [])
   const generatedLabel = React.useMemo(() => {
     const pluginId = recording?.generatedSource?.pluginId
     if (!pluginId) return 'Generated Clip'
@@ -113,6 +137,16 @@ const TimelineClipComponent = ({
     TimelineConfig.MIN_CLIP_WIDTH,
     TimeConverter.msToPixels(effectiveDuration, pixelsPerMs)
   )
+  const hasThumbnails = showTimelineThumbnails && thumbnails.length > 0
+  const showMissingThumb = trackType === TrackType.Video && !isGeneratedClip && !hasThumbnails
+  const warningColor = colors.warning || 'hsl(38, 92%, 50%)'
+  const missingThumbFill = withAlpha(warningColor, colors.isDark ? 0.5 : 0.35)
+  const missingThumbStroke = withAlpha(warningColor, colors.isDark ? 0.7 : 0.55)
+  const clipFileName = useMemo(() => {
+    if (!recording?.filePath) return ''
+    const parts = recording.filePath.split('/')
+    return parts[parts.length - 1] || recording.filePath
+  }, [recording?.filePath])
 
   // Track height is now passed as a prop
 
@@ -209,6 +243,10 @@ const TimelineClipComponent = ({
   const [thumbnails, setThumbnails] = useState<HTMLImageElement[]>([])
 
   useEffect(() => {
+    if (!showTimelineThumbnails) {
+      setThumbnails([])
+      return
+    }
     if (trackType !== 'video' || !resolvedVideoPath || isGeneratedClip || !recording) return
 
     let cancelled = false
@@ -300,7 +338,7 @@ const TimelineClipComponent = ({
     return () => {
       cancelled = true
     }
-  }, [recording, resolvedVideoPath, clip.id, clip.sourceIn, clip.sourceOut, trackHeight, trackType, isGeneratedClip])
+  }, [recording, resolvedVideoPath, clip.id, clip.sourceIn, clip.sourceOut, trackHeight, trackType, isGeneratedClip, showTimelineThumbnails])
 
   // Calculate trim boundaries based on source material and locked bounds
   // Adjacent clips are handled by push/reflow after trim, not by blocking expansion
@@ -509,10 +547,10 @@ const TimelineClipComponent = ({
         width={clipWidth}
         height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
         fill={
-          trackType === TrackType.Video && thumbnails.length > 0
+          trackType === TrackType.Video && hasThumbnails
             ? 'transparent'
             : trackType === TrackType.Video
-              ? (isGeneratedClip ? colors.muted : 'rgba(127,127,127,0.15)')
+              ? (isGeneratedClip ? colors.muted : (showMissingThumb ? missingThumbFill : 'rgba(127,127,127,0.15)'))
               : colors.success
         }
         stroke={
@@ -520,9 +558,11 @@ const TimelineClipComponent = ({
             ? colors.destructive
             : isSelected
               ? colors.primary
-              : 'transparent'
+              : showMissingThumb
+                ? missingThumbStroke
+                : 'transparent'
         }
-        strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1 : 0}
+        strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1 : showMissingThumb ? 1 : 0}
         cornerRadius={8}
         opacity={1}
         shadowColor="black"
@@ -586,7 +626,7 @@ const TimelineClipComponent = ({
       )}
 
       {/* Video thumbnails - multiple frames distributed across clip */}
-      {trackType === TrackType.Video && thumbnails.length > 0 && (
+      {trackType === TrackType.Video && hasThumbnails && (
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
@@ -634,6 +674,20 @@ const TimelineClipComponent = ({
             ]}
           />
         </Group>
+      )}
+
+      {trackType === TrackType.Video && showMissingThumb && clipFileName && (
+        <Text
+          x={10}
+          y={8}
+          text={clipFileName}
+          fontSize={11}
+          fontFamily="system-ui"
+          fontStyle="bold"
+          fill={colors.foreground}
+          opacity={0.85}
+          listening={false}
+        />
       )}
 
       {/* Audio waveform visualization - minimal bottom strip */}

@@ -36,7 +36,7 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
       }
     )
 
-    set({ isPlaying: true })
+    set({ isPlaying: true, hoverTime: null })
   },
 
   pause: () => {

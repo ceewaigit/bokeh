@@ -1,5 +1,6 @@
 import { TimelineConfig } from './config'
 import { TimeConverter } from './time-space-converter'
+import { findNearestAvailableStart } from './nearest-gap'
 
 export interface TimelineBlockRange {
   id: string
@@ -59,6 +60,36 @@ export function getSnappedDragX(options: {
   }
 
   return Math.max(trackLabelWidth, bestSnapX)
+}
+
+export function getNearestAvailableDragX(options: {
+  proposedX: number
+  blockWidthPx: number
+  durationMs: number
+  blocks: TimelineBlockRange[]
+  pixelsPerMs: number
+  trackLabelWidth?: number
+  snapThresholdPx?: number
+  excludeId?: string
+}): number {
+  const trackLabelWidth = options.trackLabelWidth ?? TimelineConfig.TRACK_LABEL_WIDTH
+  const snappedX = getSnappedDragX({
+    proposedX: options.proposedX,
+    blockWidth: options.blockWidthPx,
+    blocks: options.blocks,
+    pixelsPerMs: options.pixelsPerMs,
+    trackLabelWidth,
+    snapThresholdPx: options.snapThresholdPx,
+    excludeId: options.excludeId
+  })
+
+  const proposedStart = TimeConverter.pixelsToMs(snappedX - trackLabelWidth, options.pixelsPerMs)
+  const occupied = options.blocks
+    .filter(block => block.id !== options.excludeId)
+    .map(block => ({ startTime: block.startTime, endTime: block.endTime }))
+
+  const nearestStart = findNearestAvailableStart(proposedStart, options.durationMs, occupied)
+  return TimeConverter.msToPixels(nearestStart, options.pixelsPerMs) + trackLabelWidth
 }
 
 export function hasOverlap(options: {

@@ -1,5 +1,6 @@
 import type { Clip } from '@/types/project'
 import { TimelineConfig } from './config'
+import { findNearestAvailableStart } from './nearest-gap'
 
 export interface OverlapCheckResult {
   hasOverlap: boolean
@@ -63,7 +64,7 @@ export class ClipPositioning {
   }
 
   /**
-   * Find the next valid position for a clip (no overlaps)
+   * Find the nearest valid position for a clip (no overlaps)
    */
   static findNextValidPosition(
     desiredStart: number,
@@ -71,25 +72,11 @@ export class ClipPositioning {
     otherClips: Clip[],
     excludeClipId?: string
   ): number {
-    // Sort clips by start time
-    const sortedClips = otherClips
+    const occupied = otherClips
       .filter(c => !excludeClipId || c.id !== excludeClipId)
-      .sort((a, b) => a.startTime - b.startTime)
+      .map(c => ({ startTime: c.startTime, endTime: c.startTime + c.duration }))
 
-    let position = desiredStart
-
-    // Keep checking until we find a gap
-    for (const clip of sortedClips) {
-      const clipEnd = clip.startTime + clip.duration
-
-      // If our position would overlap with this clip
-      if (position < clipEnd && (position + duration) > clip.startTime) {
-        // Move to after this clip
-        position = clipEnd + this.MIN_GAP_MS
-      }
-    }
-
-    return Math.max(0, position)
+    return findNearestAvailableStart(desiredStart, duration, occupied)
   }
 
   /**

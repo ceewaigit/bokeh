@@ -91,7 +91,8 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
         const isHoldClip = isHoldPrevClip || isHoldActiveClipAtEnd;
 
         const gapFrames = nextLayoutItem ? Math.max(0, nextLayoutItem.startFrame - currentClipEndFrame) : 0;
-        const finalDuration = Math.max(groupDuration, durationFromGroupStart + (isHoldClip ? overlapFrames : gapFrames));
+        const holdFrames = isHoldClip ? Math.max(overlapFrames, gapFrames) : gapFrames;
+        const finalDuration = Math.max(groupDuration, durationFromGroupStart + holdFrames);
 
         // ==========================================================================
         // FRAME POSITION

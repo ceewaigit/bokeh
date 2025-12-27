@@ -383,9 +383,16 @@ export class ProjectIOService {
       }
 
       if (!checkResult.needsProxy) {
-        // Video is small enough, no proxy needed
-        console.log(`[ProjectIO] ⏭️ Video doesn't need proxy (below 1440p threshold)`)
-        return
+        // Fallback: ffprobe can fail; use known recording dimensions if available.
+        const needsProxyByMetadata =
+          typeof recording.width === 'number' &&
+          recording.width > 2560;
+        if (!needsProxyByMetadata) {
+          // Video is small enough, no proxy needed
+          console.log(`[ProjectIO] ⏭️ Video doesn't need proxy (below 1440p threshold)`)
+          return
+        }
+        console.log(`[ProjectIO] ⚠️ Proxy check skipped, but metadata suggests large source. Forcing proxy generation.`)
       }
 
       // Generate proxy

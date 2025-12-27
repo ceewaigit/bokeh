@@ -13,7 +13,7 @@
  */
 
 import React from 'react';
-import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { Recording, Effect } from '@/types/project';
 import { EffectType } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
@@ -30,6 +30,9 @@ import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { VideoDataProvider, useVideoData } from '../context/video-data-context';
 import { useVideoUrl } from '../hooks/media/useVideoUrl';
 import { findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
+import { getWebcamLayout } from '@/lib/effects/utils/webcam-layout';
+import { isProxySufficientForTarget } from '@/lib/utils/resolution-utils';
+import type { WebcamEffectData } from '@/types/project';
 
 /**
  * Get audio URL for a recording
@@ -108,13 +111,49 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   const activeWebcamRecording = activeWebcamClip
     ? getRecording(activeWebcamClip.recordingId)
     : undefined;
+  const { isRendering } = getRemotionEnvironment();
+  const visibleAudioClips = React.useMemo(() => {
+    if (isRendering || audioClips.length === 0) {
+      return audioClips;
+    }
+    const paddingFrames = Math.max(1, Math.ceil(fps * 0.1));
+    return audioClips.filter((audioClip) => {
+      const startFrame = Math.round((audioClip.startTime / 1000) * fps);
+      const durationFrames = Math.max(1, Math.round((audioClip.duration / 1000) * fps));
+      const endFrame = startFrame + durationFrames;
+      return frame >= startFrame - paddingFrames && frame < endFrame + paddingFrames;
+    });
+  }, [audioClips, frame, fps, isRendering]);
+  const webcamTargetSize = React.useMemo(() => {
+    if (isRendering || !activeWebcamEffect) {
+      return { width: videoWidth, height: videoHeight };
+    }
+    const data = activeWebcamEffect.data as WebcamEffectData | undefined;
+    if (!data) {
+      return { width: videoWidth, height: videoHeight };
+    }
+    const { size } = getWebcamLayout(data, videoWidth, videoHeight);
+    const maxScale = 1.2;
+    const targetSize = Math.max(1, Math.round(size * maxScale));
+    return { width: targetSize, height: targetSize };
+  }, [activeWebcamEffect, isRendering, videoWidth, videoHeight]);
+  const forceWebcamProxy = React.useMemo(() => {
+    if (isRendering || !activeWebcamRecording?.previewProxyUrl) return false;
+    return isProxySufficientForTarget(
+      webcamTargetSize.width,
+      webcamTargetSize.height,
+      1
+    );
+  }, [isRendering, activeWebcamRecording?.previewProxyUrl, webcamTargetSize.width, webcamTargetSize.height]);
   const webcamVideoUrl = useVideoUrl({
     recording: activeWebcamRecording,
     resources,
     clipId: activeWebcamClip?.id,
-    targetWidth: videoWidth,
-    targetHeight: videoHeight,
+    targetWidth: webcamTargetSize.width,
+    targetHeight: webcamTargetSize.height,
     isHighQualityPlaybackEnabled: playback.isHighQualityPlaybackEnabled,
+    forceProxy: forceWebcamProxy,
+    isPlaying: playback.isPlaying,
   });
 
 
@@ -267,7 +306,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
       )}
 
       {/* Audio track layer - renders standalone audio clips (imported MP3, WAV, etc.) */}
-      {audioClips.map((audioClip) => {
+      {visibleAudioClips.map((audioClip) => {
         const recording = getRecording(audioClip.recordingId);
         if (!recording) return null;
 

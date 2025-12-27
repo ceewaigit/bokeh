@@ -73,11 +73,16 @@ export class WaveformAnalyzer {
     duration: number,
     samplesPerSecond: number
   ): Promise<WaveformData | null> {
-    let audioContext: AudioContext | null = null
+    let audioContext: BaseAudioContext | null = null
 
     try {
-      // Create audio context
-      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      // Prefer OfflineAudioContext to avoid needing an active audio device.
+      if ('OfflineAudioContext' in window) {
+        audioContext = new OfflineAudioContext(1, 1, 44100)
+      } else {
+        console.warn('OfflineAudioContext unavailable; skipping waveform analysis to avoid AudioContext device errors.')
+        return null
+      }
 
       // Fetch the video as array buffer (works for blob: and http(s); may work for custom protocols in Electron)
       const response = await fetch(blobUrl)
@@ -163,7 +168,9 @@ export class WaveformAnalyzer {
       return null
     } finally {
       try {
-        audioContext?.close()
+        if (audioContext instanceof AudioContext) {
+          audioContext.close().catch(() => { })
+        }
       } catch {
         // Ignore close errors
       }

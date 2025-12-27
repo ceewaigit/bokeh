@@ -12,14 +12,13 @@
 import { useMemo, useRef } from 'react';
 import type { Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
-import { getVisibleFrameLayout } from '@/lib/timeline/frame-layout';
+import { findActiveFrameLayoutItems, getVisibleFrameLayout } from '@/lib/timeline/frame-layout';
 
 interface UseRenderableItemsOptions {
   frameLayout: FrameLayoutItem[];
   currentFrame: number;
   fps: number;
   isRendering: boolean;
-  isPlaying: boolean;
   isScrubbing: boolean;
   recordingsMap: Map<string, Recording>;
   activeLayoutIndex: number;
@@ -40,7 +39,6 @@ export function useRenderableItems({
   currentFrame,
   fps,
   isRendering,
-  isPlaying,
   isScrubbing,
   recordingsMap,
   activeLayoutIndex,
@@ -84,6 +82,25 @@ export function useRenderableItems({
 
     // PREVIEW MODE: Optimize to minimize concurrent decoders
     if (!isRendering && activeLayoutItem) {
+      // Idle preview: only render clips active at the current frame.
+      // This avoids keeping neighbor decoders alive when the playhead is parked.
+      if (!isScrubbing) {
+        const activeItems = findActiveFrameLayoutItems(frameLayout, currentFrame);
+        const uniqueItems = new Map<string, FrameLayoutItem>();
+        if (activeItems.length === 0 && activeLayoutItem) {
+          uniqueItems.set(activeLayoutItem.groupId, activeLayoutItem);
+        } else {
+          for (const item of activeItems) {
+            if (!uniqueItems.has(item.groupId)) {
+              uniqueItems.set(item.groupId, item);
+            }
+          }
+        }
+        return Array.from(uniqueItems.values()).sort(
+          (a, b) => a.startFrame - b.startFrame
+        );
+      }
+
       const itemsByGroupId = new Map<string, FrameLayoutItem>();
       const activeIsGenerated = isGeneratedItem(activeLayoutItem);
       // Enable A/B buffering for smooth transitions (prev/next clips)
@@ -143,9 +160,30 @@ export function useRenderableItems({
       }
     }
 
-    const sortedItems = Array.from(uniqueItems.values()).sort(
+    let sortedItems = Array.from(uniqueItems.values()).sort(
       (a, b) => a.startFrame - b.startFrame
     );
+
+    // MEMORY CAP: Maximum 3 video clips mounted at once to prevent VTDecoder exhaustion
+    const MAX_VIDEO_CLIPS = 3;
+    const videoItems = sortedItems.filter(
+      (item) => recordingsMap.get(item.clip.recordingId)?.sourceType === 'video'
+    );
+    if (videoItems.length > MAX_VIDEO_CLIPS) {
+      // Keep closest to currentFrame
+      const byDistance = videoItems
+        .map((item) => ({ item, dist: Math.abs(item.startFrame - currentFrame) }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, MAX_VIDEO_CLIPS)
+        .map(({ item }) => item);
+
+      const nonVideoItems = sortedItems.filter(
+        (item) => recordingsMap.get(item.clip.recordingId)?.sourceType !== 'video'
+      );
+      sortedItems = [...nonVideoItems, ...byDistance].sort(
+        (a, b) => a.startFrame - b.startFrame
+      );
+    }
 
     // STABILITY FIX: Return previous array reference if groupIds haven't changed
     // This prevents VideoClipRenderer remounts when only play/pause state changes
@@ -163,7 +201,6 @@ export function useRenderableItems({
     currentFrame,
     fps,
     isRendering,
-    isPlaying,
     isScrubbing,
     keepVideoWarmOnScrub,
     activeLayoutIndex,

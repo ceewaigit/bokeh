@@ -13,6 +13,7 @@
 
 import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
+import { findNearestAvailableStart } from '@/lib/timeline/nearest-gap'
 
 // Effect types that should not overlap with each other
 export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
@@ -22,13 +23,6 @@ export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
     EffectType.Keystroke,
     EffectType.Webcam
 ])
-
-/**
- * Check if two time ranges overlap.
- */
-function rangesOverlap(start1: number, end1: number, start2: number, end2: number): boolean {
-    return start1 < end2 && end1 > start2
-}
 
 export function isValidEffectTiming(effect: Effect): boolean {
     if (!Number.isFinite(effect.startTime) || !Number.isFinite(effect.endTime)) {
@@ -41,41 +35,18 @@ export function isValidEffectTiming(effect: Effect): boolean {
  * Find a non-overlapping position for an effect.
  * Tries to keep the effect at its original position, but shifts it if overlapping.
  */
-function findNonOverlappingPosition(
+function findNearestNonOverlappingPosition(
     effect: Effect,
     sameTypeEffects: Effect[],
     effectId?: string // Exclude this effect when checking (for updates)
 ): { startTime: number; endTime: number } {
     const duration = effect.endTime - effect.startTime
-    let startTime = effect.startTime
-    let endTime = effect.endTime
-
-    // Sort by start time
-    const sorted = sameTypeEffects
+    const occupied = sameTypeEffects
         .filter(e => e.id !== effectId)
-        .sort((a, b) => a.startTime - b.startTime)
+        .map(e => ({ startTime: e.startTime, endTime: e.endTime }))
 
-    // Check for overlaps and shift if needed
-    let hasOverlap = true
-    let iterations = 0
-    const maxIterations = sorted.length + 1 // Safety limit
-
-    while (hasOverlap && iterations < maxIterations) {
-        hasOverlap = false
-        iterations++
-
-        for (const existing of sorted) {
-            if (rangesOverlap(startTime, endTime, existing.startTime, existing.endTime)) {
-                // Shift to after this effect with a small gap
-                startTime = existing.endTime + 100 // 100ms gap
-                endTime = startTime + duration
-                hasOverlap = true
-                break
-            }
-        }
-    }
-
-    return { startTime, endTime }
+    const startTime = findNearestAvailableStart(effect.startTime, duration, occupied)
+    return { startTime, endTime: startTime + duration }
 }
 
 /**
@@ -110,7 +81,7 @@ export const EffectStore = {
         // Auto-adjust position for non-overlapping effect types
         if (NON_OVERLAPPING_EFFECT_TYPES.has(effect.type)) {
             const sameTypeEffects = existing.filter(e => e.type === effect.type)
-            const { startTime, endTime } = findNonOverlappingPosition(effect, sameTypeEffects)
+            const { startTime, endTime } = findNearestNonOverlappingPosition(effect, sameTypeEffects)
             effect.startTime = startTime
             effect.endTime = endTime
         }
@@ -177,7 +148,7 @@ export const EffectStore = {
             // Create a temporary effect with the new times to check for overlaps
             const tempEffect = { ...effect, startTime: nextStartTime, endTime: nextEndTime }
             const sameTypeEffects = effects.filter(e => e.type === effect.type)
-            const { startTime, endTime } = findNonOverlappingPosition(tempEffect, sameTypeEffects, effectId)
+            const { startTime, endTime } = findNearestNonOverlappingPosition(tempEffect, sameTypeEffects, effectId)
 
             updates = { ...updates, startTime, endTime }
         }

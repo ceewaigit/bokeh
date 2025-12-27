@@ -21,6 +21,7 @@ import {
 } from '../context/video-data-context';
 import { useComposition } from '../context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
+import { useShallow } from 'zustand/react/shallow';
 import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
 import {
   createMotionBlurSvg,
@@ -77,8 +78,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // Consume computed video data from context
   const { frameLayout, getRecording, recordingsMap, effects, getActiveClipData } = useVideoData();
 
-  // SSOT: isScrubbing is now used to optimize memory during rapid seeking
-  const { isPlaying, isScrubbing } = playback;
+  // Only subscribe to isScrubbing - isPlaying subscription was causing re-renders on play/pause
+  // which caused the transform flash. Play/pause is handled imperatively by PreviewAreaRemotion.
+  const previewIsScrubbing = useProjectStore((s) => s.isScrubbing);
+  const isScrubbing = isRendering ? playback.isScrubbing : previewIsScrubbing;
   const { isEditingCrop, preferOffthreadVideo } = renderSettings;
 
   const currentTimeMs = frameToMs(currentFrame, fps);
@@ -259,7 +262,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     currentFrame,
     fps,
     isRendering,
-    isPlaying,
     isScrubbing,
     recordingsMap,
     activeLayoutIndex,
@@ -279,6 +281,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const maxZoom = getMaxZoomScale(effects);
     const currentScale = zoomTransform?.scale ?? 1;
 
+    // Keep preloadFrames stable to prevent flash on play/pause transitions
+    // The Sequence will handle visibility internally without needing dynamic premount
+    const preloadFrames = !isRendering ? 30 : 0;
     return renderableItems.map((item) => {
       const recording = recordingsMap.get(item.clip.recordingId);
       if (!recording) return null;
@@ -308,8 +313,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             markRenderReady={markRenderReady}
             handleVideoReady={handleVideoReady}
             VideoComponent={preferOffthreadVideo ? OffthreadVideo : Video}
-            premountFor={isScrubbing && !isRendering ? 0 : 30}
-            postmountFor={isScrubbing && !isRendering ? 0 : 30}
+            premountFor={preloadFrames}
+            postmountFor={preloadFrames}
           />
         );
       } else if (recording.sourceType === 'image') {

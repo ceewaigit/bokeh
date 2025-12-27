@@ -32,6 +32,7 @@ import {
   PREVIEW_DISPLAY_WIDTH,
   PREVIEW_DISPLAY_HEIGHT,
   RETINA_MULTIPLIER,
+  isSourceOverkillForPreview,
 } from '@/lib/utils/resolution-utils';
 
 export function useVideoUrl({
@@ -45,6 +46,7 @@ export function useVideoUrl({
   isGlowMode = false,
   forceProxy = false,
   isHighQualityPlaybackEnabled = false,
+  isPlaying = false,
 }: UseVideoUrlProps): string | undefined {
   const { isRendering } = getRemotionEnvironment();
   const { videoUrls, videoUrlsHighRes } = resources || {};
@@ -113,14 +115,18 @@ export function useVideoUrl({
 
       // Check if proxy is sufficient for the target composition
       const proxySufficient = isProxySufficientForTarget(targetWidth, targetHeight, zoomScaleForQuality);
+      const sourceOverkill = isSourceOverkillForPreview(sourceWidth, sourceHeight, zoomScaleForQuality);
 
       // USER PREFERENCE: If high-res preview is enabled, only use proxy if truly sufficient
       // Don't apply sourceOverkill optimization - user wants quality preview
       // USER PREFERENCE: If high-res preview is enabled, prioritize full source
       // We only use proxy if it's explicitly forced or if we really can't load the source
       if (isHighQualityPlaybackEnabled) {
-        // Fall through to full source unless there's a compelling reason not to
-        // This fixes the issue where "High Quality" doesn't work because the system thinks the proxy is "good enough"
+        // Use proxy only when it is sufficient AND source is overkill for the preview display.
+        // This preserves visible quality while avoiding needless full-res decodes.
+        if (proxySufficient && sourceOverkill) {
+          return recording.previewProxyUrl;
+        }
       } else {
         // MEMORY OPTIMIZATION: When high-res preview is disabled, be aggressive about using proxy
         // Calculate max useful resolution for preview display
@@ -128,8 +134,6 @@ export function useVideoUrl({
         const maxUsefulHeight = PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * zoomScaleForQuality;
 
         // If source resolution exceeds what preview can actually use by >20%, use proxy
-        const sourceOverkill = sourceWidth > maxUsefulWidth * 1.2 || sourceHeight > maxUsefulHeight * 1.2;
-
         // Use proxy if: proxy is sufficient for quality OR source is overkill for display
         if (proxySufficient || sourceOverkill) {
           return recording.previewProxyUrl;
@@ -171,11 +175,15 @@ export function useVideoUrl({
   const lockedUrlRef = useRef<string | undefined>(undefined);
   const lockedKeyRef = useRef<string | undefined>(undefined);
   const invalidateKey = `${recording?.id ?? ''}-${clipId ?? ''}`;
+  const canUpdateWhileIdle = false;
 
   if (invalidateKey !== lockedKeyRef.current) {
     // Key changed (different recording or different clip) - lock the new URL
     lockedUrlRef.current = computedUrl;
     lockedKeyRef.current = invalidateKey;
+  } else if (canUpdateWhileIdle && computedUrl && computedUrl !== lockedUrlRef.current) {
+    // Allow resolution downgrades (proxy availability) when idle to reduce memory.
+    lockedUrlRef.current = computedUrl;
   } else if (!lockedUrlRef.current && computedUrl) {
     // First time getting a valid URL for this recording - lock it
     lockedUrlRef.current = computedUrl;

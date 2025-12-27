@@ -32,8 +32,11 @@ export const SafeVideo = React.forwardRef<HTMLVideoElement, SafeVideoProps>((pro
     const video = videoRef.current;
     if (!video) return;
 
-    const { startFrom = 0, playbackRate = 1 } = props;
-    const frameInSource = startFrom + (frame * playbackRate);
+    const { startFrom = 0, playbackRate = 1, endAt } = props;
+    let frameInSource = startFrom + (frame * playbackRate);
+    if (typeof endAt === 'number' && frameInSource > endAt) {
+      frameInSource = endAt;
+    }
     const timeInSeconds = frameInSource / fps;
 
     if (!Number.isFinite(timeInSeconds)) return;
@@ -95,7 +98,7 @@ export const SafeVideo = React.forwardRef<HTMLVideoElement, SafeVideoProps>((pro
   }, []);
 
   // Filter out Remotion-specific props that <video> doesn't understand
-  const { startFrom, endAt, playbackRate, volume, ...nativeProps } = props;
+  const { startFrom, endAt, playbackRate, volume, pauseWhenBuffering, ...nativeProps } = props;
 
   return (
     <video

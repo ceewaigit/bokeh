@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getAudioInputService } from '@/lib/recording/services/audio-input-service'
+import { getSharedAudioContext } from '@/lib/audio/shared-audio-context'
 import { logger } from '@/lib/utils/logger'
 
 interface UseAudioLevelOptions {
@@ -33,6 +34,7 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
   const peakDecayRef = useRef<NodeJS.Timeout | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const rafRef = useRef<number | null>(null)
 
@@ -47,10 +49,11 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
       peakDecayRef.current = null
     }
 
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => { })
-      audioContextRef.current = null
+    if (sourceRef.current) {
+      sourceRef.current.disconnect()
+      sourceRef.current = null
     }
+    audioContextRef.current = null
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
@@ -82,7 +85,10 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
       streamRef.current = stream
 
       // Set up audio analysis
-      const audioContext = new AudioContext()
+      const audioContext = getSharedAudioContext()
+      if (!audioContext) {
+        throw new Error('AudioContext unavailable')
+      }
       audioContextRef.current = audioContext
 
       const source = audioContext.createMediaStreamSource(stream)
@@ -91,6 +97,7 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
       analyser.smoothingTimeConstant = smoothing
       source.connect(analyser)
       analyserRef.current = analyser
+      sourceRef.current = source
 
       setState(prev => ({ ...prev, isMonitoring: true, error: null }))
 

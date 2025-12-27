@@ -102,7 +102,7 @@ export function resolveClipDataForLayoutItem(args: {
   const clipElapsedMs = isLastFrame
     ? Math.max(0, clip.duration - frameDurationMs)
     : (clipElapsedFrames / fps) * 1000
-  const sourceTimeMs = clipRelativeToSource(clipElapsedMs, clip)
+  const sourceTimeMs = clipRelativeToSource(clipElapsedMs, clip, fps)
 
   const timelineEffects = getTimelineEffectsForClip({ effects, frameLayout, clip })
 

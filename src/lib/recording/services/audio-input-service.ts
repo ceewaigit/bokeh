@@ -7,6 +7,7 @@
 
 import { RecordingIpcBridge, getRecordingBridge } from '@/lib/bridges'
 import { logger } from '@/lib/utils/logger'
+import { getSharedAudioContext } from '@/lib/audio/shared-audio-context'
 
 export interface AudioInputConfig {
   deviceId: string
@@ -29,6 +30,7 @@ export class AudioInputService {
   private stream: MediaStream | null = null
   private audioContext: AudioContext | null = null
   private analyser: AnalyserNode | null = null
+  private source: MediaStreamAudioSourceNode | null = null
   private recordingPath: string | null = null
   private startTime = 0
   private _isRecording = false
@@ -323,12 +325,19 @@ export class AudioInputService {
     if (!this.stream) return
 
     try {
-      this.audioContext = new AudioContext()
+      const sharedContext = getSharedAudioContext()
+      if (!sharedContext) {
+        logger.warn('[AudioInputService] AudioContext unavailable, skipping level monitoring')
+        return
+      }
+
+      this.audioContext = sharedContext
       const source = this.audioContext.createMediaStreamSource(this.stream)
       this.analyser = this.audioContext.createAnalyser()
       this.analyser.fftSize = 256
       this.analyser.smoothingTimeConstant = 0.8
       source.connect(this.analyser)
+      this.source = source
 
       // Start level monitoring
       this.levelMonitorInterval = setInterval(() => {
@@ -374,10 +383,11 @@ export class AudioInputService {
       this.levelMonitorInterval = null
     }
 
-    if (this.audioContext) {
-      this.audioContext.close().catch(() => { })
-      this.audioContext = null
+    if (this.source) {
+      this.source.disconnect()
+      this.source = null
     }
+    this.audioContext = null
 
     this.analyser = null
     this.lastLevel = 0

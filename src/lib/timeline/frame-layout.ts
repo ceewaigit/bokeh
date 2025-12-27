@@ -64,6 +64,15 @@ export function findActiveFrameLayoutIndex(layout: FrameLayoutItem[], frame: num
   // Containment check
   if (frame >= layout[candidate].startFrame && frame < layout[candidate].endFrame) return candidate;
 
+  // Gap handling: hold previous clip if we're between clips
+  if (
+    frame >= layout[candidate].endFrame &&
+    candidate + 1 <= lastIndex &&
+    frame < layout[candidate + 1].startFrame
+  ) {
+    return candidate;
+  }
+
   // Fallback: choose nearest clip to avoid black frames
   return frame < layout[candidate].startFrame ? Math.max(0, candidate - 1) : Math.min(lastIndex, candidate + 1);
 }
