@@ -31,15 +31,6 @@ export const getTimelineColors = () => {
     return Number.isFinite(parsed) ? parsed : fallback
   }
 
-  const getHslVarWithAlpha = (varName: string, alpha: number) => {
-    const value = computedStyle.getPropertyValue(varName).trim()
-    if (!value) return ''
-    if (value.includes(' ')) {
-      return `hsl(${value} / ${alpha})`
-    }
-    return value
-  }
-
   const hslToRgba = (raw: string, alpha: number) => {
     const cleaned = raw
       .replace('hsl(', '')
@@ -134,7 +125,7 @@ export const getTimelineColors = () => {
       : (isDark ? 'rgba(35, 35, 40, 0.6)' : 'rgba(240, 240, 245, 0.7)'),
     playhead: getCSSVar('--destructive') || 'hsl(263, 70%, 60%)',
     zoomBlock: getCSSVar('--primary') || 'hsl(263, 70%, 50%)',
-    screenBlock: getCSSVar('--accent') || 'hsl(263, 70%, 65%)',
+    screenBlock: getCSSVar('--info') || 'hsl(200, 85%, 55%)',
 
     // Webcam track colors
     webcamClip: 'hsl(262, 83%, 58%)',
@@ -176,7 +167,7 @@ const getDefaultColors = () => ({
   trackBackground: 'rgba(35, 35, 40, 0.6)',
   playhead: 'hsl(263, 70%, 60%)',
   zoomBlock: 'hsl(263, 70%, 65%)',
-  screenBlock: 'hsl(263, 70%, 65%)',
+  screenBlock: 'hsl(200, 85%, 55%)',
   webcamClip: 'hsl(262, 83%, 58%)',
   webcamCircle: 'rgba(255, 255, 255, 0.15)',
   webcamTrack: 'rgba(139, 92, 246, 0.1)',

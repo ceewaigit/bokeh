@@ -27,6 +27,9 @@ import { AdvancedTab } from './advanced-tab'
 import { CanvasTab } from './canvas-tab'
 import { WebcamTab } from './webcam-tab'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useProjectStore } from '@/stores/project-store'
+
+const springConfig = { type: "spring", stiffness: 380, damping: 28 } as const
 
 interface EffectsSidebarProps {
   className?: string
@@ -58,24 +61,40 @@ function SubTabs<T extends string>({
   onChange: (next: T) => void
   tabs: { id: T; label: string; disabled?: boolean }[]
 }) {
+  const layoutId = React.useId()
   return (
-    <div className="relative flex p-0.5 bg-muted/30 rounded-lg gap-0.5">
+    <div className="relative flex gap-0.5 rounded-md bg-muted/30 p-0.5">
       {tabs.map((tab) => (
-        <button
+        <motion.button
           key={tab.id}
           type="button"
           disabled={tab.disabled}
           onClick={() => onChange(tab.id)}
           className={cn(
-            "relative z-10 flex-1 px-3 py-1.5 text-[11px] font-medium rounded-md transition-all duration-150 ease-out",
+            "relative flex-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors duration-150",
             tab.disabled && "opacity-40 cursor-not-allowed",
             value === tab.id
-              ? "bg-background text-foreground shadow-sm"
+              ? "text-foreground"
               : "text-muted-foreground hover:text-foreground"
           )}
+          whileHover={tab.disabled ? undefined : { scale: 1.02 }}
+          whileTap={tab.disabled ? undefined : { scale: 0.98 }}
+          transition={springConfig}
         >
-          {tab.label}
-        </button>
+          <AnimatePresence>
+            {value === tab.id && (
+              <motion.div
+                className="absolute inset-0 rounded-md bg-background shadow-sm"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={springConfig}
+                layoutId={`subtab-pill-${layoutId}`}
+              />
+            )}
+          </AnimatePresence>
+          <span className="relative z-10">{tab.label}</span>
+        </motion.button>
       ))}
     </div>
   )
@@ -115,6 +134,7 @@ export function EffectsSidebar({
   isEditingCrop,
   selectedTrackType,
 }: EffectsSidebarProps) {
+  const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer)
   const [activeTab, setActiveTab] = useState<SidebarTabId>(() =>
     selectedClip ? SidebarTabId.Clip : SidebarTabId.Style
   )
@@ -277,6 +297,14 @@ export function EffectsSidebar({
     }
   }, [activeTab, selectedClip, hasWebcamTrack])
 
+  useEffect(() => {
+    if (activeTab !== SidebarTabId.Webcam) return
+    if (!webcamEffect) return
+    if (selectedEffectLayer && selectedEffectLayer.type !== EffectLayerType.Webcam) return
+    if (selectedEffectLayer?.type === EffectLayerType.Webcam && selectedEffectLayer?.id === webcamEffect.id) return
+    selectEffectLayer(EffectLayerType.Webcam, webcamEffect.id)
+  }, [activeTab, webcamEffect, selectedEffectLayer, selectEffectLayer])
+
   // Update background while preserving existing properties
   const updateBackgroundEffect = useCallback((updates: any) => {
     // If no background effect exists, create it with sensible defaults
@@ -308,18 +336,33 @@ export function EffectsSidebar({
             {visibleTabs.map((tab) => (
               <Tooltip key={tab.id} delayDuration={200}>
                 <TooltipTrigger asChild>
-                  <button
+                  <motion.button
                     onClick={() => setActiveTab(tab.id as any)}
                     className={cn(
-                      "group relative flex w-full items-center justify-center p-2 rounded-lg transition-all duration-150 ease-out",
+                      "group relative flex w-full items-center justify-center p-2 rounded-lg transition-colors duration-150",
                       activeTab === tab.id
-                        ? "bg-primary text-primary-foreground shadow-sm"
+                        ? "text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
                     )}
                     aria-label={tab.label}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={springConfig}
                   >
-                    <tab.icon className="w-[18px] h-[18px]" />
-                  </button>
+                    <AnimatePresence>
+                      {activeTab === tab.id && (
+                        <motion.div
+                          className="absolute inset-0 rounded-lg bg-primary shadow-sm"
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          transition={springConfig}
+                          layoutId="effects-sidebar-tab-active"
+                        />
+                      )}
+                    </AnimatePresence>
+                    <tab.icon className="relative z-10 w-[18px] h-[18px]" />
+                  </motion.button>
                 </TooltipTrigger>
                 <TooltipContent side="right" align="center" sideOffset={8} className="text-xs">
                   {tab.label}
@@ -346,7 +389,7 @@ export function EffectsSidebar({
               </motion.h2>
             </AnimatePresence>
             {selectedEffectLayer && (
-              <div className="ml-auto px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-medium leading-tight rounded-full">
+              <div className="ml-auto px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-medium leading-tight rounded-full">
                 {selectedEffectLayer.type === EffectLayerType.Zoom && selectedEffectLayer.id ?
                   `Editing Zoom` :
                   (() => {

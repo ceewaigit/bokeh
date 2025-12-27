@@ -37,6 +37,7 @@ export function usePlayerConfiguration(
     // Separate video clips and audio clips using centralized selectors
     const videoClips = TimelineDataService.getVideoClips(project);
     const audioClips = TimelineDataService.getAudioClips(project);
+    const webcamClips = TimelineDataService.getWebcamClips(project);
 
     // We need at least video clips for the composition
     if (videoClips.length === 0) {
@@ -52,13 +53,14 @@ export function usePlayerConfiguration(
     return {
       clips: videoClips,  // Only video clips for the main video rendering
       audioClips,         // Separate audio clips for audio rendering
+      webcamClips,        // Webcam overlay clips
       recordings,
       effects,
       videoWidth,
       videoHeight,
       fps,
       backgroundColor: windowSurfaceMode === 'solid' ? '#000' : 'transparent',
-      enhanceAudio: project.settings.audio?.enhanceAudio,
+      enhanceAudio: project.settings.audio.enhanceAudio,
       cameraSettings: cameraSettingsOverride ?? project.settings.camera,
     };
   }, [project, videoWidth, videoHeight, fps, windowSurfaceMode, cameraSettingsOverride]);

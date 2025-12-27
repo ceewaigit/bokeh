@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button'
 import { HeaderButton } from '@/components/ui/header-button'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
 import { WindowHeader } from '@/components/ui/window-header'
+import { type SortKey, type SortDirection } from '@/stores/recordings-library-store'
+import { LibrarySearch } from './library-search'
+import { LibrarySort } from './library-sort'
 
 interface LibraryHeaderProps {
   totalRecordings: number
@@ -16,6 +19,11 @@ interface LibraryHeaderProps {
   onRefresh: () => void
   onNewRecording: () => void
   onOpenSettings: () => void
+  searchQuery: string
+  onSearchChange: (query: string) => void
+  sortKey: SortKey
+  sortDirection: SortDirection
+  onSortChange: (key: SortKey, direction: SortDirection) => void
 }
 
 export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
@@ -28,9 +36,14 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
   onNextPage,
   onRefresh,
   onNewRecording,
-  onOpenSettings
+  onOpenSettings,
+  searchQuery,
+  onSearchChange,
+  sortKey,
+  sortDirection,
+  onSortChange
 }, ref) => (
-  <WindowHeader ref={ref} customDragRegions className="sticky top-0 z-30">
+  <WindowHeader ref={ref} customDragRegions className="sticky top-0 z-30 relative">
     <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-md">
         <Film className="w-3.5 h-3.5 text-primary flex-shrink-0" />
@@ -44,10 +57,18 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
       </div>
     </div>
 
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div className="pointer-events-auto" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <LibrarySearch query={searchQuery} onQueryChange={onSearchChange} />
+      </div>
+    </div>
+
     <div className="flex-1" />
 
     <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <div className="flex items-center gap-1 mr-2">
+        <LibrarySort sortKey={sortKey} sortDirection={sortDirection} onSortChange={onSortChange} />
+        <div className="w-px h-4 bg-border/50 mx-2" />
         <Button
           size="sm"
           variant="ghost"
@@ -83,7 +104,7 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
       </HeaderButton>
       <HeaderButton
         variant="default"
-        className="shadow-sm hover:shadow"
+        className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
         onClick={onNewRecording}
         tooltip="New Recording"
         icon={Video}

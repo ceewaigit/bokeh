@@ -6,7 +6,9 @@
  */
 
 import type { ProjectStore } from './types'
-import { QualityLevel, ExportFormat, type Project } from '@/types/project'
+import type { Project } from '@/types/project'
+import { DEFAULT_STORE_SETTINGS } from '@/lib/settings/defaults'
+import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
 
 /**
  * CENTRALIZED CACHE INVALIDATION
@@ -26,6 +28,7 @@ import { QualityLevel, ExportFormat, type Project } from '@/types/project'
 export function invalidateCaches(state: ProjectStore): void {
   state.cameraPathCache = null
   state.frameLayoutCache = null
+  state.timelineMutationCounter = (state.timelineMutationCounter ?? 0) + 1
 }
 
 /**
@@ -37,7 +40,6 @@ export function resetSelectionState(state: ProjectStore): void {
   state.selectedEffectLayer = null
   state.zoomManuallyAdjusted = false
   state.currentTime = 0
-  state.currentTime = 0
   // Note: playhead state is now computed via usePlayheadState() hook - no need to update here
 }
 
@@ -48,57 +50,16 @@ export function resetSelectionState(state: ProjectStore): void {
 export function syncProjectSettingsToStore(state: ProjectStore, project: Project): void {
   if (!project.settings) return
 
-  // Sync unified settings
-  if (project.settings.resolution) {
-    state.settings.resolution = project.settings.resolution
-  }
-  if (project.settings.frameRate) {
-    state.settings.framerate = project.settings.frameRate
-  }
+  const normalized = normalizeProjectSettings(project.settings)
 
-  // Sync nested settings (shallow merge properties)
-  if (project.settings.audio) {
-    Object.assign(state.settings.audio, project.settings.audio)
-  }
-  if (project.settings.camera) {
-    Object.assign(state.settings.camera, project.settings.camera)
-  }
+  state.settings.resolution = normalized.resolution
+  state.settings.framerate = normalized.frameRate
+  Object.assign(state.settings.audio, normalized.audio)
+  Object.assign(state.settings.camera, normalized.camera)
 }
 
 /**
  * Default settings for new stores.
  * Used by the core slice for initial state.
  */
-export const DEFAULT_SETTINGS: ProjectStore['settings'] = {
-  quality: QualityLevel.High,
-  resolution: { width: 1920, height: 1080 },
-  framerate: 60,
-  format: ExportFormat.MP4,
-
-  showTypingSuggestions: true,
-  audio: {
-    volume: 100,
-    muted: false,
-    fadeInDuration: 0.5,
-    fadeOutDuration: 0.5,
-    enhanceAudio: false
-  },
-  editing: {
-    snapToGrid: true,
-    showWaveforms: false,
-    autoRipple: true
-  },
-  playback: { previewSpeed: 1 },
-  camera: {
-    motionBlurEnabled: true,
-    motionBlurIntensity: 40,
-    motionBlurThreshold: 30,
-    refocusBlurEnabled: true,
-    refocusBlurIntensity: 40
-  },
-  recording: {
-    lowMemoryEncoder: false,
-    useMacOSDefaults: true,
-    includeAppWindows: false
-  }
-}
+export const DEFAULT_SETTINGS: ProjectStore['settings'] = DEFAULT_STORE_SETTINGS

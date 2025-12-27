@@ -60,12 +60,13 @@ export function useVideoContainerCleanup(videoUrl: string | undefined) {
   const prevVideoUrlRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    const container = containerRef.current;
     const prevUrl = prevVideoUrlRef.current;
     if (prevUrl !== undefined && prevUrl !== videoUrl) {
-      cleanupVideoDecodersInContainer(containerRef.current, prevUrl);
+      cleanupVideoDecodersInContainer(container, prevUrl);
     }
     prevVideoUrlRef.current = videoUrl;
-    return () => cleanupVideoDecodersInContainer(containerRef.current);
+    return () => cleanupVideoDecodersInContainer(container);
   }, [videoUrl]);
 
   return containerRef;

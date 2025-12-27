@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Activity, Info, Video, Play } from 'lucide-react'
+import { Activity, Video, Play } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -79,9 +79,7 @@ export function SettingsDialog() {
     setProcessLoading(true)
     setProcessError(null)
     try {
-      const snapshot = window.electronAPI?.getBokehProcesses
-        ? await window.electronAPI.getBokehProcesses()
-        : await window.electronAPI?.ipcRenderer?.invoke('get-bokeh-processes')
+      const snapshot = await window.electronAPI?.getBokehProcesses?.()
       if (!snapshot) throw new Error('Unavailable')
       setProcessSnapshot(snapshot)
     } catch {

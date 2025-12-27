@@ -2,7 +2,7 @@
  * Data Validation - Simple security fixes
  */
 
-import type { Project, RecordingSettings, TimelineClip } from '@/types'
+import type { Project, ProjectSettings, RecordingSettings, TimelineClip } from '@/types'
 
 export function validateProject(project: any): project is Project {
   if (!project || typeof project !== 'object') {
@@ -12,10 +12,10 @@ export function validateProject(project: any): project is Project {
   return (
     typeof project.id === 'string' &&
     typeof project.name === 'string' &&
-    Array.isArray(project.clips) &&
-    Array.isArray(project.animations) &&
-    project.settings &&
-    validateRecordingSettings(project.settings)
+    project.timeline &&
+    Array.isArray(project.timeline.tracks) &&
+    Array.isArray(project.recordings) &&
+    validateProjectSettings(project.settings)
   )
 }
 
@@ -38,6 +38,15 @@ export function validateRecordingSettings(settings: any): settings is RecordingS
     ['high', 'medium', 'low'].includes(settings.quality) &&
     [30, 60].includes(settings.framerate) &&
     ['mp4', 'mov', 'webm'].includes(settings.format)
+}
+
+export function validateProjectSettings(settings: any): settings is ProjectSettings {
+  if (!settings) return false
+  return settings.resolution &&
+    typeof settings.resolution.width === 'number' &&
+    typeof settings.resolution.height === 'number' &&
+    typeof settings.frameRate === 'number' &&
+    typeof settings.backgroundColor === 'string'
 }
 
 export function validateTimelineClip(clip: any): clip is TimelineClip {

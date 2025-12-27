@@ -13,11 +13,11 @@
  * For keystroke sync: import from './keystroke-sync-service'
  * For CRUD operations: import { EffectStore } from '@/lib/core/effects'
  */
-import type { Effect, Recording, Project, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData } from '@/types/project'
-import { EffectType } from '@/types/project'
+import type { Effect, Recording, Project, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData, WebcamEffectData } from '@/types/project'
+import { EffectType, TrackType } from '@/types/project'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { getPluginDefaults, getDefaultZIndexForCategory } from '@/lib/effects/config/plugin-sdk'
-import { DEFAULT_BACKGROUND_DATA, DEFAULT_CURSOR_DATA, getDefaultWallpaper } from '@/lib/constants/default-effects'
+import { DEFAULT_BACKGROUND_DATA, DEFAULT_CURSOR_DATA, DEFAULT_WEBCAM_DATA, getDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectStore } from '@/lib/core/effects'
 
 // Re-export from new modules for backwards compatibility
@@ -51,6 +51,19 @@ export class EffectsFactory {
       data: {
         ...DEFAULT_CURSOR_DATA,
       } as CursorEffectData,
+      enabled: true
+    }
+  }
+
+  static createDefaultWebcamEffect(): Effect {
+    return {
+      id: `webcam-global`,
+      type: EffectType.Webcam,
+      startTime: 0,
+      endTime: Number.MAX_SAFE_INTEGER,
+      data: {
+        ...DEFAULT_WEBCAM_DATA,
+      } as WebcamEffectData,
       enabled: true
     }
   }
@@ -148,6 +161,25 @@ export class EffectsFactory {
     const hasKeystrokes = effects.some(e => e.type === EffectType.Keystroke)
     if (!hasKeystrokes) {
       syncKeystrokeEffects(project)
+    }
+
+    const hasWebcamEffect = effects.some(e => e.type === EffectType.Webcam)
+    const webcamTrack = project.timeline.tracks.find(
+      (track) => track.type === TrackType.Webcam
+    )
+    const hasWebcamClips = webcamTrack && webcamTrack.clips.length > 0
+    if (!hasWebcamEffect && hasWebcamClips) {
+      // Calculate webcam effect duration from actual clip duration
+      const webcamClips = webcamTrack.clips
+      const maxEndTime = webcamClips.reduce((max, clip) => {
+        const clipEnd = clip.startTime + clip.duration
+        return clipEnd > max ? clipEnd : max
+      }, 0)
+
+      const webcamEffect = this.createDefaultWebcamEffect()
+      // Set the webcam effect to match actual clip duration
+      webcamEffect.endTime = maxEndTime > 0 ? maxEndTime : Number.MAX_SAFE_INTEGER
+      EffectStore.add(project, webcamEffect)
     }
   }
 

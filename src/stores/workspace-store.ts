@@ -108,8 +108,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       },
 
       setTimelineHeight: (height: number) => {
-        // Min 30vh equivalent (~200px), max 50vh (~400px)
-        const minHeight = Math.max(200, window.innerHeight * 0.3)
+        // Min 60px (ultra compact), max 50vh (~400px)
+        const minHeight = 60
         const maxHeight = window.innerHeight * 0.5
         set({ timelineHeight: Math.max(minHeight, Math.min(maxHeight, height)) })
       },
@@ -135,7 +135,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               isPropertiesOpen: false,
               isTimelineOpen: true,
               propertiesPanelWidth: 360,
-              timelineHeight: 150,
+              timelineHeight: 120,
             })
             break
           case 'standard':
@@ -143,7 +143,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               isPropertiesOpen: true,
               isTimelineOpen: true,
               propertiesPanelWidth: 400,
-              timelineHeight: 200,
+              timelineHeight: 160,
             })
             break
           case 'advanced':
@@ -151,7 +151,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               isPropertiesOpen: true,
               isTimelineOpen: true,
               propertiesPanelWidth: 400,
-              timelineHeight: 300,
+              timelineHeight: 250,
             })
             break
         }
@@ -169,13 +169,21 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     }),
     {
       name: 'workspace-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState: any) => {
         if (!persistedState) return persistedState
 
         // Migrate old utility tabs into the new "advanced" bucket.
         if (persistedState.activeUtilityTab === 'editing') {
           persistedState = { ...persistedState, activeUtilityTab: 'advanced' }
+        }
+
+        // Version 3: Force compact timeline for existing users (Screen Studio style)
+        if (typeof persistedState.timelineHeight === 'number') {
+          // If it was the old default (250) or larger, reducing it to new compact default
+          if (persistedState.timelineHeight >= 250) {
+            persistedState = { ...persistedState, timelineHeight: 160 }
+          }
         }
 
         if (typeof persistedState.isHighQualityPlaybackEnabled === 'boolean') {

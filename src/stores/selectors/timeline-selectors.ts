@@ -63,6 +63,9 @@ export interface TrackExistence {
   hasPluginTrack: boolean
   hasCropTrack: boolean
   hasWebcamTrack: boolean
+  // Content presence flags for collapsible tracks
+  hasAudioContent: boolean
+  hasWebcamContent: boolean
 }
 
 export function useTrackExistence(): TrackExistence {
@@ -76,14 +79,27 @@ export function useTrackExistence(): TrackExistence {
     return !!webcamTrack
   }, [project?.timeline?.tracks])
 
+  // Check for actual content in audio/webcam tracks
+  const { hasAudioContent, hasWebcamContent } = useMemo(() => {
+    if (!project?.timeline?.tracks) return { hasAudioContent: false, hasWebcamContent: false }
+    const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)
+    const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
+    return {
+      hasAudioContent: (audioTrack?.clips?.length ?? 0) > 0,
+      hasWebcamContent: (webcamTrack?.clips?.length ?? 0) > 0
+    }
+  }, [project?.timeline?.tracks])
+
   return useMemo(() => ({
     hasZoomTrack: zoom.length > 0,
     hasScreenTrack: screen.length > 0,
     hasKeystrokeTrack: keystroke.length > 0,
     hasPluginTrack: plugin.length > 0,
     hasCropTrack: crop.length > 0,
-    hasWebcamTrack
-  }), [zoom.length, screen.length, keystroke.length, plugin.length, crop.length, hasWebcamTrack])
+    hasWebcamTrack,
+    hasAudioContent,
+    hasWebcamContent
+  }), [zoom.length, screen.length, keystroke.length, plugin.length, crop.length, hasWebcamTrack, hasAudioContent, hasWebcamContent])
 }
 
 /**
@@ -97,7 +113,7 @@ export function useTimelineDuration(): number {
  * Get the project FPS.
  */
 export function useProjectFps(): number {
-  return useProjectStore((s) => s.currentProject?.settings?.frameRate ?? 60)
+  return useProjectStore((s) => s.currentProject?.settings.frameRate ?? 60)
 }
 
 /**

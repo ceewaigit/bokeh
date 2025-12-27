@@ -35,11 +35,38 @@ const PRESETS = {
   glass: { mode: 'glass' as const, opacity: 0.12, blurPx: 26 },
   'glass-strong': { mode: 'glass' as const, opacity: 0.16, blurPx: 34 },
 
-  // Clear: high opacity, no blur (tinted overlay)
-  'clear-light': { mode: 'clear' as const, opacity: 0.60, blurPx: 0 },
-  clear: { mode: 'clear' as const, opacity: 0.75, blurPx: 0 },
-  'clear-strong': { mode: 'clear' as const, opacity: 0.88, blurPx: 0 },
+  // Clear glass: no blur, medium opacity for a true transparent glass feel
+  'clear-light': { mode: 'clear' as const, opacity: 0.52, blurPx: 0 },
+  clear: { mode: 'clear' as const, opacity: 0.72, blurPx: 0 },
+  'clear-strong': { mode: 'clear' as const, opacity: 0.92, blurPx: 0 },
 } as const
+
+const DEFAULT_STATE = {
+  mode: 'solid' as const,
+  opacity: PRESETS.solid.opacity,
+  blurPx: PRESETS.solid.blurPx,
+}
+
+const isFiniteNumber = (value: unknown): value is number => Number.isFinite(value)
+
+const normalizeWindowAppearanceState = (
+  state: Partial<WindowAppearanceState> & { mode?: string } = {}
+): Pick<WindowAppearanceState, 'mode' | 'opacity' | 'blurPx'> => {
+  const mode: WindowSurfaceMode =
+    state.mode === 'solid' || state.mode === 'glass' || state.mode === 'clear' || state.mode === 'custom'
+      ? state.mode
+      : DEFAULT_STATE.mode
+
+  const preset =
+    mode === 'custom' ? PRESETS.glass : mode === 'glass' ? PRESETS.glass : mode === 'clear' ? PRESETS.clear : PRESETS.solid
+  const minBlur = mode === 'custom' || mode === 'glass' ? MIN_GLASS_BLUR_PX : 0
+
+  return {
+    mode,
+    opacity: isFiniteNumber(state.opacity) ? clamp(state.opacity, 0, 1) : preset.opacity,
+    blurPx: isFiniteNumber(state.blurPx) ? clamp(state.blurPx, minBlur, 40) : preset.blurPx,
+  }
+}
 
 export const useWindowAppearanceStore = create<WindowAppearanceState>()(
   persist(
@@ -94,22 +121,15 @@ export const useWindowAppearanceStore = create<WindowAppearanceState>()(
         if ((state.mode as string) === 'transparent') state.mode = 'clear'
 
         if (version < 4) {
-          const mode: WindowSurfaceMode =
-            state.mode === 'solid' || state.mode === 'glass' || state.mode === 'clear' || state.mode === 'custom'
-              ? state.mode
-              : 'solid'
-          const preset = mode === 'custom' ? PRESETS.glass : mode === 'glass' ? PRESETS.glass : mode === 'clear' ? PRESETS.clear : PRESETS.solid
           return {
             ...state,
-            mode,
-            opacity: typeof state.opacity === 'number' ? clamp(state.opacity, 0, 1) : preset.opacity,
-            blurPx:
-              typeof state.blurPx === 'number'
-                ? clamp(state.blurPx, mode === 'custom' ? MIN_GLASS_BLUR_PX : 0, 40)
-                : preset.blurPx,
+            ...normalizeWindowAppearanceState(state),
           }
         }
-        return state
+        return {
+          ...state,
+          ...normalizeWindowAppearanceState(state),
+        }
       },
     }
   )
@@ -127,8 +147,8 @@ function setupStorageListener() {
       try {
         const stored = JSON.parse(event.newValue || '{}')
         if (stored?.state) {
-          const { mode, opacity, blurPx } = stored.state
-          useWindowAppearanceStore.setState({ mode, opacity, blurPx })
+          const nextState = normalizeWindowAppearanceState(stored.state)
+          useWindowAppearanceStore.setState(nextState)
         }
       } catch (e) {
         // Ignore parse errors

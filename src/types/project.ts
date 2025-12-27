@@ -49,6 +49,9 @@ export enum RecordingSourceType {
   Area = 'area'
 }
 
+// Media kind for recordings stored in the project.
+export type RecordingMediaType = 'video' | 'generated' | 'image'
+
 export enum ExportFormat {
   MP4 = 'mp4',
   MOV = 'mov',
@@ -136,9 +139,8 @@ export interface Project {
   exportPresets: ExportPreset[]
 }
 
-export interface Recording {
+interface RecordingBase {
   id: string
-  filePath: string
   duration: number
   width: number
   height: number
@@ -176,21 +178,6 @@ export interface Recording {
   // Non-zoom, recording-scoped effects only (cursor/background/screen/etc).
   effects: Effect[]
 
-  /** Source type for this recording (video file, generated clip, or image) */
-  sourceType?: 'video' | 'generated' | 'image'
-
-  /** Generated source definition for clip plugins */
-  generatedSource?: {
-    pluginId: string
-    params: Record<string, unknown>
-  }
-
-  /** Image source data for image clips (freeze frames, imported images) */
-  imageSource?: ImageSourceData
-
-  /** Synthetic mouse events for cursor animation on image clips (cursor return, etc.) */
-  syntheticMouseEvents?: MouseEvent[]
-
   // Folder-based storage for this recording (absolute or project-relative)
   folderPath?: string
 
@@ -203,6 +190,35 @@ export interface Recording {
     screen?: string[]
   }
 }
+
+export interface VideoRecording extends RecordingBase {
+  sourceType: 'video'
+  filePath: string
+  generatedSource?: never
+  imageSource?: never
+  syntheticMouseEvents?: never
+}
+
+export interface ImageRecording extends RecordingBase {
+  sourceType: 'image'
+  filePath: string
+  imageSource: ImageSourceData
+  generatedSource?: never
+  syntheticMouseEvents?: MouseEvent[]
+}
+
+export interface GeneratedRecording extends RecordingBase {
+  sourceType: 'generated'
+  filePath?: string
+  generatedSource: {
+    pluginId: string
+    params: Record<string, unknown>
+  }
+  imageSource?: never
+  syntheticMouseEvents?: never
+}
+
+export type Recording = VideoRecording | ImageRecording | GeneratedRecording
 
 export interface CaptureArea {
   // Full screen bounds (including dock)
@@ -452,7 +468,9 @@ export interface WebcamEffect extends BaseEffect {
   data: WebcamEffectData
 }
 
-export interface ZoomBlock {
+export type ZoomBlockOrigin = 'auto' | 'manual'
+
+interface ZoomBlockBase {
   id: string
   startTime: number
   endTime: number
@@ -469,6 +487,16 @@ export interface ZoomBlock {
   smoothing?: number
   mouseIdlePx?: number
 }
+
+export interface AutoZoomBlock extends ZoomBlockBase {
+  origin: 'auto'
+}
+
+export interface ManualZoomBlock extends ZoomBlockBase {
+  origin: 'manual'
+}
+
+export type ZoomBlock = AutoZoomBlock | ManualZoomBlock
 
 // Background type enum
 export enum BackgroundType {
@@ -539,6 +567,7 @@ export type CursorMotionPreset = 'cinematic' | 'smooth' | 'balanced' | 'responsi
 
 // New: Effect-specific data types for independent effects
 export interface ZoomEffectData {
+  origin: ZoomBlockOrigin
   scale: number
   targetX?: number          // Screen pixel coordinates
   targetY?: number          // Screen pixel coordinates
@@ -574,6 +603,10 @@ export interface CursorEffectData {
   clickTextRise?: number
   motionBlur: boolean
   /**
+   * Intensity of cursor motion blur (0-100). Optional for backward compatibility.
+   */
+  motionBlurIntensity?: number
+  /**
    * Adds a slight rotation ("bank") in the direction of cursor travel.
    * Optional for backward compatibility with existing projects.
    */
@@ -594,6 +627,11 @@ export interface CursorEffectData {
    * Optional for backward compatibility with existing projects.
    */
   glide?: number
+  /**
+   * Multiplier for the smoothing jump threshold relative to capture diagonal.
+   * Higher = fewer hard resets on fast movement.
+   */
+  smoothingJumpThreshold?: number
   /**
    * Motion preset for cursor smoothing (cinematic, smooth, balanced, responsive, custom).
    * When set to anything other than 'custom', speed/smoothness/glide are derived from preset.
@@ -763,7 +801,7 @@ export interface ProjectSettings {
   }
   frameRate: number
   backgroundColor: string
-  audio?: {
+  audio: {
     volume: number
     muted: boolean
     fadeInDuration: number
@@ -772,7 +810,7 @@ export interface ProjectSettings {
     enhancementPreset?: AudioEnhancementPreset
     customEnhancement?: AudioEnhancementSettings
   }
-  camera?: {
+  camera: {
     motionBlurEnabled?: boolean
     motionBlurIntensity?: number  // 0-100
     motionBlurThreshold?: number  // 0-100
@@ -782,7 +820,7 @@ export interface ProjectSettings {
     refocusBlurIntensity?: number
   }
   /** Canvas settings for aspect ratio and output dimensions */
-  canvas?: CanvasSettings
+  canvas: CanvasSettings
 }
 
 export type CameraSettings = NonNullable<ProjectSettings['camera']>
@@ -864,6 +902,7 @@ export interface WebcamEffectData {
     anchor: WebcamAnchor
   }
   size: number  // 5-50 percentage of canvas width
+  padding: number  // Edge padding in pixels (distance from canvas edge)
 
   // Shape
   shape: WebcamShape
@@ -912,4 +951,10 @@ export interface WebcamEffectData {
 
   // Opacity (0-1)
   opacity: number
+
+  // Reduce opacity when zoomed in (to keep focus on content)
+  reduceOpacityOnZoom: boolean
+
+  // Crop the webcam source (0-1 normalized)
+  sourceCrop?: CropEffectData
 }

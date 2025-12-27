@@ -11,6 +11,38 @@ import type {
 
 let pendingSettingsOpen = false
 
+const allowedIpcInvokeChannels = new Set([
+  'export-video',
+  'export-cancel',
+  'export-cleanup',
+  'export-stream-chunk'
+])
+
+const allowedIpcOnChannels = new Set([
+  'export-progress'
+])
+
+const restrictedIpc = {
+  invoke: (channel: string, ...args: any[]) => {
+    if (!allowedIpcInvokeChannels.has(channel)) {
+      throw new Error(`Blocked IPC invoke channel: ${channel}`)
+    }
+    return ipcRenderer.invoke(channel, ...args)
+  },
+  on: (channel: string, listener: (event: any, ...args: any[]) => void) => {
+    if (!allowedIpcOnChannels.has(channel)) {
+      throw new Error(`Blocked IPC listener channel: ${channel}`)
+    }
+    ipcRenderer.on(channel, listener)
+  },
+  removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => {
+    if (!allowedIpcOnChannels.has(channel)) {
+      throw new Error(`Blocked IPC listener channel: ${channel}`)
+    }
+    ipcRenderer.removeListener(channel, listener)
+  }
+}
+
 ipcRenderer.on('open-settings-dialog', () => {
   pendingSettingsOpen = true
 })
@@ -263,10 +295,6 @@ const electronAPI = {
   showOpenDialog: (options: OpenDialogOptions) =>
     ipcRenderer.invoke('show-open-dialog', options),
 
-  // Generic send method for IPC
-  send: (channel: string, ...args: any[]) =>
-    ipcRenderer.send(channel, ...args),
-
   // Countdown window
   showCountdown: (number: number, displayId?: number) =>
     ipcRenderer.invoke('show-countdown', number, displayId),
@@ -442,18 +470,8 @@ const electronAPI = {
     readVideo: (filePath: string) => ipcRenderer.invoke('native-recorder:read-video', filePath)
   },
 
-  // IPC Renderer for export
-  ipcRenderer: {
-    on: (channel: string, listener: (event: any, ...args: any[]) => void) => {
-      ipcRenderer.on(channel, listener)
-    },
-    removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => {
-      ipcRenderer.removeListener(channel, listener)
-    },
-    invoke: (channel: string, ...args: any[]) => {
-      return ipcRenderer.invoke(channel, ...args)
-    }
-  }
+  // Restricted IPC surface for export flows
+  ipc: restrictedIpc
 }
 
 // Always expose the API using contextBridge for security

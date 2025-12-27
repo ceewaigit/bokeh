@@ -12,7 +12,7 @@
  * - useRenderableItems: Determines which clips to render
  */
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import {
   useVideoData,
@@ -26,6 +26,7 @@ import {
   createMotionBlurSvg,
   getMotionBlurConfig,
 } from './utils/transforms/zoom-transform';
+import { calculateCameraMotionBlur } from './utils/effects/camera-motion-blur';
 import type { SharedVideoControllerProps } from '@/types';
 import {
   getBoundaryOverlapState,
@@ -189,6 +190,64 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // Manual Motion Blur Config
   const motionBlurId = useMemo(() => `motion-blur-${Math.random().toString(36).substr(2, 9)}`, []);
   const motionBlurConfig = getMotionBlurConfig(cameraSettings);
+  const prevPanRef = useRef<{ panX: number; panY: number } | null>(null);
+
+  useEffect(() => {
+    if (!isRendering && zoomTransform) {
+      prevPanRef.current = { panX: zoomTransform.panX, panY: zoomTransform.panY };
+    }
+  }, [isRendering, zoomTransform?.panX, zoomTransform?.panY]);
+
+  const cameraMotionBlur = useMemo(() => {
+    return calculateCameraMotionBlur({
+      blurConfig: motionBlurConfig,
+      renderData: zoomTransform
+        ? {
+          zoomTransform,
+          drawWidth: layout.drawWidth,
+          drawHeight: layout.drawHeight,
+          padding: layout.padding,
+          scaleFactor: layout.scaleFactor,
+        }
+        : null,
+      currentFrame,
+      fps,
+      outputWidth: width,
+      outputHeight: height,
+      isRendering,
+      isNearBoundaryStart,
+      isNearBoundaryEnd,
+      shouldHoldPrevFrame,
+      precomputedPath: cameraPathFrame?.path,
+      calculatedZoomCenter: cameraPathFrame?.zoomCenter ?? { x: 0.5, y: 0.5 },
+      calculatedZoomBlock: cameraPathFrame?.activeZoomBlock,
+      prevPanRef: prevPanRef.current,
+    });
+  }, [
+    motionBlurConfig,
+    zoomTransform,
+    layout.drawWidth,
+    layout.drawHeight,
+    layout.padding,
+    layout.scaleFactor,
+    currentFrame,
+    fps,
+    width,
+    height,
+    isRendering,
+    isNearBoundaryStart,
+    isNearBoundaryEnd,
+    shouldHoldPrevFrame,
+    cameraPathFrame?.path,
+    cameraPathFrame?.zoomCenter,
+    cameraPathFrame?.activeZoomBlock,
+  ]);
+
+  const motionBlurActive = motionBlurConfig.enabled && cameraMotionBlur.blurRadius > 0.2;
+  const refocusIntensity = cameraSettings?.refocusBlurEnabled === false
+    ? 0
+    : Math.max(0, Math.min(1, (cameraSettings?.refocusBlurIntensity ?? 40) / 100));
+  const refocusBlurPx = (zoomTransform?.refocusBlur ?? 0) * 12 * refocusIntensity;
 
   // ==========================================================================
   // RENDERABLE ITEMS
@@ -218,21 +277,21 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       const recording = recordingsMap.get(item.clip.recordingId);
       if (!recording) return null;
 
-      if (!recording.sourceType || recording.sourceType === 'video') {
+      if (recording.sourceType === 'video') {
         // Calculate max zoom for this specific clip
         const maxZoom = getMaxZoomScale(recording.effects || []);
         const currentScale = zoomTransform?.scale || 1;
 
         return (
           <VideoClipRenderer
-            key={item.clip.id}
+            key={item.groupId}
             clipForVideo={item.clip}
             recording={recording}
             startFrame={item.startFrame}
             durationFrames={item.durationFrames}
-            groupStartFrame={item.startFrame}
-            renderStartFrom={item.clip.sourceIn ?? 0}
-            groupDuration={item.durationFrames}
+            groupStartFrame={item.groupStartFrame}
+            groupStartSourceIn={item.groupStartSourceIn}
+            groupDuration={item.groupDuration}
             currentFrame={currentFrame}
             fps={fps}
             isRendering={isRendering}
@@ -331,6 +390,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
           ...layout,
           zoomTransform: zoomTransform ?? null,
           contentTransform: outerTransform,
+          refocusBlurPx,
+          cameraMotionBlur: motionBlurActive
+            ? { enabled: true, angle: cameraMotionBlur.angle, filterId: motionBlurId }
+            : { enabled: false, angle: 0, filterId: motionBlurId },
           activeClipData,
           effectiveClipData: resolvedClipData,
           prevFrameClipData,
@@ -351,43 +414,55 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     <AbsoluteFill>
       {motionBlurConfig.enabled && (
         <AbsoluteFill style={{ pointerEvents: 'none', zIndex: 0 }}>
-          {createMotionBlurSvg(0, motionBlurId)}
+          {createMotionBlurSvg(cameraMotionBlur.blurRadius, motionBlurId)}
         </AbsoluteFill>
       )}
 
       {/* Main Transform Container */}
-      <AbsoluteFill
-        style={{
-          filter: motionBlurConfig.enabled ? `url(#${motionBlurId})` : undefined,
-          willChange: isRendering ? undefined : 'transform',
-        }}
-      >
-        <div
+      <AbsoluteFill>
+        <AbsoluteFill
           style={{
-            position: 'absolute',
-            left: layout.mockupEnabled ? 0 : layout.offsetX,
-            top: layout.mockupEnabled ? 0 : layout.offsetY,
-            width: layout.mockupEnabled ? '100%' : layout.drawWidth,
-            height: layout.mockupEnabled ? '100%' : layout.drawHeight,
-            transform: outerTransform,
-            transformOrigin: 'center center',
-            clipPath: layout.mockupEnabled ? undefined : cropClipPath,
-            borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
-            overflow: cropClipPath ? 'hidden' : undefined,
+            filter: motionBlurActive ? `url(#${motionBlurId})` : undefined,
+            transform: motionBlurActive ? `rotate(${cameraMotionBlur.angle}deg)` : undefined,
+            transformOrigin: '50% 50%',
+            willChange: isRendering ? undefined : 'transform',
           }}
         >
-          {/* Render content, optionally wrapped in mockup */}
-          {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
-            <MockupLayer
-              mockupData={layout.mockupData}
-              mockupPosition={layout.mockupPosition}
+          <AbsoluteFill
+            style={{
+              transform: motionBlurActive ? `rotate(${-cameraMotionBlur.angle}deg)` : undefined,
+              transformOrigin: '50% 50%',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: layout.mockupEnabled ? 0 : layout.offsetX,
+                top: layout.mockupEnabled ? 0 : layout.offsetY,
+                width: layout.mockupEnabled ? '100%' : layout.drawWidth,
+                height: layout.mockupEnabled ? '100%' : layout.drawHeight,
+                transform: outerTransform,
+                transformOrigin: 'center center',
+                filter: refocusBlurPx > 0.01 ? `blur(${refocusBlurPx}px)` : undefined,
+                clipPath: layout.mockupEnabled ? undefined : cropClipPath,
+                borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
+                overflow: cropClipPath ? 'hidden' : undefined,
+              }}
             >
-              {renderedContent}
-            </MockupLayer>
-          ) : (
-            renderedContent
-          )}
-        </div>
+              {/* Render content, optionally wrapped in mockup */}
+              {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
+                <MockupLayer
+                  mockupData={layout.mockupData}
+                  mockupPosition={layout.mockupPosition}
+                >
+                  {renderedContent}
+                </MockupLayer>
+              ) : (
+                renderedContent
+              )}
+            </div>
+          </AbsoluteFill>
+        </AbsoluteFill>
 
         {/* Preview Guides */}
         {isPreview && (
@@ -407,6 +482,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
         ...layout,
         zoomTransform: zoomTransform ?? null,
         contentTransform: outerTransform,
+        refocusBlurPx,
+        cameraMotionBlur: motionBlurActive
+          ? { enabled: true, angle: cameraMotionBlur.angle, filterId: motionBlurId }
+          : { enabled: false, angle: 0, filterId: motionBlurId },
         activeClipData,
         effectiveClipData: resolvedClipData,
         prevFrameClipData,
@@ -417,8 +496,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
         videoWidth,
         videoHeight
       }}>
-          {children}
-        </VideoPositionProvider>
-      </AbsoluteFill>
+        {children}
+      </VideoPositionProvider>
+    </AbsoluteFill>
   );
 };

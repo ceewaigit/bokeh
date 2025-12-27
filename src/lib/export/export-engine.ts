@@ -2,12 +2,14 @@
  * Export Engine
  */
 
-import type { ExportSettings, Project, Recording } from '@/types'
+import type { ExportSettings, Project, Recording, Clip } from '@/types'
 import { RemotionExportService } from './remotion-export-service'
 import { timelineProcessor } from './timeline-processor'
 import { logger } from '../utils/logger'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { memoryMonitor } from '@/lib/utils/memory-monitor'
+import { resolveProjectRoot } from '@/lib/storage/recording-storage'
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 
 export interface ExportProgress {
   progress: number
@@ -65,6 +67,7 @@ export class ExportEngine {
         recordingsMap,
         5000 // Arbitrary value, not used in actual export
       )
+      const webcamClips: Clip[] = TimelineDataService.getWebcamClips(project)
 
       if (processedTimeline.clipCount === 0) {
         throw new Error('No video clips to export')
@@ -74,14 +77,11 @@ export class ExportEngine {
       logger.info(`Export: ${processedTimeline.clipCount} clips, duration: ${processedTimeline.totalDuration}ms`);
 
       // Extract project folder from project file path
-      let projectFolder: string | undefined;
+      let projectFolder: string | undefined
       if (project.filePath) {
-        // Project file path is like: /path/to/recordings/ProjectFolder/project.bokeh
-        // We want: /path/to/recordings/ProjectFolder
-        const pathParts = project.filePath.split('/');
-        pathParts.pop(); // Remove the filename
-        projectFolder = pathParts.join('/');
-        logger.info(`Project folder: ${projectFolder}`);
+        const fileExists = typeof window !== 'undefined' ? window.electronAPI?.fileExists : undefined
+        projectFolder = await resolveProjectRoot(project.filePath, fileExists)
+        logger.info(`Project folder: ${projectFolder}`)
       }
 
       onProgress?.({
@@ -119,7 +119,8 @@ export class ExportEngine {
         settings,
         progressAdapter,
         this.abortController?.signal,
-        projectFolder
+        projectFolder,
+        webcamClips
       )
 
       return await this.currentExportPromise

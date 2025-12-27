@@ -30,6 +30,11 @@ import { setupThumbnailHandler } from './handlers/thumbnail'
 import { killRemotionChromiumProcesses } from './utils/remotion-chromium-cleanup'
 import { registerAssetHandlers } from './handlers/assets'
 import { registerBokehProcessHandlers } from './handlers/system-stats'
+import { enableCaptureProtection } from './windows/capture-protection'
+
+app.on('browser-window-created', (_event, window) => {
+  enableCaptureProtection(window, `window-${window.id}`)
+})
 
 // Helper functions for MIME type detection
 const guessMimeType = (filePath: string): string => {
@@ -44,6 +49,70 @@ const guessMimeType = (filePath: string): string => {
     case '.ogv': return 'video/ogg'
     default: return 'application/octet-stream'
   }
+}
+
+const resolveRecordingFilePath = (filePath: string, folderPath?: string): string | null => {
+  if (!filePath) return null
+
+  const recordingsDir = getRecordingsDirectory()
+  const normalizedFile = normalizeCrossPlatform(filePath)
+  const candidates = new Set<string>()
+
+  if (path.isAbsolute(normalizedFile)) {
+    candidates.add(normalizedFile)
+  }
+
+  if (folderPath) {
+    const normalizedFolder = normalizeCrossPlatform(folderPath)
+    const resolvedFolder = path.isAbsolute(normalizedFolder)
+      ? normalizedFolder
+      : path.join(recordingsDir, normalizedFolder)
+    const fileName = path.basename(normalizedFile)
+
+    // File path may already include a subfolder (e.g., recording-123/recording-123.mov)
+    candidates.add(path.join(resolvedFolder, normalizedFile))
+    candidates.add(path.join(resolvedFolder, fileName))
+  }
+
+  candidates.add(path.join(recordingsDir, normalizedFile))
+  candidates.add(path.join(recordingsDir, path.basename(normalizedFile)))
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate
+    }
+  }
+
+  // Fallback: search within immediate subfolders under recordingsDir.
+  if (!path.isAbsolute(normalizedFile)) {
+    try {
+      const entries = fs.readdirSync(recordingsDir, { withFileTypes: true })
+      const parentDirs = entries
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name)
+
+      for (const parentDir of parentDirs) {
+        const parentRoot = path.join(recordingsDir, parentDir)
+        const nestedPath = path.join(parentRoot, normalizedFile)
+        if (fs.existsSync(nestedPath)) {
+          return nestedPath
+        }
+
+        if (folderPath) {
+          const normalizedFolder = normalizeCrossPlatform(folderPath)
+          const fileName = path.basename(normalizedFile)
+          const folderCandidate = path.join(parentRoot, normalizedFolder, fileName)
+          if (fs.existsSync(folderCandidate)) {
+            return folderCandidate
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[PathResolver] Failed to scan project directories:', error)
+    }
+  }
+
+  return null
 }
 
 // Register custom protocols before app ready
@@ -195,17 +264,9 @@ function registerProtocol(): void {
       // Use cross-platform normalizer
       filePath = normalizeCrossPlatform(filePath)
 
-      // Resolve only within known locations to avoid masking path bugs.
-      const recordingsDir = getRecordingsDirectory()
-      const candidates: string[] = []
-      if (path.isAbsolute(filePath)) candidates.push(filePath)
-      candidates.push(path.join(recordingsDir, filePath))
-      candidates.push(path.join(recordingsDir, path.basename(filePath)))
-
-      const resolved = candidates.find(p => fs.existsSync(p))
+      const resolved = resolveRecordingFilePath(filePath)
       if (!resolved) {
         console.error('[Protocol] File not found:', filePath)
-        console.log('[Protocol] Tried:', candidates)
         return new Response('Not found', { status: 404 })
       }
       filePath = resolved
@@ -341,46 +402,7 @@ function registerAllHandlers(): void {
         return filePath
       }
 
-      // Handle relative paths with folder context
-      if (folderPath) {
-        const recordingsDir = getRecordingsDirectory()
-        const normalizedFolder = normalizeCrossPlatform(folderPath)
-        const resolvedFolder = path.isAbsolute(normalizedFolder)
-          ? normalizedFolder
-          : path.join(recordingsDir, normalizedFolder)
-
-        const candidates = new Set<string>()
-
-        if (filePath) {
-          const normalizedFile = normalizeCrossPlatform(filePath)
-          const fileName = path.basename(normalizedFile)
-
-          // New structure: filePath may include subfolder (e.g., "recording-123/recording-123.mov")
-          // Try the full relative path first
-          candidates.add(path.join(resolvedFolder, normalizedFile))
-
-          // Also try just the filename in case the folder is already the recording folder
-          candidates.add(path.join(resolvedFolder, fileName))
-        }
-
-        for (const candidate of candidates) {
-          console.log('[IPC] Checking path candidate:', candidate, 'exists:', fs.existsSync(candidate))
-          if (fs.existsSync(candidate)) {
-            const videoUrl = await makeVideoSrc(candidate, 'preview')
-            return videoUrl
-          }
-        }
-      }
-
-      const recordingsDir = getRecordingsDirectory()
-      const normalizedFile = normalizeCrossPlatform(filePath)
-      const ipcCandidates = [
-        path.isAbsolute(normalizedFile) ? normalizedFile : null,
-        path.join(recordingsDir, normalizedFile),
-        path.join(recordingsDir, path.basename(normalizedFile))
-      ].filter(Boolean) as string[]
-
-      const resolvedPath = ipcCandidates.find(p => fs.existsSync(p))
+      const resolvedPath = resolveRecordingFilePath(filePath, folderPath)
       if (!resolvedPath) {
         throw new Error(`Recording file not found: ${filePath}`)
       }

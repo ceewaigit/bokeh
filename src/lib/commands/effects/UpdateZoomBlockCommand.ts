@@ -55,6 +55,7 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
       id: effect.id,
       startTime: effect.startTime,
       endTime: effect.endTime,
+      origin: zoomData.origin ?? 'manual',
       scale: zoomData.scale,
       targetX: zoomData.targetX,
       targetY: zoomData.targetY,
@@ -71,6 +72,7 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
     // Update the effect with new zoom data
     const updatedData = {
       ...zoomData,
+      origin: 'origin' in this.updates ? this.updates.origin : zoomData.origin,
       scale: this.updates.scale ?? zoomData.scale,
       targetX: 'targetX' in this.updates ? this.updates.targetX : zoomData.targetX,
       targetY: 'targetY' in this.updates ? this.updates.targetY : zoomData.targetY,
@@ -110,6 +112,7 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
       startTime: this.originalBlock.startTime,
       endTime: this.originalBlock.endTime,
       data: {
+        origin: this.originalBlock.origin,
         scale: this.originalBlock.scale || 2,
         targetX: this.originalBlock.targetX,
         targetY: this.originalBlock.targetY,
@@ -139,6 +142,7 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
       const zoomData = effect.data as any
       const updatedData = {
         ...zoomData,
+        origin: 'origin' in this.updates ? this.updates.origin : zoomData.origin,
         scale: this.updates.scale ?? zoomData.scale,
         targetX: 'targetX' in this.updates ? this.updates.targetX : zoomData.targetX,
         targetY: 'targetY' in this.updates ? this.updates.targetY : zoomData.targetY,

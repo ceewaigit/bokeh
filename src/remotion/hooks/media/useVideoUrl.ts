@@ -17,6 +17,7 @@ import type { UseVideoUrlProps } from '@/types';
 export {
   getMaxZoomScale,
   isProxySufficientForTarget,
+  isProxySufficientForExport,
   isSourceOverkillForPreview,
   PROXY_WIDTH,
   PROXY_HEIGHT,
@@ -27,6 +28,7 @@ export {
 
 import {
   isProxySufficientForTarget,
+  isProxySufficientForExport,
   PREVIEW_DISPLAY_WIDTH,
   PREVIEW_DISPLAY_HEIGHT,
   RETINA_MULTIPLIER,
@@ -35,6 +37,7 @@ import {
 export function useVideoUrl({
   recording,
   resources,
+  clipId,
   preferOffthreadVideo: _preferOffthreadVideo,
   targetWidth = 1280,
   targetHeight = 720,
@@ -77,15 +80,24 @@ export function useVideoUrl({
       return recording.previewProxyUrl;
     }
 
-    // Both videoUrls and videoUrlsHighRes are pre-unified by export orchestrator
-    // to point to the same zoom-aware smart proxy. Just use what's available.
     if (isRendering) {
-      // Use the unified proxy URL (both are the same in export mode)
-      if (videoUrls?.[recording.id]) {
-        return videoUrls[recording.id];
+      const proxyUrl = videoUrls?.[recording.id];
+      const highResUrl = videoUrlsHighRes?.[recording.id];
+
+      if (proxyUrl && highResUrl && proxyUrl !== highResUrl) {
+        const proxySufficient = isProxySufficientForExport(
+          targetWidth,
+          targetHeight,
+          zoomScaleForQuality
+        );
+        return proxySufficient ? proxyUrl : highResUrl;
       }
-      if (videoUrlsHighRes?.[recording.id]) {
-        return videoUrlsHighRes[recording.id];
+
+      if (proxyUrl) {
+        return proxyUrl;
+      }
+      if (highResUrl) {
+        return highResUrl;
       }
     }
 
@@ -155,12 +167,13 @@ export function useVideoUrl({
 
   // Use URL locking to prevent mid-playback URL switches that cause video reloads
   // Merged from useUrlLocking logic:
+  // Include clipId in key so lock invalidates when active clip changes (e.g., after deletion)
   const lockedUrlRef = useRef<string | undefined>(undefined);
   const lockedKeyRef = useRef<string | undefined>(undefined);
-  const invalidateKey = recording?.id;
+  const invalidateKey = `${recording?.id ?? ''}-${clipId ?? ''}`;
 
   if (invalidateKey !== lockedKeyRef.current) {
-    // Key changed (e.g., different recording) - lock the new URL
+    // Key changed (different recording or different clip) - lock the new URL
     lockedUrlRef.current = computedUrl;
     lockedKeyRef.current = invalidateKey;
   } else if (!lockedUrlRef.current && computedUrl) {

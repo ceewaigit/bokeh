@@ -85,7 +85,7 @@ export function resetIpcBridge(): void {
 export function isIpcAvailable(): boolean {
   try {
     // Check if we're in an Electron renderer context
-    return !!(typeof window !== 'undefined' && window.electronAPI?.ipcRenderer)
+    return !!(typeof window !== 'undefined' && window.electronAPI?.ipc)
   } catch {
     return false
   }

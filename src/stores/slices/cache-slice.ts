@@ -15,6 +15,7 @@ export const createCacheSlice: CreateCacheSlice = (set) => ({
     // State
     cameraPathCache: null,
     frameLayoutCache: null,
+    timelineMutationCounter: 0,
 
     // Actions
     setCameraPathCache: (cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null) => {
@@ -33,6 +34,7 @@ export const createCacheSlice: CreateCacheSlice = (set) => ({
         set((state) => {
             state.cameraPathCache = null
             state.frameLayoutCache = null
+            state.timelineMutationCounter += 1
         })
     }
 })

@@ -15,13 +15,11 @@ describe('cursor smoothing stability', () => {
       { timestamp: 200, x: 100, y: 100, cursorType: 'default' },
     ]
 
-    let previous: any = undefined
     const outputs: Array<{ x: number; y: number }> = []
-    // Warm up from t=0 so smoothing has consistent previousState.
+    // Warm up from t=0 so smoothing has consistent input history.
     for (let t = 0; t <= 240; t += 16.667) {
-      const state = calculateCursorState(cursorData as any, mouseEvents, [], t, previous, 60, false)
+      const state = calculateCursorState(cursorData as any, mouseEvents, [], t, 60, false)
       outputs.push({ x: state.x, y: state.y })
-      previous = state
     }
 
     // Success criteria: once near the target, frame-to-frame movement should be small.

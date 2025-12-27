@@ -20,6 +20,7 @@ import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { CommandManager } from '@/lib/commands/base/CommandManager'
 import type { CreateCoreSlice } from './types'
 import { resetSelectionState, DEFAULT_SETTINGS, syncProjectSettingsToStore } from './utils'
+import { applyStoreSettingsToProject } from '@/lib/settings/project-settings-sync'
 
 export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   // State
@@ -37,6 +38,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   setProject: (project) => {
     // Clean up orphaned recordings before setting project
     ProjectCleanupService.cleanupOrphanedRecordings(project)
+    EffectsFactory.ensureGlobalEffects(project)
 
     set((state) => {
       state.currentProject = project
@@ -64,6 +66,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
 
       // Clean up orphaned recordings before setting project
       ProjectCleanupService.cleanupOrphanedRecordings(project)
+      EffectsFactory.ensureGlobalEffects(project)
 
       // Cache video URLs for all recordings BEFORE setting project
       // This prevents multiple video-stream requests during initial render
@@ -89,24 +92,19 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     try {
       // Persist store-level settings that affect rendering/export into the project payload.
       // We do this at save-time to avoid making the entire app re-render on every UI slider tick.
-        const projectToSave = {
-          ...currentProject,
-          settings: {
-            ...currentProject.settings,
-            audio: {
-              ...currentProject.settings.audio,
-              ...settings.audio,
-            },
-            camera: {
-              ...currentProject.settings.camera,
-              ...settings.camera,
-            },
-          },
-          modifiedAt: new Date().toISOString(),
-        }
+      const projectToSave = {
+        ...applyStoreSettingsToProject(currentProject, settings),
+        modifiedAt: new Date().toISOString(),
+      }
 
       // Use ProjectIOService to save the project
-      await ProjectIOService.saveProject(projectToSave)
+      const savedPath = await ProjectIOService.saveProject(projectToSave)
+      if (savedPath && savedPath !== currentProject.filePath) {
+        set((state) => {
+          if (!state.currentProject) return
+          state.currentProject.filePath = savedPath
+        })
+      }
     } catch (error) {
       console.error('Failed to save project:', error)
       throw error

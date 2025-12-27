@@ -97,6 +97,7 @@ export class EffectGenerationService {
                     startTime: Math.max(0, timelineStart),
                     endTime: Math.max(timelineStart + 100, timelineEnd),
                     data: {
+                        origin: 'auto',
                         scale: 1,
                         introMs: config.defaultIntroMs,
                         outroMs: config.defaultOutroMs,
@@ -123,6 +124,7 @@ export class EffectGenerationService {
                 startTime: Math.max(0, timelineStart),
                 endTime: Math.max(timelineStart + 100, timelineEnd),
                 data: {
+                    origin: 'auto',
                     scale: block.scale || config.defaultZoomScale,
                     targetX: block.targetX,
                     targetY: block.targetY,
@@ -180,10 +182,28 @@ export class EffectGenerationService {
         EffectStore.ensureArray(project)
         const allEffects = EffectStore.getAll(project)
 
+        // Check if there's a valid webcam clip with a valid recording
+        const webcamTrack = project.timeline.tracks.find(t => t.type === 'webcam')
+        const webcamClips = webcamTrack?.clips || []
+        const hasValidWebcam = webcamClips.some(clip =>
+            project.recordings.some(r => r.id === clip.recordingId)
+        )
+
+        // Clean up orphaned webcam clips (clips without valid recordings)
+        if (webcamTrack) {
+            webcamTrack.clips = webcamTrack.clips.filter(clip =>
+                project.recordings.some(r => r.id === clip.recordingId)
+            )
+        }
+
         // Filter to keep only certain effects
         project.timeline.effects = allEffects.filter(e => {
             // Keep background and cursor effects
             if (e.type === EffectType.Background || e.type === EffectType.Cursor) return true
+            // Remove webcam effects if no valid webcam recording exists
+            if (e.type === EffectType.Webcam && !hasValidWebcam) return false
+            // Keep webcam effects if valid
+            if (e.type === EffectType.Webcam) return true
             // Remove screen effects that were auto-generated (have 'screen-auto-' prefix)
             if (e.type === EffectType.Screen && e.id.startsWith('screen-auto-')) return false
             // Keep manually created screen effects

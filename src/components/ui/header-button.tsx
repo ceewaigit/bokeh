@@ -2,25 +2,34 @@
 
 import * as React from "react"
 import { type LucideIcon } from "lucide-react"
-import { Button, type ButtonProps } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { motion, type HTMLMotionProps } from "framer-motion"
+import { type VariantProps } from "class-variance-authority"
 
-interface HeaderButtonProps extends Omit<ButtonProps, "size"> {
+type ButtonVariant = VariantProps<typeof buttonVariants>["variant"]
+
+interface HeaderButtonProps extends Omit<HTMLMotionProps<"button">, "size" | "children"> {
     icon?: LucideIcon
     tooltip?: string
     shortcut?: string
     active?: boolean
+    variant?: ButtonVariant
+    children?: React.ReactNode
 }
+
+const springConfig = { type: "spring", stiffness: 420, damping: 32 } as const
+const MotionButton = motion.button
 
 export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProps>(
     ({ className, children, icon: Icon, tooltip, shortcut, active, variant = "ghost", ...props }, ref) => {
         const button = (
-            <Button
+            <MotionButton
                 ref={ref}
-                variant={variant}
-                size="sm"
                 className={cn(
+                    buttonVariants({ variant, size: "sm" }),
+                    "btn-bubble-none",
                     "h-7 px-3 text-[11px] font-medium",
                     "transition-all duration-150 ease-out",
                     "hover:bg-accent/80 hover:text-accent-foreground active:scale-[0.97]",
@@ -29,13 +38,16 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                     !children && "w-7 px-0",
                     className
                 )}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                transition={springConfig}
                 {...props}
             >
                 {Icon && (
                     <Icon className={cn("w-3.5 h-3.5", children && "mr-1.5")} />
                 )}
                 {children}
-            </Button>
+            </MotionButton>
         )
 
         if (!tooltip) {

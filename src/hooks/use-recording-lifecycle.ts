@@ -7,6 +7,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { logger } from '@/lib/utils/logger'
 import { RecordingError, RecordingErrorCode, PermissionError, ElectronError } from '@/lib/errors'
+import { buildRecordingSettings } from '@/lib/recording/recording-settings'
 
 export interface UseRecordingLifecycleProps {
     onDurationUpdate: (duration: number) => void
@@ -89,16 +90,7 @@ export function useRecordingLifecycle({
             const sessionSettings = useRecordingSessionStore.getState().settings
             const projectSettings = useProjectStore.getState().settings
 
-            // Compose full recording settings
-            const recordingSettings: import('@/types').RecordingSettings = {
-                ...sessionSettings,
-                quality: projectSettings.quality,
-                framerate: projectSettings.framerate as 30 | 60,
-                format: projectSettings.format,
-                lowMemoryEncoder: projectSettings.recording.lowMemoryEncoder,
-                useMacOSDefaults: projectSettings.recording.useMacOSDefaults,
-                includeAppWindows: projectSettings.recording.includeAppWindows
-            }
+            const recordingSettings = buildRecordingSettings(sessionSettings, projectSettings)
 
             // Optimistic UI: enter recording mode immediately
             setRecording(true)
@@ -191,7 +183,8 @@ export function useRecordingLifecycle({
                     result.captureArea,
                     result.hasAudio,
                     result.duration,
-                    result.webcam
+                    result.webcam,
+                    result.microphoneAudio
                 )
 
                 if (saved) {
@@ -218,6 +211,17 @@ export function useRecordingLifecycle({
                             const webcamUrl = await window.electronAPI.getVideoUrl(saved.webcamVideoPath)
                             if (webcamUrl) {
                                 RecordingStorage.setBlobUrl(webcamRecording.id, webcamUrl)
+                            }
+                        }
+                    }
+
+                    // Cache microphone audio URL if present
+                    if (saved.audioPath) {
+                        const audioRecording = saved.project.recordings.find(r => r.id.startsWith('audio-'))
+                        if (audioRecording && window.electronAPI?.getVideoUrl) {
+                            const audioUrl = await window.electronAPI.getVideoUrl(saved.audioPath)
+                            if (audioUrl) {
+                                RecordingStorage.setBlobUrl(audioRecording.id, audioUrl)
                             }
                         }
                     }

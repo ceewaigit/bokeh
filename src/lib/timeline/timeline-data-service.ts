@@ -13,6 +13,7 @@
  */
 
 import type { Project, Clip, Recording, Effect } from '@/types/project'
+import { TrackType } from '@/types/project'
 import { buildFrameLayout, type FrameLayoutItem } from './frame-layout'
 import { ClipLookup } from './clip-lookup'
 import { EffectStore } from '@/lib/core/effects'
@@ -25,6 +26,7 @@ export interface TimelineData {
   // Clips
   videoClips: Clip[]
   audioClips: Clip[]
+  webcamClips: Clip[]
   sortedVideoClips: Clip[]
   sortedAudioClips: Clip[]
 
@@ -67,6 +69,13 @@ export class TimelineDataService {
    */
   static getAudioClips(project: Project): Clip[] {
     return ClipLookup.audioClips(project)
+  }
+
+  /**
+   * Get all webcam clips from the project.
+   */
+  static getWebcamClips(project: Project): Clip[] {
+    return ClipLookup.byTrackType(project, TrackType.Webcam)
   }
 
   /**
@@ -147,7 +156,7 @@ export class TimelineDataService {
    * Get the project's frame rate.
    */
   static getFps(project: Project): number {
-    return project.settings?.frameRate ?? 60
+    return project.settings.frameRate
   }
 
   /**
@@ -159,6 +168,7 @@ export class TimelineDataService {
     return {
       videoClips: this.getVideoClips(project),
       audioClips: this.getAudioClips(project),
+      webcamClips: this.getWebcamClips(project),
       sortedVideoClips: this.getSortedVideoClips(project),
       sortedAudioClips: this.getSortedAudioClips(project),
       recordingsMap: this.getRecordingsMap(project),
@@ -180,7 +190,7 @@ export class TimelineDataService {
 
   /**
    * Get source dimensions from the first recording.
-   * Falls back to 1920x1080 if no recordings exist.
+   * Logs warning if falling back to default dimensions.
    */
   static getSourceDimensions(project: Project): { width: number; height: number } {
     const firstRecording = project.recordings[0]
@@ -190,6 +200,8 @@ export class TimelineDataService {
         height: firstRecording.height
       }
     }
+    // Fallback with visibility - helps identify data issues
+    console.warn('[TimelineDataService] No recording with valid dimensions, using 1920x1080 default')
     return { width: 1920, height: 1080 }
   }
 

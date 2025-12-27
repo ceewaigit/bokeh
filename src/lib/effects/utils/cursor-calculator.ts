@@ -12,9 +12,9 @@ import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { clamp01, lerp, easeOutCubic, clamp } from '@/lib/core/math'
 
 // PERF: Memoization cache for smoothing results to avoid re-simulation
-type OneEuroSmoothingState = { x: number; y: number; dx: number; dy: number }
+type SmoothedPosition = { x: number; y: number }
 
-const smoothingCache = new Map<string, OneEuroSmoothingState>()
+const smoothingCache = new Map<string, SmoothedPosition>()
 // PERF: Reduced from 1000 to 300 (~5 seconds at 60fps)
 // Pre-computation covers first 5 seconds, so this handles scrubbing/seeking
 const MAX_SMOOTHING_CACHE_SIZE = 300
@@ -56,8 +56,7 @@ export function precomputeCursorSmoothingCache(
     if (!rawPosition) continue
 
     // This will populate the smoothingCache
-    simulateSmoothingWithHistory(mouseEvents, t, rawPosition, cursorData, fps)
-
+    smoothPositionWithHistory(mouseEvents, t, rawPosition, cursorData, fps)
   }
 }
 
@@ -75,7 +74,6 @@ export interface CursorState {
   tiltY?: number
   clickEffects: ClickEffect[]
   timestamp: number
-  smoothingState?: OneEuroSmoothingState
   motionBlur?: {
     previousX: number
     previousY: number
@@ -181,7 +179,6 @@ export function calculateCursorState(
   mouseEvents: MouseEvent[],
   clickEvents: ClickEvent[],
   timestamp: number,
-  previousState?: CursorState,
   renderFps?: number,
   disableHistorySmoothing?: boolean
 ): CursorState {
@@ -222,11 +219,10 @@ export function calculateCursorState(
 
   // Apply additional smoothing on top of interpolation (stateless, time-based)
   // This matches the original CursorLayer behavior for buttery-smooth movement
-  const { position, smoothingState } = applySmoothingFilter(
+  const { position } = smoothCursorPosition(
     mouseEvents,
     timestamp,
     rawPosition,
-    previousState,
     cursorData,
     renderFps,
     disableHistorySmoothing
@@ -292,14 +288,17 @@ export function calculateCursorState(
     }
   }
 
-  // Calculate motion blur if enabled
+  // Calculate motion blur if enabled (with optional intensity)
   let motionBlur: CursorState['motionBlur'] = undefined
-  if (cursorData.motionBlur) {
-    const sequentialPrev = shouldUsePreviousState(previousState, timestamp)
-    const referencePosition = sequentialPrev && previousState
-      ? { x: previousState.x, y: previousState.y }
-      // Special "ice" friction model used in Bokeh
-      : sampleHistoricalPosition(mouseEvents, timestamp, position, Math.min(60, (1 - (cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)) * 80 + 20))
+  const motionBlurIntensity = cursorData.motionBlurIntensity ?? (cursorData.motionBlur ? (DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40) : 0)
+  if (motionBlurIntensity > 0) {
+    // Special "ice" friction model used in Bokeh
+    const referencePosition = sampleHistoricalPosition(
+      mouseEvents,
+      timestamp,
+      position,
+      Math.min(60, (1 - (cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)) * 80 + 20)
+    )
 
     const dx = position.x - referencePosition.x
     const dy = position.y - referencePosition.y
@@ -309,7 +308,7 @@ export function calculateCursorState(
       motionBlur = {
         previousX: referencePosition.x,
         previousY: referencePosition.y,
-        velocity: Math.min(velocity, 50) // Cap velocity for reasonable blur
+        velocity: Math.min(velocity, 50) * (motionBlurIntensity / 100) // Cap velocity for reasonable blur
       }
     }
   }
@@ -339,7 +338,6 @@ export function calculateCursorState(
     tiltX,
     tiltY,
     clickEffects: activeClickEffects,
-    smoothingState,
     motionBlur,
     timestamp
   }
@@ -439,26 +437,17 @@ function calculateDirectionalTilt(options: {
  * Apply smoothing filter - Simulates original stateful smoothing but stateless
  * Works by simulating frame-by-frame exponential smoothing lookback
  */
-function applySmoothingFilter(
+function smoothCursorPosition(
   mouseEvents: MouseEvent[],
   timestamp: number,
   rawPosition: { x: number; y: number },
-  previousState: CursorState | undefined,
   cursorData: CursorEffectData,
   renderFps?: number,
   disableHistorySmoothing?: boolean
-): { position: { x: number; y: number }; smoothingState?: OneEuroSmoothingState } {
+): { position: { x: number; y: number } } {
   // If gliding is disabled, return the raw interpolated position
   if (!cursorData.gliding) {
     return { position: rawPosition }
-  }
-
-  const canUsePreviousState = shouldUsePreviousState(previousState, timestamp)
-  if (canUsePreviousState && previousState) {
-    const dt = timestamp - previousState.timestamp
-    const previous = previousState.smoothingState ?? { x: previousState.x, y: previousState.y, dx: 0, dy: 0 }
-    const next = oneEuroStep(previous, rawPosition, dt, getOneEuroParams(cursorData))
-    return { position: { x: next.x, y: next.y }, smoothingState: next }
   }
 
   if (disableHistorySmoothing) {
@@ -466,70 +455,52 @@ function applySmoothingFilter(
     return { position: rawPosition }
   }
 
-  // Fallback: derive smoothing purely from historical samples so rendering order doesn't matter
-  return simulateSmoothingWithHistory(mouseEvents, timestamp, rawPosition, cursorData, renderFps)
+  // Deterministic smoothing using a short, time-based window.
+  return smoothPositionWithHistory(mouseEvents, timestamp, rawPosition, cursorData, renderFps)
 }
 
-function simulateSmoothingWithHistory(
+function smoothPositionWithHistory(
   mouseEvents: MouseEvent[],
   timestamp: number,
   rawPosition: { x: number; y: number },
   cursorData: CursorEffectData,
   renderFps?: number
-): { position: { x: number; y: number }; smoothingState?: OneEuroSmoothingState } {
-  // PERF: Check cache first - key includes timestamp and smoothing params
-  const cacheKey = `${timestamp.toFixed(0)}-${(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness).toFixed(2)}-${(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed).toFixed(2)}`
-  const cached = smoothingCache.get(cacheKey)
-  if (cached) {
-    return { position: { x: cached.x, y: cached.y }, smoothingState: cached }
-  }
-
-  const historyWindowMs = computeHistoryWindowMs(cursorData)
-  const firstEventTime = mouseEvents[0]?.timestamp ?? timestamp
-  const availableHistory = Math.max(0, timestamp - firstEventTime)
-  const lookbackWindow = Math.min(historyWindowMs, availableHistory)
-
-  if (lookbackWindow <= 0) {
+): { position: { x: number; y: number } } {
+  if (mouseEvents.length < 2) {
     return { position: rawPosition }
   }
 
-  const fps = clampRenderFps(renderFps)
-  const frameInterval = 1000 / fps
-
-  const steps = Math.max(1, Math.ceil(lookbackWindow / frameInterval))
-  const startTime = timestamp - steps * frameInterval
-
-  let sampleTime = Math.max(firstEventTime, startTime)
-  const params = getOneEuroParams(cursorData)
-  const initial = interpolateMousePosition(mouseEvents, sampleTime) || rawPosition
-  let state: OneEuroSmoothingState = { x: initial.x, y: initial.y, dx: 0, dy: 0 }
-
-  while (sampleTime < timestamp) {
-    const nextTime = Math.min(timestamp, sampleTime + frameInterval)
-    const samplePos = nextTime >= timestamp
-      ? rawPosition
-      : (interpolateMousePosition(mouseEvents, nextTime) || rawPosition)
-
-    state = oneEuroStep(state, samplePos, nextTime - sampleTime, params)
-    sampleTime = nextTime
+  // PERF: Check cache first - key includes timestamp and smoothing params
+  const timeKey = timestamp.toFixed(2)
+  const cacheKey = `${timeKey}-${(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness).toFixed(2)}-${(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed).toFixed(2)}-${(cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75).toFixed(2)}-${(cursorData.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9).toFixed(2)}`
+  const cached = smoothingCache.get(cacheKey)
+  if (cached) {
+    return { position: cached }
   }
+
+  const historyWindowMs = computeHistoryWindowMs(cursorData)
+  const fps = clampRenderFps(renderFps)
+  const stepMs = Math.max(8, 1000 / fps)
+  const sampleCount = Math.max(6, Math.min(16, Math.round(historyWindowMs / stepMs)))
+  const tauMs = Math.max(120, historyWindowMs * 0.45)
 
   // PERF: Cache result with LRU eviction
   if (smoothingCache.size >= MAX_SMOOTHING_CACHE_SIZE) {
     const firstKey = smoothingCache.keys().next().value
     if (firstKey) smoothingCache.delete(firstKey)
   }
-  smoothingCache.set(cacheKey, state)
+  const smoothed = computeExponentialSmooth(
+    mouseEvents,
+    timestamp,
+    rawPosition,
+    stepMs,
+    sampleCount,
+    tauMs,
+    cursorData
+  )
+  smoothingCache.set(cacheKey, smoothed)
 
-  return { position: { x: state.x, y: state.y }, smoothingState: state }
-}
-
-function shouldUsePreviousState(previousState: CursorState | undefined, timestamp: number): previousState is CursorState {
-  if (!previousState || !previousState.visible) return false
-  if (typeof previousState.timestamp !== 'number') return false
-
-  const delta = timestamp - previousState.timestamp
-  return Number.isFinite(delta) && delta > 0 && delta <= 120
+  return { position: smoothed }
 }
 
 function sampleHistoricalPosition(
@@ -553,85 +524,26 @@ function sampleHistoricalPosition(
 function computeHistoryWindowMs(cursorData: CursorEffectData): number {
   const smoothness = clamp01(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
   const speed = clamp01(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)
+  const glide = clamp01(cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75)
 
   const minWindow = 120
   const maxWindow = 420
   const baseWindow = minWindow + (maxWindow - minWindow) * smoothness
   const responsiveness = 0.55 + (1 - speed) * 0.4
 
-  return Math.max(90, baseWindow * responsiveness)
+  const glideFactor = lerp(0.85, 1.35, glide)
+
+  return Math.max(90, baseWindow * responsiveness * glideFactor)
 }
 
-// lerp is now imported from @/lib/core/math
-
-function getOneEuroParams(cursorData: CursorEffectData): {
-  minCutoffHz: number
-  beta: number
-  dCutoffHz: number
-} {
-  const smoothness = clamp01(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
-  const speed = clamp01(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)
-  const glide = clamp01(cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75)
-
-  // Lower cutoff = more inertia/glide (Apple-esque smooth motion)
-  // Reduced base values for more cinematic feel
-  const baseMinCutoff = lerp(1.2, 0.25, smoothness)
-  const speedFactor = lerp(0.4, 1.0, speed)
-  const glideFactor = lerp(1.0, 0.18, glide)
-  const minCutoffHz = Math.max(0.05, baseMinCutoff * speedFactor * glideFactor)
-
-  // Reduced velocity influence for gentler transitions at high speed
-  const baseBeta = lerp(1.8, 0.4, smoothness)
-  const beta = Math.max(0, baseBeta * lerp(0.5, 1.2, speed) * lerp(1.0, 0.5, glide))
-
-  const dCutoffHz = 1.0
-
-  return { minCutoffHz, beta, dCutoffHz }
-}
-
-function computeAlpha(cutoffHz: number, dtSec: number): number {
-  const clampedDt = Math.max(1 / 1000, Math.min(0.25, dtSec))
-  const clampedCutoff = Math.max(0.001, cutoffHz)
-  const tau = 1 / (2 * Math.PI * clampedCutoff)
-  return 1 / (1 + tau / clampedDt)
-}
-
-function lowPass(prev: number, next: number, alpha: number): number {
-  return alpha * next + (1 - alpha) * prev
-}
-
-function oneEuroStep(
-  previous: OneEuroSmoothingState,
-  raw: { x: number; y: number },
-  dtMs: number,
-  params: { minCutoffHz: number; beta: number; dCutoffHz: number }
-): OneEuroSmoothingState {
-  const dt = Math.max(1, Math.min(100, Number.isFinite(dtMs) ? dtMs : 16.67)) / 1000
-
-  // Reset on large discontinuities to avoid "dragging" across cuts/teleports.
-  const jumpDx = raw.x - previous.x
-  const jumpDy = raw.y - previous.y
-  const jumpDist = Math.sqrt(jumpDx * jumpDx + jumpDy * jumpDy)
-  if (jumpDist > 600) {
-    return { x: raw.x, y: raw.y, dx: 0, dy: 0 }
-  }
-
-  const rawDx = jumpDx / dt
-  const rawDy = jumpDy / dt
-
-  const alphaD = computeAlpha(params.dCutoffHz, dt)
-  const dxHat = lowPass(previous.dx, rawDx, alphaD)
-  const dyHat = lowPass(previous.dy, rawDy, alphaD)
-
-  const speedPxPerSec = Math.sqrt(dxHat * dxHat + dyHat * dyHat)
-  const normalizedSpeed = Math.min(8, speedPxPerSec / 1000)
-  const cutoff = params.minCutoffHz + params.beta * normalizedSpeed
-
-  const alpha = computeAlpha(cutoff, dt)
-  const xHat = lowPass(previous.x, raw.x, alpha)
-  const yHat = lowPass(previous.y, raw.y, alpha)
-
-  return { x: xHat, y: yHat, dx: dxHat, dy: dyHat }
+function getSmoothingJumpThreshold(mouseEvents: MouseEvent[], cursorData?: CursorEffectData): number {
+  const first = mouseEvents[0]
+  const width = first?.captureWidth || first?.screenWidth || 1920
+  const height = first?.captureHeight || first?.screenHeight || 1080
+  const diagonal = Math.sqrt(width * width + height * height)
+  const ratioRaw = cursorData?.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9
+  const ratio = clamp(ratioRaw, 0.4, 1.6)
+  return Math.max(1200, diagonal * ratio)
 }
 
 // clamp01 is now imported from @/lib/core/math
@@ -672,9 +584,6 @@ function clampRenderFps(renderFps?: number): number {
   }
   return Math.max(15, Math.min(120, renderFps))
 }
-
-// NOTE: Cursor gliding uses One Euro filter (see `oneEuroStep`) for smoother, more "buttery"
-// movement: stable when slow, responsive when fast.
 
 /**
  * Find the last mouse movement before a timestamp
@@ -781,6 +690,47 @@ function calculateClickEffects(
   }
 
   return activeClicks
+}
+
+function computeExponentialSmooth(
+  mouseEvents: MouseEvent[],
+  timestamp: number,
+  fallback: { x: number; y: number },
+  stepMs: number,
+  sampleCount: number,
+  tauMs: number,
+  cursorData?: CursorEffectData
+): { x: number; y: number } {
+  const jumpThreshold = getSmoothingJumpThreshold(mouseEvents, cursorData)
+  const previousSample = interpolateMousePosition(mouseEvents, timestamp - stepMs)
+  if (previousSample) {
+    const dx = fallback.x - previousSample.x
+    const dy = fallback.y - previousSample.y
+    if (Math.hypot(dx, dy) > jumpThreshold) {
+      return fallback
+    }
+  }
+
+  let sumX = 0
+  let sumY = 0
+  let sumW = 0
+
+  for (let i = 0; i <= sampleCount; i++) {
+    const t = timestamp - i * stepMs
+    const pos = interpolateMousePosition(mouseEvents, t)
+    if (!pos) continue
+
+    const w = Math.exp(-(i * stepMs) / tauMs)
+    sumW += w
+    sumX += pos.x * w
+    sumY += pos.y * w
+  }
+
+  if (sumW === 0) {
+    return fallback
+  }
+
+  return { x: sumX / sumW, y: sumY / sumW }
 }
 
 /**

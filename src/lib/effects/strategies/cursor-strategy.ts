@@ -6,13 +6,10 @@ import type { Effect, CursorEffectData } from '@/types/project'
 import { EffectType, CursorStyle } from '@/types/project'
 import type { EffectRenderContext } from '../effect-renderer'
 import type { IEffectStrategy } from './index'
-import { calculateCursorState, getClickTextStyle, getCursorPath, resolveClickEffectConfig, type CursorState } from '../utils/cursor-calculator'
+import { calculateCursorState, getClickTextStyle, getCursorPath, resolveClickEffectConfig } from '../utils/cursor-calculator'
 
 export class CursorEffectStrategy implements IEffectStrategy {
   readonly effectType = EffectType.Cursor
-
-  // State cache for smooth cursor movement
-  private cursorStateCache = new Map<string, CursorState>()
 
   canRender(effect: Effect): boolean {
     return effect.type === EffectType.Cursor
@@ -23,20 +20,14 @@ export class CursorEffectStrategy implements IEffectStrategy {
     if (!context.mouseEvents || context.mouseEvents.length === 0) return
 
     const { ctx, timestamp } = context
-    const cacheKey = effect.id || 'default'
-    const previousState = this.getPreviousCursorState(cacheKey, timestamp)
-
     // Use cursor calculator for state calculation
     const cursorState = calculateCursorState(
       data,
       context.mouseEvents,
       context.clickEvents || [],
       timestamp,
-      previousState,
       context.fps
     )
-
-    this.cursorStateCache.set(cacheKey, cursorState)
 
     if (!cursorState.visible) return
 
@@ -95,18 +86,6 @@ export class CursorEffectStrategy implements IEffectStrategy {
   }
 
   dispose(): void {
-    this.cursorStateCache.clear()
-  }
-
-  private getPreviousCursorState(cacheKey: string, timestamp: number): CursorState | undefined {
-    const prev = this.cursorStateCache.get(cacheKey)
-    if (!prev) return undefined
-
-    if (!Number.isFinite(prev.timestamp) || timestamp <= prev.timestamp) {
-      this.cursorStateCache.delete(cacheKey)
-      return undefined
-    }
-
-    return prev
+    // No-op: deterministic cursor calculation has no internal state to reset.
   }
 }

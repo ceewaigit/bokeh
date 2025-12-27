@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { Camera, Mic, Settings2, CheckCircle, XCircle } from 'lucide-react'
+import { Camera, Mic, Settings2, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {

@@ -22,6 +22,10 @@ interface CropOverlayProps {
     width: number
     height: number
   }
+  /** Show confirm/reset actions */
+  showActions?: boolean
+  /** Show crop info badge */
+  showInfo?: boolean
 }
 
 type HandlePosition =
@@ -42,6 +46,8 @@ export function CropOverlay({
   onConfirm,
   onReset,
   videoRect,
+  showActions = true,
+  showInfo = true,
 }: CropOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -315,43 +321,45 @@ export function CropOverlay({
       {renderHandle('bottom-left')}
       {renderHandle('left')}
 
-      {/* Crop info display */}
-      <div
-        className="absolute px-2 py-1 bg-black/80 text-white text-xs rounded font-mono z-30"
-        style={{
-          left: cropRect.x + cropRect.width / 2,
-          top: cropRect.y - 28,
-          transform: 'translateX(-50%)',
-        }}
-      >
-        {Math.round(cropData.width * 100)}% x {Math.round(cropData.height * 100)}%
-      </div>
+      {showInfo && (
+        <div
+          className="absolute px-2 py-1 bg-black/80 text-white text-xs rounded font-mono z-30"
+          style={{
+            left: cropRect.x + cropRect.width / 2,
+            top: cropRect.y - 28,
+            transform: 'translateX(-50%)',
+          }}
+        >
+          {Math.round(cropData.width * 100)}% x {Math.round(cropData.height * 100)}%
+        </div>
+      )}
 
-      {/* Action buttons */}
-      <div
-        className="absolute flex gap-2 z-30"
-        style={{
-          left: '50%',
-          bottom: 20,
-          transform: 'translateX(-50%)',
-        }}
-      >
-        <Button
-          onClick={onConfirm}
-          className="gap-2"
+      {showActions && (
+        <div
+          className="absolute flex gap-2 z-30"
+          style={{
+            left: '50%',
+            bottom: 20,
+            transform: 'translateX(-50%)',
+          }}
         >
-          <Check className="w-4 h-4" />
-          Confirm
-        </Button>
-        <Button
-          variant="outline"
-          onClick={onReset}
-          className="gap-2 bg-background/80"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Reset crop
-        </Button>
-      </div>
+          <Button
+            onClick={onConfirm}
+            className="gap-2"
+          >
+            <Check className="w-4 h-4" />
+            Confirm
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onReset}
+            className="gap-2 bg-background/80"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset crop
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

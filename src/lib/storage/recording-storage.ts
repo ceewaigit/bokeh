@@ -6,19 +6,43 @@
 import { logger } from '@/lib/utils/logger'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Project, Recording, Clip, CaptureArea } from '@/types/project'
-import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, AspectRatioPreset } from '@/types/project'
+import { TrackType, ExportFormat, QualityLevel, RecordingSourceType } from '@/types/project'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { getKeystrokeEffects } from '@/lib/effects/effect-filters'
 import { EffectGenerationService } from '@/lib/effects/effect-generation-service'
 import { EffectStore } from '@/lib/core/effects'
 import { isLikelyKeyboardKey, isStandaloneModifierKey } from '@/lib/keyboard/keyboard-utils'
 import { getVideoMetadataFromPath } from '@/lib/utils/video-metadata'
+import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
+import { migrationRunner } from '@/lib/migrations'
 
 export const PROJECT_EXTENSION = '.bokeh'
 // Regex for removing extensions from filenames
 export const PROJECT_EXTENSION_REGEX = /\.bokeh$/
+export const PROJECT_PACKAGE_FILE = 'project.json'
 
 export const SUPPORTED_PROJECT_EXTENSIONS = ['bokeh']
+
+export const buildProjectFilePath = (projectRoot: string): string =>
+  `${projectRoot}/${PROJECT_PACKAGE_FILE}`
+
+export const resolveProjectRoot = async (
+  projectPath: string,
+  fileExists?: (path: string) => Promise<boolean>
+): Promise<string> => {
+  if (!projectPath) return ''
+  if (projectPath.endsWith(`/${PROJECT_PACKAGE_FILE}`)) {
+    return projectPath.slice(0, -(`/${PROJECT_PACKAGE_FILE}`).length)
+  }
+  if (projectPath.endsWith(PROJECT_EXTENSION) && fileExists) {
+    const packageFilePath = buildProjectFilePath(projectPath)
+    if (await fileExists(packageFilePath)) {
+      return projectPath
+    }
+  }
+  const idx = projectPath.lastIndexOf('/')
+  return idx >= 0 ? projectPath.substring(0, idx) : projectPath
+}
 
 export class RecordingStorage {
   private static readonly BLOB_PREFIX = 'recording-blob-'
@@ -412,7 +436,7 @@ export class RecordingStorage {
       version: '1.0.0',
       id: `project-${Date.now()}`,
       name,
-      schemaVersion: 1,
+      schemaVersion: migrationRunner.getLatestVersion(),
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString(),
       recordings: [],
@@ -446,16 +470,7 @@ export class RecordingStorage {
         duration: 0,
         effects: []  // Initialize effects array
       },
-      settings: {
-        resolution: { width: 1920, height: 1080 },
-        frameRate: 60,
-        backgroundColor: '#000000',
-        canvas: {
-          aspectRatio: AspectRatioPreset.Original,
-          customWidth: 1920,
-          customHeight: 1080
-        }
-      },
+      settings: normalizeProjectSettings(),
       exportPresets: [
         {
           id: 'default',
@@ -487,38 +502,65 @@ export class RecordingStorage {
     if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
       try {
         const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-        // Use folder-based project layout: <recordingsDir>/<projectName>/<projectId>.bokeh
         const baseName = this.sanitizeName(projectCopy.name || projectCopy.id)
-        let projectFolder: string
 
-        // Helper to check extensions
         const hasProjectExt = (p: string) => p.endsWith(PROJECT_EXTENSION)
+        const trimTrailingSlash = (p: string) => p.replace(/\/+$/, '')
+
+        let projectRoot: string
+
+        let useLegacyFile = false
 
         if (customPath && hasProjectExt(customPath)) {
-          const idx = customPath.lastIndexOf('/')
-          projectFolder = idx > 0 ? customPath.slice(0, idx) : recordingsDir
+          projectRoot = trimTrailingSlash(customPath)
+
+          const packageFilePath = buildProjectFilePath(projectRoot)
+          const packageExists = window.electronAPI?.fileExists
+            ? await window.electronAPI.fileExists(packageFilePath)
+            : false
+
+          let legacyFileDetected = false
+          if (!packageExists && window.electronAPI?.readLocalFile) {
+            const legacyRead = await window.electronAPI.readLocalFile(projectRoot)
+            legacyFileDetected = !!legacyRead?.success
+          }
+
+          if (legacyFileDetected && window.electronAPI?.moveFile) {
+            const legacyBackupBase = `${projectRoot}.legacy`
+            let legacyBackupPath = legacyBackupBase
+
+            if (window.electronAPI?.fileExists && await window.electronAPI.fileExists(legacyBackupPath)) {
+              legacyBackupPath = `${legacyBackupBase}-${Date.now()}`
+            }
+
+            const backupResult = await window.electronAPI.moveFile(projectRoot, legacyBackupPath)
+            if (!backupResult?.success) {
+              logger.warn('[RecordingStorage] Failed to preserve legacy project file during package upgrade')
+              useLegacyFile = true
+            }
+          } else if (legacyFileDetected) {
+            useLegacyFile = true
+          }
         } else if (customPath && !hasProjectExt(customPath)) {
-          projectFolder = customPath
+          projectRoot = `${trimTrailingSlash(customPath)}/${baseName}${PROJECT_EXTENSION}`
         } else {
-          projectFolder = `${recordingsDir}/${baseName}`
+          projectRoot = `${recordingsDir}/${baseName}${PROJECT_EXTENSION}`
         }
 
         // Note: Metadata chunks are already saved once in saveRecordingWithProject()
         // when the recording is first created. No need to re-save them on every project save.
 
-        // Use correct extension based on existing file or default to .bokeh
-        const ext = PROJECT_EXTENSION
-        const projectFilePath = `${projectFolder}/${projectCopy.id}${ext}`
-        projectCopy.filePath = projectFilePath
+        const projectFilePath = useLegacyFile ? projectRoot : buildProjectFilePath(projectRoot)
+        projectCopy.filePath = projectRoot
         // PERF: Use compact JSON for internal saves (~40% smaller files)
         const projectData = JSON.stringify(projectCopy)
 
         await window.electronAPI.saveRecording(projectFilePath, new TextEncoder().encode(projectData).buffer)
 
-        this.setProjectPath(projectCopy.id, projectFilePath)
+        this.setProjectPath(projectCopy.id, projectCopy.filePath)
 
         logger.info(`Project saved to: ${projectFilePath}`)
-        return projectFilePath
+        return projectCopy.filePath
       } catch (error) {
         console.error('Failed to save project file:', error)
         const projectData = JSON.stringify(projectCopy)
@@ -542,8 +584,9 @@ export class RecordingStorage {
     captureArea?: CaptureArea,
     hasAudio?: boolean,
     durationOverrideMs?: number,
-    webcamResult?: { videoPath: string; duration: number; hasAudio?: boolean }
-  ): Promise<{ project: Project; videoPath: string; projectPath: string; webcamVideoPath?: string } | null> {
+    webcamResult?: { videoPath: string; duration: number; hasAudio?: boolean },
+    microphoneResult?: { audioPath: string; duration: number }
+  ): Promise<{ project: Project; videoPath: string; projectPath: string; webcamVideoPath?: string; audioPath?: string } | null> {
     if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
       return null
     }
@@ -553,7 +596,7 @@ export class RecordingStorage {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
       const baseName = projectName || `Recording_${timestamp}`
       const recordingId = `recording-${Date.now()}`
-      const projectFolder = `${recordingsDir}/${this.sanitizeName(baseName)}`
+      const projectFolder = `${recordingsDir}/${this.sanitizeName(baseName)}${PROJECT_EXTENSION}`
       const recordingFolder = `${projectFolder}/${recordingId}`
 
       // Move video file from temp to project folder (new folder structure nests media inside recording folder)
@@ -606,10 +649,10 @@ export class RecordingStorage {
 
       // Create project with recording
       const project = this.createProject(baseName)
-      project.filePath = `${projectFolder}/${project.id}${PROJECT_EXTENSION}`
+      project.filePath = projectFolder
       project.settings.resolution = { width, height }
-      project.settings.canvas!.customWidth = width
-      project.settings.canvas!.customHeight = height
+      project.settings.canvas.customWidth = width
+      project.settings.canvas.customHeight = height
       project.exportPresets = project.exportPresets.map(preset => ({
         ...preset,
         resolution: { width, height }
@@ -641,7 +684,7 @@ export class RecordingStorage {
       const firstEventWithBounds = metadata.find(m => m.sourceBounds)
       const sourceBounds = firstEventWithBounds?.sourceBounds
 
-      const mouseEvents = metadata
+      const rawMouseEvents = metadata
         .filter(m => m.eventType === 'mouse' && m.mouseX !== undefined && m.mouseY !== undefined)
         .map(m => ({
           timestamp: m.timestamp,
@@ -654,10 +697,18 @@ export class RecordingStorage {
           cursorType: m.cursorType
         }))
 
+      // Normalize cursor event timestamps to start from 0 (align with video playback)
+      // This fixes cursor sync issues caused by delay between tracking start and video capture start
+      const firstEventTime = rawMouseEvents[0]?.timestamp ?? 0
+      const mouseEvents = rawMouseEvents.map(m => ({
+        ...m,
+        timestamp: m.timestamp - firstEventTime
+      }))
+
       const clickEvents = metadata
         .filter(m => m.eventType === 'click' && m.mouseX !== undefined && m.mouseY !== undefined)
         .map(m => ({
-          timestamp: m.timestamp,
+          timestamp: m.timestamp - firstEventTime, // Use same offset as mouse events
           x: applyScaleX(m.mouseX!),
           y: applyScaleY(m.mouseY!),
           button: m.key || 'left' as const,
@@ -668,7 +719,7 @@ export class RecordingStorage {
       const scrollEvents = metadata
         .filter(m => m.eventType === 'scroll' && m.scrollDelta)
         .map(m => ({
-          timestamp: m.timestamp,
+          timestamp: m.timestamp - firstEventTime, // Use same offset as mouse events
           deltaX: m.scrollDelta!.x || 0,
           deltaY: m.scrollDelta!.y || 0
         }))
@@ -681,7 +732,7 @@ export class RecordingStorage {
         .filter(m => isLikelyKeyboardKey(m.key!))
         .filter(m => !isStandaloneModifierKey(m.key!))  // Filter out standalone modifier keys
         .map(m => ({
-          timestamp: m.timestamp,
+          timestamp: m.timestamp - firstEventTime, // Use same offset as mouse events
           key: m.key,
           modifiers: m.modifiers || []
         }))
@@ -705,6 +756,7 @@ export class RecordingStorage {
         height,
         frameRate: 30,
         hasAudio: hasAudio || false,
+        sourceType: 'video',
         captureArea: reconstructedCaptureArea,
         // For folder-based metadata storage
         folderPath: recordingFolder,
@@ -795,14 +847,73 @@ export class RecordingStorage {
             const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
             if (webcamTrack) {
               webcamTrack.clips.push(webcamClip)
+              logger.info(`[Recording Storage] Webcam clip added to track:`, { clipId: webcamClip.id, recordingId: webcamRecordingId, trackClipsCount: webcamTrack.clips.length })
+            } else {
+              logger.warn('[Recording Storage] No webcam track found in project!')
             }
 
-            logger.info(`[Recording Storage] Webcam recording saved: ${webcamVideoFilePath}`)
+            logger.info(`[Recording Storage] Webcam recording saved: ${webcamVideoFilePath}`, { recordingId: webcamRecordingId, filePath: webcamRecording.filePath, folderPath: webcamFolder })
           } else {
             logger.warn('[Recording Storage] Failed to move webcam file')
           }
         } catch (webcamError) {
           logger.error('[Recording Storage] Error saving webcam recording:', webcamError)
+        }
+      }
+
+      // Handle microphone audio recording if present
+      let audioFilePath: string | undefined
+      if (microphoneResult?.audioPath && window.electronAPI?.moveFile) {
+        const audioRecordingId = `audio-${Date.now()}`
+        const audioFolder = `${projectFolder}/${audioRecordingId}`
+        const audioExt = microphoneResult.audioPath.toLowerCase().endsWith('.wav') ? 'wav' :
+          microphoneResult.audioPath.toLowerCase().endsWith('.mp3') ? 'mp3' : 'webm'
+        const audioFileName = `${audioRecordingId}.${audioExt}`
+        audioFilePath = `${audioFolder}/${audioFileName}`
+
+        try {
+          const audioMoveResult = await window.electronAPI.moveFile(microphoneResult.audioPath, audioFilePath)
+          if (audioMoveResult?.success) {
+            const audioDuration = microphoneResult.duration || duration
+
+            // Create audio Recording entry
+            const audioRecording: Recording = {
+              id: audioRecordingId,
+              filePath: `${audioRecordingId}/${audioFileName}`,
+              duration: audioDuration,
+              width: 0,
+              height: 0,
+              frameRate: 0,
+              hasAudio: true,
+              folderPath: audioFolder,
+              sourceType: 'video', // Use 'video' type since Remotion Audio component handles it
+              effects: []
+            }
+            project.recordings.push(audioRecording)
+
+            // Create audio clip matching screen recording duration
+            const audioClip: Clip = {
+              id: `audio-clip-${Date.now()}`,
+              recordingId: audioRecordingId,
+              startTime: 0,
+              duration: Math.min(audioDuration, duration),
+              sourceIn: 0,
+              sourceOut: Math.min(audioDuration, duration)
+            }
+
+            const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)
+            if (audioTrack) {
+              audioTrack.clips.push(audioClip)
+            }
+
+            logger.info(`[Recording Storage] Microphone audio saved: ${audioFilePath}`)
+          } else {
+            logger.warn('[Recording Storage] Failed to move audio file')
+            audioFilePath = undefined
+          }
+        } catch (audioError) {
+          logger.error('[Recording Storage] Error saving microphone recording:', audioError)
+          audioFilePath = undefined
         }
       }
 
@@ -854,7 +965,8 @@ export class RecordingStorage {
         project,
         videoPath: videoFilePath,
         projectPath: projectPath || '',
-        webcamVideoPath: webcamVideoFilePath
+        webcamVideoPath: webcamVideoFilePath,
+        audioPath: audioFilePath
       }
     } catch (error) {
       logger.error('Failed to save recording with project:', error)

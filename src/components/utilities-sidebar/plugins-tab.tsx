@@ -33,14 +33,14 @@ function SegmentedTabs<T extends string>({
     tabs: { id: T; label: string; count?: number }[]
 }) {
     return (
-        <div className="flex p-0.5 bg-muted/40 rounded-lg gap-0.5">
+        <div className="flex gap-0.5 rounded-md bg-muted/40 p-0.5">
             {tabs.map((tab) => (
                 <button
                     key={tab.id}
                     type="button"
                     onClick={() => onChange(tab.id)}
                     className={cn(
-                        "flex-1 px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors",
+                        "flex-1 rounded-md px-2.5 py-1 text-[10px] font-semibold transition-colors",
                         value === tab.id
                             ? "bg-background/90 text-foreground shadow-sm"
                             : "text-muted-foreground hover:text-foreground hover:bg-background/60"
@@ -170,6 +170,7 @@ export function PluginsTab() {
             const updatedProject = { ...project }
             updatedProject.recordings = updatedProject.recordings.map((recording) => {
                 if (recording.id !== selectedGeneratedClip.recording.id) return recording
+                if (recording.sourceType !== 'generated') return recording
                 return {
                     ...recording,
                     generatedSource: {
@@ -238,22 +239,22 @@ export function PluginsTab() {
         if (!pluginDef) return null
 
         return (
-            <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between px-1">
-                    <button
-                        onClick={() => clearEffectSelection()}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                        ← Back
-                    </button>
-                    <span className="text-xs font-medium text-foreground">
-                        Edit {pluginDef.name}
-                    </span>
-                </div>
+        <div className="space-y-3 pt-1.5">
+            <div className="flex items-center justify-between px-1">
+                <button
+                    onClick={() => clearEffectSelection()}
+                    className="text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    ← Back
+                </button>
+                <span className="text-[11px] font-semibold text-foreground">
+                    Edit {pluginDef.name}
+                </span>
+            </div>
 
-                <div className="space-y-4 rounded-lg border border-border/50 bg-background/60 p-3">
-                    {Object.entries(pluginDef.params).map(([key, param]) => (
-                        <PluginParamControl
+            <div className="space-y-3 rounded-md border border-border/50 bg-background/60 p-2.5">
+                {Object.entries(pluginDef.params).map(([key, param]) => (
+                    <PluginParamControl
                             key={key}
                             param={param}
                             value={pluginData.params[key] ?? param.default}
@@ -275,32 +276,32 @@ export function PluginsTab() {
         }
 
         return (
-            <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between px-1">
-                    <button
-                        onClick={() => setHideGeneratedClipEditor(true)}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                        ← Back
-                    </button>
-                    <span className="text-xs font-medium text-foreground">
-                        Edit {pluginDef.name}
-                    </span>
-                </div>
+        <div className="space-y-3 pt-1.5">
+            <div className="flex items-center justify-between px-1">
+                <button
+                    onClick={() => setHideGeneratedClipEditor(true)}
+                    className="text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    ← Back
+                </button>
+                <span className="text-[11px] font-semibold text-foreground">
+                    Edit {pluginDef.name}
+                </span>
+            </div>
 
-                <div className="text-[10px] text-muted-foreground/80 px-1">
-                    Editing the selected generated clip.
-                </div>
+            <div className="text-[10px] text-muted-foreground/80 px-1">
+                Editing the selected generated clip.
+            </div>
 
-                <div className="space-y-4 rounded-lg border border-border/50 bg-background/60 p-3">
-                    {/* Duration Control */}
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-xs text-foreground">Duration</Label>
-                            <span className="text-xs font-mono text-muted-foreground/70 tabular-nums">
-                                {durationSeconds.toFixed(1)}s
-                            </span>
-                        </div>
+            <div className="space-y-3 rounded-md border border-border/50 bg-background/60 p-2.5">
+                {/* Duration Control */}
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <Label className="text-[10px] text-foreground">Duration</Label>
+                        <span className="text-[10px] font-mono text-muted-foreground/70 tabular-nums">
+                            {durationSeconds.toFixed(1)}s
+                        </span>
+                    </div>
                         <Slider
                             value={[durationSeconds]}
                             onValueChange={([v]) => handleDurationChange(v)}
@@ -328,17 +329,17 @@ export function PluginsTab() {
 
     // Render List Mode
     return (
-        <div className="space-y-4 pt-2">
+        <div className="space-y-3 pt-1.5">
             {selectedGeneratedClip && hideGeneratedClipEditor && (
-                <div className="rounded-lg border border-border/50 bg-background/60 px-3 py-2">
+                <div className="rounded-md border border-border/50 bg-background/60 px-2.5 py-2">
                     <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-[10px] text-muted-foreground">
                             Selected clip: <span className="text-foreground">{selectedGeneratedClip.pluginDef.name}</span>
                         </div>
                         <button
                             type="button"
                             onClick={() => setHideGeneratedClipEditor(false)}
-                            className="text-[10px] font-medium text-foreground bg-secondary/50 hover:bg-secondary border border-border/40 rounded-md px-2.5 py-1"
+                            className="text-[10px] font-medium text-foreground bg-secondary/50 hover:bg-secondary border border-border/40 rounded-md px-2 py-0.5"
                         >
                             Edit clip
                         </button>
@@ -368,7 +369,7 @@ export function PluginsTab() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search plugins…"
-                                className="w-full h-8 bg-background/60 border border-border/50 rounded-lg pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20"
+                                className="w-full h-7 bg-background/60 border border-border/50 rounded-md pl-8 pr-2.5 text-[10px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20"
                             />
                         </div>
                         <Tooltip>
@@ -376,7 +377,7 @@ export function PluginsTab() {
                                 <button
                                     type="button"
                                     onClick={() => setPlugins(PluginRegistry.getAll())}
-                                    className="h-8 w-8 rounded-lg border border-border/50 bg-background/60 flex items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                                    className="h-7 w-7 rounded-md border border-border/50 bg-background/60 flex items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                                 >
                                     <RefreshCw className="w-3.5 h-3.5" />
                                 </button>
@@ -388,15 +389,15 @@ export function PluginsTab() {
             </div>
 
             {activeLibraryTab === 'community' ? (
-                <div className="rounded-lg border border-border/50 bg-background/60 px-3 py-3">
-                    <div className="text-xs font-semibold text-foreground">Community plugins</div>
+                <div className="rounded-md border border-border/50 bg-background/60 px-3 py-3">
+                    <div className="text-[11px] font-semibold text-foreground">Community plugins</div>
                     <p className="mt-1 text-[11px] text-muted-foreground">
                         Coming soon. Browse, install, and update plugins from the community.
                     </p>
                     <button
                         type="button"
                         disabled
-                        className="mt-3 h-7 px-3 rounded-full text-[11px] font-semibold text-muted-foreground bg-muted/30 border border-border/50 cursor-not-allowed"
+                        className="mt-3 h-7 px-3 rounded-full text-[10px] font-semibold text-muted-foreground bg-muted/30 border border-border/50 cursor-not-allowed"
                     >
                         Browse community
                     </button>
@@ -404,8 +405,8 @@ export function PluginsTab() {
             ) : (
                 <div className="space-y-3">
                     {activePlugins.length === 0 ? (
-                        <div className="rounded-lg border border-border/50 bg-background/60 px-3 py-6 text-center">
-                            <div className="text-xs font-semibold text-foreground">No plugins found</div>
+                        <div className="rounded-md border border-border/50 bg-background/60 px-3 py-6 text-center">
+                            <div className="text-[11px] font-semibold text-foreground">No plugins found</div>
                             <p className="mt-1 text-[11px] text-muted-foreground">
                                 Try a different search, or create one in the plugin creator.
                             </p>
@@ -416,9 +417,9 @@ export function PluginsTab() {
                             const paramCount = Object.keys(plugin.params).length
 
                             return (
-                                <div key={plugin.id} className="rounded-lg border border-border/40 bg-background/40">
+                                <div key={plugin.id} className="rounded-md border border-border/40 bg-background/40">
                                     {/* Plugin Row */}
-                                    <div className="flex items-center justify-between px-3 py-2">
+                                    <div className="flex items-center justify-between px-2.5 py-2">
                                         <div
                                             className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group"
                                             onClick={() => setExpandedPlugin(isExpanded ? null : plugin.id)}
@@ -429,11 +430,11 @@ export function PluginsTab() {
                                             )} />
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <Label className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors cursor-pointer">
+                                                    <Label className="text-[11px] font-medium text-foreground truncate group-hover:text-primary transition-colors cursor-pointer">
                                                         {plugin.name}
                                                     </Label>
                                                     <span className={cn(
-                                                        "text-[10px] px-1.5 py-0 rounded-md border capitalize",
+                                                        "text-[9px] px-1.5 py-0 rounded-md border capitalize",
                                                         getCategoryBadge(plugin.kind === 'clip' ? 'clip' : plugin.category)
                                                     )}>
                                                         {plugin.kind === 'clip' ? 'clip' : plugin.category}
@@ -474,7 +475,7 @@ export function PluginsTab() {
                                     {/* Expanded Parameters */}
                                     {isExpanded && paramCount > 0 && (
                                         <div className="px-3 pb-3">
-                                            <div className="rounded-lg border border-border/50 bg-background/70 p-3 space-y-3">
+                                            <div className="rounded-md border border-border/50 bg-background/70 p-2.5 space-y-3">
                                                 {Object.entries(plugin.params).map(([key, param]) => (
                                                     <PluginParamControl
                                                         key={key}
@@ -513,8 +514,8 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
         return (
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                    <Label className="text-xs text-foreground">{param.label}</Label>
-                    <span className="text-xs font-mono text-muted-foreground/70 tabular-nums">
+                    <Label className="text-[10px] text-foreground">{param.label}</Label>
+                    <span className="text-[10px] font-mono text-muted-foreground/70 tabular-nums">
                         {displayValue}{numParam.unit || ''}
                     </span>
                 </div>
@@ -532,7 +533,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
                         type="number"
                         value={displayValue}
                         onChange={(e) => onChange(Number(e.target.value))}
-                        className="w-full h-7 px-2.5 text-xs bg-background/70 rounded-md border border-border/50 focus:ring-1 focus:ring-foreground/20"
+                        className="w-full h-7 px-2.5 text-[10px] bg-background/70 rounded-md border border-border/50 focus:ring-1 focus:ring-foreground/20"
                     />
                 )}
             </div>
@@ -542,7 +543,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
     if (param.type === 'boolean') {
         return (
             <div className="flex items-center justify-between">
-                <Label className="text-xs text-foreground">{param.label}</Label>
+                <Label className="text-[10px] text-foreground">{param.label}</Label>
                 <Switch
                     checked={Boolean(value)}
                     onCheckedChange={onChange}
@@ -556,14 +557,14 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
         const displayValue = typeof value === 'string' ? value : String((param as any).default ?? '')
         return (
             <div className="space-y-2">
-                <Label className="text-xs text-foreground">{param.label}</Label>
+                <Label className="text-[10px] text-foreground">{param.label}</Label>
                 <input
                     type="text"
                     value={displayValue}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={(param as any).placeholder}
                     maxLength={(param as any).maxLength}
-                    className="w-full h-9 px-3 text-xs bg-background/60 border border-border/60 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    className="w-full h-8 px-2.5 text-[10px] bg-background/60 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/40"
                 />
             </div>
         )
@@ -573,14 +574,14 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
         const enumParam = param as EnumParam
         return (
             <div className="space-y-2">
-                <Label className="text-xs text-foreground">{param.label}</Label>
+                <Label className="text-[10px] text-foreground">{param.label}</Label>
                 <div className="grid grid-cols-2 gap-2">
                     {enumParam.options.map(opt => (
                         <button
                             key={String(opt.value)}
                             onClick={() => onChange(opt.value)}
                             className={cn(
-                                "px-3 py-1.5 text-[11px] rounded-full border transition-all",
+                                "px-2.5 py-1 text-[10px] rounded-full border transition-all",
                                 value === opt.value
                                     ? "bg-foreground text-background border-foreground/20 shadow-sm"
                                     : "bg-background/70 text-muted-foreground border-border/50 hover:bg-muted/40"
@@ -597,7 +598,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
     if (param.type === 'color') {
         return (
             <div className="flex items-center justify-between">
-                <Label className="text-xs text-foreground">{param.label}</Label>
+                <Label className="text-[10px] text-foreground">{param.label}</Label>
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-mono text-muted-foreground">
                         {String(value)}
@@ -606,7 +607,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
                         type="color"
                         value={String(value)}
                         onChange={(e) => onChange(e.target.value)}
-                        className="w-6 h-6 rounded-full cursor-pointer border border-border/50 bg-background"
+                        className="w-5 h-5 rounded-full cursor-pointer border border-border/50 bg-background"
                     />
                 </div>
             </div>

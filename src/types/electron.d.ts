@@ -132,9 +132,8 @@ export interface ElectronAPI {
   openPath?: (path: string) => Promise<void>
   generateThumbnail?: (options: any) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>
 
-  // IPC communication
-  send: (channel: string, ...args: any[]) => void
-  ipcRenderer: {
+  // IPC communication (restricted surface)
+  ipc?: {
     on: (channel: string, listener: (event: any, ...args: any[]) => void) => void
     removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => void
     invoke: (channel: string, ...args: any[]) => Promise<any>

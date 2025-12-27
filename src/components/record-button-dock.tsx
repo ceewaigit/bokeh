@@ -10,6 +10,7 @@ import { createAreaSourceId } from '@/lib/recording/utils/area-source-parser'
 import { RecordingSourceType } from '@/types/project'
 import { AudioInput } from '@/types'
 import { useProjectStore } from '@/stores/project-store'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   Mic,
   MicOff,
@@ -163,6 +164,7 @@ export function RecordButtonDock() {
       const filteredSources = mappedSources.filter(source => {
         const n = source.name.toLowerCase()
         if (n.includes('dock') || n.includes('menubar') || n.includes('notification')) return false
+        // Keep our own app window hidden unless explicitly enabled (use includeAppWindows to record Bokeh briefly).
         if (!includeAppWindows && n.includes('bokeh')) return false
         return true
       })
@@ -311,6 +313,8 @@ export function RecordButtonDock() {
   // STYLES - Refined typography and spacing
   // ═══════════════════════════════════════════════════════════════════════════
 
+  const springConfig = { type: 'spring', stiffness: 400, damping: 30 } as const
+
   const barStyle = cn(
     "flex items-center gap-1 px-1.5 py-1.5 rounded-[14px]",
     "bg-[#1c1c1e]/95 backdrop-blur-xl",
@@ -319,19 +323,19 @@ export function RecordButtonDock() {
 
   // Horizontal icon+text buttons - Apple-like snappy animations
   const sourceButtonStyle = (isSelected: boolean) => cn(
-    "flex items-center gap-1.5 h-[36px] px-3 rounded-[8px] whitespace-nowrap",
-    "transition-[background,color,transform] duration-[80ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+    "relative flex items-center gap-1.5 h-[36px] px-3 rounded-[8px] whitespace-nowrap",
+    "transition-colors duration-150",
     "text-[11px] font-medium tracking-[-0.01em]",
     "active:scale-[0.97]",
     isSelected
-      ? "bg-white/[0.12] text-white"
+      ? "text-white"
       : "text-white/40 hover:text-white/75 hover:bg-white/[0.06]"
   )
 
   const optionButtonStyle = (isActive: boolean) => cn(
-    "flex items-center gap-1.5 h-[32px] px-2.5 rounded-[6px] whitespace-nowrap",
+    "relative flex items-center gap-1.5 h-[32px] px-2.5 rounded-[6px] whitespace-nowrap",
     "text-[10px] font-medium tracking-[-0.01em]",
-    "transition-[color,background] duration-[80ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+    "transition-[color,background] duration-80 ease-standard",
     "active:opacity-70",
     isActive
       ? "text-white/80"
@@ -354,10 +358,10 @@ export function RecordButtonDock() {
       <div ref={containerRef} className="inline-block p-1">
         <div className={barStyle} style={{ ['WebkitAppRegion' as any]: 'drag' }}>
           <div className="flex items-center gap-2 px-3 h-[44px]">
-            {/* Recording dot - isolated layer to prevent repaints */}
-            <span className="relative flex-shrink-0 h-[6px] w-[6px]">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff3b30] opacity-60 will-change-transform" />
-              <span className="relative inline-flex rounded-full h-[6px] w-[6px] bg-[#ff3b30]" />
+            {/* Recording dot - both layers absolutely positioned for perfect centering */}
+            <span className="relative flex-shrink-0 w-[6px] h-[6px]">
+              <span className="absolute inset-0 animate-ping rounded-full bg-[#ff3b30] opacity-60 will-change-transform" />
+              <span className="absolute inset-0 rounded-full bg-[#ff3b30]" />
             </span>
             {/* Timer - fixed width to prevent layout shift */}
             <span className="text-white/90 text-[13px] font-mono font-medium tabular-nums tracking-tight min-w-[52px]">
@@ -368,17 +372,20 @@ export function RecordButtonDock() {
           <div className="w-px h-6 bg-white/[0.08]" />
 
           {(canPause() || canResume()) && (
-            <button
+            <motion.button
               type="button"
               style={{ WebkitAppRegion: 'no-drag' } as any}
               onClick={isPaused ? resumeRecording : pauseRecording}
               className="flex items-center justify-center w-[36px] h-[36px] rounded-[8px] text-white/50 hover:text-white hover:bg-white/[0.08] transition-all duration-100"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={springConfig}
             >
               {isPaused ? <Play className="w-[14px] h-[14px] fill-current" /> : <Pause className="w-[14px] h-[14px]" />}
-            </button>
+            </motion.button>
           )}
 
-          <button
+          <motion.button
             type="button"
             style={{ WebkitAppRegion: 'no-drag' } as any}
             onClick={handleStop}
@@ -388,10 +395,13 @@ export function RecordButtonDock() {
               "text-white/85 text-[12px] font-medium",
               "transition-all duration-100"
             )}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={springConfig}
           >
             <Square className="w-[10px] h-[10px] fill-current" />
             <span>Stop</span>
-          </button>
+          </motion.button>
         </div>
       </div>
     )
@@ -575,48 +585,93 @@ export function RecordButtonDock() {
         ) : (
           <>
             {screens.map((screen, idx) => (
-              <button
+              <motion.button
                 type="button"
                 key={screen.id}
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 onClick={() => handleSourceSelect(screen)}
                 className={sourceButtonStyle(selectedSourceId === screen.id)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={springConfig}
               >
-                <Monitor className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
-                <span>
+                <AnimatePresence>
+                  {selectedSourceId === screen.id && (
+                    <motion.div
+                      className="absolute inset-0 rounded-[8px] bg-white/[0.12]"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={springConfig}
+                      layoutId="dock-source-active"
+                    />
+                  )}
+                </AnimatePresence>
+                <Monitor className="relative z-10 w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+                <span className="relative z-10">
                   {screens.length > 1
                     ? (screen.displayInfo?.isPrimary ? 'Main' : `Display ${idx + 1}`)
                     : 'Display'}
                 </span>
-              </button>
+              </motion.button>
             ))}
 
             {windows.length > 0 && (
-              <button
+              <motion.button
                 type="button"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 onClick={handleWindowModeClick}
                 className={sourceButtonStyle(isWindowSelected || showWindowPicker)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={springConfig}
               >
-                <AppWindow className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
-                <span>Window</span>
+                <AnimatePresence>
+                  {(isWindowSelected || showWindowPicker) && (
+                    <motion.div
+                      className="absolute inset-0 rounded-[8px] bg-white/[0.12]"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={springConfig}
+                      layoutId="dock-source-active"
+                    />
+                  )}
+                </AnimatePresence>
+                <AppWindow className="relative z-10 w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+                <span className="relative z-10">Window</span>
                 <ChevronDown className={cn(
-                  "w-3 h-3 opacity-50 transition-transform duration-100 -ml-0.5",
+                  "relative z-10 w-3 h-3 opacity-50 transition-transform duration-100 -ml-0.5",
                   showWindowPicker && "rotate-180"
                 )} />
-              </button>
+              </motion.button>
             )}
 
             {areaOption && (
-              <button
+              <motion.button
                 type="button"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 onClick={handleAreaClick}
                 className={sourceButtonStyle(selectedSourceId?.startsWith('area:') ?? false)}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={springConfig}
               >
-                <Crop className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
-                <span>Area</span>
-              </button>
+                <AnimatePresence>
+                  {(selectedSourceId?.startsWith('area:') ?? false) && (
+                    <motion.div
+                      className="absolute inset-0 rounded-[8px] bg-white/[0.12]"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={springConfig}
+                      layoutId="dock-source-active"
+                    />
+                  )}
+                </AnimatePresence>
+                <Crop className="relative z-10 w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+                <span className="relative z-10">Area</span>
+              </motion.button>
             )}
           </>
         )}
@@ -626,115 +681,182 @@ export function RecordButtonDock() {
         {/* Options */}
         <div className="flex items-center">
           {/* System Audio */}
-          <button
+          <motion.button
             type="button"
             style={{ WebkitAppRegion: 'no-drag' } as any}
             onClick={() => setAudioEnabled(!audioEnabled)}
             className={optionButtonStyle(audioEnabled)}
             title={audioEnabled ? 'System audio enabled' : 'System audio muted'}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={springConfig}
           >
-            {audioEnabled ? <Volume2 className="w-[12px] h-[12px]" strokeWidth={1.75} /> : <MicOff className="w-[12px] h-[12px]" strokeWidth={1.75} />}
-            <span>{audioEnabled ? 'System' : 'Muted'}</span>
-          </button>
+            <AnimatePresence>
+              {audioEnabled && (
+                <motion.div
+                  className="absolute inset-0 rounded-[6px] bg-white/[0.06]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                />
+              )}
+            </AnimatePresence>
+            {audioEnabled ? <Volume2 className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} /> : <MicOff className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} />}
+            <span className="relative z-10">{audioEnabled ? 'System' : 'Muted'}</span>
+          </motion.button>
 
           {/* Webcam Toggle */}
           <div className="flex items-center">
-            <button
+            <motion.button
               type="button"
               style={{ WebkitAppRegion: 'no-drag' } as any}
               onClick={handleToggleWebcam}
               className={cn(
                 optionButtonStyle(deviceSettings.webcam.enabled),
-                deviceSettings.webcam.enabled && "pr-1"
+                deviceSettings.webcam.enabled && "rounded-r-none pr-1"
               )}
               title={deviceSettings.webcam.enabled ? 'Camera enabled' : 'Camera disabled'}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={springConfig}
             >
+              <AnimatePresence>
+                {deviceSettings.webcam.enabled && (
+                  <motion.div
+                    className="absolute inset-0 rounded-l-[6px] rounded-r-none bg-white/[0.06]"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  />
+                )}
+              </AnimatePresence>
               {deviceSettings.webcam.enabled ? (
-                <Camera className="w-[12px] h-[12px]" strokeWidth={1.75} />
+                <Camera className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} />
               ) : (
-                <CameraOff className="w-[12px] h-[12px]" strokeWidth={1.75} />
+                <CameraOff className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} />
               )}
-              <span>Cam</span>
-            </button>
+              <span className="relative z-10">Cam</span>
+            </motion.button>
             {deviceSettings.webcam.enabled && (
-              <button
+              <motion.button
                 type="button"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 onClick={handleDevicePickerToggle}
-                className="p-1 -ml-1 text-white/30 hover:text-white/60 transition-colors"
+                className="relative flex items-center justify-center h-[32px] px-1.5 rounded-r-[6px] rounded-l-none hover:bg-white/[0.1] transition-colors"
                 title="Select camera"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={springConfig}
               >
+                <div className="absolute inset-0 rounded-r-[6px] rounded-l-none bg-white/[0.06] -z-10" />
                 <ChevronDown className={cn(
-                  "w-2.5 h-2.5 transition-transform duration-100",
+                  "w-2.5 h-2.5 text-white/60 transition-transform duration-100",
                   showDevicePicker && "rotate-180"
                 )} />
-              </button>
+              </motion.button>
             )}
           </div>
 
           {/* Microphone Toggle */}
           <div className="flex items-center">
-            <button
+            <motion.button
               type="button"
               style={{ WebkitAppRegion: 'no-drag' } as any}
               onClick={handleToggleMicrophone}
               className={cn(
                 optionButtonStyle(deviceSettings.microphone.enabled),
-                deviceSettings.microphone.enabled && "pr-1"
+                deviceSettings.microphone.enabled && "rounded-r-none pr-1"
               )}
               title={deviceSettings.microphone.enabled ? 'Microphone enabled' : 'Microphone disabled'}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={springConfig}
             >
+              <AnimatePresence>
+                {deviceSettings.microphone.enabled && (
+                  <motion.div
+                    className="absolute inset-0 rounded-l-[6px] rounded-r-none bg-white/[0.06]"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  />
+                )}
+              </AnimatePresence>
               {deviceSettings.microphone.enabled ? (
-                <Mic className="w-[12px] h-[12px]" strokeWidth={1.75} />
+                <Mic className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} />
               ) : (
-                <MicOff className="w-[12px] h-[12px]" strokeWidth={1.75} />
+                <MicOff className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} />
               )}
-              <span>Mic</span>
-            </button>
+              <span className="relative z-10">Mic</span>
+            </motion.button>
             {deviceSettings.microphone.enabled && (
-              <button
+              <motion.button
                 type="button"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 onClick={handleDevicePickerToggle}
-                className="p-1 -ml-1 text-white/30 hover:text-white/60 transition-colors"
+                className="relative flex items-center justify-center h-[32px] px-1.5 rounded-r-[6px] rounded-l-none hover:bg-white/[0.1] transition-colors"
                 title="Select microphone"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={springConfig}
               >
+                <div className="absolute inset-0 rounded-r-[6px] rounded-l-none bg-white/[0.06] -z-10" />
                 <ChevronDown className={cn(
-                  "w-2.5 h-2.5 transition-transform duration-100",
+                  "w-2.5 h-2.5 text-white/60 transition-transform duration-100",
                   showDevicePicker && "rotate-180"
                 )} />
-              </button>
+              </motion.button>
             )}
           </div>
 
           {/* Desktop Icons Toggle */}
-          <button
+          <motion.button
             type="button"
             style={{ WebkitAppRegion: 'no-drag' } as any}
             onClick={() => setHideDesktopIcons(!hideDesktopIcons)}
             className={optionButtonStyle(hideDesktopIcons)}
             title={hideDesktopIcons ? 'Desktop icons hidden' : 'Desktop icons visible'}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={springConfig}
           >
-            {hideDesktopIcons ? <EyeOff className="w-[12px] h-[12px]" strokeWidth={1.75} /> : <Eye className="w-[12px] h-[12px]" strokeWidth={1.75} />}
-            <span>{hideDesktopIcons ? 'Clean' : 'Desktop'}</span>
-          </button>
+            <AnimatePresence>
+              {hideDesktopIcons && (
+                <motion.div
+                  className="absolute inset-0 rounded-[6px] bg-white/[0.06]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                />
+              )}
+            </AnimatePresence>
+            {hideDesktopIcons ? <EyeOff className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} /> : <Eye className="relative z-10 w-[12px] h-[12px]" strokeWidth={1.75} />}
+            <span className="relative z-10">{hideDesktopIcons ? 'Clean' : 'Desktop'}</span>
+          </motion.button>
         </div>
 
         <div className="w-px h-6 bg-white/[0.08] mx-1" />
 
         {/* Library */}
-        <button
+        <motion.button
           type="button"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           onClick={() => window.electronAPI?.openWorkspace?.()}
           className="flex items-center justify-center w-[36px] h-[36px] rounded-[8px] text-white/30 hover:text-white/60 hover:bg-white/[0.05] transition-all duration-100"
           title="Open Library"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={springConfig}
         >
           <FolderOpen className="w-[15px] h-[15px]" strokeWidth={1.75} />
-        </button>
+        </motion.button>
 
         {/* Record Button */}
-        <button
+        <motion.button
           type="button"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           onClick={handleStartRecording}
@@ -747,6 +869,9 @@ export function RecordButtonDock() {
               ? "bg-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_3px_rgba(0,0,0,0.2)] hover:brightness-110 active:scale-[0.97]"
               : "bg-white/[0.04] text-white/20 cursor-not-allowed"
           )}
+          whileHover={selectedSourceId ? { scale: 1.02 } : undefined}
+          whileTap={selectedSourceId ? { scale: 0.98 } : undefined}
+          transition={springConfig}
         >
           <span className={cn(
             "w-[7px] h-[7px] rounded-full",
@@ -755,7 +880,7 @@ export function RecordButtonDock() {
               : "bg-white/30"
           )} />
           <span>Record</span>
-        </button>
+        </motion.button>
       </div>
     </div>
   )

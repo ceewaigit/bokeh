@@ -47,6 +47,37 @@ function getCacheEntry(effects: Effect[]): EffectsCacheEntry {
   return entry
 }
 
+// --- Type Assertion Helpers ---
+
+/**
+ * Assert that an effect exists and has the expected type.
+ * Use for fail-fast validation at boundaries.
+ */
+export function assertEffectType<T extends Effect>(
+  effect: Effect | undefined | null,
+  type: EffectType,
+  message?: string
+): asserts effect is T {
+  if (!effect) {
+    throw new Error(message ?? `Expected effect of type ${type}, got undefined`)
+  }
+  if (effect.type !== type) {
+    throw new Error(message ?? `Expected effect type ${type}, got ${effect.type}`)
+  }
+}
+
+/**
+ * Assert that an effect exists (non-null check with descriptive error).
+ */
+export function assertEffectExists<T extends Effect>(
+  effect: T | undefined | null,
+  context?: string
+): asserts effect is T {
+  if (!effect) {
+    throw new Error(context ? `Effect not found: ${context}` : 'Expected effect to exist')
+  }
+}
+
 // --- Zoom Effects ---
 
 export function getZoomEffects(effects: Effect[]): Effect[] {
@@ -112,6 +143,10 @@ export function getBackgroundEffect(effects: Effect[]): Effect | undefined {
 
 export function getWebcamEffect(effects: Effect[]): Effect | undefined {
   return effects.find(e => e.type === EffectType.Webcam)
+}
+
+export function getWebcamEffects(effects: Effect[]): Effect[] {
+  return effects.filter(e => e.type === EffectType.Webcam)
 }
 
 export function getWebcamData(effect: Effect): WebcamEffectData | null {

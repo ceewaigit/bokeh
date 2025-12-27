@@ -12,6 +12,29 @@ module.exports = {
     icon: path.join(__dirname, 'assets', 'icon'),
     appCategoryType: 'public.app-category.productivity',
     darwinDarkModeSupport: true,
+    extendInfo: {
+      CFBundleDocumentTypes: [
+        {
+          CFBundleTypeName: 'Bokeh Project',
+          CFBundleTypeRole: 'Editor',
+          LSHandlerRank: 'Owner',
+          LSTypeIsPackage: true,
+          LSItemContentTypes: ['com.bokeh.project'],
+          CFBundleTypeExtensions: ['bokeh'],
+          CFBundleTypeIconFile: 'icon'
+        }
+      ],
+      UTExportedTypeDeclarations: [
+        {
+          UTTypeIdentifier: 'com.bokeh.project',
+          UTTypeDescription: 'Bokeh Project',
+          UTTypeConformsTo: ['public.directory'],
+          UTTypeTagSpecification: {
+            'public.filename-extension': ['bokeh']
+          }
+        }
+      ]
+    },
     osxSign: {
       hardenedRuntime: false,
       entitlements: path.join(__dirname, 'entitlements.plist'),

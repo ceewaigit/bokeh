@@ -3,7 +3,7 @@ import { RecordingStorage } from './recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { migrationRunner } from '@/lib/migrations'
 import { getVideoMetadata } from '@/lib/utils/video-metadata'
-import { PROJECT_EXTENSION } from '@/lib/storage/recording-storage'
+import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE, buildProjectFilePath } from '@/lib/storage/recording-storage'
 import { precomputeCursorSmoothingCache } from '@/lib/effects/utils/cursor-calculator'
 import { precomputeCameraCaches } from '@/lib/effects/utils/camera-calculator'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
@@ -21,6 +21,28 @@ export interface LoadProjectOptions {
  * Extracted from project-store's openProject and saveCurrentProject methods
  */
 export class ProjectIOService {
+  private static async resolveProjectFilePath(projectPath: string): Promise<string> {
+    if (!projectPath.endsWith(PROJECT_EXTENSION) || !window.electronAPI?.fileExists) {
+      return projectPath
+    }
+
+    const packageFilePath = buildProjectFilePath(projectPath)
+    const packageExists = await window.electronAPI.fileExists(packageFilePath)
+    return packageExists ? packageFilePath : projectPath
+  }
+
+  private static getProjectRootFromPaths(projectPath: string, projectFilePath: string): string {
+    if (projectFilePath.endsWith(`/${PROJECT_PACKAGE_FILE}`)) {
+      if (/\/project-[^/]+\.bokeh$/.test(projectPath)) {
+        const idx = projectPath.lastIndexOf('/')
+        return idx >= 0 ? projectPath.substring(0, idx) : projectPath
+      }
+      return projectPath
+    }
+    const idx = projectPath.lastIndexOf('/')
+    return idx >= 0 ? projectPath.substring(0, idx) : ''
+  }
+
   /**
    * Load a project from filesystem or storage
    */
@@ -33,7 +55,8 @@ export class ProjectIOService {
     if (projectPath && (isProject || projectPath.includes('/'))) {
       // Load from filesystem
       if (window.electronAPI?.readLocalFile) {
-        const res = await window.electronAPI.readLocalFile(projectPath)
+        const resolvedPath = await this.resolveProjectFilePath(projectPath)
+        const res = await window.electronAPI.readLocalFile(resolvedPath)
         if (res?.success && res.data) {
           const json = new TextDecoder().decode(res.data)
           project = JSON.parse(json)
@@ -52,6 +75,8 @@ export class ProjectIOService {
       if (!data) throw new Error('Project not found')
       project = JSON.parse(data)
     }
+
+    project.filePath = projectPath
 
     // Apply migrations
     project = await this.migrateProject(project)
@@ -80,7 +105,8 @@ export class ProjectIOService {
       onProgress?.('Loading project file...')
       try {
         if (window.electronAPI?.readLocalFile) {
-          const result = await window.electronAPI.readLocalFile(recording.path)
+          const resolvedPath = await this.resolveProjectFilePath(recording.path)
+          const result = await window.electronAPI.readLocalFile(resolvedPath)
           if (result?.success && result.data) {
             const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
             project = JSON.parse(projectData)
@@ -98,6 +124,7 @@ export class ProjectIOService {
 
     // Deep clone the project to allow mutations (JSON objects are frozen/read-only)
     project = structuredClone(project)
+    project.filePath = recording.path
 
     // Clear stale temp proxy URLs that won't exist after restarts
     // The proxy service will regenerate them fresh during load
@@ -111,7 +138,8 @@ export class ProjectIOService {
     project = await this.migrateProject(project)
 
     // Get project directory for resolving relative paths
-    const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
+    const resolvedProjectPath = await this.resolveProjectFilePath(recording.path)
+    const projectDir = this.getProjectRootFromPaths(recording.path, resolvedProjectPath)
 
     // Resolve paths, validate files, and repair properties for each recording
     for (let i = 0; i < project.recordings.length; i++) {
@@ -490,7 +518,7 @@ export class ProjectIOService {
   /**
    * Save a project to storage
    */
-  static async saveProject(project: Project): Promise<void> {
+  static async saveProject(project: Project): Promise<string | null> {
     // Deep copy to avoid mutating frozen Immer objects.
     // All effects now live in timeline.effects (the SSOT)
     // Strip temp proxy URLs (they live in /tmp and won't exist after restarts)
@@ -508,7 +536,7 @@ export class ProjectIOService {
       modifiedAt: new Date().toISOString()
     })
 
-    await RecordingStorage.saveProject(projectToSave)
+    return RecordingStorage.saveProject(projectToSave, projectToSave.filePath)
   }
 
   /**
@@ -517,9 +545,12 @@ export class ProjectIOService {
   private static relativizePaths(project: Project): Project {
     if (!project.filePath) return project
 
-    // Project file path: /path/to/project/id.bokeh
-    // Project dir: /path/to/project
-    const projectDir = project.filePath.substring(0, project.filePath.lastIndexOf('/'))
+    const hasNestedRecording = project.recordings?.some(
+      (rec) => typeof rec.folderPath === 'string' && rec.folderPath.startsWith(`${project.filePath}/`)
+    )
+    const projectDir = hasNestedRecording
+      ? project.filePath
+      : project.filePath.substring(0, project.filePath.lastIndexOf('/'))
 
     // Clone to modify
     const relativeProject = { ...project }

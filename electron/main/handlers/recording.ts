@@ -41,12 +41,21 @@ export function registerRecordingHandlers(): void {
 
       // Local constants for file extensions to avoid magic strings
       const EXT_BOKEH = '.bokeh'
+      const PROJECT_PACKAGE_FILE = 'project.json'
 
       async function walk(dir: string): Promise<void> {
         const entries = await fs.readdir(dir, { withFileTypes: true })
         for (const entry of entries) {
           const fullPath = path.join(dir, entry.name)
           if (entry.isDirectory()) {
+            if (entry.name.endsWith(EXT_BOKEH)) {
+              const projectFilePath = path.join(fullPath, PROJECT_PACKAGE_FILE)
+              if (fsSync.existsSync(projectFilePath)) {
+                const stats = fsSync.statSync(projectFilePath)
+                results.push({ name: entry.name, path: fullPath, timestamp: stats.mtime, size: stats.size })
+              }
+              continue
+            }
             await walk(fullPath)
           } else if (entry.isFile() && entry.name.endsWith(EXT_BOKEH)) {
             const stats = fsSync.statSync(fullPath)
@@ -99,12 +108,14 @@ export function registerRecordingHandlers(): void {
         return { success: false, error: 'Path outside recordings directory' }
       }
 
-      // Folder-based project layout: delete the project folder, but never the recordings root.
-      const projectFolder = path.dirname(resolvedProjectFile)
+      const stats = await fs.lstat(resolvedProjectFile)
+      const projectFolder = stats.isDirectory() ? resolvedProjectFile : path.dirname(resolvedProjectFile)
 
       if (projectFolder === recordingsDir) {
-        // Safety fallback: only remove the .bokeh file if it lives at the root.
-        await fs.unlink(resolvedProjectFile)
+        // Safety fallback: only remove the project file if it lives at the root.
+        if (!stats.isDirectory()) {
+          await fs.unlink(resolvedProjectFile)
+        }
         return { success: true }
       }
 

@@ -12,6 +12,7 @@ import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSetting
 import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { useVideoContainerCleanup } from '@/remotion/hooks/media/useVTDecoderCleanup';
 import { AudioEnhancerWrapper } from '@/remotion/components/video-helpers';
+import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import type { SyntheticEvent } from 'react';
@@ -22,7 +23,7 @@ interface VideoClipRendererProps {
   startFrame: number;
   durationFrames: number;
   groupStartFrame: number;
-  renderStartFrom: number;
+  groupStartSourceIn: number;
   groupDuration: number;
   currentFrame: number;
   fps: number;
@@ -50,7 +51,7 @@ interface VideoClipRendererProps {
 
 export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   clipForVideo, recording, startFrame, durationFrames,
-  groupStartFrame, renderStartFrom, groupDuration,
+  groupStartFrame, groupStartSourceIn, groupDuration,
   currentFrame, fps, isRendering,
   cornerRadius, drawWidth, drawHeight,
   compositionWidth, compositionHeight, maxZoomScale, currentZoomScale, mockupEnabled: _mockupEnabled,
@@ -65,7 +66,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Video URL resolution
   const videoUrl = useVideoUrl({
-    recording, resources, preferOffthreadVideo,
+    recording, resources, clipId: clipForVideo.id, preferOffthreadVideo,
     targetWidth: compositionWidth, targetHeight: compositionHeight,
     maxZoomScale, currentZoomScale, isGlowMode, isHighQualityPlaybackEnabled, isPlaying,
   });
@@ -97,6 +98,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     && !isProxySufficientForTarget(compositionWidth, compositionHeight, currentZoomScale || maxZoomScale || 1);
   const useHighResSizing = isRendering || needsHighRes;
   const playbackRate = clipForVideo.playbackRate && clipForVideo.playbackRate > 0 ? clipForVideo.playbackRate : 1;
+  const startFromFrames = msToFrame(groupStartSourceIn || 0, fps);
 
   // Opacity adjustment for generated active clip
   const isActiveClipGenerated = activeLayoutItem?.clip.recordingId?.startsWith('generated-');
@@ -136,7 +138,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
               volume={1}
               muted={false}
               pauseWhenBuffering={false}
-              startFrom={renderStartFrom}
+              startFrom={startFromFrames}
               playbackRate={playbackRate}
               onLoadedData={handleLoaded}
               onCanPlay={handleLoaded}

@@ -28,7 +28,7 @@ export const LibraryEmptyState = ({ onNewRecording }: LibraryEmptyStateProps) =>
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <HeaderButton
           variant="default"
-          className="shadow-sm hover:shadow-md active:scale-95"
+          className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
           onClick={onNewRecording}
           icon={Video}
         >
@@ -45,7 +45,7 @@ export const LibraryEmptyState = ({ onNewRecording }: LibraryEmptyStateProps) =>
 
           <div className="relative z-10 w-24 h-24 rounded-[2rem] bg-gradient-to-b from-muted/20 to-muted/5 border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-2xl ring-1 ring-white/5 group-hover:scale-105 transition-transform duration-500 ease-out">
             <Film className="w-10 h-10 text-white/80 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]" strokeWidth={1.5} />
-            <Sparkles className="absolute -top-3 -right-3 w-6 h-6 text-primary animate-pulse duration-[3000ms]" strokeWidth={2} />
+            <Sparkles className="absolute -top-3 -right-3 w-6 h-6 text-primary animate-pulse duration-3000" strokeWidth={2} />
           </div>
         </div>
 
@@ -62,7 +62,7 @@ export const LibraryEmptyState = ({ onNewRecording }: LibraryEmptyStateProps) =>
         <div className="flex flex-col gap-4 max-w-[200px] mx-auto">
           <HeaderButton
             variant="default"
-            className="w-full h-11 text-sm font-semibold rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0"
+            className="w-full h-11 text-sm font-[var(--font-display)] font-semibold tracking-tight rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground shadow-[0_10px_30px_-18px_hsl(var(--primary)/0.65)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_12px_34px_-20px_hsl(var(--primary)/0.7)] active:translate-y-[1px]"
             onClick={onNewRecording}
             icon={Video}
           >

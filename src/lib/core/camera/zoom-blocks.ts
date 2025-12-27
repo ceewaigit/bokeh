@@ -4,11 +4,12 @@
  * Parse and query zoom effects for the camera system.
  */
 
-import type { Effect, ZoomEffectData, ZoomFollowStrategy } from '@/types/project'
-import { EffectType } from '@/types/project'
+import type { Effect, ZoomBlockOrigin, ZoomEffectData, ZoomFollowStrategy } from '@/types/project'
+import { EffectType, ZoomFollowStrategy as ZoomFollowStrategyEnum } from '@/types/project'
 
 export interface ParsedZoomBlock {
     id: string
+    origin: ZoomBlockOrigin
     startTime: number
     endTime: number
     scale: number
@@ -41,27 +42,84 @@ export function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
     const parsed = effects
         .filter(e => e.type === EffectType.Zoom && e.enabled)
         .map(e => {
-            const data = e.data as ZoomEffectData
+            const data = requireZoomEffectData(e)
             return {
                 id: e.id,
+                origin: data.origin,
                 startTime: e.startTime,
                 endTime: e.endTime,
-                scale: data?.scale ?? 2,
-                targetX: data?.targetX,
-                targetY: data?.targetY,
-                screenWidth: data?.screenWidth,
-                screenHeight: data?.screenHeight,
-                introMs: data?.introMs ?? 300,
-                outroMs: data?.outroMs ?? 300,
-                smoothing: data?.smoothing,
-                followStrategy: data?.followStrategy,
-                autoScale: data?.autoScale,
-                mouseIdlePx: data?.mouseIdlePx,
+                scale: data.scale,
+                targetX: data.targetX,
+                targetY: data.targetY,
+                screenWidth: data.screenWidth,
+                screenHeight: data.screenHeight,
+                introMs: data.introMs,
+                outroMs: data.outroMs,
+                smoothing: data.smoothing,
+                followStrategy: data.followStrategy,
+                autoScale: data.autoScale,
+                mouseIdlePx: data.mouseIdlePx,
             }
         })
 
     zoomBlocksCache.set(effects, parsed)
     return parsed
+}
+
+function requireZoomEffectData(effect: Effect): ZoomEffectData {
+    const data = effect.data as ZoomEffectData | undefined
+    if (!data) {
+        throw new Error(`[ZoomBlocks] Missing data for zoom effect ${effect.id}`)
+    }
+    if (typeof effect.startTime !== 'number' || typeof effect.endTime !== 'number') {
+        throw new Error(`[ZoomBlocks] Invalid zoom timing for ${effect.id}`)
+    }
+    if (effect.startTime >= effect.endTime) {
+        throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has non-positive duration`)
+    }
+    if (data.origin !== 'auto' && data.origin !== 'manual') {
+        throw new Error(`[ZoomBlocks] Invalid zoom origin for ${effect.id}`)
+    }
+    assertFiniteNumber('scale', data.scale, effect.id)
+    assertFiniteNumber('introMs', data.introMs, effect.id)
+    assertFiniteNumber('outroMs', data.outroMs, effect.id)
+    assertFiniteNumber('smoothing', data.smoothing, effect.id)
+    if (data.scale <= 0) {
+        throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has invalid scale`)
+    }
+    if (data.introMs < 0 || data.outroMs < 0 || data.smoothing < 0) {
+        throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has negative timing values`)
+    }
+    if (data.targetX !== undefined) assertFiniteNumber('targetX', data.targetX, effect.id)
+    if (data.targetY !== undefined) assertFiniteNumber('targetY', data.targetY, effect.id)
+    if (data.screenWidth !== undefined) {
+        assertFiniteNumber('screenWidth', data.screenWidth, effect.id)
+        if (data.screenWidth <= 0) throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has invalid screenWidth`)
+    }
+    if (data.screenHeight !== undefined) {
+        assertFiniteNumber('screenHeight', data.screenHeight, effect.id)
+        if (data.screenHeight <= 0) throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has invalid screenHeight`)
+    }
+    if (data.mouseIdlePx !== undefined) {
+        assertFiniteNumber('mouseIdlePx', data.mouseIdlePx, effect.id)
+        if (data.mouseIdlePx < 0) throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has invalid mouseIdlePx`)
+    }
+    if (data.followStrategy !== undefined && !isValidFollowStrategy(data.followStrategy)) {
+        throw new Error(`[ZoomBlocks] Invalid followStrategy for ${effect.id}`)
+    }
+    return data
+}
+
+function assertFiniteNumber(field: string, value: number, effectId: string): void {
+    if (!Number.isFinite(value)) {
+        throw new Error(`[ZoomBlocks] ${field} is not a finite number for ${effectId}`)
+    }
+}
+
+function isValidFollowStrategy(strategy: ZoomFollowStrategy): boolean {
+    return strategy === ZoomFollowStrategyEnum.Mouse
+        || strategy === ZoomFollowStrategyEnum.Center
+        || strategy === ZoomFollowStrategyEnum.Manual
 }
 
 /**

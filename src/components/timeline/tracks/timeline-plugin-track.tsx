@@ -9,7 +9,7 @@ import { getAllPluginEffects } from '@/lib/effects/effect-filters'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
-import { PluginEffect } from '@/types/project'
+import { PluginEffect, TimelineTrackType } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useShallow } from 'zustand/react/shallow'
@@ -20,7 +20,8 @@ export function TimelinePluginTrack() {
         trackHeights,
         trackPositions,
         hasPluginTrack,
-        duration
+        duration,
+        setActiveTrack
     } = useTimelineLayout()
 
     const {
@@ -97,6 +98,7 @@ export function TimelinePluginTrack() {
                         isEnabled={effect.enabled}
                         allBlocks={allPluginBlocksData}
                         pixelsPerMs={pixelsPerMs}
+                        onHover={() => setActiveTrack(TimelineTrackType.Plugin)}
                         onSelect={() => {
                             if (isBlockSelected) {
                                 clearEffectSelection()

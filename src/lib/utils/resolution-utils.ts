@@ -56,6 +56,22 @@ export function isProxySufficientForTarget(
 }
 
 /**
+ * Determine if proxy resolution is sufficient for export output.
+ * Export uses 1x pixels (no retina multiplier).
+ */
+export function isProxySufficientForExport(
+    targetWidth: number,
+    targetHeight: number,
+    maxZoomScale: number,
+    proxyWidth: number = PROXY_WIDTH,
+    proxyHeight: number = PROXY_HEIGHT
+): boolean {
+    const requiredWidth = targetWidth * maxZoomScale;
+    const requiredHeight = targetHeight * maxZoomScale;
+    return proxyWidth >= requiredWidth && proxyHeight >= requiredHeight;
+}
+
+/**
  * Calculate optimal proxy dimensions for export.
  * Returns dimensions that cover output × zoom while staying within source bounds.
  */

@@ -13,10 +13,10 @@ export class ElectronIpcBridge implements IpcBridge {
     if (typeof window === 'undefined') {
       throw new Error('ElectronIpcBridge can only be used in browser context')
     }
-    if (!window.electronAPI?.ipcRenderer) {
+    if (!window.electronAPI?.ipc) {
       throw new Error('Electron IPC not available. Make sure preload script is loaded.')
     }
-    return window.electronAPI.ipcRenderer
+    return window.electronAPI.ipc
   }
 
   async invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {

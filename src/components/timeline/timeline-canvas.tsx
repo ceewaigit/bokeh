@@ -21,6 +21,7 @@ import { TimelineRuler } from './timeline-ruler'
 import { TimelineClip } from './timeline-clip'
 import { TimelineTrack } from './timeline-track'
 import { TimelinePlayhead } from './timeline-playhead'
+import { TimelineGhostPlayhead } from './timeline-ghost-playhead'
 import { SpeedUpSuggestionPopover } from './speed-up-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
@@ -35,6 +36,7 @@ import { TimelineConfig } from '@/lib/timeline/config'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { getSnappedDragX } from '@/lib/timeline/drag-positioning'
+import { addAssetRecording } from '@/lib/timeline/timeline-operations'
 import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -86,8 +88,12 @@ function TimelineCanvasContent({
   // PERFORMANCE: Subscribe directly to avoid WorkspaceManager re-renders every frame
   const currentTime = useProjectStore((s) => s.currentTime)
   const isPlaying = useProjectStore((s) => s.isPlaying)
+  const isScrubbing = useProjectStore((s) => s.isScrubbing)
+  const hoverTime = useProjectStore((s) => s.hoverTime)
+  const setHoverTime = useProjectStore((s) => s.setHoverTime)
   const draggingAsset = useAssetLibraryStore((s) => s.draggingAsset)
   const [dragTime, setDragTime] = useState<number | null>(null)
+  const [dragAssetTrackType, setDragAssetTrackType] = useState<TrackType.Video | TrackType.Audio | TrackType.Webcam | null>(null)
 
   // Use Layout Context (replaces local resizing and calculations)
   const {
@@ -102,8 +108,9 @@ function TimelineCanvasContent({
     hasScreenTrack,
     hasKeystrokeTrack,
     hasPluginTrack,
-    hasWebcamTrack,
     containerRef,
+    toggleEffectTrackExpanded,
+    toggleVideoTrackExpanded,
   } = useTimelineLayout()
 
   const {
@@ -162,6 +169,7 @@ function TimelineCanvasContent({
   )
   const videoClips = useMemo(() => videoTrack?.clips || [], [videoTrack])
   const audioClips = useMemo(() => audioTrack?.clips || [], [audioTrack])
+  const webcamClips = useMemo(() => webcamTrack?.clips || [], [webcamTrack])
   const videoClipBlocks = useMemo(
     () => videoClips.map((clip) => ({
       id: clip.id,
@@ -169,6 +177,22 @@ function TimelineCanvasContent({
       endTime: clip.startTime + clip.duration
     })),
     [videoClips]
+  )
+  const audioClipBlocks = useMemo(
+    () => audioClips.map((clip) => ({
+      id: clip.id,
+      startTime: clip.startTime,
+      endTime: clip.startTime + clip.duration
+    })),
+    [audioClips]
+  )
+  const webcamClipBlocks = useMemo(
+    () => webcamClips.map((clip) => ({
+      id: clip.id,
+      startTime: clip.startTime,
+      endTime: clip.startTime + clip.duration
+    })),
+    [webcamClips]
   )
 
   const timelineEffects = useMemo(
@@ -297,12 +321,118 @@ function TimelineCanvasContent({
 
   const [dragPreview, setDragPreview] = useState<{
     clipId: string
-    trackType: TrackType.Video | TrackType.Audio
+    trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam
     startTimes: Record<string, number>
     insertIndex: number
   } | null>(null)
   const previewRafRef = useRef<number | null>(null)
-  const pendingPreviewRef = useRef<{ clipId: string; trackType: TrackType.Video | TrackType.Audio; proposedTime: number } | null>(null)
+  const pendingPreviewRef = useRef<{
+    clipId: string
+    trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam
+    proposedTime: number
+  } | null>(null)
+  const hoverRafRef = useRef<number | null>(null)
+  const pendingHoverRef = useRef<number | null>(null)
+
+  const scheduleHoverUpdate = useCallback((nextTime: number | null) => {
+    pendingHoverRef.current = nextTime
+    if (hoverRafRef.current !== null) return
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = null
+      setHoverTime(pendingHoverRef.current)
+    })
+  }, [setHoverTime])
+
+  useEffect(() => {
+    if (!isScrubbing) return
+    scheduleHoverUpdate(null)
+  }, [isScrubbing, scheduleHoverUpdate])
+
+  useEffect(() => {
+    return () => {
+      if (hoverRafRef.current !== null) {
+        cancelAnimationFrame(hoverRafRef.current)
+        hoverRafRef.current = null
+      }
+      setHoverTime(null)
+    }
+  }, [setHoverTime])
+
+  const getClipsForTrack = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => {
+    switch (trackType) {
+      case TrackType.Audio:
+        return audioClips
+      case TrackType.Webcam:
+        return webcamClips
+      case TrackType.Video:
+      default:
+        return videoClips
+    }
+  }, [audioClips, videoClips, webcamClips])
+
+  const getClipBlocksForTrack = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => {
+    switch (trackType) {
+      case TrackType.Audio:
+        return audioClipBlocks
+      case TrackType.Webcam:
+        return webcamClipBlocks
+      case TrackType.Video:
+      default:
+        return videoClipBlocks
+    }
+  }, [audioClipBlocks, videoClipBlocks, webcamClipBlocks])
+
+  const getTrackBounds = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => {
+    const padding = TimelineConfig.TRACK_PADDING
+    switch (trackType) {
+      case TrackType.Audio: {
+        const y = trackPositions.audio
+        const height = audioTrackHeight
+        return { y, height, clipY: y + padding, clipHeight: Math.max(0, height - padding * 2) }
+      }
+      case TrackType.Webcam: {
+        const y = trackPositions.webcam
+        const height = webcamTrackHeight
+        return { y, height, clipY: y + padding, clipHeight: Math.max(0, height - padding * 2) }
+      }
+      case TrackType.Video:
+      default: {
+        const y = trackPositions.video
+        const height = videoTrackHeight
+        return { y, height, clipY: y + padding, clipHeight: Math.max(0, height - padding * 2) }
+      }
+    }
+  }, [trackPositions, audioTrackHeight, webcamTrackHeight, videoTrackHeight])
+
+  const getAssetDropTrackType = useCallback((
+    assetType: 'video' | 'audio' | 'image',
+    stageY: number
+  ): TrackType.Video | TrackType.Audio | TrackType.Webcam | null => {
+    const hitSlop = TimelineConfig.TRACK_PADDING
+    const boundsFor = (trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => getTrackBounds(trackType)
+    const isWithin = (bounds: ReturnType<typeof boundsFor>) => (
+      stageY >= bounds.y - hitSlop && stageY <= bounds.y + bounds.height + hitSlop
+    )
+
+    if (assetType === 'audio') {
+      const bounds = boundsFor(TrackType.Audio)
+      return isWithin(bounds) ? TrackType.Audio : null
+    }
+
+    if (assetType === 'video') {
+      const webcamBounds = boundsFor(TrackType.Webcam)
+      if (isWithin(webcamBounds)) return TrackType.Webcam
+      const videoBounds = boundsFor(TrackType.Video)
+      return isWithin(videoBounds) ? TrackType.Video : null
+    }
+
+    if (assetType === 'image') {
+      const bounds = boundsFor(TrackType.Video)
+      return isWithin(bounds) ? TrackType.Video : null
+    }
+
+    return null
+  }, [getTrackBounds])
 
   const buildContiguousPreview = useCallback((
     clips: Clip[],
@@ -319,7 +449,7 @@ function TimelineCanvasContent({
       previewRafRef.current = null
       const pending = pendingPreviewRef.current
       if (!pending) return
-      const clips = pending.trackType === TrackType.Video ? videoClips : audioClips
+      const clips = getClipsForTrack(pending.trackType)
       const preview = buildContiguousPreview(clips, pending.clipId, pending.proposedTime)
       if (preview) {
         setDragPreview({
@@ -330,7 +460,7 @@ function TimelineCanvasContent({
         })
       }
     })
-  }, [audioClips, buildContiguousPreview, videoClips])
+  }, [buildContiguousPreview, getClipsForTrack])
 
   const clearPreview = useCallback(() => {
     pendingPreviewRef.current = null
@@ -341,18 +471,38 @@ function TimelineCanvasContent({
     setDragPreview(null)
   }, [])
 
+  const resetAssetDragState = useCallback((clearDraggingAsset: boolean) => {
+    setDragTime(null)
+    setDragAssetTrackType(null)
+    setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
+    if (clearDraggingAsset) {
+      useAssetLibraryStore.getState().setDraggingAsset(null)
+    }
+  }, [])
+
   const handleDragPreview = useCallback((clipId: string, trackType: TrackType.Video | TrackType.Audio, proposedTime: number) => {
     schedulePreviewUpdate(clipId, trackType, proposedTime)
   }, [schedulePreviewUpdate])
 
   const handleDragCommit = useCallback((clipId: string, trackType: TrackType.Video | TrackType.Audio, proposedTime: number) => {
-    const clips = trackType === TrackType.Video ? videoClips : audioClips
+    const clips = getClipsForTrack(trackType)
     const preview = buildContiguousPreview(clips, clipId, proposedTime)
     if (preview) {
       useProjectStore.getState().reorderClip(clipId, preview.insertIndex)
     }
     clearPreview()
-  }, [audioClips, buildContiguousPreview, clearPreview, videoClips])
+  }, [buildContiguousPreview, clearPreview, getClipsForTrack])
+
+  useEffect(() => {
+    const handleWindowDragEnd = () => resetAssetDragState(true)
+    const handleWindowDrop = () => resetAssetDragState(true)
+    window.addEventListener('dragend', handleWindowDragEnd)
+    window.addEventListener('drop', handleWindowDrop)
+    return () => {
+      window.removeEventListener('dragend', handleWindowDragEnd)
+      window.removeEventListener('drop', handleWindowDrop)
+    }
+  }, [resetAssetDragState])
 
   const handleVideoDragPreview = useCallback((clipId: string, proposedStartTime: number) => {
     handleDragPreview(clipId, TrackType.Video, proposedStartTime)
@@ -541,6 +691,7 @@ function TimelineCanvasContent({
         className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
         tabIndex={0}
         onScroll={handleScroll}
+        onMouseLeave={() => scheduleHoverUpdate(null)}
 
         onMouseDown={() => {
           // Ensure container maintains focus for keyboard events
@@ -550,14 +701,22 @@ function TimelineCanvasContent({
           e.preventDefault()
           e.dataTransfer.dropEffect = 'copy'
 
-          if (containerRef.current && draggingAsset) {
-            const rect = containerRef.current.getBoundingClientRect()
-            const stageX = (e.clientX - rect.left) + scrollLeft
+          if (draggingAsset) {
+            const rect = e.currentTarget.getBoundingClientRect()
+            const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
+            const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
             const assetDuration = draggingAsset.metadata?.duration || 5000
+            const targetTrack = getAssetDropTrackType(draggingAsset.type, stageY)
+            if (!targetTrack) {
+              setDragTime(null)
+              setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
+              return
+            }
+
             const snappedX = getSnappedDragX({
               proposedX: stageX,
               blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
-              blocks: videoClipBlocks,
+              blocks: getClipBlocksForTrack(targetTrack),
               pixelsPerMs
             })
             const proposedTime = Math.max(
@@ -566,45 +725,61 @@ function TimelineCanvasContent({
             )
 
             const preview = ClipPositioning.computeContiguousPreview(
-              videoClips,
+              getClipsForTrack(targetTrack),
               proposedTime,
               { durationMs: assetDuration }
             )
             if (preview) {
               setDragPreview({
                 clipId: '__asset__',
-                trackType: TrackType.Video,
+                trackType: targetTrack,
                 startTimes: preview.startTimes,
                 insertIndex: preview.insertIndex
               })
               setDragTime(preview.insertTime)
+              setDragAssetTrackType(targetTrack)
             } else {
+              setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
               setDragTime(proposedTime)
+              setDragAssetTrackType(targetTrack)
             }
           }
         }}
-        onDragLeave={() => {
-          setDragTime(null)
-          setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
-          useAssetLibraryStore.getState().setDraggingAsset(null)
+        onDragLeave={(e) => {
+          const relatedTarget = e.relatedTarget as Node | null
+          if (relatedTarget && e.currentTarget.contains(relatedTarget)) return
+          resetAssetDragState(false)
         }}
         onDrop={(e) => {
           e.preventDefault()
-          setDragTime(null)
-          setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
-          useAssetLibraryStore.getState().setDraggingAsset(null)
           const assetData = e.dataTransfer.getData('application/x-bokeh-asset')
-          if (!assetData || !containerRef.current) return
+          if (!assetData && !draggingAsset) {
+            resetAssetDragState(true)
+            return
+          }
 
           try {
-            const asset = JSON.parse(assetData)
-            const rect = containerRef.current.getBoundingClientRect()
-            const stageX = (e.clientX - rect.left) + scrollLeft
+            const asset = assetData ? JSON.parse(assetData) : {
+              path: draggingAsset!.path,
+              duration: draggingAsset!.metadata?.duration || 0,
+              width: draggingAsset!.metadata?.width || 0,
+              height: draggingAsset!.metadata?.height || 0,
+              type: draggingAsset!.type,
+              name: draggingAsset!.name
+            }
+            const rect = e.currentTarget.getBoundingClientRect()
+            const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
+            const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
             const assetDuration = asset.duration || 5000
+            const targetTrack = getAssetDropTrackType(asset.type, stageY) ?? dragAssetTrackType
+            if (!targetTrack) {
+              setDragAssetTrackType(null)
+              return
+            }
             const snappedX = getSnappedDragX({
               proposedX: stageX,
               blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
-              blocks: videoClipBlocks,
+              blocks: getClipBlocksForTrack(targetTrack),
               pixelsPerMs
             })
             const proposedTime = Math.max(
@@ -612,29 +787,28 @@ function TimelineCanvasContent({
               TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
             )
             const preview = ClipPositioning.computeContiguousPreview(
-              videoClips,
+              getClipsForTrack(targetTrack),
               proposedTime,
               { durationMs: assetDuration }
             )
 
             // Use the shared helper to add the asset intelligently
-            // (Creates recording, adds to project, inherits crop from previous clip)
+            // (Creates recording, adds to project, keeps crops independent by default)
             useProjectStore.getState().updateProjectData((project: Project) => {
-              // Dynamic import or require inside updateProjectData is tricky if not already available?
-              // But timeline-operations handles the imports.
-              // We need to import addAssetRecording at top of file.
-              const { addAssetRecording } = require('@/lib/timeline/timeline-operations')
               const updatedProject = { ...project }
               if (preview) {
-                addAssetRecording(updatedProject, asset, { insertIndex: preview.insertIndex })
+                addAssetRecording(updatedProject, asset, { insertIndex: preview.insertIndex, trackType: targetTrack })
               } else {
-                addAssetRecording(updatedProject, asset, { startTime: proposedTime })
+                addAssetRecording(updatedProject, asset, { startTime: proposedTime, trackType: targetTrack })
               }
               return updatedProject
             })
+            setDragAssetTrackType(null)
 
           } catch (err) {
             console.error('Failed to parse asset data on drop', err)
+          } finally {
+            resetAssetDragState(true)
           }
         }}
         style={{
@@ -650,6 +824,23 @@ function TimelineCanvasContent({
           width={stageWidth}
           height={stageHeight}
           onMouseDown={handleStageClick}
+          onMouseMove={(e) => {
+            if (isScrubbing) return
+            const stage = e.target.getStage()
+            const pointerPos = stage?.getPointerPosition()
+            if (!pointerPos) return
+
+            const x = pointerPos.x - TimelineConfig.TRACK_LABEL_WIDTH
+
+            // Update hover time for ghost playhead
+            if (x <= 0) {
+              scheduleHoverUpdate(null)
+            } else {
+              const time = clamp(TimeConverter.pixelsToMs(x, pixelsPerMs), 0, currentProject.timeline.duration)
+              scheduleHoverUpdate(time)
+            }
+
+          }}
           style={{
             userSelect: 'none',
             WebkitUserSelect: 'none',
@@ -682,8 +873,30 @@ function TimelineCanvasContent({
               y={trackPositions.video}
               width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={videoTrackHeight}
+              onLabelClick={toggleVideoTrackExpanded}
             />
 
+            {/* Audio/Webcam sub-tracks directly under video */}
+            {audioTrackHeight > 0 && (
+              <TimelineTrack
+                type={TimelineTrackType.Audio}
+                y={trackPositions.audio}
+                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                height={audioTrackHeight}
+              />
+            )}
+
+            {webcamTrackHeight > 0 && (
+              <TimelineTrack
+                type={TimelineTrackType.Webcam}
+                y={trackPositions.webcam}
+                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                height={webcamTrackHeight}
+                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Webcam)}
+              />
+            )}
+
+            {/* Effect tracks below sub-tracks */}
             {hasZoomTrack && (
               <TimelineTrack
                 type={TimelineTrackType.Zoom}
@@ -691,6 +904,7 @@ function TimelineCanvasContent({
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={zoomTrackHeight}
                 muted={!allZoomEffects.some(e => e.enabled)}
+                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Zoom)}
               />
             )}
 
@@ -700,6 +914,7 @@ function TimelineCanvasContent({
                 y={trackPositions.screen}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={screenTrackHeight}
+                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Screen)}
               />
             )}
 
@@ -709,6 +924,7 @@ function TimelineCanvasContent({
                 y={trackPositions.keystroke}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={keystrokeTrackHeight}
+                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Keystroke)}
               />
             )}
 
@@ -718,22 +934,7 @@ function TimelineCanvasContent({
                 y={trackPositions.plugin}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={pluginTrackHeight}
-              />
-            )}
-
-            <TimelineTrack
-              type={TimelineTrackType.Audio}
-              y={trackPositions.audio}
-              width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-              height={audioTrackHeight}
-            />
-
-            {hasWebcamTrack && (
-              <TimelineTrack
-                type={TimelineTrackType.Webcam}
-                y={trackPositions.webcam}
-                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={webcamTrackHeight}
+                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
               />
             )}
           </Layer>
@@ -827,6 +1028,14 @@ function TimelineCanvasContent({
 
           {/* Playhead Layer */}
           <Layer>
+            {hoverTime !== null && !isScrubbing && (
+              <TimelineGhostPlayhead
+                hoverTime={hoverTime}
+                totalHeight={stageHeight}
+                pixelsPerMs={pixelsPerMs}
+                maxTime={currentProject.timeline.duration}
+              />
+            )}
             <TimelinePlayhead
               currentTime={currentTime}
               totalHeight={stageHeight}
@@ -857,42 +1066,66 @@ function TimelineCanvasContent({
           />
         )}
 
+        {/* Asset drop target highlight */}
+        {(() => {
+          if (!draggingAsset) return null
+          const targetTrackType = dragAssetTrackType ?? (dragPreview?.clipId === '__asset__' ? dragPreview.trackType : null)
+          if (!targetTrackType) return null
+          const bounds = getTrackBounds(targetTrackType)
+          return (
+            <div
+              className="absolute pointer-events-none z-40 timeline-drop-target"
+              style={{
+                left: 0,
+                top: bounds.y + 'px',
+                width: (timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH) + 'px',
+                height: bounds.height + 'px',
+              }}
+            />
+          )
+        })()}
+
         {/* Drag Preview Overlay (Ghost Clip) */}
-        {draggingAsset && dragTime !== null && (
-          <div
-            className="absolute pointer-events-none z-50 flex flex-col justify-center overflow-hidden rounded-md border-2 border-primary bg-primary/20 backdrop-blur-[1px]"
-            style={{
-              left: (TimelineConfig.TRACK_LABEL_WIDTH + TimeConverter.msToPixels(dragTime, pixelsPerMs)) + 'px',
-              top: (TimelineConfig.RULER_HEIGHT + 10) + 'px',
-              width: Math.max(TimelineConfig.MIN_CLIP_WIDTH, TimeConverter.msToPixels(draggingAsset.metadata?.duration || 5000, pixelsPerMs)) + 'px',
-              height: '64px', // Standard track height approx
-            }}
-          >
-            {/* Thumbnail if available */}
-            {draggingAsset.type === 'image' || draggingAsset.type === 'video' ? (
-              <div className="w-full h-full opacity-50 relative">
-                {/* We can't easily load video thumb here synchronously, but we can try image source */}
-                {(draggingAsset.type === 'image' && draggingAsset.path) ? (
-                  <img
-                    src={draggingAsset.path.startsWith('/')
-                      ? `video-stream://local/${encodeURIComponent(draggingAsset.path)}`
-                      : draggingAsset.path}
-                    className="w-full h-full object-cover"
-                    alt=""
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-black/20">
-                    <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
-              </div>
-            )}
-          </div>
-        )}
+        {(() => {
+          const assetTrackType = dragAssetTrackType ?? (dragPreview?.clipId === '__asset__' ? dragPreview.trackType : null)
+          if (!draggingAsset || dragTime === null || !assetTrackType) return null
+          const bounds = getTrackBounds(assetTrackType)
+          return (
+            <div
+              className="absolute pointer-events-none z-50 flex flex-col justify-center overflow-hidden rounded-md border-2 border-primary bg-primary/20 backdrop-blur-[1px] timeline-asset-ghost"
+              style={{
+                left: (TimelineConfig.TRACK_LABEL_WIDTH + TimeConverter.msToPixels(dragTime, pixelsPerMs)) + 'px',
+                top: bounds.clipY + 'px',
+                width: Math.max(TimelineConfig.MIN_CLIP_WIDTH, TimeConverter.msToPixels(draggingAsset.metadata?.duration || 5000, pixelsPerMs)) + 'px',
+                height: bounds.clipHeight + 'px',
+              }}
+            >
+              {/* Thumbnail if available */}
+              {draggingAsset.type === 'image' || draggingAsset.type === 'video' ? (
+                <div className="w-full h-full opacity-50 relative">
+                  {/* We can't easily load video thumb here synchronously, but we can try image source */}
+                  {(draggingAsset.type === 'image' && draggingAsset.path) ? (
+                    <img
+                      src={draggingAsset.path.startsWith('/')
+                        ? `video-stream://local/${encodeURIComponent(draggingAsset.path)}`
+                        : draggingAsset.path}
+                      className="w-full h-full object-cover"
+                      alt=""
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-black/20">
+                      <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Speed-up suggestion popover */}
         {speedUpPopover && (

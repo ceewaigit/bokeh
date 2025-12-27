@@ -31,11 +31,11 @@ export function GuidesSection() {
     }
 
     return (
-        <div className="space-y-6 pt-2">
+        <div className="space-y-4 pt-1.5">
             {/* Toggles */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                    <Label htmlFor="rule-thirds" className="text-xs text-muted-foreground">Rule of Thirds</Label>
+                    <Label htmlFor="rule-thirds" className="text-[10px] font-medium text-muted-foreground">Rule of Thirds</Label>
                     <Switch
                         id="rule-thirds"
                         checked={showRuleOfThirds}
@@ -45,7 +45,7 @@ export function GuidesSection() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <Label htmlFor="center-guides" className="text-xs text-muted-foreground">Center Guides</Label>
+                    <Label htmlFor="center-guides" className="text-[10px] font-medium text-muted-foreground">Center Guides</Label>
                     <Switch
                         id="center-guides"
                         checked={showCenterGuides}
@@ -55,7 +55,7 @@ export function GuidesSection() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <Label htmlFor="safe-zones" className="text-xs text-muted-foreground">Safe Zones</Label>
+                    <Label htmlFor="safe-zones" className="text-[10px] font-medium text-muted-foreground">Safe Zones</Label>
                     <Switch
                         id="safe-zones"
                         checked={showSafeZones}
@@ -69,19 +69,19 @@ export function GuidesSection() {
 
             {/* Appearance Settings - Only show if any guide is enabled */}
             {(showRuleOfThirds || showCenterGuides || showSafeZones) ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <h4 className="text-xs font-medium text-foreground/80">Appearance</h4>
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <h4 className="text-[11px] font-semibold text-foreground/80 tracking-[-0.01em]">Appearance</h4>
 
                     {/* Color Picker */}
-                    <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Color</Label>
+                    <div className="space-y-1.5">
+                        <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color</Label>
                         <div className="flex items-center gap-2">
                             {GUIDE_COLORS.map((color) => (
                                 <button
                                     key={color.value}
                                     onClick={() => updatePreviewSettings('guideColor', color.value)}
                                     className={cn(
-                                        "w-5 h-5 rounded-full border border-white/10 transition-all",
+                                        "w-4 h-4 rounded-full border border-white/10 transition-all",
                                         guideColor === color.value ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110" : "hover:scale-105"
                                     )}
                                     style={{ backgroundColor: color.value }}
@@ -92,10 +92,10 @@ export function GuidesSection() {
                     </div>
 
                     {/* Opacity Slider */}
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
-                            <Label className="text-xs text-muted-foreground">Opacity</Label>
-                            <span className="text-xs font-mono text-muted-foreground/70">{Math.round(guideOpacity * 100)}%</span>
+                            <Label className="text-[10px] text-muted-foreground">Opacity</Label>
+                            <span className="text-[10px] font-mono text-muted-foreground/70">{Math.round(guideOpacity * 100)}%</span>
                         </div>
                         <Slider
                             value={[guideOpacity]}
@@ -109,10 +109,10 @@ export function GuidesSection() {
 
                     {/* Safe Zone Margin Slider (only if Safe Zones enabled) */}
                     {showSafeZones && (
-                        <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+                        <div className="space-y-2.5 animate-in fade-in slide-in-from-top-1">
                             <div className="flex items-center justify-between">
-                                <Label className="text-xs text-muted-foreground">Safe Zone Margin</Label>
-                                <span className="text-xs font-mono text-muted-foreground/70">{safeZoneMargin}%</span>
+                                <Label className="text-[10px] text-muted-foreground">Safe Zone Margin</Label>
+                                <span className="text-[10px] font-mono text-muted-foreground/70">{safeZoneMargin}%</span>
                             </div>
                             <Slider
                                 value={[safeZoneMargin]}

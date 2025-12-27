@@ -85,7 +85,7 @@ export function useEffectiveClipData({
 
         // 2. RESOLVE PERSISTED/INHERITED VIDEO STATE
         const isVisualSource = (rec: Recording | null | undefined) =>
-            rec && (!rec.sourceType || rec.sourceType === 'video' || rec.sourceType === 'image');
+            rec && (rec.sourceType === 'video' || rec.sourceType === 'image');
 
         let persistedVideoState: ResolvedVideoState | null = null;
 
@@ -126,7 +126,7 @@ export function useEffectiveClipData({
         // 3. APPLY INHERITANCE
         if (
             clipData &&
-            ['generated'].includes(clipData.recording.sourceType || '') &&
+            clipData.recording.sourceType === 'generated' &&
             persistedVideoState &&
             isVisualSource(persistedVideoState.recording)
         ) {

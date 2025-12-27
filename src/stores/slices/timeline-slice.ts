@@ -30,7 +30,7 @@ import { ProjectCleanupService } from '@/lib/timeline/project-cleanup'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { SpeedUpApplicationService } from '@/lib/timeline/speed-up-application'
 import { PlayheadService } from '@/lib/timeline/playhead-service'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { RecordingStorage, resolveProjectRoot } from '@/lib/storage/recording-storage'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { getActiveCropEffect, getCropEffectForClip } from '@/lib/effects/effect-filters'
 import { captureLastFrame } from '@/lib/utils/frame-capture'
@@ -230,7 +230,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         }
 
         // Only work with video clips (not generated or image)
-        if (sourceRecording.sourceType && sourceRecording.sourceType !== 'video') {
+        if (sourceRecording.sourceType !== 'video') {
             console.warn('addCursorReturnClip: Source must be a video clip')
             return
         }
@@ -299,7 +299,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
         if (window.electronAPI?.saveRecording && project.filePath) {
             try {
-                const projectFolder = project.filePath.substring(0, project.filePath.lastIndexOf('/'))
+                const projectFolder = await resolveProjectRoot(project.filePath, window.electronAPI?.fileExists)
                 const freezeFrameId = `freeze-${Date.now()}`
                 const freezeFramePath = `${projectFolder}/${freezeFrameId}.jpg`
 
@@ -429,7 +429,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 // Always clean up clip-specific resources
                 ProjectCleanupService.cleanupClipResources(clipId)
 
-                // Invalidate cache on clip removal
+                // Invalidate cache on clip removal (also forces new project reference)
                 invalidateCaches(state)
             }
         })
@@ -530,6 +530,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
+            invalidateCaches(state)
         })
     },
 
@@ -543,6 +544,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
+            invalidateCaches(state)
         })
     },
 

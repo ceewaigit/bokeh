@@ -92,6 +92,8 @@ export interface UseRecordingMetadataResult {
 export interface UseVideoUrlProps {
   recording: Recording | null | undefined;
   resources: VideoResources;
+  /** Clip ID for URL lock invalidation when clips change */
+  clipId?: string;
   preferOffthreadVideo?: boolean;
   targetWidth?: number;
   targetHeight?: number;
@@ -147,6 +149,8 @@ export interface VideoPositionContextValue {
     angle: number;
     filterId: string;
   };
+  /** Refocus blur strength in pixels for zoom transitions */
+  refocusBlurPx?: number;
   /** Whether a device mockup is enabled */
   mockupEnabled?: boolean;
   /** Device mockup position and dimensions (when enabled) */
@@ -295,6 +299,7 @@ export interface ClipSequenceProps {
 export interface TimelineCompositionProps {
   clips: Clip[];
   audioClips?: Clip[];
+  webcamClips?: Clip[];
   recordings: Recording[];
   effects: Effect[];
   videoWidth: number;
@@ -340,7 +345,7 @@ export interface VideoClipRendererProps {
   startFrame: number;
   durationFrames: number;
   groupStartFrame: number;
-  renderStartFrom: number;
+  groupStartSourceIn: number;
   groupDuration: number;
   currentFrame: number;
   fps: number;

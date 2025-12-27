@@ -105,7 +105,6 @@ export const CursorLayer = React.memo(({
   // USE SHARED DATA FROM CONTEXT (SSOT from SharedVideoController)
   // This eliminates duplicate recordingsMap construction and frameLayout/clipData calculation
   const activeClipData = videoPositionContext.activeClipData ?? null;
-  const prevClipData = videoPositionContext.prevFrameClipData ?? null;
 
   const recording: Recording | null = activeClipData?.recording ?? null;
   const isGeneratedRecording = recording?.sourceType === 'generated';
@@ -153,11 +152,6 @@ export const CursorLayer = React.memo(({
   const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents), [rawClickEvents]);
 
   const currentSourceTime = activeClipData?.sourceTimeMs ?? 0;
-  const prevSourceTimeMs =
-    prevClipData?.recording?.id && recordingId && prevClipData.recording.id === recordingId
-      ? prevClipData.sourceTimeMs
-      : 0;
-
   // Cache cursor states by SOURCE TIME (milliseconds, not frame numbers)
   // This prevents cursor blinking during sped-up playback
   const frameStateCacheRef = useRef<Map<number, CursorState>>(new Map());
@@ -200,7 +194,7 @@ export const CursorLayer = React.memo(({
 
     // DETERMINISTIC CACHING: Use SOURCE TIME (ms) as cache key
     // Use Math.round() for consistent rounding (matches lookup below)
-    const cacheKey = Math.round(currentSourceTime);
+    const cacheKey = Number(currentSourceTime.toFixed(2));
 
     // Check if already cached
     const cached = cache.get(cacheKey);
@@ -208,27 +202,19 @@ export const CursorLayer = React.memo(({
       return cached;
     }
 
-    const prevCacheKey = Math.round(prevSourceTimeMs);
-    const previousState =
-      prevClipData?.recording?.id && recordingId && prevClipData.recording.id === recordingId
-        ? cache.get(prevCacheKey)
-        : undefined;
-
-    // Compute with previousState if available (fast path, ~90% faster)
-    // Falls back to simulateSmoothingWithHistory only on true cache misses
+    // Deterministic cursor smoothing: use time-based history so preview/export align.
     const newState = calculateCursorState(
       cursorData,
       cursorEvents,
       clickEvents,
       currentSourceTime,
-      previousState, // Use cached state when available
       fps,
       Boolean(isImageWithSyntheticEvents) // Disable smoothing for synthetic (already smooth) events to prevent filter overshoot
     );
 
     cache.set(cacheKey, newState);
     return newState;
-  }, [clickEvents, cursorData, cursorEvents, currentSourceTime, fps, isRendering, prevClipData?.recording?.id, prevSourceTimeMs, recordingId, isImageWithSyntheticEvents]);
+  }, [clickEvents, cursorData, cursorEvents, currentSourceTime, fps, recordingId, isImageWithSyntheticEvents]);
 
 
   useEffect(() => {
@@ -601,10 +587,9 @@ export const CursorLayer = React.memo(({
   const hasCameraMotionBlur = cameraMotionBlur?.enabled;
 
   // Calculate refocus blur from zoom transform (camera-like focus pull during zoom)
-  const refocusBlur = videoPositionContext.zoomTransform?.refocusBlur ?? 0;
-  const hasRefocusBlur = refocusBlur > 0.01;
-  // Use 12px max blur to match video layer intensity
-  const refocusBlurPx = hasRefocusBlur ? refocusBlur * 12 : 0;
+  const refocusBlurPx = videoPositionContext.refocusBlurPx
+    ?? (videoPositionContext.zoomTransform?.refocusBlur ?? 0) * 12;
+  const hasRefocusBlur = refocusBlurPx > 0.01;
   const mockupClip = useMemo(() => {
     const mockupPosition = videoPositionContext.mockupPosition;
     if (!videoPositionContext.mockupEnabled || !mockupPosition) return null;

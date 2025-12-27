@@ -114,7 +114,7 @@ export function computeCameraState({
   const fillScale = Math.max(denomX, denomY)
 
   const zoomTargetScale = activeZoomBlock
-    ? (activeZoomBlock.autoScale === 'fill' ? fillScale : (activeZoomBlock.scale ?? 2))
+    ? (activeZoomBlock.autoScale === 'fill' ? fillScale : activeZoomBlock.scale)
     : 1
 
   const currentScale = activeZoomBlock
@@ -159,7 +159,7 @@ export function computeCameraState({
 
   const introBlend = (() => {
     if (!activeZoomBlock) return 1
-    const introMs = Math.max(0, activeZoomBlock.introMs ?? 0)
+    const introMs = Math.max(0, activeZoomBlock.introMs)
     if (introMs <= 0) return 1
     if (timelineMs <= activeZoomBlock.startTime) return 0
     if (timelineMs >= activeZoomBlock.startTime + introMs) return 1

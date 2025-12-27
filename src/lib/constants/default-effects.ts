@@ -1,5 +1,6 @@
 import type { BackgroundEffectData, CursorEffectData, CursorMotionPreset, KeystrokeEffectData, ParallaxLayer, ScreenEffectData, ZoomEffectData, WebcamEffectData } from '@/types/project'
 import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset, ZoomFollowStrategy } from '@/types/project'
+import { DEFAULT_CROP_DATA } from '@/remotion/compositions/utils/transforms/crop-transform'
 
 // Re-export schema helpers for gradual migration
 export { getEffectDefaults, getEffectSchema, getParamConstraints } from '@/lib/effects/config/effect-schemas'
@@ -33,6 +34,7 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
 
 // Default zoom data
 export const DEFAULT_ZOOM_DATA: ZoomEffectData = {
+  origin: 'manual',
   scale: 2.0,
   introMs: 500,
   outroMs: 500,
@@ -90,6 +92,7 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   clickTextOffsetY: -12,
   clickTextRise: 24,
   motionBlur: true,
+  motionBlurIntensity: 40,
   directionalTilt: true,
   directionalTiltMaxDeg: 10,
   hideOnIdle: true,
@@ -101,7 +104,8 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   // Values derived from cinematic preset - ultra-smooth like Screen Studio
   speed: 0.01,
   smoothness: 1.0,
-  glide: 1.0
+  glide: 1.0,
+  smoothingJumpThreshold: 0.9
 }
 
 // Default keystroke effect data
@@ -124,20 +128,21 @@ export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
 
 // Default webcam effect data - Apple-quality PiP styling
 export const DEFAULT_WEBCAM_DATA: WebcamEffectData = {
-  // Position in bottom-right corner with slight offset
+  // Position anchored to bottom-right, padding controls edge distance
   position: {
-    x: 88,
-    y: 82,
+    x: 100,
+    y: 100,
     anchor: 'bottom-right'
   },
   size: 18, // 18% of canvas width - compact but visible
+  padding: 24, // Edge padding in pixels
 
-  // Circle shape for clean, modern look
-  shape: 'circle',
-  cornerRadius: 24, // Used for rounded-rect/squircle
+  // Squircle shape for clean, modern Apple-esque look
+  shape: 'squircle',
+  cornerRadius: 40, // Larger radius for smoother squircle
 
-  // Subtle white border
-  borderEnabled: true,
+  // No border by default for cleaner appearance
+  borderEnabled: false,
   borderWidth: 3,
   borderColor: '#ffffff',
 
@@ -152,19 +157,18 @@ export const DEFAULT_WEBCAM_DATA: WebcamEffectData = {
   backgroundBlur: false,
   backgroundBlurAmount: 10,
 
-  // Smooth animations
+  // No animations by default - cleaner experience
   animations: {
     entry: {
-      type: 'scale',
-      durationMs: 350,
-      from: 0.8
+      type: 'none',
+      durationMs: 0
     },
     exit: {
-      type: 'fade',
-      durationMs: 250
+      type: 'none',
+      durationMs: 0
     },
     pip: {
-      type: 'none' // Can enable 'float' or 'breathe' for subtle motion
+      type: 'none'
     }
   },
 
@@ -172,7 +176,13 @@ export const DEFAULT_WEBCAM_DATA: WebcamEffectData = {
   mirror: true,
 
   // Full opacity
-  opacity: 1.0
+  opacity: 1.0,
+
+  // Reduce opacity when zoomed in
+  reduceOpacityOnZoom: false,
+
+  // No crop by default (full frame)
+  sourceCrop: DEFAULT_CROP_DATA
 }
 
 // Webcam shape presets for quick selection
@@ -185,15 +195,15 @@ export const WEBCAM_SHAPE_PRESETS = {
 
 // Webcam position presets (percentage-based)
 export const WEBCAM_POSITION_PRESETS = {
-  'top-left': { x: 12, y: 12, anchor: 'top-left' as const },
-  'top-center': { x: 50, y: 12, anchor: 'top-center' as const },
-  'top-right': { x: 88, y: 12, anchor: 'top-right' as const },
-  'center-left': { x: 12, y: 50, anchor: 'center-left' as const },
+  'top-left': { x: 6, y: 6, anchor: 'top-left' as const },
+  'top-center': { x: 50, y: 6, anchor: 'top-center' as const },
+  'top-right': { x: 94, y: 6, anchor: 'top-right' as const },
+  'center-left': { x: 6, y: 50, anchor: 'center-left' as const },
   'center': { x: 50, y: 50, anchor: 'center' as const },
-  'center-right': { x: 88, y: 50, anchor: 'center-right' as const },
-  'bottom-left': { x: 12, y: 82, anchor: 'bottom-left' as const },
-  'bottom-center': { x: 50, y: 82, anchor: 'bottom-center' as const },
-  'bottom-right': { x: 88, y: 82, anchor: 'bottom-right' as const }
+  'center-right': { x: 94, y: 50, anchor: 'center-right' as const },
+  'bottom-left': { x: 6, y: 94, anchor: 'bottom-left' as const },
+  'bottom-center': { x: 50, y: 94, anchor: 'bottom-center' as const },
+  'bottom-right': { x: 94, y: 94, anchor: 'bottom-right' as const }
 }
 
 // Store for default wallpaper once loaded

@@ -68,7 +68,7 @@ export class SpeedUpApplicationService {
         }
 
         // Get FPS from project settings or default to 60
-        const fps = project.settings.frameRate || 60
+        const fps = project.settings.frameRate
         const minDuration = 1000 / fps // Minimum duration is 1 frame
 
         // 1. Generate initial segments covering the entire source range

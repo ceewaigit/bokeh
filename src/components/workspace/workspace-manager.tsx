@@ -180,6 +180,8 @@ export function WorkspaceManager() {
     utilitiesPanelWidth,
     timelineHeight,
     toggleProperties,
+    toggleUtilities,
+    setPropertiesPanelWidth,
     setUtilitiesPanelWidth,
     setTimelineHeight,
     setExportOpen,
@@ -195,6 +197,8 @@ export function WorkspaceManager() {
       utilitiesPanelWidth: s.utilitiesPanelWidth,
       timelineHeight: s.timelineHeight,
       toggleProperties: s.toggleProperties,
+      toggleUtilities: s.toggleUtilities,
+      setPropertiesPanelWidth: s.setPropertiesPanelWidth,
       setUtilitiesPanelWidth: s.setUtilitiesPanelWidth,
       setTimelineHeight: s.setTimelineHeight,
       setExportOpen: s.setExportOpen,
@@ -212,15 +216,98 @@ export function WorkspaceManager() {
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const isResizingUtilitiesRef = useRef(false)
+  const isResizingPropertiesRef = useRef(false)
   const isResizingTimelineRef = useRef(false)
+  const [dragUtilitiesWidth, setDragUtilitiesWidth] = useState<number | null>(null)
+  const [dragPropertiesWidth, setDragPropertiesWidth] = useState<number | null>(null)
+  const lastUtilitiesRawRef = useRef<number | null>(null)
+  const lastPropertiesRawRef = useRef<number | null>(null)
+  const utilitiesOverdragRef = useRef(0)
+  const propertiesOverdragRef = useRef(0)
+  const utilitiesCollapsedRef = useRef(false)
+  const propertiesCollapsedRef = useRef(false)
 
   // Command executor for undo/redo support
   const executorRef = useCommandExecutor()
 
   useEffect(() => {
+    const UTIL_MIN = 200
+    const UTIL_COLLAPSE_OVERDRAG = 80
+    const UTIL_REOPEN_OVERDRAG = 30
+    const PROPS_MIN = 300
+    const PROPS_COLLAPSE_OVERDRAG = 100
+    const PROPS_REOPEN_OVERDRAG = 40
+
     const handleMouseMove = (event: MouseEvent) => {
       if (isResizingUtilitiesRef.current) {
-        setUtilitiesPanelWidth(event.clientX)
+        const rawWidth = Math.max(0, event.clientX)
+        const prevRaw = lastUtilitiesRawRef.current ?? rawWidth
+        const delta = rawWidth - prevRaw
+
+        if (rawWidth >= UTIL_MIN) {
+          utilitiesOverdragRef.current = 0
+          utilitiesCollapsedRef.current = false
+          setDragUtilitiesWidth(rawWidth)
+        } else {
+          if (delta < 0) {
+            utilitiesOverdragRef.current += Math.abs(delta)
+          } else if (delta > 0) {
+            utilitiesOverdragRef.current = Math.max(0, utilitiesOverdragRef.current - delta)
+          }
+
+          if (utilitiesCollapsedRef.current) {
+            if (utilitiesOverdragRef.current < UTIL_REOPEN_OVERDRAG) {
+              utilitiesCollapsedRef.current = false
+              setDragUtilitiesWidth(UTIL_MIN)
+            } else {
+              setDragUtilitiesWidth(0)
+            }
+          } else {
+            if (utilitiesOverdragRef.current >= UTIL_COLLAPSE_OVERDRAG) {
+              utilitiesCollapsedRef.current = true
+              setDragUtilitiesWidth(0)
+            } else {
+              setDragUtilitiesWidth(UTIL_MIN)
+            }
+          }
+        }
+
+        lastUtilitiesRawRef.current = rawWidth
+      }
+      if (isResizingPropertiesRef.current) {
+        const rawWidth = Math.max(0, window.innerWidth - event.clientX)
+        const prevRaw = lastPropertiesRawRef.current ?? rawWidth
+        const delta = rawWidth - prevRaw
+
+        if (rawWidth >= PROPS_MIN) {
+          propertiesOverdragRef.current = 0
+          propertiesCollapsedRef.current = false
+          setDragPropertiesWidth(rawWidth)
+        } else {
+          if (delta < 0) {
+            propertiesOverdragRef.current += Math.abs(delta)
+          } else if (delta > 0) {
+            propertiesOverdragRef.current = Math.max(0, propertiesOverdragRef.current - delta)
+          }
+
+          if (propertiesCollapsedRef.current) {
+            if (propertiesOverdragRef.current < PROPS_REOPEN_OVERDRAG) {
+              propertiesCollapsedRef.current = false
+              setDragPropertiesWidth(PROPS_MIN)
+            } else {
+              setDragPropertiesWidth(0)
+            }
+          } else {
+            if (propertiesOverdragRef.current >= PROPS_COLLAPSE_OVERDRAG) {
+              propertiesCollapsedRef.current = true
+              setDragPropertiesWidth(0)
+            } else {
+              setDragPropertiesWidth(PROPS_MIN)
+            }
+          }
+        }
+
+        lastPropertiesRawRef.current = rawWidth
       }
       if (isResizingTimelineRef.current) {
         // Calculate height from bottom of viewport
@@ -230,11 +317,34 @@ export function WorkspaceManager() {
     }
 
     const handleMouseUp = () => {
-      if (isResizingUtilitiesRef.current || isResizingTimelineRef.current) {
+      if (isResizingUtilitiesRef.current || isResizingPropertiesRef.current || isResizingTimelineRef.current) {
+        const utilitiesWidth = lastUtilitiesRawRef.current ?? dragUtilitiesWidth ?? utilitiesPanelWidth
+        const propertiesWidth = lastPropertiesRawRef.current ?? dragPropertiesWidth ?? propertiesPanelWidth
+        const shouldCollapseUtilities = isResizingUtilitiesRef.current && isUtilitiesOpen && utilitiesCollapsedRef.current
+        const shouldCollapseProperties = isResizingPropertiesRef.current && isPropertiesOpen && propertiesCollapsedRef.current
         isResizingUtilitiesRef.current = false
+        isResizingPropertiesRef.current = false
         isResizingTimelineRef.current = false
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
+        lastUtilitiesRawRef.current = null
+        lastPropertiesRawRef.current = null
+        utilitiesOverdragRef.current = 0
+        propertiesOverdragRef.current = 0
+        setDragUtilitiesWidth(null)
+        setDragPropertiesWidth(null)
+        if (isUtilitiesOpen && !shouldCollapseUtilities) {
+          setUtilitiesPanelWidth(Math.max(UTIL_MIN, utilitiesWidth))
+        }
+        if (isPropertiesOpen && !shouldCollapseProperties) {
+          setPropertiesPanelWidth(Math.max(PROPS_MIN, propertiesWidth))
+        }
+        if (shouldCollapseUtilities) {
+          toggleUtilities()
+        }
+        if (shouldCollapseProperties) {
+          toggleProperties()
+        }
       }
     }
 
@@ -245,7 +355,7 @@ export function WorkspaceManager() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [setUtilitiesPanelWidth, setTimelineHeight])
+  }, [setUtilitiesPanelWidth, setPropertiesPanelWidth, setTimelineHeight, utilitiesPanelWidth, propertiesPanelWidth, toggleUtilities, toggleProperties, isUtilitiesOpen, isPropertiesOpen, dragUtilitiesWidth, dragPropertiesWidth])
 
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
   const contextEffects = timelineEffects ?? []
@@ -729,21 +839,23 @@ export function WorkspaceManager() {
                 {isUtilitiesOpen && (
                   <div
                     className="bg-transparent overflow-hidden flex-shrink-0"
-                    style={{ width: `min(${utilitiesPanelWidth}px, 40vw)` }}
+                    style={{ width: `min(${dragUtilitiesWidth ?? utilitiesPanelWidth}px, 40vw)` }}
                   >
                     <UtilitiesSidebar className="h-full w-full" />
                   </div>
                 )}
                 {isUtilitiesOpen && (
                   <div
-                    className="w-1.5 cursor-col-resize bg-transparent hover:bg-border/50 transition-colors"
+                    className="w-4 cursor-col-resize bg-transparent hover:bg-border/30 transition-colors flex items-center justify-center group"
                     onMouseDown={(event) => {
                       event.preventDefault()
                       isResizingUtilitiesRef.current = true
                       document.body.style.cursor = 'col-resize'
                       document.body.style.userSelect = 'none'
                     }}
-                  />
+                  >
+                    <div className="h-10 w-2 rounded-full bg-foreground/20 shadow-sm group-hover:bg-foreground/30 transition-colors" />
+                  </div>
                 )}
 
                 {/* Preview Area */}
@@ -764,9 +876,21 @@ export function WorkspaceManager() {
 
                 {/* Properties Panel - Fixed width when open, same height as preview */}
                 {isPropertiesOpen && (
+                  <>
+                    <div
+                      className="w-4 cursor-col-resize bg-transparent hover:bg-border/30 transition-colors flex items-center justify-center group"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        isResizingPropertiesRef.current = true
+                        document.body.style.cursor = 'col-resize'
+                        document.body.style.userSelect = 'none'
+                      }}
+                    >
+                      <div className="h-10 w-2 rounded-full bg-foreground/20 shadow-sm group-hover:bg-foreground/30 transition-colors" />
+                    </div>
                   <div
                     className="bg-transparent overflow-hidden flex-shrink-0"
-                    style={{ width: `${propertiesPanelWidth}px` }}
+                    style={{ width: `${dragPropertiesWidth ?? propertiesPanelWidth}px` }}
                   >
                     <EffectsSidebar
                       className="h-full w-full"
@@ -784,6 +908,7 @@ export function WorkspaceManager() {
                       selectedTrackType={selectedTrackType}
                     />
                   </div>
+                  </>
                 )}
               </div>
 
@@ -804,7 +929,7 @@ export function WorkspaceManager() {
               {/* Timeline Section - Full width at bottom */}
               <div
                 className="bg-transparent overflow-hidden flex-shrink-0"
-                style={{ height: `${timelineHeight}px`, minHeight: '30vh', width: '100vw' }}
+                style={{ height: `${timelineHeight}px`, minHeight: '20vh', width: '100vw' }}
               >
                 <TimelineCanvas
                   className="h-full w-full"

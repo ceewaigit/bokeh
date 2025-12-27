@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -28,6 +28,17 @@ const DEFAULT_WALLPAPER_NAME = 'Sonoma'
 type PreinstalledWallpaper = { id: string; name: string; path: string; absolutePath: string; thumbnail?: string }
 
 export function BackgroundTab({ backgroundEffect, onUpdateBackground }: BackgroundTabProps) {
+  const backgroundTypeOptions: Array<{
+    type: BackgroundType
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+  }> = [
+    { type: BackgroundType.Wallpaper, label: 'Wallpaper', icon: Monitor },
+    { type: BackgroundType.Parallax, label: 'Parallax', icon: Layers },
+    { type: BackgroundType.Gradient, label: 'Gradient', icon: Droplets },
+    { type: BackgroundType.Color, label: 'Color', icon: Palette },
+    { type: BackgroundType.Image, label: 'Image', icon: ImageIcon },
+  ]
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(BackgroundType.Gradient)
   const [preinstalledWallpapers, setPreinstalledWallpapers] = useState<PreinstalledWallpaper[]>([])
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({
@@ -289,50 +300,29 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     <div className="space-y-4">
 
       {/* Horizontal Background Type Tabs with scroll arrows */}
-      <div className="relative">
-        {/* Left scroll arrow */}
-        <button
-          onClick={() => {
-            const container = document.getElementById('bg-tabs-container')
-            if (container) container.scrollBy({ left: -100, behavior: 'smooth' })
-          }}
-          className="absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-r from-muted/80 to-transparent opacity-0 hover:opacity-100 transition-opacity"
-          aria-label="Scroll left"
-        >
-          <ChevronLeft className="w-4 h-4 text-muted-foreground" />
-        </button>
-
-        <div
-          id="bg-tabs-container"
-          className="flex p-0.5 bg-muted/50 rounded-lg gap-0.5 overflow-x-auto hide-scrollbar scroll-smooth"
-        >
-          {([BackgroundType.Wallpaper, BackgroundType.Parallax, BackgroundType.Gradient, BackgroundType.Color, BackgroundType.Image] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setBackgroundType(type)}
-              className={cn(
-                "flex-shrink-0 py-1.5 px-2.5 rounded-md text-xs font-medium transition-all capitalize whitespace-nowrap",
-                backgroundType === type
-                  ? "bg-background/60 backdrop-blur-sm text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/40"
-              )}
-            >
-              {type}
-            </button>
-          ))}
+      <div className="rounded-md bg-background/40 p-2 space-y-1.5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Background Source</div>
+        <div className="flex flex-wrap gap-1.5">
+          {backgroundTypeOptions.map((option) => {
+            const Icon = option.icon
+            const isSelected = backgroundType === option.type
+            return (
+              <button
+                key={option.type}
+                onClick={() => setBackgroundType(option.type)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-all',
+                  isSelected
+                    ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
+                    : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                )}
+              >
+                <Icon className={cn("h-3.5 w-3.5", isSelected ? "text-primary" : "text-muted-foreground")} />
+                <div className="text-[11px] font-semibold leading-none">{option.label}</div>
+              </button>
+            )
+          })}
         </div>
-
-        {/* Right scroll arrow */}
-        <button
-          onClick={() => {
-            const container = document.getElementById('bg-tabs-container')
-            if (container) container.scrollBy({ left: 100, behavior: 'smooth' })
-          }}
-          className="absolute right-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-l from-muted/80 to-transparent opacity-0 hover:opacity-100 transition-opacity"
-          aria-label="Scroll right"
-        >
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-        </button>
       </div>
 
       <div className="border-t border-border/30 pt-2">
@@ -421,7 +411,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                         />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                          <span className="text-[10px] leading-none text-white/70 truncate px-1">{wallpaper.name}</span>
+                          <span className="text-[11px] leading-none text-white/70 truncate px-1">{wallpaper.name}</span>
                         </div>
                       )}
                       {isLoading && (
@@ -429,7 +419,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         </div>
                       )}
-                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[10px] leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[11px] leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                         {wallpaper.name}{isDefault ? ' ★' : ''}
                       </span>
                     </button>
@@ -608,7 +598,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             <h4 className="text-xs font-medium text-muted-foreground">Select Color</h4>
 
             {/* Color picker - streamlined single section */}
-            <div className="flex gap-2 items-center p-4 bg-background/40 rounded-xl">
+            <div className="flex gap-2 items-center rounded-lg bg-background/40 p-3">
               <input
                 type="color"
                 value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
@@ -643,7 +633,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     })
                   }
                 }}
-                className="flex-1 px-3 py-2 text-sm font-mono bg-background/50 rounded"
+                className="flex-1 px-2.5 py-1.5 text-[11px] font-mono bg-background/50 rounded-md"
                 placeholder="#000000"
                 maxLength={7}
               />
@@ -723,10 +713,10 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* Background Blur - Only show for image-based backgrounds */}
         {(backgroundType === BackgroundType.Wallpaper || backgroundType === BackgroundType.Image) && (
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
-            <h4 className="text-xs font-medium text-muted-foreground">Background Blur</h4>
-            <div className="p-4 bg-background/40 rounded-xl space-y-3">
+            <h4 className="text-[11px] font-semibold text-muted-foreground tracking-[-0.01em]">Background Blur</h4>
+            <div className="rounded-lg bg-background/40 p-3 space-y-3">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="flex items-center gap-2 text-xs">
+                <span className="flex items-center gap-2 text-[11px]">
                   Enable Blur
                   <InfoTooltip content="Blur for depth of field" />
                 </span>
@@ -748,7 +738,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     step={1}
                     className="w-full"
                   />
-                  <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
+                  <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
                 </div>
               )}
             </div>

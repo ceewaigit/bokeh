@@ -231,10 +231,11 @@ class ExportWorker extends BaseWorker {
       this.ensureFileVideoUrls(job);
 
       console.log('[ExportWorker] Using pre-selected composition metadata');
+      const inputResources = this.getVideoResources(job.inputProps);
       console.log('[ExportWorker] Video source strategy', {
-        preferOffthreadVideo: Boolean(job.inputProps?.preferOffthreadVideo),
-        videoUrls: Object.keys(job.inputProps?.videoUrls || {}).length,
-        videoFilePaths: Object.keys(job.inputProps?.videoFilePaths || {}).length,
+        preferOffthreadVideo: Boolean(job.inputProps?.renderSettings?.preferOffthreadVideo ?? job.inputProps?.preferOffthreadVideo),
+        videoUrls: Object.keys(inputResources?.videoUrls || {}).length,
+        videoFilePaths: Object.keys(inputResources?.videoFilePaths || {}).length,
       });
 
       const fps = job.settings.framerate || composition.fps;
@@ -328,8 +329,9 @@ class ExportWorker extends BaseWorker {
     let lastProgressUpdate = Date.now();
 
     this.normalizeVideoProps(job.inputProps);
-    console.log('[ExportWorker] inputProps.videoUrls:', job.inputProps?.videoUrls);
-    console.log('[ExportWorker] recording IDs:', Object.keys(job.inputProps?.videoUrls || {}));
+    const inputResources = this.getVideoResources(job.inputProps);
+    console.log('[ExportWorker] inputProps.videoUrls:', inputResources?.videoUrls);
+    console.log('[ExportWorker] recording IDs:', Object.keys(inputResources?.videoUrls || {}));
     const x264Preset = this.coerceX264Preset(job.x264Preset) ?? 'veryfast';
     // PERFORMANCE: Lowered default JPEG quality (75 is visually lossless for intermediates)
     const jpegQuality = Math.max(40, Math.min(job.jpegQuality ?? 75, 100));
@@ -649,11 +651,12 @@ class ExportWorker extends BaseWorker {
         };
 
         this.normalizeVideoProps(chunkInputProps);
+        const chunkResources = this.getVideoResources(chunkInputProps);
 
         const chunkFrameRange: [number, number] = [startFrame, endFrame];
 
-        console.log('[ExportWorker] chunk inputProps.videoUrls:', chunkInputProps?.videoUrls);
-        console.log('[ExportWorker] chunk recording IDs:', Object.keys(chunkInputProps?.videoUrls || {}));
+        console.log('[ExportWorker] chunk inputProps.videoUrls:', chunkResources?.videoUrls);
+        console.log('[ExportWorker] chunk recording IDs:', Object.keys(chunkResources?.videoUrls || {}));
         const x264Preset = this.coerceX264Preset(job.x264Preset) ?? 'veryfast';
         // PERFORMANCE: Lowered default JPEG quality (75 is visually lossless for intermediates)
         const jpegQuality = Math.max(40, Math.min(job.jpegQuality ?? 75, 100));
@@ -921,12 +924,8 @@ class ExportWorker extends BaseWorker {
       return;
     }
 
-    // REMOVED: Obsolete singular videoUrl normalization code
-    // After refactor from MainComposition to TimelineComposition,
-    // we now use inputProps.videoUrls (plural) instead of inputProps.videoUrl (singular)
-    // The code below handles the correct plural videoUrls property
-
-    const videoUrls = inputProps.videoUrls;
+    const resources = this.getVideoResources(inputProps);
+    const videoUrls = resources?.videoUrls;
     if (!videoUrls) {
       return;
     }
@@ -951,10 +950,20 @@ class ExportWorker extends BaseWorker {
         }
         const normalized = this.resolveVideoUrlToFile(url, recId, inputProps);
         if (normalized && normalized !== url) {
-          inputProps.videoUrls[recId] = normalized;
+          (resources as any).videoUrls[recId] = normalized;
         }
       });
     }
+  }
+
+  private getVideoResources(inputProps: any): any | null {
+    if (!inputProps || typeof inputProps !== 'object') {
+      return null;
+    }
+    if (inputProps.resources && typeof inputProps.resources === 'object') {
+      return inputProps.resources;
+    }
+    return inputProps;
   }
 
   private resolveVideoUrlToFile(

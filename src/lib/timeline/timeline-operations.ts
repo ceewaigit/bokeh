@@ -28,14 +28,34 @@ export function syncCropEffectTimes(project: Project): void {
   const allEffects = EffectStore.getAll(project)
   if (allEffects.length === 0) return
 
-  const allClips = project.timeline.tracks.flatMap(t => t.clips)
+  const videoClips = project.timeline.tracks
+    .filter(t => t.type === TrackType.Video)
+    .flatMap(t => t.clips)
 
   // Update crop effects in timeline.effects array
   for (const effect of allEffects) {
     // Only sync crop effects that have a clipId binding
-    if (effect.type !== EffectType.Crop || !effect.clipId) continue
+    if (effect.type !== EffectType.Crop) continue
 
-    const clip = allClips.find(c => c.id === effect.clipId)
+    let clip = effect.clipId ? videoClips.find(c => c.id === effect.clipId) : null
+
+    if (!clip) {
+      // Best-effort rebind for legacy crop effects without clipId.
+      let best: { clip: Clip; overlap: number } | null = null
+      for (const candidate of videoClips) {
+        const overlapStart = Math.max(candidate.startTime, effect.startTime)
+        const overlapEnd = Math.min(candidate.startTime + candidate.duration, effect.endTime)
+        const overlap = Math.max(0, overlapEnd - overlapStart)
+        if (overlap > 0 && (!best || overlap > best.overlap)) {
+          best = { clip: candidate, overlap }
+        }
+      }
+      if (best) {
+        clip = best.clip
+        effect.clipId = best.clip.id
+      }
+    }
+
     if (clip) {
       effect.startTime = clip.startTime
       effect.endTime = clip.startTime + clip.duration
@@ -545,6 +565,8 @@ export function removeClipFromTrack(
     if (index !== -1) {
       knownTrack.clips.splice(index, 1)
       reflowClips(knownTrack, 0)
+      // Force new array reference so React detects the change
+      knownTrack.clips = [...knownTrack.clips]
       project.timeline.duration = calculateTimelineDuration(project)
       project.modifiedAt = new Date().toISOString()
       return true
@@ -557,6 +579,8 @@ export function removeClipFromTrack(
     if (index !== -1) {
       track.clips.splice(index, 1)
       reflowClips(track, 0)
+      // Force new array reference so React detects the change
+      track.clips = [...track.clips]
       project.timeline.duration = calculateTimelineDuration(project)
       project.modifiedAt = new Date().toISOString()
       return true
@@ -658,15 +682,20 @@ export function restoreClipsToTrack(
 export function addRecordingToProject(
   project: Project,
   recording: Recording,
-  createEffects: (recording: Recording) => void
+  createEffects: (recording: Recording) => void,
+  options?: { trackType?: TrackType }
 ): Clip | null {
   project.recordings.push(recording)
+
+  const targetTrackType = options?.trackType ?? TrackType.Video
+  const isWebcamTrack = targetTrackType === TrackType.Webcam
 
   const clipId = `clip-${Date.now()}`
   const clip: Clip = {
     id: clipId,
     recordingId: recording.id,
-    startTime: project.timeline.duration,
+    // Webcam clips start at 0 (overlay), other clips append to end
+    startTime: isWebcamTrack ? 0 : project.timeline.duration,
     duration: recording.duration,
     sourceIn: 0,
     sourceOut: recording.duration
@@ -675,18 +704,21 @@ export function addRecordingToProject(
   // Create effects on the recording itself (in source space)
   createEffects(recording)
 
-  // Ensure global effects exist (background, cursor)
-  const { EffectsFactory } = require('../effects/effects-factory')
-  EffectsFactory.ensureGlobalEffects(project)
-
-  const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
-  if (!videoTrack) return null
+  const targetTrack = project.timeline.tracks.find(t => t.type === targetTrackType)
+  if (!targetTrack) return null
 
   // Append to end of array (array order is the source of truth)
-  videoTrack.clips.push(clip)
+  targetTrack.clips.push(clip)
 
-  // Reflow to ensure contiguous layout
-  reflowClips(videoTrack, 0)
+  // Reflow to ensure contiguous layout - but NOT for webcam tracks
+  // Webcam clips are overlays with independent timing, not contiguous sequences
+  if (!isWebcamTrack) {
+    reflowClips(targetTrack, 0)
+  }
+
+  // Ensure global effects exist (background, cursor, webcam)
+  const { EffectsFactory } = require('../effects/effects-factory')
+  EffectsFactory.ensureGlobalEffects(project)
 
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
@@ -705,27 +737,47 @@ export interface AssetDetails {
 export function addAssetRecording(
   project: Project,
   asset: AssetDetails,
-  startTimeOrOptions?: number | { startTime?: number; insertIndex?: number }
+  startTimeOrOptions?: number | { startTime?: number; insertIndex?: number; trackType?: TrackType; inheritCrop?: boolean }
 ): Clip | null {
   const options = typeof startTimeOrOptions === 'number' ? { startTime: startTimeOrOptions } : startTimeOrOptions
   const startTime = options?.startTime
   const insertIndexOverride = options?.insertIndex
+  const trackType = options?.trackType ?? (asset.type === 'audio' ? TrackType.Audio : TrackType.Video)
+  const isWebcamTrack = trackType === TrackType.Webcam
+  const inheritCrop = options?.inheritCrop === true
   const recordingId = `recording-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-  // 1. Identify valid insertion point and previous clip for inheritance
-  const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
+  // 1. Identify valid insertion point and previous clip (only when inheriting crop)
+  const targetTrack = project.timeline.tracks.find(t => t.type === trackType) ?? (() => {
+    const nameByType: Record<TrackType, string> = {
+      [TrackType.Video]: 'Video',
+      [TrackType.Audio]: 'Audio',
+      [TrackType.Webcam]: 'Webcam',
+      [TrackType.Annotation]: 'Annotation'
+    }
+    const newTrack: Track = {
+      id: `${trackType}-${Date.now()}`,
+      name: nameByType[trackType] ?? 'Track',
+      type: trackType,
+      clips: [],
+      muted: false,
+      locked: false
+    }
+    project.timeline.tracks.push(newTrack)
+    return newTrack
+  })()
   let lastVideoClip: Clip | null = null
 
-  if (videoTrack && videoTrack.clips.length > 0) {
+  if (inheritCrop && trackType === TrackType.Video && targetTrack && targetTrack.clips.length > 0) {
     if (typeof insertIndexOverride === 'number') {
-      const clampedIndex = Math.max(0, Math.min(insertIndexOverride, videoTrack.clips.length))
+      const clampedIndex = Math.max(0, Math.min(insertIndexOverride, targetTrack.clips.length))
       if (clampedIndex > 0) {
-        lastVideoClip = videoTrack.clips[clampedIndex - 1] ?? null
+        lastVideoClip = targetTrack.clips[clampedIndex - 1] ?? null
       }
     }
     if (typeof insertIndexOverride !== 'number') {
       // Sort clips to find the last one (or one before insertion time if provided)
-      const sortedClips = [...videoTrack.clips].sort((a, b) => a.startTime - b.startTime)
+      const sortedClips = [...targetTrack.clips].sort((a, b) => a.startTime - b.startTime)
 
       if (typeof startTime === 'number') {
         // Find clip that ends before or at startTime
@@ -743,47 +795,64 @@ export function addAssetRecording(
   }
 
   // 2. Create Recording Object
-  const recording: Recording = {
-    id: recordingId,
-    filePath: asset.path,
-    duration: asset.duration || 5000, // Default 5s for images if not specified
-    width: asset.width || 0,
-    height: asset.height || 0,
-    frameRate: 30,
-    hasAudio: asset.type === 'video' || asset.type === 'audio',
-    isExternal: true,
-    effects: [],
-    sourceType: asset.type === 'image' ? 'image' : (asset.type === 'video' ? 'video' : undefined)
-  }
+  let recording: Recording
 
   if (asset.type === 'image') {
-    recording.imageSource = { imagePath: asset.path }
+    recording = {
+      id: recordingId,
+      filePath: asset.path,
+      duration: asset.duration || 5000, // Default 5s for images if not specified
+      width: asset.width || 0,
+      height: asset.height || 0,
+      frameRate: 30,
+      hasAudio: false,
+      isExternal: true,
+      effects: [],
+      sourceType: 'image',
+      imageSource: { imagePath: asset.path }
+    }
     // Default duration for images if 0 passed
     if (recording.duration === 0) recording.duration = 5000
+  } else {
+    recording = {
+      id: recordingId,
+      filePath: asset.path,
+      duration: asset.duration || 5000,
+      width: asset.width || 0,
+      height: asset.height || 0,
+      frameRate: 30,
+      hasAudio: asset.type === 'video' || asset.type === 'audio',
+      isExternal: true,
+      effects: [],
+      sourceType: 'video'
+    }
   }
 
   // 3. Add to Project
   // We intentionally pass empty effect callback so no defaults are created ON THE RECORDING
   // Global effects (cursor, background) are ensured by addRecordingToProject internally
-  const newClip = addRecordingToProject(project, recording, () => { })
+  const newClip = addRecordingToProject(project, recording, () => { }, { trackType })
 
   if (!newClip) return null
 
   // If startTime was specified, insert the clip at that position (handling splits if needed)
   if (typeof insertIndexOverride === 'number') {
-    if (videoTrack) {
-      const trackClips = videoTrack.clips
+    if (targetTrack) {
+      const trackClips = targetTrack.clips
       const newClipIndex = trackClips.findIndex(c => c.id === newClip.id)
       if (newClipIndex !== -1) {
         trackClips.splice(newClipIndex, 1)
       }
       const insertIndex = Math.max(0, Math.min(insertIndexOverride, trackClips.length))
       trackClips.splice(insertIndex, 0, newClip)
-      reflowClips(videoTrack, 0)
+      // Webcam clips are overlays - don't reflow them contiguously
+      if (!isWebcamTrack) {
+        reflowClips(targetTrack, 0)
+      }
     }
   } else if (typeof startTime === 'number') {
-    if (videoTrack) {
-      const trackClips = videoTrack.clips
+    if (targetTrack) {
+      const trackClips = targetTrack.clips
 
       // 1. Remove the new clip from the end (where addRecordingToProject put it)
       const newClipIndex = trackClips.findIndex(c => c.id === newClip.id)
@@ -821,64 +890,58 @@ export function addAssetRecording(
         // If greater than end, continue to next
       }
 
-      // 3. Insert and Reflow
+      // 3. Insert and Reflow (but not for webcam - overlay clips)
       trackClips.splice(insertIndex, 0, newClip)
-      reflowClips(videoTrack, 0)
-    }
-  }
-
-  // 1. Sync Crop Effects
-  // Use EffectStore as SSOT for getting effects
-  const allEffects = EffectStore.getAll(project)
-
-  // We need to find the clip that was *before* the new clip in the timeline
-  // This is `lastVideoClip` if `startTime` was not provided, or the clip
-  // immediately preceding the insertion point if `startTime` was provided.
-  // For simplicity, we'll assume `lastVideoClip` is the "oldClip" to copy from
-  // if it exists, otherwise we don't copy.
-  const oldClip = lastVideoClip // Renaming for clarity in this context
-
-  if (oldClip && newClip) {
-    // If we have an old clip to copy from
-    const existingCrop = getCropEffectForClip(allEffects, oldClip)
-
-    if (existingCrop && existingCrop.data) {
-      const newCropEffect = EffectsFactory.createCropEffect({
-        clipId: newClip.id,
-        startTime: newClip.startTime,
-        endTime: newClip.startTime + newClip.duration,
-        cropData: existingCrop.data as any // Cast to any to avoid union type mismatch, we know it's crop data
-      })
-
-      EffectsFactory.addEffectToProject(project, newCropEffect)
-    }
-  }
-
-  // 5. Prevent Effect Bleed (Mutually Exclusive Logic)
-  // Ensure that timeline-level effects (Zoom, Screen) do not implicitly cover the new clip.
-  // We truncate any existing effects that would overlap the new clip's start time.
-  const timelineEffects = EffectStore.getAll(project)
-  if (timelineEffects.length > 0) {
-    const bleedTypes = [EffectType.Zoom, EffectType.Screen] // Add other types if needed
-
-    timelineEffects.forEach(effect => {
-      if (bleedTypes.includes(effect.type) && effect.enabled) {
-        // Check if effect overlaps the start of the new clip
-        if (effect.startTime < newClip.startTime && effect.endTime > newClip.startTime) {
-          // Truncate the effect to end exactly where the new clip starts
-          effect.endTime = newClip.startTime
-        }
-        // Note: If effect started AFTER new clip start, we leave it alone (it might be a future effect).
-        // If it was "surrounding" the clip, we just cut it off. 
-        // This satisfies "mutually exclusive" - the previous state stops.
+      if (!isWebcamTrack) {
+        reflowClips(targetTrack, 0)
       }
-    })
+    }
+  }
+
+  if (trackType === TrackType.Video) {
+    // 4. Optional crop inheritance to keep clips independent by default.
+    if (inheritCrop && lastVideoClip && newClip) {
+      const allEffects = EffectStore.getAll(project)
+      const existingCrop = getCropEffectForClip(allEffects, lastVideoClip)
+      if (existingCrop && existingCrop.data) {
+        const newCropEffect = EffectsFactory.createCropEffect({
+          clipId: newClip.id,
+          startTime: newClip.startTime,
+          endTime: newClip.startTime + newClip.duration,
+          cropData: existingCrop.data as any
+        })
+        EffectsFactory.addEffectToProject(project, newCropEffect)
+      }
+    }
+
+    // 5. Prevent Effect Bleed (Mutually Exclusive Logic)
+    // Ensure that timeline-level effects (Zoom, Screen) do not implicitly cover the new clip.
+    // We truncate any existing effects that would overlap the new clip's start time.
+    const timelineEffects = EffectStore.getAll(project)
+    if (timelineEffects.length > 0) {
+      const bleedTypes = [EffectType.Zoom, EffectType.Screen] // Add other types if needed
+
+      timelineEffects.forEach(effect => {
+        if (bleedTypes.includes(effect.type) && effect.enabled) {
+          // Check if effect overlaps the start of the new clip
+          if (effect.startTime < newClip.startTime && effect.endTime > newClip.startTime) {
+            // Truncate the effect to end exactly where the new clip starts
+            effect.endTime = newClip.startTime
+          }
+          // Note: If effect started AFTER new clip start, we leave it alone (it might be a future effect).
+          // If it was "surrounding" the clip, we just cut it off. 
+          // This satisfies "mutually exclusive" - the previous state stops.
+        }
+      })
+    }
   }
 
   project.timeline.duration = calculateTimelineDuration(project)
 
   // Sync crop effect times to match any clips that moved during insertion
-  syncCropEffectTimes(project)
+  if (trackType === TrackType.Video) {
+    syncCropEffectTimes(project)
+  }
 
   return newClip
 }

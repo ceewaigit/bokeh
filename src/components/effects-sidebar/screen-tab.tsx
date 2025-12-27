@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { Target, Wind, Sparkles, Gauge, Zap, CircleOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
-import type { Clip, Effect } from '@/types/project'
+import type { Clip, Effect, ScreenEffectData } from '@/types/project'
 import { ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType, EffectType } from '@/types/effects'
@@ -11,6 +12,7 @@ import { AddEffectCommand } from '@/lib/commands'
 import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { DEFAULT_SCREEN_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
+import { useProjectStore } from '@/stores/project-store'
 
 interface ScreenTabProps {
   selectedClip: Clip | null
@@ -21,20 +23,70 @@ interface ScreenTabProps {
 export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }: ScreenTabProps) {
   const [introMs, setIntroMs] = useState(DEFAULT_SCREEN_DATA.introMs ?? 300)
   const [outroMs, setOutroMs] = useState(DEFAULT_SCREEN_DATA.outroMs ?? 300)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const executorRef = useCommandExecutor()
+  const screenEffect = useProjectStore((s) => {
+    if (!selectedEffectLayer?.id || selectedEffectLayer.type !== EffectLayerType.Screen) return null
+    return s.currentProject?.timeline.effects?.find((effect) => effect.id === selectedEffectLayer.id) ?? null
+  })
+  const screenData = screenEffect?.data as ScreenEffectData | undefined
+  const currentPreset = screenData?.preset ?? DEFAULT_SCREEN_DATA.preset
 
   // Keep UI in sync if selection changes; these values are currently "best-effort" defaults.
   useEffect(() => {
-    setIntroMs(DEFAULT_SCREEN_DATA.introMs ?? 300)
-    setOutroMs(DEFAULT_SCREEN_DATA.outroMs ?? 300)
-  }, [selectedEffectLayer?.id])
+    setIntroMs(screenData?.introMs ?? DEFAULT_SCREEN_DATA.introMs ?? 300)
+    setOutroMs(screenData?.outroMs ?? DEFAULT_SCREEN_DATA.outroMs ?? 300)
+  }, [selectedEffectLayer?.id, screenData?.introMs, screenData?.outroMs])
+
+  const styleOptions: Array<{
+    id: string
+    label: string
+    preset: ScreenEffectPreset
+    description: string
+    icon: React.ComponentType<{ className?: string }>
+  }> = [
+    {
+      id: 'focused',
+      label: 'Focused',
+      preset: ScreenEffectPreset.Hero,
+      description: 'Deeper, more dramatic tilt',
+      icon: Target
+    },
+    {
+      id: 'smooth',
+      label: 'Smooth',
+      preset: ScreenEffectPreset.Subtle,
+      description: 'Gentle depth with soft motion',
+      icon: Wind
+    }
+  ]
+
+  const speedPresets: Array<{
+    id: string
+    label: string
+    introMs: number
+    outroMs: number
+    description: string
+    icon: React.ComponentType<{ className?: string }>
+  }> = [
+    { id: 'smooth', label: 'Smooth', introMs: 600, outroMs: 600, description: 'Long, elegant ease', icon: Sparkles },
+    { id: 'medium', label: 'Medium', introMs: 350, outroMs: 350, description: 'Balanced, natural pace', icon: Gauge },
+    { id: 'rapid', label: 'Rapid', introMs: 150, outroMs: 150, description: 'Quick, snappy motion', icon: Zap },
+    { id: 'none', label: 'None', introMs: 0, outroMs: 0, description: 'Instant cut', icon: CircleOff }
+  ]
+
+  const applySpeedPreset = (intro: number, outro: number) => {
+    setIntroMs(intro)
+    setOutroMs(outro)
+    onEffectChange(EffectType.Screen, { introMs: intro, outroMs: outro })
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Add Screen Block */}
-      <div className="p-4 bg-background/40 rounded-xl">
+      <div className="rounded-lg bg-background/40 p-3">
         <button
-          className="w-full px-4 py-2.5 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all"
+          className="w-full px-3 py-2 text-[11px] bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
           onClick={async () => {
             if (!selectedClip) return
             const newEffect: Effect = {
@@ -52,7 +104,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           Add 3D Screen Block
         </button>
         <div className="mt-2 flex items-center justify-center gap-2">
-          <p className="text-xs text-muted-foreground/70 italic leading-snug">
+          <p className="text-[11px] text-muted-foreground/70 italic leading-snug">
             Creates a block you can resize on the timeline.
           </p>
           <InfoTooltip content="Select the block on the timeline to edit its preset here." />
@@ -61,63 +113,131 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
       {/* Show presets only when a screen block is selected */}
       {selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id ? (
-        <div className="p-4 bg-background/40 rounded-xl space-y-3">
-          <label className="text-xs font-medium text-muted-foreground mb-2 block">3D Preset</label>
-          <div className="grid grid-cols-2 gap-1">
-            {([
-              ScreenEffectPreset.Subtle, ScreenEffectPreset.Medium, ScreenEffectPreset.Dramatic, ScreenEffectPreset.Window,
-              ScreenEffectPreset.Cinematic, ScreenEffectPreset.Hero, ScreenEffectPreset.Isometric, ScreenEffectPreset.Flat,
-              ScreenEffectPreset.TiltLeft, ScreenEffectPreset.TiltRight
-            ] as const).map(preset => (
-              <button
-                key={preset}
-                className={cn(
-                  'px-2 py-1.5 text-xs font-medium rounded transition-all capitalize',
-                  'bg-background/50 text-muted-foreground hover:bg-background/70'
-                )}
-                onClick={() => onEffectChange(EffectType.Screen, { preset })}
-              >
-                {preset}
-              </button>
-            ))}
+        <div className="rounded-lg bg-background/40 p-3 space-y-3">
+          <div className="space-y-2">
+            <label className="text-[11px] font-semibold tracking-[-0.01em] text-muted-foreground block">Screen Style</label>
+            <div className="grid grid-cols-2 gap-2">
+              {styleOptions.map((option) => {
+                const Icon = option.icon
+                const isSelected = currentPreset === option.preset
+                return (
+                  <button
+                    key={option.id}
+                    className={cn(
+                      'group flex flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
+                      isSelected
+                        ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
+                        : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
+                    onClick={() => onEffectChange(EffectType.Screen, { preset: option.preset })}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className={cn(
+                        'flex h-7 w-7 items-center justify-center rounded-md border',
+                        isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
+                      )}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      {isSelected && (
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold leading-none">{option.label}</div>
+                      <div className="mt-1 text-[11px] leading-snug text-muted-foreground/80">{option.description}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border/30">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-muted-foreground">Ease In</label>
-                <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{introMs}ms</span>
-              </div>
-              <Slider
-                value={[introMs]}
-                onValueChange={([value]) => setIntroMs(value)}
-                onValueCommit={([value]) => onEffectChange(EffectType.Screen, { introMs: value })}
-                min={0}
-                max={1000}
-                step={50}
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-muted-foreground">Ease Out</label>
-                <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{outroMs}ms</span>
-              </div>
-              <Slider
-                value={[outroMs]}
-                onValueChange={([value]) => setOutroMs(value)}
-                onValueCommit={([value]) => onEffectChange(EffectType.Screen, { outroMs: value })}
-                min={0}
-                max={1000}
-                step={50}
-                className="w-full"
-              />
+          <div className="space-y-2 pt-1">
+            <label className="text-[11px] font-semibold tracking-[-0.01em] text-muted-foreground block">Animation Speed</label>
+            <div className="grid grid-cols-2 gap-2">
+              {speedPresets.map((option) => {
+                const Icon = option.icon
+                const isSelected = introMs === option.introMs && outroMs === option.outroMs
+                return (
+                  <button
+                    key={option.id}
+                    className={cn(
+                      'group flex flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
+                      isSelected
+                        ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
+                        : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
+                    onClick={() => applySpeedPreset(option.introMs, option.outroMs)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className={cn(
+                        'flex h-7 w-7 items-center justify-center rounded-md border',
+                        isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
+                      )}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      {isSelected && (
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold leading-none">{option.label}</div>
+                      <div className="mt-1 text-[11px] leading-snug text-muted-foreground/80">{option.description}</div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
+
+          <button
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
+          >
+            <span>Advanced</span>
+            <span className={cn("text-[11px] uppercase tracking-[0.2em] transition-opacity", showAdvanced ? "opacity-100" : "opacity-60")}>
+              {showAdvanced ? 'On' : 'Off'}
+            </span>
+          </button>
+
+          {showAdvanced && (
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Ease In</label>
+                  <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{introMs}ms</span>
+                </div>
+                <Slider
+                  value={[introMs]}
+                  onValueChange={([value]) => setIntroMs(value)}
+                  onValueCommit={([value]) => onEffectChange(EffectType.Screen, { introMs: value })}
+                  min={0}
+                  max={1000}
+                  step={50}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Ease Out</label>
+                  <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{outroMs}ms</span>
+                </div>
+                <Slider
+                  value={[outroMs]}
+                  onValueChange={([value]) => setOutroMs(value)}
+                  onValueCommit={([value]) => onEffectChange(EffectType.Screen, { outroMs: value })}
+                  min={0}
+                  max={1000}
+                  step={50}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="p-4 bg-background/40 rounded-xl">
-          <p className="text-xs text-muted-foreground leading-snug">Select a 3D block on the timeline to change its look here.</p>
+        <div className="rounded-lg bg-background/40 p-3">
+          <p className="text-[11px] text-muted-foreground leading-snug">Select a 3D block on the timeline to change its look here.</p>
         </div>
       )}
     </div>

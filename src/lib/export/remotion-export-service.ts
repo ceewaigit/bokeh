@@ -5,7 +5,7 @@
  * Uses IPC bridge abstraction for better testability (DIP compliance)
  */
 
-import type { ExportSettings, Recording, RecordingMetadata } from '@/types';
+import type { Clip, ExportSettings, Recording, RecordingMetadata } from '@/types';
 import type { TimelineSegment } from './timeline-processor';
 import { logger } from '@/lib/utils/logger';
 import { getIpcBridge, isIpcAvailable, type IpcBridge } from '@/lib/bridges';
@@ -46,7 +46,8 @@ export class RemotionExportService {
     settings: ExportSettings,
     onProgress?: (progress: RemotionExportProgress) => void,
     abortSignal?: AbortSignal,
-    projectFolder?: string
+    projectFolder?: string,
+    webcamClips: Clip[] = []
   ): Promise<Blob> {
     this.abortSignal = abortSignal || null;
     this.isAborting = false;
@@ -92,7 +93,8 @@ export class RemotionExportService {
         recordings: Array.from(recordings.entries()),
         metadata: [], // Metadata embedded in Recording.metadata - don't duplicate over IPC
         settings,
-        projectFolder
+        projectFolder,
+        webcamClips
       };
 
       // Listen for progress updates

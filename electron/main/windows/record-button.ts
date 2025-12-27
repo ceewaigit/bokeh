@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import * as path from 'path'
 import { getAppURL } from '../config'
+import { getContentSecurityPolicy } from './content-security-policy'
 
 // Webpack entry points are set as environment variables by electron-forge
 
@@ -9,14 +10,7 @@ function setupSecurityPolicy(window: BrowserWindow): void {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: video-stream: https://unpkg.com; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com blob:; " +
-          "style-src 'self' 'unsafe-inline'; " +
-          "img-src 'self' data: blob: file: video-stream:; " +
-          "media-src 'self' data: blob: file: video-stream:; " +
-          "connect-src 'self' file: data: blob: ws://localhost:3001 http://localhost:3001 https://unpkg.com; " +
-          "worker-src 'self' blob:; " +
-          "frame-src 'none';"
+        'Content-Security-Policy': getContentSecurityPolicy()
       }
     })
   })
@@ -82,10 +76,6 @@ export function createRecordButton(): BrowserWindow {
     // Use screen-saver level on macOS - this keeps it above other windows
     // and helps with window exclusion in screen capture
     recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
-
-    // Set additional window properties to help with exclusion from capture
-    // This sets the window to not be captured by some screen recording APIs
-    recordButton.setContentProtection(true)
   } else {
     recordButton.setAlwaysOnTop(true, 'floating', 1)
   }

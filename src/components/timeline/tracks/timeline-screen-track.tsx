@@ -9,7 +9,7 @@ import { getScreenEffects } from '@/lib/effects/effect-filters'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { EffectLayerType } from '@/types/effects'
-import { ScreenEffect } from '@/types/project'
+import { ScreenEffect, TimelineTrackType } from '@/types/project'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -18,7 +18,8 @@ export function TimelineScreenTrack() {
         pixelsPerMs,
         trackHeights,
         trackPositions,
-        hasScreenTrack
+        hasScreenTrack,
+        setActiveTrack
     } = useTimelineLayout()
 
     const {
@@ -93,6 +94,7 @@ export function TimelineScreenTrack() {
                         isEnabled={effect.enabled}
                         allBlocks={allScreenBlocksData}
                         pixelsPerMs={pixelsPerMs}
+                        onHover={() => setActiveTrack(TimelineTrackType.Screen)}
                         onSelect={() => {
                             if (isBlockSelected) {
                                 clearEffectSelection()

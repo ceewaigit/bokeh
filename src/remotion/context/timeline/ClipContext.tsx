@@ -19,6 +19,7 @@ import {
   filterEffectsForClip,
   filterEventsForSourceRange,
 } from '@/lib/effects/effect-filters';
+import { normalizeClickEvents, normalizeMouseEvents } from '../../compositions/utils/events/event-normalizer';
 import type { ClipContextValue } from '@/types';
 
 const ClipContext = createContext<ClipContextValue | null>(null);
@@ -66,13 +67,13 @@ export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: 
 
   // Filter cursor events - only recalculates when metadata or source range changes
   const cursorEvents = useMemo(
-    () => filterEventsForSourceRange(metadata?.mouseEvents ?? [], sourceIn, sourceOut),
+    () => normalizeMouseEvents(filterEventsForSourceRange(metadata?.mouseEvents ?? [], sourceIn, sourceOut)),
     [metadata?.mouseEvents, sourceIn, sourceOut]
   );
 
   // Filter click events
   const clickEvents = useMemo(
-    () => filterEventsForSourceRange(metadata?.clickEvents ?? [], sourceIn, sourceOut),
+    () => normalizeClickEvents(filterEventsForSourceRange(metadata?.clickEvents ?? [], sourceIn, sourceOut)),
     [metadata?.clickEvents, sourceIn, sourceOut]
   );
 
@@ -111,7 +112,8 @@ export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: 
   }, [effects, clip]);
 
   // Use hook to resolve video URL based on environment
-  const videoUrl = useVideoUrl({ recording, resources, preferOffthreadVideo }) || '';
+  // Pass clipId so URL lock invalidates when active clip changes
+  const videoUrl = useVideoUrl({ recording, resources, clipId: clip.id, preferOffthreadVideo }) || '';
 
   // Compose final context value
   const value = useMemo<ClipContextValue>(

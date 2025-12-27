@@ -10,89 +10,236 @@
  */
 
 import React, { useMemo } from 'react';
-import { AbsoluteFill, Video, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
-import type { Effect, WebcamEffectData, Clip, TrackType } from '@/types/project';
-import { EffectType } from '@/types/project';
+import { Video, Sequence, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
+import type { Effect, WebcamEffectData, Clip, Recording } from '@/types/project';
 import { getWebcamEffect } from '@/lib/effects/effect-filters';
 import { DEFAULT_WEBCAM_DATA } from '@/lib/constants/default-effects';
+import { getWebcamLayout } from '@/lib/effects/utils/webcam-layout';
+import { clampCropData, DEFAULT_CROP_DATA } from '../utils/transforms/crop-transform';
+import { useVideoPosition } from '../../context/layout/VideoPositionContext';
 
 interface WebcamLayerProps {
   effects: Effect[];
-  videoWidth: number;
-  videoHeight: number;
+  webcamEffect?: Effect;  // Active webcam effect (timing source of truth)
   webcamVideoUrl?: string;
-  webcamClip?: Clip;
+  webcamClip?: Clip;      // Used only for recordingId and sourceIn
+  webcamRecording?: Recording;
 }
-
 /**
- * Generate CSS clip-path for different shapes
+ * Get transform origin based on anchor position for natural scaling
+ * Webcam should scale towards its anchor point
  */
-function getClipPath(shape: WebcamEffectData['shape'], cornerRadius: number, size: number): string {
-  switch (shape) {
-    case 'circle':
-      return 'circle(50% at 50% 50%)';
-    case 'squircle':
-      // Squircle approximation using superellipse-like path
-      return `inset(0 round ${Math.min(cornerRadius, size / 2)}px)`;
-    case 'rounded-rect':
-      return `inset(0 round ${cornerRadius}px)`;
-    case 'rectangle':
-    default:
-      return 'none';
+function getTransformOrigin(anchor: WebcamEffectData['position']['anchor']): string {
+  switch (anchor) {
+    case 'top-left': return 'top left';
+    case 'top-center': return 'top center';
+    case 'top-right': return 'top right';
+    case 'center-left': return 'center left';
+    case 'center': return 'center center';
+    case 'center-right': return 'center right';
+    case 'bottom-left': return 'bottom left';
+    case 'bottom-center': return 'bottom center';
+    case 'bottom-right': return 'bottom right';
+    default: return 'center center';
   }
 }
 
-/**
- * Calculate position based on anchor and percentage values
- */
-function calculatePosition(
-  position: WebcamEffectData['position'],
-  size: number,
-  containerWidth: number,
-  containerHeight: number
-): { x: number; y: number } {
-  const webcamWidth = (size / 100) * containerWidth;
-  const webcamHeight = webcamWidth; // Square aspect for PiP
+export const WebcamLayer = React.memo(({
+  effects,
+  webcamEffect,
+  webcamVideoUrl,
+  webcamClip,
+  webcamRecording,
+}: WebcamLayerProps) => {
+  const frame = useCurrentFrame();
+  const { fps, width: compositionWidth, height: compositionHeight } = useVideoConfig();
 
-  let x = (position.x / 100) * containerWidth;
-  let y = (position.y / 100) * containerHeight;
+  // Get zoom scale from VideoPositionContext for inverse scaling
+  const { zoomTransform } = useVideoPosition();
 
-  // Adjust based on anchor
-  switch (position.anchor) {
-    case 'top-left':
-      break;
-    case 'top-center':
-      x -= webcamWidth / 2;
-      break;
-    case 'top-right':
-      x -= webcamWidth;
-      break;
-    case 'center-left':
-      y -= webcamHeight / 2;
-      break;
-    case 'center':
-      x -= webcamWidth / 2;
-      y -= webcamHeight / 2;
-      break;
-    case 'center-right':
-      x -= webcamWidth;
-      y -= webcamHeight / 2;
-      break;
-    case 'bottom-left':
-      y -= webcamHeight;
-      break;
-    case 'bottom-center':
-      x -= webcamWidth / 2;
-      y -= webcamHeight;
-      break;
-    case 'bottom-right':
-      x -= webcamWidth;
-      y -= webcamHeight;
-      break;
+  // Get webcam effect data (use passed-in effect, or find from effects array for backwards compat)
+  const effectToUse = webcamEffect ?? getWebcamEffect(effects);
+  const data: WebcamEffectData = useMemo(
+    () => (effectToUse?.data as WebcamEffectData) ?? DEFAULT_WEBCAM_DATA,
+    [effectToUse]
+  );
+
+  // Calculate frames from EFFECT timing (single source of truth for visibility)
+  const effectStartFrame = effectToUse
+    ? Math.floor((effectToUse.startTime / 1000) * fps)
+    : 0;
+  const effectEndFrame = effectToUse
+    ? Math.ceil((effectToUse.endTime / 1000) * fps)
+    : 0;
+
+  // Source offset comes from the clip (for video playback sync)
+  const sourceInFrame = webcamClip
+    ? Math.round((webcamClip.sourceIn / 1000) * fps)
+    : 0;
+
+  // Get entry/exit/pip animations (use effect timing)
+  const { scale: animationScale, opacity: animationOpacity, translateY } = useWebcamAnimations(
+    data,
+    effectStartFrame,
+    effectEndFrame
+  );
+
+  // Don't render if no webcam video, clip, or effect
+  const hasWebcam = Boolean(webcamVideoUrl && webcamClip && effectToUse?.enabled !== false);
+  if (!hasWebcam || !webcamClip) {
+    return null;
   }
 
-  return { x, y };
-}
+  // Visibility is controlled by parent (TimelineComposition) based on effect timing
+  // No need to check frame range here - if we have an active effect, render it
+
+  const containerRect = {
+    x: 0,
+    y: 0,
+    width: compositionWidth,
+    height: compositionHeight,
+  };
+
+  // Calculate size and position inside the actual video rect
+  const layout = getWebcamLayout(data, containerRect.width, containerRect.height);
+  const webcamSize = Math.round(layout.size);
+  const position = { x: Math.round(layout.x), y: Math.round(layout.y) };
+
+  // Zoom-responsive inverse scaling: shrink webcam when zooming in to focus on content
+  // When zoomScale > 1 (zoomed in), webcam gets smaller
+  // When zoomScale = 1 (normal), webcam is at full size (or slightly larger for prominence)
+  const zoomScale = zoomTransform?.scale ?? 1;
+  // Map zoom scale inversely: higher zoom = smaller webcam
+  // At scale 1.0 -> webcam at 1.1 (slightly prominent)
+  // At scale 2.0 -> webcam at 0.7 (smaller, out of the way)
+  // At scale 3.0+ -> webcam at 0.55 (minimum size)
+  const inverseZoomScale = interpolate(
+    zoomScale,
+    [1, 2, 3],
+    [1.1, 0.7, 0.55],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
+
+  // Combine animation scale with zoom-responsive scale
+  const finalScale = animationScale * inverseZoomScale;
+
+  // Opacity reduction when zoomed in (optional setting)
+  let finalOpacity = animationOpacity;
+  if (data.reduceOpacityOnZoom && zoomScale > 1) {
+    // Reduce opacity when zoomed in: at 2x zoom -> 60% opacity, at 3x+ -> 40%
+    const zoomOpacityFactor = interpolate(
+      zoomScale,
+      [1, 2, 3],
+      [1, 0.6, 0.4],
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+    );
+    finalOpacity = animationOpacity * zoomOpacityFactor;
+  }
+
+  const overlayContainerStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: containerRect.x,
+    top: containerRect.y,
+    width: containerRect.width,
+    height: containerRect.height,
+    pointerEvents: 'none'
+  };
+
+  const containerStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: position.x,
+    top: position.y,
+    width: webcamSize,
+    height: webcamSize,
+    transform: `scale(${finalScale}) translateY(${translateY}px)`,
+    transformOrigin: getTransformOrigin(data.position.anchor), // Scale towards anchor for natural feel
+    opacity: finalOpacity,
+    zIndex: 100,
+    transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease-out', // Snappy animations
+    // Always apply corner radius to container for consistent clipping
+    borderRadius: data.shape === 'circle' ? '50%' : data.cornerRadius,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    backfaceVisibility: 'hidden',
+  };
+
+  const sourceWidth = webcamRecording?.width || webcamSize;
+  const sourceHeight = webcamRecording?.height || webcamSize;
+  const sourceCrop = clampCropData(data.sourceCrop ?? DEFAULT_CROP_DATA);
+  const cropCenterX = (sourceCrop.x + sourceCrop.width / 2) * sourceWidth;
+  const cropCenterY = (sourceCrop.y + sourceCrop.height / 2) * sourceHeight;
+  const cropWidthPx = Math.max(1, sourceCrop.width * sourceWidth);
+  const cropHeightPx = Math.max(1, sourceCrop.height * sourceHeight);
+  const scaleX = webcamSize / cropWidthPx;
+  const scaleY = webcamSize / cropHeightPx;
+  const scale = Math.max(scaleX, scaleY);
+  const cropTranslateX = Math.round((webcamSize / 2 - cropCenterX * scale) * 1000) / 1000;
+  const cropTranslateY = Math.round((webcamSize / 2 - cropCenterY * scale) * 1000) / 1000;
+  const cropTransformStr = `translate3d(${cropTranslateX}px, ${cropTranslateY}px, 0) scale3d(${scale}, ${scale}, 1)`;
+  const mirrorTransform = data.mirror ? 'scaleX(-1)' : 'none';
+
+  const sourceStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: sourceWidth,
+    height: sourceHeight,
+    transform: cropTransformStr,
+    transformOrigin: 'top left',
+    willChange: 'transform',
+  };
+
+  const webcamStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit: 'fill',
+    transform: mirrorTransform,
+    transformOrigin: 'center',
+    display: 'block',
+    backgroundColor: 'transparent',
+    backfaceVisibility: 'hidden',
+    outline: 'none',
+  };
+
+  const borderStyle: React.CSSProperties = data.borderEnabled ? {
+    border: `${data.borderWidth}px solid ${data.borderColor}`,
+  } : {};
+
+  const shadowStyle: React.CSSProperties = data.shadowEnabled ? {
+    boxShadow: `${data.shadowOffsetX}px ${data.shadowOffsetY}px ${data.shadowBlur}px ${data.shadowColor}`,
+  } : {};
+
+  // Calculate duration in frames for the Sequence (using effect timing)
+  const durationFrames = Math.max(1, effectEndFrame - effectStartFrame);
+
+  return (
+    <div style={overlayContainerStyle}>
+      <div
+        style={{
+          ...containerStyle,
+          ...borderStyle,
+          ...shadowStyle,
+        }}
+        data-webcam-overlay="true"
+      >
+        <div style={sourceStyle}>
+          {/* Wrap Video in Sequence so it has its own frame context starting from 0 */}
+          <Sequence from={effectStartFrame} durationInFrames={durationFrames} layout="none">
+            <Video
+              src={webcamVideoUrl}
+              style={webcamStyle}
+              startFrom={sourceInFrame}
+              volume={1}
+              muted={false}
+            />
+          </Sequence>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+WebcamLayer.displayName = 'WebcamLayer';
 
 /**
  * Calculate animation values
@@ -174,94 +321,3 @@ function useWebcamAnimations(
 
   return { scale, opacity, translateY };
 }
-
-export const WebcamLayer = React.memo(({
-  effects,
-  videoWidth,
-  videoHeight,
-  webcamVideoUrl,
-  webcamClip,
-}: WebcamLayerProps) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-
-  // Get webcam effect data
-  const webcamEffect = useMemo(() => getWebcamEffect(effects), [effects]);
-  const data: WebcamEffectData = useMemo(
-    () => (webcamEffect?.data as WebcamEffectData) ?? DEFAULT_WEBCAM_DATA,
-    [webcamEffect]
-  );
-
-  // Don't render if no webcam video or effect is disabled
-  if (!webcamVideoUrl || !webcamClip || webcamEffect?.enabled === false) {
-    return null;
-  }
-
-  // Calculate frames for the webcam clip
-  const clipStartFrame = Math.round((webcamClip.startTime / 1000) * fps);
-  const clipEndFrame = Math.round(((webcamClip.startTime + webcamClip.duration) / 1000) * fps);
-
-  // Don't render outside the clip range
-  if (frame < clipStartFrame || frame >= clipEndFrame) {
-    return null;
-  }
-
-  // Calculate size and position
-  const webcamSize = (data.size / 100) * videoWidth;
-  const position = calculatePosition(data.position, data.size, videoWidth, videoHeight);
-
-  // Get animations
-  const { scale, opacity, translateY } = useWebcamAnimations(data, clipStartFrame, clipEndFrame);
-
-  // Build styles
-  const clipPath = getClipPath(data.shape, data.cornerRadius, webcamSize);
-
-  const containerStyle: React.CSSProperties = {
-    position: 'absolute',
-    left: position.x,
-    top: position.y,
-    width: webcamSize,
-    height: webcamSize,
-    transform: `scale(${scale}) translateY(${translateY}px)`,
-    opacity,
-    zIndex: 100,
-  };
-
-  const webcamStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    clipPath,
-    transform: data.mirror ? 'scaleX(-1)' : 'none',
-    borderRadius: data.shape === 'circle' ? '50%' : data.cornerRadius,
-  };
-
-  const borderStyle: React.CSSProperties = data.borderEnabled ? {
-    border: `${data.borderWidth}px solid ${data.borderColor}`,
-    borderRadius: data.shape === 'circle' ? '50%' : data.cornerRadius,
-  } : {};
-
-  const shadowStyle: React.CSSProperties = data.shadowEnabled ? {
-    boxShadow: `${data.shadowOffsetX}px ${data.shadowOffsetY}px ${data.shadowBlur}px ${data.shadowColor}`,
-  } : {};
-
-  return (
-    <div
-      style={{
-        ...containerStyle,
-        ...borderStyle,
-        ...shadowStyle,
-        overflow: 'hidden',
-      }}
-    >
-      <Video
-        src={webcamVideoUrl}
-        style={webcamStyle}
-        startFrom={Math.round((webcamClip.sourceIn / 1000) * fps)}
-        muted
-      />
-    </div>
-  );
-});
-
-WebcamLayer.displayName = 'WebcamLayer';

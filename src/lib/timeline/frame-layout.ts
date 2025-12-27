@@ -192,7 +192,7 @@ export function buildFrameLayout(
     };
 
     if (recording) {
-      const isVisual = !recording.sourceType || recording.sourceType === 'video' || recording.sourceType === 'image';
+      const isVisual = recording.sourceType === 'video' || recording.sourceType === 'image';
 
       if (isVisual) {
         lastVisualItem = item;

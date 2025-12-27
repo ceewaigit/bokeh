@@ -104,6 +104,7 @@ export interface PlaybackSliceState {
   currentTime: number
   isPlaying: boolean
   isScrubbing: boolean
+  hoverTime: number | null
   zoom: number
   zoomManuallyAdjusted: boolean
 }
@@ -117,6 +118,7 @@ export interface TimelineSliceState {
 export interface CacheSliceState {
   cameraPathCache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
   frameLayoutCache: FrameLayoutItem[] | null
+  timelineMutationCounter: number
 }
 
 export interface ProgressState {
@@ -224,6 +226,7 @@ export interface PlaybackSliceActions {
   seek: (time: number) => void
   seekFromPlayer: (time: number) => void
   setScrubbing: (isScrubbing: boolean) => void
+  setHoverTime: (time: number | null) => void
   setZoom: (zoom: number, isManual?: boolean) => void
   setAutoZoom: (zoom: number) => void
 }

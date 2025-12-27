@@ -15,6 +15,7 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
   currentTime: 0,
   isPlaying: false,
   isScrubbing: false,
+  hoverTime: null,
   zoom: 0.5,
   zoomManuallyAdjusted: false,
 
@@ -63,6 +64,12 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
   setScrubbing: (isScrubbing) => {
     set((state) => {
       state.isScrubbing = isScrubbing
+    })
+  },
+
+  setHoverTime: (time) => {
+    set((state) => {
+      state.hoverTime = time
     })
   },
 

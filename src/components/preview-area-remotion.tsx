@@ -25,13 +25,32 @@ import { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 import { globalBlobManager } from '@/lib/security/blob-url-manager';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/lib/utils/resolution-utils';
-import type { CropEffectData } from '@/types/project';
+import type { ClickEvent as ProjectClickEvent, CropEffectData, CursorEffectData, MouseEvent as ProjectMouseEvent } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
+import { buildTimelineCompositionInput } from '@/remotion/utils/composition-input';
+import { getBackgroundEffect, getCursorEffect, getWebcamEffect } from '@/lib/effects/effect-filters';
+import { calculateCursorState } from '@/lib/effects/utils/cursor-calculator';
+import { PlayheadService, type PlayheadState } from '@/lib/timeline/playhead-service';
+import { normalizeClickEvents, normalizeMouseEvents } from '@/remotion/compositions/utils/events/event-normalizer';
+import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, getCursorImagePath } from '@/lib/effects/cursor-types';
 
 import { AmbientGlowPlayer } from './preview/ambient-glow-player';
 import { useWorkspaceStore } from '@/stores/workspace-store';
+import { EffectLayerType } from '@/types/effects';
+import { EffectStore } from '@/lib/core/effects';
+import { WebcamOverlay } from './preview/webcam-overlay';
 
 type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
+type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | null;
+type CursorOverlay = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  tipX: number;
+  tipY: number;
+  src: string;
+};
 
 // Scrub throttle configuration (reduces video decode pressure)
 const SCRUB_THROTTLE_MS = 125; // Max 8 seeks per second during scrubbing
@@ -62,6 +81,7 @@ export function PreviewAreaRemotion({
   const storeIsPlaying = useProjectStore((s) => s.isPlaying);
   const storePause = useProjectStore((s) => s.pause);
   const storeSeekFromPlayer = useProjectStore((s) => s.seekFromPlayer);  // For syncing store FROM player
+  const timelineMutationCounter = useProjectStore((s) => s.timelineMutationCounter);
   const isExporting = useExportStore((s) => s.isExporting);
 
   // PERFORMANCE: Track document visibility - pause when window not focused
@@ -97,6 +117,18 @@ export function PreviewAreaRemotion({
   const aspectContainerRef = useRef<HTMLDivElement>(null);
   const previewViewportRef = useRef<HTMLDivElement>(null);
   const [previewViewportSize, setPreviewViewportSize] = useState({ width: 0, height: 0 });
+  const [hoveredLayer, setHoveredLayer] = useState<PreviewHoverLayer>(null);
+  const [cursorOverlay, setCursorOverlay] = useState<CursorOverlay | null>(null);
+  const [webcamOverlay, setWebcamOverlay] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const playheadStateRef = useRef<PlayheadState | undefined>(undefined);
+  const cursorEventsCacheRef = useRef(new Map<string, {
+    rawMouseEvents: ProjectMouseEvent[];
+    rawClickEvents: ProjectClickEvent[];
+    mouseEvents: ProjectMouseEvent[];
+    clickEvents: ProjectClickEvent[];
+    captureWidth: number;
+    captureHeight: number;
+  }>());
 
   // Throttle state for scrub optimization
   const lastSeekTimeRef = useRef<number>(0);
@@ -129,6 +161,8 @@ export function PreviewAreaRemotion({
   }, []);
 
   const project = useProjectStore((s) => s.currentProject);
+  const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer);
+  const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer);
   const volume = useProjectStore((s) => s.settings.audio.volume);
   const muted = useProjectStore((s) => s.settings.audio.muted);
   const cameraSettings = useProjectStore((s) => s.settings.camera);
@@ -136,9 +170,270 @@ export function PreviewAreaRemotion({
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow);
   const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity);
   const previewScale = useWorkspaceStore((s) => s.previewScale);
+  const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen);
+  const toggleProperties = useWorkspaceStore((s) => s.toggleProperties);
 
   // Calculate timeline metadata (total duration, fps, dimensions)
   const timelineMetadata = useTimelineMetadata(project);
+
+  const projectEffects = useMemo(() => {
+    if (!project) return [];
+    return EffectStore.getAll(project);
+  }, [project]);
+
+  const backgroundEffectId = useMemo(() => {
+    return getBackgroundEffect(projectEffects)?.id ?? null;
+  }, [projectEffects]);
+
+  const cursorEffectId = useMemo(() => {
+    const effect = getCursorEffect(projectEffects);
+    return effect && effect.enabled !== false ? effect.id : null;
+  }, [projectEffects]);
+
+  const webcamEffectId = useMemo(() => {
+    const effect = getWebcamEffect(projectEffects);
+    return effect && effect.enabled !== false ? effect.id : null;
+  }, [projectEffects]);
+
+  const isWebcamSelected = Boolean(
+    webcamEffectId &&
+    selectedEffectLayer?.type === EffectLayerType.Webcam &&
+    selectedEffectLayer?.id === webcamEffectId
+  );
+
+  const canSelectBackground = Boolean(backgroundEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
+  const canSelectCursor = Boolean(cursorEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
+  const canSelectWebcam = Boolean(webcamEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
+
+  const handleLayerSelect = useCallback((event: React.MouseEvent) => {
+    if (event.defaultPrevented) return;
+    const layer = hoveredLayer;
+    if (!layer) return;
+    if (layer === 'background' && canSelectBackground && backgroundEffectId) {
+      selectEffectLayer(EffectLayerType.Background, backgroundEffectId);
+    } else if (layer === 'cursor' && canSelectCursor && cursorEffectId) {
+      selectEffectLayer(EffectLayerType.Cursor, cursorEffectId);
+    } else if (layer === 'webcam' && canSelectWebcam && webcamEffectId) {
+      selectEffectLayer(EffectLayerType.Webcam, webcamEffectId);
+    } else {
+      return;
+    }
+
+    if (!isPropertiesOpen) {
+      toggleProperties();
+    }
+  }, [
+    hoveredLayer,
+    canSelectBackground,
+    canSelectCursor,
+    canSelectWebcam,
+    backgroundEffectId,
+    cursorEffectId,
+    webcamEffectId,
+    selectEffectLayer,
+    isPropertiesOpen,
+    toggleProperties,
+  ]);
+
+  const handleWebcamOverlaySelect = useCallback(() => {
+    if (!webcamEffectId) return;
+    selectEffectLayer(EffectLayerType.Webcam, webcamEffectId);
+    if (!isPropertiesOpen) {
+      toggleProperties();
+    }
+  }, [selectEffectLayer, webcamEffectId, isPropertiesOpen, toggleProperties]);
+
+
+  const resolveWebcamOverlay = useCallback((rect: DOMRect) => {
+    const overlayElement = playerContainerRef.current?.querySelector('[data-webcam-overlay="true"]') as HTMLElement | null;
+    if (!overlayElement) return null;
+    const overlayRect = overlayElement.getBoundingClientRect();
+    if (overlayRect.width <= 0 || overlayRect.height <= 0) return null;
+    return {
+      x: overlayRect.left - rect.left,
+      y: overlayRect.top - rect.top,
+      width: overlayRect.width,
+      height: overlayRect.height,
+    };
+  }, []);
+
+  const resolveCursorOverlay = useCallback((rect: DOMRect): CursorOverlay | null => {
+    if (!project || !timelineMetadata || !canSelectCursor) return null;
+    const timeMs = useProjectStore.getState().currentTime;
+    const nextPlayheadState = PlayheadService.updatePlayheadState(project, timeMs, playheadStateRef.current);
+    playheadStateRef.current = nextPlayheadState;
+    const activeClip = nextPlayheadState.playheadClip;
+    const activeRecording = nextPlayheadState.playheadRecording;
+    if (!activeClip || !activeRecording) return null;
+
+    const cursorEffect = getCursorEffect(projectEffects);
+    if (!cursorEffect || cursorEffect.enabled === false) return null;
+    const cursorData = cursorEffect.data as CursorEffectData | undefined;
+    if (!cursorData) return null;
+
+    const rawMouseEvents = activeRecording.sourceType === 'image' && activeRecording.syntheticMouseEvents?.length
+      ? (activeRecording.syntheticMouseEvents as ProjectMouseEvent[])
+      : ((activeRecording.metadata?.mouseEvents ?? []) as ProjectMouseEvent[]);
+    const rawClickEvents = activeRecording.sourceType === 'image' && activeRecording.syntheticMouseEvents?.length
+      ? []
+      : ((activeRecording.metadata?.clickEvents ?? []) as ProjectClickEvent[]);
+    if (!rawMouseEvents.length) return null;
+
+    const cache = cursorEventsCacheRef.current.get(activeRecording.id);
+    const useCache = cache?.rawMouseEvents === rawMouseEvents && cache?.rawClickEvents === rawClickEvents;
+    const normalizedMouseEvents = useCache ? cache!.mouseEvents : normalizeMouseEvents(rawMouseEvents);
+    const normalizedClickEvents = useCache ? cache!.clickEvents : normalizeClickEvents(rawClickEvents);
+    const firstEvent = normalizedMouseEvents[0];
+    const captureWidth = useCache ? cache!.captureWidth : (firstEvent.captureWidth ?? firstEvent.screenWidth);
+    const captureHeight = useCache ? cache!.captureHeight : (firstEvent.captureHeight ?? firstEvent.screenHeight);
+
+    if (!useCache) {
+      cursorEventsCacheRef.current.set(activeRecording.id, {
+        rawMouseEvents,
+        rawClickEvents,
+        mouseEvents: normalizedMouseEvents,
+        clickEvents: normalizedClickEvents,
+        captureWidth: captureWidth ?? 0,
+        captureHeight: captureHeight ?? 0,
+      });
+    }
+
+    if (!captureWidth || !captureHeight) return null;
+    const sourceTimeMs = PlayheadService.calculateSourceTime(activeClip, timeMs);
+    const isImageWithSyntheticEvents = activeRecording.sourceType === 'image' && Boolean(activeRecording.syntheticMouseEvents?.length);
+    const cursorState = calculateCursorState(
+      cursorData,
+      normalizedMouseEvents,
+      normalizedClickEvents,
+      sourceTimeMs,
+      timelineMetadata.fps,
+      isImageWithSyntheticEvents
+    );
+    if (!cursorState.visible || cursorState.opacity <= 0) return null;
+
+    const normalizedX = cursorState.x / captureWidth;
+    const normalizedY = cursorState.y / captureHeight;
+    const tipX = normalizedX * rect.width;
+    const tipY = normalizedY * rect.height;
+    const dimensions = CURSOR_DIMENSIONS[cursorState.type];
+    const hotspot = CURSOR_HOTSPOTS[cursorState.type];
+    const displayScale = rect.width / 1920;
+    const width = dimensions.width * cursorState.scale * displayScale;
+    const height = dimensions.height * cursorState.scale * displayScale;
+    const left = tipX - hotspot.x * width;
+    const top = tipY - hotspot.y * height;
+
+    return {
+      left,
+      top,
+      width,
+      height,
+      tipX,
+      tipY,
+      src: getCursorImagePath(cursorState.type),
+    };
+  }, [project, timelineMetadata, canSelectCursor, projectEffects]);
+
+  const setHoverState = useCallback((
+    nextLayer: PreviewHoverLayer,
+    nextCursor: CursorOverlay | null,
+    nextWebcam: { x: number; y: number; width: number; height: number } | null
+  ) => {
+    setHoveredLayer((prev) => prev === nextLayer ? prev : nextLayer);
+    setCursorOverlay((prev) => {
+      if (!prev && !nextCursor) return prev;
+      if (
+        prev && nextCursor &&
+        Math.abs(prev.left - nextCursor.left) < 0.5 &&
+        Math.abs(prev.top - nextCursor.top) < 0.5 &&
+        Math.abs(prev.width - nextCursor.width) < 0.5 &&
+        Math.abs(prev.height - nextCursor.height) < 0.5
+      ) {
+        return prev;
+      }
+      return nextCursor;
+    });
+    setWebcamOverlay((prev) => {
+      if (!prev && !nextWebcam) return prev;
+      if (
+        prev && nextWebcam &&
+        Math.abs(prev.x - nextWebcam.x) < 0.5 &&
+        Math.abs(prev.y - nextWebcam.y) < 0.5 &&
+        Math.abs(prev.width - nextWebcam.width) < 0.5 &&
+        Math.abs(prev.height - nextWebcam.height) < 0.5
+      ) {
+        return prev;
+      }
+      return nextWebcam;
+    });
+  }, []);
+
+  const handlePreviewHover = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!aspectContainerRef.current) return;
+    if (!canSelectBackground && !canSelectCursor && !canSelectWebcam) return;
+    const rect = aspectContainerRef.current.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    if (localX < 0 || localY < 0 || localX > rect.width || localY > rect.height) {
+      setHoverState(null, null, null);
+      return;
+    }
+
+    let nextLayer: PreviewHoverLayer = null;
+    let nextCursor: CursorOverlay | null = null;
+    let nextWebcam: { x: number; y: number; width: number; height: number } | null = null;
+
+    if (canSelectWebcam) {
+      const webcamRect = resolveWebcamOverlay(rect);
+      if (webcamRect) {
+        const withinWebcam = localX >= webcamRect.x &&
+          localY >= webcamRect.y &&
+          localX <= webcamRect.x + webcamRect.width &&
+          localY <= webcamRect.y + webcamRect.height;
+        if (withinWebcam) {
+          nextLayer = 'webcam';
+          nextWebcam = webcamRect;
+        }
+      }
+    }
+
+    if (!nextLayer && canSelectCursor) {
+      const cursorPos = resolveCursorOverlay(rect);
+      if (cursorPos) {
+        const hitboxPaddingX = 4;
+        const hitboxPaddingY = 4;
+        const hitboxLeft = cursorPos.left - hitboxPaddingX;
+        const hitboxRight = cursorPos.left + cursorPos.width + hitboxPaddingX;
+        const hitboxTop = cursorPos.top - hitboxPaddingY;
+        const hitboxBottom = cursorPos.top + cursorPos.height + hitboxPaddingY;
+        const withinHitbox = localX >= hitboxLeft &&
+          localX <= hitboxRight &&
+          localY >= hitboxTop &&
+          localY <= hitboxBottom;
+        if (withinHitbox) {
+          nextLayer = 'cursor';
+          nextCursor = cursorPos;
+        }
+      }
+    }
+
+    if (!nextLayer && canSelectBackground) {
+      nextLayer = 'background';
+    }
+
+    setHoverState(nextLayer, nextCursor, nextWebcam);
+  }, [
+    canSelectBackground,
+    canSelectCursor,
+    canSelectWebcam,
+    resolveWebcamOverlay,
+    resolveCursorOverlay,
+    setHoverState
+  ]);
+
+  const handlePreviewLeave = useCallback(() => {
+    setHoverState(null, null, null);
+  }, [setHoverState]);
 
   // Build partial player configuration props
   const playerConfig = usePlayerConfiguration(
@@ -281,6 +576,26 @@ export function PreviewAreaRemotion({
       console.warn('Failed to seek:', e);
     }
   }, []);
+
+  // Hover preview sync: seek to hover position without mutating currentTime.
+  useEffect(() => {
+    if (!playerRef.current || !timelineMetadata) return;
+
+    let prevHoverTime = useProjectStore.getState().hoverTime;
+    const unsubscribe = useProjectStore.subscribe((state) => {
+      if (state.isPlaying || state.isScrubbing || isExporting) return;
+
+      const nextHoverTime = state.hoverTime;
+      if (nextHoverTime === prevHoverTime) return;
+      prevHoverTime = nextHoverTime;
+
+      const targetTime = nextHoverTime ?? state.currentTime;
+      const targetFrame = clampFrame(timeToFrame(targetTime));
+      throttledSeek(targetFrame);
+    });
+
+    return () => unsubscribe();
+  }, [timelineMetadata, throttledSeek, isExporting]);
 
   // SSOT: frameupdate event listener - the TRUE source of truth sync
   // Remotion Player fires this on EVERY frame change (playback and seeking)
@@ -530,8 +845,14 @@ export function PreviewAreaRemotion({
   // Player key for re-render on clip changes
   const playerKey = useMemo(() => {
     const clips = project?.timeline.tracks.flatMap(t => t.clips) || [];
-    return clips.map(c => `${c.id}:${c.startTime}:${c.duration}:${c.sourceIn}:${c.sourceOut}`).join('|');
-  }, [project?.timeline.tracks]);
+    const clipsKey = clips.map(c => `${c.id}:${c.startTime}:${c.duration}:${c.sourceIn}:${c.sourceOut}`).join('|');
+    return `${clipsKey}-${timelineMutationCounter ?? 0}`;
+  }, [project?.timeline.tracks, timelineMutationCounter]);
+
+  // Reset playback state ref when the Remotion Player remounts
+  useEffect(() => {
+    lastIsPlayingRef.current = false;
+  }, [playerKey]);
 
   // Show loading state if no data
   if (!timelineMetadata || !playerConfig) {
@@ -549,9 +870,8 @@ export function PreviewAreaRemotion({
 
   // Memoize inputProps using the new structure for TimelineComposition
   const mainPlayerInputProps = useMemo(() => {
-    return {
-      ...playerConfig,
-      // Group: PlaybackSettings
+    if (!playerConfig) return null;
+    return buildTimelineCompositionInput(playerConfig, {
       playback: {
         isPlaying,
         isScrubbing,
@@ -559,33 +879,19 @@ export function PreviewAreaRemotion({
         previewMuted: muted,
         previewVolume: Math.min(volume / 100, 1),
       },
-      // Group: RenderSettings
       renderSettings: {
         isGlowMode: false,
-        preferOffthreadVideo: false, // Preview uses <img>/native video not offthread canvas usually? Or maybe true/false depends. VideoClipRenderer uses it.
-        // Actually for preview we usually want low overhead.
-        enhanceAudio: playerConfig.enhanceAudio, // enhanceAudio is in playerConfig? Yes.
+        preferOffthreadVideo: false,
         isEditingCrop: Boolean(isEditingCrop),
       },
-      // Group: CropSettings
       cropSettings: {
-        cropData,
+        cropData: cropData ?? null,
         onCropChange,
         onCropConfirm,
         onCropReset,
       },
-      zoomSettings: zoomSettings ?? { isEditing: false, zoomData: null },
-      // Group: VideoResources
-      resources: {
-        // In preview we might rely on blobs or fallback.
-        // videoUrls map is not explicitly available here, but useVideoUrl handles 'undefined' gracefully by checking storage.
-        // If we want to be explicit we could pass an empty object or rely on useVideoUrl internal logic.
-        videoUrls: undefined,
-        videoUrlsHighRes: undefined,
-        videoFilePaths: undefined,
-        metadataUrls: undefined,
-      }
-    }
+      zoomSettings,
+    })
   }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, zoomSettings, isHighQualityPlaybackEnabled, isScrubbing, isPlaying, muted, volume]);
 
 
@@ -611,10 +917,13 @@ export function PreviewAreaRemotion({
               <div className="rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.14)] h-full w-full">
                 <div
                   ref={aspectContainerRef}
-                  className="relative w-full h-full"
+                  className={`relative w-full h-full group/preview${(canSelectBackground || canSelectCursor || canSelectWebcam) ? ' cursor-pointer' : ''}`}
                   style={{
                     aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
                   }}
+                  onClick={handleLayerSelect}
+                  onMouseMove={handlePreviewHover}
+                  onMouseLeave={handlePreviewLeave}
                 >
                   {/* Ambient Glow - Low-res Player behind main player */}
                   {/* Toggle via Utilities > Editing > Ambient Glow */}
@@ -695,6 +1004,66 @@ export function PreviewAreaRemotion({
                       }}
                     />
                   </div>
+                  {canSelectWebcam && isWebcamSelected && (
+                    <WebcamOverlay
+                      effects={projectEffects}
+                      containerWidth={previewFrameBounds.width}
+                      containerHeight={previewFrameBounds.height}
+                      isSelected
+                      onSelect={handleWebcamOverlaySelect}
+                      className="z-30"
+                    />
+                  )}
+                  {hoveredLayer === 'background' && canSelectBackground && (
+                    <div className="pointer-events-none absolute inset-0 z-20 opacity-100 transition-opacity duration-150 ease-out">
+                      <div className="absolute inset-0 rounded-2xl bg-white/5 ring-1 ring-white/15" />
+                      <div className="absolute left-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/80">
+                        Background
+                      </div>
+                    </div>
+                  )}
+                  {hoveredLayer === 'webcam' && webcamOverlay && (
+                    <div className="pointer-events-none absolute inset-0 z-20">
+                      <div
+                        className="absolute rounded-[22px] bg-white/5 ring-1 ring-white/30 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                        style={{
+                          left: `${webcamOverlay.x}px`,
+                          top: `${webcamOverlay.y}px`,
+                          width: `${webcamOverlay.width}px`,
+                          height: `${webcamOverlay.height}px`,
+                        }}
+                      />
+                      <div
+                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/80"
+                        style={{
+                          left: `${Math.max(12, webcamOverlay.x + 8)}px`,
+                          top: `${Math.max(12, webcamOverlay.y + 8)}px`,
+                        }}
+                      >
+                        Webcam
+                      </div>
+                    </div>
+                  )}
+                  {hoveredLayer === 'cursor' && cursorOverlay && (
+                    <div className="pointer-events-none absolute inset-0 z-20">
+                      <div
+                        className="absolute h-11 w-11 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.2)_0%,_rgba(255,255,255,0.1)_38%,_rgba(255,255,255,0.02)_60%,_rgba(255,255,255,0)_70%)]"
+                        style={{
+                          left: `${cursorOverlay.left + cursorOverlay.width * 0.5}px`,
+                          top: `${cursorOverlay.top + cursorOverlay.height * 0.45}px`,
+                        }}
+                      />
+                      <div
+                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/80"
+                        style={{
+                          left: `${Math.max(12, cursorOverlay.left + cursorOverlay.width * 0.65)}px`,
+                          top: `${Math.max(12, cursorOverlay.top - 22)}px`,
+                        }}
+                      >
+                        Cursor
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

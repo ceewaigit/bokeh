@@ -6,6 +6,7 @@ import { TimelineComposition } from '@/remotion/compositions/TimelineComposition
 import { useTheme } from '@/contexts/theme-context';
 import { useProjectStore } from '@/stores/project-store';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
+import { buildTimelineCompositionInput } from '@/remotion/utils/composition-input';
 import type { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
 import type { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
 
@@ -167,39 +168,26 @@ export function AmbientGlowPlayer({
 
 
     // Prepare input props
-    const glowPlayerInputProps = React.useMemo(() => ({
-        ...playerConfig,
-        playback: {
-            isPlaying,
-            isScrubbing,
-            isHighQualityPlaybackEnabled: false,
+    const glowPlayerInputProps = React.useMemo(() => {
+        if (!playerConfig) return null;
+        return buildTimelineCompositionInput(playerConfig, {
+            playback: {
+                isPlaying,
+                isScrubbing,
+                isHighQualityPlaybackEnabled: false,
+                previewMuted: true,
+                previewVolume: 0,
+            },
+            renderSettings: {
+                isGlowMode: true,
+                preferOffthreadVideo: false,
+                isEditingCrop: false,
+                enhanceAudio: false,
+            },
+        });
+    }, [playerConfig, isPlaying, isScrubbing]);
 
-            previewMuted: true,
-            previewVolume: 0,
-        },
-        renderSettings: {
-            isGlowMode: true,
-            preferOffthreadVideo: false,
-            enhanceAudio: false,
-            isEditingCrop: false, // No crop overlay in glow
-        },
-        cropSettings: {
-            // No crop interaction in glow
-        },
-        zoomSettings: {
-            isEditing: false,
-            zoomData: null,
-        },
-        resources: {
-            videoUrls: undefined,
-
-            videoUrlsHighRes: undefined,
-            videoFilePaths: undefined,
-            metadataUrls: undefined,
-        }
-    }), [playerConfig, isPlaying, isScrubbing]);
-
-    if (!timelineMetadata) return null;
+    if (!timelineMetadata || !glowPlayerInputProps) return null;
 
     return (
         <div

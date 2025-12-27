@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { Camera, CameraOff, RefreshCw } from 'lucide-react'
+import { CameraOff, RefreshCw } from 'lucide-react'
 import { useDeviceStore } from '@/stores/device-store'
 
 interface CameraPreviewProps {

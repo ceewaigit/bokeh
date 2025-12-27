@@ -3,6 +3,7 @@ import { EffectType } from '@/types/project'
 import type { ActiveClipDataAtFrame } from '@/types'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import { findActiveFrameLayoutIndex } from '@/lib/timeline/frame-layout'
+import { clipRelativeToSource } from '@/lib/timeline/time-space-converter'
 
 // Cache timeline-space effect overlap per (effects array ref, frameLayout array ref, clip.id).
 // This dramatically reduces per-frame allocations during playback and during camera path precompute.
@@ -101,7 +102,7 @@ export function resolveClipDataForLayoutItem(args: {
   const clipElapsedMs = isLastFrame
     ? Math.max(0, clip.duration - frameDurationMs)
     : (clipElapsedFrames / fps) * 1000
-  const sourceTimeMs = (clip.sourceIn || 0) + clipElapsedMs * (clip.playbackRate || 1)
+  const sourceTimeMs = clipRelativeToSource(clipElapsedMs, clip)
 
   const timelineEffects = getTimelineEffectsForClip({ effects, frameLayout, clip })
 
@@ -111,7 +112,9 @@ export function resolveClipDataForLayoutItem(args: {
 
   // Return stable array reference if contents match previous call (Last-Value Caching)
   // This is critical for keeping usePrecomputedCameraPath from re-running heavy physics
-  const cacheKey = `${clip.id}-${layoutItem.startFrame}`;
+  // Use clip.startTime (clip property) instead of layoutItem.startFrame (layout-derived)
+  // to ensure stable cache keys after clip deletion/reorder operations
+  const cacheKey = `${clip.id}-${clip.startTime}`;
   const prev = activeEffectsCache.get(cacheKey);
 
   // Check if IDs and enabled states match exactly
@@ -132,6 +135,14 @@ export function resolveClipDataForLayoutItem(args: {
 
 // Global cache for effect stability checks (Module-scoped)
 const activeEffectsCache = new Map<string, Effect[]>();
+
+/**
+ * Clear the active effects cache.
+ * Called by invalidateCaches() when clips/effects change.
+ */
+export function clearActiveEffectsCache(): void {
+  activeEffectsCache.clear();
+}
 
 function areEffectsSemanticallyEqual(prev: Effect[], next: Effect[]): boolean {
   if (prev.length !== next.length) return false;

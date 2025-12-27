@@ -401,7 +401,6 @@ export function showRecordingOverlay(
   recordingOverlayWindow.setIgnoreMouseEvents(true)
   recordingOverlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   recordingOverlayWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
-  recordingOverlayWindow.setContentProtection(true)
 
   const html = `
     <!DOCTYPE html>

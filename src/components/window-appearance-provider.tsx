@@ -2,21 +2,33 @@
 
 import { useEffect, useState } from 'react'
 import { useWindowAppearanceStore, type WindowSurfaceMode } from '@/stores/window-appearance-store'
+import { clamp } from '@/lib/utils'
+
+const normalizeNumber = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback)
+
+const getOpacityFallback = (mode: WindowSurfaceMode) => {
+  if (mode === 'solid') return 1
+  if (mode === 'clear') return 0.75
+  return 0.12
+}
 
 function modeToVars(mode: WindowSurfaceMode, opacity: number, blurPx: number, isDark: boolean) {
+  const safeOpacity = normalizeNumber(opacity, getOpacityFallback(mode))
+  const safeBlur = normalizeNumber(blurPx, 0)
+
   // Solid mode: handled by CSS [data-window-surface="solid"] selector
   if (mode === 'solid') {
     return { opacity: 1, blurPx: 0 }
   }
   // "clear" means bright tint with no blur, but keep translucency visible
-  if (mode === 'clear') return { opacity: Math.min(0.9, Math.max(isDark ? 0.6 : 0.6, opacity)), blurPx: 0 }
+  if (mode === 'clear') return { opacity: clamp(safeOpacity, 0.5, 0.95), blurPx: 0 }
 
   // 'glass' and 'custom'
   // Keep tint light in light mode while avoiding a grey cast.
   const minOpacity = isDark ? 0.1 : 0.08
-  const effectiveOpacity = Math.max(minOpacity, opacity)
+  const effectiveOpacity = Math.max(minOpacity, safeOpacity)
 
-  return { opacity: Math.min(0.95, Math.max(0, effectiveOpacity)), blurPx: Math.max(0, blurPx) }
+  return { opacity: clamp(effectiveOpacity, 0, 0.95), blurPx: Math.max(0, safeBlur) }
 }
 
 export function WindowAppearanceProvider({ children }: { children: React.ReactNode }) {
@@ -79,8 +91,8 @@ export function WindowAppearanceProvider({ children }: { children: React.ReactNo
     // Use 'under-window' for a light, subtle blur - less aggressive than 'sidebar'
     // This allows the CSS backdrop-filter to be the primary blur control
     const desiredVibrancy = (mode === 'glass' || mode === 'custom')
-      ? (isDark ? 'under-window' : 'light')
-      : null
+        ? (isDark ? 'under-window' : 'light')
+        : null
     window.electronAPI?.setWindowVibrancy?.(desiredVibrancy).catch(() => { })
     window.electronAPI?.setWindowHasShadow?.(mode === 'solid').catch(() => { })
   }, [mode, opacity, blurPx, isDark])

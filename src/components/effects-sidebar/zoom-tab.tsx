@@ -141,12 +141,12 @@ export function ZoomTab({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {/* Quick Fill Screen Zoom */}
       {selectedClip && (
-        <div className="p-3 bg-background/40 rounded-lg">
+        <div className="rounded-md bg-background/40 p-2.5">
           <button
-            className="w-full px-4 py-2.5 text-xs rounded-lg transition-all flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary"
+            className="w-full px-3 py-2 text-[11px] rounded-md transition-all flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary"
             onClick={async () => {
               const project = useProjectStore.getState().currentProject
               if (!project) return
@@ -167,6 +167,7 @@ export function ZoomTab({
                 endTime: finalStartTime + blockDuration,
                 enabled: true,
                 data: {
+                  origin: 'manual',
                   scale: 1,
                   introMs: DEFAULT_ZOOM_DATA.introMs,
                   outroMs: DEFAULT_ZOOM_DATA.outroMs,
@@ -181,7 +182,7 @@ export function ZoomTab({
             Add Fill Screen Zoom
           </button>
           <div className="mt-2 flex items-center justify-center gap-2">
-            <p className="text-xs text-muted-foreground/70 italic leading-snug">
+            <p className="text-[11px] text-muted-foreground/70 italic leading-snug">
               Adds a centered zoom region to fill the frame
             </p>
             <InfoTooltip content="Creates a zoom region you can adjust on the timeline" />
@@ -206,19 +207,19 @@ export function ZoomTab({
         return (
           <div
             key={`zoom-block-${selectedEffectLayer.id}`}
-            className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200"
+            className="space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-200"
           >
             {/* Scale Control */}
-            <div className="p-3 bg-background/40 rounded-lg space-y-2">
+            <div className="rounded-md bg-background/40 p-2.5 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <ZoomIn className="w-3 h-3 text-muted-foreground" />
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium leading-none">Zoom Scale</span>
+                    <span className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Zoom Scale</span>
                     <InfoTooltip content="Adjusts how much to zoom in." />
                   </div>
                 </div>
-                <span className="text-[10px] font-mono text-primary tabular-nums">
+                <span className="text-[11px] font-mono text-primary tabular-nums">
                   {isFillScreen ? 'Fill' : `${(localScale ?? zoomData.scale ?? DEFAULT_ZOOM_DATA.scale).toFixed(1)}x`}
                 </span>
               </div>
@@ -238,17 +239,17 @@ export function ZoomTab({
                 className="w-full"
                 disabled={isFillScreen}
               />
-              <div className="flex justify-between text-[10px] text-muted-foreground/70 tabular-nums">
+              <div className="flex justify-between text-[11px] text-muted-foreground/70 tabular-nums">
                 <span>1x</span>
                 <span>7x</span>
               </div>
             </div>
 
             {/* Focus Mode */}
-            <div className="p-3 bg-background/40 rounded-lg space-y-2">
+            <div className="rounded-md bg-background/40 p-2.5 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium leading-none">Focus Mode</span>
+                  <span className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Focus Mode</span>
                   <InfoTooltip content="Choose whether the zoom tracks the cursor, stays centered, or locks to a manual focus." />
                 </div>
               </div>
@@ -334,7 +335,7 @@ export function ZoomTab({
                   Center Lock
                 </button>
               </div>
-              <div className="flex items-center justify-between gap-3 text-[10px] text-muted-foreground/70 leading-snug">
+              <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground/70 leading-snug">
                 <span>
                   {isManualFocus
                     ? 'Manual focus lets you drag the zoom window in the sidebar preview.'
@@ -350,7 +351,7 @@ export function ZoomTab({
             </div>
 
             {isManualFocus && !isFillScreen && (
-              <div className="p-3 rounded-lg border border-border/40 bg-background/30 space-y-3">
+              <div className="rounded-md border border-border/40 bg-background/30 p-2.5 space-y-3">
                 <ZoomTargetPreview
                   zoomData={zoomData}
                   screenWidth={sourceDims?.width ?? zoomData.screenWidth ?? timelineMetadata?.width ?? 1920}
@@ -365,7 +366,7 @@ export function ZoomTab({
                   }}
                 />
                 {!hasManualTarget && (
-                  <div className="text-[10px] text-muted-foreground/70 leading-snug">
+                  <div className="text-[11px] text-muted-foreground/70 leading-snug">
                     Drag inside the preview to set your first focus point.
                   </div>
                 )}
@@ -373,12 +374,12 @@ export function ZoomTab({
             )}
 
             {/* Easing Controls */}
-            <div className="p-4 bg-background/40 rounded-xl space-y-3">
+            <div className="rounded-lg bg-background/40 p-3 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium leading-none">Transition Timing</span>
+                <span className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Transition Timing</span>
                 <InfoTooltip content="Makes the zoom transition smooth" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 {/* Ease In */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -433,7 +434,7 @@ export function ZoomTab({
             {/* Advanced Settings Toggle */}
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
             >
               <span className="flex items-center gap-2">
                 Advanced
@@ -443,10 +444,10 @@ export function ZoomTab({
             </button>
 
             {showAdvanced && !isFillScreen && (
-              <div className="p-4 bg-background/30 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="rounded-md bg-background/30 p-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Dead Zone</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Dead Zone</span>
                     <InfoTooltip content="How far cursor must move before camera follows" />
                   </div>
                   <span className="text-xs font-mono text-muted-foreground tabular-nums">
@@ -468,7 +469,7 @@ export function ZoomTab({
                   step={1}
                   className="w-full"
                 />
-                <p className="text-xs text-muted-foreground/70 leading-snug">Minimum cursor movement to trigger pan</p>
+                <p className="text-[11px] text-muted-foreground/70 leading-snug">Minimum cursor movement to trigger pan</p>
               </div>
             )}
 
@@ -479,13 +480,13 @@ export function ZoomTab({
       })()}
 
       {/* Zoom Effects Toggle */}
-      <div className="p-3 bg-background/40 rounded-lg">
+      <div className="rounded-md bg-background/40 p-2.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <ZoomIn className="w-3.5 h-3.5 text-muted-foreground" />
             <div className="min-w-0">
-              <div className="text-xs font-medium leading-none">Zoom Effects</div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
+              <div className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Zoom Effects</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground leading-snug">
                 Enable automatic zoom detection
               </div>
             </div>

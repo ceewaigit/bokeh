@@ -157,13 +157,14 @@ export const EffectStore = {
 
         let nextEffect: Effect
         if (updates.data && effect.data) {
+            const nextData = { ...effect.data, ...(updates.data as typeof effect.data) }
             nextEffect = {
                 ...effect,
                 ...updates,
-                data: { ...effect.data, ...updates.data }
-            }
+                data: nextData
+            } as Effect
         } else {
-            nextEffect = { ...effect, ...updates }
+            nextEffect = { ...effect, ...updates } as Effect
         }
 
         const nextEffects = effects.slice()

@@ -1,9 +1,10 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
 import type { BackgroundEffectData } from '@/types/project';
 import type { BackgroundLayerProps } from '@/types';
 import { BackgroundType } from '@/types/project';
 import { useClipContext } from '../../context/timeline/ClipContext';
+import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
 import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-interpolation';
 import { ParallaxBackgroundLayer } from './ParallaxBackgroundLayer';
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects';
@@ -46,13 +47,8 @@ StaticBackgroundLayer.displayName = 'StaticBackgroundLayer';
 const ParallaxBackgroundWrapper: React.FC<{
   backgroundData: BackgroundEffectData;
 }> = ({ backgroundData }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const { cursorEvents, clip } = useClipContext();
-
-  // Calculate current source time for mouse interpolation
-  const frameTimeMs = (frame / fps) * 1000;
-  const sourceTimeMs = (clip.sourceIn ?? 0) + frameTimeMs;
+  const { cursorEvents } = useClipContext();
+  const sourceTimeMs = useSourceTime();
 
   // Get normalized mouse position (0-1)
   const mousePos = interpolateMousePositionNormalized(cursorEvents, sourceTimeMs);

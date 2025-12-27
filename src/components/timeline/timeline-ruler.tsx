@@ -166,7 +166,7 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
         <Text
           key={`label-${time}`}
           x={x + 4}
-          y={8}
+          y={5}
           text={formatTime(time, true)}
           fontSize={9}
           fill={colors.mutedForeground}

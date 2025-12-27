@@ -216,13 +216,23 @@ export class PasteCommand extends Command<PasteResult> {
     }
 
     // Create block in TIMELINE space (not source space)
-    const newBlock: ZoomBlock = {
-      ...zoomData,
-      id: `zoom-timeline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      startTime: finalStartTime,  // Timeline position
-      endTime: finalStartTime + blockDuration,  // Timeline position
-      scale: zoomData.scale || 2
-    }
+    const newBlock: ZoomBlock = zoomData.origin === 'auto'
+      ? {
+        ...zoomData,
+        origin: 'auto',
+        id: `zoom-timeline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        startTime: finalStartTime,  // Timeline position
+        endTime: finalStartTime + blockDuration,  // Timeline position
+        scale: zoomData.scale || 2
+      }
+      : {
+        ...zoomData,
+        origin: 'manual',
+        id: `zoom-timeline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        startTime: finalStartTime,  // Timeline position
+        endTime: finalStartTime + blockDuration,  // Timeline position
+        scale: zoomData.scale || 2
+      }
 
     this.pastedCommand = new AddZoomBlockCommand(this.context, newBlock)
     const result = await this.pastedCommand.execute()

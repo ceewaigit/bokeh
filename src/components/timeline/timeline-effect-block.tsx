@@ -36,6 +36,7 @@ interface TimelineEffectBlockProps {
   // Events
   onSelect: () => void
   onUpdate: (updates: { startTime: number; endTime: number }) => void
+  onHover?: () => void
 }
 
 export const TimelineEffectBlock = React.memo(({
@@ -57,8 +58,13 @@ export const TimelineEffectBlock = React.memo(({
   blockId,
   pixelsPerMs,
   onSelect,
-  onUpdate
+  onUpdate,
+  onHover
 }: TimelineEffectBlockProps) => {
+  // Prevent rendering if collapsed/invalid height to avoid invalid shape errors
+
+  const EFFECT_TRACK_ANIMATION_DURATION = 0.45
+
   const colors = useTimelineColors()
   const isDarkMode = colors.isDark
   const [isDragging, setIsDragging] = useState(false)
@@ -68,6 +74,7 @@ export const TimelineEffectBlock = React.memo(({
   const groupRef = useRef<Konva.Group>(null)
   const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
+  const hasMountedRef = useRef(false)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // PERFORMANCE: Store tween ref to cancel before creating new one
   const hoverTweenRef = useRef<Konva.Tween | null>(null)
@@ -130,6 +137,7 @@ export const TimelineEffectBlock = React.memo(({
       hoverTimeoutRef.current = null
     }
     setIsHovering(true)
+    onHover?.()
   }
 
   const handleMouseLeave = () => {
@@ -142,6 +150,26 @@ export const TimelineEffectBlock = React.memo(({
   useEffect(() => {
     setCurrentWidth(width)
   }, [width])
+
+  useEffect(() => {
+    const node = groupRef.current
+    if (!node) return
+    if (!hasMountedRef.current) {
+      node.y(y)
+      hasMountedRef.current = true
+      return
+    }
+    if (isDragging || isTransforming) {
+      node.y(y)
+      return
+    }
+    if (Math.abs(node.y() - y) < 0.5) return
+    node.to({
+      y,
+      duration: EFFECT_TRACK_ANIMATION_DURATION,
+      easing: Konva.Easings.EaseOut
+    })
+  }, [y, isDragging, isTransforming])
 
   // Attach transformer when selected OR hovering for immediate resize access
   useEffect(() => {
@@ -262,6 +290,8 @@ export const TimelineEffectBlock = React.memo(({
 
   const curvePoints = generateZoomCurve()
 
+  if (height < 4) return null
+
   return (
     <>
       <Group
@@ -329,117 +359,117 @@ export const TimelineEffectBlock = React.memo(({
         onMouseLeave={handleMouseLeave}
         listening={true}
       >
-        {/* Main block */}
-        <Rect
-          ref={rectRef}
-          x={0}
-          y={0}
-          width={currentWidth}
-          height={height}
-          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: 0, y: height }}
-          fillLinearGradientColorStops={[
-            0, withAlpha(blockFill, 0.7),
-            1, withAlpha(blockFill, 1)
-          ]}
-          stroke={withAlpha(baseStroke, isSelected ? 0.8 : 0.4)}
-          strokeWidth={isSelected ? 1.5 : 1}
-          cornerRadius={6}
-          opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
-          shadowColor="black"
-          shadowBlur={isSelected ? 12 : 2}
-          shadowOpacity={isSelected ? 0.15 : 0.05}
-          shadowOffsetY={1}
-          listening={true}
-        />
-
-        {/* Subtle glassmorphism overlay on select */}
-        {isSelected && (
-          <>
-            {/* Subtle top highlight */}
-            <Rect
-              x={1}
-              y={1}
-              width={currentWidth - 2}
-              height={(height - 2) / 2}
-              fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-              fillLinearGradientEndPoint={{ x: 0, y: (height - 2) / 2 }}
-              fillLinearGradientColorStops={[
-                0,
-                withAlpha(colors.foreground, 0.08),
-                1,
-                withAlpha(colors.foreground, 0)
-              ]}
-              cornerRadius={[5, 5, 0, 0]}
-              listening={false}
-            />
-          </>
-        )}
-
-        {/* Resize handles - pill dots like reference */}
-        {(isHovering || isSelected) && (
-          <>
-            <Rect
-              x={-handleWidth / 2}
-              y={height / 2 - handleHeight / 2}
-              width={handleWidth}
-              height={handleHeight}
-              fill={handleFill}
-              cornerRadius={2}
-              listening={false}
-              shadowColor="black"
-              shadowBlur={2}
-              shadowOpacity={0.1}
-            />
-            <Rect
-              x={currentWidth - handleWidth / 2}
-              y={height / 2 - handleHeight / 2}
-              width={handleWidth}
-              height={handleHeight}
-              fill={handleFill}
-              cornerRadius={2}
-              listening={false}
-              shadowColor="black"
-              shadowBlur={2}
-              shadowOpacity={0.1}
-            />
-          </>
-        )}
-
-        {/* Only show curve in non-compact mode */}
-        {!isCompact && curvePoints.length > 0 && (
-          <>
-            <Line
-              points={curvePoints}
-              stroke={curveStroke}
-              strokeWidth={1.5}
-              lineCap="round"
-              lineJoin="round"
-              listening={false}
-            />
-          </>
-        )}
-
-        {/* Label - centered in compact mode, top-left otherwise */}
-        {(label && currentWidth > 32) && (
-          <Text
-            x={isCompact ? 0 : 8}
-            y={isCompact ? height / 2 - 5 : 6}
-            width={isCompact ? currentWidth : currentWidth - 16}
-            text={label}
-            fontSize={isCompact ? 10 : 11}
-            fill={labelFill}
-            fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text'"
-            fontStyle="600"
-            align={isCompact ? "center" : "left"}
-            wrap="none"
-            listening={false}
-            shadowColor={labelShadowColor}
-            shadowBlur={4}
-            shadowOpacity={0.9}
+          {/* Main block */}
+          <Rect
+            ref={rectRef}
+            x={0}
+            y={0}
+            width={currentWidth}
+            height={height}
+            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+            fillLinearGradientEndPoint={{ x: 0, y: height }}
+            fillLinearGradientColorStops={[
+              0, withAlpha(blockFill, 0.7),
+              1, withAlpha(blockFill, 1)
+            ]}
+            stroke={withAlpha(baseStroke, isSelected ? 0.8 : 0.4)}
+            strokeWidth={isSelected ? 1.5 : 1}
+            cornerRadius={6}
+            opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
+            shadowColor="black"
+            shadowBlur={isSelected ? 12 : 2}
+            shadowOpacity={isSelected ? 0.15 : 0.05}
             shadowOffsetY={1}
+            listening={true}
           />
-        )}
+
+          {/* Subtle glassmorphism overlay on select */}
+          {isSelected && (
+            <>
+              {/* Subtle top highlight */}
+              <Rect
+                x={1}
+                y={1}
+                width={currentWidth - 2}
+                height={(height - 2) / 2}
+                fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+                fillLinearGradientEndPoint={{ x: 0, y: (height - 2) / 2 }}
+                fillLinearGradientColorStops={[
+                  0,
+                  withAlpha(colors.foreground, 0.08),
+                  1,
+                  withAlpha(colors.foreground, 0)
+                ]}
+                cornerRadius={[5, 5, 0, 0]}
+                listening={false}
+              />
+            </>
+          )}
+
+          {/* Resize handles - pill dots like reference */}
+          {(isHovering || isSelected) && (
+            <>
+              <Rect
+                x={-handleWidth / 2}
+                y={height / 2 - handleHeight / 2}
+                width={handleWidth}
+                height={handleHeight}
+                fill={handleFill}
+                cornerRadius={2}
+                listening={false}
+                shadowColor="black"
+                shadowBlur={2}
+                shadowOpacity={0.1}
+              />
+              <Rect
+                x={currentWidth - handleWidth / 2}
+                y={height / 2 - handleHeight / 2}
+                width={handleWidth}
+                height={handleHeight}
+                fill={handleFill}
+                cornerRadius={2}
+                listening={false}
+                shadowColor="black"
+                shadowBlur={2}
+                shadowOpacity={0.1}
+              />
+            </>
+          )}
+
+          {/* Only show curve in non-compact mode */}
+          {!isCompact && curvePoints.length > 0 && (
+            <>
+              <Line
+                points={curvePoints}
+                stroke={curveStroke}
+                strokeWidth={1.5}
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+            </>
+          )}
+
+          {/* Label - centered in compact mode, top-left otherwise */}
+          {(label && currentWidth > 32) && (
+            <Text
+              x={isCompact ? 0 : 8}
+              y={isCompact ? height / 2 - 5 : 6}
+              width={isCompact ? currentWidth : currentWidth - 16}
+              text={label}
+              fontSize={isCompact ? 10 : 11}
+              fill={labelFill}
+              fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text'"
+              fontStyle="600"
+              align={isCompact ? "center" : "left"}
+              wrap="none"
+              listening={false}
+              shadowColor={labelShadowColor}
+              shadowBlur={4}
+              shadowOpacity={0.9}
+              shadowOffsetY={1}
+            />
+          )}
       </Group>
 
       {/* Transformer always rendered - attachment controlled by useEffect based on hover/selection */}

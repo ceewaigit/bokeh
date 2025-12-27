@@ -6,6 +6,8 @@ import { TrimCommand } from '@/lib/commands/timeline/TrimCommand'
 import { SplitClipCommand } from '@/lib/commands/timeline/SplitClipCommand'
 import { findClipById, executeTrimClipEnd, updateClipInTrack, removeClipFromTrack, restoreClipToTrack, addClipToTrack, duplicateClipInTrack, executeSplitClip } from '@/lib/timeline/timeline-operations'
 import { TrackType, type Project, type Clip } from '@/types/project'
+import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
+import { DEFAULT_STORE_SETTINGS } from '@/lib/settings/defaults'
 import type { ProjectStore } from '@/types/stores'
 
 function createProjectWithAudioClip(): Project {
@@ -30,6 +32,7 @@ function createProjectWithAudioClip(): Project {
     recordings: [
       {
         id: 'rec-1',
+        sourceType: 'video',
         filePath: '/tmp/rec.mp4',
         duration: 1000,
         width: 1920,
@@ -46,7 +49,7 @@ function createProjectWithAudioClip(): Project {
       ],
       effects: []
     },
-    settings: {} as any,
+    settings: normalizeProjectSettings(),
     exportPresets: []
   }
 }
@@ -120,12 +123,7 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore }
     cacheTypingPeriods: () => { },
     cacheIdlePeriods: () => { },
     restoreClipsFromUndo: () => { },
-    settings: {
-      showTypingSuggestions: true,
-      audio: { volume: 100, muted: false, fadeInDuration: 0.5, fadeOutDuration: 0.5 },
-      editing: { snapToGrid: true, showWaveforms: false, autoRipple: true },
-      playback: { previewSpeed: 1 }
-    }
+    settings: { ...DEFAULT_STORE_SETTINGS }
   }
 
   return { getState: () => state }

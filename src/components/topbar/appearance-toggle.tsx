@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { Sun, Moon, Monitor, ChevronDown, ChevronRight, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -25,9 +25,9 @@ const GLASS_PRESETS = {
 } as const
 
 const CLEAR_PRESETS = {
-    light: { opacity: 0.60, blurPx: 0 },
-    medium: { opacity: 0.75, blurPx: 0 },
-    strong: { opacity: 0.88, blurPx: 0 },
+    light: { opacity: 0.52, blurPx: 0 },
+    medium: { opacity: 0.72, blurPx: 0 },
+    strong: { opacity: 0.92, blurPx: 0 },
 } as const
 
 interface AppearanceToggleProps {
@@ -68,20 +68,19 @@ export function AppearanceToggle({
     }
 
     // Opacity controls - allow full range for glass/custom
-    const opacityMin = mode === "glass" || mode === "custom" ? 0 : 40
-    const opacityMax = mode === "glass" || mode === "custom" ? 90 : 90
+    const opacityMin = mode === "glass" || mode === "custom" || mode === "clear" ? 0 : 40
+    const opacityMax = mode === "glass" || mode === "custom" || mode === "clear" ? 90 : 90
     const opacityPct = Math.round(opacity * 100)
 
     const blurMin = 0
     const blurMax = 30 // Reduced max since we want subtle blur
 
     // Cycle through themes on button click
-    const cycleTheme = (e: React.MouseEvent) => {
+    const cycleTheme = useCallback((e: React.MouseEvent) => {
         e.stopPropagation()
-        if (theme === "light") setTheme("dark")
-        else if (theme === "dark") setTheme("system")
-        else setTheme("light")
-    }
+        const nextTheme = theme === "light" ? "dark" : theme === "dark" ? "system" : "light"
+        setTheme(nextTheme)
+    }, [setTheme, theme])
 
     const ThemeIcon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor
 
@@ -135,7 +134,7 @@ export function AppearanceToggle({
                             <DropdownMenuSeparator />
                             <div className="px-2 py-2">
                                 <div className="text-[11px] text-muted-foreground mb-2">
-                                    {isGlass ? "Glass" : "Clear"} Presets
+                                    {isGlass ? "Frosted" : "Glass"} Presets
                                 </div>
                                 <div className="grid grid-cols-3 gap-1">
                                     <Button

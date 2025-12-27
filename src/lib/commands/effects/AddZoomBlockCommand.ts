@@ -51,6 +51,7 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
       startTime: this.block.startTime,  // TIMELINE time
       endTime: this.block.endTime,      // TIMELINE time
       data: {
+        origin: this.block.origin,
         scale: this.block.scale,
         targetX: this.block.targetX,
         targetY: this.block.targetY,

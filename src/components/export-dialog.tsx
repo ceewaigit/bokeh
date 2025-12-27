@@ -62,7 +62,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const progress = useProjectStore((s) => s.progress)
 
   // Get canvas settings and source resolution
-  const canvasSettings = currentProject?.settings?.canvas
+  const canvasSettings = currentProject?.settings.canvas
 
   // Get source resolution from recordings (max dims across recordings)
   const recordingResolution = useMemo(() => {
@@ -181,11 +181,11 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     return options
   }, [sourceResolution])
 
-  // Default to native resolution
-  const [resolution, setResolution] = useState<Resolution>('native')
+  // Default to 1080p when available; fallback handled by option validation.
+  const [resolution, setResolution] = useState<Resolution>('1080p')
 
   // Local state for frame rate/format controls (syncs to ProjectStore)
-  const [frameRate, setFrameRate] = useState<FrameRate>(60)
+  const [frameRate, setFrameRate] = useState<FrameRate>(30)
   const [format, setFormat] = useState<Format>('mp4')
 
   const setProjectResolution = useProjectStore((s) => s.setResolution)

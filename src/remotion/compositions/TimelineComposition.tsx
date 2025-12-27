@@ -14,7 +14,8 @@
 
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
-import type { Recording } from '@/types/project';
+import type { Recording, Effect } from '@/types/project';
+import { EffectType } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
 import { TimeProvider } from '../context/timeline/TimeContext';
 import { PlaybackSettingsProvider } from '../context/playback/PlaybackSettingsContext';
@@ -25,8 +26,10 @@ import { findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
 import { CursorLayer } from './layers/CursorLayer';
 import { PluginLayer } from './layers/PluginLayer';
 import { CropEditingLayer } from './layers/CropEditingLayer';
+import { WebcamLayer } from './layers/WebcamLayer';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { VideoDataProvider, useVideoData } from '../context/video-data-context';
+import { useVideoUrl } from '../hooks/media/useVideoUrl';
 
 /**
  * Get audio URL for a recording
@@ -71,12 +74,49 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   renderSettings,
   cropSettings,
   audioClips = [],
+  webcamClips = [],
   fps,
   sourceVideoWidth,
   sourceVideoHeight,
 }) => {
   const frame = useCurrentFrame();
   const { frameLayout, getActiveLayoutItems, getRecording } = useVideoData(); // Remove fps from here
+  const currentTimeMs = (frame / fps) * 1000;
+
+  // Find active webcam EFFECT by time (effect timing is the single source of truth)
+  const activeWebcamEffect = React.useMemo(() => {
+    return effects.find((e): e is Effect & { type: typeof EffectType.Webcam } =>
+      e.type === EffectType.Webcam &&
+      e.enabled !== false &&
+      currentTimeMs >= e.startTime &&
+      currentTimeMs < e.endTime
+    ) ?? null;
+  }, [effects, currentTimeMs]);
+
+  // Get webcam clip for recordingId only (not for timing)
+  const activeWebcamClip = React.useMemo(() => {
+    if (!activeWebcamEffect || !webcamClips.length) {
+      return null;
+    }
+    // Warn if multiple webcam clips - helps identify unexpected state
+    if (webcamClips.length > 1) {
+      console.warn(`[TimelineComposition] Multiple webcam clips found (${webcamClips.length}), using first one`);
+    }
+    return webcamClips[0];
+  }, [activeWebcamEffect, webcamClips]);
+
+  const activeWebcamRecording = activeWebcamClip
+    ? getRecording(activeWebcamClip.recordingId)
+    : undefined;
+  const webcamVideoUrl = useVideoUrl({
+    recording: activeWebcamRecording,
+    resources,
+    clipId: activeWebcamClip?.id,
+    targetWidth: videoWidth,
+    targetHeight: videoHeight,
+    isHighQualityPlaybackEnabled: playback.isHighQualityPlaybackEnabled,
+  });
+
 
   // STABILITY: Track previous visible items to prevent unnecessary remounts
   const prevVisibleIdsRef = React.useRef<string>('');
@@ -186,6 +226,14 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
             />
           );
         })}
+
+        <WebcamLayer
+          effects={effects}
+          webcamEffect={activeWebcamEffect ?? undefined}
+          webcamVideoUrl={webcamVideoUrl}
+          webcamClip={activeWebcamClip ?? undefined}
+          webcamRecording={activeWebcamRecording ?? undefined}
+        />
 
         {/* Glue player is an ambient blur; skip extra overlays to keep preview smooth. */}
         {!renderSettings.isGlowMode && (

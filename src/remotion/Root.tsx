@@ -40,6 +40,7 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           clips: [],
           audioClips: [],
+          webcamClips: [],
           recordings: [],
           effects: [],
           videoWidth: 1920,

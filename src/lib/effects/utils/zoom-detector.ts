@@ -474,6 +474,7 @@ export class ZoomDetector {
 
     return {
       id: `zoom-action-${cluster.startTime}`,
+      origin: 'auto',
       startTime,
       endTime,
       scale: Math.round(scale * 10) / 10,
@@ -617,6 +618,7 @@ export class ZoomDetector {
       if (effectiveDuration > this.MIN_ZOOM_DURATION) {
         zoomBlocks.push({
           id: `zoom-cluster-${cluster.startTime}`,
+          origin: 'auto',
           startTime: cluster.startTime,
           endTime: cluster.startTime + effectiveDuration,
           introMs: 400,

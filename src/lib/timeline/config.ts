@@ -3,7 +3,7 @@
  */
 export const TimelineConfig = {
   // Layout dimensions
-  RULER_HEIGHT: 32,
+  RULER_HEIGHT: 24,
   SPEED_UP_BAR_SPACE: 32, // Extra space for speed-up suggestion bars (32 for single row, expand to 56 for both)
   TRACK_LABEL_WIDTH: 42,
   TRACK_PADDING: 4,

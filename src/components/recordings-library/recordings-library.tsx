@@ -38,7 +38,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     canNext,
     pendingDelete,
     setPendingDelete,
-    handleDeleteRecording
+    handleDeleteRecording,
+    searchQuery,
+    setSearchQuery,
+    sortKey,
+    sortDirection,
+    setSort
   } = useRecordingsLibraryData(PAGE_SIZE)
 
   const {
@@ -83,6 +88,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           onRefresh={() => loadRecordings(true)}
           onNewRecording={handleNewRecording}
           onOpenSettings={() => setSettingsOpen(true)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSortChange={setSort}
         />
 
         <div className="p-6">

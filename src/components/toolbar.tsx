@@ -131,7 +131,7 @@ export function Toolbar({
                   const result = await window.electronAPI.showOpenDialog({
                     properties: ['openFile'],
                     filters: [
-                      { name: 'Bokeh Projects', action: 'projects' },
+                      { name: 'Bokeh Projects', extensions: ['bokeh'] },
                       { name: 'All Files', extensions: ['*'] }
                     ]
                   })
@@ -248,7 +248,7 @@ export function Toolbar({
           variant="default"
           disabled={!project || !hasVideoClips}
           onClick={onExport}
-          className="bg-primary hover:bg-primary/90 shadow-sm transition-all duration-150 ease-out"
+          className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
           icon={Download}
         >
           Export
@@ -270,7 +270,7 @@ export function Toolbar({
             }
 
             const currentTime = useProjectStore.getState().currentTime
-            const fps = project.settings.frameRate || 30
+            const fps = project.settings.frameRate
             const frame = Math.round((currentTime / 1000) * fps)
 
             let outputPath: string | undefined
@@ -311,9 +311,7 @@ export function Toolbar({
 
               const snapshotResolution = active.recording.width && active.recording.height
                 ? { width: active.recording.width, height: active.recording.height }
-                : project.settings?.resolution?.width && project.settings?.resolution?.height
-                  ? project.settings.resolution
-                  : { width: project.recordings[0]?.width || 1920, height: project.recordings[0]?.height || 1080 }
+                : project.settings.resolution
 
               // Construct segments from timeline tracks
               const segments = videoClips.map(c => ({

@@ -52,14 +52,14 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
     const sourceDimensions = TimelineDataService.getSourceDimensions(project);
 
     // Calculate canvas dimensions based on aspect ratio settings
-    const canvasSettings = project.settings?.canvas;
+    const canvasSettings = project.settings.canvas;
     const aspectRatioPreset = canvasSettings?.aspectRatio ?? AspectRatioPreset.Original;
 
     const { width, height } = calculateCanvasDimensions(
       aspectRatioPreset,
       1080, // base resolution
-      canvasSettings?.customWidth,
-      canvasSettings?.customHeight,
+      canvasSettings.customWidth,
+      canvasSettings.customHeight,
       sourceDimensions.width,
       sourceDimensions.height
     );

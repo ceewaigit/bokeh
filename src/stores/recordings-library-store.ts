@@ -28,6 +28,9 @@ export interface LibraryRecordingHydration {
 
 export type LibraryRecordingView = LibraryRecording & LibraryRecordingHydration
 
+export type SortKey = 'date' | 'name' | 'size' | 'duration'
+export type SortDirection = 'asc' | 'desc'
+
 interface RecordingsStore {
   // Single source of truth
   recordings: LibraryRecording[]
@@ -35,12 +38,22 @@ interface RecordingsStore {
   currentPage: number
   isHydrated: boolean
 
+  // Filter & Sort State
+  searchQuery: string
+  sortKey: SortKey
+  sortDirection: SortDirection
+
   // Actions
   setRecordings: (recordings: LibraryRecording[]) => void
   setCurrentPage: (page: number) => void
   setHydration: (path: string, updates: LibraryRecordingHydration) => void
   removeRecording: (path: string) => void
   setHydrated: (hydrated: boolean) => void
+
+  // Filter & Sort Actions
+  setSearchQuery: (query: string) => void
+  setSort: (key: SortKey, direction: SortDirection) => void
+
   reset: () => void
 
   // Memory management
@@ -52,6 +65,10 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
   hydrationByPath: {},
   currentPage: 1,
   isHydrated: false,
+
+  searchQuery: '',
+  sortKey: 'date',
+  sortDirection: 'desc',
 
   setRecordings: (recordings) => set({ recordings }),
   setCurrentPage: (page) => set({ currentPage: page }),
@@ -75,11 +92,17 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
 
   setHydrated: (hydrated) => set({ isHydrated: hydrated }),
 
+  setSearchQuery: (query) => set({ searchQuery: query, currentPage: 1 }),
+  setSort: (key, direction) => set({ sortKey: key, sortDirection: direction, currentPage: 1 }),
+
   reset: () => set({
     recordings: [],
     hydrationByPath: {},
     currentPage: 1,
-    isHydrated: false
+    isHydrated: false,
+    searchQuery: '',
+    sortKey: 'date',
+    sortDirection: 'desc'
   }),
 
   // Memory management: completely clear library data
@@ -87,7 +110,10 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
     recordings: [],
     hydrationByPath: {},
     currentPage: 1,
-    isHydrated: false
+    isHydrated: false,
+    searchQuery: '',
+    sortKey: 'date',
+    sortDirection: 'desc'
   })
 }))
 

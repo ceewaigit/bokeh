@@ -66,6 +66,8 @@ const TimelineClipComponent = ({
   displayStartTime,
   onOpenSpeedUpSuggestion
 }: TimelineClipProps) => {
+
+
   const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isValidPosition, setIsValidPosition] = useState(true)
@@ -419,6 +421,10 @@ const TimelineClipComponent = ({
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
   }, [clip.id, clip.startTime, clip.duration, pixelsPerMs, onTrimStart, onTrimEnd, getTrimBoundaries])
+
+  // Prevent rendering if track is collapsed (height 0) to avoid invalid shape errors
+  // Must be after all hooks to prevent "Rendered fewer hooks" error
+  if (trackHeight <= TimelineConfig.TRACK_PADDING * 2) return null
 
   return (
     <Group

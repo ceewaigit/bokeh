@@ -1,6 +1,7 @@
 import { BrowserWindow, WebContents, screen } from 'electron'
 import * as path from 'path'
 import { getAppURL, isDev } from '../config'
+import { getContentSecurityPolicy } from './content-security-policy'
 
 // Webpack entry points are set as environment variables by electron-forge
 
@@ -107,14 +108,7 @@ function setupSecurityPolicy(window: BrowserWindow): void {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: video-stream: http://127.0.0.1:* http://localhost:* https://unpkg.com; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com blob:; " +
-          "style-src 'self' 'unsafe-inline'; " +
-          "img-src 'self' data: blob: file: video-stream: http://127.0.0.1:* http://localhost:*; " +
-          "media-src 'self' data: blob: file: video-stream: http://127.0.0.1:* http://localhost:*; " +
-          "connect-src 'self' file: data: blob: video-stream: http://127.0.0.1:* http://localhost:* ws://localhost:* https://unpkg.com; " +
-          "worker-src 'self' blob:; " +
-          "frame-src 'none';"
+        'Content-Security-Policy': getContentSecurityPolicy()
       }
     })
   })

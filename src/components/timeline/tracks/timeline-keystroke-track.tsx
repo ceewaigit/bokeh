@@ -8,6 +8,7 @@ import { EffectStore } from '@/lib/core/effects'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { EffectLayerType, EffectType } from '@/types/effects'
+import { TimelineTrackType } from '@/types/project'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -17,7 +18,8 @@ export function TimelineKeystrokeTrack() {
         trackHeights,
         trackPositions,
         hasKeystrokeTrack,
-        duration
+        duration,
+        setActiveTrack
     } = useTimelineLayout()
 
     const {
@@ -90,6 +92,7 @@ export function TimelineKeystrokeTrack() {
                         isEnabled={effect.enabled}
                         allBlocks={allKeystrokeBlocksData}
                         pixelsPerMs={pixelsPerMs}
+                        onHover={() => setActiveTrack(TimelineTrackType.Keystroke)}
                         onSelect={() => {
                             if (isBlockSelected) {
                                 clearEffectSelection()

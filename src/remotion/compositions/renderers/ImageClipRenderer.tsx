@@ -55,6 +55,7 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
   const imageUrl = useVideoUrl({
     recording,
     resources,
+    clipId: clipForVideo.id,
     preferOffthreadVideo: false,
     targetWidth: compositionWidth,
     targetHeight: compositionHeight,

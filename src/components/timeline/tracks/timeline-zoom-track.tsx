@@ -8,7 +8,7 @@ import { EffectStore } from '@/lib/core/effects'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
-import { ZoomEffectData, ZoomBlock } from '@/types/project'
+import { ZoomEffectData, ZoomBlock, TimelineTrackType } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useShallow } from 'zustand/react/shallow'
@@ -21,7 +21,8 @@ export function TimelineZoomTrack() {
         pixelsPerMs,
         trackHeights,
         trackPositions,
-        hasZoomTrack
+        hasZoomTrack,
+        setActiveTrack
     } = useTimelineLayout()
 
     const {
@@ -105,6 +106,7 @@ export function TimelineZoomTrack() {
                         isEnabled={effect.enabled}
                         allBlocks={allZoomBlocksInTimelineSpace}
                         pixelsPerMs={pixelsPerMs}
+                        onHover={() => setActiveTrack(TimelineTrackType.Zoom)}
                         onSelect={() => {
                             if (isBlockSelected) {
                                 clearEffectSelection()

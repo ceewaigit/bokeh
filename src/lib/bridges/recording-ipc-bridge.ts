@@ -125,20 +125,20 @@ export class ElectronRecordingBridge implements RecordingIpcBridge {
     // -------------------------------------------------------------------------
 
     async invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
-        if (!window.electronAPI?.ipcRenderer) {
+        if (!window.electronAPI?.ipc) {
             throw new Error('Electron IPC not available')
         }
-        return window.electronAPI.ipcRenderer.invoke(channel, ...args) as Promise<T>
+        return window.electronAPI.ipc.invoke(channel, ...args) as Promise<T>
     }
 
     on(channel: string, listener: (...args: unknown[]) => void): void {
-        window.electronAPI?.ipcRenderer?.on(channel, (_event: unknown, ...args: unknown[]) => {
+        window.electronAPI?.ipc?.on(channel, (_event: unknown, ...args: unknown[]) => {
             listener(...args)
         })
     }
 
     removeListener(channel: string, listener: (...args: unknown[]) => void): void {
-        window.electronAPI?.ipcRenderer?.removeListener(channel, listener)
+        window.electronAPI?.ipc?.removeListener(channel, listener)
     }
 
     // -------------------------------------------------------------------------

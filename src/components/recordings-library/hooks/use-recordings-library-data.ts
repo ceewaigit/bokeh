@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Project } from '@/types'
-import { useRecordingsLibraryStore, type LibraryRecording, type LibraryRecordingHydration, type LibraryRecordingView } from '@/stores/recordings-library-store'
+import { useRecordingsLibraryStore, type LibraryRecording, type LibraryRecordingHydration, type LibraryRecordingView, type SortKey, type SortDirection } from '@/stores/recordings-library-store'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { PROJECT_EXTENSION } from '@/lib/storage/recording-storage'
-import { getProjectDir, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'
+import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'
 
 interface HydrationOptions {
   includeMediaSize: boolean
@@ -14,10 +14,15 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     recordings,
     hydrationByPath,
     currentPage,
+    searchQuery,
+    sortKey,
+    sortDirection,
     setRecordings,
     setCurrentPage,
     setHydration,
-    removeRecording
+    removeRecording,
+    setSearchQuery,
+    setSort
   } = useRecordingsLibraryStore()
 
   const [loading, setLoading] = useState(false)
@@ -29,17 +34,59 @@ export const useRecordingsLibraryData = (pageSize: number) => {
   const recordingsRef = useRef(recordings)
   const hydrationRef = useRef(hydrationByPath)
 
+  const filteredAndSortedRecordings = useMemo(() => {
+    let result = [...recordings]
+
+    // Filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase().trim()
+      if (query) {
+        result = result.filter((rec) => rec.name.toLowerCase().includes(query))
+      }
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'size':
+          cmp = (a.projectFileSize || 0) - (b.projectFileSize || 0)
+          break
+        case 'duration':
+          // Duration requires hydration, so we might not be able to sort accurately
+          // without loading everything. For now, treat as equal (stable sort) or 0.
+          // In a real implementation we might need to pre-load metadata for sorting.
+          cmp = 0
+          break
+        case 'date':
+        default:
+          cmp = a.timestamp.getTime() - b.timestamp.getTime()
+          break
+      }
+      return sortDirection === 'asc' ? cmp : -cmp
+    })
+
+    return result
+  }, [recordings, searchQuery, sortKey, sortDirection])
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedRecordings.length / pageSize))
+
   const displayedRecordings = useMemo(() => {
     const start = (currentPage - 1) * pageSize
     const end = start + pageSize
-    return recordings.slice(start, end)
-  }, [recordings, currentPage, pageSize])
+    return filteredAndSortedRecordings.slice(start, end)
+  }, [filteredAndSortedRecordings, currentPage, pageSize])
+
   const displayedRecordingsHydrated = useMemo(() => {
     return displayedRecordings.map((rec) => ({
       ...rec,
       ...(hydrationByPath[rec.path] ?? {})
     }))
   }, [displayedRecordings, hydrationByPath])
+
   const pageKey = useMemo(() => {
     return displayedRecordings.map((rec) => `${rec.path}:${rec.timestamp.getTime()}`).join('|')
   }, [displayedRecordings])
@@ -133,7 +180,8 @@ export const useRecordingsLibraryData = (pageSize: number) => {
 
         if (!info || !thumb) {
           if (window.electronAPI?.readLocalFile) {
-            const result = await window.electronAPI.readLocalFile(rec.path)
+            const projectFilePath = await getProjectFilePath(rec.path, window.electronAPI?.fileExists)
+            const result = await window.electronAPI.readLocalFile(projectFilePath)
             if (result?.success && result.data) {
               const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
               const project: Project = JSON.parse(projectData)
@@ -148,11 +196,11 @@ export const useRecordingsLibraryData = (pageSize: number) => {
               }
 
               if (project?.recordings && project.recordings.length > 0) {
-                const projectDir = getProjectDir(rec.path)
+                const projectDir = getProjectDir(rec.path, projectFilePath)
                 const firstRecording = project.recordings[0]
                 let videoPath = firstRecording.filePath
 
-                if (!isValidFilePath(videoPath)) {
+                if (!videoPath || !isValidFilePath(videoPath)) {
                   if (info) {
                     setHydration(rec.path, { projectInfo: info })
                   }
@@ -201,7 +249,7 @@ export const useRecordingsLibraryData = (pageSize: number) => {
                     if (loadTokenRef.current !== token) return
                     if (savedThumbnail) {
                       thumb = savedThumbnail
-                    } else {
+                    } else if (videoPath) {
                       const thumbnailUrl = await generateThumbnail(rec, videoPath)
                       if (loadTokenRef.current !== token) return
                       if (thumbnailUrl) {
@@ -319,13 +367,17 @@ export const useRecordingsLibraryData = (pageSize: number) => {
   }, [])
 
   useEffect(() => {
-    if (recordings.length === 0) return
-    const totalPages = Math.max(1, Math.ceil(recordings.length / pageSize))
+    // If listings change (due to filter/sort) and we are on an invalid page, reset to page 1
+    // or clamp to last page.
+    if (filteredAndSortedRecordings.length === 0 && currentPage !== 1) {
+      setCurrentPage(1)
+      return
+    }
     const safePage = Math.min(Math.max(1, currentPage), totalPages)
     if (safePage !== currentPage) {
       setCurrentPage(safePage)
     }
-  }, [pageSize, recordings, currentPage, setCurrentPage])
+  }, [pageSize, filteredAndSortedRecordings.length, currentPage, setCurrentPage, totalPages])
 
   useEffect(() => {
     if (hydrationIndicatorTimeoutRef.current !== null) {
@@ -361,7 +413,6 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     }
   }, [removeRecording])
 
-  const totalPages = Math.max(1, Math.ceil(recordings.length / pageSize))
   const canPrev = currentPage > 1
   const canNext = currentPage < totalPages
 
@@ -378,7 +429,13 @@ export const useRecordingsLibraryData = (pageSize: number) => {
   }
 
   return {
-    recordings,
+    searchQuery,
+    setSearchQuery,
+    sortKey,
+    sortDirection,
+    setSort,
+
+    recordings: filteredAndSortedRecordings,
     displayedRecordings: displayedRecordingsHydrated,
     currentPage,
     totalPages,

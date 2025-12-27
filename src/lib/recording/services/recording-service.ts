@@ -45,7 +45,6 @@ export class RecordingService {
   private captureHeight = 0
   private onlySelf = false
   private webcamEnabled = false
-  private microphoneEnabled = false
 
   constructor() {
     this.trackingService = new TrackingService()
@@ -75,16 +74,16 @@ export class RecordingService {
     // Parse recording config
     const config = this.parseConfig(settings, sourceInfo)
 
-    // Start tracking first so we can fail fast before recording
-    await this.trackingService.start(
-      sourceInfo.sourceId,
-      { fullBounds: this.captureArea?.fullBounds, scaleFactor: this.captureArea?.scaleFactor },
-      this.captureWidth,
-      this.captureHeight
-    )
-
     try {
       await this.strategy.start(config)
+
+      // Start tracking after recording begins so mouse timestamps align with the video clock.
+      await this.trackingService.start(
+        sourceInfo.sourceId,
+        { fullBounds: this.captureArea?.fullBounds, scaleFactor: this.captureArea?.scaleFactor },
+        this.captureWidth,
+        this.captureHeight
+      )
 
       // Start webcam recording if enabled
       if (settings.webcam?.enabled && settings.webcam.deviceId) {
@@ -118,7 +117,6 @@ export class RecordingService {
       // Start separate microphone recording if enabled and not captured via webcam
       const micCapturedViaWebcam = this.webcamEnabled && settings.microphone?.enabled
       if (settings.microphone?.enabled && settings.microphone.deviceId && !micCapturedViaWebcam) {
-        this.microphoneEnabled = true
         this.audioInputService = new AudioInputService()
 
         try {
@@ -131,12 +129,17 @@ export class RecordingService {
         } catch (micError) {
           logger.warn('[RecordingService] Failed to start microphone, continuing without it:', micError)
           this.audioInputService = null
-          this.microphoneEnabled = false
         }
       }
 
       await this.showRecordingOverlay()
     } catch (error) {
+      try {
+        if (this.strategy?.isRecording()) {
+          await this.strategy.stop()
+        }
+      } catch { }
+
       // Clean up any started services on failure
       if (this.webcamService) {
         try { await this.webcamService.stop() } catch { }
@@ -218,8 +221,6 @@ export class RecordingService {
     this.captureHeight = 0
     this.onlySelf = false
     this.webcamEnabled = false
-    this.microphoneEnabled = false
-
     if (trackingError) {
       logger.warn('[RecordingService] Tracking stop failed; returning video with partial metadata', trackingError)
     }

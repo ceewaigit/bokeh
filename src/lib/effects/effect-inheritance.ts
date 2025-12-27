@@ -122,15 +122,7 @@ export function applyInheritance({
 
     return {
         ...clipData,
-        recording: {
-            ...persistedState.recording,
-            id: clipData.recording.id,
-            sourceType: clipData.recording.sourceType,
-            generatedSource: clipData.recording.generatedSource,
-            imageSource: clipData.recording.imageSource,
-            syntheticMouseEvents: clipData.recording.syntheticMouseEvents,
-            metadata: clipData.recording.metadata,
-        },
+        recording: clipData.recording,
         effects: [...inheritedEffects, ...inheritedZoom, ...inheritedScreen, ...ownEffects],
     };
 }

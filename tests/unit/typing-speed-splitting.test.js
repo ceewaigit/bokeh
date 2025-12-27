@@ -1,5 +1,6 @@
 
 import { TypingSpeedApplicationService } from '@/lib/timeline/typing-speed-application'
+import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
 
 // Mock dependencies
 jest.mock('@/lib/timeline/timeline-operations', () => ({
@@ -37,11 +38,15 @@ describe('Typing Speed Splitting', () => {
             },
             recordings: [{
                 id: 'rec-1',
-                duration: 10000
+                sourceType: 'video',
+                filePath: '/tmp/rec-1.mp4',
+                duration: 10000,
+                width: 1920,
+                height: 1080,
+                frameRate: 60,
+                effects: []
             }],
-            settings: {
-                frameRate: 60
-            }
+            settings: normalizeProjectSettings({ frameRate: 60 })
         }
     })
 

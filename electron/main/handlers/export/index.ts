@@ -14,7 +14,7 @@ import { getVideoServer } from '../../video-http-server'
 import { getRecordingsDirectory } from '../../config'
 import { resolveFfmpegPath, getCompositorDirectory } from '../../utils/ffmpeg-resolver'
 import { normalizeCrossPlatform } from '../../utils/path-normalizer'
-import { ensureExportProxy } from '../../services/proxy-service'
+import { ensureExportProxy, getExistingProxyPath } from '../../services/proxy-service'
 
 import { getBundleLocation, cleanupBundleCache } from './bundle-manager'
 import { buildChunkPlan, calculateStableChunkSize } from './chunk-planner'
@@ -35,23 +35,67 @@ export { cleanupBundleCache }
 
 let currentExportAbortController: AbortController | null = null
 
-export function isExportInProgress(): boolean {
-  return currentExportAbortController !== null
+const MAX_PROXY_WIDTH = 3840
+const MAX_PROXY_HEIGHT = 2160
+
+interface ProxyDimensionResult {
+  width: number
+  height: number
+  needsProxy: boolean
 }
 
-/**
- * @deprecated Use machineProfiler.getExportMemoryConstraints() instead
- * Kept for reference during transition - can be removed in next cleanup
- */
+function createExportTiming() {
+  const start = Date.now()
+  let lastMark = start
+
+  const mark = (label: string) => {
+    const now = Date.now()
+    const deltaSeconds = (now - lastMark) / 1000
+    console.log(`[Export] Timing ${label}: ${deltaSeconds.toFixed(2)}s`)
+    lastMark = now
+  }
+
+  const summary = (label = 'total') => {
+    const totalSeconds = (Date.now() - start) / 1000
+    console.log(`[Export] Timing ${label}: ${totalSeconds.toFixed(2)}s`)
+  }
+
+  return { mark, summary }
+}
+
 function getMaxZoomScaleFromEffects(effects: any[]): number {
   let maxScale = 1
   for (const effect of effects) {
-    if (effect.type === 'zoom' && effect.enabled !== false) {
-      const scale = effect.data?.scale || 1
+    if (effect?.type === 'zoom' && effect?.enabled !== false) {
+      const scale = effect?.data?.scale || 1
       if (scale > maxScale) maxScale = scale
     }
   }
   return maxScale
+}
+
+function calculateProxyDimensions(opts: {
+  outputWidth: number
+  outputHeight: number
+  sourceWidth: number
+  sourceHeight: number
+  maxZoomScale: number
+}): ProxyDimensionResult {
+  const { outputWidth, outputHeight, sourceWidth, sourceHeight, maxZoomScale } = opts
+  const maxW = Math.min(outputWidth * maxZoomScale, sourceWidth, MAX_PROXY_WIDTH)
+  const maxH = Math.min(outputHeight * maxZoomScale, sourceHeight, MAX_PROXY_HEIGHT)
+  const width = Math.ceil(maxW / 2) * 2
+  const height = Math.ceil(maxH / 2) * 2
+  const needsProxy =
+    width > 0 &&
+    height > 0 &&
+    (width < sourceWidth * 0.85 || height < sourceHeight * 0.85)
+
+  return { width, height, needsProxy }
+}
+
+export function isExportInProgress(): boolean {
+  return currentExportAbortController !== null
 }
 
 /**
@@ -424,8 +468,9 @@ export function setupExportHandler(): void {
     }
   })
 
-  ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder }) => {
+  ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder, webcamClips }) => {
     console.log('[Export] Export handler invoked with settings:', settings)
+    const timing = createExportTiming()
 
     const localAbortController = new AbortController()
     currentExportAbortController = localAbortController
@@ -446,6 +491,7 @@ export function setupExportHandler(): void {
         memoryGB: machineProfile.totalMemoryGB.toFixed(1),
         gpuAvailable: machineProfile.gpuAvailable
       })
+      timing.mark('profile system')
 
       // Get export settings
       const targetQuality = settings.quality === 'ultra' ? 'quality' :
@@ -477,6 +523,7 @@ export function setupExportHandler(): void {
 
       // Get bundled location (cached or new)
       const bundleLocation = await getBundleLocation()
+      timing.mark('bundle ready')
 
       // Select composition in main process to avoid OOM in worker
       const { selectComposition } = await import('@remotion/renderer')
@@ -503,6 +550,7 @@ export function setupExportHandler(): void {
         id: 'TimelineComposition',
         inputProps: minimalProps
       })
+      timing.mark('composition selected')
 
       const totalDurationInFrames = composition.durationInFrames
       console.log(`[Export] Composition selected: ${clipsForComposition.length} clips, ${totalDurationInFrames} frames`)
@@ -528,6 +576,19 @@ export function setupExportHandler(): void {
 
       // Resolve metadata URLs for lazy loading during export
       const metadataUrls = await resolveMetadataUrls(recordings, projectFolder, recordingsDir)
+      timing.mark('resolved media urls')
+
+      // Prefer existing preview proxies as low-res sources for export when available.
+      // This keeps non-zoom clips fast while preserving high-res sources for zoomed clips.
+      const previewProxyUrls: Record<string, string> = {}
+      for (const [recordingId, absPath] of Object.entries(absolutePaths)) {
+        const previewProxyPath = await getExistingProxyPath(absPath)
+        if (previewProxyPath) {
+          const previewUrl = await makeVideoSrc(previewProxyPath, 'export')
+          previewProxyUrls[recordingId] = previewUrl
+          videoUrls[recordingId] = previewUrl
+        }
+      }
 
       // Extract clips and effects
       const allClips = extractClipsFromSegments(segments)
@@ -572,30 +633,14 @@ export function setupExportHandler(): void {
       const outputWidth = settings.resolution?.width || 1920
       const outputHeight = settings.resolution?.height || 1080
 
-      // PERFORMANCE: Use output resolution directly (not zoom-adjusted)
-      // This trades slight quality loss on zoomed sections for MUCH faster exports
-      // BLINK FIX: Restore Smart Proxy (Zoom-Aware) for Sharp Zooms.
-      // We will throttle concurrency downstream to handle the increased memory load.
-      // PERFORMANCE FIX: Cap at 4K (3840px) to prevent hardware encoding (VideoToolbox) failure.
-      // 5K/6K software encoding is too slow and causes decoder lag/flicker.
-      const MAX_PROXY_WIDTH = 3840 // 4K UHD
-      const MAX_PROXY_HEIGHT = 2160
-
-      const maxW = Math.min(outputWidth * maxZoomScale, nativeSourceWidth, MAX_PROXY_WIDTH)
-      const maxH = Math.min(outputHeight * maxZoomScale, nativeSourceHeight, MAX_PROXY_HEIGHT)
-
-      // FFmpeg requires even dimensions for yuv420p
-      const zoomAdjustedWidth = Math.ceil(maxW / 2) * 2
-      const zoomAdjustedHeight = Math.ceil(maxH / 2) * 2
-
-      const proxyTargetWidth = zoomAdjustedWidth
-      const proxyTargetHeight = zoomAdjustedHeight
-
-      // Only create proxy if it would be meaningfully smaller than source
-      const needsProxy =
-        proxyTargetWidth > 0 &&
-        proxyTargetHeight > 0 &&
-        (proxyTargetWidth < nativeSourceWidth * 0.85 || proxyTargetHeight < nativeSourceHeight * 0.85)
+      const { width: proxyTargetWidth, height: proxyTargetHeight, needsProxy } =
+        calculateProxyDimensions({
+          outputWidth,
+          outputHeight,
+          sourceWidth: nativeSourceWidth,
+          sourceHeight: nativeSourceHeight,
+          maxZoomScale,
+        })
 
       console.log('[Export] Proxy resolution decision', {
         outputWidth,
@@ -773,18 +818,19 @@ export function setupExportHandler(): void {
               }
             )
             const proxyUrl = await makeVideoSrc(proxyPath, 'export')
-            videoUrls[recordingId] = proxyUrl
+            if (!previewProxyUrls[recordingId]) {
+              videoUrls[recordingId] = proxyUrl
+            }
 
-            // BLINK FIX: We override the HighRes source with the proxy to force consistency.
-            // This proxy is now Smart/Zoom-Aware (covers maxZoom), ensuring sharp zooms.
-            // Forcing consistent usage prevents useVideoUrl from switching sources (blinks).
-            // We handled the memory impact by throttling worker concurrency above.
+            // High-res proxy covers maxZoom while staying smaller than source.
+            // Low-res stays on preview proxies when available to keep decode lightweight.
             videoUrlsHighRes[recordingId] = proxyUrl
 
             // Use direct file access for OffthreadVideo
             videoFilePaths[recordingId] = proxyPath
           }
           console.log('[Export] Proxies ready')
+          timing.mark('proxies ready')
         } catch (error) {
           console.warn('[Export] Proxy generation failed, falling back to original media', error)
         }
@@ -804,6 +850,7 @@ export function setupExportHandler(): void {
       const inputProps = {
         // Core timeline data
         clips: allClips,
+        webcamClips: Array.isArray(webcamClips) ? webcamClips : [],
         recordings: downsampledRecordings,
         effects: allEffects,
 
@@ -846,6 +893,12 @@ export function setupExportHandler(): void {
         cropSettings: {
           cropData: null,
         },
+
+        // STRUCTURED: Zoom settings group (export never edits zoom)
+        zoomSettings: {
+          isEditing: false,
+          zoomData: null,
+        },
       }
 
       // Build common job config
@@ -862,9 +915,17 @@ export function setupExportHandler(): void {
         useGPU: dynamicSettings.useGPU,
         // Concurrency is a big multiplier for Chromium child processes and memory use.
         // Keep it conservative, especially when source decoding is heavy.
-        concurrency: useParallelEffective
-          ? 1
-          : Math.min(allocation.concurrency, totalMemGB > 0 && totalMemGB <= 16 ? 2 : allocation.concurrency),
+        concurrency: (() => {
+          const memoryCapped = Math.min(
+            allocation.concurrency,
+            totalMemGB > 0 && totalMemGB <= 16 ? 3 : allocation.concurrency
+          )
+          if (!useParallelEffective) {
+            return memoryCapped
+          }
+          const decodeSensitive = maxZoomScale > 1.5 || decodeHeavy
+          return decodeSensitive ? Math.min(2, memoryCapped) : memoryCapped
+        })(),
         ffmpegPath,
         compositorDir,
         // Respect the chunk plan decision above (single-pass for sequential exports).
@@ -902,6 +963,8 @@ export function setupExportHandler(): void {
           progressTracker,
           abortSignal
         )
+
+      timing.mark('render complete')
 
       if (abortSignal.aborted) {
         throw new Error('Export cancelled')
@@ -947,6 +1010,7 @@ export function setupExportHandler(): void {
       if (currentExportAbortController === localAbortController) {
         currentExportAbortController = null
       }
+      timing.summary()
     }
   })
 
