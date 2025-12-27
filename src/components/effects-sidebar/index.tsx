@@ -52,6 +52,17 @@ type StyleSubTabId = 'background' | 'frame' | 'screen'
 type PointerSubTabId = 'cursor' | 'keystrokes'
 type FramingSubTabId = 'zoom' | 'crop'
 
+const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
+  [EffectLayerType.Background]: 'Backdrop',
+  [EffectLayerType.Screen]: 'Depth',
+  [EffectLayerType.Webcam]: 'Camera',
+  [EffectLayerType.Cursor]: 'Pointer',
+  [EffectLayerType.Keystroke]: 'Typing',
+  [EffectLayerType.Zoom]: 'Focus',
+  [EffectLayerType.Crop]: 'Frame',
+  [EffectLayerType.Plugin]: 'Tools',
+}
+
 function SubTabs<T extends string>({
   value,
   onChange,
@@ -63,7 +74,7 @@ function SubTabs<T extends string>({
 }) {
   const layoutId = React.useId()
   return (
-    <div className="relative flex gap-0.5 rounded-md bg-muted/30 p-0.5">
+    <div className="relative grid grid-flow-col auto-cols-fr gap-1 rounded-lg bg-muted/30 p-1">
       {tabs.map((tab) => (
         <motion.button
           key={tab.id}
@@ -71,7 +82,7 @@ function SubTabs<T extends string>({
           disabled={tab.disabled}
           onClick={() => onChange(tab.id)}
           className={cn(
-            "relative flex-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors duration-150",
+            "relative min-w-0 rounded-md px-2.5 py-1.5 text-[12px] font-medium leading-tight transition-colors duration-150",
             tab.disabled && "opacity-40 cursor-not-allowed",
             value === tab.id
               ? "text-foreground"
@@ -93,7 +104,7 @@ function SubTabs<T extends string>({
               />
             )}
           </AnimatePresence>
-          <span className="relative z-10">{tab.label}</span>
+          <span className="relative z-10 truncate whitespace-nowrap">{tab.label}</span>
         </motion.button>
       ))}
     </div>
@@ -383,25 +394,20 @@ export function EffectsSidebar({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
-                className="text-[13px] font-semibold tracking-tight"
+                className="text-[13px] font-semibold tracking-tight font-[var(--font-display)]"
               >
                 {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
               </motion.h2>
             </AnimatePresence>
             {selectedEffectLayer && (
-              <div className="ml-auto px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-medium leading-tight rounded-full">
-                {selectedEffectLayer.type === EffectLayerType.Zoom && selectedEffectLayer.id ?
-                  `Editing Zoom` :
-                  (() => {
-                    const t = String(selectedEffectLayer.type)
-                    return `Editing ${t.charAt(0).toUpperCase() + t.slice(1)}`
-                  })()}
+              <div className="ml-auto max-w-[55%] truncate whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+                {`Editing ${EFFECT_LABELS[selectedEffectLayer.type] ?? 'Layer'}`}
               </div>
             )}
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 custom-scrollbar">
             <div className="w-full relative">
               <AnimatePresence mode="wait" initial={false}>
                 {activeTab === SidebarTabId.Clip && (
@@ -430,9 +436,9 @@ export function EffectsSidebar({
                       value={styleSubTab}
                       onChange={setStyleSubTab}
                       tabs={[
-                        { id: 'background', label: 'Background' },
-                        { id: 'frame', label: 'Frame' },
-                        { id: 'screen', label: '3D Screen' },
+                        { id: 'background', label: 'Backdrop' },
+                        { id: 'frame', label: 'Window' },
+                        { id: 'screen', label: 'Depth' },
                       ]}
                     />
 
@@ -500,8 +506,8 @@ export function EffectsSidebar({
                       value={pointerSubTab}
                       onChange={setPointerSubTab}
                       tabs={[
-                        { id: 'cursor', label: 'Cursor' },
-                        { id: 'keystrokes', label: 'Keystrokes' },
+                        { id: 'cursor', label: 'Pointer' },
+                        { id: 'keystrokes', label: 'Typing' },
                       ]}
                     />
 
@@ -555,8 +561,8 @@ export function EffectsSidebar({
                       value={framingSubTab}
                       onChange={setFramingSubTab}
                       tabs={[
-                        { id: 'zoom', label: 'Zoom' },
-                        { id: 'crop', label: 'Crop', disabled: !isVideoClipSelected },
+                        { id: 'zoom', label: 'Focus' },
+                        { id: 'crop', label: 'Frame', disabled: !isVideoClipSelected },
                       ]}
                     />
 
@@ -609,7 +615,7 @@ export function EffectsSidebar({
                           transition={{ duration: 0.15 }}
                         >
                           <div className="p-4 bg-background/40 rounded-xl text-xs text-muted-foreground">
-                            Select a video clip to crop.
+                            Select a clip to adjust the frame.
                           </div>
                         </motion.div>
                       )}

@@ -53,7 +53,7 @@ export const getTimelineColors = () => {
     else if (h < 180) [r, g, b] = [0, c, x]
     else if (h < 240) [r, g, b] = [0, x, c]
     else if (h < 300) [r, g, b] = [x, 0, c]
-    else [r, g, b] = [c, 0, x]
+    else[r, g, b] = [c, 0, x]
     const to255 = (value: number) => Math.round((value + m) * 255)
     return `rgba(${to255(r)}, ${to255(g)}, ${to255(b)}, ${alpha})`
   }

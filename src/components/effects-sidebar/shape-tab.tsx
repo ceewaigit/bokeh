@@ -23,7 +23,7 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
 
   return (
     <div className="space-y-2.5">
-      <p className="text-[11px] text-muted-foreground leading-snug">
+      <p className="text-[12px] text-muted-foreground leading-snug">
         Controls padding, corner radius, and shadow.
       </p>
 
@@ -32,10 +32,10 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Padding</label>
+              <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Padding</label>
               <InfoTooltip content="Adds space around the screen recording." />
             </div>
-            <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{padding}px</span>
+            <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{padding}px</span>
           </div>
           <Slider
             value={[padding]}
@@ -52,10 +52,10 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
         <div className="border-t border-border/30 pt-2.5 space-y-1.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Corner Radius</label>
+              <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Corner Radius</label>
               <InfoTooltip content="Makes the corners of the video rounded." />
             </div>
-            <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{cornerRadius}px</span>
+            <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{cornerRadius}px</span>
           </div>
           <Slider
             value={[cornerRadius]}
@@ -72,10 +72,10 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
         <div className="border-t border-border/30 pt-2.5 space-y-1.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Shadow</label>
+              <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Shadow</label>
               <InfoTooltip content="Adjusts the strength of the shadow behind the video." />
             </div>
-            <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{shadowIntensity}%</span>
+            <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{shadowIntensity}%</span>
           </div>
           <Slider
             value={[shadowIntensity]}

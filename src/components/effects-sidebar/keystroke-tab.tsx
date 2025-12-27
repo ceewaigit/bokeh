@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { KeystrokeEffectData, Effect } from '@/types/project'
 import { EffectType, KeystrokePosition } from '@/types'
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
@@ -22,18 +23,18 @@ interface KeystrokeTabProps {
 
 type StylePreset = 'default' | 'glass' | 'minimal' | 'terminal' | 'outline'
 
-const STYLE_PRESETS: { value: StylePreset; label: string }[] = [
-  { value: 'glass', label: 'Glass' },
-  { value: 'minimal', label: 'Minimal' },
-  { value: 'outline', label: 'Outline' },
-  { value: 'terminal', label: 'Terminal' },
-  { value: 'default', label: 'Solid' },
+const STYLE_PRESETS: { value: StylePreset; label: string; description: string }[] = [
+  { value: 'glass', label: 'Glass', description: 'Frosted glass with blur' },
+  { value: 'minimal', label: 'Minimal', description: 'Clean, subtle appearance' },
+  { value: 'outline', label: 'Outline', description: 'Bordered with transparency' },
+  { value: 'terminal', label: 'Terminal', description: 'Retro coding aesthetic' },
+  { value: 'default', label: 'Solid', description: 'Bold, opaque background' },
 ]
 
 const POSITION_OPTIONS = [
-  { value: KeystrokePosition.BottomCenter, label: 'Bottom' },
-  { value: KeystrokePosition.TopCenter, label: 'Top' },
-  { value: KeystrokePosition.BottomRight, label: 'Right' },
+  { value: KeystrokePosition.BottomCenter, label: 'Bottom', description: 'Centered at bottom' },
+  { value: KeystrokePosition.TopCenter, label: 'Top', description: 'Centered at top' },
+  { value: KeystrokePosition.BottomRight, label: 'Right', description: 'Bottom right corner' },
 ] as const
 
 export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChange, onBulkToggleKeystrokes }: KeystrokeTabProps) {
@@ -86,11 +87,11 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
       <div className="rounded-md bg-background/40 p-2.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Keystrokes</div>
-            <div className="mt-1 text-[11px] text-muted-foreground leading-snug">
+            <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Keystrokes</div>
+            <div className="mt-1 text-[12px] text-muted-foreground leading-snug">
               Display key presses on screen
             </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground/70 tabular-nums">
+            <div className="mt-0.5 text-[12px] text-muted-foreground/70 tabular-nums">
               {keystrokeEffects.length > 0 ? `${keystrokeEffects.length} blocks` : `${keyboardEventCount} events`}
             </div>
           </div>
@@ -108,42 +109,54 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
         <div className="rounded-md bg-background/40 p-2.5 space-y-3">
           {/* Style */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Style</label>
+            <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Style</label>
             <div className="flex flex-wrap gap-1.5">
               {STYLE_PRESETS.map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => onUpdateKeystroke({ stylePreset: s.value })}
-                  className={cn(
-                    "rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-all text-left",
-                    preset === s.value
-                      ? "border-primary/60 bg-primary/10 text-foreground shadow-sm"
-                      : "border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground"
-                  )}
-                >
-                  {s.label}
-                </button>
+                <Tooltip key={s.value} delayDuration={400}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => onUpdateKeystroke({ stylePreset: s.value })}
+                      className={cn(
+                        "rounded-md border px-2 py-1.5 text-[12px] font-semibold transition-all text-left",
+                        preset === s.value
+                          ? "border-primary/60 bg-primary/10 text-foreground shadow-sm"
+                          : "border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    {s.description}
+                  </TooltipContent>
+                </Tooltip>
               ))}
             </div>
           </div>
 
           {/* Position */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Position</label>
+            <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Position</label>
             <div className="flex flex-wrap gap-1.5">
               {POSITION_OPTIONS.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => onUpdateKeystroke({ position: p.value })}
-                  className={cn(
-                    "rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-all text-left",
-                    position === p.value
-                      ? "border-primary/60 bg-primary/10 text-foreground shadow-sm"
-                      : "border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground"
-                  )}
-                >
-                  {p.label}
-                </button>
+                <Tooltip key={p.value} delayDuration={400}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => onUpdateKeystroke({ position: p.value })}
+                      className={cn(
+                        "rounded-md border px-2 py-1.5 text-[12px] font-semibold transition-all text-left",
+                        position === p.value
+                          ? "border-primary/60 bg-primary/10 text-foreground shadow-sm"
+                          : "border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    {p.description}
+                  </TooltipContent>
+                </Tooltip>
               ))}
             </div>
           </div>
@@ -151,8 +164,8 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
           {/* Size */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Size</label>
-              <span className="text-[11px] text-muted-foreground/70 tabular-nums">{localFontSize}px</span>
+              <label className="text-[12px] font-medium text-muted-foreground uppercase tracking-wide">Size</label>
+              <span className="text-[12px] text-muted-foreground/70 tabular-nums">{localFontSize}px</span>
             </div>
             <Slider
               value={[localFontSize]}
@@ -168,8 +181,8 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
           {/* Duration */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Duration</label>
-              <span className="text-[11px] text-muted-foreground/70 tabular-nums">{(localDisplayDuration / 1000).toFixed(1)}s</span>
+              <label className="text-[12px] font-medium text-muted-foreground uppercase tracking-wide">Duration</label>
+              <span className="text-[12px] text-muted-foreground/70 tabular-nums">{(localDisplayDuration / 1000).toFixed(1)}s</span>
             </div>
             <Slider
               value={[localDisplayDuration]}
@@ -185,7 +198,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
           {/* Advanced toggle */}
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
           >
             <span>Advanced</span>
             <ChevronRight className={cn("h-3 w-3 transition-transform", showAdvanced && "rotate-90")} />
@@ -195,8 +208,8 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             <div className="space-y-3 pt-1 border-t border-border/20">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-medium text-muted-foreground">Corner Radius</label>
-                  <span className="text-[11px] text-muted-foreground/70 tabular-nums">{localBorderRadius}px</span>
+                  <label className="text-[12px] font-medium text-muted-foreground">Corner Radius</label>
+                  <span className="text-[12px] text-muted-foreground/70 tabular-nums">{localBorderRadius}px</span>
                 </div>
                 <Slider
                   value={[localBorderRadius]}
@@ -212,8 +225,8 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               {/* Padding */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-medium text-muted-foreground">Padding</label>
-                  <span className="text-[11px] text-muted-foreground/70 tabular-nums">{localPadding}px</span>
+                  <label className="text-[12px] font-medium text-muted-foreground">Padding</label>
+                  <span className="text-[12px] text-muted-foreground/70 tabular-nums">{localPadding}px</span>
                 </div>
                 <Slider
                   value={[localPadding]}
@@ -229,8 +242,8 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               {/* Scale */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-medium text-muted-foreground">Scale</label>
-                  <span className="text-[11px] text-muted-foreground/70 tabular-nums">{(localScale * 100).toFixed(0)}%</span>
+                  <label className="text-[12px] font-medium text-muted-foreground">Scale</label>
+                  <span className="text-[12px] text-muted-foreground/70 tabular-nums">{(localScale * 100).toFixed(0)}%</span>
                 </div>
                 <Slider
                   value={[localScale]}
@@ -246,8 +259,8 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               {/* Fade Duration */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-medium text-muted-foreground">Fade Out</label>
-                  <span className="text-[11px] text-muted-foreground/70 tabular-nums">{localFadeOutDuration}ms</span>
+                  <label className="text-[12px] font-medium text-muted-foreground">Fade Out</label>
+                  <span className="text-[12px] text-muted-foreground/70 tabular-nums">{localFadeOutDuration}ms</span>
                 </div>
                 <Slider
                   value={[localFadeOutDuration]}
@@ -263,7 +276,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               {/* Toggle: Modifier Symbols */}
               <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">Use Symbols</label>
+                  <label className="text-[12px] font-medium text-muted-foreground">Use Symbols</label>
                   <InfoTooltip content="Use symbols (⌘) instead of text (Cmd)" />
                 </div>
                 <Switch

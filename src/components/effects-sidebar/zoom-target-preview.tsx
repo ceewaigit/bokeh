@@ -149,8 +149,8 @@ export function ZoomTargetPreview({
   return (
     <div className={cn('space-y-2', className)}>
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-medium text-muted-foreground">Focus Target</div>
-        <div className="text-[11px] font-mono text-muted-foreground/70">
+        <div className="text-[12px] font-medium text-muted-foreground">Focus Target</div>
+        <div className="text-[12px] font-mono text-muted-foreground/70">
           {Math.round(target.x * 100)}% / {Math.round(target.y * 100)}%
         </div>
       </div>
@@ -190,7 +190,7 @@ export function ZoomTargetPreview({
           style={{ left: `${target.x * 100}%`, top: `${target.y * 100}%` }}
         />
       </div>
-      <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-muted-foreground/60">
+      <div className="flex items-center justify-between text-[12px] uppercase tracking-[0.2em] text-muted-foreground/60">
         <span className="font-sans">{scale <= 1.01 ? 'Scale above 1x to move' : 'Drag to reposition'}</span>
         {scale <= 1.01 && <span className="font-sans">Locked</span>}
       </div>

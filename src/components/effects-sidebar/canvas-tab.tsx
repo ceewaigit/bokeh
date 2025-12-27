@@ -71,7 +71,7 @@ function SubTabs<T extends string>({
           type="button"
           onClick={() => onChange(tab.id)}
           className={cn(
-            "flex-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+            "flex-1 rounded-md px-2 py-1 text-[12px] font-medium transition-colors",
             value === tab.id
               ? "bg-background/80 text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground hover:bg-background/50"
@@ -320,7 +320,7 @@ function AspectRatioSection({
 
       {/* Social Presets */}
       <div className="space-y-1.5">
-        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Social</Label>
+        <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Social</Label>
         <div className="grid grid-cols-3 gap-1.5">
           {socialPresets.map((preset) => (
             <AspectRatioButton
@@ -335,8 +335,8 @@ function AspectRatioSection({
 
       {/* Landing Page Presets */}
       <div className="space-y-1.5">
-        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Landing Page</Label>
-        <div className="grid grid-cols-2 gap-1.5">
+        <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Landing Page</Label>
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-1.5">
           {landingPresets.map((preset) => (
             <AspectRatioButton
               key={preset.id}
@@ -351,13 +351,13 @@ function AspectRatioSection({
       {/* Custom dimensions (when custom is selected) */}
       {currentPreset === AspectRatioPreset.Custom && (
         <div className="space-y-1.5 pt-2 border-t">
-          <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Custom Dimensions</Label>
+          <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Custom Dimensions</Label>
           <div className="flex gap-2 items-center">
             <input
               type="number"
               value={customWidth}
               onChange={(e) => onCustomChange(parseInt(e.target.value) || 1920, customHeight)}
-              className="w-20 px-2 py-1 text-[11px] bg-muted/50 rounded-md border"
+              className="w-20 px-2 py-1 text-[12px] bg-muted/50 rounded-md border"
               min={100}
               max={7680}
             />
@@ -366,7 +366,7 @@ function AspectRatioSection({
               type="number"
               value={customHeight}
               onChange={(e) => onCustomChange(customWidth, parseInt(e.target.value) || 1080)}
-              className="w-20 px-2 py-1 text-[11px] bg-muted/50 rounded-md border"
+              className="w-20 px-2 py-1 text-[12px] bg-muted/50 rounded-md border"
               min={100}
               max={4320}
             />
@@ -421,7 +421,7 @@ function AspectRatioButton({
           />
         )}
       </div>
-      <span className="text-[9px] font-medium">{preset.label}</span>
+      <span className="text-[11px] font-medium">{preset.label}</span>
     </button>
   )
 }
@@ -477,7 +477,7 @@ function MockupSection({
     <div className="space-y-3">
       {/* Device Type Selector */}
       <div className="space-y-1.5">
-        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Device Type</Label>
+        <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Device Type</Label>
         <div className="grid grid-cols-3 gap-1.5">
           {deviceTypes.map(({ type, label }) => (
             <button
@@ -492,7 +492,7 @@ function MockupSection({
               )}
             >
               <DeviceTypeIcon type={type} />
-              <span className="text-[9px] font-medium">{label}</span>
+              <span className="text-[11px] font-medium">{label}</span>
             </button>
           ))}
         </div>
@@ -501,17 +501,17 @@ function MockupSection({
       {/* Device Model Selector (when type is selected) */}
       {mockupData.deviceType !== DeviceType.None && availableModels.length > 0 && (
         <div className="space-y-1.5">
-          <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Device Model</Label>
+          <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Device Model</Label>
           <Select
             value={String(mockupData.deviceModel)}
             onValueChange={(value) => onDeviceModelChange(value)}
           >
-            <SelectTrigger className="w-full h-7 text-[11px]">
+            <SelectTrigger className="w-full h-7 text-[12px]">
               <SelectValue placeholder="Select model..." />
             </SelectTrigger>
             <SelectContent>
               {availableModels.map((model) => (
-                <SelectItem key={model.id} value={model.id} className="text-[11px]">
+                <SelectItem key={model.id} value={model.id} className="text-[12px]">
                   {model.displayName}
                 </SelectItem>
               ))}
@@ -525,7 +525,7 @@ function MockupSection({
         <>
           {/* Video Fit Mode */}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Video Fit</Label>
+            <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Video Fit</Label>
             <div className="flex gap-1.5">
               {videoFitOptions.map(({ value, label }) => (
                 <button
@@ -533,7 +533,7 @@ function MockupSection({
                   type="button"
                   onClick={() => onUpdateMockup({ videoFit: value as DeviceMockupData['videoFit'] })}
                   className={cn(
-                    "flex-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                    "flex-1 rounded-md border px-2 py-1 text-[12px] font-medium transition-colors",
                     resolvedVideoFit === value
                       ? "bg-primary/10 border-primary text-primary"
                       : "bg-muted/30 border-transparent hover:bg-muted/50"
@@ -550,7 +550,7 @@ function MockupSection({
           {/* Color Variant (if device has variants) */}
           {hasCustomVariants && (
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color Variant</Label>
+              <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color Variant</Label>
               <Select
                 value={mockupData.colorVariant ?? customVariants[0].name}
                 onValueChange={(value) => {
@@ -560,12 +560,12 @@ function MockupSection({
                   }
                 }}
               >
-                <SelectTrigger className="w-full h-7 text-[11px]">
+                <SelectTrigger className="w-full h-7 text-[12px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {customVariants.map((variant) => (
-                    <SelectItem key={variant.name} value={variant.name} className="text-[11px] capitalize">
+                    <SelectItem key={variant.name} value={variant.name} className="text-[12px] capitalize">
                       {variant.name}
                     </SelectItem>
                   ))}
@@ -576,17 +576,17 @@ function MockupSection({
 
           {!selectedCustomModel && DEVICE_MOCKUPS[mockupData.deviceModel as DeviceModel]?.colorVariants.length > 1 && (
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color Variant</Label>
+              <Label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color Variant</Label>
               <Select
                 value={mockupData.colorVariant ?? DEVICE_MOCKUPS[mockupData.deviceModel as DeviceModel].colorVariants[0]}
                 onValueChange={(value) => onUpdateMockup({ colorVariant: value })}
               >
-                <SelectTrigger className="w-full h-7 text-[11px]">
+                <SelectTrigger className="w-full h-7 text-[12px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {DEVICE_MOCKUPS[mockupData.deviceModel as DeviceModel].colorVariants.map((variant) => (
-                    <SelectItem key={variant} value={variant} className="text-[11px] capitalize">
+                    <SelectItem key={variant} value={variant} className="text-[12px] capitalize">
                       {variant.replace(/-/g, ' ')}
                     </SelectItem>
                   ))}

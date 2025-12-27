@@ -86,7 +86,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
       {/* Add Screen Block */}
       <div className="rounded-lg bg-background/40 p-3">
         <button
-          className="w-full px-3 py-2 text-[11px] bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
+          className="w-full px-3 py-2 text-[12px] font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
           onClick={async () => {
             if (!selectedClip) return
             const newEffect: Effect = {
@@ -101,11 +101,11 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
             await executorRef.current?.execute(AddEffectCommand, newEffect)
           }}
         >
-          Add 3D Screen Block
+          Add Depth Block
         </button>
         <div className="mt-2 flex items-center justify-center gap-2">
           <p className="text-[11px] text-muted-foreground/70 italic leading-snug">
-            Creates a block you can resize on the timeline.
+            Adds a block you can resize on the timeline.
           </p>
           <InfoTooltip content="Select the block on the timeline to edit its preset here." />
         </div>
@@ -115,8 +115,8 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
       {selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id ? (
         <div className="rounded-lg bg-background/40 p-3 space-y-3">
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold tracking-[-0.01em] text-muted-foreground block">Screen Style</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Depth Style</label>
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
               {styleOptions.map((option) => {
                 const Icon = option.icon
                 const isSelected = currentPreset === option.preset
@@ -124,7 +124,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                   <button
                     key={option.id}
                     className={cn(
-                      'group flex flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
+                      'group flex min-w-0 flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
                       isSelected
                         ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
                         : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -139,11 +139,11 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       {isSelected && (
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
                       )}
                     </div>
                     <div>
-                      <div className="text-[11px] font-semibold leading-none">{option.label}</div>
+                      <div className="text-[12px] font-semibold leading-tight">{option.label}</div>
                       <div className="mt-1 text-[11px] leading-snug text-muted-foreground/80">{option.description}</div>
                     </div>
                   </button>
@@ -153,8 +153,8 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           </div>
 
           <div className="space-y-2 pt-1">
-            <label className="text-[11px] font-semibold tracking-[-0.01em] text-muted-foreground block">Animation Speed</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Motion</label>
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
               {speedPresets.map((option) => {
                 const Icon = option.icon
                 const isSelected = introMs === option.introMs && outroMs === option.outroMs
@@ -162,7 +162,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                   <button
                     key={option.id}
                     className={cn(
-                      'group flex flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
+                      'group flex min-w-0 flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
                       isSelected
                         ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
                         : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
@@ -177,11 +177,11 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       {isSelected && (
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
                       )}
                     </div>
                     <div>
-                      <div className="text-[11px] font-semibold leading-none">{option.label}</div>
+                      <div className="text-[12px] font-semibold leading-tight">{option.label}</div>
                       <div className="mt-1 text-[11px] leading-snug text-muted-foreground/80">{option.description}</div>
                     </div>
                   </button>
@@ -192,7 +192,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
           >
             <span>Advanced</span>
             <span className={cn("text-[11px] uppercase tracking-[0.2em] transition-opacity", showAdvanced ? "opacity-100" : "opacity-60")}>
@@ -201,10 +201,10 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           </button>
 
           {showAdvanced && (
-            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 pt-3 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Ease In</label>
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease In</label>
                   <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{introMs}ms</span>
                 </div>
                 <Slider
@@ -219,7 +219,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Ease Out</label>
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease Out</label>
                   <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{outroMs}ms</span>
                 </div>
                 <Slider
@@ -237,7 +237,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
         </div>
       ) : (
         <div className="rounded-lg bg-background/40 p-3">
-          <p className="text-[11px] text-muted-foreground leading-snug">Select a 3D block on the timeline to change its look here.</p>
+          <p className="text-[11px] text-muted-foreground leading-snug">Select a depth block on the timeline to update its look.</p>
         </div>
       )}
     </div>

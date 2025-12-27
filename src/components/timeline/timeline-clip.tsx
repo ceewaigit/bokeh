@@ -473,6 +473,12 @@ const TimelineClipComponent = ({
         // Suggestion bars will handle their own clicks and stop propagation
         onSelect(clip.id)
       }}
+      onMouseDown={(e) => {
+        e.cancelBubble = true
+      }}
+      onTap={(e) => {
+        e.cancelBubble = true
+      }}
       onContextMenu={(e) => {
         if (onContextMenu) {
           e.evt.preventDefault()

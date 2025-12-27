@@ -12,88 +12,28 @@ interface TimelineRulerProps {
   zoom: number
   pixelsPerMs: number
   onSeek?: (time: number) => void
+  onScrubStart?: (e: any) => void
+  onScrubMove?: (e: any) => void
+  onScrubEnd?: () => void
   offsetY?: number  // Used to keep ruler sticky during vertical scroll
 }
 
-export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPerMs, onSeek, offsetY = 0 }: TimelineRulerProps) => {
+export const TimelineRuler = React.memo(({
+  duration,
+  stageWidth,
+  zoom,
+  pixelsPerMs,
+  onSeek,
+  onScrubStart,
+  onScrubMove,
+  onScrubEnd,
+  offsetY = 0
+}: TimelineRulerProps) => {
   const colors = useTimelineColors()
   const [isHovering, setIsHovering] = React.useState(false)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
-  const setScrubbing = useProjectStore((s) => s.setScrubbing)
-  const stageRef = React.useRef<any>(null)
   const { major, minor } = TimeConverter.getRulerIntervals(zoom)
   const marks: React.ReactNode[] = []
-
-  const seekFromEvent = React.useCallback((e: any) => {
-    if (!onSeek) return
-
-    const stage = e.target.getStage()
-    const pointerPos = stage?.getPointerPosition()
-    if (!pointerPos) return
-
-    const x = pointerPos.x - TimelineConfig.TRACK_LABEL_WIDTH
-    if (x > 0) {
-      const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
-      const maxTime = duration
-      const targetTime = Math.max(0, Math.min(time, maxTime))
-      onSeek(targetTime)
-    }
-  }, [duration, onSeek, pixelsPerMs])
-
-  const seekFromClientX = React.useCallback((clientX: number) => {
-    if (!onSeek) return
-    const stage = stageRef.current
-    if (!stage) return
-    const rect = stage.container()?.getBoundingClientRect()
-    if (!rect) return
-    const x = clientX - rect.left - TimelineConfig.TRACK_LABEL_WIDTH
-    if (x > 0) {
-      const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
-      const maxTime = duration
-      const targetTime = Math.max(0, Math.min(time, maxTime))
-      onSeek(targetTime)
-    }
-  }, [duration, onSeek, pixelsPerMs])
-
-  // Handle click/drag on ruler to seek
-  const handleRulerDown = (e: any) => {
-    if (!onSeek) return
-    stageRef.current = e.target.getStage()
-    setScrubbing(true)
-    seekFromEvent(e)
-  }
-
-  const handleRulerMove = (e: any) => {
-    if (!isScrubbing) return
-    seekFromEvent(e)
-  }
-
-  React.useEffect(() => {
-    if (!isScrubbing) return
-
-    const endScrub = () => setScrubbing(false)
-    const handleMouseMove = (event: MouseEvent) => {
-      seekFromClientX(event.clientX)
-    }
-    const handleTouchMove = (event: TouchEvent) => {
-      if (event.touches.length === 0) return
-      seekFromClientX(event.touches[0].clientX)
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('touchmove', handleTouchMove, { passive: true })
-    window.addEventListener('mouseup', endScrub)
-    window.addEventListener('touchend', endScrub)
-    window.addEventListener('touchcancel', endScrub)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('mouseup', endScrub)
-      window.removeEventListener('touchend', endScrub)
-      window.removeEventListener('touchcancel', endScrub)
-    }
-  }, [isScrubbing, seekFromClientX, setScrubbing])
 
   // Background for ruler
   marks.push(
@@ -104,12 +44,13 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
       width={stageWidth}
       height={TimelineConfig.RULER_HEIGHT}
       fill={colors.ruler}
-      onMouseDown={handleRulerDown}
-      onTouchStart={handleRulerDown}
-      onMouseMove={handleRulerMove}
-      onTouchMove={handleRulerMove}
-      onMouseUp={() => setScrubbing(false)}
-      onTouchEnd={() => setScrubbing(false)}
+      name="timeline-ruler"
+      onMouseDown={onScrubStart}
+      onTouchStart={onScrubStart}
+      onMouseMove={onScrubMove}
+      onTouchMove={onScrubMove}
+      onMouseUp={onScrubEnd}
+      onTouchEnd={onScrubEnd}
       onMouseEnter={() => {
         if (!onSeek) return
         setIsHovering(true)

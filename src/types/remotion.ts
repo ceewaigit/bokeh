@@ -135,6 +135,7 @@ export type ActiveClipDataAtFrame = {
 };
 
 export interface VideoPositionContextValue {
+  // Core layout dimensions
   offsetX: number;
   offsetY: number;
   drawWidth: number;
@@ -144,6 +145,16 @@ export interface VideoPositionContextValue {
   padding: number;
   videoWidth: number;
   videoHeight: number;
+
+  // Extended layout properties (from useLayoutCalculation)
+  paddingScaled?: number;
+  scaleFactor?: number;
+  cornerRadius?: number;
+  shadowIntensity?: number;
+  activeSourceWidth?: number;
+  activeSourceHeight?: number;
+
+  // Effects
   cameraMotionBlur?: {
     enabled: boolean;
     angle: number;
@@ -151,10 +162,13 @@ export interface VideoPositionContextValue {
   };
   /** Refocus blur strength in pixels for zoom transitions */
   refocusBlurPx?: number;
+
+  // Mockup
   /** Whether a device mockup is enabled */
   mockupEnabled?: boolean;
   /** Device mockup position and dimensions (when enabled) */
   mockupPosition?: MockupPositionResult | null;
+  mockupData?: any;
 
   // Frame layout and clip data (SSOT from SharedVideoController)
   /** Active clip data for current frame */

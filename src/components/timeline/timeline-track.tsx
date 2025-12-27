@@ -50,7 +50,17 @@ const AnimatedGroup = ({ y, children }: { y: number; children: React.ReactNode }
 }
 
 // Animated Rect to handle smooth Height transitions
-const AnimatedRect = ({ width, height, fill, opacity }: { width: number; height: number; fill: string; opacity: number }) => {
+const AnimatedRect = ({
+  width,
+  height,
+  fill,
+  opacity
+}: {
+  width: number
+  height: number
+  fill: string
+  opacity: number
+}) => {
   const rectRef = useRef<Konva.Rect>(null)
   const hasMountedRef = useRef(false)
 
@@ -236,7 +246,14 @@ const AnimatedLabelContent = ({
 }
 
 
-export const TimelineTrack = React.memo(({ type, y, width, height, muted = false, onLabelClick }: TimelineTrackProps) => {
+export const TimelineTrack = React.memo(({
+  type,
+  y,
+  width,
+  height,
+  muted = false,
+  onLabelClick
+}: TimelineTrackProps) => {
   const colors = useTimelineColors()
 
   // Sub-tracks (Audio, Webcam) get indented visual treatment
@@ -358,6 +375,12 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
           height={height}
           fill="black"
           opacity={0}
+          onMouseDown={(e) => {
+            e.cancelBubble = true
+          }}
+          onTouchStart={(e) => {
+            e.cancelBubble = true
+          }}
           onClick={(e) => {
             e.cancelBubble = true
             onLabelClick()

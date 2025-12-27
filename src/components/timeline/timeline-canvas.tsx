@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react'
 import { Stage, Layer, Rect } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { useShallow } from 'zustand/react/shallow'
-import { cn, clamp } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import type { Project, Clip } from '@/types/project'
 import { TrackType, TimelineTrackType } from '@/types/project'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
@@ -42,6 +42,8 @@ import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useTimelineScrub } from '@/hooks/use-timeline-scrub'
+import { getTimelineTimeFromX } from '@/lib/timeline/seek-utils'
 
 // Commands
 import {
@@ -342,6 +344,11 @@ function TimelineCanvasContent({
       setHoverTime(pendingHoverRef.current)
     })
   }, [setHoverTime])
+  const { handleScrubStart, handleScrubMove, handleScrubEnd } = useTimelineScrub({
+    duration,
+    pixelsPerMs,
+    onSeek
+  })
 
   useEffect(() => {
     if (!isScrubbing) return
@@ -636,20 +643,12 @@ function TimelineCanvasContent({
     useProjectStore.getState().trimClipEnd(clipId, newEndTime)
   }, [])
 
-  // Stage click handler - click to seek and clear selections
-  const handleStageClick = useCallback((e: { target: any; evt: { offsetX: number } }) => {
-    if (e.target === e.target.getStage()) {
-      clearEffectSelection()
-
-      const x = e.evt.offsetX - TimelineConfig.TRACK_LABEL_WIDTH
-      if (x > 0) {
-        const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
-        const maxTime = currentProject?.timeline?.duration || 0
-        const targetTime = clamp(time, 0, maxTime)
-        onSeek(targetTime)
-      }
-    }
-  }, [currentProject, pixelsPerMs, onSeek, clearEffectSelection])
+  const handleStageScrubStart = useCallback((e: any) => {
+    const target = e.target
+    if (target?.name?.() === 'timeline-ruler') return
+    clearEffectSelection()
+    handleScrubStart(e)
+  }, [clearEffectSelection, handleScrubStart])
 
   if (!currentProject) {
     return (
@@ -823,23 +822,22 @@ function TimelineCanvasContent({
           key={themeKey}
           width={stageWidth}
           height={stageHeight}
-          onMouseDown={handleStageClick}
+          onMouseDown={handleStageScrubStart}
+          onTouchStart={handleStageScrubStart}
+          onMouseUp={handleScrubEnd}
+          onTouchEnd={handleScrubEnd}
           onMouseMove={(e) => {
-            if (isScrubbing) return
+            if (handleScrubMove(e)) return
             const stage = e.target.getStage()
             const pointerPos = stage?.getPointerPosition()
             if (!pointerPos) return
 
-            const x = pointerPos.x - TimelineConfig.TRACK_LABEL_WIDTH
+            const time = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
+            scheduleHoverUpdate(time)
 
-            // Update hover time for ghost playhead
-            if (x <= 0) {
-              scheduleHoverUpdate(null)
-            } else {
-              const time = clamp(TimeConverter.pixelsToMs(x, pixelsPerMs), 0, currentProject.timeline.duration)
-              scheduleHoverUpdate(time)
-            }
-
+          }}
+          onTouchMove={(e) => {
+            handleScrubMove(e)
           }}
           style={{
             userSelect: 'none',
@@ -857,6 +855,7 @@ function TimelineCanvasContent({
               height={stageHeight}
               fill={colors.background}
               opacity={backgroundOpacity}
+              name="timeline-background"
             />
 
             <Rect
@@ -947,6 +946,9 @@ function TimelineCanvasContent({
               zoom={zoom}
               pixelsPerMs={pixelsPerMs}
               onSeek={onSeek}
+              onScrubStart={handleScrubStart}
+              onScrubMove={handleScrubMove}
+              onScrubEnd={handleScrubEnd}
               offsetY={scrollTop}
             />
           </Layer>

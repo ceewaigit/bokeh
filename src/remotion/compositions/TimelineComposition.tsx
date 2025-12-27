@@ -17,12 +17,10 @@ import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig } from '
 import type { Recording, Effect } from '@/types/project';
 import { EffectType } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
-import { TimeProvider } from '../context/timeline/TimeContext';
+import { CompositionProvider, useComposition } from '../context/CompositionContext';
 import { PlaybackSettingsProvider } from '../context/playback/PlaybackSettingsContext';
-import { CompositionConfigProvider } from '../context/CompositionConfigContext';
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
-import { findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
 import { CursorLayer } from './layers/CursorLayer';
 import { PluginLayer } from './layers/PluginLayer';
 import { CropEditingLayer } from './layers/CropEditingLayer';
@@ -30,6 +28,7 @@ import { WebcamLayer } from './layers/WebcamLayer';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { VideoDataProvider, useVideoData } from '../context/video-data-context';
 import { useVideoUrl } from '../hooks/media/useVideoUrl';
+import { findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
 
 /**
  * Get audio URL for a recording
@@ -297,6 +296,11 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
 /**
  * Timeline Composition - Top-level wrapper
  * Configures all providers and renders content.
+ *
+ * Provider hierarchy (simplified from 4 to 3):
+ * - CompositionProvider: dimensions, fps, clips, recordings, resources (SSOT)
+ * - PlaybackSettingsProvider: playback state, render settings
+ * - VideoDataProvider: computed frame layout, clip accessors
  */
 export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) => {
   const {
@@ -324,32 +328,33 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) =
 
   const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
 
-  // Sort clips by start time for consistent rendering (passed to VideoDataProvider)
+  // Sort clips by start time for consistent rendering
   const sortedClips = React.useMemo(() => {
     return [...clips].sort((a, b) => a.startTime - b.startTime);
   }, [clips]);
 
   return (
-    <TimeProvider clips={sortedClips} recordings={recordings} resources={resources} fps={fps}>
+    <CompositionProvider
+      compositionWidth={compositionWidth}
+      compositionHeight={compositionHeight}
+      videoWidth={videoWidth}
+      videoHeight={videoHeight}
+      sourceVideoWidth={sourceVideoWidth}
+      sourceVideoHeight={sourceVideoHeight}
+      fps={fps}
+      clips={sortedClips}
+      recordings={recordings}
+      resources={resources}
+    >
       <PlaybackSettingsProvider
         playback={playback}
         renderSettings={renderSettings}
         resources={resources}
       >
-        <CompositionConfigProvider
-          compositionWidth={compositionWidth}
-          compositionHeight={compositionHeight}
-          videoWidth={videoWidth}
-          videoHeight={videoHeight}
-          sourceVideoWidth={sourceVideoWidth}
-          sourceVideoHeight={sourceVideoHeight}
-          fps={fps}
-        >
-          <VideoDataProvider clips={sortedClips} recordings={recordings} effects={effects} fps={fps}>
-            <TimelineCompositionContent {...props} />
-          </VideoDataProvider>
-        </CompositionConfigProvider>
+        <VideoDataProvider effects={effects}>
+          <TimelineCompositionContent {...props} />
+        </VideoDataProvider>
       </PlaybackSettingsProvider>
-    </TimeProvider>
+    </CompositionProvider>
   );
 };

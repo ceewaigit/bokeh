@@ -6,12 +6,14 @@ import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Effect, WebcamEffectData, WebcamShape, WebcamAnchor, WebcamEntryAnimation, WebcamExitAnimation, WebcamPipAnimation, CropEffectData } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
 import { DEFAULT_WEBCAM_DATA, WEBCAM_POSITION_PRESETS, WEBCAM_SHAPE_PRESETS } from '@/lib/constants/default-effects'
 import { DEFAULT_CROP_DATA, clampCropData } from '@/remotion/compositions/utils/transforms/crop-transform'
 import { useProjectStore } from '@/stores/project-store'
 import { CropOverlay } from '@/components/crop-overlay/CropOverlay'
+import { InfoTooltip } from './info-tooltip'
 
 interface WebcamTabProps {
   webcamEffect: Effect | undefined
@@ -20,11 +22,11 @@ interface WebcamTabProps {
 }
 
 // Shape preset buttons with icons
-const SHAPE_OPTIONS: { id: WebcamShape; label: string; icon: React.ReactNode }[] = [
-  { id: 'circle', label: 'Circle', icon: <Circle className="w-4 h-4" /> },
-  { id: 'squircle', label: 'Squircle', icon: <div className="w-4 h-4 rounded-lg border-2 border-current" /> },
-  { id: 'rounded-rect', label: 'Rounded', icon: <RectangleHorizontal className="w-4 h-4" /> },
-  { id: 'rectangle', label: 'Rectangle', icon: <Square className="w-4 h-4" /> },
+const SHAPE_OPTIONS: { id: WebcamShape; label: string; description: string; icon: React.ReactNode }[] = [
+  { id: 'circle', label: 'Circle', description: 'Perfect round shape', icon: <Circle className="w-3 h-3" /> },
+  { id: 'squircle', label: 'Squircle', description: 'Rounded square shape', icon: <div className="w-3 h-3 rounded-md border-[1.5px] border-current" /> },
+  { id: 'rounded-rect', label: 'Rounded', description: 'Horizontal rounded rectangle', icon: <RectangleHorizontal className="w-3 h-3" /> },
+  { id: 'rectangle', label: 'Rectangle', description: 'Sharp-cornered rectangle', icon: <Square className="w-3 h-3" /> },
 ]
 
 // Position grid options
@@ -195,8 +197,8 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
             <Video className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
           <div className="space-y-1">
-            <div className="text-[11px] font-semibold tracking-[-0.015em]">Webcam Overlay</div>
-            <p className="text-[11px] text-muted-foreground">Picture-in-picture styling and placement.</p>
+            <div className="text-[12px] font-semibold tracking-[-0.015em]">Webcam Overlay</div>
+            <p className="text-[12px] text-muted-foreground">Picture-in-picture styling and placement.</p>
           </div>
         </div>
         <Switch
@@ -214,22 +216,36 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
         <>
           {/* Shape Presets */}
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Shape</label>
+            <div className="flex items-center gap-2">
+              <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Shape</label>
+              <InfoTooltip content="Choose the webcam frame shape." />
+            </div>
             <div className="grid grid-cols-4 gap-1.5">
               {SHAPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => handleShapeChange(opt.id)}
-                  className={cn(
-                    "flex flex-col items-center gap-1 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-all duration-150",
-                    shape === opt.id
-                      ? "border-primary/40 bg-primary/10 text-primary shadow-sm"
-                      : "border-border/50 bg-background/40 text-muted-foreground hover:bg-background/70"
-                  )}
-                >
-                  {opt.icon}
-                  <span className="tracking-[-0.01em]">{opt.label}</span>
-                </button>
+                <Tooltip key={opt.id} delayDuration={400}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => handleShapeChange(opt.id)}
+                      className={cn(
+                        "group flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all",
+                        shape === opt.id
+                          ? "border-primary/60 bg-primary/10 text-primary shadow-sm"
+                          : "border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                      )}
+                    >
+                      <div className={cn(
+                        "flex h-6 w-6 items-center justify-center rounded-md border",
+                        shape === opt.id ? "border-primary/40 bg-primary/10" : "border-border/40 bg-background/60"
+                      )}>
+                        {opt.icon}
+                      </div>
+                      <div className="text-[11px] font-medium leading-none">{opt.label}</div>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    {opt.description}
+                  </TooltipContent>
+                </Tooltip>
               ))}
             </div>
           </div>
@@ -237,8 +253,11 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
           {/* Size Slider */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Size</label>
-              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">{size}%</span>
+              <div className="flex items-center gap-2">
+                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Size</label>
+                <InfoTooltip content="Controls how large the webcam appears." />
+              </div>
+              <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{size}%</span>
             </div>
             <Slider
               value={[size]}
@@ -254,34 +273,40 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
 
           {/* Position Grid */}
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Position</label>
-            <div className="grid grid-cols-3 gap-1 rounded-lg border border-border/60 bg-background/40 p-1.5">
+            <div className="flex items-center justify-center gap-2">
+              <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground text-center block">Position</label>
+              <InfoTooltip content="Pick where the webcam sits on the canvas." />
+            </div>
+            <div className="grid w-fit mx-auto grid-cols-3 gap-2 rounded-lg border border-border/50 bg-background/40 p-2">
               {POSITION_GRID.map((anchor) => (
                 <button
                   key={anchor}
                   onClick={() => handlePositionClick(anchor)}
                   className={cn(
-                    "aspect-square rounded-md transition-all duration-150",
+                    "h-8 w-8 rounded-full transition-all duration-150",
                     position.anchor === anchor
-                      ? "bg-primary shadow-sm"
-                      : "bg-muted/40 hover:bg-muted/60"
+                      ? "bg-primary/20 ring-2 ring-primary/50"
+                      : "bg-muted/30 hover:bg-muted/50 hover:ring-1 hover:ring-border/60"
                   )}
                   title={anchor}
                 />
               ))}
             </div>
-            <p className="text-[11px] text-muted-foreground/70">Position the PiP, then refine the framing below.</p>
+            <p className="text-[12px] text-muted-foreground/70 text-center">Position the picture-in-picture, then refine the framing below.</p>
           </div>
 
           {/* Framing Crop */}
           {webcamEffect && webcamPreviewSrc && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Webcam Framing</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Webcam Framing</label>
+                  <InfoTooltip content="Crop the source to control what shows." />
+                </div>
                 <button
                   type="button"
                   onClick={handleCropReset}
-                  className="flex items-center gap-1 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-background"
+                  className="flex items-center gap-1 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-background"
                 >
                   <RotateCcw className="h-3 w-3" />
                   Reset
@@ -317,7 +342,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                   />
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground/70">
+              <p className="text-[12px] text-muted-foreground/70">
                 Drag the box to reframe which part of the webcam is shown.
               </p>
             </div>
@@ -326,8 +351,11 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
           {/* Padding Slider */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Edge Padding</label>
-              <span className="text-[11px] font-mono tabular-nums text-muted-foreground">{padding}px</span>
+              <div className="flex items-center gap-2">
+                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Edge Padding</label>
+                <InfoTooltip content="Distance from the edges of the canvas." />
+              </div>
+              <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{padding}px</span>
             </div>
             <Slider
               value={[padding]}
@@ -344,7 +372,10 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
           {/* Border Section */}
           <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold tracking-[-0.01em]">Border</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-semibold tracking-[-0.01em]">Border</span>
+                <InfoTooltip content="Add an outline around the webcam." />
+              </div>
               <Switch
                 checked={borderEnabled}
                 onCheckedChange={(checked) => {
@@ -356,7 +387,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
             {borderEnabled && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <label className="w-12 text-[11px] font-medium text-muted-foreground">Width</label>
+                  <label className="w-12 text-[12px] font-medium text-muted-foreground">Width</label>
                   <Slider
                     value={[borderWidth]}
                     min={1}
@@ -368,10 +399,10 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                     }}
                     className="flex-1"
                   />
-                  <span className="w-8 text-[11px] font-mono tabular-nums text-muted-foreground">{borderWidth}px</span>
+                  <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{borderWidth}px</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="w-12 text-[11px] font-medium text-muted-foreground">Color</label>
+                  <label className="w-12 text-[12px] font-medium text-muted-foreground">Color</label>
                   <input
                     type="color"
                     value={borderColor}
@@ -389,7 +420,10 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
           {/* Shadow Section */}
           <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold tracking-[-0.01em]">Shadow</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-semibold tracking-[-0.01em]">Shadow</span>
+                <InfoTooltip content="Soft depth behind the webcam." />
+              </div>
               <Switch
                 checked={shadowEnabled}
                 onCheckedChange={(checked) => {
@@ -400,7 +434,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
             </div>
             {shadowEnabled && (
               <div className="flex items-center gap-2">
-                <label className="w-12 text-[11px] font-medium text-muted-foreground">Blur</label>
+                <label className="w-12 text-[12px] font-medium text-muted-foreground">Blur</label>
                 <Slider
                   value={[shadowBlur]}
                   min={0}
@@ -412,17 +446,20 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                   }}
                   className="flex-1"
                 />
-                <span className="w-8 text-[11px] font-mono tabular-nums text-muted-foreground">{shadowBlur}px</span>
+                <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{shadowBlur}px</span>
               </div>
             )}
           </div>
 
           {/* Animations */}
           <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
-            <span className="text-[11px] font-semibold tracking-[-0.01em]">Animations</span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-semibold tracking-[-0.01em]">Animations</span>
+              <InfoTooltip content="Choose how the webcam appears, exits, and floats." />
+            </div>
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-muted-foreground">Entry</label>
+                <label className="text-[12px] font-medium text-muted-foreground">Entry</label>
                 <Select
                   value={entryAnimation}
                   onValueChange={(v: WebcamEntryAnimation) => {
@@ -448,7 +485,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-muted-foreground">Exit</label>
+                <label className="text-[12px] font-medium text-muted-foreground">Exit</label>
                 <Select
                   value={exitAnimation}
                   onValueChange={(v: WebcamExitAnimation) => {
@@ -473,7 +510,10 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">PiP Motion</label>
+              <div className="flex items-center gap-2">
+                <label className="text-[12px] font-medium text-muted-foreground">Inset Motion</label>
+                <InfoTooltip content="Subtle movement for the picture-in-picture window." />
+              </div>
               <Select
                 value={pipAnimation}
                 onValueChange={(v: WebcamPipAnimation) => {
@@ -501,7 +541,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
           {/* Advanced Section */}
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <ChevronRight className={cn("w-3 h-3 transition-transform", showAdvanced && "rotate-90")} />
             Advanced Options
@@ -512,8 +552,11 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
               {/* Mirror toggle */}
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] font-semibold tracking-[-0.01em]">Mirror</span>
-                  <p className="text-[11px] text-muted-foreground">Flip webcam horizontally</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em]">Mirror</span>
+                    <InfoTooltip content="Flip the webcam horizontally." />
+                  </div>
+                  <p className="text-[12px] text-muted-foreground">Flip webcam horizontally</p>
                 </div>
                 <Switch
                   checked={mirror}
@@ -527,8 +570,11 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
               {/* Opacity */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold tracking-[-0.01em]">Opacity</label>
-                  <span className="text-[11px] font-mono tabular-nums text-muted-foreground">{Math.round(opacity * 100)}%</span>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[12px] font-semibold tracking-[-0.01em]">Opacity</label>
+                    <InfoTooltip content="Overall transparency of the webcam." />
+                  </div>
+                  <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{Math.round(opacity * 100)}%</span>
                 </div>
                 <Slider
                   value={[opacity * 100]}
@@ -546,8 +592,11 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
               {/* Reduce opacity when zoomed in */}
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] font-semibold tracking-[-0.01em]">Fade on Zoom</span>
-                  <p className="text-[11px] text-muted-foreground">Reduce opacity when zoomed in</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em]">Fade on Zoom</span>
+                    <InfoTooltip content="Automatically dim the webcam when zoomed in." />
+                  </div>
+                  <p className="text-[12px] text-muted-foreground">Reduce opacity when zoomed in</p>
                 </div>
                 <Switch
                   checked={reduceOpacityOnZoom}
@@ -562,8 +611,8 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
               {shape !== 'circle' && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold tracking-[-0.01em]">Corner Radius</label>
-                    <span className="text-[11px] font-mono tabular-nums text-muted-foreground">{cornerRadius}px</span>
+                    <label className="text-[12px] font-semibold tracking-[-0.01em]">Corner Radius</label>
+                    <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{cornerRadius}px</span>
                   </div>
                   <Slider
                     value={[cornerRadius]}
@@ -586,8 +635,8 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
       {!webcamEffect && (
         <div className="rounded-lg border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground">
           <Video className="mx-auto mb-3 h-8 w-8 opacity-50" />
-          <p className="text-[11px] font-medium">No webcam recording in this project.</p>
-          <p className="mt-1 text-[11px]">Record with webcam enabled to use these settings.</p>
+          <p className="text-[12px] font-medium">No webcam recording in this project.</p>
+          <p className="mt-1 text-[12px]">Record with webcam enabled to use these settings.</p>
         </div>
       )}
     </div>

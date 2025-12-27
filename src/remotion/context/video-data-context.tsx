@@ -2,12 +2,9 @@
  * VideoDataProvider
  *
  * Provides computed video data (frame layout, sorted clips, active clip)
- * to Remotion compositions. This eliminates duplicated computation in:
- * - TimelineComposition (lines 107-120)
- * - SharedVideoController (lines 94-120)
- * - toolbar.tsx
+ * to Remotion compositions.
  *
- * Builds on top of TimeContext to provide:
+ * Uses CompositionContext for clips/recordings/fps (SSOT), then computes:
  * - sortedClips (sorted by startTime)
  * - frameLayout (computed from clips + fps + recordingsMap)
  * - Active clip lookup functions
@@ -23,6 +20,7 @@ import {
 } from '@/lib/timeline/frame-layout'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { ActiveClipDataAtFrame } from '@/types'
+import { useCompositionOptional } from './CompositionContext'
 
 /**
  * Video data context value.
@@ -83,32 +81,41 @@ export function useVideoDataOptional(): VideoDataContextValue | null {
 }
 
 interface VideoDataProviderProps {
-  clips: Clip[]
-  recordings: Recording[]
+  /** Effects array (required - not in CompositionContext) */
   effects: Effect[]
-  fps: number
+  /** Override clips if not using CompositionContext */
+  clips?: Clip[]
+  /** Override recordings if not using CompositionContext */
+  recordings?: Recording[]
+  /** Override fps if not using CompositionContext */
+  fps?: number
   children: React.ReactNode
 }
 
 /**
  * VideoDataProvider - Provides computed video data to the composition tree.
  *
- * This provider should wrap components that need frame layout and clip data.
- * It computes these values once and provides them via context, eliminating
- * duplicated computation in child components.
+ * Uses CompositionContext for clips/recordings/fps when available (preferred).
+ * Falls back to props for backward compatibility.
  */
 export function VideoDataProvider({
-  clips,
-  recordings,
   effects,
-  fps,
+  clips: clipsProp,
+  recordings: recordingsProp,
+  fps: fpsProp,
   children
 }: VideoDataProviderProps) {
-  // Create recordings map for O(1) lookup
-  const recordingsMap = useMemo(
-    () => new Map(recordings.map(r => [r.id, r])),
-    [recordings]
-  )
+  // Get data from CompositionContext (SSOT) or fall back to props
+  const composition = useCompositionOptional()
+  const clips = composition?.clips ?? clipsProp ?? []
+  const fps = composition?.fps ?? fpsProp ?? 30
+
+  // Use recordingsMap from CompositionContext if available (eliminates duplicate construction)
+  const recordingsMap = useMemo(() => {
+    if (composition?.recordingsMap) return composition.recordingsMap
+    const recs = recordingsProp ?? []
+    return new Map(recs.map(r => [r.id, r]))
+  }, [composition?.recordingsMap, recordingsProp])
 
   // Sort clips by start time
   const sortedClips = useMemo(

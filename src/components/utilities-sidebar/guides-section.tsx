@@ -35,7 +35,7 @@ export function GuidesSection() {
             {/* Toggles */}
             <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                    <Label htmlFor="rule-thirds" className="text-[10px] font-medium text-muted-foreground">Rule of Thirds</Label>
+                    <Label htmlFor="rule-thirds" className="text-[11px] font-medium text-muted-foreground">Rule of Thirds</Label>
                     <Switch
                         id="rule-thirds"
                         checked={showRuleOfThirds}
@@ -45,7 +45,7 @@ export function GuidesSection() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <Label htmlFor="center-guides" className="text-[10px] font-medium text-muted-foreground">Center Guides</Label>
+                    <Label htmlFor="center-guides" className="text-[11px] font-medium text-muted-foreground">Center Guides</Label>
                     <Switch
                         id="center-guides"
                         checked={showCenterGuides}
@@ -55,7 +55,7 @@ export function GuidesSection() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <Label htmlFor="safe-zones" className="text-[10px] font-medium text-muted-foreground">Safe Zones</Label>
+                    <Label htmlFor="safe-zones" className="text-[11px] font-medium text-muted-foreground">Safe Zones</Label>
                     <Switch
                         id="safe-zones"
                         checked={showSafeZones}
@@ -74,7 +74,7 @@ export function GuidesSection() {
 
                     {/* Color Picker */}
                     <div className="space-y-1.5">
-                        <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color</Label>
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color</Label>
                         <div className="flex items-center gap-2">
                             {GUIDE_COLORS.map((color) => (
                                 <button
@@ -94,8 +94,8 @@ export function GuidesSection() {
                     {/* Opacity Slider */}
                     <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
-                            <Label className="text-[10px] text-muted-foreground">Opacity</Label>
-                            <span className="text-[10px] font-mono text-muted-foreground/70">{Math.round(guideOpacity * 100)}%</span>
+                            <Label className="text-[11px] text-muted-foreground">Opacity</Label>
+                            <span className="text-[11px] font-mono text-muted-foreground/70">{Math.round(guideOpacity * 100)}%</span>
                         </div>
                         <Slider
                             value={[guideOpacity]}
@@ -111,8 +111,8 @@ export function GuidesSection() {
                     {showSafeZones && (
                         <div className="space-y-2.5 animate-in fade-in slide-in-from-top-1">
                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] text-muted-foreground">Safe Zone Margin</Label>
-                                <span className="text-[10px] font-mono text-muted-foreground/70">{safeZoneMargin}%</span>
+                                <Label className="text-[11px] text-muted-foreground">Safe Zone Margin</Label>
+                                <span className="text-[11px] font-mono text-muted-foreground/70">{safeZoneMargin}%</span>
                             </div>
                             <Slider
                                 value={[safeZoneMargin]}

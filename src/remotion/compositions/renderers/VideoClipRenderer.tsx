@@ -4,15 +4,20 @@
  * Renders video clips within a Remotion composition.
  * Uses Remotion's Sequence and Video components for frame-accurate timing.
  * Works for both preview and export modes.
+ *
+ * NOTE: This component is rendered OUTSIDE VideoPositionProvider, so it receives
+ * layout data via props from SharedVideoController.
  */
 import React, { useCallback } from 'react';
-import { Sequence } from 'remotion';
+import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { useVideoContainerCleanup } from '@/remotion/hooks/media/useVTDecoderCleanup';
 import { AudioEnhancerWrapper } from '@/remotion/components/video-helpers';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
+import { devAssert } from '@/lib/utils/invariant';
+import { useComposition } from '@/remotion/context/CompositionContext';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import type { SyntheticEvent } from 'react';
@@ -25,23 +30,20 @@ interface VideoClipRendererProps {
   groupStartFrame: number;
   groupStartSourceIn: number;
   groupDuration: number;
-  currentFrame: number;
-  fps: number;
-  isRendering: boolean;
+  // Layout props (from SharedVideoController - can't use context as we're outside VideoPositionProvider)
   cornerRadius: number;
   drawWidth: number;
   drawHeight: number;
-  compositionWidth: number;
-  compositionHeight: number;
   maxZoomScale: number;
   currentZoomScale: number;
-  mockupEnabled?: boolean;
   activeLayoutItem: FrameLayoutItem | null;
   prevLayoutItem: FrameLayoutItem | null;
   nextLayoutItem: FrameLayoutItem | null;
+  // Boundary state
   shouldHoldPrevFrame: boolean;
   isNearBoundaryEnd: boolean;
   overlapFrames: number;
+  // Render coordination
   markRenderReady: (source?: string) => void;
   handleVideoReady: (e: SyntheticEvent<HTMLVideoElement>) => void;
   VideoComponent: any;
@@ -52,13 +54,18 @@ interface VideoClipRendererProps {
 export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   clipForVideo, recording, startFrame, durationFrames,
   groupStartFrame, groupStartSourceIn, groupDuration,
-  currentFrame, fps, isRendering,
-  cornerRadius, drawWidth, drawHeight,
-  compositionWidth, compositionHeight, maxZoomScale, currentZoomScale, mockupEnabled: _mockupEnabled,
-  activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame,
-  isNearBoundaryEnd, overlapFrames, markRenderReady, handleVideoReady,
-  VideoComponent, premountFor, postmountFor,
+  cornerRadius, drawWidth, drawHeight, maxZoomScale, currentZoomScale,
+  activeLayoutItem, prevLayoutItem, nextLayoutItem,
+  shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+  markRenderReady, handleVideoReady, VideoComponent,
+  premountFor, postmountFor,
 }) => {
+  // Remotion hooks
+  const currentFrame = useCurrentFrame();
+  const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
+  const { isRendering } = getRemotionEnvironment();
+  const { fps } = useComposition();
+
   // Get settings from context
   const { playback, renderSettings, resources } = usePlaybackSettings();
   const { isPlaying, isHighQualityPlaybackEnabled } = playback;
@@ -98,7 +105,12 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     && !isProxySufficientForTarget(compositionWidth, compositionHeight, currentZoomScale || maxZoomScale || 1);
   const useHighResSizing = isRendering || needsHighRes;
   const playbackRate = clipForVideo.playbackRate && clipForVideo.playbackRate > 0 ? clipForVideo.playbackRate : 1;
-  const startFromFrames = msToFrame(groupStartSourceIn || 0, fps);
+
+  // Validate critical timing data in dev mode
+  devAssert(groupStartSourceIn !== undefined, `groupStartSourceIn is undefined for clip ${clipForVideo.id}`)
+  devAssert(fps > 0, `fps must be positive, got ${fps}`)
+
+  const startFromFrames = msToFrame(groupStartSourceIn ?? 0, fps);
 
   // Opacity adjustment for generated active clip
   const isActiveClipGenerated = activeLayoutItem?.clip.recordingId?.startsWith('generated-');

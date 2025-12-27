@@ -19,7 +19,7 @@ import {
   useActiveClipData,
   useLayoutNavigation
 } from '../context/video-data-context';
-import { useTimeContext } from '../context/timeline/TimeContext';
+import { useComposition } from '../context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
 import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
 import {
@@ -70,7 +70,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   const currentFrame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const { fps } = useTimeContext();
+  const { fps } = useComposition();
   const { isRendering } = getRemotionEnvironment();
   const isPreview = !isRendering;
 
@@ -273,15 +273,15 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
 
   const renderedContent = useMemo(() => {
+    // Compute zoom scales once for all clips
+    const maxZoom = getMaxZoomScale(effects);
+    const currentScale = zoomTransform?.scale ?? 1;
+
     return renderableItems.map((item) => {
       const recording = recordingsMap.get(item.clip.recordingId);
       if (!recording) return null;
 
       if (recording.sourceType === 'video') {
-        // Calculate max zoom for this specific clip
-        const maxZoom = getMaxZoomScale(recording.effects || []);
-        const currentScale = zoomTransform?.scale || 1;
-
         return (
           <VideoClipRenderer
             key={item.groupId}
@@ -292,17 +292,11 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             groupStartFrame={item.groupStartFrame}
             groupStartSourceIn={item.groupStartSourceIn}
             groupDuration={item.groupDuration}
-            currentFrame={currentFrame}
-            fps={fps}
-            isRendering={isRendering}
             cornerRadius={layout.cornerRadius}
             drawWidth={layout.drawWidth}
             drawHeight={layout.drawHeight}
-            compositionWidth={width}
-            compositionHeight={height}
             maxZoomScale={maxZoom}
             currentZoomScale={currentScale}
-            mockupEnabled={layout.mockupEnabled}
             activeLayoutItem={activeLayoutItem}
             prevLayoutItem={prevLayoutItem}
             nextLayoutItem={nextLayoutItem}
@@ -371,7 +365,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       return null;
     });
   }, [
-    renderableItems, recordingsMap, width, height, zoomTransform,
+    renderableItems, recordingsMap, width, height, zoomTransform, effects,
     currentFrame, fps, isRendering, layout,
     activeLayoutItem, prevLayoutItem, nextLayoutItem,
     shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,

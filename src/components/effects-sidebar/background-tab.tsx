@@ -5,6 +5,7 @@ import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, Ch
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { BackgroundEffectData, Effect } from '@/types/project'
 import { BackgroundType } from '@/types/project'
 import { DEFAULT_PARALLAX_LAYERS, DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
@@ -31,14 +32,15 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   const backgroundTypeOptions: Array<{
     type: BackgroundType
     label: string
+    description: string
     icon: React.ComponentType<{ className?: string }>
   }> = [
-    { type: BackgroundType.Wallpaper, label: 'Wallpaper', icon: Monitor },
-    { type: BackgroundType.Parallax, label: 'Parallax', icon: Layers },
-    { type: BackgroundType.Gradient, label: 'Gradient', icon: Droplets },
-    { type: BackgroundType.Color, label: 'Color', icon: Palette },
-    { type: BackgroundType.Image, label: 'Image', icon: ImageIcon },
-  ]
+      { type: BackgroundType.Wallpaper, label: 'Scenes', description: 'Dynamic wallpaper backgrounds', icon: Monitor },
+      { type: BackgroundType.Parallax, label: 'Depth', description: 'Layered parallax effect', icon: Layers },
+      { type: BackgroundType.Gradient, label: 'Blend', description: 'Smooth color gradients', icon: Droplets },
+      { type: BackgroundType.Color, label: 'Solid', description: 'Single solid color', icon: Palette },
+      { type: BackgroundType.Image, label: 'Photo', description: 'Custom image background', icon: ImageIcon },
+    ]
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(BackgroundType.Gradient)
   const [preinstalledWallpapers, setPreinstalledWallpapers] = useState<PreinstalledWallpaper[]>([])
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({
@@ -300,26 +302,39 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     <div className="space-y-4">
 
       {/* Horizontal Background Type Tabs with scroll arrows */}
-      <div className="rounded-md bg-background/40 p-2 space-y-1.5">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Background Source</div>
-        <div className="flex flex-wrap gap-1.5">
+      <div className="rounded-md bg-background/40 p-2.5 space-y-2">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Source</div>
+        <div className="grid grid-cols-5 gap-1.5">
           {backgroundTypeOptions.map((option) => {
             const Icon = option.icon
             const isSelected = backgroundType === option.type
             return (
-              <button
-                key={option.type}
-                onClick={() => setBackgroundType(option.type)}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-all',
-                  isSelected
-                    ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
-                    : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                )}
-              >
-                <Icon className={cn("h-3.5 w-3.5", isSelected ? "text-primary" : "text-muted-foreground")} />
-                <div className="text-[11px] font-semibold leading-none">{option.label}</div>
-              </button>
+              <Tooltip key={option.type} delayDuration={400}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setBackgroundType(option.type)}
+                    className={cn(
+                      'group flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all',
+                      isSelected
+                        ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
+                        : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex h-6 w-6 items-center justify-center rounded-md border",
+                        isSelected ? "border-primary/40 bg-primary/10 text-primary" : "border-border/40 bg-background/60 text-muted-foreground"
+                      )}
+                    >
+                      <Icon className="h-3 w-3" />
+                    </div>
+                    <div className="text-[11px] font-medium leading-none">{option.label}</div>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {option.description}
+                </TooltipContent>
+              </Tooltip>
             )
           })}
         </div>
@@ -330,7 +345,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {backgroundType === BackgroundType.Wallpaper && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-medium text-muted-foreground">Select Wallpaper</h4>
+              <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Scenes</h4>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1">
                   <button
@@ -340,7 +355,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-xs text-muted-foreground min-w-[32px] text-center tabular-nums">
+                  <span className="text-[11px] text-muted-foreground min-w-[32px] text-center tabular-nums">
                     {wallpaperPage + 1}/{totalPages}
                   </span>
                   <button
@@ -411,7 +426,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                         />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                          <span className="text-[11px] leading-none text-white/70 truncate px-1">{wallpaper.name}</span>
+                          <span className="text-[12px] leading-none text-white/70 truncate px-1">{wallpaper.name}</span>
                         </div>
                       )}
                       {isLoading && (
@@ -419,7 +434,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         </div>
                       )}
-                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[11px] leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[12px] leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                         {wallpaper.name}{isDefault ? ' ★' : ''}
                       </span>
                     </button>
@@ -438,13 +453,13 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {backgroundType === BackgroundType.Parallax && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-medium text-muted-foreground">Parallax Layers</h4>
+              <h4 className="text-xs font-medium text-muted-foreground">Depth Layers</h4>
               {parallaxPresets.length > 1 && (
                 <select
                   value={selectedParallaxPresetId ?? ''}
                   onChange={(e) => setSelectedParallaxPresetId(e.target.value)}
                   className="text-xs bg-background/80 border border-border/40 rounded px-1.5 py-0.5"
-                  aria-label="Parallax preset"
+                  aria-label="Depth preset"
                 >
                   {parallaxPresets.map(p => (
                     <option key={p.id} value={p.id}>
@@ -515,7 +530,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                 </div>
               </div>
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                <span className="text-white text-xs font-medium px-2 py-1 bg-black/40 rounded">Hill Parallax</span>
+                <span className="text-white text-xs font-medium px-2 py-1 bg-black/40 rounded">Hill Depth</span>
               </div>
             </div>
             <button
@@ -533,7 +548,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   : "bg-primary/10 hover:bg-primary/20 text-primary"
               )}
             >
-              {bgData?.type === BackgroundType.Parallax ? 'Parallax Active' : 'Apply Parallax'}
+              {bgData?.type === BackgroundType.Parallax ? 'Depth On' : 'Apply Depth'}
             </button>
 
             {/* Intensity Slider - only show when parallax is active */}
@@ -559,7 +574,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             )}
 
             <p className="text-xs text-muted-foreground/70 leading-snug">
-              Background moves with your cursor for a depth effect
+              Moves subtly as you move the pointer
             </p>
           </div>
         )}
@@ -567,7 +582,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* Gradient Presets */}
         {backgroundType === BackgroundType.Gradient && (
           <div className="space-y-3">
-            <h4 className="text-xs font-medium text-muted-foreground">Select Gradient</h4>
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Blends</h4>
             <div className="grid grid-cols-5 gap-2">
               {GRADIENT_PRESETS.map(wallpaper => (
                 <button
@@ -595,7 +610,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* Solid Color */}
         {backgroundType === BackgroundType.Color && (
           <div className="space-y-3">
-            <h4 className="text-xs font-medium text-muted-foreground">Select Color</h4>
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Solids</h4>
 
             {/* Color picker - streamlined single section */}
             <div className="flex gap-2 items-center rounded-lg bg-background/40 p-3">
@@ -633,7 +648,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     })
                   }
                 }}
-                className="flex-1 px-2.5 py-1.5 text-[11px] font-mono bg-background/50 rounded-md"
+                className="flex-1 px-2.5 py-1.5 text-[12px] font-mono bg-background/50 rounded-md"
                 placeholder="#000000"
                 maxLength={7}
               />
@@ -667,7 +682,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* Custom Image */}
         {backgroundType === BackgroundType.Image && (
           <div className="space-y-3">
-            <h4 className="text-xs font-medium text-muted-foreground">Custom Image</h4>
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Photo</h4>
             <button
               onClick={async () => {
                 if (window.electronAPI?.selectImageFile && window.electronAPI?.loadImageAsDataUrl) {
@@ -685,7 +700,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               }}
               className="w-full py-2 px-3 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-colors"
             >
-              Choose Image File...
+              Choose Photo...
             </button>
             {bgData?.image && (
               <div className="relative aspect-video rounded-md overflow-hidden ring-1 ring-border/20">
@@ -710,14 +725,14 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
           </div>
         )}
 
-        {/* Background Blur - Only show for image-based backgrounds */}
+        {/* Soft focus - only show for image-based backgrounds */}
         {(backgroundType === BackgroundType.Wallpaper || backgroundType === BackgroundType.Image) && (
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
-            <h4 className="text-[11px] font-semibold text-muted-foreground tracking-[-0.01em]">Background Blur</h4>
+            <h4 className="text-[12px] font-semibold text-muted-foreground tracking-[-0.01em]">Soft Focus</h4>
             <div className="rounded-lg bg-background/40 p-3 space-y-3">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="flex items-center gap-2 text-[11px]">
-                  Enable Blur
+                <span className="flex items-center gap-2 text-[12px]">
+                  Soft focus
                   <InfoTooltip content="Blur for depth of field" />
                 </span>
                 <Switch
@@ -738,7 +753,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     step={1}
                     className="w-full"
                   />
-                  <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
+                  <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
                 </div>
               )}
             </div>

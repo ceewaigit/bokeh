@@ -12,7 +12,7 @@ import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type
 
 import { normalizeClickEvents, normalizeMouseEvents } from '../utils/events/event-normalizer';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
-import { useTimeContext } from '../../context/timeline/TimeContext';
+import { useComposition } from '../../context/CompositionContext';
 import { getCursorEffect } from '@/lib/effects/effect-filters';
 import { applyCssTransformToPoint } from '../utils/transforms/transform-point';
 
@@ -94,7 +94,7 @@ export const CursorLayer = React.memo(({
   videoHeight,
   metadataUrls,
 }: CursorLayerProps) => {
-  const { fps } = useTimeContext();
+  const { fps } = useComposition();
   const { isRendering } = getRemotionEnvironment();
 
   // Get ACTUAL video position and clip data from SharedVideoController (SSOT)

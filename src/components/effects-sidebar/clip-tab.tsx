@@ -108,7 +108,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
 
   return (
     <div className="space-y-2.5">
-      <div className="rounded-md bg-background/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+      <div className="rounded-md bg-background/40 px-2.5 py-1.5 text-[12px] text-muted-foreground">
         <span>Clip ID: {selectedClip.id.slice(0, 8)}...</span>
         <span className="mx-2">•</span>
         <span>
@@ -123,11 +123,11 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
       <div className="rounded-md bg-background/40 p-2.5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <h4 className="text-[11px] font-semibold text-foreground tracking-[-0.01em]">Playback Speed</h4>
+            <h4 className="text-[12px] font-semibold text-foreground tracking-[-0.01em]">Playback Speed</h4>
             <InfoTooltip content="Video playback speed" />
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="secondary" className="text-[11px] px-1.5 py-0.5 h-5">
+            <Badge variant="secondary" className="text-[12px] px-1.5 py-0.5 h-5">
               {playbackRate.toFixed(2)}x
             </Badge>
             <Button
@@ -152,7 +152,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
             step={0.25}
             className="w-full"
           />
-          <div className="flex justify-between text-[11px] text-muted-foreground/70 tabular-nums">
+          <div className="flex justify-between text-[12px] text-muted-foreground/70 tabular-nums">
             <span>0.25x</span>
             <span>1x</span>
             <span>4x</span>
@@ -160,13 +160,13 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
         </div>
 
         <div className="space-y-1.5 pt-2 border-t border-border/30">
-          <div className="text-[11px] font-medium text-muted-foreground">Quick Presets</div>
+          <div className="text-[12px] font-medium text-muted-foreground">Quick Presets</div>
           <div className="flex gap-1.5 flex-wrap">
             <Button
               size="sm"
               variant={Math.abs(playbackRate - 0.5) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(0.5)}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               0.5x
             </Button>
@@ -174,7 +174,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
               size="sm"
               variant={Math.abs(playbackRate - 0.75) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(0.75)}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               0.75x
             </Button>
@@ -182,7 +182,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
               size="sm"
               variant={Math.abs(playbackRate - 1.0) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(1.0)}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               1x
             </Button>
@@ -190,7 +190,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
               size="sm"
               variant={Math.abs(playbackRate - 1.25) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(1.25)}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               1.25x
             </Button>
@@ -198,7 +198,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
               size="sm"
               variant={Math.abs(playbackRate - 1.5) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(1.5)}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               1.5x
             </Button>
@@ -206,7 +206,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
               size="sm"
               variant={Math.abs(playbackRate - 2.0) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(2.0)}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               2x
             </Button>
@@ -214,7 +214,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
               size="sm"
               variant={Math.abs(playbackRate - 3.0) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(3.0)}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               3x
             </Button>
@@ -225,15 +225,15 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
       {/* Fade Section */}
       <div className="rounded-md bg-background/40 p-2.5 space-y-3">
         <div className="flex items-center gap-1.5">
-          <h4 className="text-[11px] font-semibold text-foreground tracking-[-0.01em]">Clip Fades</h4>
+          <h4 className="text-[12px] font-semibold text-foreground tracking-[-0.01em]">Clip Fades</h4>
           <InfoTooltip content="Fade transitions" />
         </div>
 
         {/* Intro Fade */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">Fade In</span>
-            <span className="text-[11px] font-mono text-muted-foreground/70 tabular-nums">
+            <span className="text-[12px] text-muted-foreground">Fade In</span>
+            <span className="text-[12px] font-mono text-muted-foreground/70 tabular-nums">
               {introFadeMs}ms
             </span>
           </div>
@@ -251,8 +251,8 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
         {/* Outro Fade */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground">Fade Out</span>
-            <span className="text-[11px] font-mono text-muted-foreground/70 tabular-nums">
+            <span className="text-[12px] text-muted-foreground">Fade Out</span>
+            <span className="text-[12px] font-mono text-muted-foreground/70 tabular-nums">
               {outroFadeMs}ms
             </span>
           </div>
@@ -269,7 +269,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
 
         {/* Quick Presets */}
         <div className="space-y-1.5 pt-2 border-t border-border/30">
-          <div className="text-[11px] font-medium text-muted-foreground">Quick Presets</div>
+          <div className="text-[12px] font-medium text-muted-foreground">Quick Presets</div>
           <div className="flex gap-1.5 flex-wrap">
             <Button
               size="sm"
@@ -281,7 +281,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
                   updateClip(selectedClip.id, { introFadeMs: undefined, outroFadeMs: undefined })
                 }
               }}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               None
             </Button>
@@ -295,7 +295,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
                   updateClip(selectedClip.id, { introFadeMs: 250, outroFadeMs: 250 })
                 }
               }}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               Quick
             </Button>
@@ -309,7 +309,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
                   updateClip(selectedClip.id, { introFadeMs: 500, outroFadeMs: 500 })
                 }
               }}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               Smooth
             </Button>
@@ -323,7 +323,7 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
                   updateClip(selectedClip.id, { introFadeMs: 1000, outroFadeMs: 1000 })
                 }
               }}
-              className="text-[11px] h-6 px-2"
+              className="text-[12px] h-7 px-2"
             >
               Slow
             </Button>

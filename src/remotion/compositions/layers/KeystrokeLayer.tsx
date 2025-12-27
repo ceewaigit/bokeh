@@ -5,7 +5,7 @@ import type { KeystrokeEffectData } from '@/types/project';
 import type { KeystrokeLayerProps } from '@/types';
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
-import { useTimeContext } from '../../context/timeline/TimeContext';
+import { useComposition } from '../../context/CompositionContext';
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects';
 
 export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
@@ -16,7 +16,7 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
   const sourceTimeMs = useSourceTime();
   const { keystrokeEvents, clip } = useClipContext();
   const { width, height } = useVideoConfig();
-  const { fps } = useTimeContext();
+  const { fps } = useComposition();
   const frame = useCurrentFrame();
 
   const frameDurationMs = useMemo(() => 1000 / fps, [fps]);

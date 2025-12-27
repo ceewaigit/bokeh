@@ -6,7 +6,7 @@
  */
 
 import { useCurrentFrame } from 'remotion';
-import { useTimeContext } from '../../context/timeline/TimeContext';
+import { useComposition } from '../../context/CompositionContext';
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { clipRelativeToSource } from '@/lib/timeline/time-space-converter';
 import { useMemo } from 'react';
@@ -21,7 +21,7 @@ import { useMemo } from 'react';
  */
 export function useSourceTime(): number {
   const frame = useCurrentFrame();
-  const { fps } = useTimeContext();
+  const { fps } = useComposition();
   const { clip } = useClipContext();
 
   return useMemo(() => {

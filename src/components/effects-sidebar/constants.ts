@@ -43,10 +43,10 @@ export enum SidebarTabId {
 
 export const SIDEBAR_TABS = [
   { id: SidebarTabId.Clip, icon: SlidersHorizontal, label: 'Clip' },
-  { id: SidebarTabId.Style, icon: Palette, label: 'Appearance' },
-  { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Cursor & Keys' },
-  { id: SidebarTabId.Framing, icon: Crop, label: 'Zoom & Crop' },
-  { id: SidebarTabId.Webcam, icon: Camera, label: 'Webcam' },
-  { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Canvas' },
-  { id: SidebarTabId.Advanced, icon: Bot, label: 'Settings' },
+  { id: SidebarTabId.Style, icon: Palette, label: 'Look' },
+  { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Pointer & Typing' },
+  { id: SidebarTabId.Framing, icon: Crop, label: 'Focus & Frame' },
+  { id: SidebarTabId.Webcam, icon: Camera, label: 'Camera' },
+  { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Stage' },
+  { id: SidebarTabId.Advanced, icon: Bot, label: 'More' },
 ] as const

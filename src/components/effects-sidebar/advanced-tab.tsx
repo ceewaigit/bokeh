@@ -47,8 +47,8 @@ export function AdvancedTab({
         <div className="flex items-start gap-2">
           <Bot className="w-4 h-4 text-muted-foreground mt-0.5" />
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Camera & Motion</div>
-            <div className="mt-1 text-[11px] text-muted-foreground leading-snug">
+            <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Camera & Motion</div>
+            <div className="mt-1 text-[12px] text-muted-foreground leading-snug">
               Camera motion and effects
             </div>
           </div>
@@ -59,8 +59,8 @@ export function AdvancedTab({
       <div className="rounded-md bg-background/40 p-2.5 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Motion Smoothing</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground leading-snug">
+            <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Motion Smoothing</div>
+            <div className="mt-0.5 text-[12px] text-muted-foreground leading-snug">
               Reduce jitter in camera panning
             </div>
           </div>
@@ -90,7 +90,7 @@ export function AdvancedTab({
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Screen Motion Blur</div>
+              <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Screen Motion Blur</div>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
@@ -98,7 +98,7 @@ export function AdvancedTab({
                 <TooltipContent side="left">Adds blur during fast screen movement.</TooltipContent>
               </Tooltip>
             </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground leading-snug">
+            <div className="mt-0.5 text-[12px] text-muted-foreground leading-snug">
               Adds blur during fast screen movement
             </div>
           </div>
@@ -107,7 +107,7 @@ export function AdvancedTab({
         <div className="space-y-4 pt-1">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className={cn("text-[11px] text-muted-foreground uppercase tracking-wider font-medium")}>Intensity</span>
+              <span className={cn("text-[12px] text-muted-foreground uppercase tracking-wider font-medium")}>Intensity</span>
               <span className="text-xs font-mono text-primary tabular-nums">{motionBlurIntensity}%</span>
             </div>
             <Slider
@@ -126,7 +126,7 @@ export function AdvancedTab({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className={cn("text-[11px] text-muted-foreground uppercase tracking-wider font-medium")}>Threshold</span>
+              <span className={cn("text-[12px] text-muted-foreground uppercase tracking-wider font-medium")}>Threshold</span>
               <span className="text-xs font-mono text-primary tabular-nums">{motionBlurThreshold}%</span>
             </div>
             <Slider
@@ -145,7 +145,7 @@ export function AdvancedTab({
               max={100}
               step={5}
             />
-            <p className="text-[11px] text-muted-foreground/60 italic">Higher threshold = blur only on faster movements</p>
+            <p className="text-[12px] text-muted-foreground/60 italic">Higher threshold = blur only on faster movements</p>
           </div>
         </div>
       </div>
@@ -154,16 +154,16 @@ export function AdvancedTab({
       <div className="rounded-md bg-background/40 p-2.5 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold leading-none tracking-[-0.01em]">Screen Zoom Blur</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground leading-snug">
-              Softens focus during zoom in/out
+            <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Zoom Blur</div>
+            <div className="mt-0.5 text-[12px] text-muted-foreground leading-snug">
+              Softens the image during zoom in/out
             </div>
           </div>
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">Intensity</span>
+            <span className="text-[12px] text-muted-foreground uppercase tracking-wider font-medium">Intensity</span>
             <span className="text-xs font-mono text-primary tabular-nums">{refocusBlurIntensity}%</span>
           </div>
           <Slider
@@ -178,7 +178,7 @@ export function AdvancedTab({
             max={100}
             step={5}
           />
-          <p className="text-[11px] text-muted-foreground/60 italic">Adjust blur strength during zoom transitions</p>
+          <p className="text-[12px] text-muted-foreground/60 italic">Adjust blur strength during zoom transitions</p>
         </div>
       </div>
     </div>
