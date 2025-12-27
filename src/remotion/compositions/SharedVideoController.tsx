@@ -247,7 +247,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const refocusIntensity = cameraSettings?.refocusBlurEnabled === false
     ? 0
     : Math.max(0, Math.min(1, (cameraSettings?.refocusBlurIntensity ?? 40) / 100));
-  const refocusBlurPx = (zoomTransform?.refocusBlur ?? 0) * 12 * refocusIntensity;
+  const refocusBlurRaw = (zoomTransform?.refocusBlur ?? 0) * 12 * refocusIntensity;
+  // Quantize to reduce filter churn without changing visible quality.
+  const refocusBlurPx = refocusBlurRaw < 0.5 ? 0 : Math.round(refocusBlurRaw);
 
   // ==========================================================================
   // RENDERABLE ITEMS
@@ -283,8 +285,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
       if (recording.sourceType === 'video') {
         return (
-          <VideoClipRenderer
-            key={item.groupId}
+            <VideoClipRenderer
+              key={item.groupId}
             clipForVideo={item.clip}
             recording={recording}
             startFrame={item.startFrame}
@@ -306,8 +308,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             markRenderReady={markRenderReady}
             handleVideoReady={handleVideoReady}
             VideoComponent={preferOffthreadVideo ? OffthreadVideo : Video}
-            premountFor={30}
-            postmountFor={30}
+            premountFor={isScrubbing && !isRendering ? 0 : 30}
+            postmountFor={isScrubbing && !isRendering ? 0 : 30}
           />
         );
       } else if (recording.sourceType === 'image') {

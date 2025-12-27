@@ -159,7 +159,7 @@ export function EffectsSidebar({
   const lastAutoOpenedCropClipRef = useRef<string | null>(null)
 
   // Check if webcam/annotation tracks have content
-  const { hasWebcamTrack } = useTrackExistence()
+  const { hasWebcamContent } = useTrackExistence()
   const effectTrackExistence = useEffectTrackExistence()
   const hasAnnotationTrack = effectTrackExistence[EffectType.Annotation] ?? false
 
@@ -305,26 +305,26 @@ export function EffectsSidebar({
       // Only show Clip tab when a clip is selected
       if (tab.id === SidebarTabId.Clip) return !!selectedClip
       // Only show Webcam tab when there's webcam content on the timeline
-      if (tab.id === SidebarTabId.Webcam) return hasWebcamTrack
+      if (tab.id === SidebarTabId.Webcam) return hasWebcamContent
       // Only show Annotation tab when there are annotations
       if (tab.id === SidebarTabId.Annotation) return hasAnnotationTrack
       return true
     })
-  }, [selectedClip, hasWebcamTrack, hasAnnotationTrack])
+  }, [selectedClip, hasWebcamContent, hasAnnotationTrack])
 
   useEffect(() => {
     if (!selectedClip && activeTab === SidebarTabId.Clip) {
       setActiveTab(SidebarTabId.Style)
     }
     // Switch away from Webcam tab if webcam content is removed
-    if (!hasWebcamTrack && activeTab === SidebarTabId.Webcam) {
+    if (!hasWebcamContent && activeTab === SidebarTabId.Webcam) {
       setActiveTab(SidebarTabId.Style)
     }
     // Switch away from Annotation tab if annotation content is removed
     if (!hasAnnotationTrack && activeTab === SidebarTabId.Annotation) {
       setActiveTab(SidebarTabId.Style)
     }
-  }, [activeTab, selectedClip, hasWebcamTrack, hasAnnotationTrack])
+  }, [activeTab, selectedClip, hasWebcamContent, hasAnnotationTrack])
 
   useEffect(() => {
     if (activeTab !== SidebarTabId.Webcam) return

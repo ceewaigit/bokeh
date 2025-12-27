@@ -1,5 +1,5 @@
 import type { Clip, Effect, Project, Recording, ZoomEffectData } from '@/types/project'
-import { EffectType } from '@/types/project'
+import { EffectType, TrackType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { resolveEffectIdForType } from '@/lib/effects/effect-selection'
@@ -70,23 +70,6 @@ function updateSelectedBlock(
 
   updateEffectData(context.executeCommand, selectedId, data)
   return true
-}
-
-function updateSelectedWebcam(
-  context: EffectChangeContext,
-  data: Record<string, unknown>,
-  enabled?: boolean
-): void {
-  const selectedId = resolveEffectIdForType(context.effects, context.selectedEffectLayer, EffectType.Webcam)
-  if (!selectedId) {
-    console.error('[EffectChange] Webcam updates require a selected block')
-    return
-  }
-
-  const effect = context.effects.find(item => item.id === selectedId)
-  if (!effect) return
-
-  updateEffectData(context.executeCommand, effect.id, data, enabled ?? effect.enabled)
 }
 
 async function maybeGenerateZoomEffects(
@@ -206,7 +189,39 @@ export async function applyEffectChange(
 
   if (type === EffectType.Webcam) {
     const { enabled, ...effectData } = data ?? {}
-    updateSelectedWebcam(context, effectData, enabled)
+    const selectedId = resolveEffectIdForType(context.effects, context.selectedEffectLayer, EffectType.Webcam)
+    if (!selectedId) {
+      const project = context.currentProject
+      if (!project) {
+        console.error('[EffectChange] Webcam updates require an active project')
+        return
+      }
+      const webcamTrack = project.timeline.tracks.find(track => track.type === TrackType.Webcam)
+      const webcamClips = webcamTrack?.clips ?? []
+      if (webcamClips.length === 0) {
+        console.error('[EffectChange] Webcam updates require a webcam clip on the timeline')
+        return
+      }
+
+      const maxEndTime = webcamClips.reduce(
+        (max, clip) => Math.max(max, clip.startTime + clip.duration),
+        0
+      )
+
+      const newEffect: Effect = {
+        id: `webcam-global-${Date.now()}`,
+        type: EffectType.Webcam,
+        startTime: 0,
+        endTime: maxEndTime > 0 ? maxEndTime : Number.MAX_SAFE_INTEGER,
+        data: effectData,
+        enabled: enabled ?? true
+      }
+
+      context.executeCommand('AddEffect', newEffect)
+      return
+    }
+
+    updateEffectData(context.executeCommand, selectedId, effectData, enabled)
     return
   }
 

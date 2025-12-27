@@ -128,6 +128,8 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
     return project.recordings.find(r => r.id === webcamClip.recordingId) ?? null
   }, [project?.recordings, webcamClip])
 
+  const hasWebcamFootage = Boolean(webcamClip && webcamRecording)
+
   const webcamPreviewSrc = useMemo(() => {
     if (!webcamRecording?.filePath) return null
     const basename = webcamRecording.filePath.split('/').pop() || webcamRecording.filePath
@@ -194,6 +196,16 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+
+  if (!hasWebcamFootage) {
+    return (
+      <div className="rounded-lg border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground">
+        <Video className="mx-auto mb-3 h-8 w-8 opacity-50" />
+        <p className="text-[12px] font-medium">No webcam footage in this project.</p>
+        <p className="mt-1 text-[12px]">Import or record with webcam enabled to use these settings.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -639,14 +651,6 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
         </>
       )}
 
-      {/* No webcam recording message */}
-      {!webcamEffect && (
-        <div className="rounded-lg border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground">
-          <Video className="mx-auto mb-3 h-8 w-8 opacity-50" />
-          <p className="text-[12px] font-medium">No webcam recording in this project.</p>
-          <p className="mt-1 text-[12px]">Record with webcam enabled to use these settings.</p>
-        </div>
-      )}
     </div>
   )
 }
