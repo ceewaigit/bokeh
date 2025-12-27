@@ -2,7 +2,7 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
-import { EffectStore } from '@/lib/core/effects'
+import { TimelineConfig } from '@/lib/timeline/config'
 
 /**
  * AddZoomBlockCommand - Adds zoom effects to timeline.effects[] (TIMELINE SPACE)
@@ -43,13 +43,33 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
     if (!this.block.id) {
       this.block.id = `zoom-timeline-${Date.now()}`
     }
+    const startTime = this.block.startTime
+    const endTime = this.block.endTime
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+      return {
+        success: false,
+        error: `Invalid zoom timing for ${this.block.id}`
+      }
+    }
+    if (endTime <= startTime) {
+      return {
+        success: false,
+        error: `Zoom block ${this.block.id} must have positive duration`
+      }
+    }
+    if (endTime - startTime < TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS) {
+      return {
+        success: false,
+        error: `Zoom block ${this.block.id} is shorter than minimum duration`
+      }
+    }
 
     // Create zoom effect with TIMELINE SPACE times
     const zoomEffect: Effect = {
       id: this.block.id,
       type: EffectType.Zoom,
-      startTime: this.block.startTime,  // TIMELINE time
-      endTime: this.block.endTime,      // TIMELINE time
+      startTime,  // TIMELINE time
+      endTime,      // TIMELINE time
       data: {
         origin: this.block.origin,
         scale: this.block.scale,
@@ -67,8 +87,9 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
       enabled: true
     }
 
-    // Add to timeline.effects[] using EffectStore
-    EffectStore.add(project, zoomEffect)
+    // Add to timeline.effects[] using store action (immer-safe)
+    const store = this.context.getStore()
+    store.addEffect(zoomEffect)
 
     return {
       success: true,
@@ -77,11 +98,9 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   doUndo(): CommandResult<{ blockId: string }> {
-    // Remove from timeline.effects using EffectStore
-    const project = this.context.getProject()
-    if (project) {
-      EffectStore.remove(project, this.block.id)
-    }
+    // Remove from timeline.effects using store action
+    const store = this.context.getStore()
+    store.removeEffect(this.block.id)
 
     return {
       success: true,

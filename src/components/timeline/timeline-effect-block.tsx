@@ -61,7 +61,7 @@ export const TimelineEffectBlock = React.memo(({
   onUpdate,
   onHover
 }: TimelineEffectBlockProps) => {
-  // Prevent rendering if collapsed/invalid height to avoid invalid shape errors
+  // Prevent rendering if collapsed/invalid bounds to avoid invalid shape errors
 
   const EFFECT_TRACK_ANIMATION_DURATION = 0.45
 
@@ -130,6 +130,13 @@ export const TimelineEffectBlock = React.memo(({
   // Always use text shadow for glass mode legibility
   const labelShadowColor = colors.effectLabelShadow
 
+  if (width <= 0 || height <= 0) {
+    return null
+  }
+
+  const safeWidth = Math.max(1, currentWidth)
+  const safeHeight = Math.max(1, height)
+
   // Debounced hover handlers to prevent flickering when moving between Group and Transformer
   const handleMouseEnter = () => {
     if (hoverTimeoutRef.current) {
@@ -146,6 +153,15 @@ export const TimelineEffectBlock = React.memo(({
       setIsHovering(false)
     }, 50)
   }
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+        hoverTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     setCurrentWidth(width)
@@ -232,14 +248,15 @@ export const TimelineEffectBlock = React.memo(({
 
     const points: number[] = []
     // Use currentWidth for real-time updates during transform
-    const w = currentWidth
+    const w = safeWidth
+    const h = safeHeight
 
-    if (!w || !height || isNaN(w) || isNaN(height)) {
+    if (!w || !h || isNaN(w) || isNaN(h)) {
       return points
     }
 
-    const curveHeight = height - 16 // Slightly more padding
-    const curveY = height / 2
+    const curveHeight = h - 16 // Slightly more padding
+    const curveY = h / 2
 
     const introWidth = Math.min(TimeConverter.msToPixels(introMs, pixelsPerMs), w * 0.4)
     const outroWidth = Math.min(TimeConverter.msToPixels(outroMs, pixelsPerMs), w * 0.4)
@@ -290,7 +307,7 @@ export const TimelineEffectBlock = React.memo(({
 
   const curvePoints = generateZoomCurve()
 
-  if (height < 4) return null
+  if (safeHeight < 4) return null
 
   return (
     <>
@@ -316,7 +333,7 @@ export const TimelineEffectBlock = React.memo(({
 
           const snappedX = getSnappedDragX({
             proposedX: draggedX,
-            blockWidth: currentWidth,
+            blockWidth: safeWidth,
             blocks: allBlocks,
             pixelsPerMs,
             excludeId: blockId
@@ -364,10 +381,10 @@ export const TimelineEffectBlock = React.memo(({
             ref={rectRef}
             x={0}
             y={0}
-            width={currentWidth}
-            height={height}
+            width={safeWidth}
+            height={safeHeight}
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: height }}
+            fillLinearGradientEndPoint={{ x: 0, y: safeHeight }}
             fillLinearGradientColorStops={[
               0, withAlpha(blockFill, 0.7),
               1, withAlpha(blockFill, 1)
@@ -390,10 +407,10 @@ export const TimelineEffectBlock = React.memo(({
               <Rect
                 x={1}
                 y={1}
-                width={currentWidth - 2}
-                height={(height - 2) / 2}
+                width={Math.max(1, safeWidth - 2)}
+                height={Math.max(1, (safeHeight - 2) / 2)}
                 fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-                fillLinearGradientEndPoint={{ x: 0, y: (height - 2) / 2 }}
+                fillLinearGradientEndPoint={{ x: 0, y: (safeHeight - 2) / 2 }}
                 fillLinearGradientColorStops={[
                   0,
                   withAlpha(colors.foreground, 0.08),
@@ -411,7 +428,7 @@ export const TimelineEffectBlock = React.memo(({
             <>
               <Rect
                 x={-handleWidth / 2}
-                y={height / 2 - handleHeight / 2}
+                y={safeHeight / 2 - handleHeight / 2}
                 width={handleWidth}
                 height={handleHeight}
                 fill={handleFill}
@@ -422,8 +439,8 @@ export const TimelineEffectBlock = React.memo(({
                 shadowOpacity={0.1}
               />
               <Rect
-                x={currentWidth - handleWidth / 2}
-                y={height / 2 - handleHeight / 2}
+                x={safeWidth - handleWidth / 2}
+                y={safeHeight / 2 - handleHeight / 2}
                 width={handleWidth}
                 height={handleHeight}
                 fill={handleFill}
@@ -451,11 +468,11 @@ export const TimelineEffectBlock = React.memo(({
           )}
 
           {/* Label - centered in compact mode, top-left otherwise */}
-          {(label && currentWidth > 32) && (
+          {(label && safeWidth > 32) && (
             <Text
               x={isCompact ? 0 : 8}
-              y={isCompact ? height / 2 - 5 : 6}
-              width={isCompact ? currentWidth : currentWidth - 16}
+              y={isCompact ? safeHeight / 2 - 5 : 6}
+              width={isCompact ? safeWidth : safeWidth - 16}
               text={label}
               fontSize={isCompact ? 10 : 11}
               fill={labelFill}

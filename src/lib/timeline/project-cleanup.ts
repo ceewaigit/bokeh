@@ -2,6 +2,7 @@ import type { Project } from '@/types/project'
 import { WaveformAnalyzer } from '@/lib/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { EffectStore, isValidEffectTiming } from '@/lib/core/effects'
 
 export class ProjectCleanupService {
     /**
@@ -27,6 +28,21 @@ export class ProjectCleanupService {
         if (orphanedRecordings.length > 0) {
             project.recordings = project.recordings.filter(r => usedRecordingIds.has(r.id))
             console.log(`[ProjectCleanupService] Cleaned up ${orphanedRecordings.length} orphaned recording(s)`)
+        }
+    }
+
+    /**
+     * Removes effects with invalid timing to prevent runtime crashes.
+     */
+    static cleanupInvalidEffects(project: Project): void {
+        EffectStore.ensureArray(project)
+        const effects = EffectStore.getAll(project)
+        const validEffects = effects.filter(isValidEffectTiming)
+
+        if (validEffects.length !== effects.length) {
+            project.timeline.effects = validEffects
+            project.modifiedAt = new Date().toISOString()
+            console.warn(`[ProjectCleanupService] Removed ${effects.length - validEffects.length} invalid effect(s)`)
         }
     }
 

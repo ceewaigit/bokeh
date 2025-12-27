@@ -25,7 +25,8 @@ export enum TimelineTrackType {
   Zoom = 'zoom',
   Screen = 'screen',
   Keystroke = 'keystroke',
-  Plugin = 'plugin'
+  Plugin = 'plugin',
+  Annotation = 'annotation'
 }
 
 // Track group for collapsible sections
@@ -757,15 +758,19 @@ export interface AnnotationStyle {
 
 export interface AnnotationData {
   type?: 'text' | 'arrow' | 'highlight' | 'keyboard'
+  /** Position in 0-100% of canvas (center anchor for positioned elements) */
   position?: { x: number; y: number }
   content?: string
   style?: AnnotationStyle
   // Optional discriminator for advanced behaviors (e.g., 'screen3d', 'scrollCinematic')
   kind?: string
   // Additional properties for specific annotation types
-  endPosition?: { x: number; y: number } // For arrows
-  width?: number // For highlights
-  height?: number // For highlights
+  /** End position for arrows (0-100% of canvas) */
+  endPosition?: { x: number; y: number }
+  /** Width in percentage of canvas (for highlights) */
+  width?: number
+  /** Height in percentage of canvas (for highlights) */
+  height?: number
   keys?: string[] // For keyboard annotations
 }
 

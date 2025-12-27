@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Trash2, Search, Sparkles } from 'lucide-react'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import type { GeneratedPlugin } from './page'
@@ -16,6 +16,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
     const [plugins, setPlugins] = useState<PluginDefinition[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+    const deleteResetTimeoutRef = useRef<number | null>(null)
 
     // Load plugins when dialog opens
     useEffect(() => {
@@ -31,6 +32,15 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
         setPlugins(customPlugins)
     }
 
+    useEffect(() => {
+        return () => {
+            if (deleteResetTimeoutRef.current !== null) {
+                window.clearTimeout(deleteResetTimeoutRef.current)
+                deleteResetTimeoutRef.current = null
+            }
+        }
+    }, [])
+
     const handleDelete = (e: React.MouseEvent, id: string) => {
         e.stopPropagation()
         if (deleteConfirmId === id) {
@@ -40,7 +50,10 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
         } else {
             setDeleteConfirmId(id)
             // Auto-reset confirmation after 3 seconds
-            setTimeout(() => setDeleteConfirmId(null), 3000)
+            if (deleteResetTimeoutRef.current !== null) {
+                window.clearTimeout(deleteResetTimeoutRef.current)
+            }
+            deleteResetTimeoutRef.current = window.setTimeout(() => setDeleteConfirmId(null), 3000)
         }
     }
 

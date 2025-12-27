@@ -42,6 +42,7 @@ const TRACK_LABELS: Record<TimelineTrackType, string> = {
   [TimelineTrackType.Screen]: 'Screen',
   [TimelineTrackType.Keystroke]: 'Keystrokes',
   [TimelineTrackType.Plugin]: 'Plugins',
+  [TimelineTrackType.Annotation]: 'Notes',
 }
 
 // Minimal visibility dropdown - Apple-esque design
@@ -52,7 +53,8 @@ function TrackVisibilityDropdown() {
     hasZoomTrack,
     hasScreenTrack,
     hasKeystrokeTrack,
-    hasPluginTrack
+    hasPluginTrack,
+    hasAnnotationTrack
   } = useTimelineLayout()
 
   // Only show tracks that exist or are always available
@@ -64,6 +66,7 @@ function TrackVisibilityDropdown() {
     ...(hasScreenTrack ? [TimelineTrackType.Screen] : []),
     ...(hasKeystrokeTrack ? [TimelineTrackType.Keystroke] : []),
     ...(hasPluginTrack ? [TimelineTrackType.Plugin] : []),
+    ...(hasAnnotationTrack ? [TimelineTrackType.Annotation] : []),
   ]
 
   return (

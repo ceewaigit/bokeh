@@ -96,6 +96,13 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
     onEffectChange(EffectType.Webcam, merged)
   }, [webcamData, onEffectChange])
 
+  const handleCropPreviewLoaded = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.currentTarget
+    if (!Number.isFinite(video.duration)) return
+    video.currentTime = 0
+    video.pause()
+  }, [])
+
   // Shape change
   const handleShapeChange = (newShape: WebcamShape) => {
     setShape(newShape)
@@ -322,8 +329,9 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                   className="absolute inset-0 h-full w-full object-cover"
                   muted
                   playsInline
-                  loop
-                  autoPlay
+                  preload="metadata"
+                  onLoadedMetadata={handleCropPreviewLoaded}
+                  onLoadedData={handleCropPreviewLoaded}
                 />
                 {cropPreviewSize.width > 0 && cropPreviewSize.height > 0 && (
                   <CropOverlay

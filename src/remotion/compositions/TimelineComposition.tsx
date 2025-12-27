@@ -25,6 +25,7 @@ import { CursorLayer } from './layers/CursorLayer';
 import { PluginLayer } from './layers/PluginLayer';
 import { CropEditingLayer } from './layers/CropEditingLayer';
 import { WebcamLayer } from './layers/WebcamLayer';
+import { OverlayEditor } from './layers/OverlayEditor';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { VideoDataProvider, useVideoData } from '../context/video-data-context';
 import { useVideoUrl } from '../hooks/media/useVideoUrl';
@@ -251,6 +252,11 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
             onCropConfirm={cropSettings.onCropConfirm}
             onCropReset={cropSettings.onCropReset}
           />
+        )}
+
+        {/* Overlay editor - Canva-style drag/resize for positioned elements */}
+        {useVideoConfig().width > 300 && !renderSettings.isEditingCrop && (
+          <OverlayEditor effects={effects} enabled={!renderSettings.isGlowMode} />
         )}
 
       </SharedVideoController>

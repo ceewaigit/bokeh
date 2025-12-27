@@ -257,6 +257,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
 export function ImportMediaSection() {
     const [isDragOver, setIsDragOver] = useState(false)
     const [ingestQueue, setIngestQueue] = useState<IngestQueueItem[]>([])
+    const ingestCleanupTimeoutRef = useRef<number | null>(null)
 
     // Asset Library Store
     const assets = useAssetLibraryStore((s) => s.assets)
@@ -268,6 +269,15 @@ export function ImportMediaSection() {
 
     const currentProject = useProjectStore((s) => s.currentProject)
     const updateProjectData = useProjectStore((s) => s.updateProjectData)
+
+    useEffect(() => {
+        return () => {
+            if (ingestCleanupTimeoutRef.current !== null) {
+                window.clearTimeout(ingestCleanupTimeoutRef.current)
+                ingestCleanupTimeoutRef.current = null
+            }
+        }
+    }, [])
 
     // --- Asset Ingestion Logic ---
 
@@ -355,7 +365,10 @@ export function ImportMediaSection() {
             }
         }
 
-        setTimeout(() => {
+        if (ingestCleanupTimeoutRef.current !== null) {
+            window.clearTimeout(ingestCleanupTimeoutRef.current)
+        }
+        ingestCleanupTimeoutRef.current = window.setTimeout(() => {
             setIngestQueue(prev => prev.filter(i => i.status !== 'success'))
         }, 2000)
 

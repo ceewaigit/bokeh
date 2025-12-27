@@ -3,7 +3,9 @@ import { TrackType, EffectType } from '@/types/project'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { getCropEffectForClip } from '@/lib/effects/effect-filters'
-import { EffectStore } from '@/lib/core/effects'
+import { EffectStore, isValidEffectTiming } from '@/lib/core/effects'
+import { isGlobalEffectType } from '@/lib/effects/effect-classification'
+import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 
 // Calculate total timeline duration
 export function calculateTimelineDuration(project: Project): number {
@@ -11,6 +13,16 @@ export function calculateTimelineDuration(project: Project): number {
   for (const track of project.timeline.tracks) {
     for (const clip of track.clips) {
       maxEndTime = Math.max(maxEndTime, clip.startTime + clip.duration)
+    }
+  }
+  const effects = EffectStore.getAll(project)
+  for (const effect of effects) {
+    if (
+      isValidEffectTiming(effect) &&
+      !isGlobalEffectType(effect.type) &&
+      effect.endTime < Number.MAX_SAFE_INTEGER
+    ) {
+      maxEndTime = Math.max(maxEndTime, effect.endTime)
     }
   }
   return maxEndTime
@@ -533,23 +545,16 @@ export function addClipToTrack(
   const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
   if (!videoTrack) return null
 
-  if (startTime === undefined) {
-    if (videoTrack.clips.length > 0) {
-      const sortedClips = [...videoTrack.clips].sort((a, b) => a.startTime - b.startTime)
-      const lastClip = sortedClips[sortedClips.length - 1]
-      clip.startTime = lastClip.startTime + lastClip.duration
-    } else {
-      clip.startTime = 0
-    }
-  }
+  const proposedTime = startTime ?? project.timeline.duration
+  const { insertIndex } = ClipPositioning.getReorderTarget(proposedTime, videoTrack.clips)
 
-  videoTrack.clips.push(clip)
-  reflowClips(videoTrack, 0)
+  videoTrack.clips.splice(insertIndex, 0, clip)
+  reflowClips(videoTrack, Math.max(0, insertIndex - 1))
 
-  project.timeline.duration = Math.max(
-    project.timeline.duration,
-    clip.startTime + clip.duration
-  )
+  // Keep crop effects aligned after reflowing clip positions.
+  syncCropEffectTimes(project)
+
+  project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return clip
 }

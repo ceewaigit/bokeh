@@ -48,6 +48,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
 function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => void }) {
   const [copied, setCopied] = React.useState(false)
+  const copyTimeoutRef = React.useRef<number | null>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current !== null) {
+        window.clearTimeout(copyTimeoutRef.current)
+        copyTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const handleReload = () => {
     window.location.reload()
@@ -57,7 +67,10 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
     const text = `${error.message}\n\n${error.stack || ''}`
     navigator.clipboard.writeText(text)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (copyTimeoutRef.current !== null) {
+      window.clearTimeout(copyTimeoutRef.current)
+    }
+    copyTimeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
   }
 
   return (

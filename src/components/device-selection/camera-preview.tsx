@@ -21,11 +21,23 @@ export function CameraPreview({
   onError
 }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const isMountedRef = useRef(true)
+  const refreshTimeoutRef = useRef<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
 
   const { startPreview, stopPreview, isPreviewActive } = useDeviceStore()
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current)
+        refreshTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!deviceId) {
@@ -90,18 +102,27 @@ export function CameraPreview({
   const handleRefresh = async () => {
     if (deviceId) {
       stopPreview()
-      setTimeout(async () => {
-        try {
-          const mediaStream = await startPreview(deviceId)
-          if (mediaStream && videoRef.current) {
-            videoRef.current.srcObject = mediaStream
-            setStream(mediaStream)
-            setError(null)
-          }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Failed to refresh camera'
-          setError(message)
-        }
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current)
+      }
+      refreshTimeoutRef.current = window.setTimeout(() => {
+        startPreview(deviceId)
+          .then(mediaStream => {
+            if (!isMountedRef.current) {
+              mediaStream?.getTracks().forEach(track => track.stop())
+              return
+            }
+            if (mediaStream && videoRef.current) {
+              videoRef.current.srcObject = mediaStream
+              setStream(mediaStream)
+              setError(null)
+            }
+          })
+          .catch(err => {
+            if (!isMountedRef.current) return
+            const message = err instanceof Error ? err.message : 'Failed to refresh camera'
+            setError(message)
+          })
       }, 100)
     }
   }

@@ -39,6 +39,38 @@ export function CropTab({
   const [localY, setLocalY] = React.useState<number | null>(null)
   const [localWidth, setLocalWidth] = React.useState<number | null>(null)
   const [localHeight, setLocalHeight] = React.useState<number | null>(null)
+  const xResetTimeoutRef = React.useRef<number | null>(null)
+  const yResetTimeoutRef = React.useRef<number | null>(null)
+  const widthResetTimeoutRef = React.useRef<number | null>(null)
+  const heightResetTimeoutRef = React.useRef<number | null>(null)
+
+  const scheduleReset = (
+    timeoutRef: React.MutableRefObject<number | null>,
+    reset: () => void,
+    delayMs: number
+  ) => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current)
+    }
+    timeoutRef.current = window.setTimeout(reset, delayMs)
+  }
+
+  React.useEffect(() => {
+    return () => {
+      const timeouts = [
+        xResetTimeoutRef,
+        yResetTimeoutRef,
+        widthResetTimeoutRef,
+        heightResetTimeoutRef
+      ]
+      for (const ref of timeouts) {
+        if (ref.current !== null) {
+          window.clearTimeout(ref.current)
+          ref.current = null
+        }
+      }
+    }
+  }, [])
 
   // Convert 0-1 to percentage for display
   const toPercent = (value: number) => Math.round(value * 100)
@@ -135,7 +167,7 @@ export function CropTab({
               onValueChange={([value]) => setLocalX(fromPercent(value))}
               onValueCommit={([value]) => {
                 onUpdateCrop(cropEffect.id, { x: fromPercent(value) })
-                setTimeout(() => setLocalX(null), 100)
+                scheduleReset(xResetTimeoutRef, () => setLocalX(null), 100)
               }}
               min={0}
               max={90}
@@ -157,7 +189,7 @@ export function CropTab({
               onValueChange={([value]) => setLocalY(fromPercent(value))}
               onValueCommit={([value]) => {
                 onUpdateCrop(cropEffect.id, { y: fromPercent(value) })
-                setTimeout(() => setLocalY(null), 100)
+                scheduleReset(yResetTimeoutRef, () => setLocalY(null), 100)
               }}
               min={0}
               max={90}
@@ -182,7 +214,7 @@ export function CropTab({
               onValueChange={([value]) => setLocalWidth(fromPercent(value))}
               onValueCommit={([value]) => {
                 onUpdateCrop(cropEffect.id, { width: fromPercent(value) })
-                setTimeout(() => setLocalWidth(null), 100)
+                scheduleReset(widthResetTimeoutRef, () => setLocalWidth(null), 100)
               }}
               min={10}
               max={100}
@@ -204,7 +236,7 @@ export function CropTab({
               onValueChange={([value]) => setLocalHeight(fromPercent(value))}
               onValueCommit={([value]) => {
                 onUpdateCrop(cropEffect.id, { height: fromPercent(value) })
-                setTimeout(() => setLocalHeight(null), 100)
+                scheduleReset(heightResetTimeoutRef, () => setLocalHeight(null), 100)
               }}
               min={10}
               max={100}

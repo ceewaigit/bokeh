@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronUp, Copy, Check, Download, Pencil } from 'lucide-react'
 import type { GeneratedPlugin } from './page'
 
@@ -15,14 +15,32 @@ export function PluginCodePanel({ plugin, onSave, onSaveToLibrary, onEdit }: Plu
     const [isExpanded, setIsExpanded] = useState(true)
     const [copied, setCopied] = useState(false)
     const [saved, setSaved] = useState(false)
+    const copiedTimeoutRef = useRef<number | null>(null)
+    const savedTimeoutRef = useRef<number | null>(null)
 
     // Generate the full plugin code
     const fullCode = generatePluginCode(plugin)
 
+    useEffect(() => {
+        return () => {
+            if (copiedTimeoutRef.current !== null) {
+                window.clearTimeout(copiedTimeoutRef.current)
+                copiedTimeoutRef.current = null
+            }
+            if (savedTimeoutRef.current !== null) {
+                window.clearTimeout(savedTimeoutRef.current)
+                savedTimeoutRef.current = null
+            }
+        }
+    }, [])
+
     const handleCopy = async () => {
         await navigator.clipboard.writeText(fullCode)
         setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        if (copiedTimeoutRef.current !== null) {
+            window.clearTimeout(copiedTimeoutRef.current)
+        }
+        copiedTimeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
     }
 
     const handleSaveToLibrary = (e: React.MouseEvent) => {
@@ -30,7 +48,10 @@ export function PluginCodePanel({ plugin, onSave, onSaveToLibrary, onEdit }: Plu
         if (onSaveToLibrary) {
             onSaveToLibrary(plugin)
             setSaved(true)
-            setTimeout(() => setSaved(false), 2000)
+            if (savedTimeoutRef.current !== null) {
+                window.clearTimeout(savedTimeoutRef.current)
+            }
+            savedTimeoutRef.current = window.setTimeout(() => setSaved(false), 2000)
         }
     }
 

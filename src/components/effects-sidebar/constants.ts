@@ -29,6 +29,7 @@ import {
   SlidersHorizontal,
   LayoutGrid,
   Camera,
+  StickyNote,
 } from 'lucide-react'
 
 export enum SidebarTabId {
@@ -37,6 +38,7 @@ export enum SidebarTabId {
   Pointer = 'pointer',
   Framing = 'framing',
   Webcam = 'webcam',
+  Annotation = 'annotation',
   Canvas = 'canvas',
   Advanced = 'advanced',
 }
@@ -47,6 +49,7 @@ export const SIDEBAR_TABS = [
   { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Pointer & Typing' },
   { id: SidebarTabId.Framing, icon: Crop, label: 'Focus & Frame' },
   { id: SidebarTabId.Webcam, icon: Camera, label: 'Camera' },
+  { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Notes' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Stage' },
   { id: SidebarTabId.Advanced, icon: Bot, label: 'More' },
 ] as const

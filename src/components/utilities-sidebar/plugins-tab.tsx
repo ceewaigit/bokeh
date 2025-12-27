@@ -66,6 +66,16 @@ export function PluginsTab() {
     const [activeLibraryTab, setActiveLibraryTab] = useState<PluginLibraryTabId>('default')
     const [searchQuery, setSearchQuery] = useState('')
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+    const deleteResetTimeoutRef = React.useRef<number | null>(null)
+
+    React.useEffect(() => {
+        return () => {
+            if (deleteResetTimeoutRef.current !== null) {
+                window.clearTimeout(deleteResetTimeoutRef.current)
+                deleteResetTimeoutRef.current = null
+            }
+        }
+    }, [])
     const [plugins, setPlugins] = useState<PluginDefinition[]>(() => PluginRegistry.getAll())
     const [hideGeneratedClipEditor, setHideGeneratedClipEditor] = useState(false)
 
@@ -226,7 +236,10 @@ export function PluginsTab() {
             setPlugins(PluginRegistry.getAll())
         } else {
             setDeleteConfirmId(id)
-            setTimeout(() => setDeleteConfirmId(null), 2500)
+            if (deleteResetTimeoutRef.current !== null) {
+                window.clearTimeout(deleteResetTimeoutRef.current)
+            }
+            deleteResetTimeoutRef.current = window.setTimeout(() => setDeleteConfirmId(null), 2500)
         }
     }
 

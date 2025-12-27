@@ -28,7 +28,8 @@ import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from
 import type { ClickEvent as ProjectClickEvent, CropEffectData, CursorEffectData, MouseEvent as ProjectMouseEvent } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
 import { buildTimelineCompositionInput } from '@/remotion/utils/composition-input';
-import { getBackgroundEffect, getCursorEffect, getWebcamEffect } from '@/lib/effects/effect-filters';
+import { getBackgroundEffect, getCursorEffect } from '@/lib/effects/effect-filters';
+import { resolveEffectIdForType } from '@/lib/effects/effect-selection';
 import { calculateCursorState } from '@/lib/effects/utils/cursor-calculator';
 import { PlayheadService, type PlayheadState } from '@/lib/timeline/playhead-service';
 import { normalizeClickEvents, normalizeMouseEvents } from '@/remotion/compositions/utils/events/event-normalizer';
@@ -37,6 +38,7 @@ import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, getCursorImagePath } from '@/lib/ef
 import { AmbientGlowPlayer } from './preview/ambient-glow-player';
 import { useWorkspaceStore } from '@/stores/workspace-store';
 import { EffectLayerType } from '@/types/effects';
+import { EffectType } from '@/types/project';
 import { EffectStore } from '@/lib/core/effects';
 import { WebcamOverlay } from './preview/webcam-overlay';
 
@@ -191,9 +193,11 @@ export function PreviewAreaRemotion({
   }, [projectEffects]);
 
   const webcamEffectId = useMemo(() => {
-    const effect = getWebcamEffect(projectEffects);
+    const resolvedId = resolveEffectIdForType(projectEffects, selectedEffectLayer, EffectType.Webcam);
+    if (!resolvedId) return null;
+    const effect = projectEffects.find(item => item.id === resolvedId);
     return effect && effect.enabled !== false ? effect.id : null;
-  }, [projectEffects]);
+  }, [projectEffects, selectedEffectLayer]);
 
   const isWebcamSelected = Boolean(
     webcamEffectId &&
@@ -575,6 +579,15 @@ export function PreviewAreaRemotion({
     } catch (e) {
       console.warn('Failed to seek:', e);
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (scrubTimeoutRef.current) {
+        clearTimeout(scrubTimeoutRef.current);
+        scrubTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   // Hover preview sync: seek to hover position without mutating currentTime.

@@ -1,8 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import { EffectLayerType } from '@/types/effects'
 import { EffectType } from '@/types'
-import { EffectStore } from '@/lib/core/effects'
+import { resolveClipboardEffect } from './clipboard-routing'
 
 export interface CopyResult {
   type: 'clip' | 'effect'
@@ -42,49 +41,41 @@ export class CopyCommand extends Command<CopyResult> {
   doExecute(): CommandResult<CopyResult> {
     const store = this.context.getStore()
     const selectedEffectLayer = this.context.getSelectedEffectLayer()
+    const project = this.context.getProject()
+    const clipId = this.clipId || this.context.getSelectedClips()[0]
 
-    // Handle effect copy when an effect block is selected
-    if (selectedEffectLayer?.id) {
-      const project = this.context.getProject()
+    const resolvedEffect = resolveClipboardEffect(
+      project,
+      selectedEffectLayer,
+      clipId,
+      store.getEffectsAtTimeRange
+    )
 
-      // Map layer type to effect type
-      const effectTypeMap: Record<EffectLayerType, EffectType> = {
-        [EffectLayerType.Zoom]: EffectType.Zoom,
-        [EffectLayerType.Cursor]: EffectType.Cursor,
-        [EffectLayerType.Background]: EffectType.Background,
-        [EffectLayerType.Keystroke]: EffectType.Keystroke,
-        [EffectLayerType.Screen]: EffectType.Screen,
-        [EffectLayerType.Plugin]: EffectType.Plugin,
-        [EffectLayerType.Crop]: EffectType.Crop,
-        [EffectLayerType.Webcam]: EffectType.Webcam
-      }
-
-      const effectType = effectTypeMap[selectedEffectLayer.type]
-      if (!effectType) {
-        return { success: false, error: 'Unknown effect type' }
-      }
-
-      // Use EffectStore to find the effect
-      const effect = project ? EffectStore.get(project, selectedEffectLayer.id) : null
-
-      if (effect && effect.type === effectType) {
-        console.log(`[CopyCommand] Copying ${effectType} effect:`, selectedEffectLayer.id)
-        store.copyEffect(effectType as any, effect.data as any, '')
-
-        return {
-          success: true,
-          data: {
-            type: 'effect',
-            effectType: effectType as any,
-            blockId: selectedEffectLayer.id,
-            clipId: ''
-          }
-        }
+    if (selectedEffectLayer && !resolvedEffect) {
+      return {
+        success: false,
+        error: 'Selected effect not found'
       }
     }
 
-    // Handle clip-based copying
-    const clipId = this.clipId || this.context.getSelectedClips()[0]
+    if (resolvedEffect) {
+      const effectType = resolvedEffect.type
+      console.log(`[CopyCommand] Copying ${effectType} effect:`, resolvedEffect.id)
+      store.copyEffect(effectType as any, resolvedEffect.data as any, resolvedEffect.clipId ?? '', {
+        startTime: resolvedEffect.startTime,
+        endTime: resolvedEffect.endTime
+      })
+
+      return {
+        success: true,
+        data: {
+          type: 'effect',
+          effectType: effectType as any,
+          blockId: resolvedEffect.id,
+          clipId: resolvedEffect.clipId ?? ''
+        }
+      }
+    }
 
     if (!clipId) {
       return {
@@ -102,38 +93,6 @@ export class CopyCommand extends Command<CopyResult> {
     }
 
     const { clip } = result
-
-    // Copy other effect types that might still be clip-based
-    if (selectedEffectLayer && selectedEffectLayer.type !== EffectLayerType.Zoom) {
-      const effects = store.getEffectsAtTimeRange(clipId)
-
-      // Copy cursor or background settings
-      const effect = effects.find((e: any) => e.type === selectedEffectLayer.type)
-      if (effect) {
-        const effectTypeMap = {
-          [EffectLayerType.Cursor]: EffectType.Cursor,
-          [EffectLayerType.Background]: EffectType.Background,
-          [EffectLayerType.Zoom]: EffectType.Zoom,
-          [EffectLayerType.Keystroke]: EffectType.Keystroke,
-          [EffectLayerType.Crop]: EffectType.Crop
-        }
-        const mappedType = effectTypeMap[selectedEffectLayer.type as keyof typeof effectTypeMap]
-        if (mappedType) {
-          store.copyEffect(mappedType as EffectType.Zoom | EffectType.Cursor | EffectType.Background, effect.data as any, clipId)
-        }
-        return {
-          success: true,
-          data: {
-            type: 'effect',
-            effectType: selectedEffectLayer.type === EffectLayerType.Cursor ? EffectType.Cursor :
-              selectedEffectLayer.type === EffectLayerType.Background ? EffectType.Background :
-                selectedEffectLayer.type === EffectLayerType.Keystroke ? EffectType.Keystroke :
-                  EffectType.Zoom,
-            clipId
-          }
-        }
-      }
-    }
 
     // Copy entire clip
     store.copyClip(clip)

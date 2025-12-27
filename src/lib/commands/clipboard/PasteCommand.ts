@@ -7,11 +7,14 @@ import { EffectType } from '@/types/project'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { EffectStore } from '@/lib/core/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { getBlockEffectDuration } from '@/lib/effects/effect-classification'
+import { getClipboardEffectRoute } from './clipboard-routing'
+import { TimelineConfig } from '@/lib/timeline/config'
 
 export interface PasteResult {
   type: 'clip' | 'effect'
   clipId?: string
-  effectType?: EffectType.Zoom | EffectType.Cursor | EffectType.Background | EffectType.Keystroke | EffectType.Screen
+  effectType?: EffectType
   blockId?: string
 }
 
@@ -40,17 +43,30 @@ export class PasteCommand extends Command<PasteResult> {
 
     // Paste effect if we have one
     if (clipboard.effect) {
-      // Zoom effects are recording-scoped and playhead-based
-      if (clipboard.effect.type === EffectType.Zoom) {
-        console.log('[PasteCommand] Pasting zoom effect (timeline-based)')
-        const zoomData = clipboard.effect.data as unknown as ZoomEffectData
+      const clipboardStart = clipboard.effect.startTime
+      const clipboardEnd = clipboard.effect.endTime
+      const clipboardDuration = (typeof clipboardStart === 'number' && typeof clipboardEnd === 'number' && clipboardEnd > clipboardStart)
+        ? clipboardEnd - clipboardStart
+        : undefined
 
-        if (!project) {
-          return { success: false, error: 'No project found' }
-        }
+      const effectType = clipboard.effect.type as EffectType
+      const effectData = clipboard.effect.data
+      const store = this.context.getStore()
+      const currentTime = this.pasteTime ?? this.context.getCurrentTime()
+
+      if (!project) {
+        return { success: false, error: 'No project found' }
+      }
+
+      const route = getClipboardEffectRoute(effectType)
+
+      // Zoom effects are recording-scoped and playhead-based
+      if (route === 'zoom') {
+        console.log('[PasteCommand] Pasting zoom effect (timeline-based)')
+        const zoomData = effectData as unknown as ZoomEffectData
 
         // Get current playhead position - this IS the timeline position for the new effect
-        const currentTimelineTime = this.pasteTime ?? this.context.getCurrentTime()
+        const currentTimelineTime = currentTime
         console.log('[PasteCommand] Playhead position (timeline-space):', currentTimelineTime)
 
         // Find clip at playhead for recording reference (optional, for mouse event access)
@@ -67,84 +83,61 @@ export class PasteCommand extends Command<PasteResult> {
           console.log('[PasteCommand] Playhead not on clip, using first clip for recording:', firstClip.id)
 
           // Paste at timeline position directly (no source conversion)
-          return this.createZoomBlock(zoomData, firstClip.recordingId, currentTimelineTime, project)
+          return this.createZoomBlock(zoomData, firstClip.recordingId, currentTimelineTime, project, clipboardDuration)
         }
 
         console.log('[PasteCommand] Clip at playhead:', clipAtPlayhead.id, 'recordingId:', clipAtPlayhead.recordingId)
 
         // Paste at timeline position directly (no source conversion)
-        return this.createZoomBlock(zoomData, clipAtPlayhead.recordingId, currentTimelineTime, project)
-      } else {
-        // For other effect types (keystroke, screen, cursor, background)
-        const currentTime = this.pasteTime ?? this.context.getCurrentTime()
-        const effectType = clipboard.effect.type as EffectType
-        const effectData = clipboard.effect.data
-        const store = this.context.getStore()
+        return this.createZoomBlock(zoomData, clipAtPlayhead.recordingId, currentTimelineTime, project, clipboardDuration)
+      }
 
-        // Keystroke and Screen effects are timeline-based blocks with durations
-        // Cursor and Background are global settings (no duration)
-        const isBlockEffect = effectType === EffectType.Keystroke || effectType === EffectType.Screen
+      if (route === 'block') {
+        const blockDuration = Math.max(
+          TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS,
+          getBlockEffectDuration(effectType, clipboardDuration)
+        )
+        const startTime = Math.max(0, currentTime)
 
-        if (isBlockEffect && project) {
-          // Use appropriate default duration for block effects
-          const defaultDuration = effectType === EffectType.Keystroke ? 5000 : 3000 // 5s for keystroke, 3s for screen
-
-          // Find non-overlapping position
-          const existingEffects = EffectStore.getAll(project).filter(e => e.type === effectType)
-          existingEffects.sort((a, b) => a.startTime - b.startTime)
-
-          let finalStartTime = Math.max(0, currentTime)
-
-          // Check for overlaps
-          for (const effect of existingEffects) {
-            if (finalStartTime < effect.endTime && (finalStartTime + defaultDuration) > effect.startTime) {
-              finalStartTime = effect.endTime + 100
-            }
-          }
-
-          // Create new effect block
-          store.addEffect({
-            id: `${effectType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: effectType as EffectType,
-            startTime: finalStartTime,
-            endTime: finalStartTime + defaultDuration,
-            data: effectData as any,
-            enabled: true
-          } as Effect)
-
-          return {
-            success: true,
-            data: { type: 'effect', effectType, blockId: `${effectType}-pasted` }
-          }
-        }
-
-        // For global effects (cursor, background), update existing or create new
-        const allClips = project?.timeline.tracks.flatMap(t => t.clips) || []
-        const clipAtPlayhead = TimeConverter.findClipAtTimelinePosition(currentTime, allClips)
-
-        if (!clipAtPlayhead) {
-          return { success: false, error: 'Position playhead on a clip to paste the effect' }
-        }
-
-        const existingEffects = store.getEffectsAtTimeRange(clipAtPlayhead.id)
-        const existingEffect = existingEffects.find(e => e.type === effectType)
-
-        if (existingEffect) {
-          store.updateEffect(existingEffect.id, { data: effectData as any })
-        } else {
-          store.addEffect({
-            id: `${effectType}-global-${Date.now()}`,
-            type: effectType as EffectType,
-            startTime: 0,
-            endTime: Number.MAX_SAFE_INTEGER,
-            data: effectData as any,
-            enabled: true
-          } as Effect)
-        }
+        const newEffectId = `${effectType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        store.addEffect({
+          id: newEffectId,
+          type: effectType as EffectType,
+          startTime,
+          endTime: startTime + blockDuration,
+          data: effectData as any,
+          enabled: true
+        } as Effect)
 
         return {
           success: true,
-          data: { type: 'effect', effectType: effectType as PasteResult['effectType'], clipId: clipAtPlayhead.id }
+          data: {
+            type: 'effect',
+            effectType,
+            blockId: newEffectId
+          }
+        }
+      }
+
+      const existingGlobal = EffectStore.getAll(project).find(e => e.type === effectType)
+      if (existingGlobal) {
+        store.updateEffect(existingGlobal.id, { data: effectData as any })
+      } else {
+        store.addEffect({
+          id: `${effectType}-global-${Date.now()}`,
+          type: effectType as EffectType,
+          startTime: 0,
+          endTime: Number.MAX_SAFE_INTEGER,
+          data: effectData as any,
+          enabled: true
+        } as Effect)
+      }
+
+      return {
+        success: true,
+        data: {
+          type: 'effect',
+          effectType
         }
       }
     }
@@ -172,14 +165,19 @@ export class PasteCommand extends Command<PasteResult> {
         )
 
         if (originalCropEffect && originalCropEffect.data) {
-          // Create a new crop effect for the pasted clip
-          const newCropEffect = EffectsFactory.createCropEffect({
-            clipId: newClip.id,
-            startTime: newClip.startTime,
-            endTime: newClip.startTime + newClip.duration,
-            cropData: originalCropEffect.data as any
-          })
-          EffectsFactory.addEffectToProject(project, newCropEffect)
+          const pastedClipData = this.context.findClip(newClip.id)
+          if (pastedClipData) {
+            const { clip: pastedClip } = pastedClipData
+            // Create a new crop effect for the pasted clip with the actual timeline positions
+            const newCropEffect = EffectsFactory.createCropEffect({
+              clipId: pastedClip.id,
+              startTime: pastedClip.startTime,
+              endTime: pastedClip.startTime + pastedClip.duration,
+              cropData: originalCropEffect.data as any
+            })
+            const store = this.context.getStore()
+            store.addEffect(newCropEffect)
+          }
         }
 
         return {
@@ -197,10 +195,17 @@ export class PasteCommand extends Command<PasteResult> {
     zoomData: ZoomEffectData,
     _recordingId: string,
     pasteTimelinePosition: number,  // Now we use timeline position directly
-    project: any
+    project: any,
+    durationMs?: number
   ): Promise<CommandResult<PasteResult>> {
+    const resolvedDuration = Number.isFinite(durationMs) && durationMs > 0
+      ? durationMs
+      : 5000
     // Default duration in TIMELINE space
-    const blockDuration = 5000 // 5 seconds
+    const blockDuration = Math.max(
+      TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS,
+      resolvedDuration
+    ) // 5 seconds
 
     // Find non-overlapping position - check ALL zoom effects in timeline.effects
     const existingZoomEffects = EffectStore.getAll(project).filter(e => e.type === EffectType.Zoom)

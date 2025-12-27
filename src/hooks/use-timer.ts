@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 
 type TimerState = 'idle' | 'running' | 'paused'
 
@@ -22,6 +22,10 @@ export function useTimer(onTick: (elapsedMs: number) => void): UseTimerReturn {
       intervalRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    return cleanup
+  }, [cleanup])
 
   const start = useCallback((initialMs = 0) => {
     cleanup()

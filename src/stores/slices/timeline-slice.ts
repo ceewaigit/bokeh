@@ -772,6 +772,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Use EffectStore as SSOT for adding effects
             EffectStore.add(state.currentProject, effect)
+            state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+            state.currentProject.modifiedAt = new Date().toISOString()
 
             // Invalidate cache
             invalidateCaches(state)
@@ -785,6 +787,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Use EffectStore as SSOT for removing effects
             const removed = EffectStore.remove(state.currentProject, effectId)
             if (removed) {
+                state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+                state.currentProject.modifiedAt = new Date().toISOString()
                 // Invalidate cache
                 invalidateCaches(state)
             }
@@ -798,6 +802,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Use EffectStore as SSOT for updating effects
             const updated = EffectStore.update(state.currentProject, effectId, updates)
             if (updated) {
+                state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+                state.currentProject.modifiedAt = new Date().toISOString()
                 // Invalidate cache
                 invalidateCaches(state)
             }

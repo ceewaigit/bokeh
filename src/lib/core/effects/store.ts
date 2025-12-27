@@ -15,11 +15,12 @@ import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 
 // Effect types that should not overlap with each other
-const NON_OVERLAPPING_TYPES = new Set([
+export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
     EffectType.Plugin,
     EffectType.Zoom,
     EffectType.Screen,
-    EffectType.Keystroke
+    EffectType.Keystroke,
+    EffectType.Webcam
 ])
 
 /**
@@ -27,6 +28,13 @@ const NON_OVERLAPPING_TYPES = new Set([
  */
 function rangesOverlap(start1: number, end1: number, start2: number, end2: number): boolean {
     return start1 < end2 && end1 > start2
+}
+
+export function isValidEffectTiming(effect: Effect): boolean {
+    if (!Number.isFinite(effect.startTime) || !Number.isFinite(effect.endTime)) {
+        return false
+    }
+    return effect.endTime > effect.startTime
 }
 
 /**
@@ -91,8 +99,16 @@ export const EffectStore = {
     add(project: Project, effect: Effect): void {
         const existing = project.timeline.effects ?? []
 
+        if (!isValidEffectTiming(effect)) {
+            console.error(`[EffectStore] Refusing to add effect ${effect.id} with invalid timing`, {
+                startTime: effect.startTime,
+                endTime: effect.endTime
+            })
+            return
+        }
+
         // Auto-adjust position for non-overlapping effect types
-        if (NON_OVERLAPPING_TYPES.has(effect.type)) {
+        if (NON_OVERLAPPING_EFFECT_TYPES.has(effect.type)) {
             const sameTypeEffects = existing.filter(e => e.type === effect.type)
             const { startTime, endTime } = findNonOverlappingPosition(effect, sameTypeEffects)
             effect.startTime = startTime
@@ -108,7 +124,11 @@ export const EffectStore = {
      */
     addMany(project: Project, effects: Effect[]): void {
         const existing = project.timeline.effects ?? []
-        project.timeline.effects = [...existing, ...effects]
+        const validEffects = effects.filter(isValidEffectTiming)
+        if (validEffects.length !== effects.length) {
+            console.error('[EffectStore] Skipped effects with invalid timing during addMany')
+        }
+        project.timeline.effects = [...existing, ...validEffects]
         project.modifiedAt = new Date().toISOString()
     },
 
@@ -141,14 +161,21 @@ export const EffectStore = {
         if (index === -1) return false
         const effect = effects[index]
 
+        const nextStartTime = updates.startTime ?? effect.startTime
+        const nextEndTime = updates.endTime ?? effect.endTime
+        if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime) || nextEndTime <= nextStartTime) {
+            console.error(`[EffectStore] Refusing to update effect ${effectId} with invalid timing`, {
+                startTime: nextStartTime,
+                endTime: nextEndTime
+            })
+            return false
+        }
+
         // Check if we need to auto-adjust position for non-overlapping types
         const isTimeUpdate = updates.startTime !== undefined || updates.endTime !== undefined
-        if (isTimeUpdate && NON_OVERLAPPING_TYPES.has(effect.type)) {
-            const newStartTime = updates.startTime ?? effect.startTime
-            const newEndTime = updates.endTime ?? effect.endTime
-
+        if (isTimeUpdate && NON_OVERLAPPING_EFFECT_TYPES.has(effect.type)) {
             // Create a temporary effect with the new times to check for overlaps
-            const tempEffect = { ...effect, startTime: newStartTime, endTime: newEndTime }
+            const tempEffect = { ...effect, startTime: nextStartTime, endTime: nextEndTime }
             const sameTypeEffects = effects.filter(e => e.type === effect.type)
             const { startTime, endTime } = findNonOverlappingPosition(tempEffect, sameTypeEffects, effectId)
 

@@ -6,4 +6,4 @@
  * - EffectStore: CRUD operations (all effects on timeline.effects)
  */
 
-export { EffectStore } from './store'
+export { EffectStore, isValidEffectTiming } from './store'

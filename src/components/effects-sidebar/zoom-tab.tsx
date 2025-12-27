@@ -68,6 +68,38 @@ export function ZoomTab({
   const [localOutroMs, setLocalOutroMs] = React.useState<number | null>(null)
   const [localMouseIdlePx, setLocalMouseIdlePx] = React.useState<number | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const scaleResetTimeoutRef = React.useRef<number | null>(null)
+  const introResetTimeoutRef = React.useRef<number | null>(null)
+  const outroResetTimeoutRef = React.useRef<number | null>(null)
+  const mouseIdleResetTimeoutRef = React.useRef<number | null>(null)
+
+  const scheduleReset = (
+    timeoutRef: React.MutableRefObject<number | null>,
+    reset: () => void,
+    delayMs: number
+  ) => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current)
+    }
+    timeoutRef.current = window.setTimeout(reset, delayMs)
+  }
+
+  React.useEffect(() => {
+    return () => {
+      const timeouts = [
+        scaleResetTimeoutRef,
+        introResetTimeoutRef,
+        outroResetTimeoutRef,
+        mouseIdleResetTimeoutRef
+      ]
+      for (const ref of timeouts) {
+        if (ref.current !== null) {
+          window.clearTimeout(ref.current)
+          ref.current = null
+        }
+      }
+    }
+  }, [])
 
   const seedManualTargetFromLiveCamera = () => {
     if (!project || !timelineMetadata) return null
@@ -230,7 +262,7 @@ export function ZoomTab({
                 onValueCommit={([value]) => {
                   if (selectedEffectLayer.id && onZoomBlockUpdate) {
                     onZoomBlockUpdate(selectedEffectLayer.id, { scale: value })
-                    setTimeout(() => setLocalScale(null), 300)
+                    scheduleReset(scaleResetTimeoutRef, () => setLocalScale(null), 300)
                   }
                 }}
                 min={1}
@@ -328,7 +360,7 @@ export function ZoomTab({
                         autoScale: 'fill'
                       })
                       setLocalScale(1)
-                      setTimeout(() => setLocalScale(null), 300)
+                      scheduleReset(scaleResetTimeoutRef, () => setLocalScale(null), 300)
                     }
                   }}
                 >
@@ -395,7 +427,7 @@ export function ZoomTab({
                     onValueCommit={([value]) => {
                       if (selectedEffectLayer.id && onZoomBlockUpdate) {
                         onZoomBlockUpdate(selectedEffectLayer.id, { introMs: value })
-                        setTimeout(() => setLocalIntroMs(null), 300)
+                        scheduleReset(introResetTimeoutRef, () => setLocalIntroMs(null), 300)
                       }
                     }}
                     min={0}
@@ -419,7 +451,7 @@ export function ZoomTab({
                     onValueCommit={([value]) => {
                       if (selectedEffectLayer.id && onZoomBlockUpdate) {
                         onZoomBlockUpdate(selectedEffectLayer.id, { outroMs: value })
-                        setTimeout(() => setLocalOutroMs(null), 300)
+                        scheduleReset(outroResetTimeoutRef, () => setLocalOutroMs(null), 300)
                       }
                     }}
                     min={0}
@@ -461,7 +493,7 @@ export function ZoomTab({
                   onValueCommit={([value]) => {
                     if (selectedEffectLayer.id && onZoomBlockUpdate) {
                       onZoomBlockUpdate(selectedEffectLayer.id, { mouseIdlePx: value })
-                      setTimeout(() => setLocalMouseIdlePx(null), 200)
+                      scheduleReset(mouseIdleResetTimeoutRef, () => setLocalMouseIdlePx(null), 200)
                     }
                   }}
                   min={1}

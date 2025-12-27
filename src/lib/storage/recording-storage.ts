@@ -959,7 +959,7 @@ export class RecordingStorage {
       // Save project file to folder
       const projectPath = await this.saveProject(project, project.filePath)
 
-      void this.generateAndSaveProjectThumbnail(videoFilePath, projectFolder)
+      await this.generateAndSaveProjectThumbnail(videoFilePath, projectFolder)
 
       return {
         project,

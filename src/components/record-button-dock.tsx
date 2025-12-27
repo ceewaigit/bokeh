@@ -48,6 +48,9 @@ interface Source {
 export function RecordButtonDock() {
   const containerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const resizeTimeoutRef = useRef<number | null>(null)
+  const focusTimeoutRef = useRef<number | null>(null)
+  const countdownTimeoutRef = useRef<number | null>(null)
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [sources, setSources] = useState<Source[]>([])
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
@@ -71,6 +74,15 @@ export function RecordButtonDock() {
   const { startRecording, stopRecording, pauseRecording, resumeRecording, canPause, canResume } = useRecording()
   const { isRecording, isPaused, duration, updateSettings, startCountdown, prepareRecording } = useRecordingSessionStore()
   const setRecordingSettings = useProjectStore((s) => s.setRecordingSettings)
+
+  useEffect(() => {
+    return () => {
+      if (countdownTimeoutRef.current !== null) {
+        window.clearTimeout(countdownTimeoutRef.current)
+        countdownTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   // Device store - only for device enumeration, not permissions
   const {
@@ -127,21 +139,40 @@ export function RecordButtonDock() {
     }
 
     // Small delay to ensure DOM is settled
-    const timer = setTimeout(updateSize, 16)
-    const observer = new ResizeObserver(() => setTimeout(updateSize, 16))
+    const scheduleUpdate = () => {
+      if (resizeTimeoutRef.current !== null) {
+        window.clearTimeout(resizeTimeoutRef.current)
+      }
+      resizeTimeoutRef.current = window.setTimeout(updateSize, 16)
+    }
+
+    scheduleUpdate()
+    const observer = new ResizeObserver(() => scheduleUpdate())
     observer.observe(container)
     return () => {
-      clearTimeout(timer)
+      if (resizeTimeoutRef.current !== null) {
+        window.clearTimeout(resizeTimeoutRef.current)
+        resizeTimeoutRef.current = null
+      }
       observer.disconnect()
     }
   }, [isRecording, showWindowPicker, showDevicePicker])
 
   useEffect(() => {
     if (showWindowPicker && searchInputRef.current) {
-      setTimeout(() => searchInputRef.current?.focus(), 100)
+      if (focusTimeoutRef.current !== null) {
+        window.clearTimeout(focusTimeoutRef.current)
+      }
+      focusTimeoutRef.current = window.setTimeout(() => searchInputRef.current?.focus(), 100)
     }
     if (!showWindowPicker) {
       setWindowSearch('')
+    }
+    return () => {
+      if (focusTimeoutRef.current !== null) {
+        window.clearTimeout(focusTimeoutRef.current)
+        focusTimeoutRef.current = null
+      }
     }
   }, [showWindowPicker])
 
@@ -253,15 +284,24 @@ export function RecordButtonDock() {
         const area = result?.area
         if (result?.success && area) {
           prepareRecording(createAreaSourceId(area), area.displayId)
-          setTimeout(() => startCountdown(startRecording, area.displayId), 50)
+          if (countdownTimeoutRef.current !== null) {
+            window.clearTimeout(countdownTimeoutRef.current)
+          }
+          countdownTimeoutRef.current = window.setTimeout(() => startCountdown(startRecording, area.displayId), 50)
         }
       } else {
         prepareRecording(selectedSourceId, displayId)
-        setTimeout(() => startCountdown(startRecording, displayId), 50)
+        if (countdownTimeoutRef.current !== null) {
+          window.clearTimeout(countdownTimeoutRef.current)
+        }
+        countdownTimeoutRef.current = window.setTimeout(() => startCountdown(startRecording, displayId), 50)
       }
     } else {
       prepareRecording(selectedSourceId, displayId)
-      setTimeout(() => startCountdown(startRecording, displayId), 50)
+      if (countdownTimeoutRef.current !== null) {
+        window.clearTimeout(countdownTimeoutRef.current)
+      }
+      countdownTimeoutRef.current = window.setTimeout(() => startCountdown(startRecording, displayId), 50)
     }
   }
 

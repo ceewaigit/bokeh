@@ -20,7 +20,7 @@ export class AnnotationEffectStrategy implements IEffectStrategy {
     const data = effect.data as AnnotationData
     if (!data) return
 
-    const { ctx, timestamp } = context
+    const { ctx, timestamp, width, height } = context
 
     // Calculate fade based on effect timing
     const effectDuration = effect.endTime - effect.startTime
@@ -39,7 +39,24 @@ export class AnnotationEffectStrategy implements IEffectStrategy {
     ctx.save()
     ctx.globalAlpha = opacity * (data.style?.opacity || 1)
 
-    const position = data.position || { x: 100, y: 100 }
+    // Convert 0-100% position to pixel coordinates
+    const rawPosition = data.position || { x: 50, y: 50 }
+    const position = {
+      x: (rawPosition.x / 100) * width,
+      y: (rawPosition.y / 100) * height,
+    }
+
+    // Convert end position for arrows (0-100% to pixels)
+    const rawEndPosition = data.endPosition || { x: 60, y: 60 }
+    const endPosition = {
+      x: (rawEndPosition.x / 100) * width,
+      y: (rawEndPosition.y / 100) * height,
+    }
+
+    // Convert width/height for highlights (percentage to pixels)
+    const highlightWidth = ((data.width ?? 10) / 100) * width
+    const highlightHeight = ((data.height ?? 10) / 100) * height
+
     const style = data.style || {}
 
     switch (data.type) {
@@ -47,10 +64,10 @@ export class AnnotationEffectStrategy implements IEffectStrategy {
         this.drawTextAnnotation(ctx, position, data.content || '', style)
         break
       case AnnotationType.Arrow:
-        this.drawArrowAnnotation(ctx, position, data.endPosition || { x: 200, y: 200 }, style)
+        this.drawArrowAnnotation(ctx, position, endPosition, style)
         break
       case AnnotationType.Highlight:
-        this.drawHighlightAnnotation(ctx, position, data.width || 100, data.height || 100, style)
+        this.drawHighlightAnnotation(ctx, position, highlightWidth, highlightHeight, style)
         break
     }
 

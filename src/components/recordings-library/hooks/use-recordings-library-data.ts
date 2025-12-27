@@ -254,7 +254,7 @@ export const useRecordingsLibraryData = (pageSize: number) => {
                       if (loadTokenRef.current !== token) return
                       if (thumbnailUrl) {
                         thumb = thumbnailUrl
-                        void saveThumbnailToDisk(projectDir, thumbnailUrl)
+                        await saveThumbnailToDisk(projectDir, thumbnailUrl)
                       }
                     }
                   } catch (error) {
@@ -281,19 +281,23 @@ export const useRecordingsLibraryData = (pageSize: number) => {
 
     const run = async () => {
       await runWithConcurrency<LibraryRecording>(needsHydration, 4, (rec) => hydrateRecording(rec, { includeMediaSize: true }))
-      setIsPageHydrating(false)
+      if (loadTokenRef.current === token) {
+        setIsPageHydrating(false)
+      }
 
       if (loadTokenRef.current === token) {
         const start = currentPage * pageSize
         const end = start + pageSize
         const nextItems = recordingsRef.current.slice(start, end)
         if (nextItems.length > 0) {
-          void runWithConcurrency<LibraryRecording>(nextItems, 3, (rec) => hydrateRecording(rec, { includeMediaSize: false }))
+          await runWithConcurrency<LibraryRecording>(nextItems, 3, (rec) => hydrateRecording(rec, { includeMediaSize: false }))
         }
       }
     }
 
-    run()
+    run().catch((error) => {
+      console.error('Failed to hydrate recordings page:', error)
+    })
   }, [
     pageKey,
     currentPage,

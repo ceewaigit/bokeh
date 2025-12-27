@@ -20,6 +20,11 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
   editingCropId: null,
   editingCropData: null,
 
+  // Overlay Editing State
+  isEditingOverlay: false,
+  editingOverlayId: null,
+  editingOverlayPosition: null,
+
   // Actions
   selectClip: (clipId, multi = false) => {
     set((state) => {
@@ -65,13 +70,29 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
 
   copyClip: (clip) => {
     set((state) => {
-      state.clipboard = { clip }
+      // Deep clone to avoid frozen object issues when pasting.
+      const clone = typeof structuredClone === 'function'
+        ? structuredClone(clip)
+        : JSON.parse(JSON.stringify(clip))
+      state.clipboard = { clip: clone }
     })
   },
 
-  copyEffect: (type, data, sourceClipId) => {
+  copyEffect: (type, data, sourceClipId, timing) => {
     set((state) => {
-      state.clipboard = { effect: { type, data, sourceClipId } }
+      // Deep clone to avoid frozen object issues when pasting.
+      const clone = typeof structuredClone === 'function'
+        ? structuredClone(data)
+        : JSON.parse(JSON.stringify(data))
+      state.clipboard = {
+        effect: {
+          type,
+          data: clone,
+          sourceClipId,
+          startTime: timing?.startTime,
+          endTime: timing?.endTime
+        }
+      }
     })
   },
 
@@ -103,6 +124,31 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
       state.isEditingCrop = false
       state.editingCropId = null
       state.editingCropData = null
+    })
+  },
+
+  // Overlay Editing Actions
+  startEditingOverlay: (effectId, position) => {
+    set((state) => {
+      state.isEditingOverlay = true
+      state.editingOverlayId = effectId
+      state.editingOverlayPosition = position
+    })
+  },
+
+  updateEditingOverlay: (updates) => {
+    set((state) => {
+      if (state.editingOverlayPosition) {
+        state.editingOverlayPosition = { ...state.editingOverlayPosition, ...updates }
+      }
+    })
+  },
+
+  stopEditingOverlay: () => {
+    set((state) => {
+      state.isEditingOverlay = false
+      state.editingOverlayId = null
+      state.editingOverlayPosition = null
     })
   }
 })

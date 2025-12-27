@@ -20,7 +20,8 @@ export enum EffectLayerType {
   Keystroke = 'keystroke',
   Plugin = 'plugin',
   Crop = 'crop',
-  Webcam = 'webcam'
+  Webcam = 'webcam',
+  Annotation = 'annotation'
 }
 
 export type SelectedEffectLayer = { type: EffectLayerType; id?: string } | null

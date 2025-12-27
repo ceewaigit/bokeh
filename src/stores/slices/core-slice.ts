@@ -38,6 +38,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   setProject: (project) => {
     // Clean up orphaned recordings before setting project
     ProjectCleanupService.cleanupOrphanedRecordings(project)
+    ProjectCleanupService.cleanupInvalidEffects(project)
     EffectsFactory.ensureGlobalEffects(project)
 
     set((state) => {
@@ -66,6 +67,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
 
       // Clean up orphaned recordings before setting project
       ProjectCleanupService.cleanupOrphanedRecordings(project)
+      ProjectCleanupService.cleanupInvalidEffects(project)
       EffectsFactory.ensureGlobalEffects(project)
 
       // Cache video URLs for all recordings BEFORE setting project

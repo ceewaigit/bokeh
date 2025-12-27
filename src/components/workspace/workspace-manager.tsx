@@ -33,6 +33,7 @@ import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
 import { EffectStore } from '@/lib/core/effects'
+import { applyEffectChange } from '@/lib/effects/effect-change'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
 import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
@@ -486,170 +487,21 @@ export function WorkspaceManager() {
   }, [])
 
   const handleEffectChange = useCallback((type: EffectType, data: any) => {
-    // Get effects from single source of truth
-    const baseEffects = contextEffects
     const executor = executorRef.current
 
     if (!executor) return
 
-    // Helper to execute commands
-    const executeCommand = (commandName: string, ...args: any[]) => {
-      executor.executeByName(commandName, ...args)
-    }
-
-    // Zoom-specific handling
-    if (type === EffectType.Zoom && (data.enabled !== undefined || data.regenerate)) {
-      // Global zoom operations regardless of selection
-      if (data.enabled !== undefined) {
-        const existingZoomEffects = baseEffects.filter(e => e.type === EffectType.Zoom)
-
-        // If enabling zoom but no zoom effects exist, generate them
-        if (data.enabled && existingZoomEffects.length === 0) {
-          // Generate zoom effects from recording's mouse events
-          const recording = playheadRecording || currentProject?.recordings[0]
-          if (recording && currentProject) {
-            // Use centralized service for effect generation
-            import('@/lib/effects/effect-generation-service').then(({ EffectGenerationService }) => {
-              const allClips = currentProject.timeline.tracks.flatMap(t => t.clips)
-              const clipForRecording = allClips.find(c => c.recordingId === recording.id)
-
-              if (clipForRecording) {
-                const { zoomEffects, screenEffects } = EffectGenerationService.generateZoomEffects(recording, clipForRecording)
-
-                // Add all effects via command pattern
-                for (const effect of [...zoomEffects, ...screenEffects]) {
-                  executeCommand('AddEffect', effect)
-                }
-              }
-            })
-          }
-        } else {
-          // Update existing zoom effects
-          baseEffects.forEach(effect => {
-            if (effect.type === EffectType.Zoom) {
-              executeCommand('UpdateEffect', effect.id, { enabled: data.enabled })
-            }
-          })
-        }
+    void applyEffectChange(type, data, {
+      effects: contextEffects,
+      selectedEffectLayer,
+      currentProject,
+      selectedClip,
+      playheadRecording,
+      currentTime: useProjectStore.getState().currentTime,
+      executeCommand: (commandName: string, ...args: any[]) => {
+        executor.executeByName(commandName, ...args)
       }
-    } else if (type === EffectType.Zoom && selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id) {
-      // Update a specific zoom block
-      const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
-      if (existingEffectIndex >= 0) {
-        const effect = baseEffects[existingEffectIndex]
-        executeCommand('UpdateEffect', effect.id, {
-          data: {
-            ...effect.data,
-            ...data
-          }
-        })
-      }
-      return
-    } else if (type === EffectType.Zoom) {
-      // No specific zoom block selected, maybe just toggling?
-      // Original code did nothing here: newEffects = [...baseEffects]
-    } else if (type === EffectType.Screen && selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
-      // Update a specific screen block
-      const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
-      if (existingEffectIndex >= 0) {
-        const effect = baseEffects[existingEffectIndex]
-        executeCommand('UpdateEffect', effect.id, {
-          data: {
-            ...effect.data,
-            ...data
-          }
-        })
-      }
-      return
-    } else if (type === EffectType.Annotation) {
-      // Screen effects and cinematic scroll as annotations
-      const kind = data?.kind
-      if (!kind) return
-      const existsIndex = baseEffects.findIndex(e => e.type === EffectType.Annotation && (e as any).data?.kind === kind)
-
-      if (existsIndex >= 0) {
-        const prev = baseEffects[existsIndex]
-        const enabled = data.enabled !== undefined ? data.enabled : prev.enabled
-        const mergedData = { ...(prev as any).data, ...(data.data || {}), kind }
-
-        executeCommand('UpdateEffect', prev.id, {
-          enabled,
-          data: mergedData
-        })
-      } else {
-        // Create new annotation spanning current clip or entire timeline fallback
-        const clip = selectedClip
-        const startTime = clip ? clip.startTime : 0
-        const endTime = clip ? clip.startTime + clip.duration : (currentProject?.timeline.duration || Number.MAX_SAFE_INTEGER)
-        const newEffect: Effect = {
-          id: `anno-${kind}-${Date.now()}`,
-          type: EffectType.Annotation,
-          startTime,
-          endTime,
-          enabled: data.enabled !== undefined ? data.enabled : true,
-          data: { kind, ...(data.data || {}) }
-        }
-        executeCommand('AddEffect', newEffect)
-      }
-      return
-    } else {
-      if (type === EffectType.Keystroke) {
-        const keystrokeEffects = baseEffects.filter(e => e.type === EffectType.Keystroke)
-        if (keystrokeEffects.length > 0) {
-          const enabled = data.enabled !== undefined ? data.enabled : undefined
-          const { enabled: _dataEnabled, ...effectData } = data
-
-          keystrokeEffects.forEach(effect => {
-            executeCommand('UpdateEffect', effect.id, {
-              enabled: enabled !== undefined ? enabled : effect.enabled,
-              data: {
-                ...effect.data,
-                ...effectData
-              }
-            })
-          })
-        } else {
-          const { enabled: dataEnabled, ...effectData } = data
-          const newEffect: Effect = {
-            id: `keystroke-global-${Date.now()}`,
-            type: EffectType.Keystroke,
-            startTime: 0,
-            endTime: Number.MAX_SAFE_INTEGER,
-            data: effectData,
-            enabled: dataEnabled !== undefined ? dataEnabled : true
-          }
-          executeCommand('AddEffect', newEffect)
-        }
-      } else {
-        // Background and cursor are global effects
-        const existingEffectIndex = baseEffects.findIndex(e => e.type === type)
-
-        if (existingEffectIndex >= 0) {
-          const effect = baseEffects[existingEffectIndex]
-          const enabled = data.enabled !== undefined ? data.enabled : effect.enabled
-          const { enabled: _dataEnabled, ...effectData } = data
-
-          executeCommand('UpdateEffect', effect.id, {
-            enabled,
-            data: {
-              ...effect.data,
-              ...effectData
-            }
-          })
-        } else {
-          const { enabled: dataEnabled, ...effectData } = data
-          const newEffect: Effect = {
-            id: `${type}-global-${Date.now()}`,
-            type: type as EffectType,
-            startTime: 0,
-            endTime: Number.MAX_SAFE_INTEGER,
-            data: effectData,
-            enabled: dataEnabled !== undefined ? dataEnabled : true
-          }
-          executeCommand('AddEffect', newEffect)
-        }
-      }
-    }
+    })
   }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, contextEffects])
 
   // Bulk toggle all keystroke effects

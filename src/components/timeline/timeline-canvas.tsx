@@ -10,10 +10,7 @@ import { TrackType, TimelineTrackType } from '@/types/project'
 import { getZoomEffects } from '@/lib/effects/effect-filters'
 import { TimelineLayoutProvider, useTimelineLayout } from './timeline-layout-provider'
 import { useAssetLibraryStore } from '@/stores/asset-library-store'
-import { TimelineZoomTrack } from './tracks/timeline-zoom-track'
-import { TimelineScreenTrack } from './tracks/timeline-screen-track'
-import { TimelineKeystrokeTrack } from './tracks/timeline-keystroke-track'
-import { TimelinePluginTrack } from './tracks/timeline-plugin-track'
+import { TimelineEffectTracks } from './tracks/timeline-effect-track'
 import { TimelineWebcamTrack } from './tracks/timeline-webcam-track'
 
 // Sub-components
@@ -985,17 +982,8 @@ function TimelineCanvasContent({
               )
             })}
 
-            {/* Zoom blocks */}
-            <TimelineZoomTrack />
-
-            {/* Screen Effects blocks */}
-            <TimelineScreenTrack />
-
-            {/* Keystroke blocks */}
-            <TimelineKeystrokeTrack />
-
-            {/* Plugin blocks */}
-            <TimelinePluginTrack />
+            {/* Effect tracks - rendered from registry */}
+            <TimelineEffectTracks />
 
             {/* Webcam track */}
             <TimelineWebcamTrack />

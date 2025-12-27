@@ -7,13 +7,14 @@ import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEff
 import { EffectType, BackgroundType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffect } from '@/lib/effects/effect-filters'
+import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffects } from '@/lib/effects/effect-filters'
+import { resolveEffectIdForType } from '@/lib/effects/effect-selection'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
 import { TrackType } from '@/types/project'
-import { useTrackExistence } from '@/stores/selectors/timeline-selectors'
+import { useTrackExistence, useEffectTrackExistence } from '@/stores/selectors/timeline-selectors'
 
 import { BackgroundTab } from './background-tab'
 import { CursorTab } from './cursor-tab'
@@ -26,6 +27,7 @@ import { ClipTab } from './clip-tab'
 import { AdvancedTab } from './advanced-tab'
 import { CanvasTab } from './canvas-tab'
 import { WebcamTab } from './webcam-tab'
+import { AnnotationsTab } from './annotations-tab'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useProjectStore } from '@/stores/project-store'
 
@@ -61,6 +63,7 @@ const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Zoom]: 'Focus',
   [EffectLayerType.Crop]: 'Frame',
   [EffectLayerType.Plugin]: 'Tools',
+  [EffectLayerType.Annotation]: 'Note',
 }
 
 function SubTabs<T extends string>({
@@ -155,14 +158,20 @@ export function EffectsSidebar({
   const tooltipRef = useRef<HTMLDivElement | null>(null)
   const lastAutoOpenedCropClipRef = useRef<string | null>(null)
 
-  // Check if webcam track has content
+  // Check if webcam/annotation tracks have content
   const { hasWebcamTrack } = useTrackExistence()
+  const effectTrackExistence = useEffectTrackExistence()
+  const hasAnnotationTrack = effectTrackExistence[EffectType.Annotation] ?? false
 
   // Extract current effects from the array using effect-filters helpers
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
   const cursorEffect = effects ? getCursorEffect(effects) : undefined
   const keystrokeEffect = effects ? getKeystrokeEffect(effects) : undefined
-  const webcamEffect = effects ? getWebcamEffect(effects) : undefined
+  const webcamEffects = effects ? getWebcamEffects(effects) : []
+  const webcamEffectId = resolveEffectIdForType(webcamEffects, selectedEffectLayer, EffectType.Webcam)
+  const webcamEffect = webcamEffectId
+    ? webcamEffects.find(effect => effect.id === webcamEffectId)
+    : undefined
 
   // Track last selected clip id and previous effect layer type to control auto-tab switching
   const lastClipIdRef = React.useRef<string | null>(null)
@@ -247,6 +256,9 @@ export function EffectsSidebar({
       case EffectLayerType.Plugin:
         setActiveTab(SidebarTabId.Advanced)
         return
+      case EffectLayerType.Annotation:
+        setActiveTab(SidebarTabId.Annotation)
+        return
       default:
         setActiveTab(SidebarTabId.Advanced)
     }
@@ -294,9 +306,11 @@ export function EffectsSidebar({
       if (tab.id === SidebarTabId.Clip) return !!selectedClip
       // Only show Webcam tab when there's webcam content on the timeline
       if (tab.id === SidebarTabId.Webcam) return hasWebcamTrack
+      // Only show Annotation tab when there are annotations
+      if (tab.id === SidebarTabId.Annotation) return hasAnnotationTrack
       return true
     })
-  }, [selectedClip, hasWebcamTrack])
+  }, [selectedClip, hasWebcamTrack, hasAnnotationTrack])
 
   useEffect(() => {
     if (!selectedClip && activeTab === SidebarTabId.Clip) {
@@ -306,15 +320,19 @@ export function EffectsSidebar({
     if (!hasWebcamTrack && activeTab === SidebarTabId.Webcam) {
       setActiveTab(SidebarTabId.Style)
     }
-  }, [activeTab, selectedClip, hasWebcamTrack])
+    // Switch away from Annotation tab if annotation content is removed
+    if (!hasAnnotationTrack && activeTab === SidebarTabId.Annotation) {
+      setActiveTab(SidebarTabId.Style)
+    }
+  }, [activeTab, selectedClip, hasWebcamTrack, hasAnnotationTrack])
 
   useEffect(() => {
     if (activeTab !== SidebarTabId.Webcam) return
-    if (!webcamEffect) return
     if (selectedEffectLayer && selectedEffectLayer.type !== EffectLayerType.Webcam) return
-    if (selectedEffectLayer?.type === EffectLayerType.Webcam && selectedEffectLayer?.id === webcamEffect.id) return
-    selectEffectLayer(EffectLayerType.Webcam, webcamEffect.id)
-  }, [activeTab, webcamEffect, selectedEffectLayer, selectEffectLayer])
+    if (selectedEffectLayer?.type === EffectLayerType.Webcam && selectedEffectLayer?.id) return
+    if (!webcamEffectId) return
+    selectEffectLayer(EffectLayerType.Webcam, webcamEffectId)
+  }, [activeTab, selectedEffectLayer, webcamEffectId, selectEffectLayer])
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = useCallback((updates: any) => {
@@ -645,6 +663,19 @@ export function EffectsSidebar({
                   </motion.div>
                 )}
 
+                {activeTab === SidebarTabId.Annotation && (
+                  <motion.div
+                    key="annotation"
+                    variants={tabVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="space-y-3"
+                  >
+                    <AnnotationsTab />
+                  </motion.div>
+                )}
+
                 {activeTab === SidebarTabId.Canvas && (
                   <motion.div
                     key="canvas"
@@ -668,7 +699,7 @@ export function EffectsSidebar({
                     initial="initial"
                     animate="animate"
                     exit="exit"
-                    className="space-y-3"
+                    className="space-y-4"
                   >
                     <AdvancedTab
                       effects={effects}

@@ -177,12 +177,16 @@ const getDefaultColors = () => ({
 // Hook for React components that updates when theme changes
 export const useTimelineColors = () => {
   const [colors, setColors] = React.useState(getTimelineColors())
+  const updateTimeoutRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     // Update colors when theme changes
     const updateColors = () => {
       // Small delay to ensure CSS variables have updated
-      setTimeout(() => {
+      if (updateTimeoutRef.current !== null) {
+        window.clearTimeout(updateTimeoutRef.current)
+      }
+      updateTimeoutRef.current = window.setTimeout(() => {
         setColors(getTimelineColors())
       }, 10)
     }
@@ -214,6 +218,10 @@ export const useTimelineColors = () => {
     window.addEventListener('storage', handleStorageChange)
 
     return () => {
+      if (updateTimeoutRef.current !== null) {
+        window.clearTimeout(updateTimeoutRef.current)
+        updateTimeoutRef.current = null
+      }
       observer.disconnect()
       window.removeEventListener('storage', handleStorageChange)
     }

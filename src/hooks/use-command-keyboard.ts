@@ -17,6 +17,12 @@ import { toast } from 'sonner'
 import { EffectLayerType } from '@/types/effects'
 import { EffectType } from '@/types'
 
+/** Extract message from Error object or return string as-is */
+const getErrorMessage = (error: Error | string | undefined): string => {
+  if (!error) return 'Unknown error'
+  return error instanceof Error ? error.message : error
+}
+
 interface UseCommandKeyboardProps {
   enabled?: boolean
 }
@@ -53,13 +59,13 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
           : 'Clip copied'
         toast(msg)
       } else {
-        toast.error(result.error as string)
+        toast.error(getErrorMessage(result.error))
       }
     }
 
     const handleCut = async () => {
       const result = await getExecutor().execute(CutCommand)
-      result.success ? toast('Clip cut') : toast.error(result.error as string)
+      result.success ? toast('Clip cut') : toast.error(getErrorMessage(result.error))
     }
 
     const handlePaste = async () => {
@@ -73,7 +79,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
           : 'Clip pasted'
         toast(msg)
       } else {
-        toast.error(result.error as string)
+        toast.error(getErrorMessage(result.error))
       }
     }
 
@@ -92,7 +98,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
             effectLayer.type === EffectLayerType.Keystroke ? 'Keystroke block' : 'Effect block'
           toast(`${name} deleted`)
         } else {
-          toast.error(result.error as string)
+          toast.error(getErrorMessage(result.error))
         }
         return
       }
@@ -113,7 +119,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         return
       }
       const result = await getExecutor().execute(SplitClipCommand, selectedClips[0], currentTime)
-      result.success ? toast('Clip split') : toast.error(result.error as string)
+      result.success ? toast('Clip split') : toast.error(getErrorMessage(result.error))
     }
 
     const handleTrimStart = async () => {
@@ -123,7 +129,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         return
       }
       const result = await getExecutor().execute(TrimCommand, selectedClips[0], currentTime, 'start')
-      if (!result.success) toast.error(result.error as string)
+      if (!result.success) toast.error(getErrorMessage(result.error))
     }
 
     const handleTrimEnd = async () => {
@@ -133,7 +139,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         return
       }
       const result = await getExecutor().execute(TrimCommand, selectedClips[0], currentTime, 'end')
-      if (!result.success) toast.error(result.error as string)
+      if (!result.success) toast.error(getErrorMessage(result.error))
     }
 
     const handleDuplicate = async () => {

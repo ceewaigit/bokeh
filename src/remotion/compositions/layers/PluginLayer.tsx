@@ -160,6 +160,8 @@ const PluginEffectRenderer: React.FC<PluginEffectRendererProps> = ({
 
     return (
       <div
+        data-effect-id={effect.id}
+        data-plugin-id={pluginData.pluginId}
         style={{
           ...positionStyle,
           zIndex: pluginData.zIndex ?? 50,

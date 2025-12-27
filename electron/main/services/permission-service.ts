@@ -4,6 +4,7 @@ import { exec } from 'child_process'
 export class PermissionService {
     private static instance: PermissionService
     private checkInterval: NodeJS.Timeout | null = null
+    private monitoringInFlight: boolean = false
     private _screenRecordingGranted: boolean = false
     private _microphoneGranted: boolean = false
     private _cameraGranted: boolean = false
@@ -225,25 +226,33 @@ export class PermissionService {
         this.stopMonitoring() // Clear existing interval if any
 
         console.log('📊 Started monitoring screen recording permission')
-        this.checkInterval = setInterval(async () => {
-            try {
-                const screenResult = this.checkScreenRecordingPermission()
-                const micResult = await this.checkMicrophonePermission()
-                const camResult = await this.checkCameraPermission()
+        const pollPermissions = async () => {
+            const screenResult = this.checkScreenRecordingPermission()
+            const micResult = await this.checkMicrophonePermission()
+            const camResult = await this.checkCameraPermission()
 
-                // Send consolidated status
-                sender.send('permission-status-changed', {
-                    screen: screenResult,
-                    microphone: micResult,
-                    camera: camResult
-                })
+            // Send consolidated status
+            sender.send('permission-status-changed', {
+                screen: screenResult,
+                microphone: micResult,
+                camera: camResult
+            })
 
-                if (screenResult.granted && micResult.granted && camResult.granted) {
-                    // console.log('✅ All permissions granted during monitoring')
-                }
-            } catch (error) {
-                console.error('Error checking permission status:', error)
+            if (screenResult.granted && micResult.granted && camResult.granted) {
+                // console.log('✅ All permissions granted during monitoring')
             }
+        }
+
+        this.checkInterval = setInterval(() => {
+            if (this.monitoringInFlight) return
+            this.monitoringInFlight = true
+            pollPermissions()
+                .catch(error => {
+                    console.error('Error checking permission status:', error)
+                })
+                .finally(() => {
+                    this.monitoringInFlight = false
+                })
         }, 1000)
     }
 
@@ -251,6 +260,7 @@ export class PermissionService {
         if (this.checkInterval) {
             clearInterval(this.checkInterval)
             this.checkInterval = null
+            this.monitoringInFlight = false
             console.log('🛑 Stopped monitoring screen recording permission')
         }
     }

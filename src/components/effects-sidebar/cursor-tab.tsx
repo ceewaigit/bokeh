@@ -27,6 +27,66 @@ type PreviewMotionOverride = {
   gliding?: boolean
 }
 
+type CursorLocalState = {
+  size: number
+  motionPreset: CursorMotionPreset
+  idleTimeoutSec: number
+  speed: number
+  smoothness: number
+  glide: number
+  continuity: number
+  tiltMaxDeg: number
+  clickStyle: ClickEffectStyle
+  clickAnimation: ClickEffectAnimation
+  clickDurationMs: number
+  clickRadius: number
+  clickLineWidth: number
+  clickColor: string
+  clickWordsInput: string
+  clickTextMode: ClickTextMode
+  clickTextAnimation: ClickTextAnimation
+  clickTextSize: number
+  clickTextColor: string
+  clickTextOffsetY: number
+  clickTextRise: number
+  motionBlurIntensity: number
+}
+
+const resolveCursorState = (cursorData?: CursorEffectData): CursorLocalState => {
+  const defaults = DEFAULT_CURSOR_DATA
+  const clickTextWords = cursorData?.clickTextWords ?? defaults.clickTextWords ?? ['click!']
+  const motionBlurIntensity = typeof cursorData?.motionBlurIntensity === 'number'
+    ? cursorData.motionBlurIntensity
+    : cursorData?.motionBlur === false
+      ? 0
+      : defaults.motionBlurIntensity ?? 40
+
+  return {
+    size: cursorData?.size ?? defaults.size,
+    motionPreset: cursorData?.motionPreset ?? defaults.motionPreset ?? 'cinematic',
+    idleTimeoutSec: (cursorData?.idleTimeout ?? defaults.idleTimeout) / 1000,
+    speed: cursorData?.speed ?? defaults.speed,
+    smoothness: cursorData?.smoothness ?? defaults.smoothness,
+    glide: cursorData?.glide ?? defaults.glide ?? 0.75,
+    continuity: cursorData?.smoothingJumpThreshold ?? defaults.smoothingJumpThreshold ?? 0.9,
+    tiltMaxDeg: cursorData?.directionalTiltMaxDeg ?? defaults.directionalTiltMaxDeg ?? 10,
+    clickStyle: cursorData?.clickEffectStyle ?? defaults.clickEffectStyle ?? 'ripple',
+    clickAnimation: cursorData?.clickEffectAnimation ?? defaults.clickEffectAnimation ?? 'expand',
+    clickDurationMs: cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 300,
+    clickRadius: cursorData?.clickEffectMaxRadius ?? defaults.clickEffectMaxRadius ?? 50,
+    clickLineWidth: cursorData?.clickEffectLineWidth ?? defaults.clickEffectLineWidth ?? 2,
+    clickColor: cursorData?.clickEffectColor ?? defaults.clickEffectColor ?? '#ffffff',
+    clickWordsInput: clickTextWords.join(', '),
+    clickTextMode: cursorData?.clickTextMode ?? defaults.clickTextMode ?? 'random',
+    clickTextAnimation: cursorData?.clickTextAnimation ?? defaults.clickTextAnimation ?? 'float',
+    clickTextSize: cursorData?.clickTextSize ?? defaults.clickTextSize ?? 16,
+    clickTextColor: cursorData?.clickTextColor ?? defaults.clickTextColor ?? '#ffffff',
+    clickTextOffsetY: cursorData?.clickTextOffsetY ?? defaults.clickTextOffsetY ?? -12,
+    clickTextRise: cursorData?.clickTextRise ?? defaults.clickTextRise ?? 24,
+    motionBlurIntensity
+  }
+}
+
 export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: CursorTabProps) {
   const cursorData = cursorEffect?.data as CursorEffectData | undefined
   const hideOnIdle = cursorData?.hideOnIdle ?? DEFAULT_CURSOR_DATA.hideOnIdle
@@ -34,31 +94,34 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const clickEffectsEnabled = cursorData?.clickEffects ?? DEFAULT_CURSOR_DATA.clickEffects
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [showFineTune, setShowFineTune] = useState(false)
-
-  const [size, setSize] = useState(cursorData?.size ?? DEFAULT_CURSOR_DATA.size)
-  const [motionPreset, setMotionPreset] = useState<CursorMotionPreset>(cursorData?.motionPreset ?? DEFAULT_CURSOR_DATA.motionPreset ?? 'cinematic')
-  const [idleTimeoutSec, setIdleTimeoutSec] = useState((cursorData?.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout) / 1000)
-  const [speed, setSpeed] = useState(cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed)
-  const [smoothness, setSmoothness] = useState(cursorData?.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
-  const [glide, setGlide] = useState(cursorData?.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75)
-  const [continuity, setContinuity] = useState(cursorData?.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9)
-  const [tiltMaxDeg, setTiltMaxDeg] = useState(cursorData?.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 10)
-  const [clickStyle, setClickStyle] = useState<ClickEffectStyle>(cursorData?.clickEffectStyle ?? DEFAULT_CURSOR_DATA.clickEffectStyle ?? 'ripple')
-  const [clickAnimation, setClickAnimation] = useState<ClickEffectAnimation>(cursorData?.clickEffectAnimation ?? DEFAULT_CURSOR_DATA.clickEffectAnimation ?? 'expand')
-  const [clickDurationMs, setClickDurationMs] = useState(cursorData?.clickEffectDurationMs ?? DEFAULT_CURSOR_DATA.clickEffectDurationMs ?? 300)
-  const [clickRadius, setClickRadius] = useState(cursorData?.clickEffectMaxRadius ?? DEFAULT_CURSOR_DATA.clickEffectMaxRadius ?? 50)
-  const [clickLineWidth, setClickLineWidth] = useState(cursorData?.clickEffectLineWidth ?? DEFAULT_CURSOR_DATA.clickEffectLineWidth ?? 2)
-  const [clickColor, setClickColor] = useState(cursorData?.clickEffectColor ?? DEFAULT_CURSOR_DATA.clickEffectColor ?? '#ffffff')
-  const [clickWordsInput, setClickWordsInput] = useState((cursorData?.clickTextWords ?? DEFAULT_CURSOR_DATA.clickTextWords ?? ['click!']).join(', '))
-  const [clickTextMode, setClickTextMode] = useState<ClickTextMode>(cursorData?.clickTextMode ?? DEFAULT_CURSOR_DATA.clickTextMode ?? 'random')
-  const [clickTextAnimation, setClickTextAnimation] = useState<ClickTextAnimation>(cursorData?.clickTextAnimation ?? DEFAULT_CURSOR_DATA.clickTextAnimation ?? 'float')
-  const [clickTextSize, setClickTextSize] = useState(cursorData?.clickTextSize ?? DEFAULT_CURSOR_DATA.clickTextSize ?? 16)
-  const [clickTextColor, setClickTextColor] = useState(cursorData?.clickTextColor ?? DEFAULT_CURSOR_DATA.clickTextColor ?? '#ffffff')
-  const [clickTextOffsetY, setClickTextOffsetY] = useState(cursorData?.clickTextOffsetY ?? DEFAULT_CURSOR_DATA.clickTextOffsetY ?? -12)
-  const [clickTextRise, setClickTextRise] = useState(cursorData?.clickTextRise ?? DEFAULT_CURSOR_DATA.clickTextRise ?? 24)
-  const [motionBlurIntensity, setMotionBlurIntensity] = useState(
-    cursorData?.motionBlurIntensity ?? (cursorData?.motionBlur === false ? 0 : (DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40))
-  )
+  const [cursorState, setCursorState] = useState<CursorLocalState>(() => resolveCursorState(cursorData))
+  const updateCursorState = useCallback((updates: Partial<CursorLocalState>) => {
+    setCursorState((prev) => ({ ...prev, ...updates }))
+  }, [])
+  const {
+    size,
+    motionPreset,
+    idleTimeoutSec,
+    speed,
+    smoothness,
+    glide,
+    continuity,
+    tiltMaxDeg,
+    clickStyle,
+    clickAnimation,
+    clickDurationMs,
+    clickRadius,
+    clickLineWidth,
+    clickColor,
+    clickWordsInput,
+    clickTextMode,
+    clickTextAnimation,
+    clickTextSize,
+    clickTextColor,
+    clickTextOffsetY,
+    clickTextRise,
+    motionBlurIntensity
+  } = cursorState
   const [returnDuration, setReturnDuration] = useState(1.0)
   const [previewKey, setPreviewKey] = useState(0)
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false)
@@ -67,99 +130,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const previewClearOverrideRef = useRef(false)
 
   useEffect(() => {
-    setSize(cursorData?.size ?? DEFAULT_CURSOR_DATA.size)
-  }, [cursorData?.size])
-
-  useEffect(() => {
-    setIdleTimeoutSec((cursorData?.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout) / 1000)
-  }, [cursorData?.idleTimeout])
-
-  useEffect(() => {
-    setMotionPreset(cursorData?.motionPreset ?? DEFAULT_CURSOR_DATA.motionPreset ?? 'cinematic')
-  }, [cursorData?.motionPreset])
-
-  useEffect(() => {
-    setSpeed(cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed)
-  }, [cursorData?.speed])
-
-  useEffect(() => {
-    setSmoothness(cursorData?.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
-  }, [cursorData?.smoothness])
-
-  useEffect(() => {
-    setGlide(cursorData?.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75)
-  }, [cursorData?.glide])
-  useEffect(() => {
-    setContinuity(cursorData?.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9)
-  }, [cursorData?.smoothingJumpThreshold])
-
-  useEffect(() => {
-    setTiltMaxDeg(cursorData?.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 10)
-  }, [cursorData?.directionalTiltMaxDeg])
-
-  useEffect(() => {
-    setClickStyle(cursorData?.clickEffectStyle ?? DEFAULT_CURSOR_DATA.clickEffectStyle ?? 'ripple')
-  }, [cursorData?.clickEffectStyle])
-
-  useEffect(() => {
-    setClickAnimation(cursorData?.clickEffectAnimation ?? DEFAULT_CURSOR_DATA.clickEffectAnimation ?? 'expand')
-  }, [cursorData?.clickEffectAnimation])
-
-  useEffect(() => {
-    setClickDurationMs(cursorData?.clickEffectDurationMs ?? DEFAULT_CURSOR_DATA.clickEffectDurationMs ?? 300)
-  }, [cursorData?.clickEffectDurationMs])
-
-  useEffect(() => {
-    setClickRadius(cursorData?.clickEffectMaxRadius ?? DEFAULT_CURSOR_DATA.clickEffectMaxRadius ?? 50)
-  }, [cursorData?.clickEffectMaxRadius])
-
-  useEffect(() => {
-    setClickLineWidth(cursorData?.clickEffectLineWidth ?? DEFAULT_CURSOR_DATA.clickEffectLineWidth ?? 2)
-  }, [cursorData?.clickEffectLineWidth])
-
-  useEffect(() => {
-    setClickColor(cursorData?.clickEffectColor ?? DEFAULT_CURSOR_DATA.clickEffectColor ?? '#ffffff')
-  }, [cursorData?.clickEffectColor])
-
-  useEffect(() => {
-    setClickWordsInput((cursorData?.clickTextWords ?? DEFAULT_CURSOR_DATA.clickTextWords ?? ['click!']).join(', '))
-  }, [cursorData?.clickTextWords])
-
-  useEffect(() => {
-    setClickTextMode(cursorData?.clickTextMode ?? DEFAULT_CURSOR_DATA.clickTextMode ?? 'random')
-  }, [cursorData?.clickTextMode])
-
-  useEffect(() => {
-    setClickTextAnimation(cursorData?.clickTextAnimation ?? DEFAULT_CURSOR_DATA.clickTextAnimation ?? 'float')
-  }, [cursorData?.clickTextAnimation])
-
-  useEffect(() => {
-    setClickTextSize(cursorData?.clickTextSize ?? DEFAULT_CURSOR_DATA.clickTextSize ?? 16)
-  }, [cursorData?.clickTextSize])
-
-  useEffect(() => {
-    setClickTextColor(cursorData?.clickTextColor ?? DEFAULT_CURSOR_DATA.clickTextColor ?? '#ffffff')
-  }, [cursorData?.clickTextColor])
-
-  useEffect(() => {
-    setClickTextOffsetY(cursorData?.clickTextOffsetY ?? DEFAULT_CURSOR_DATA.clickTextOffsetY ?? -12)
-  }, [cursorData?.clickTextOffsetY])
-
-  useEffect(() => {
-    setClickTextRise(cursorData?.clickTextRise ?? DEFAULT_CURSOR_DATA.clickTextRise ?? 24)
-  }, [cursorData?.clickTextRise])
-
-  useEffect(() => {
-    if (typeof cursorData?.motionBlurIntensity === 'number') {
-      setMotionBlurIntensity(cursorData.motionBlurIntensity)
-      return
-    }
-    if (cursorData?.motionBlur === false) {
-      setMotionBlurIntensity(0)
-      return
-    }
-    setMotionBlurIntensity(DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40)
-  }, [cursorData?.motionBlurIntensity, cursorData?.motionBlur])
+    setCursorState(resolveCursorState(cursorData))
+  }, [cursorData])
 
   useEffect(() => {
     return () => {
@@ -277,13 +249,14 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
     values?: { speed: number; smoothness: number; glide: number },
     glidingOverride?: boolean
   ) => {
-    setMotionPreset(preset)
-
     if (preset !== 'custom') {
       const presetValues = CURSOR_MOTION_PRESETS[preset]
-      setSpeed(presetValues.speed)
-      setSmoothness(presetValues.smoothness)
-      setGlide(presetValues.glide)
+      updateCursorState({
+        speed: presetValues.speed,
+        smoothness: presetValues.smoothness,
+        glide: presetValues.glide,
+        motionPreset: preset
+      })
       onUpdateCursor({
         motionPreset: preset,
         speed: presetValues.speed,
@@ -295,9 +268,12 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
     }
 
     if (values) {
-      setSpeed(values.speed)
-      setSmoothness(values.smoothness)
-      setGlide(values.glide)
+      updateCursorState({
+        speed: values.speed,
+        smoothness: values.smoothness,
+        glide: values.glide,
+        motionPreset: preset
+      })
       onUpdateCursor({
         motionPreset: preset,
         speed: values.speed,
@@ -308,6 +284,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
       return
     }
 
+    updateCursorState({ motionPreset: preset })
     onUpdateCursor({
       motionPreset: preset,
       ...(glidingOverride === undefined ? {} : { gliding: glidingOverride })
@@ -412,7 +389,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </div>
             <Slider
               value={[size]}
-              onValueChange={([value]) => setSize(value)}
+              onValueChange={([value]) => updateCursorState({ size: value })}
               onValueCommit={([value]) => onUpdateCursor({ size: value })}
               min={0.5}
               max={8}
@@ -505,9 +482,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </div>
             <Slider
               value={[speed]}
-              onValueChange={([value]) => setSpeed(value)}
+              onValueChange={([value]) => updateCursorState({ speed: value })}
               onValueCommit={([value]) => {
-                setMotionPreset('custom')
+                updateCursorState({ speed: value, motionPreset: 'custom' })
                 onUpdateCursor({ speed: value, motionPreset: 'custom' })
               }}
               min={0.01}
@@ -528,7 +505,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </div>
             <Slider
               value={[motionBlurIntensity]}
-              onValueChange={([value]) => setMotionBlurIntensity(value)}
+              onValueChange={([value]) => updateCursorState({ motionBlurIntensity: value })}
               onValueCommit={([value]) =>
                 onUpdateCursor({ motionBlur: value > 0, motionBlurIntensity: value })
               }
@@ -589,9 +566,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     </div>
                     <Slider
                       value={[smoothness]}
-                      onValueChange={([value]) => setSmoothness(value)}
+                      onValueChange={([value]) => updateCursorState({ smoothness: value })}
                       onValueCommit={([value]) => {
-                        setMotionPreset('custom')
+                        updateCursorState({ smoothness: value, motionPreset: 'custom' })
                         onUpdateCursor({ smoothness: value, motionPreset: 'custom' })
                       }}
                       min={0.1}
@@ -609,9 +586,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     </div>
                     <Slider
                       value={[glide]}
-                      onValueChange={([value]) => setGlide(value)}
+                      onValueChange={([value]) => updateCursorState({ glide: value })}
                       onValueCommit={([value]) => {
-                        setMotionPreset('custom')
+                        updateCursorState({ glide: value, motionPreset: 'custom' })
                         onUpdateCursor({ glide: value, motionPreset: 'custom' })
                       }}
                       min={0}
@@ -632,9 +609,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     </div>
                     <Slider
                       value={[continuity]}
-                      onValueChange={([value]) => setContinuity(value)}
+                      onValueChange={([value]) => updateCursorState({ continuity: value })}
                       onValueCommit={([value]) => {
-                        setMotionPreset('custom')
+                        updateCursorState({ continuity: value, motionPreset: 'custom' })
                         onUpdateCursor({ smoothingJumpThreshold: value, motionPreset: 'custom' })
                       }}
                       min={0.4}
@@ -662,7 +639,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           value={clickStyle}
                           onValueChange={(value) => {
                             const next = value as ClickEffectStyle
-                            setClickStyle(next)
+                            updateCursorState({ clickStyle: next })
                             onUpdateCursor({ clickEffectStyle: next })
                           }}
                         >
@@ -682,13 +659,13 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         <div className="space-y-1.5">
                           <div className="text-[12px] font-medium text-muted-foreground">Animation</div>
                           <Select
-                            value={clickAnimation}
-                            onValueChange={(value) => {
-                              const next = value as ClickEffectAnimation
-                              setClickAnimation(next)
-                              onUpdateCursor({ clickEffectAnimation: next })
-                            }}
-                          >
+                          value={clickAnimation}
+                          onValueChange={(value) => {
+                            const next = value as ClickEffectAnimation
+                            updateCursorState({ clickAnimation: next })
+                            onUpdateCursor({ clickEffectAnimation: next })
+                          }}
+                        >
                             <SelectTrigger className="h-8 text-xs">
                               <SelectValue />
                             </SelectTrigger>
@@ -709,7 +686,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         </div>
                         <Slider
                           value={[clickDurationMs]}
-                          onValueChange={([value]) => setClickDurationMs(value)}
+                          onValueChange={([value]) => updateCursorState({ clickDurationMs: value })}
                           onValueCommit={([value]) => onUpdateCursor({ clickEffectDurationMs: value })}
                           min={100}
                           max={1000}
@@ -725,7 +702,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           </div>
                           <Slider
                             value={[clickRadius]}
-                            onValueChange={([value]) => setClickRadius(value)}
+                            onValueChange={([value]) => updateCursorState({ clickRadius: value })}
                             onValueCommit={([value]) => onUpdateCursor({ clickEffectMaxRadius: value })}
                             min={10}
                             max={120}
@@ -744,7 +721,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           </div>
                           <Slider
                             value={[clickLineWidth]}
-                            onValueChange={([value]) => setClickLineWidth(value)}
+                            onValueChange={([value]) => updateCursorState({ clickLineWidth: value })}
                             onValueCommit={([value]) => onUpdateCursor({ clickEffectLineWidth: value })}
                             min={1}
                             max={8}
@@ -758,7 +735,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                             type="color"
                             value={clickColor}
                             onChange={(e) => {
-                              setClickColor(e.target.value)
+                              updateCursorState({ clickColor: e.target.value })
                               onUpdateCursor({ clickEffectColor: e.target.value })
                             }}
                             className="h-8 w-full rounded border border-border/40 bg-background/60"
@@ -773,7 +750,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           <div className="text-[12px] font-medium text-muted-foreground">Words (comma-separated)</div>
                           <input
                             value={clickWordsInput}
-                            onChange={(e) => setClickWordsInput(e.target.value)}
+                            onChange={(e) => updateCursorState({ clickWordsInput: e.target.value })}
                             onBlur={() => onUpdateCursor({ clickTextWords: parseClickWords(clickWordsInput) })}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter') {
@@ -792,7 +769,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                               value={clickTextMode}
                               onValueChange={(value) => {
                                 const next = value as ClickTextMode
-                                setClickTextMode(next)
+                                updateCursorState({ clickTextMode: next })
                                 onUpdateCursor({ clickTextMode: next })
                               }}
                             >
@@ -813,7 +790,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                               value={clickTextAnimation}
                               onValueChange={(value) => {
                                 const next = value as ClickTextAnimation
-                                setClickTextAnimation(next)
+                                updateCursorState({ clickTextAnimation: next })
                                 onUpdateCursor({ clickTextAnimation: next })
                               }}
                             >
@@ -836,7 +813,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                             </div>
                             <Slider
                               value={[clickTextSize]}
-                              onValueChange={([value]) => setClickTextSize(value)}
+                              onValueChange={([value]) => updateCursorState({ clickTextSize: value })}
                               onValueCommit={([value]) => onUpdateCursor({ clickTextSize: value })}
                               min={8}
                               max={48}
@@ -847,14 +824,14 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           <div className="space-y-1.5">
                             <div className="text-[12px] font-medium text-muted-foreground">Text Color</div>
                             <input
-                              type="color"
-                              value={clickTextColor}
-                              onChange={(e) => {
-                                setClickTextColor(e.target.value)
-                                onUpdateCursor({ clickTextColor: e.target.value })
-                              }}
-                              className="h-8 w-full rounded border border-border/40 bg-background/60"
-                            />
+                            type="color"
+                            value={clickTextColor}
+                            onChange={(e) => {
+                              updateCursorState({ clickTextColor: e.target.value })
+                              onUpdateCursor({ clickTextColor: e.target.value })
+                            }}
+                            className="h-8 w-full rounded border border-border/40 bg-background/60"
+                          />
                           </div>
                         </div>
 
@@ -866,7 +843,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                             </div>
                             <Slider
                               value={[clickTextOffsetY]}
-                              onValueChange={([value]) => setClickTextOffsetY(value)}
+                              onValueChange={([value]) => updateCursorState({ clickTextOffsetY: value })}
                               onValueCommit={([value]) => onUpdateCursor({ clickTextOffsetY: value })}
                               min={-80}
                               max={80}
@@ -881,7 +858,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                             </div>
                             <Slider
                               value={[clickTextRise]}
-                              onValueChange={([value]) => setClickTextRise(value)}
+                              onValueChange={([value]) => updateCursorState({ clickTextRise: value })}
                               onValueCommit={([value]) => onUpdateCursor({ clickTextRise: value })}
                               min={0}
                               max={120}
@@ -919,7 +896,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 </div>
                 <Slider
                   value={[tiltMaxDeg]}
-                  onValueChange={([value]) => setTiltMaxDeg(value)}
+                  onValueChange={([value]) => updateCursorState({ tiltMaxDeg: value })}
                   onValueCommit={([value]) => onUpdateCursor({ directionalTilt: value > 0, directionalTiltMaxDeg: value })}
                   min={0}
                   max={25}
@@ -956,7 +933,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                       </div>
                       <Slider
                         value={[idleTimeoutSec]}
-                        onValueChange={([value]) => setIdleTimeoutSec(value)}
+                        onValueChange={([value]) => updateCursorState({ idleTimeoutSec: value })}
                         onValueCommit={([value]) => onUpdateCursor({ idleTimeout: value * 1000 })}
                         min={1}
                         max={10}

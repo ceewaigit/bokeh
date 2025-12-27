@@ -209,6 +209,8 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     if (backgroundType !== BackgroundType.Parallax) return
     if (loadingParallaxPresets) return
     if (parallaxPresets.length > 0) return
+    let isActive = true
+    let timeoutId: number | null = null
 
     const buildFallbackPresets = (): ParallaxPreset[] => {
       const byFolder = new Map<string, Set<string>>()
@@ -241,13 +243,14 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
 
     // Add timeout to prevent infinite loading - fallback to defaults after 3s
     const timeoutPromise = new Promise<ParallaxPreset[]>((resolve) => {
-      setTimeout(() => resolve(buildFallbackPresets()), 3000)
+      timeoutId = window.setTimeout(() => resolve(buildFallbackPresets()), 3000)
     })
 
     const loader = Promise.race([electronLoader, timeoutPromise])
 
     loader
       .then((presets) => {
+        if (!isActive) return
         const sanitized = (presets || []).filter(p => p.files?.length)
         // If we got empty results or timed out, use fallback
         const finalPresets = sanitized.length > 0 ? sanitized : buildFallbackPresets()
@@ -255,11 +258,22 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         setSelectedParallaxPresetId(prev => prev ?? pickDefaultPresetId(finalPresets))
       })
       .catch(() => {
+        if (!isActive) return
         const fallback = buildFallbackPresets()
         setParallaxPresets(fallback)
         setSelectedParallaxPresetId(prev => prev ?? pickDefaultPresetId(fallback))
       })
-      .finally(() => setLoadingParallaxPresets(false))
+      .finally(() => {
+        if (isActive) {
+          setLoadingParallaxPresets(false)
+        }
+      })
+    return () => {
+      isActive = false
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
+    }
   }, [backgroundType, bgData?.parallaxLayers, loadingParallaxPresets, parallaxPresets.length])
 
   const selectedParallaxPreset = useMemo(() => {

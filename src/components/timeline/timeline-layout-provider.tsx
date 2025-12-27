@@ -4,44 +4,42 @@
  * TimelineLayoutProvider
  *
  * Provides timeline layout values via context.
- * Track heights are calculated as percentages of container height
- * for responsive behavior.
+ * Effect track heights/positions are derived from the registry.
  */
 
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback, type RefObject } from 'react'
 import { useProjectStore } from '@/stores/project-store'
-import { useTrackExistence, useTimelineDuration } from '@/stores/selectors/timeline-selectors'
+import { useEffectTrackExistence, useMediaTrackExistence, useTimelineDuration } from '@/stores/selectors/timeline-selectors'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { EffectType } from '@/types/effects'
 import { TimelineTrackType } from '@/types/project'
+import { EFFECT_TRACK_TYPES, getSortedTrackConfigs } from '@/lib/timeline/effect-track-registry'
 
-// Track height constants - effect tracks use FIXED pixel heights
-const TRACK_HEIGHT_COLLAPSED = 28 // Effect track collapsed height
-const TRACK_HEIGHT_EXPANDED = 45 // Effect track expanded height (60% larger)
-const TRACK_HEIGHT_VIDEO_MAX = 80 // Video track maximum height
-const TRACK_HEIGHT_AUDIO_MAX = 40 // Audio track maximum height
+/** Track type that can be used for visibility/active state */
+export type TrackId = TimelineTrackType | EffectType
 
-export interface TrackHeights {
+// Track height constants
+const TRACK_HEIGHT_COLLAPSED = 28
+const TRACK_HEIGHT_EXPANDED = 45
+const TRACK_HEIGHT_VIDEO_MAX = 80
+const TRACK_HEIGHT_AUDIO_MAX = 40
+
+/** Fixed track heights (non-effect tracks) */
+export interface FixedTrackHeights {
   ruler: number
   speedUpBarSpace: number
   video: number
   audio: number
   webcam: number
-  zoom: number
-  screen: number
-  keystroke: number
-  plugin: number
   screenGroupHeader: number
 }
 
-export interface TrackPositions {
+/** Fixed track positions (non-effect tracks) */
+export interface FixedTrackPositions {
   ruler: number
   screenGroupHeader: number
   video: number
-  zoom: number
-  screen: number
-  keystroke: number
-  plugin: number
   audio: number
   webcam: number
 }
@@ -55,26 +53,36 @@ export interface TimelineLayoutContextValue {
   duration: number
   zoom: number
   pixelsPerMs: number
-  trackHeights: TrackHeights
-  trackPositions: TrackPositions
+  // Fixed tracks
+  fixedTrackHeights: FixedTrackHeights
+  fixedTrackPositions: FixedTrackPositions
+  // Effect tracks - dynamic based on registry
+  effectTrackHeights: Record<EffectType, number>
+  effectTrackPositions: Record<EffectType, number>
+  effectTrackExistence: Record<EffectType, boolean>
+  // Backwards compat - flattened view
+  trackHeights: FixedTrackHeights & Record<string, number>
+  trackPositions: FixedTrackPositions & Record<string, number>
+  // Legacy flags (derived from effectTrackExistence)
   hasZoomTrack: boolean
   hasScreenTrack: boolean
   hasKeystrokeTrack: boolean
   hasPluginTrack: boolean
   hasCropTrack: boolean
   hasWebcamTrack: boolean
+  hasAnnotationTrack: boolean
   isScreenGroupCollapsed: boolean
   hasSpeedUpSuggestions: { typing: boolean; idle: boolean }
   showTypingSuggestions: boolean
   toggleScreenGroupCollapsed: () => void
   containerRef: RefObject<HTMLDivElement>
   // Track visibility & active state
-  visibleTracks: Set<TimelineTrackType>
-  activeTrack: TimelineTrackType | null
-  toggleTrackVisibility: (track: TimelineTrackType) => void
-  setActiveTrack: (track: TimelineTrackType | null) => void
-  isTrackExpanded: (track: TimelineTrackType) => boolean
-  toggleEffectTrackExpanded: (track: TimelineTrackType) => void
+  visibleTracks: Set<TrackId>
+  activeTrack: TrackId | null
+  toggleTrackVisibility: (track: TrackId) => void
+  setActiveTrack: (track: TrackId | null) => void
+  isTrackExpanded: (track: TrackId) => boolean
+  toggleEffectTrackExpanded: (track: TrackId) => void
   toggleVideoTrackExpanded: () => void
   isVideoTrackExpanded: boolean
 }
@@ -97,166 +105,15 @@ interface TimelineLayoutProviderProps {
   children: React.ReactNode
 }
 
-// Screen group header height removed - cleaner layout without it
-
-/**
- * Calculate track heights to fill available container space.
- * 
- * Strategy:
- * - Effect tracks use FIXED heights (compact, consistent)
- * - Video/Audio tracks proportionally fill remaining space
- * - Active effect track gets 30% taller
- */
-function calculateTrackHeights(
-  containerHeight: number,
-  trackExistence: {
-    hasZoomTrack: boolean
-    hasScreenTrack: boolean
-    hasKeystrokeTrack: boolean
-    hasPluginTrack: boolean
-    hasWebcamTrack: boolean
-  },
-  hasSpeedUpSuggestions: { typing: boolean; idle: boolean },
-  showTypingSuggestions: boolean,
-  isScreenGroupCollapsed: boolean,
-  visibleTracks: Set<TimelineTrackType>,
-  isVideoTrackExpanded: boolean,
-  expandedEffectTrack: TimelineTrackType | null
-): TrackHeights {
-  const { hasZoomTrack, hasScreenTrack, hasKeystrokeTrack, hasPluginTrack } = trackExistence
-  const hasSuggestions = hasSpeedUpSuggestions.typing || hasSpeedUpSuggestions.idle
-
-  const rulerHeight = TimelineConfig.RULER_HEIGHT
-  const speedUpBarSpace = (showTypingSuggestions && hasSuggestions) ? 24 : 0
-  const screenGroupHeaderHeight = 0
-
-  // Track visibility
-  const videoVisible = visibleTracks.has(TimelineTrackType.Video)
-  const audioVisible = visibleTracks.has(TimelineTrackType.Audio) && !isScreenGroupCollapsed && isVideoTrackExpanded
-  const webcamVisible = visibleTracks.has(TimelineTrackType.Webcam)
-  const zoomVisible = hasZoomTrack && !isScreenGroupCollapsed && visibleTracks.has(TimelineTrackType.Zoom)
-  const screenVisible = hasScreenTrack && !isScreenGroupCollapsed && visibleTracks.has(TimelineTrackType.Screen)
-  const keystrokeVisible = hasKeystrokeTrack && !isScreenGroupCollapsed && visibleTracks.has(TimelineTrackType.Keystroke)
-  const pluginVisible = hasPluginTrack && !isScreenGroupCollapsed && visibleTracks.has(TimelineTrackType.Plugin)
-
-  // Effect tracks use FIXED pixel heights (not proportional)
-  const getEffectHeight = (trackType: TimelineTrackType): number => {
-    const isActive = expandedEffectTrack === trackType
-    return isActive ? TRACK_HEIGHT_EXPANDED : TRACK_HEIGHT_COLLAPSED
-  }
-
-  // Calculate fixed effect track heights
-  const webcamHeight = webcamVisible ? getEffectHeight(TimelineTrackType.Webcam) : 0
-  const zoomHeight = zoomVisible ? getEffectHeight(TimelineTrackType.Zoom) : 0
-  const screenHeight = screenVisible ? getEffectHeight(TimelineTrackType.Screen) : 0
-  const keystrokeHeight = keystrokeVisible ? getEffectHeight(TimelineTrackType.Keystroke) : 0
-  const pluginHeight = pluginVisible ? getEffectHeight(TimelineTrackType.Plugin) : 0
-
-  // Fixed overhead (ruler, speedup bar, all effect tracks)
-  const fixedHeight = rulerHeight + speedUpBarSpace + screenGroupHeaderHeight +
-    webcamHeight + zoomHeight + screenHeight + keystrokeHeight + pluginHeight
-
-  // Remaining space for video and audio tracks
-  const remainingHeight = Math.max(0, containerHeight - fixedHeight)
-
-  // Video/Audio proportionally share remaining space, capped at max heights
-  let videoWeight = videoVisible ? 2 : 0
-  let audioWeight = audioVisible ? 1 : 0
-  const totalWeight = videoWeight + audioWeight || 1
-
-  const videoHeight = videoVisible ? Math.min(TRACK_HEIGHT_VIDEO_MAX, Math.floor(remainingHeight * (videoWeight / totalWeight))) : 0
-  const audioHeight = audioVisible ? Math.min(TRACK_HEIGHT_AUDIO_MAX, Math.floor(remainingHeight * (audioWeight / totalWeight))) : 0
-
-  return {
-    ruler: rulerHeight,
-    speedUpBarSpace,
-    screenGroupHeader: screenGroupHeaderHeight,
-    video: videoHeight,
-    audio: audioHeight,
-    webcam: webcamHeight,
-    zoom: zoomHeight,
-    screen: screenHeight,
-    keystroke: keystrokeHeight,
-    plugin: pluginHeight
-  }
-}
-
-/**
- * Calculate track Y positions based on heights.
- */
-function calculateTrackPositions(
-  trackHeights: TrackHeights,
-  trackExistence: {
-    hasZoomTrack: boolean
-    hasScreenTrack: boolean
-    hasKeystrokeTrack: boolean
-    hasPluginTrack: boolean
-    hasWebcamTrack: boolean
-  },
-  isScreenGroupCollapsed: boolean
-): TrackPositions {
-  const { hasZoomTrack, hasScreenTrack, hasKeystrokeTrack, hasPluginTrack } = trackExistence
-
-  let y = 0
-  const rulerY = y
-  y += trackHeights.ruler
-
-  // Screen group header removed for cleaner layout
-  const screenGroupHeaderY = y
-
-  // Video track starts directly after ruler
-  const videoY = y
-  y += trackHeights.video + trackHeights.speedUpBarSpace
-
-  // Audio/Webcam sub-tracks directly under video (before effects)
-  const audioY = y
-  y += trackHeights.audio
-
-  const webcamY = y
-  y += trackHeights.webcam
-
-  // Effect tracks below sub-tracks
-  const zoomY = y
-  if (hasZoomTrack && !isScreenGroupCollapsed) y += trackHeights.zoom
-
-  const screenY = y
-  if (hasScreenTrack && !isScreenGroupCollapsed) y += trackHeights.screen
-
-  const keystrokeY = y
-  if (hasKeystrokeTrack && !isScreenGroupCollapsed) y += trackHeights.keystroke
-
-  const pluginY = y
-  if (hasPluginTrack && !isScreenGroupCollapsed) y += trackHeights.plugin
-
-  return {
-    ruler: rulerY,
-    screenGroupHeader: screenGroupHeaderY,
-    video: videoY,
-    audio: audioY,
-    webcam: webcamY,
-    zoom: zoomY,
-    screen: screenY,
-    keystroke: keystrokeY,
-    plugin: pluginY
-  }
-}
-
 function detectSpeedUpSuggestions(project: { recordings?: Array<{ metadata?: { detectedTypingPeriods?: unknown[]; detectedIdlePeriods?: unknown[] } }> } | null): { typing: boolean; idle: boolean } {
   if (!project?.recordings) return { typing: false, idle: false }
-
   let hasTyping = false
   let hasIdle = false
-
   for (const recording of project.recordings) {
-    const typingPeriods = recording.metadata?.detectedTypingPeriods
-    const idlePeriods = recording.metadata?.detectedIdlePeriods
-
-    if (typingPeriods && typingPeriods.length > 0) hasTyping = true
-    if (idlePeriods && idlePeriods.length > 0) hasIdle = true
-
+    if (recording.metadata?.detectedTypingPeriods?.length) hasTyping = true
+    if (recording.metadata?.detectedIdlePeriods?.length) hasIdle = true
     if (hasTyping && hasIdle) break
   }
-
   return { typing: hasTyping, idle: hasIdle }
 }
 
@@ -265,68 +122,63 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const [containerSize, setContainerSize] = useState({ width: 800, height: 300 })
   const [isScreenGroupCollapsed, setIsScreenGroupCollapsed] = useState(false)
 
-  // Track visibility - which tracks are shown (all visible by default)
-  const [visibleTracks, setVisibleTracks] = useState<Set<TimelineTrackType>>(() => new Set([
-    TimelineTrackType.Video,
-    TimelineTrackType.Audio,
-    TimelineTrackType.Webcam,
-    TimelineTrackType.Zoom,
-    TimelineTrackType.Screen,
-    TimelineTrackType.Keystroke,
-    TimelineTrackType.Plugin
-  ]))
+  // Track visibility - all tracks visible by default
+  const [visibleTracks, setVisibleTracks] = useState<Set<TrackId>>(() => {
+    const set = new Set<TrackId>([
+      TimelineTrackType.Video,
+      TimelineTrackType.Audio,
+      TimelineTrackType.Webcam
+    ])
+    EFFECT_TRACK_TYPES.forEach(t => set.add(t))
+    return set
+  })
 
-  // Active track - which track is currently being interacted with (expanded)
-  const [activeTrack, setActiveTrack] = useState<TimelineTrackType | null>(null)
-  const [expandedEffectTrack, setExpandedEffectTrack] = useState<TimelineTrackType | null>(null)
+  const [activeTrack, setActiveTrack] = useState<TrackId | null>(null)
+  const [expandedEffectTrack, setExpandedEffectTrack] = useState<EffectType | null>(null)
   const [isVideoTrackExpanded, setIsVideoTrackExpanded] = useState(false)
 
   const zoom = useProjectStore((s) => s.zoom)
   const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
   const currentProject = useProjectStore((s) => s.currentProject)
   const duration = useTimelineDuration()
-  const trackExistence = useTrackExistence()
+  const effectTrackExistence = useEffectTrackExistence()
+  const mediaTrackExistence = useMediaTrackExistence()
 
   const toggleScreenGroupCollapsed = useCallback(() => {
     setIsScreenGroupCollapsed(prev => !prev)
   }, [])
 
-  const toggleTrackVisibility = useCallback((track: TimelineTrackType) => {
+  const toggleTrackVisibility = useCallback((track: TrackId) => {
     setVisibleTracks(prev => {
       const next = new Set(prev)
-      if (next.has(track)) {
-        next.delete(track)
-      } else {
-        next.add(track)
-      }
+      if (next.has(track)) next.delete(track)
+      else next.add(track)
       return next
     })
   }, [])
 
-  const setActiveTrackWithEffectMemory = useCallback((track: TimelineTrackType | null) => {
+  const setActiveTrackWithMemory = useCallback((track: TrackId | null) => {
     setActiveTrack(track)
-    if (!track) return
-    if (track !== TimelineTrackType.Video && track !== TimelineTrackType.Audio) {
-      setExpandedEffectTrack(track)
+    if (track && EFFECT_TRACK_TYPES.includes(track as EffectType)) {
+      setExpandedEffectTrack(track as EffectType)
     }
   }, [])
 
-  const toggleEffectTrackExpanded = useCallback((track: TimelineTrackType) => {
-    setExpandedEffectTrack((prev) => (prev === track ? null : track))
+  const toggleEffectTrackExpanded = useCallback((track: TrackId) => {
+    // Only toggle if it's an effect track type
+    if (EFFECT_TRACK_TYPES.includes(track as EffectType)) {
+      setExpandedEffectTrack(prev => prev === track ? null : track as EffectType)
+    }
   }, [])
 
   const toggleVideoTrackExpanded = useCallback(() => {
-    setIsVideoTrackExpanded((prev) => !prev)
+    setIsVideoTrackExpanded(prev => !prev)
   }, [])
 
-  // Check if track should be expanded (either active or has content and is visible)
-  const isTrackExpanded = useCallback((track: TimelineTrackType): boolean => {
-    if (!visibleTracks.has(track)) return false
+  const isTrackExpanded = useCallback((track: TrackId): boolean => {
     if (track === TimelineTrackType.Video || track === TimelineTrackType.Audio) return true
-    if (expandedEffectTrack === track) return true
-    // Always expand video/audio tracks
-    return false
-  }, [visibleTracks, expandedEffectTrack])
+    return expandedEffectTrack === track
+  }, [expandedEffectTrack])
 
   const hasSpeedUpSuggestions = useMemo(
     () => detectSpeedUpSuggestions(currentProject),
@@ -343,64 +195,132 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     [duration, pixelsPerMs, containerSize.width]
   )
 
-  // Calculate track heights based on visibility and active state
-  const trackHeights = useMemo(
-    () => calculateTrackHeights(
-      containerSize.height,
-      trackExistence,
-      hasSpeedUpSuggestions,
-      showTypingSuggestions,
-      isScreenGroupCollapsed,
-      visibleTracks,
-      isVideoTrackExpanded,
-      expandedEffectTrack
-    ),
-    [
-      containerSize.height,
-      trackExistence,
-      hasSpeedUpSuggestions,
-      showTypingSuggestions,
-      isScreenGroupCollapsed,
-      visibleTracks,
-      isVideoTrackExpanded,
-      expandedEffectTrack
-    ]
-  )
+  // Calculate fixed track heights
+  const fixedTrackHeights = useMemo((): FixedTrackHeights => {
+    const hasSuggestions = hasSpeedUpSuggestions.typing || hasSpeedUpSuggestions.idle
+    const rulerHeight = TimelineConfig.RULER_HEIGHT
+    const speedUpBarSpace = (showTypingSuggestions && hasSuggestions) ? 24 : 0
 
-  const trackPositions = useMemo(
-    () => calculateTrackPositions(trackHeights, trackExistence, isScreenGroupCollapsed),
-    [trackHeights, trackExistence, isScreenGroupCollapsed]
-  )
+    const videoVisible = visibleTracks.has(TimelineTrackType.Video)
+    const audioVisible = visibleTracks.has(TimelineTrackType.Audio) && !isScreenGroupCollapsed && isVideoTrackExpanded
+    const webcamVisible = visibleTracks.has(TimelineTrackType.Webcam) && mediaTrackExistence.hasWebcamTrack
 
-  // Calculate total content height from track heights
+    // Calculate effect track total height
+    let effectTotalHeight = 0
+    for (const type of EFFECT_TRACK_TYPES) {
+      if (effectTrackExistence[type] && !isScreenGroupCollapsed && visibleTracks.has(type)) {
+        effectTotalHeight += expandedEffectTrack === type ? TRACK_HEIGHT_EXPANDED : TRACK_HEIGHT_COLLAPSED
+      }
+    }
+    const webcamHeight = webcamVisible ? TRACK_HEIGHT_COLLAPSED : 0
+
+    const fixedHeight = rulerHeight + speedUpBarSpace + webcamHeight + effectTotalHeight
+    const remainingHeight = Math.max(0, containerSize.height - fixedHeight)
+
+    const videoWeight = videoVisible ? 2 : 0
+    const audioWeight = audioVisible ? 1 : 0
+    const totalWeight = videoWeight + audioWeight || 1
+
+    return {
+      ruler: rulerHeight,
+      speedUpBarSpace,
+      screenGroupHeader: 0,
+      video: videoVisible ? Math.min(TRACK_HEIGHT_VIDEO_MAX, Math.floor(remainingHeight * (videoWeight / totalWeight))) : 0,
+      audio: audioVisible ? Math.min(TRACK_HEIGHT_AUDIO_MAX, Math.floor(remainingHeight * (audioWeight / totalWeight))) : 0,
+      webcam: webcamHeight
+    }
+  }, [containerSize.height, hasSpeedUpSuggestions, showTypingSuggestions, isScreenGroupCollapsed, visibleTracks, isVideoTrackExpanded, expandedEffectTrack, effectTrackExistence, mediaTrackExistence.hasWebcamTrack])
+
+  // Calculate effect track heights dynamically
+  const effectTrackHeights = useMemo((): Record<EffectType, number> => {
+    const heights: Record<string, number> = {}
+    for (const type of EFFECT_TRACK_TYPES) {
+      const visible = effectTrackExistence[type] && !isScreenGroupCollapsed && visibleTracks.has(type)
+      heights[type] = visible
+        ? (expandedEffectTrack === type ? TRACK_HEIGHT_EXPANDED : TRACK_HEIGHT_COLLAPSED)
+        : 0
+    }
+    return heights as Record<EffectType, number>
+  }, [effectTrackExistence, isScreenGroupCollapsed, visibleTracks, expandedEffectTrack])
+
+  // Calculate fixed track positions
+  const fixedTrackPositions = useMemo((): FixedTrackPositions => {
+    let y = 0
+    const rulerY = y
+    y += fixedTrackHeights.ruler
+
+    const screenGroupHeaderY = y
+    const videoY = y
+    y += fixedTrackHeights.video + fixedTrackHeights.speedUpBarSpace
+
+    const audioY = y
+    y += fixedTrackHeights.audio
+
+    const webcamY = y
+
+    return {
+      ruler: rulerY,
+      screenGroupHeader: screenGroupHeaderY,
+      video: videoY,
+      audio: audioY,
+      webcam: webcamY
+    }
+  }, [fixedTrackHeights])
+
+  // Calculate effect track positions dynamically
+  const effectTrackPositions = useMemo((): Record<EffectType, number> => {
+    let y = fixedTrackPositions.webcam + fixedTrackHeights.webcam
+    const positions: Record<string, number> = {}
+    const sortedConfigs = getSortedTrackConfigs()
+
+    for (const { type } of sortedConfigs) {
+      positions[type] = y
+      if (effectTrackExistence[type] && !isScreenGroupCollapsed) {
+        y += effectTrackHeights[type]
+      }
+    }
+    return positions as Record<EffectType, number>
+  }, [fixedTrackPositions.webcam, fixedTrackHeights.webcam, effectTrackExistence, isScreenGroupCollapsed, effectTrackHeights])
+
+  // Backwards-compatible merged views
+  const trackHeights = useMemo(() => ({
+    ...fixedTrackHeights,
+    zoom: effectTrackHeights[EffectType.Zoom] ?? 0,
+    screen: effectTrackHeights[EffectType.Screen] ?? 0,
+    keystroke: effectTrackHeights[EffectType.Keystroke] ?? 0,
+    plugin: effectTrackHeights[EffectType.Plugin] ?? 0,
+    annotation: effectTrackHeights[EffectType.Annotation] ?? 0
+  }), [fixedTrackHeights, effectTrackHeights])
+
+  const trackPositions = useMemo(() => ({
+    ...fixedTrackPositions,
+    zoom: effectTrackPositions[EffectType.Zoom] ?? 0,
+    screen: effectTrackPositions[EffectType.Screen] ?? 0,
+    keystroke: effectTrackPositions[EffectType.Keystroke] ?? 0,
+    plugin: effectTrackPositions[EffectType.Plugin] ?? 0,
+    annotation: effectTrackPositions[EffectType.Annotation] ?? 0
+  }), [fixedTrackPositions, effectTrackPositions])
+
+  // Calculate total content height
   const contentHeight = useMemo(() => {
-    const totalTrackHeight =
-      trackHeights.ruler +
-      trackHeights.screenGroupHeader +
-      trackHeights.speedUpBarSpace +
-      trackHeights.video +
-      trackHeights.audio +
-      trackHeights.webcam +
-      trackHeights.zoom +
-      trackHeights.screen +
-      trackHeights.keystroke +
-      trackHeights.plugin
-    return totalTrackHeight
-  }, [trackHeights])
+    let total = fixedTrackHeights.ruler + fixedTrackHeights.speedUpBarSpace +
+      fixedTrackHeights.video + fixedTrackHeights.audio + fixedTrackHeights.webcam
+    for (const type of EFFECT_TRACK_TYPES) {
+      total += effectTrackHeights[type] ?? 0
+    }
+    return total
+  }, [fixedTrackHeights, effectTrackHeights])
 
-  // Use ResizeObserver for accurate container size detection
-  // This catches parent layout changes (workspace manager resize), not just window resize
+  // ResizeObserver for container size
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
     let rafId: number | null = null
-
     const updateSize = () => {
       const rect = container.getBoundingClientRect()
       setContainerSize({ width: rect.width, height: rect.height })
     }
-
     const scheduleUpdate = () => {
       if (rafId) return
       rafId = requestAnimationFrame(() => {
@@ -409,14 +329,9 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
       })
     }
 
-    // Initial size
     updateSize()
-
-    // ResizeObserver for layout changes (panels resizing, etc.)
     const resizeObserver = new ResizeObserver(scheduleUpdate)
     resizeObserver.observe(container)
-
-    // Also listen to window resize as fallback
     window.addEventListener('resize', scheduleUpdate)
 
     return () => {
@@ -427,7 +342,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   }, [])
 
   const value = useMemo<TimelineLayoutContextValue>(() => ({
-    stageWidth: Math.max(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, containerSize.width),
+    stageWidth: Math.max(timelineWidth + containerSize.width, containerSize.width),
     stageHeight: Math.max(containerSize.height, contentHeight),
     containerHeight: containerSize.height,
     containerWidth: containerSize.width,
@@ -435,58 +350,47 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     duration,
     zoom,
     pixelsPerMs,
+    fixedTrackHeights,
+    fixedTrackPositions,
+    effectTrackHeights,
+    effectTrackPositions,
+    effectTrackExistence,
     trackHeights,
     trackPositions,
-    hasZoomTrack: trackExistence.hasZoomTrack,
-    hasScreenTrack: trackExistence.hasScreenTrack,
-    hasKeystrokeTrack: trackExistence.hasKeystrokeTrack,
-    hasPluginTrack: trackExistence.hasPluginTrack,
-    hasCropTrack: trackExistence.hasCropTrack,
-    hasWebcamTrack: trackExistence.hasWebcamTrack,
+    // Legacy boolean flags
+    hasZoomTrack: effectTrackExistence[EffectType.Zoom] ?? false,
+    hasScreenTrack: effectTrackExistence[EffectType.Screen] ?? false,
+    hasKeystrokeTrack: effectTrackExistence[EffectType.Keystroke] ?? false,
+    hasPluginTrack: effectTrackExistence[EffectType.Plugin] ?? false,
+    hasAnnotationTrack: effectTrackExistence[EffectType.Annotation] ?? false,
+    hasCropTrack: mediaTrackExistence.hasCropTrack,
+    hasWebcamTrack: mediaTrackExistence.hasWebcamTrack,
     isScreenGroupCollapsed,
     hasSpeedUpSuggestions,
     showTypingSuggestions,
     toggleScreenGroupCollapsed,
     containerRef,
-    // Track visibility & active state
     visibleTracks,
     activeTrack,
     toggleTrackVisibility,
-    setActiveTrack: setActiveTrackWithEffectMemory,
+    setActiveTrack: setActiveTrackWithMemory,
     isTrackExpanded,
     toggleEffectTrackExpanded,
     toggleVideoTrackExpanded,
     isVideoTrackExpanded
   }), [
-    timelineWidth,
-    containerSize,
-    contentHeight,
-    duration,
-    zoom,
-    pixelsPerMs,
-    trackHeights,
-    trackPositions,
-    trackExistence,
-    isScreenGroupCollapsed,
-    hasSpeedUpSuggestions,
-    showTypingSuggestions,
-    toggleScreenGroupCollapsed,
-    visibleTracks,
-    activeTrack,
-    toggleTrackVisibility,
-    isTrackExpanded,
-    setActiveTrackWithEffectMemory,
-    toggleEffectTrackExpanded,
-    toggleVideoTrackExpanded,
-    isVideoTrackExpanded
+    timelineWidth, containerSize, contentHeight, duration, zoom, pixelsPerMs,
+    fixedTrackHeights, fixedTrackPositions, effectTrackHeights, effectTrackPositions,
+    effectTrackExistence, trackHeights, trackPositions, mediaTrackExistence,
+    isScreenGroupCollapsed, hasSpeedUpSuggestions, showTypingSuggestions,
+    toggleScreenGroupCollapsed, visibleTracks, activeTrack, toggleTrackVisibility,
+    setActiveTrackWithMemory, isTrackExpanded, toggleEffectTrackExpanded,
+    toggleVideoTrackExpanded, isVideoTrackExpanded
   ])
 
   return (
     <TimelineLayoutContext.Provider value={value}>
-      <div
-        ref={containerRef}
-        className="h-full w-full"
-      >
+      <div ref={containerRef} className="h-full w-full">
         {children}
       </div>
     </TimelineLayoutContext.Provider>

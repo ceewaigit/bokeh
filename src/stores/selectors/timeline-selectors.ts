@@ -10,6 +10,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { EffectStore } from '@/lib/core/effects'
 import { EffectType, TrackType } from '@/types/project'
 import type { Effect } from '@/types/project'
+import { EFFECT_TRACK_TYPES } from '@/lib/timeline/effect-track-registry'
 
 /**
  * Get all timeline effects from the current project.
@@ -25,61 +26,61 @@ export function useTimelineEffects(): Effect[] {
 }
 
 /**
- * Effects grouped by type.
- * Cached derivation to avoid repeated filtering.
+ * Get effects grouped by type.
+ * Returns a Record for flexible access.
  */
-export interface EffectsByType {
-  zoom: Effect[]
-  screen: Effect[]
-  keystroke: Effect[]
-  plugin: Effect[]
-  crop: Effect[]
-  background: Effect[]
-  cursor: Effect[]
-}
-
-export function useEffectsByType(): EffectsByType {
+export function useEffectsByType(): Record<EffectType, Effect[]> {
   const effects = useTimelineEffects()
 
-  return useMemo(() => ({
-    zoom: effects.filter(e => e.type === EffectType.Zoom && e.enabled),
-    screen: effects.filter(e => e.type === EffectType.Screen && e.enabled),
-    keystroke: effects.filter(e => e.type === EffectType.Keystroke),
-    plugin: effects.filter(e => e.type === EffectType.Plugin),
-    crop: effects.filter(e => e.type === EffectType.Crop && e.enabled),
-    background: effects.filter(e => e.type === EffectType.Background && e.enabled),
-    cursor: effects.filter(e => e.type === EffectType.Cursor)
-  }), [effects])
+  return useMemo(() => {
+    const grouped: Record<string, Effect[]> = {}
+    for (const type of Object.values(EffectType)) {
+      // Some effects need enabled check, some don't
+      const needsEnabledCheck = [EffectType.Zoom, EffectType.Screen, EffectType.Crop, EffectType.Background].includes(type)
+      grouped[type] = effects.filter(e =>
+        e.type === type && (needsEnabledCheck ? e.enabled : true)
+      )
+    }
+    return grouped as Record<EffectType, Effect[]>
+  }, [effects])
 }
 
 /**
- * Track existence flags.
- * Used to conditionally render timeline tracks.
+ * Check if any effects exist for effect-track types.
+ * Automatically derived from the registry.
  */
-export interface TrackExistence {
-  hasZoomTrack: boolean
-  hasScreenTrack: boolean
-  hasKeystrokeTrack: boolean
-  hasPluginTrack: boolean
-  hasCropTrack: boolean
+export function useEffectTrackExistence(): Record<EffectType, boolean> {
+  const effectsByType = useEffectsByType()
+
+  return useMemo(() => {
+    const existence: Record<string, boolean> = {}
+    for (const type of EFFECT_TRACK_TYPES) {
+      existence[type] = effectsByType[type]?.length > 0
+    }
+    return existence as Record<EffectType, boolean>
+  }, [effectsByType])
+}
+
+/**
+ * Track existence flags for non-effect tracks (webcam, audio, etc.).
+ * Effect track existence is handled by useEffectTrackExistence.
+ */
+export interface MediaTrackExistence {
   hasWebcamTrack: boolean
-  // Content presence flags for collapsible tracks
+  hasCropTrack: boolean
   hasAudioContent: boolean
   hasWebcamContent: boolean
 }
 
-export function useTrackExistence(): TrackExistence {
-  const { zoom, screen, keystroke, plugin, crop } = useEffectsByType()
+export function useMediaTrackExistence(): MediaTrackExistence {
   const project = useProjectStore((s) => s.currentProject)
+  const effectsByType = useEffectsByType()
 
-  // Check if project has a webcam track (show even when empty for drop zone)
   const hasWebcamTrack = useMemo(() => {
     if (!project?.timeline?.tracks) return false
-    const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
-    return !!webcamTrack
+    return project.timeline.tracks.some(t => t.type === TrackType.Webcam)
   }, [project?.timeline?.tracks])
 
-  // Check for actual content in audio/webcam tracks
   const { hasAudioContent, hasWebcamContent } = useMemo(() => {
     if (!project?.timeline?.tracks) return { hasAudioContent: false, hasWebcamContent: false }
     const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)
@@ -91,15 +92,37 @@ export function useTrackExistence(): TrackExistence {
   }, [project?.timeline?.tracks])
 
   return useMemo(() => ({
-    hasZoomTrack: zoom.length > 0,
-    hasScreenTrack: screen.length > 0,
-    hasKeystrokeTrack: keystroke.length > 0,
-    hasPluginTrack: plugin.length > 0,
-    hasCropTrack: crop.length > 0,
     hasWebcamTrack,
+    hasCropTrack: effectsByType[EffectType.Crop]?.length > 0,
     hasAudioContent,
     hasWebcamContent
-  }), [zoom.length, screen.length, keystroke.length, plugin.length, crop.length, hasWebcamTrack, hasAudioContent, hasWebcamContent])
+  }), [hasWebcamTrack, effectsByType, hasAudioContent, hasWebcamContent])
+}
+
+/**
+ * Combined track existence - for backwards compatibility.
+ * Prefer using useEffectTrackExistence + useMediaTrackExistence directly.
+ */
+export interface TrackExistence extends MediaTrackExistence {
+  hasZoomTrack: boolean
+  hasScreenTrack: boolean
+  hasKeystrokeTrack: boolean
+  hasPluginTrack: boolean
+  hasAnnotationTrack: boolean
+}
+
+export function useTrackExistence(): TrackExistence {
+  const effectTrackExistence = useEffectTrackExistence()
+  const mediaTrackExistence = useMediaTrackExistence()
+
+  return useMemo(() => ({
+    hasZoomTrack: effectTrackExistence[EffectType.Zoom] ?? false,
+    hasScreenTrack: effectTrackExistence[EffectType.Screen] ?? false,
+    hasKeystrokeTrack: effectTrackExistence[EffectType.Keystroke] ?? false,
+    hasPluginTrack: effectTrackExistence[EffectType.Plugin] ?? false,
+    hasAnnotationTrack: effectTrackExistence[EffectType.Annotation] ?? false,
+    ...mediaTrackExistence
+  }), [effectTrackExistence, mediaTrackExistence])
 }
 
 /**

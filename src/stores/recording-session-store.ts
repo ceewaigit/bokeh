@@ -34,6 +34,15 @@ const defaultSettings: SessionSettings = {
   sourceId: undefined
 }
 
+let countdownInterval: NodeJS.Timeout | null = null
+
+const clearCountdownInterval = () => {
+  if (countdownInterval) {
+    clearInterval(countdownInterval)
+    countdownInterval = null
+  }
+}
+
 export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   isRecording: false,
   isPaused: false,
@@ -68,6 +77,7 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
 
 
   startCountdown: (onComplete, displayId) => {
+    clearCountdownInterval()
     set({ countdownActive: true })
     let count = 3
 
@@ -76,11 +86,11 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
     // Pass displayId to show countdown on the correct monitor
     window.electronAPI?.showCountdown?.(count, displayId)
 
-    const countdownInterval = setInterval(() => {
+    countdownInterval = setInterval(() => {
       count--
 
       if (count <= 0) {
-        clearInterval(countdownInterval)
+        clearCountdownInterval()
         set({ countdownActive: false })
 
         // Hide countdown and show dock again
@@ -115,13 +125,16 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
     logger.debug('Recording prepared with source:', sourceId, 'displayId:', displayId)
   },
 
-  reset: () => set({
-    isRecording: false,
-    isPaused: false,
-    duration: 0,
-    status: 'idle',
-    settings: defaultSettings,
-    countdownActive: false,
-    selectedDisplayId: undefined
-  })
+  reset: () => {
+    clearCountdownInterval()
+    set({
+      isRecording: false,
+      isPaused: false,
+      duration: 0,
+      status: 'idle',
+      settings: defaultSettings,
+      countdownActive: false,
+      selectedDisplayId: undefined
+    })
+  }
 }))

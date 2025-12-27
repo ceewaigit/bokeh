@@ -19,6 +19,7 @@ import type {
   QualityLevel,
   ExportFormat
 } from '@/types/project'
+import type { PositionData } from '@/lib/canvas-editor/coordinate-utils'
 import type { EffectType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
 import type { CameraPathFrame } from '@/types/remotion'
@@ -98,6 +99,10 @@ export interface SelectionSliceState {
   isEditingCrop: boolean
   editingCropId: string | null
   editingCropData: CropEffectData | null
+  // Overlay Editing State (for dragging/resizing positioned elements)
+  isEditingOverlay: boolean
+  editingOverlayId: string | null
+  editingOverlayPosition: PositionData | null
 }
 
 export interface PlaybackSliceState {
@@ -211,13 +216,23 @@ export interface SelectionSliceActions {
   clearEffectSelection: () => void
   clearSelection: () => void
   copyClip: (clip: Clip) => void
-  copyEffect: (type: typeof EffectType.Zoom | typeof EffectType.Cursor | typeof EffectType.Background, data: ZoomEffectData | CursorEffectData | BackgroundEffectData, sourceClipId: string) => void
+  copyEffect: (
+    type: EffectType,
+    data: Effect['data'],
+    sourceClipId: string,
+    timing?: { startTime?: number; endTime?: number }
+  ) => void
   clearClipboard: () => void
 
   // Crop Editing Actions
   startEditingCrop: (effectId: string, data: CropEffectData) => void
   updateEditingCrop: (updates: Partial<CropEffectData>) => void
   stopEditingCrop: () => void
+
+  // Overlay Editing Actions (for positioned elements like plugins, annotations, webcam)
+  startEditingOverlay: (effectId: string, position: PositionData) => void
+  updateEditingOverlay: (updates: Partial<PositionData>) => void
+  stopEditingOverlay: () => void
 }
 
 export interface PlaybackSliceActions {

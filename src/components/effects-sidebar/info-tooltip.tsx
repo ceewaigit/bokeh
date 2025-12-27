@@ -15,17 +15,18 @@ export function InfoTooltip({ content, className }: InfoTooltipProps) {
   return (
     <Tooltip delayDuration={250}>
       <TooltipTrigger asChild>
-        <button
-          type="button"
+        <span
           className={cn(
             'inline-flex items-center justify-center rounded-sm p-0.5 text-muted-foreground/70 transition-colors hover:text-foreground',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
             className
           )}
           aria-label="More info"
+          role="button"
+          tabIndex={0}
         >
           <Info className="h-3.5 w-3.5" />
-        </button>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top" align="center">
         {content}

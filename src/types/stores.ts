@@ -5,19 +5,18 @@
 import type {
   Project,
   Clip,
-  Effect,
-  ZoomEffectData,
-  CursorEffectData,
-  BackgroundEffectData
+  Effect
 } from './project'
 import type { SelectedEffectLayer } from './effects'
 import { EffectType } from './effects'
 
 // Clipboard effect type with proper union typing for data
 export interface ClipboardEffect {
-  type: EffectType.Zoom | EffectType.Cursor | EffectType.Background
-  data: ZoomEffectData | CursorEffectData | BackgroundEffectData
+  type: EffectType
+  data: Effect['data']
   sourceClipId: string
+  startTime?: number
+  endTime?: number
 }
 
 // ProjectStore interface extracted from CommandContext to avoid circular dependency
@@ -43,7 +42,12 @@ export interface ProjectStore {
   trimClipEnd: (clipId: string, newEndTime: number) => void
   duplicateClip: (clipId: string) => string | null
   copyClip: (clip: Clip) => void
-  copyEffect: (type: EffectType.Zoom | EffectType.Cursor | EffectType.Background, data: ZoomEffectData | CursorEffectData | BackgroundEffectData, sourceClipId: string) => void
+  copyEffect: (
+    type: EffectType,
+    data: Effect['data'],
+    sourceClipId: string,
+    timing?: { startTime?: number; endTime?: number }
+  ) => void
   clearClipboard: () => void
 
   // Effects Management (timeline-global)

@@ -3,6 +3,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { Effect, Project, ZoomBlock } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { EffectStore } from '@/lib/core/effects'
+import { TimelineConfig } from '@/lib/timeline/config'
 
 /**
  * Find zoom effect in the project using EffectStore
@@ -69,6 +70,27 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
       mouseIdlePx: zoomData.mouseIdlePx
     }
 
+    const nextStartTime = this.updates.startTime ?? effect.startTime
+    const nextEndTime = this.updates.endTime ?? effect.endTime
+    if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime)) {
+      return {
+        success: false,
+        error: `Invalid zoom timing for ${this.blockId}`
+      }
+    }
+    if (nextEndTime <= nextStartTime) {
+      return {
+        success: false,
+        error: `Zoom block ${this.blockId} must have positive duration`
+      }
+    }
+    if (nextEndTime - nextStartTime < TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS) {
+      return {
+        success: false,
+        error: `Zoom block ${this.blockId} is shorter than minimum duration`
+      }
+    }
+
     // Update the effect with new zoom data
     const updatedData = {
       ...zoomData,
@@ -87,8 +109,8 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
     }
 
     store.updateEffect(this.blockId, {
-      startTime: this.updates.startTime ?? effect.startTime,
-      endTime: this.updates.endTime ?? effect.endTime,
+      startTime: nextStartTime,
+      endTime: nextEndTime,
       data: updatedData
     })
 
@@ -156,9 +178,30 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
         mouseIdlePx: 'mouseIdlePx' in this.updates ? this.updates.mouseIdlePx : zoomData.mouseIdlePx
       }
 
+      const nextStartTime = this.updates.startTime ?? effect.startTime
+      const nextEndTime = this.updates.endTime ?? effect.endTime
+      if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime)) {
+        return {
+          success: false,
+          error: `Invalid zoom timing for ${this.blockId}`
+        }
+      }
+      if (nextEndTime <= nextStartTime) {
+        return {
+          success: false,
+          error: `Zoom block ${this.blockId} must have positive duration`
+        }
+      }
+      if (nextEndTime - nextStartTime < TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS) {
+        return {
+          success: false,
+          error: `Zoom block ${this.blockId} is shorter than minimum duration`
+        }
+      }
+
       store.updateEffect(this.blockId, {
-        startTime: this.updates.startTime ?? effect.startTime,
-        endTime: this.updates.endTime ?? effect.endTime,
+        startTime: nextStartTime,
+        endTime: nextEndTime,
         data: updatedData
       })
     }

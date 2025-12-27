@@ -57,8 +57,16 @@ async function loadVideoDurationInternal(videoUrl: string): Promise<number> {
     return await new Promise((resolve) => {
       const video = document.createElement('video')
       video.preload = 'metadata'
+      let timeoutId: number | null = null
+      let cleanedUp = false
 
       const cleanup = () => {
+        if (cleanedUp) return
+        cleanedUp = true
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
         video.removeEventListener('loadedmetadata', onMetadata)
         video.removeEventListener('error', onError)
         video.src = ''
@@ -81,7 +89,7 @@ async function loadVideoDurationInternal(videoUrl: string): Promise<number> {
       video.addEventListener('error', onError)
 
       // Set a timeout to prevent hanging
-      setTimeout(() => {
+      timeoutId = window.setTimeout(() => {
         cleanup()
         resolve(0)
       }, 5000)
@@ -119,8 +127,16 @@ export async function getVideoMetadata(videoUrl: string): Promise<VideoMetadata>
     return await new Promise((resolve, reject) => {
       const video = document.createElement('video')
       video.preload = 'metadata'
+      let timeoutId: number | null = null
+      let cleanedUp = false
 
       const cleanup = () => {
+        if (cleanedUp) return
+        cleanedUp = true
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
         video.removeEventListener('loadedmetadata', onMetadata)
         video.removeEventListener('error', onError)
         video.src = ''
@@ -150,7 +166,7 @@ export async function getVideoMetadata(videoUrl: string): Promise<VideoMetadata>
       video.addEventListener('error', onError)
 
       // Set a timeout to prevent hanging
-      setTimeout(() => {
+      timeoutId = window.setTimeout(() => {
         cleanup()
         reject(new Error('Video metadata load timeout'))
       }, 10000)

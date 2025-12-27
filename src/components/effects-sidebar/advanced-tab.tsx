@@ -23,6 +23,23 @@ export function AdvancedTab({
   const [motionBlurIntensity, setMotionBlurIntensity] = React.useState(camera.motionBlurIntensity ?? 40)
   const [motionBlurThreshold, setMotionBlurThreshold] = React.useState(camera.motionBlurThreshold ?? 30)
   const [refocusBlurIntensity, setRefocusBlurIntensity] = React.useState(camera.refocusBlurIntensity ?? 40)
+  const smoothingResetTimeoutRef = React.useRef<number | null>(null)
+
+  const scheduleSmoothingReset = (delayMs: number) => {
+    if (smoothingResetTimeoutRef.current !== null) {
+      window.clearTimeout(smoothingResetTimeoutRef.current)
+    }
+    smoothingResetTimeoutRef.current = window.setTimeout(() => setLocalSmoothing(null), delayMs)
+  }
+
+  React.useEffect(() => {
+    return () => {
+      if (smoothingResetTimeoutRef.current !== null) {
+        window.clearTimeout(smoothingResetTimeoutRef.current)
+        smoothingResetTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   React.useEffect(() => {
     setMotionBlurIntensity(camera.motionBlurIntensity ?? 40)
@@ -80,7 +97,7 @@ export function AdvancedTab({
               enabled: value > 0,
               data: { smoothing: value },
             })
-            setTimeout(() => setLocalSmoothing(null), 200)
+            scheduleSmoothingReset(200)
           }}
         />
       </div>
