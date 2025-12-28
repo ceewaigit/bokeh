@@ -13,7 +13,7 @@ import { useTimelineLayout } from '../timeline-layout-provider'
 import { useProjectStore } from '@/stores/project-store'
 import { EffectStore } from '@/lib/core/effects'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig, getClipInnerHeight } from '@/lib/timeline/config'
 import { EffectType } from '@/types/effects'
 import { getEffectTrackConfig } from '@/lib/timeline/effect-track-registry'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -111,7 +111,7 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
             x={TimeConverter.msToPixels(startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
             y={trackY}
             width={visualWidth}
-            height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+            height={getClipInnerHeight(trackHeight)}
             isCompact={isCompact}
             startTime={startTime}
             endTime={endTime}

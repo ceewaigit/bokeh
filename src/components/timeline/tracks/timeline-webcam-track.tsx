@@ -16,7 +16,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { EffectStore } from '@/lib/core/effects'
 import { getWebcamEffects } from '@/lib/effects/effect-filters'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig, getClipInnerHeight } from '@/lib/timeline/config'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useShallow } from 'zustand/react/shallow'
 import { EffectLayerType } from '@/types/effects'
@@ -76,7 +76,7 @@ export function TimelineWebcamTrack() {
 
   const trackY = trackPositions.webcam
   const trackHeight = trackHeights.webcam
-  const blockHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+  const blockHeight = getClipInnerHeight(trackHeight)
   const trackWidth = stageWidth - TimelineConfig.TRACK_LABEL_WIDTH
 
   // Empty state - show drop zone when no webcam effects

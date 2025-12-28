@@ -772,6 +772,8 @@ export interface AnnotationData {
   /** Height in percentage of canvas (for highlights) */
   height?: number
   keys?: string[] // For keyboard annotations
+  /** Smoothing factor for scrollCinematic annotations */
+  smoothing?: number
 }
 
 export interface Annotation {

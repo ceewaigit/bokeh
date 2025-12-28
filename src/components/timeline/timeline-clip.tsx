@@ -4,12 +4,12 @@ import Konva from 'konva'
 
 import type { Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig, getClipInnerHeight } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { useTimelineColors } from '@/lib/timeline/colors'
+import { useTimelineColors, withAlpha } from '@/lib/timeline/colors'
 import { WaveformAnalyzer, type WaveformData } from '@/lib/audio/waveform-analyzer'
 import { SpeedUpSuggestionsBar } from './speed-up-suggestions-bar'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
@@ -84,28 +84,6 @@ const TimelineClipComponent = ({
   const previewStartTime = dragPreview?.trackType === trackType && dragPreview.clipId !== clip.id
     ? dragPreview.startTimes[clip.id]
     : undefined
-  const withAlpha = useCallback((color: string, alpha: number): string => {
-    if (!color) return ''
-    if (color.startsWith('hsla') || color.startsWith('rgba')) return color
-
-    if (color.startsWith('hsl(')) {
-      let content = color.substring(4, color.length - 1)
-      if (!content.includes(',')) {
-        content = content.replace(/\s+/g, ', ')
-      }
-      return `hsla(${content}, ${alpha})`
-    }
-
-    if (color.startsWith('rgb(')) {
-      let content = color.substring(4, color.length - 1)
-      if (!content.includes(',')) {
-        content = content.replace(/\s+/g, ', ')
-      }
-      return `rgba(${content}, ${alpha})`
-    }
-
-    return color
-  }, [])
   const generatedLabel = React.useMemo(() => {
     const pluginId = recording?.generatedSource?.pluginId
     if (!pluginId) return 'Generated Clip'
@@ -130,6 +108,8 @@ const TimelineClipComponent = ({
     TimelineConfig.MIN_CLIP_WIDTH,
     TimeConverter.msToPixels(effectiveDuration, pixelsPerMs)
   )
+  // REFACTOR: Single source of truth for clip inner height (replaces 24 duplicate calculations)
+  const clipInnerHeight = getClipInnerHeight(trackHeight)
   const hasThumbnails = showTimelineThumbnails && thumbnails.length > 0
   const showMissingThumb = trackType === TrackType.Video && !isGeneratedClip && !hasThumbnails
   const warningColor = colors.warning || 'hsl(38, 92%, 50%)'
@@ -230,7 +210,7 @@ const TimelineClipComponent = ({
     let cancelled = false
 
     const loadThumbnails = async () => {
-      const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+      const thumbHeight = clipInnerHeight
 
       // Fast path for image clips (e.g. Cursor Return clips)
       if (recording.sourceType === 'image') {
@@ -514,11 +494,11 @@ const TimelineClipComponent = ({
       <Rect
         // Center pivot for scaling
         offsetX={clipWidth / 2}
-        offsetY={(trackHeight - TimelineConfig.TRACK_PADDING * 2) / 2}
+        offsetY={(clipInnerHeight) / 2}
         x={clipWidth / 2}
-        y={(trackHeight - TimelineConfig.TRACK_PADDING * 2) / 2}
+        y={(clipInnerHeight) / 2}
         width={clipWidth}
-        height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+        height={clipInnerHeight}
         fill={
           trackType === TrackType.Video && hasThumbnails
             ? 'transparent'
@@ -550,7 +530,7 @@ const TimelineClipComponent = ({
         <Group
           clipFunc={(ctx) => {
             ctx.beginPath()
-            const h = trackHeight - TimelineConfig.TRACK_PADDING * 2
+            const h = clipInnerHeight
             if (clipWidth > 0 && h > 0) {
               ctx.roundRect(0, 0, clipWidth, h, 8)
             }
@@ -561,7 +541,6 @@ const TimelineClipComponent = ({
             const stripeWidth = 10
             const stripeGap = 10
             const stripeCount = Math.max(1, Math.ceil(clipWidth / (stripeWidth + stripeGap)))
-            const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
 
             return Array.from({ length: stripeCount }, (_, i) => (
               <Rect
@@ -578,9 +557,9 @@ const TimelineClipComponent = ({
           })()}
           <Rect
             width={clipWidth}
-            height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+            height={clipInnerHeight}
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: trackHeight - TimelineConfig.TRACK_PADDING * 2 }}
+            fillLinearGradientEndPoint={{ x: 0, y: clipInnerHeight }}
             fillLinearGradientColorStops={[
               0, 'rgba(255,255,255,0.05)',
               0.5, 'rgba(255,255,255,0)',
@@ -609,7 +588,7 @@ const TimelineClipComponent = ({
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
-          const h = trackHeight - TimelineConfig.TRACK_PADDING * 2
+          const h = clipInnerHeight
           if (clipWidth > 0 && h > 0) {
             ctx.roundRect(0, 0, clipWidth, h, 8)
           }
@@ -617,7 +596,7 @@ const TimelineClipComponent = ({
         }}>
           {/* Distribute thumbnails across clip width */}
           {(() => {
-            const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+            const thumbHeight = clipInnerHeight
             const firstThumb = thumbnails[0]
             if (!firstThumb) return null
             const aspectRatio = firstThumb.width / firstThumb.height
@@ -646,9 +625,9 @@ const TimelineClipComponent = ({
           {/* Gradient overlay for text visibility */}
           <Rect
             width={clipWidth}
-            height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+            height={clipInnerHeight}
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: trackHeight - TimelineConfig.TRACK_PADDING * 2 }}
+            fillLinearGradientEndPoint={{ x: 0, y: clipInnerHeight }}
             fillLinearGradientColorStops={[
               0, 'rgba(0,0,0,0.02)', // Very subtle top
               0.7, 'rgba(0,0,0,0)',
@@ -676,13 +655,11 @@ const TimelineClipComponent = ({
       {trackType === TrackType.Video && recording?.hasAudio && showWaveforms && (
         <Group
           y={(() => {
-            const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
             const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
             return clipInnerHeight - stripHeight - 2 // Lift up slightly
           })()}
           clipFunc={(ctx) => {
             ctx.beginPath()
-            const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
             const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
             // Rounded bottom corners only - match clip's 8px radius
             if (clipWidth > 0 && stripHeight > 0) {
@@ -692,7 +669,6 @@ const TimelineClipComponent = ({
           }}
         >
           {(() => {
-            const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
             const stripHeight = Math.max(16, Math.min(34, Math.floor(clipInnerHeight * 0.7)))
             const baselineY = stripHeight - 1
             const maxAmplitude = stripHeight - 4
@@ -781,7 +757,6 @@ const TimelineClipComponent = ({
 
       {/* Fade indicators - accent colored edge bars showing intro/outro fade regions */}
       {trackType === TrackType.Video && (clip.introFadeMs || clip.outroFadeMs) && (() => {
-        const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
         const introWidth = clip.introFadeMs
           ? Math.max(6, Math.min(clipWidth * 0.3, TimeConverter.msToPixels(clip.introFadeMs, pixelsPerMs)))
           : 0
@@ -789,27 +764,13 @@ const TimelineClipComponent = ({
           ? Math.max(6, Math.min(clipWidth * 0.3, TimeConverter.msToPixels(clip.outroFadeMs, pixelsPerMs)))
           : 0
 
-        // Helper to apply alpha to token colors
-        const withOpacity = (color: string, alpha: number) => {
-          if (!color) return `rgba(168, 85, 247, ${alpha})`
-          if (color.startsWith('hsl(')) {
-            // Remove 'hsl(' and ')' and trim
-            const content = color.slice(4, -1).trim()
-            // Check if space-separated (CSS Level 4) e.g. "263 70% 65%"
-            if (content.includes(' ') && !content.includes(',')) {
-              // Convert to comma-separated for compatibility: "263, 70%, 65%"
-              const parts = content.split(/\s+/).join(', ')
-              return `hsla(${parts}, ${alpha})`
-            }
-            // Already comma-separated or other format
-            return color.replace('hsl(', 'hsla(').replace(')', `, ${alpha})`)
-          }
-          return color // Fallback or already has alpha
-        }
+        // Use centralized withAlpha utility with fallback for empty color
+        const applyAlpha = (color: string, alpha: number) =>
+          withAlpha(color || 'rgba(168, 85, 247, 1)', alpha) || `rgba(168, 85, 247, ${alpha})`
 
-        const colorFull = withOpacity(colors.primary, 0.8)
-        const colorMid = withOpacity(colors.primary, 0.4)
-        const colorNone = withOpacity(colors.primary, 0)
+        const colorFull = applyAlpha(colors.primary, 0.8)
+        const colorMid = applyAlpha(colors.primary, 0.4)
+        const colorNone = applyAlpha(colors.primary, 0)
 
         return (
           <Group
@@ -871,7 +832,7 @@ const TimelineClipComponent = ({
               x={TimeConverter.msToPixels(clip.startTime - effectiveStartTime, pixelsPerMs)}
               y={0}
               width={TimeConverter.msToPixels(trimPreview.startTime - clip.startTime, pixelsPerMs)}
-              height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+              height={clipInnerHeight}
               fill={colors.destructive}
               opacity={0.3}
               cornerRadius={[8, 0, 0, 8]}
@@ -884,7 +845,7 @@ const TimelineClipComponent = ({
               x={clipWidth}
               y={0}
               width={TimeConverter.msToPixels((clip.startTime + clip.duration) - trimPreview.endTime, pixelsPerMs)}
-              height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+              height={clipInnerHeight}
               fill={colors.destructive}
               opacity={0.3}
               cornerRadius={[0, 8, 8, 0]}
@@ -902,7 +863,7 @@ const TimelineClipComponent = ({
             x={0}
             y={0}
             width={8}
-            height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+            height={clipInnerHeight}
             fill={trimEdge === 'left' ? colors.primary : 'transparent'}
             opacity={trimEdge === 'left' ? 0.6 : 1}
             cornerRadius={[8, 0, 0, 8]}
@@ -919,7 +880,7 @@ const TimelineClipComponent = ({
           {/* Left handle visual indicator */}
           <Rect
             x={2}
-            y={(trackHeight - TimelineConfig.TRACK_PADDING * 2) / 2 - 10}
+            y={(clipInnerHeight) / 2 - 10}
             width={4}
             height={20}
             fill={colors.primary}
@@ -933,7 +894,7 @@ const TimelineClipComponent = ({
             x={clipWidth - 8}
             y={0}
             width={8}
-            height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
+            height={clipInnerHeight}
             fill={trimEdge === 'right' ? colors.primary : 'transparent'}
             opacity={trimEdge === 'right' ? 0.6 : 1}
             cornerRadius={[0, 8, 8, 0]}
@@ -950,7 +911,7 @@ const TimelineClipComponent = ({
           {/* Right handle visual indicator */}
           <Rect
             x={clipWidth - 6}
-            y={(trackHeight - TimelineConfig.TRACK_PADDING * 2) / 2 - 10}
+            y={(clipInnerHeight) / 2 - 10}
             width={4}
             height={20}
             fill={colors.primary}

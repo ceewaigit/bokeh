@@ -90,3 +90,14 @@ export function getTimelineConfig<K extends keyof TimelineConfigType>(
 ): TimelineConfigType[K] {
   return override !== undefined ? override : TimelineConfig[key]
 }
+
+/**
+ * Calculate the inner height of a clip (usable area inside padding).
+ * This is a commonly repeated calculation: trackHeight - TRACK_PADDING * 2
+ *
+ * @param trackHeight - The total track height
+ * @returns The height available for clip content, clamped to minimum 0
+ */
+export function getClipInnerHeight(trackHeight: number): number {
+  return Math.max(0, trackHeight - TimelineConfig.TRACK_PADDING * 2)
+}

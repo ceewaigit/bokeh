@@ -5,6 +5,43 @@
 
 import * as React from 'react'
 
+/**
+ * Apply alpha transparency to HSL/RGB color strings.
+ * Handles both comma-separated (legacy) and space-separated (modern CSS) syntax.
+ *
+ * @example
+ * withAlpha('hsl(263 70% 65%)', 0.5) // => 'hsla(263, 70%, 65%, 0.5)'
+ * withAlpha('rgb(100 150 200)', 0.8) // => 'rgba(100, 150, 200, 0.8)'
+ */
+export const withAlpha = (color: string, alpha: number): string => {
+  if (!color) return ''
+  // Already has alpha - return as-is
+  if (color.startsWith('hsla') || color.startsWith('rgba')) return color
+
+  // Handle HSL format
+  if (color.startsWith('hsl(')) {
+    let content = color.substring(4, color.length - 1)
+    // Convert modern space-separated to comma-separated for compatibility
+    if (!content.includes(',')) {
+      content = content.replace(/\s+/g, ', ')
+    }
+    return `hsla(${content}, ${alpha})`
+  }
+
+  // Handle RGB format
+  if (color.startsWith('rgb(')) {
+    let content = color.substring(4, color.length - 1)
+    // Convert modern space-separated to comma-separated for compatibility
+    if (!content.includes(',')) {
+      content = content.replace(/\s+/g, ', ')
+    }
+    return `rgba(${content}, ${alpha})`
+  }
+
+  // Return original if format not recognized
+  return color
+}
+
 export const getTimelineColors = () => {
   if (typeof window === 'undefined') {
     // Fallback for SSR

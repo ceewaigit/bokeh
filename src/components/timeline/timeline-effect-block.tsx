@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Rect, Text, Transformer, Line, Group } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { useTimelineColors } from '@/lib/timeline/colors'
+import { useTimelineColors, withAlpha } from '@/lib/timeline/colors'
 import { getNearestAvailableDragX } from '@/lib/timeline/drag-positioning'
 import Konva from 'konva'
 
@@ -82,37 +82,6 @@ export const TimelineEffectBlock = React.memo(({
   const baseStroke = fillColor || colors.zoomBlock
   const handleWidth = 6
   const handleHeight = 14
-
-  // Helper to apply alpha to token colors (which might be simple strings or hsl(a))
-  const withAlpha = (color: string, alpha: number): string => {
-    if (!color) return ''
-    if (color.startsWith('hsla') || color.startsWith('rgba')) return color
-
-    // Handle HSL format
-    if (color.startsWith('hsl(')) {
-      // Remove 'hsl(' and ')'
-      let content = color.substring(4, color.length - 1)
-
-      // If modern space-separated syntax, convert to comma-separated
-      if (!content.includes(',')) {
-        content = content.replace(/\s+/g, ', ')
-      }
-
-      return `hsla(${content}, ${alpha})`
-    }
-
-    // Handle RGB format
-    if (color.startsWith('rgb(')) {
-      let content = color.substring(4, color.length - 1)
-      // If modern space-separated syntax, convert to comma-separated
-      if (!content.includes(',')) {
-        content = content.replace(/\s+/g, ', ')
-      }
-      return `rgba(${content}, ${alpha})`
-    }
-
-    return color
-  }
 
   // Define colors using tokens
   // Promoted "selected" opacity to default for that solid glass look

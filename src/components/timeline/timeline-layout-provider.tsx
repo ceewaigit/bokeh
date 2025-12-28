@@ -10,10 +10,10 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback, type RefObject } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { useEffectTrackExistence, useMediaTrackExistence, useTimelineDuration } from '@/stores/selectors/timeline-selectors'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig, getClipInnerHeight } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { EffectType } from '@/types/effects'
-import { TimelineTrackType } from '@/types/project'
+import { TimelineTrackType, TrackType } from '@/types/project'
 import { EFFECT_TRACK_TYPES, getSortedTrackConfigs } from '@/lib/timeline/effect-track-registry'
 
 /** Track type that can be used for visibility/active state */
@@ -43,6 +43,14 @@ export interface FixedTrackPositions {
   video: number
   audio: number
   webcam: number
+}
+
+/** Track bounds for rendering clips with proper padding */
+export interface TrackBounds {
+  y: number           // Track top position
+  height: number      // Total track height
+  clipY: number       // Clip render position (y + padding)
+  clipHeight: number  // Clip render height (height - padding*2)
 }
 
 export interface TimelineLayoutContextValue {
@@ -86,6 +94,8 @@ export interface TimelineLayoutContextValue {
   toggleEffectTrackExpanded: (track: TrackId) => void
   toggleVideoTrackExpanded: () => void
   isVideoTrackExpanded: boolean
+  /** Get track bounds for rendering clips */
+  getTrackBounds: (trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => TrackBounds
 }
 
 const TimelineLayoutContext = createContext<TimelineLayoutContextValue | null>(null)
@@ -319,6 +329,29 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     return total
   }, [fixedTrackHeights, effectTrackHeights])
 
+  // Centralized track bounds lookup - previously duplicated in timeline-canvas.tsx
+  const getTrackBounds = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam): TrackBounds => {
+    const padding = TimelineConfig.TRACK_PADDING
+    switch (trackType) {
+      case TrackType.Audio: {
+        const y = trackPositions.audio
+        const height = trackHeights.audio
+        return { y, height, clipY: y + padding, clipHeight: getClipInnerHeight(height) }
+      }
+      case TrackType.Webcam: {
+        const y = trackPositions.webcam
+        const height = trackHeights.webcam
+        return { y, height, clipY: y + padding, clipHeight: getClipInnerHeight(height) }
+      }
+      case TrackType.Video:
+      default: {
+        const y = trackPositions.video
+        const height = trackHeights.video
+        return { y, height, clipY: y + padding, clipHeight: getClipInnerHeight(height) }
+      }
+    }
+  }, [trackPositions, trackHeights])
+
   // ResizeObserver for container size
   useEffect(() => {
     const container = containerRef.current
@@ -385,7 +418,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     isTrackExpanded,
     toggleEffectTrackExpanded,
     toggleVideoTrackExpanded,
-    isVideoTrackExpanded
+    isVideoTrackExpanded,
+    getTrackBounds
   }), [
     timelineWidth, containerSize, contentHeight, duration, zoom, pixelsPerMs,
     fixedTrackHeights, fixedTrackPositions, effectTrackHeights, effectTrackPositions,
@@ -393,7 +427,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     isScreenGroupCollapsed, hasSpeedUpSuggestions, showTypingSuggestions,
     toggleScreenGroupCollapsed, visibleTracks, activeTrack, toggleTrackVisibility,
     setActiveTrackWithMemory, isTrackExpanded, toggleEffectTrackExpanded,
-    toggleVideoTrackExpanded, isVideoTrackExpanded
+    toggleVideoTrackExpanded, isVideoTrackExpanded, getTrackBounds
   ])
 
   return (
