@@ -44,10 +44,12 @@ export function createCountdownWindow(displayId?: number): BrowserWindow {
 }
 
 export function showCountdown(countdownWindow: BrowserWindow, number: number): void {
+  const csp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; script-src 'unsafe-inline'; connect-src 'none'; media-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
+      <meta http-equiv="Content-Security-Policy" content="${csp}">
       <style>
         * { 
           margin: 0; 

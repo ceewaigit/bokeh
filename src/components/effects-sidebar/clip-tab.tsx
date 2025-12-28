@@ -4,10 +4,12 @@ import React, { useState, useEffect } from 'react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { RotateCcw, Zap } from 'lucide-react'
+import { ChevronRight, RotateCcw, Zap } from 'lucide-react'
 import type { Clip } from '@/types/project'
 import { ChangePlaybackRateCommand } from '@/lib/commands'
 import { useProjectStore } from '@/stores/project-store'
+import { cn } from '@/lib/utils'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useSelectedClip } from '@/stores/selectors/clip-selectors'
 import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { InfoTooltip } from './info-tooltip'
@@ -20,6 +22,10 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
   const [playbackRate, setPlaybackRate] = useState(1.0)
   const [introFadeMs, setIntroFadeMs] = useState(0)
   const [outroFadeMs, setOutroFadeMs] = useState(0)
+  const showSpeedAdvanced = useWorkspaceStore((s) => s.clipTabSpeedAdvancedOpen)
+  const setShowSpeedAdvanced = useWorkspaceStore((s) => s.setClipTabSpeedAdvancedOpen)
+  const showFadeAdvanced = useWorkspaceStore((s) => s.clipTabFadeAdvancedOpen)
+  const setShowFadeAdvanced = useWorkspaceStore((s) => s.setClipTabFadeAdvancedOpen)
   const executorRef = useCommandExecutor()
   const updateClip = useProjectStore((s) => s.updateClip)
 
@@ -142,25 +148,8 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
           </div>
         </div>
 
-        <div className="space-y-1">
-          <Slider
-            value={[playbackRate]}
-            onValueChange={handlePlaybackRateChange}
-            onValueCommit={(vals) => commitPlaybackRate(vals[0])}
-            min={MIN_RATE}
-            max={MAX_RATE}
-            step={0.25}
-            className="w-full"
-          />
-          <div className="flex justify-between text-[12px] text-muted-foreground/70 tabular-nums">
-            <span>0.25x</span>
-            <span>1x</span>
-            <span>4x</span>
-          </div>
-        </div>
-
-        <div className="space-y-1.5 pt-2 border-t border-border/30">
-          <div className="text-[12px] font-medium text-muted-foreground">Quick Presets</div>
+        <div className="space-y-1.5">
+          <div className="text-[12px] font-medium text-muted-foreground">Presets</div>
           <div className="flex gap-1.5 flex-wrap">
             <Button
               size="sm"
@@ -220,6 +209,33 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
             </Button>
           </div>
         </div>
+
+        <button
+          onClick={() => setShowSpeedAdvanced(!showSpeedAdvanced)}
+          className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
+        >
+          <ChevronRight className={cn("w-3 h-3 transition-transform", showSpeedAdvanced && "rotate-90")} />
+          Fine tune
+        </button>
+
+        {showSpeedAdvanced && (
+          <div className="space-y-1">
+            <Slider
+              value={[playbackRate]}
+              onValueChange={handlePlaybackRateChange}
+              onValueCommit={(vals) => commitPlaybackRate(vals[0])}
+              min={MIN_RATE}
+              max={MAX_RATE}
+              step={0.25}
+              className="w-full"
+            />
+            <div className="flex justify-between text-[12px] text-muted-foreground/70 tabular-nums">
+              <span>0.25x</span>
+              <span>1x</span>
+              <span>4x</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Fade Section */}
@@ -229,47 +245,8 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
           <InfoTooltip content="Fade transitions" />
         </div>
 
-        {/* Intro Fade */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] text-muted-foreground">Fade In</span>
-            <span className="text-[12px] font-mono text-muted-foreground/70 tabular-nums">
-              {introFadeMs}ms
-            </span>
-          </div>
-          <Slider
-            value={[introFadeMs]}
-            onValueChange={handleIntroFadeChange}
-            onValueCommit={(vals) => commitIntroFade(vals[0])}
-            min={0}
-            max={MAX_FADE_MS}
-            step={50}
-            className="w-full"
-          />
-        </div>
-
-        {/* Outro Fade */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] text-muted-foreground">Fade Out</span>
-            <span className="text-[12px] font-mono text-muted-foreground/70 tabular-nums">
-              {outroFadeMs}ms
-            </span>
-          </div>
-          <Slider
-            value={[outroFadeMs]}
-            onValueChange={handleOutroFadeChange}
-            onValueCommit={(vals) => commitOutroFade(vals[0])}
-            min={0}
-            max={MAX_FADE_MS}
-            step={50}
-            className="w-full"
-          />
-        </div>
-
-        {/* Quick Presets */}
-        <div className="space-y-1.5 pt-2 border-t border-border/30">
-          <div className="text-[12px] font-medium text-muted-foreground">Quick Presets</div>
+          <div className="text-[12px] font-medium text-muted-foreground">Presets</div>
           <div className="flex gap-1.5 flex-wrap">
             <Button
               size="sm"
@@ -329,6 +306,56 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
             </Button>
           </div>
         </div>
+
+        <button
+          onClick={() => setShowFadeAdvanced(!showFadeAdvanced)}
+          className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
+        >
+          <ChevronRight className={cn("w-3 h-3 transition-transform", showFadeAdvanced && "rotate-90")} />
+          Fine tune
+        </button>
+
+        {showFadeAdvanced && (
+          <>
+            {/* Intro Fade */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Fade In</span>
+                <span className="text-[12px] font-mono text-muted-foreground/70 tabular-nums">
+                  {introFadeMs}ms
+                </span>
+              </div>
+              <Slider
+                value={[introFadeMs]}
+                onValueChange={handleIntroFadeChange}
+                onValueCommit={(vals) => commitIntroFade(vals[0])}
+                min={0}
+                max={MAX_FADE_MS}
+                step={50}
+                className="w-full"
+              />
+            </div>
+
+            {/* Outro Fade */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Fade Out</span>
+                <span className="text-[12px] font-mono text-muted-foreground/70 tabular-nums">
+                  {outroFadeMs}ms
+                </span>
+              </div>
+              <Slider
+                value={[outroFadeMs]}
+                onValueChange={handleOutroFadeChange}
+                onValueCommit={(vals) => commitOutroFade(vals[0])}
+                min={0}
+                max={MAX_FADE_MS}
+                step={50}
+                className="w-full"
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

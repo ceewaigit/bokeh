@@ -69,6 +69,9 @@ export class AnnotationEffectStrategy implements IEffectStrategy {
       case AnnotationType.Highlight:
         this.drawHighlightAnnotation(ctx, position, highlightWidth, highlightHeight, style)
         break
+      case AnnotationType.Keyboard:
+        this.drawKeyboardAnnotation(ctx, position, data.keys || [], style)
+        break
     }
 
     ctx.restore()
@@ -160,5 +163,79 @@ export class AnnotationEffectStrategy implements IEffectStrategy {
       ctx.lineWidth = borderWidth
       ctx.strokeRect(position.x, position.y, width, height)
     }
+  }
+
+  private drawKeyboardAnnotation(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    position: { x: number; y: number },
+    keys: string[],
+    style: any
+  ): void {
+    const label = keys.length ? keys.join(' + ') : 'Keys'
+    const fontSize = style.fontSize || 16
+    const fontFamily = style.fontFamily || 'system-ui, -apple-system, sans-serif'
+    const fontWeight = style.fontWeight || 600
+    const color = style.color || '#ffffff'
+    const padding = style.padding || 10
+    const radius = style.borderRadius || 8
+    const background = style.backgroundColor || 'rgba(0, 0, 0, 0.65)'
+    const borderColor = style.borderColor || 'rgba(255,255,255,0.15)'
+    const borderWidth = style.borderWidth || 1
+
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    const metrics = ctx.measureText(label)
+    const boxWidth = metrics.width + padding * 2
+    const boxHeight = fontSize * 1.6 + padding * 2
+
+    ctx.fillStyle = background
+    this.drawRoundedRect(ctx, position.x, position.y, boxWidth, boxHeight, radius)
+    ctx.fill()
+
+    if (borderWidth > 0) {
+      ctx.strokeStyle = borderColor
+      ctx.lineWidth = borderWidth
+      this.drawRoundedRect(ctx, position.x, position.y, boxWidth, boxHeight, radius)
+      ctx.stroke()
+    }
+
+    ctx.fillStyle = color
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, position.x + padding, position.y + boxHeight / 2)
+  }
+
+  private drawRoundedRect(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ): void {
+    const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2))
+
+    const hasRoundRect =
+      typeof (ctx as CanvasRenderingContext2D & { roundRect?: (...args: number[]) => void }).roundRect ===
+      'function'
+
+    if (hasRoundRect) {
+      ctx.beginPath()
+      ctx.roundRect(x, y, width, height, safeRadius)
+      ctx.closePath()
+      return
+    }
+
+    const r = safeRadius
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.lineTo(x + width - r, y)
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r)
+    ctx.lineTo(x + width, y + height - r)
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height)
+    ctx.lineTo(x + r, y + height)
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r)
+    ctx.lineTo(x, y + r)
+    ctx.quadraticCurveTo(x, y, x + r, y)
+    ctx.closePath()
   }
 }

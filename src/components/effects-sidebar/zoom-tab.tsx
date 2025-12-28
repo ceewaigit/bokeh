@@ -1,10 +1,9 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { ZoomIn, ChevronRight, Sparkles } from 'lucide-react'
+import { ZoomIn, ChevronRight, Sparkles, Gauge, AppWindow } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
-import { Switch } from '@/components/ui/switch'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
@@ -17,20 +16,22 @@ import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { DEFAULT_ZOOM_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 import { ZoomTargetPreview } from './zoom-target-preview'
+import { useEffectsSidebarContext } from './EffectsSidebarContext'
+import { CompactSlider, SegmentedControl, SectionHeader, springConfig } from './motion-controls'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
 import { getSourceDimensions, getSourceDimensionsStatic } from '@/lib/core/coordinates'
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time'
 import { computeCameraState, type CameraPhysicsState } from '@/lib/effects/utils/camera-calculator'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
-import { getCameraOutputContext } from '@/lib/effects/utils/camera-output-context'
+import { getCameraOutputContext } from '@/lib/effects/utils/camera-path-calculator'
+import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface ZoomTabProps {
   effects: Effect[] | undefined
   selectedEffectLayer?: SelectedEffectLayer
   selectedClip: Clip | null
-  onUpdateZoom: (updates: any) => void
-  onEffectChange: (type: EffectType.Zoom | EffectType.Annotation, data: any) => void
   onZoomBlockUpdate?: (blockId: string, updates: any) => void
 }
 
@@ -38,14 +39,15 @@ export function ZoomTab({
   effects,
   selectedEffectLayer,
   selectedClip,
-  onUpdateZoom,
-  onEffectChange: _onEffectChange,
   onZoomBlockUpdate
 }: ZoomTabProps) {
+  const { onEffectChange } = useEffectsSidebarContext()
   const executorRef = useCommandExecutor()
   const project = useProjectStore((s) => s.currentProject)
   const currentTime = useProjectStore((s) => s.currentTime)
   const cameraPathCache = useProjectStore((s) => s.cameraPathCache)
+  const camera = useProjectStore((s) => s.currentProject?.settings.camera ?? DEFAULT_PROJECT_SETTINGS.camera)
+  const setCameraSettings = useProjectStore((s) => s.setCameraSettings)
   const timelineMetadata = useTimelineMetadata(project)
   const zoomEffects = effects ? getZoomEffects(effects) : []
   const cropEffect = selectedClip && effects ? getCropEffectForClip(effects, selectedClip) : null
@@ -67,11 +69,15 @@ export function ZoomTab({
   const [localIntroMs, setLocalIntroMs] = React.useState<number | null>(null)
   const [localOutroMs, setLocalOutroMs] = React.useState<number | null>(null)
   const [localMouseIdlePx, setLocalMouseIdlePx] = React.useState<number | null>(null)
+  const [localSmoothing, setLocalSmoothing] = React.useState<number | null>(null)
+  const [cameraStylePreset, setCameraStylePreset] = React.useState<'tight' | 'balanced' | 'steady' | 'cinematic' | 'floaty' | 'custom'>('cinematic')
+  const [zoomBlurPreset, setZoomBlurPreset] = React.useState<'subtle' | 'balanced' | 'dynamic' | 'custom'>('balanced')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const scaleResetTimeoutRef = React.useRef<number | null>(null)
   const introResetTimeoutRef = React.useRef<number | null>(null)
   const outroResetTimeoutRef = React.useRef<number | null>(null)
   const mouseIdleResetTimeoutRef = React.useRef<number | null>(null)
+  const smoothingResetTimeoutRef = React.useRef<number | null>(null)
 
   const scheduleReset = (
     timeoutRef: React.MutableRefObject<number | null>,
@@ -90,7 +96,8 @@ export function ZoomTab({
         scaleResetTimeoutRef,
         introResetTimeoutRef,
         outroResetTimeoutRef,
-        mouseIdleResetTimeoutRef
+        mouseIdleResetTimeoutRef,
+        smoothingResetTimeoutRef
       ]
       for (const ref of timeouts) {
         if (ref.current !== null) {
@@ -100,6 +107,72 @@ export function ZoomTab({
       }
     }
   }, [])
+
+  const cameraStylePresets = React.useMemo(() => ([
+    { id: 'tight', label: 'Tight', value: 8 },
+    { id: 'balanced', label: 'Balanced', value: 24 },
+    { id: 'steady', label: 'Steady', value: 36 },
+    { id: 'cinematic', label: 'Cinematic', value: 48 },
+    { id: 'floaty', label: 'Floaty', value: 72 },
+    { id: 'custom', label: 'Custom', value: null },
+  ] as const), [])
+
+  const zoomBlurPresets = React.useMemo(() => ([
+    { id: 'subtle', label: 'Subtle', value: 30 },
+    { id: 'balanced', label: 'Balanced', value: 50 },
+    { id: 'dynamic', label: 'Dynamic', value: 70 },
+    { id: 'custom', label: 'Custom', value: null },
+  ] as const), [])
+
+  const resolveCameraStylePreset = React.useCallback((smoothing: number) => {
+    const effectiveSmoothing = smoothing ?? 0
+    const match = cameraStylePresets.find(p => p.value === effectiveSmoothing)
+    return (match?.id ?? 'custom') as typeof cameraStylePreset
+  }, [cameraStylePresets])
+
+  const resolveZoomBlurPreset = React.useCallback((intensity: number) => {
+    const match = zoomBlurPresets.find(p => p.value === intensity)
+    return (match?.id ?? 'custom') as typeof zoomBlurPreset
+  }, [zoomBlurPresets])
+
+  const currentSmoothing = (effects?.find(
+    (e) => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled
+  ) as any)?.data?.smoothing ?? 0
+
+  React.useEffect(() => {
+    setCameraStylePreset(resolveCameraStylePreset(currentSmoothing))
+  }, [currentSmoothing, resolveCameraStylePreset])
+
+  React.useEffect(() => {
+    setZoomBlurPreset(resolveZoomBlurPreset(camera.refocusBlurIntensity ?? 40))
+  }, [camera.refocusBlurIntensity, resolveZoomBlurPreset])
+
+  const scheduleSmoothingReset = (delayMs: number) => {
+    if (smoothingResetTimeoutRef.current !== null) {
+      window.clearTimeout(smoothingResetTimeoutRef.current)
+    }
+    smoothingResetTimeoutRef.current = window.setTimeout(() => setLocalSmoothing(null), delayMs)
+  }
+
+  const applyCameraStylePreset = (preset: typeof cameraStylePreset) => {
+    setCameraStylePreset(preset)
+    const presetValue = cameraStylePresets.find((item) => item.id === preset)?.value
+    if (presetValue == null) return
+    setLocalSmoothing(presetValue)
+    onEffectChange(EffectType.Annotation, {
+      kind: 'scrollCinematic',
+      enabled: presetValue > 0,
+      data: { smoothing: presetValue },
+    })
+    scheduleSmoothingReset(200)
+  }
+
+  const applyZoomBlurPreset = (preset: typeof zoomBlurPreset) => {
+    setZoomBlurPreset(preset)
+    const presetValue = zoomBlurPresets.find((item) => item.id === preset)?.value
+    if (presetValue == null) return
+    setCameraSettings({ refocusBlurIntensity: presetValue, refocusBlurEnabled: presetValue > 0 })
+  }
 
   const seedManualTargetFromLiveCamera = () => {
     if (!project || !timelineMetadata) return null
@@ -174,6 +247,83 @@ export function ZoomTab({
 
   return (
     <div className="space-y-2.5">
+      <div className="rounded-xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-3 shadow-sm transition-all hover:bg-background/30">
+        <SectionHeader
+          icon={Gauge}
+          title="Cameraman Style"
+          subtitle="Tune pan timing and feel"
+        />
+
+        <SegmentedControl
+          options={cameraStylePresets}
+          value={cameraStylePreset}
+          onChange={(id) => applyCameraStylePreset(id as any)}
+          namespace="camera-style"
+          wrap
+          columns={3}
+        />
+
+        <CompactSlider
+          label="Smoothness"
+          value={localSmoothing ?? currentSmoothing}
+          min={0}
+          max={100}
+          unit="%"
+          onValueChange={(val) => setLocalSmoothing(val)}
+          onValueCommit={(val) => {
+            onEffectChange(EffectType.Annotation, {
+              kind: 'scrollCinematic',
+              enabled: val > 0,
+              data: { smoothing: val },
+            })
+            setCameraStylePreset(resolveCameraStylePreset(val))
+            scheduleSmoothingReset(200)
+          }}
+        />
+      </div>
+
+      <div className="rounded-xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30">
+        <SectionHeader
+          icon={AppWindow}
+          title="Zoom Blur"
+          subtitle="Depth during transitions"
+        />
+
+        <SegmentedControl
+          options={zoomBlurPresets}
+          value={zoomBlurPreset}
+          onChange={(id) => applyZoomBlurPreset(id as any)}
+          namespace="zoom-blur"
+          wrap
+          columns={3}
+        />
+
+        <AnimatePresence initial={false}>
+          {zoomBlurPreset === 'custom' && (
+            <motion.div
+              key="zoom-blur-custom"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={springConfig}
+              layout
+              className="pt-1"
+            >
+              <CompactSlider
+                label="Blur Strength"
+                value={camera.refocusBlurIntensity ?? 40}
+                min={0}
+                max={100}
+                unit="%"
+                onValueChange={(val) => {
+                  setCameraSettings({ refocusBlurIntensity: val, refocusBlurEnabled: val > 0 })
+                  setZoomBlurPreset('custom')
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
       {/* Quick Fill Screen Zoom */}
       {selectedClip && (
         <div className="rounded-md bg-background/40 p-2.5">
@@ -223,7 +373,7 @@ export function ZoomTab({
       )}
 
       {/* Selected Zoom Block Editor */}
-      {selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id && (() => {
+      {selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id ? (() => {
         const selectedBlock = zoomEffects.find(e => e.id === selectedEffectLayer.id)
         if (!selectedBlock) return null
         const zoomData = selectedBlock.data as ZoomEffectData
@@ -509,27 +659,15 @@ export function ZoomTab({
             <div className="border-t border-border/30" />
           </div>
         )
-      })()}
-
-      {/* Zoom Effects Toggle */}
-      <div className="rounded-md bg-background/40 p-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <ZoomIn className="w-3.5 h-3.5 text-muted-foreground" />
-            <div className="min-w-0">
-              <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Auto Zoom</div>
-              <div className="mt-0.5 text-[12px] text-muted-foreground leading-snug">
-                Auto zoom from actions
-              </div>
-            </div>
+      })() : (
+        <div className="rounded-md bg-background/40 p-2.5">
+          <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Select a zoom block</div>
+          <div className="mt-1 text-[12px] text-muted-foreground leading-snug">
+            Click a zoom block in the timeline to edit focus behavior, timing, and target.
           </div>
-          <Switch
-            aria-label="Enable auto zoom"
-            checked={zoomEffects.length > 0}
-            onCheckedChange={(checked) => onUpdateZoom({ enabled: checked })}
-          />
         </div>
-      </div>
+      )}
+
     </div >
   )
 }

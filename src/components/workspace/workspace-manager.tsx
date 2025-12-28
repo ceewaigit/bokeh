@@ -62,7 +62,8 @@ async function loadProjectRecording(
     // This handles: file reading, migrations, path resolution, file validation,
     // video property detection/repair, metadata loading, and effects initialization
     const project = await ProjectIOService.loadProjectFromRecording(recording, {
-      onProgress: setLoadingMessage
+      onProgress: setLoadingMessage,
+      awaitPlaybackPreparation: true
     })
 
     // Create project in store
@@ -211,6 +212,8 @@ export function WorkspaceManager() {
   )
 
   const isExporting = useProjectStore((s) => s.progress.isProcessing)
+  const previewReady = useProjectStore((s) => s.previewReady)
+  const setPreviewReady = useProjectStore((s) => s.setPreviewReady)
   const clearLibrary = useRecordingsLibraryStore((s) => s.clearLibrary)
 
 
@@ -222,94 +225,84 @@ export function WorkspaceManager() {
   const isResizingTimelineRef = useRef(false)
   const [dragUtilitiesWidth, setDragUtilitiesWidth] = useState<number | null>(null)
   const [dragPropertiesWidth, setDragPropertiesWidth] = useState<number | null>(null)
-  const lastUtilitiesRawRef = useRef<number | null>(null)
-  const lastPropertiesRawRef = useRef<number | null>(null)
-  const utilitiesOverdragRef = useRef(0)
-  const propertiesOverdragRef = useRef(0)
-  const utilitiesCollapsedRef = useRef(false)
-  const propertiesCollapsedRef = useRef(false)
+  const [panelMaxWidth, setPanelMaxWidth] = useState(() =>
+    typeof window === 'undefined' ? 0 : window.innerWidth * 0.3
+  )
 
   // Command executor for undo/redo support
   const executorRef = useCommandExecutor()
 
   useEffect(() => {
+    if (!currentProject) {
+      setPreviewReady(false)
+      return
+    }
+    if (previewReady && isLoading) {
+      setIsLoading(false)
+    }
+  }, [currentProject, previewReady, isLoading, setPreviewReady])
+
+  // Subscribe to cache invalidation to trigger recalculation
+  const cameraPathCache = useProjectStore((s) => s.cameraPathCache)
+  const timelineMutationCounter = useProjectStore((s) => s.timelineMutationCounter)
+
+  // Recalculate camera path when cache is invalidated (effects changed)
+  useEffect(() => {
+    // Skip if no project or cache exists (initial load handles this)
+    if (!currentProject || cameraPathCache !== null) return
+
+    // Debounce to avoid recalculating on every keystroke during rapid edits
+    const timeoutId = setTimeout(() => {
+      const fps = TimelineDataService.getFps(currentProject)
+      const recordingsMap = TimelineDataService.getRecordingsMap(currentProject)
+      const frameLayout = TimelineDataService.getFrameLayout(currentProject, fps)
+
+      const newCameraPath = calculateFullCameraPath({
+        frameLayout,
+        fps,
+        videoWidth: currentProject.settings.resolution.width,
+        videoHeight: currentProject.settings.resolution.height,
+        effects: EffectStore.getAll(currentProject),
+        getRecording: (id) => recordingsMap.get(id),
+        loadedMetadata: undefined
+      })
+
+      if (newCameraPath) {
+        setCameraPathCache(newCameraPath)
+      }
+    }, 50) // 50ms debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [currentProject, cameraPathCache, timelineMutationCounter, setCameraPathCache])
+
+  useEffect(() => {
+    const updatePanelMaxWidth = () => {
+      setPanelMaxWidth(window.innerWidth * 0.3)
+    }
+    updatePanelMaxWidth()
+    window.addEventListener('resize', updatePanelMaxWidth)
+    return () => window.removeEventListener('resize', updatePanelMaxWidth)
+  }, [])
+
+  useEffect(() => {
     const UTIL_MIN = 200
-    const UTIL_COLLAPSE_OVERDRAG = 80
-    const UTIL_REOPEN_OVERDRAG = 30
     const PROPS_MIN = 300
-    const PROPS_COLLAPSE_OVERDRAG = 100
-    const PROPS_REOPEN_OVERDRAG = 40
+    const getPanelMaxWidth = () => window.innerWidth * 0.3
 
     const handleMouseMove = (event: MouseEvent) => {
       if (isResizingUtilitiesRef.current) {
         const rawWidth = Math.max(0, event.clientX)
-        const prevRaw = lastUtilitiesRawRef.current ?? rawWidth
-        const delta = rawWidth - prevRaw
-
-        if (rawWidth >= UTIL_MIN) {
-          utilitiesOverdragRef.current = 0
-          utilitiesCollapsedRef.current = false
-          setDragUtilitiesWidth(rawWidth)
-        } else {
-          if (delta < 0) {
-            utilitiesOverdragRef.current += Math.abs(delta)
-          } else if (delta > 0) {
-            utilitiesOverdragRef.current = Math.max(0, utilitiesOverdragRef.current - delta)
-          }
-
-          if (utilitiesCollapsedRef.current) {
-            if (utilitiesOverdragRef.current < UTIL_REOPEN_OVERDRAG) {
-              utilitiesCollapsedRef.current = false
-              setDragUtilitiesWidth(UTIL_MIN)
-            } else {
-              setDragUtilitiesWidth(0)
-            }
-          } else {
-            if (utilitiesOverdragRef.current >= UTIL_COLLAPSE_OVERDRAG) {
-              utilitiesCollapsedRef.current = true
-              setDragUtilitiesWidth(0)
-            } else {
-              setDragUtilitiesWidth(UTIL_MIN)
-            }
-          }
-        }
-
-        lastUtilitiesRawRef.current = rawWidth
+        const panelMaxWidth = getPanelMaxWidth()
+        const utilMin = Math.min(UTIL_MIN, panelMaxWidth)
+        const clampedWidth = Math.min(Math.max(rawWidth, utilMin), panelMaxWidth)
+        setDragUtilitiesWidth(clampedWidth)
       }
       if (isResizingPropertiesRef.current) {
         const rawWidth = Math.max(0, window.innerWidth - event.clientX)
-        const prevRaw = lastPropertiesRawRef.current ?? rawWidth
-        const delta = rawWidth - prevRaw
-
-        if (rawWidth >= PROPS_MIN) {
-          propertiesOverdragRef.current = 0
-          propertiesCollapsedRef.current = false
-          setDragPropertiesWidth(rawWidth)
-        } else {
-          if (delta < 0) {
-            propertiesOverdragRef.current += Math.abs(delta)
-          } else if (delta > 0) {
-            propertiesOverdragRef.current = Math.max(0, propertiesOverdragRef.current - delta)
-          }
-
-          if (propertiesCollapsedRef.current) {
-            if (propertiesOverdragRef.current < PROPS_REOPEN_OVERDRAG) {
-              propertiesCollapsedRef.current = false
-              setDragPropertiesWidth(PROPS_MIN)
-            } else {
-              setDragPropertiesWidth(0)
-            }
-          } else {
-            if (propertiesOverdragRef.current >= PROPS_COLLAPSE_OVERDRAG) {
-              propertiesCollapsedRef.current = true
-              setDragPropertiesWidth(0)
-            } else {
-              setDragPropertiesWidth(PROPS_MIN)
-            }
-          }
-        }
-
-        lastPropertiesRawRef.current = rawWidth
+        const panelMaxWidth = getPanelMaxWidth()
+        const propsMin = Math.min(PROPS_MIN, panelMaxWidth)
+        const clampedWidth = Math.min(Math.max(rawWidth, propsMin), panelMaxWidth)
+        setDragPropertiesWidth(clampedWidth)
       }
       if (isResizingTimelineRef.current) {
         // Calculate height from bottom of viewport
@@ -320,32 +313,23 @@ export function WorkspaceManager() {
 
     const handleMouseUp = () => {
       if (isResizingUtilitiesRef.current || isResizingPropertiesRef.current || isResizingTimelineRef.current) {
-        const utilitiesWidth = lastUtilitiesRawRef.current ?? dragUtilitiesWidth ?? utilitiesPanelWidth
-        const propertiesWidth = lastPropertiesRawRef.current ?? dragPropertiesWidth ?? propertiesPanelWidth
-        const shouldCollapseUtilities = isResizingUtilitiesRef.current && isUtilitiesOpen && utilitiesCollapsedRef.current
-        const shouldCollapseProperties = isResizingPropertiesRef.current && isPropertiesOpen && propertiesCollapsedRef.current
+        const utilitiesWidth = dragUtilitiesWidth ?? utilitiesPanelWidth
+        const propertiesWidth = dragPropertiesWidth ?? propertiesPanelWidth
+        const maxWidth = getPanelMaxWidth()
+        const utilMin = Math.min(UTIL_MIN, maxWidth)
+        const propsMin = Math.min(PROPS_MIN, maxWidth)
         isResizingUtilitiesRef.current = false
         isResizingPropertiesRef.current = false
         isResizingTimelineRef.current = false
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
-        lastUtilitiesRawRef.current = null
-        lastPropertiesRawRef.current = null
-        utilitiesOverdragRef.current = 0
-        propertiesOverdragRef.current = 0
         setDragUtilitiesWidth(null)
         setDragPropertiesWidth(null)
-        if (isUtilitiesOpen && !shouldCollapseUtilities) {
-          setUtilitiesPanelWidth(Math.max(UTIL_MIN, utilitiesWidth))
+        if (isUtilitiesOpen) {
+          setUtilitiesPanelWidth(Math.min(Math.max(utilMin, utilitiesWidth), maxWidth))
         }
-        if (isPropertiesOpen && !shouldCollapseProperties) {
-          setPropertiesPanelWidth(Math.max(PROPS_MIN, propertiesWidth))
-        }
-        if (shouldCollapseUtilities) {
-          toggleUtilities()
-        }
-        if (shouldCollapseProperties) {
-          toggleProperties()
+        if (isPropertiesOpen) {
+          setPropertiesPanelWidth(Math.min(Math.max(propsMin, propertiesWidth), maxWidth))
         }
       }
     }
@@ -357,7 +341,7 @@ export function WorkspaceManager() {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [setUtilitiesPanelWidth, setPropertiesPanelWidth, setTimelineHeight, utilitiesPanelWidth, propertiesPanelWidth, toggleUtilities, toggleProperties, isUtilitiesOpen, isPropertiesOpen, dragUtilitiesWidth, dragPropertiesWidth])
+  }, [setUtilitiesPanelWidth, setPropertiesPanelWidth, setTimelineHeight, utilitiesPanelWidth, propertiesPanelWidth, isUtilitiesOpen, isPropertiesOpen, dragUtilitiesWidth, dragPropertiesWidth])
 
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
   const contextEffects = timelineEffects ?? []
@@ -545,26 +529,26 @@ export function WorkspaceManager() {
 
 
 
-  // Show loading screen when processing
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center z-50">
-        <div className="text-center space-y-6">
-          {/* Single animated spinner */}
-          <div className="w-16 h-16 mx-auto border-4 border-primary/20 rounded-full border-t-primary animate-spin" />
+  const shouldWaitForPreview = Boolean(currentProject && timelineMetadata) && !previewReady
+  const showLoadingOverlay = isLoading || shouldWaitForPreview
+  const loadingOverlayMessage = loadingMessage || 'Loading...'
+  const loadingOverlay = showLoadingOverlay ? (
+    <div className="fixed inset-0 flex flex-col items-center justify-center z-50">
+      <div className="text-center space-y-6">
+        {/* Single animated spinner */}
+        <div className="w-16 h-16 mx-auto border-4 border-primary/20 rounded-full border-t-primary animate-spin" />
 
-          {/* Loading message */}
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium">{loadingMessage}</h3>
-          </div>
+        {/* Loading message */}
+        <div className="space-y-2">
+          <h3 className="text-lg font-medium">{loadingOverlayMessage}</h3>
         </div>
       </div>
-    )
-  }
+    </div>
+  ) : null
 
-  // Check if we should show Plugin Creator (accessible even without project)
+  let content: React.ReactNode
   if (currentView === 'plugin-creator') {
-    return (
+    content = (
       <div className="fixed inset-0 flex flex-col bg-zinc-950 z-50">
         <div className="flex-shrink-0">
           <Toolbar
@@ -583,58 +567,55 @@ export function WorkspaceManager() {
         </div>
       </div>
     )
-  }
+  } else if (!currentProject) {
+    content = (
+      <div className="fixed inset-0 flex flex-col">
+        <RecordingsLibrary
+          onSelectRecording={async (recording) => {
+            setIsLoading(true)
+            setPreviewReady(false)
+            setLoadingMessage('Loading recording...')
 
-  // Show recordings library when no active project
-  if (!currentProject) {
-    return (
-      <>
-        <div className="fixed inset-0 flex flex-col">
-          <RecordingsLibrary
-            onSelectRecording={async (recording) => {
-              setIsLoading(true)
-              setLoadingMessage('Loading recording...')
+            try {
+              const success = await loadProjectRecording(
+                recording,
+                setLoadingMessage,
+                newProject,
+                setLastSavedAt,
+                setProject,
+                setCameraPathCache,
+                setAutoZoom
+              )
 
-              try {
-                // Clear library data to free memory before loading project
-                clearLibrary()
-                ThumbnailGenerator.clearAllCache()
-
-                const success = await loadProjectRecording(
-                  recording,
-                  setLoadingMessage,
-                  newProject,
-                  setLastSavedAt,
-                  setProject,
-                  setCameraPathCache,
-                  setAutoZoom
-                )
-
-                if (!success) {
-                  setIsLoading(false)
-                  setLoadingMessage('')
-                  return
-                }
-
-                // Hide record button when entering workspace
-                if (window.electronAPI?.minimizeRecordButton) {
-                  window.electronAPI.minimizeRecordButton()
-                }
-
+              if (!success) {
                 setIsLoading(false)
-              } catch (error) {
-                console.error('Failed to load recording:', error)
-                setIsLoading(false)
+                setPreviewReady(false)
+                setLoadingMessage('')
+                return
               }
-            }}
-          />
-        </div>
-      </>
-    )
-  }
 
-  return (
-    <>
+              // Clear library data to free memory once the workspace is ready
+              clearLibrary()
+              ThumbnailGenerator.clearAllCache()
+
+              // Hide record button when entering workspace
+              if (window.electronAPI?.minimizeRecordButton) {
+                window.electronAPI.minimizeRecordButton()
+              }
+
+              setIsLoading(false)
+              setLoadingMessage('Loading...')
+            } catch (error) {
+              console.error('Failed to load recording:', error)
+              setIsLoading(false)
+              setPreviewReady(false)
+            }
+          }}
+        />
+      </div>
+    )
+  } else {
+    content = (
       <div className="fixed inset-0 flex flex-col bg-transparent" style={{ width: '100vw', height: '100vh' }}>
         {/* Top Toolbar - Hide during export to save resources */}
         {!isExporting && (
@@ -692,7 +673,12 @@ export function WorkspaceManager() {
                 {isUtilitiesOpen && (
                   <div
                     className="bg-transparent overflow-hidden flex-shrink-0"
-                    style={{ width: `min(${dragUtilitiesWidth ?? utilitiesPanelWidth}px, 40vw)` }}
+                    style={{
+                      width: `${Math.min(
+                        dragUtilitiesWidth ?? utilitiesPanelWidth,
+                        panelMaxWidth || Number.POSITIVE_INFINITY
+                      )}px`
+                    }}
                   >
                     <UtilitiesSidebar className="h-full w-full" />
                   </div>
@@ -752,24 +738,29 @@ export function WorkspaceManager() {
                     >
                       <div className="h-10 w-2 rounded-full bg-foreground/20 shadow-sm group-hover:bg-foreground/30 transition-colors" />
                     </div>
-                  <div
-                    className="bg-transparent overflow-hidden flex-shrink-0"
-                    style={{ width: `${dragPropertiesWidth ?? propertiesPanelWidth}px` }}
-                  >
-                    <EffectsSidebarProvider
-                      value={{
-                        onEffectChange: handleEffectChange,
-                        onZoomBlockUpdate: handleZoomBlockUpdate,
-                        onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
-                        onAddCrop: handleAddCrop,
-                        onRemoveCrop: handleRemoveCrop,
-                        onUpdateCrop: handleUpdateCrop,
-                        onStartEditCrop: handleStartEditCrop
+                    <div
+                      className="bg-transparent overflow-hidden flex-shrink-0"
+                      style={{
+                        width: `${Math.min(
+                          dragPropertiesWidth ?? propertiesPanelWidth,
+                          panelMaxWidth || Number.POSITIVE_INFINITY
+                        )}px`
                       }}
                     >
-                      <EffectsSidebar className="h-full w-full" />
-                    </EffectsSidebarProvider>
-                  </div>
+                      <EffectsSidebarProvider
+                        value={{
+                          onEffectChange: handleEffectChange,
+                          onZoomBlockUpdate: handleZoomBlockUpdate,
+                          onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
+                          onAddCrop: handleAddCrop,
+                          onRemoveCrop: handleRemoveCrop,
+                          onUpdateCrop: handleUpdateCrop,
+                          onStartEditCrop: handleStartEditCrop
+                        }}
+                      >
+                        <EffectsSidebar className="h-full w-full" />
+                      </EffectsSidebarProvider>
+                    </div>
                   </>
                 )}
               </div>
@@ -819,7 +810,13 @@ export function WorkspaceManager() {
           onClose={() => setExportOpen(false)}
         />
       </div>
+    )
+  }
 
+  return (
+    <>
+      {content}
+      {loadingOverlay}
     </>
   )
 }

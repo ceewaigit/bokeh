@@ -3,7 +3,6 @@
  * Uses deterministic, frame-perfect easing without spring physics
  */
 
-import React from 'react';
 import type { ZoomBlock } from '@/types/project';
 import type { CameraMotionBlurState, CameraSettings, MotionBlurConfig, ZoomTransform } from '@/types';
 import { smoothStep, smootherStep, easeInOutCubic, clamp01 } from '@/lib/core/math';
@@ -15,7 +14,9 @@ export { smoothStep, smootherStep, easeInOutCubic };
 // Now using smootherStep for ultra-smooth transitions
 const professionalZoomIn = (progress: number): number => {
   // Fast approach, slow landing - feels responsive yet polished
-  return smootherStep(progress);
+  const eased = smootherStep(progress);
+  // Softer takeoff to reduce early-frame jumpiness.
+  return Math.pow(eased, 1.35);
 };
 
 const professionalZoomOut = (progress: number): number => {
@@ -149,21 +150,24 @@ export function calculateZoomTransform(
   const blockDuration = activeBlock.endTime - activeBlock.startTime;
   const elapsed = currentTimeMs - activeBlock.startTime;
 
+  const introMs = activeBlock.introMs ?? 450;
+  const outroMs = activeBlock.outroMs ?? 800;
+
   // Calculate zoom scale - completely deterministic
   const targetScale = overrideScale ?? (activeBlock.scale || 2);
   const scale = calculateZoomScale(
     elapsed,
     blockDuration,
     targetScale,
-    activeBlock.introMs,
-    activeBlock.outroMs
+    introMs,
+    outroMs
   );
 
   // Keep the zoom fully locked on target during intro/hold; only blend back to center on outro.
-  const { duration, outro: effectiveOutro } = normalizeEaseDurations(
+  const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(
     blockDuration,
-    activeBlock.introMs ?? 500,
-    activeBlock.outroMs ?? 500
+    introMs,
+    outroMs
   );
   const clampedElapsed = Math.max(0, Math.min(duration, elapsed));
   const outroProgress = effectiveOutro > 0 && clampedElapsed > duration - effectiveOutro
@@ -187,8 +191,8 @@ export function calculateZoomTransform(
   // CRITICAL FIX: Scale the pan based on how much zoom has occurred.
   // When scale=1, we want NO panning. As scale approaches targetScale, we want full panning.
   // This prevents the ugly "pan first, then zoom" effect.
-  const scaleProgress = targetScale > 1 ? Math.max(0, (scale - 1) / (targetScale - 1)) : 0;
-  const panBlend = allowPanWithoutZoom && targetScale <= 1 ? 1 : smoothStep(scaleProgress);
+  const scaleProgress = targetScale > 1 ? clamp01((scale - 1) / (targetScale - 1)) : 0;
+  const panBlend = allowPanWithoutZoom && targetScale <= 1 ? 1 : scaleProgress;
 
   const rawPanX = (0.5 - blendedCenter.x) * videoWidth * scale;
   const rawPanY = (0.5 - blendedCenter.y) * videoHeight * scale;
@@ -198,11 +202,6 @@ export function calculateZoomTransform(
   // Calculate refocus blur - peaks mid-transition for camera-like focus pull
   // Default maxRefocusBlur is 0.4 (40% blur intensity) - can be wired to settings
   const maxRefocusBlur = 0.4;
-  const { intro: effectiveIntro } = normalizeEaseDurations(
-    blockDuration,
-    activeBlock.introMs ?? 450,
-    activeBlock.outroMs ?? 800
-  );
 
   let refocusBlur = 0;
   if (!disableRefocusBlur) {
@@ -266,41 +265,17 @@ export function calculateCameraMotionBlurFromDelta(
 ): CameraMotionBlurState {
   const velocity = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-  if (velocity < config.velocityThreshold) {
+  if (velocity <= 0.01) {
     return { blurRadius: 0, angle: 0, velocity };
   }
 
-  const excessVelocity = velocity - config.velocityThreshold;
-  const blurFraction = clamp01((excessVelocity * config.intensityMultiplier) / Math.max(0.0001, config.maxBlurRadius));
-
-  // Ease-in the blur for a more camera-like onset, while keeping the cap exact.
-  const eased = smootherStep(blurFraction);
-  const blurRadius = eased * config.maxBlurRadius;
+  // Lower threshold multiplier for more responsive blur activation
+  const threshold = config.velocityThreshold * 0.2;
+  const excessVelocity = Math.max(0, velocity - threshold);
+  const blurRadius = Math.min(config.maxBlurRadius, excessVelocity * config.intensityMultiplier);
   const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
 
   return { blurRadius, angle, velocity };
-}
-
-/**
- * Calculate motion blur based on camera pan velocity between frames.
- * Returns blur radius and direction for a cinematic pan effect.
- */
-export function calculateCameraMotionBlur(
-  prevPanX: number,
-  prevPanY: number,
-  currentPanX: number,
-  currentPanY: number,
-  config: {
-    maxBlurRadius: number;
-    velocityThreshold: number;
-    intensityMultiplier: number;
-  }
-): CameraMotionBlurState {
-  return calculateCameraMotionBlurFromDelta(
-    currentPanX - prevPanX,
-    currentPanY - prevPanY,
-    config
-  );
 }
 
 /**
@@ -334,37 +309,6 @@ export function calculateCameraMotionBlurFromCenters(
   return calculateCameraMotionBlurFromDelta(deltaX, deltaY, config);
 }
 
-
-/**
- * Create SVG filter element for directional motion blur.
- * Returns null if no motion blur should be applied.
- */
-export function createMotionBlurSvg(
-  blurRadius: number,
-  filterId: string
-): React.ReactNode {
-  if (blurRadius <= 0.2) return null;
-
-  return React.createElement('svg', {
-    style: { position: 'absolute', width: 0, height: 0 },
-    children: React.createElement('defs', null,
-      React.createElement('filter', {
-        id: filterId,
-        x: '-50%',
-        y: '-50%',
-        width: '200%',
-        height: '200%',
-      },
-        React.createElement('feGaussianBlur', {
-          in: 'SourceGraphic',
-          stdDeviation: `${blurRadius * 1.5} 0`,
-          result: 'blur',
-        })
-      )
-    )
-  });
-}
-
 /**
  * Get motion blur config from camera settings.
  */
@@ -373,8 +317,80 @@ export function getMotionBlurConfig(settings?: CameraSettings): MotionBlurConfig
   const threshold = settings?.motionBlurThreshold ?? 30;
   return {
     enabled: settings?.motionBlurEnabled ?? true,
-    maxBlurRadius: (intensity / 100) * 6,
-    velocityThreshold: 5 + (threshold / 100) * 20,
-    intensityMultiplier: 0.05 + (intensity / 100) * 0.15,
+    maxBlurRadius: (intensity / 100) * 30, // Increased from 22 to 30 for more visible blur
+    velocityThreshold: (threshold / 100) * 40, // Scaled to pixels/frame (0-40px). Allows masking slow moves.
+    // Significantly increased multiplier - camera physics smoothing produces small deltas,
+    // so we need a much higher multiplier to produce visible blur
+    intensityMultiplier: 1.0 + (intensity / 100) * 5.0, // Was 0.25 + 0.6, now 1.0 + 5.0
   };
+}
+
+/**
+ * Motion blur intensity result for CSS integration.
+ */
+export interface MotionBlurIntensity {
+  /** Blur radius in pixels (0 = no blur) */
+  blurPx: number;
+  /** Scale factor for X-axis (1 = no stretch) */
+  scaleX: number;
+  /** Scale factor for Y-axis (1 = no stretch) */
+  scaleY: number;
+}
+
+/**
+ * Calculate motion blur intensity with smooth easing to prevent flickering.
+ * Uses exponential moving average for smooth transitions.
+ * 
+ * @param velocity - Camera velocity in pixels per frame
+ * @param config - Motion blur configuration
+ * @param prevIntensity - Previous frame's blur intensity (for smoothing)
+ * @returns Blur parameters for CSS integration
+ */
+export function calculateMotionBlurIntensity(
+  velocity: { x: number; y: number },
+  config: MotionBlurConfig,
+  prevIntensity: number = 0
+): MotionBlurIntensity {
+  if (!config.enabled) {
+    return { blurPx: 0, scaleX: 1, scaleY: 1 };
+  }
+
+  const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+
+  // Smooth easing factor (exponential moving average)
+  // Lower = smoother transitions, higher = more responsive
+  const easingFactor = 0.25; // Slower easing for subtler transitions
+
+  // Velocity threshold in pixels per frame (higher = requires more speed to trigger)
+  const threshold = config.velocityThreshold * 15;
+
+  // Target intensity based on velocity - MUCH more subtle
+  // Max blur capped at 3-4px for subtle effect (was up to 30px)
+  const maxSubtleBlur = Math.min(4, config.maxBlurRadius * 0.15);
+  const targetIntensity = speed > threshold
+    ? clamp01((speed - threshold) / 100) * maxSubtleBlur // Increased divisor for gentler curve
+    : 0;
+
+  // Smoothly transition to target (prevents abrupt on/off flickering)
+  const smoothedIntensity = prevIntensity + (targetIntensity - prevIntensity) * easingFactor;
+
+  // Only apply blur if above minimum threshold (prevents micro-blur noise)
+  const blurPx = smoothedIntensity < 0.3 ? 0 : Math.round(smoothedIntensity * 10) / 10;
+
+  // Direction-based scale stretch (enhanced for more noticeable directionality)
+  // Since blur is subtle, we rely more on directional stretching
+  if (blurPx > 0 && speed > 0.1) {
+    const normalizedX = velocity.x / speed;
+    const normalizedY = velocity.y / speed;
+    // Slightly more stretch to compensate for reduced blur radius
+    const stretchAmount = Math.min(0.008, blurPx * 0.002);
+
+    return {
+      blurPx,
+      scaleX: 1 + Math.abs(normalizedX) * stretchAmount,
+      scaleY: 1 + Math.abs(normalizedY) * stretchAmount,
+    };
+  }
+
+  return { blurPx, scaleX: 1, scaleY: 1 };
 }

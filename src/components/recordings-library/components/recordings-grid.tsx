@@ -13,7 +13,8 @@ interface RecordingsGridProps {
   gridCapacity: number
   isExpandedLayout: boolean
   onSelect: (recording: LibraryRecordingView) => void
-  onRequestDelete: (recording: LibraryRecordingView) => void
+  onRequestDelete?: (recording: LibraryRecordingView) => void
+  showDeleteAction?: boolean
 }
 
 export const RecordingsGrid = ({
@@ -21,7 +22,8 @@ export const RecordingsGrid = ({
   gridCapacity,
   isExpandedLayout,
   onSelect,
-  onRequestDelete
+  onRequestDelete,
+  showDeleteAction = true
 }: RecordingsGridProps) => {
   const placeholders = useMemo(() => {
     return Array.from({
@@ -212,20 +214,22 @@ export const RecordingsGrid = ({
                     'group-hover:opacity-100 group-hover:translate-y-0'
                   )}
                 >
-                  <div className="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-md p-0.5 shadow-sm border border-white/10">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="w-5 h-5 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onRequestDelete(recording)
-                      }}
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
+                  {showDeleteAction && (
+                    <div className="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-md p-0.5 shadow-sm border border-white/10">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-5 h-5 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRequestDelete?.(recording)
+                        }}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

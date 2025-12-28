@@ -164,12 +164,12 @@ export const ZOOM_TRANSITION_CONFIG = {
 // CAMERA MOTION BLUR (cinematic pan blur during camera movement)
 // =============================================================================
 export const CAMERA_MOTION_BLUR_CONFIG = {
-    /** Maximum blur radius in pixels - subtle is better */
-    maxBlurRadius: 3,
-    /** Velocity threshold to start applying blur (px/frame delta) - higher = blur only on real motion */
-    velocityThreshold: 10,
-    /** Blur intensity multiplier - lower for subtler effect */
-    intensityMultiplier: 0.06,
+    /** Maximum blur radius in pixels */
+    maxBlurRadius: 8,
+    /** Velocity threshold to start applying blur (px/frame delta) - only blur on fast pans */
+    velocityThreshold: 20,
+    /** Blur intensity multiplier */
+    intensityMultiplier: 0.08,
 } as const
 
 // =============================================================================

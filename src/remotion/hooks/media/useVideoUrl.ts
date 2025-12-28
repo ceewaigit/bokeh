@@ -76,6 +76,11 @@ export function useVideoUrl({
     // Previously, switching to proxy on play caused VTDecoder churn every start/stop
     // Now we use consistent resolution logic regardless of playback state
 
+    // KISS: In preview, prefer proxy for performance unless user explicitly asked for high quality.
+    if (!isRendering && !isHighQualityPlaybackEnabled && recording.previewProxyUrl) {
+      return recording.previewProxyUrl;
+    }
+
     // Force proxy for preload videos
     // Preload shows first frame briefly - doesn't need full resolution
     if (forceProxy && recording.previewProxyUrl) {

@@ -1,20 +1,9 @@
 import { BrowserWindow, screen } from 'electron'
 import * as path from 'path'
 import { getAppURL } from '../config'
-import { getContentSecurityPolicy } from './content-security-policy'
+import { applyContentSecurityPolicy } from './content-security-policy'
 
 // Webpack entry points are set as environment variables by electron-forge
-
-function setupSecurityPolicy(window: BrowserWindow): void {
-  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': getContentSecurityPolicy()
-      }
-    })
-  })
-}
 
 export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
@@ -81,7 +70,7 @@ export function createRecordButton(): BrowserWindow {
   }
 
   // Apply CSP so blob: media URLs are allowed
-  setupSecurityPolicy(recordButton)
+  applyContentSecurityPolicy(recordButton)
 
   if (isDev) {
     recordButton.webContents.openDevTools({ mode: 'detach' })

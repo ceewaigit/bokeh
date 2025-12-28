@@ -16,6 +16,7 @@ export const createCacheSlice: CreateCacheSlice = (set) => ({
     cameraPathCache: null,
     frameLayoutCache: null,
     timelineMutationCounter: 0,
+    previewReady: false,
 
     // Actions
     setCameraPathCache: (cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null) => {
@@ -27,6 +28,12 @@ export const createCacheSlice: CreateCacheSlice = (set) => ({
     setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => {
         set((state) => {
             state.frameLayoutCache = cache
+        })
+    },
+
+    setPreviewReady: (ready: boolean) => {
+        set((state) => {
+            state.previewReady = ready
         })
     },
 

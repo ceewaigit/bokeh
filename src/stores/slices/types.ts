@@ -49,6 +49,11 @@ export interface StoreSettings {
     motionBlurEnabled: boolean
     motionBlurIntensity: number
     motionBlurThreshold: number
+    motionBlurSmoothWindow?: number
+    motionBlurRampRange?: number
+    motionBlurClamp?: number
+    motionBlurGamma?: number
+    motionBlurBlackLevel: number
     refocusBlurEnabled: boolean
     refocusBlurIntensity: number
   }
@@ -102,6 +107,7 @@ export interface CacheSliceState {
   cameraPathCache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
   frameLayoutCache: FrameLayoutItem[] | null
   timelineMutationCounter: number
+  previewReady: boolean
 }
 
 export interface ProgressState {
@@ -235,6 +241,7 @@ export interface TimelineSliceActions extends ClipSliceActions, EffectsSliceActi
 export interface CacheSliceActions {
   setCameraPathCache: (cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null) => void
   setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
+  setPreviewReady: (ready: boolean) => void
   invalidateAllCaches: () => void
 }
 

@@ -44,7 +44,7 @@ const TRACK_LABELS: Record<TimelineTrackType, string> = {
   [TimelineTrackType.Screen]: 'Screen',
   [TimelineTrackType.Keystroke]: 'Keystrokes',
   [TimelineTrackType.Plugin]: 'Plugins',
-  [TimelineTrackType.Annotation]: 'Notes',
+  [TimelineTrackType.Annotation]: 'Overlay',
 }
 
 // Minimal visibility dropdown - Apple-esque design

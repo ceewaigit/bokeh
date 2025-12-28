@@ -422,8 +422,9 @@ export const TimelineTrack = React.memo(({
           text={style.labelText}
           fontSize={fontSize}
           fill={labelTextColor}
-          fontFamily="Inter, system-ui, -apple-system, sans-serif"
-          fontStyle="bold"
+          // Improved Typography
+          fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          fontStyle="600"
           align="center"
           verticalAlign="middle"
           x={0}
@@ -431,7 +432,7 @@ export const TimelineTrack = React.memo(({
           width={labelDiameter}
           height={labelDiameter}
           offsetX={labelDiameter / 2}
-          offsetY={labelDiameter / 2}
+          offsetY={labelDiameter / 2 - 1.5} // Slight vertical correction for font baseline
         />
       </AnimatedLabelContent>
     </AnimatedGroup>

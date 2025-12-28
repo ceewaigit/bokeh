@@ -1,15 +1,35 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera } from 'lucide-react'
+import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera, Library } from 'lucide-react'
 import { cn, formatTime } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
 import { toast } from 'sonner'
-import { TrackType, type Project } from '@/types/project'
+import { TrackType, type Project, type Recording, type RecordingMetadata, type Clip } from '@/types/project'
 import { addAssetRecording } from '@/lib/timeline/timeline-operations'
 import { useAssetLibraryStore, type Asset } from '@/stores/asset-library-store'
 import { getVideoMetadataFromPath } from '@/lib/utils/video-metadata'
 import { SUPPORTED_PROJECT_EXTENSIONS } from '@/lib/storage/recording-storage'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { useRecordingsLibraryData } from '@/components/recordings-library/hooks/use-recordings-library-data'
+import { LibrarySearch } from '@/components/recordings-library/components/library-search'
+import { LibrarySort } from '@/components/recordings-library/components/library-sort'
+import { RecordingsGrid } from '@/components/recordings-library/components/recordings-grid'
+import { type LibraryRecordingView } from '@/stores/recordings-library-store'
+import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '@/components/recordings-library/utils/recording-paths'
+import { ProjectIOService } from '@/lib/storage/project-io-service'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { CommandExecutor } from '@/lib/commands/base/CommandExecutor'
+import { ImportRecordingCommand } from '@/lib/commands/timeline/ImportRecordingCommand'
+
+const EMPTY_METADATA: RecordingMetadata = {
+    mouseEvents: [],
+    keyboardEvents: [],
+    clickEvents: [],
+    scrollEvents: [],
+    screenEvents: [],
+}
 
 // --- Metadata Helpers ---
 
@@ -257,6 +277,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
 export function ImportMediaSection() {
     const [isDragOver, setIsDragOver] = useState(false)
     const [ingestQueue, setIngestQueue] = useState<IngestQueueItem[]>([])
+    const [isLibraryDialogOpen, setIsLibraryDialogOpen] = useState(false)
     const ingestCleanupTimeoutRef = useRef<number | null>(null)
 
     // Asset Library Store
@@ -269,6 +290,25 @@ export function ImportMediaSection() {
 
     const currentProject = useProjectStore((s) => s.currentProject)
     const updateProjectData = useProjectStore((s) => s.updateProjectData)
+
+    const {
+        searchQuery,
+        setSearchQuery,
+        sortKey,
+        sortDirection,
+        setSort,
+        recordings: libraryRecordings,
+        displayedRecordings,
+        currentPage,
+        totalPages,
+        loading: libraryLoading,
+        loadRecordings,
+        showHydrationIndicator,
+        handlePrevPage,
+        handleNextPage,
+        canPrev,
+        canNext
+    } = useRecordingsLibraryData(18)
 
     useEffect(() => {
         return () => {
@@ -374,6 +414,127 @@ export function ImportMediaSection() {
 
     }, [ingestFile])
 
+    const handleImportFromLibrary = useCallback(async (recording: LibraryRecordingView) => {
+        if (!currentProject) {
+            toast.error('Open a project to add a recording')
+            return
+        }
+
+        try {
+            const sourceProject = await ProjectIOService.loadProject(recording.path)
+            const sourceRecordings = (sourceProject.recordings ?? []).filter(rec => rec.sourceType === 'video')
+            const sourceEffects = sourceProject.timeline.effects ?? []
+            const sourceClips = sourceProject.timeline.tracks.flatMap(track => track.clips)
+
+            if (sourceRecordings.length === 0) {
+                toast.error('No video recordings found in this library item')
+                return
+            }
+
+            const projectFilePath = await getProjectFilePath(recording.path, window.electronAPI?.fileExists)
+            const projectDir = getProjectDir(recording.path, projectFilePath)
+            const toImport: Array<{
+                recording: Recording
+                trackType: TrackType
+                sourceClip?: Clip
+            }> = []
+            let missingMetadataCount = 0
+
+            for (const rec of sourceRecordings) {
+                if (!rec.filePath || !isValidFilePath(rec.filePath)) continue
+
+                const cloned = structuredClone(rec) as Recording
+                if (!cloned.filePath) continue
+                const sourceId = cloned.id
+                const sourceClip = sourceClips
+                    .filter(clip => clip.recordingId === sourceId)
+                    .sort((a, b) => a.startTime - b.startTime)[0]
+
+                const resolvedPath = await resolveRecordingMediaPath({
+                    projectDir,
+                    filePath: cloned.filePath,
+                    recordingId: sourceId,
+                    fileExists: window.electronAPI?.fileExists
+                })
+
+                if (!resolvedPath) continue
+                cloned.filePath = resolvedPath
+
+                if (cloned.folderPath && !cloned.folderPath.startsWith('/')) {
+                    cloned.folderPath = `${projectDir}/${cloned.folderPath}`
+                }
+
+                if (!cloned.folderPath || !cloned.metadataChunks) {
+                    cloned.metadata = cloned.metadata ?? EMPTY_METADATA
+                    missingMetadataCount += 1
+                } else if (!cloned.metadata) {
+                    try {
+                        cloned.metadata = await RecordingStorage.loadMetadataChunks(cloned.folderPath, cloned.metadataChunks)
+                    } catch (error) {
+                        console.warn('Failed to load recording metadata during import:', error)
+                    }
+                }
+
+                if (cloned.metadata && cloned.captureArea && !cloned.metadata.captureArea) {
+                    cloned.metadata = { ...cloned.metadata, captureArea: cloned.captureArea }
+                }
+
+                if (!cloned.effects) {
+                    cloned.effects = []
+                }
+
+                cloned.id = `imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+                if (cloned.metadata) {
+                    RecordingStorage.setMetadata(cloned.id, cloned.metadata)
+                }
+
+                const isWebcam = sourceId.startsWith('webcam-') || cloned.filePath.includes('/webcam-')
+                const trackType = isWebcam ? TrackType.Webcam : TrackType.Video
+                toImport.push({ recording: cloned, trackType, sourceClip })
+            }
+
+            if (toImport.length === 0) {
+                toast.error('No importable recordings found in this library item')
+                return
+            }
+
+            if (!CommandExecutor.isInitialized()) {
+                toast.error('Undo/redo is unavailable right now')
+                return
+            }
+
+            const executor = CommandExecutor.getInstance()
+            if (toImport.length > 1) {
+                executor.beginGroup('import-recordings')
+            }
+
+                for (const entry of toImport) {
+                    const result = await executor.execute(ImportRecordingCommand, {
+                        recording: entry.recording,
+                        trackType: entry.trackType,
+                        sourceClip: entry.sourceClip,
+                        sourceEffects
+                    })
+                    if (!result.success) {
+                        const errorMessage = result.error instanceof Error ? result.error.message : result.error
+                        throw new Error(errorMessage || 'Failed to import recording')
+                    }
+                }
+
+            if (toImport.length > 1) {
+                await executor.endGroup()
+            }
+
+            const importedCount = toImport.length
+            toast.success(`Added ${importedCount} recording${importedCount === 1 ? '' : 's'} to your timeline`)
+            if (missingMetadataCount > 0) {
+                toast.warning(`Imported ${missingMetadataCount} clip${missingMetadataCount === 1 ? '' : 's'} without metadata`)
+            }
+        } catch (error) {
+            console.error('Failed to import from library:', error)
+            toast.error('Failed to import from library')
+        }
+    }, [currentProject, updateProjectData])
 
     // --- Add Asset To Project Logic ---
 
@@ -468,7 +629,96 @@ export function ImportMediaSection() {
     }
 
     return (
-        <div className="flex flex-col h-full bg-transparent">
+        <>
+            <Dialog open={isLibraryDialogOpen} onOpenChange={setIsLibraryDialogOpen}>
+                <DialogContent className="max-w-5xl w-[min(92vw,1100px)] p-0 gap-0 overflow-hidden">
+                    <DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
+                        <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                <Library className="h-4 w-4" />
+                            </span>
+                            Import from Library
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-muted-foreground">
+                            Choose a recording to add it directly to your timeline.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="px-5 py-3 border-b border-border/40 flex flex-wrap items-center justify-between gap-3 bg-muted/20">
+                        <div className="flex items-center gap-3">
+                            <LibrarySearch query={searchQuery} onQueryChange={setSearchQuery} />
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                <span className="rounded-full bg-muted/40 px-2 py-0.5 font-mono">
+                                    {libraryRecordings.length}
+                                </span>
+                                recordings
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <LibrarySort sortKey={sortKey} sortDirection={sortDirection} onSortChange={setSort} />
+                            <Button variant="outline" size="sm" onClick={() => loadRecordings(true)}>
+                                Refresh
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-5 py-4 min-h-[320px] max-h-[65vh]">
+                        {libraryLoading ? (
+                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Loading recordings…
+                            </div>
+                        ) : libraryRecordings.length === 0 ? (
+                            <div className="flex h-full flex-col items-center justify-center text-sm text-muted-foreground">
+                                <div className="mb-2 h-10 w-10 rounded-full bg-muted/40 flex items-center justify-center">
+                                    <Film className="h-5 w-5" />
+                                </div>
+                                No recordings found yet.
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <p className="text-[11px] text-muted-foreground">
+                                    Tip: Click a recording to add it as a full clip.
+                                </p>
+                                <RecordingsGrid
+                                    recordings={displayedRecordings}
+                                    gridCapacity={displayedRecordings.length}
+                                    isExpandedLayout={true}
+                                    onSelect={handleImportFromLibrary}
+                                    showDeleteAction={false}
+                                />
+                                {showHydrationIndicator && (
+                                    <div className="flex justify-center pt-2">
+                                        <div className="bg-muted/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
+                                            <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
+                                            <span className="text-[10px] font-medium text-muted-foreground">Loading page…</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="px-5 py-3 border-t border-border/40 flex items-center justify-between">
+                        <div className="text-[11px] text-muted-foreground">
+                            Page {currentPage} of {totalPages}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" disabled={!canPrev} onClick={handlePrevPage}>
+                                Previous
+                            </Button>
+                            <Button variant="outline" size="sm" disabled={!canNext} onClick={handleNextPage}>
+                                Next
+                            </Button>
+                            <Button size="sm" onClick={() => setIsLibraryDialogOpen(false)}>
+                                Done
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <div className="flex flex-col h-full bg-transparent">
             {/* Import Drop Area */}
             <div className="p-2.5 bg-transparent shrink-0">
                 <button
@@ -494,6 +744,22 @@ export function ImportMediaSection() {
                     <div>
                         <p className="text-[12px] font-semibold text-foreground/90">Import Media</p>
                         <p className="text-[11px] text-muted-foreground">Images, Videos, Audio</p>
+                    </div>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setIsLibraryDialogOpen(true)}
+                    className={cn(
+                        "mt-2 w-full rounded-md border border-border/50 text-left transition-all duration-200",
+                        "flex items-center gap-2.5 p-2.5 bg-muted/10 hover:bg-muted/20 hover:border-border/70"
+                    )}
+                >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted/30 text-muted-foreground">
+                        <Library className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <p className="text-[12px] font-semibold text-foreground/90">From Library</p>
+                        <p className="text-[11px] text-muted-foreground">Your recordings, ready to reuse</p>
                     </div>
                 </button>
                 <input
@@ -554,6 +820,7 @@ export function ImportMediaSection() {
                     )}
                 </div>
             </div>
-        </div>
+            </div>
+        </>
     )
 }

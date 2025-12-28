@@ -1,4 +1,5 @@
 export { AddClipCommand } from './AddClipCommand'
+export { ImportRecordingCommand } from './ImportRecordingCommand'
 export { RemoveClipCommand } from './RemoveClipCommand'
 export { SplitClipCommand } from './SplitClipCommand'
 export { DuplicateClipCommand } from './DuplicateClipCommand'

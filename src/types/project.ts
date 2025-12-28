@@ -757,8 +757,8 @@ export interface AnnotationStyle {
 }
 
 export interface AnnotationData {
-  type?: 'text' | 'arrow' | 'highlight' | 'keyboard'
-  /** Position in 0-100% of canvas (center anchor for positioned elements) */
+  type?: AnnotationType
+  /** Position in 0-100% of canvas (top-left for text/highlight/keyboard, start point for arrows) */
   position?: { x: number; y: number }
   content?: string
   style?: AnnotationStyle
@@ -819,10 +819,39 @@ export interface ProjectSettings {
     motionBlurEnabled?: boolean
     motionBlurIntensity?: number  // 0-100
     motionBlurThreshold?: number  // 0-100
+    /** Ease-in rate: how fast blur fades in (0.1 = slow, 1.0 = instant) */
+    motionBlurEaseIn?: number  // 0.1-1.0
+    /** Ease-out rate: how fast blur fades out (0.1 = trailing, 1.0 = instant) */
+    motionBlurEaseOut?: number  // 0.1-1.0
+    /** Gamma correction for blur overlay: 1.0 = linear, 2.2 = sRGB standard */
+    motionBlurGamma?: number  // 0.5-3.0
     /** Enable camera-like refocus blur during zoom transitions */
     refocusBlurEnabled?: boolean
     /** Intensity of refocus blur effect 0-100 (default: 40) */
     refocusBlurIntensity?: number
+
+    // --- Advanced Motion Blur Tuning ---
+    /** Window size for velocity smoothing (in frames). Default 3. 1 = Instant/Raw. */
+    motionBlurSmoothWindow?: number // 1-15
+    /** Range for soft knee transition (as factor of threshold). Default 0.5. */
+    motionBlurRampRange?: number // 0.1-2.0
+    /** Max blur radius clamp (in pixels). Default 60. */
+    /** Max blur radius clamp (in pixels). Default 60. */
+    motionBlurClamp?: number // 10-200
+
+    // --- Advanced Color & Debug ---
+    /** Number of samples for the blur (Quality). Default dynamic. */
+    motionBlurSamples?: number // 5-64
+    /** WebGL Context Color Space. Default 'srgb'. */
+    motionBlurColorSpace?: 'srgb' | 'display-p3'
+    /** Unpack Premultiply Alpha. Default false. */
+    motionBlurUnpackPremultiply?: boolean
+    /** Manual Black Level (0.0 - 0.2). Default 0.0. */
+    motionBlurBlackLevel?: number
+    /** Show Split-Screen Debug View. Default false. */
+    motionBlurDebugSplit?: boolean
+    /** Force enable blur for debugging (ignores velocity). Default false. */
+    motionBlurForce?: boolean
   }
   /** Canvas settings for aspect ratio and output dimensions */
   canvas: CanvasSettings

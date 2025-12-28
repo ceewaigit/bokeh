@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender, getRemotionEnvironment } from 'remotion';
+import { AbsoluteFill, Img, delayRender, continueRender } from 'remotion';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
 import type { CursorLayerProps } from '@/types';
 import {
@@ -9,6 +9,7 @@ import {
   getCursorImagePath,
 } from '../../../lib/effects/cursor-types';
 import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../../../lib/effects/utils/cursor-calculator';
+import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects';
 
 import { normalizeClickEvents, normalizeMouseEvents } from '../utils/events/event-normalizer';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
@@ -91,12 +92,9 @@ export const CursorLayer = React.memo(({
   metadataUrls,
 }: CursorLayerProps) => {
   const { fps } = useComposition();
-  const { isRendering } = getRemotionEnvironment();
 
   // Get ACTUAL video position and clip data from SharedVideoController (SSOT)
   const videoPositionContext = useVideoPosition();
-
-  const frame = useCurrentFrame();
 
   // USE SHARED DATA FROM CONTEXT (SSOT from SharedVideoController)
   // This eliminates duplicate recordingsMap construction and frameLayout/clipData calculation
@@ -151,8 +149,6 @@ export const CursorLayer = React.memo(({
   // Cache cursor states by SOURCE TIME (milliseconds, not frame numbers)
   // This prevents cursor blinking during sped-up playback
   const frameStateCacheRef = useRef<Map<number, CursorState>>(new Map());
-  const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
-  const lastFrameRef = useRef<number>(-1);
 
   // SINGLETON: Pre-cache all cursor images once across all CursorLayer instances
   useEffect(() => {
@@ -305,46 +301,6 @@ export const CursorLayer = React.memo(({
   const debugTipX = cursorBaseOffsetX + debugNormalizedX * cursorAreaWidth;
   const debugTipY = cursorBaseOffsetY + debugNormalizedY * cursorAreaHeight;
 
-  // Update position history for motion trail calculation
-  useEffect(() => {
-    if (frame !== lastFrameRef.current && cursorPosition) {
-      lastFrameRef.current = frame;
-
-      // Add current position to history
-      positionHistoryRef.current.push({
-        x: cursorTipX,
-        y: cursorTipY,
-        time: currentSourceTime
-      });
-
-      // Keep only recent positions (last 100ms for trail effect)
-      const cutoffTime = currentSourceTime - 100;
-      positionHistoryRef.current = positionHistoryRef.current.filter(
-        pos => pos.time > cutoffTime
-      );
-    }
-  }, [frame, cursorTipX, cursorTipY, cursorPosition, currentSourceTime]);
-
-  // Calculate motion velocity for blur effect
-  const motionVelocity = useMemo(() => {
-    const history = positionHistoryRef.current;
-    if (history.length < 2) return { speed: 0, angle: 0 };
-
-    const recent = history[history.length - 1];
-    const prev = history[Math.max(0, history.length - 5)]; // Look back a few frames
-
-    if (!recent || !prev) return { speed: 0, angle: 0 };
-
-    const deltaX = recent.x - prev.x;
-    const deltaY = recent.y - prev.y;
-    const deltaTime = Math.max(1, recent.time - prev.time);
-
-    const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
-    const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-
-    return { speed: Math.min(speed * 50, 20), angle }; // Cap max blur
-  }, [frame]);
-
   // Apply cursor size from cursor state
   const cursorSize = cursorState.scale;
 
@@ -483,6 +439,20 @@ export const CursorLayer = React.memo(({
   const renderedWidth = dimensions.width * cursorSize * videoDisplayScale;
   const renderedHeight = dimensions.height * cursorSize * videoDisplayScale;
 
+  const motionBlurIntensity = cursorData?.motionBlurIntensity ?? DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40;
+  const motionBlurEnabled = (cursorData?.motionBlur ?? DEFAULT_CURSOR_DATA.motionBlur ?? true) && motionBlurIntensity > 0;
+  const motionBlurSample = motionBlurEnabled ? cursorState.motionBlur : undefined;
+
+  const previousNormalizedX = motionBlurSample
+    ? (shouldClampToScreen ? Math.max(0, Math.min(1, motionBlurSample.previousX / captureWidth)) : (motionBlurSample.previousX / captureWidth))
+    : null;
+  const previousNormalizedY = motionBlurSample
+    ? (shouldClampToScreen ? Math.max(0, Math.min(1, motionBlurSample.previousY / captureHeight)) : (motionBlurSample.previousY / captureHeight))
+    : null;
+
+  let previousTipX = previousNormalizedX != null ? cursorBaseOffsetX + previousNormalizedX * cursorAreaWidth : null;
+  let previousTipY = previousNormalizedY != null ? cursorBaseOffsetY + previousNormalizedY * cursorAreaHeight : null;
+
   // Initialize cursor position
   let cursorX = cursorTipX;
   let cursorY = cursorTipY;
@@ -501,6 +471,18 @@ export const CursorLayer = React.memo(({
     );
     cursorX = transformed.x;
     cursorY = transformed.y;
+
+    if (previousTipX != null && previousTipY != null) {
+      const previousTransformed = applyCssTransformToPoint(
+        previousTipX,
+        previousTipY,
+        originX,
+        originY,
+        videoPositionContext.contentTransform
+      );
+      previousTipX = previousTransformed.x;
+      previousTipY = previousTransformed.y;
+    }
   }
 
 
@@ -508,6 +490,8 @@ export const CursorLayer = React.memo(({
   // This positions the cursor image so the hotspot aligns with the transformed tip position
   cursorX -= hotspot.x * renderedWidth;
   cursorY -= hotspot.y * renderedHeight;
+  const previousCursorX = previousTipX != null ? previousTipX - hotspot.x * renderedWidth : null;
+  const previousCursorY = previousTipY != null ? previousTipY - hotspot.y * renderedHeight : null;
 
   // Stabilize sub-pixel transforms to avoid shadow flicker on some GPUs.
   const stableCursorX = Math.round(cursorX * 100) / 100;
@@ -521,60 +505,89 @@ export const CursorLayer = React.memo(({
   const debugHotspotXAbs = debugHotspotX + debugOffsetX;
   const debugHotspotYAbs = debugHotspotY + debugOffsetY;
 
-  // Single, stable shadow filter - prevents GPU flicker from complex filter stacks
-  // Using a simpler filter reduces compositing complexity
-  const motionBlurFilter = 'drop-shadow(0 1px 3px rgba(0,0,0,0.2))';
+  // Subtle shadow on main cursor - slightly reduced when motion blur trails are active
+  const cursorShadow = motionBlurEnabled
+    ? 'drop-shadow(0 1px 1px rgba(0,0,0,0.12))'
+    : 'drop-shadow(0 1px 2px rgba(0,0,0,0.18))';
 
-  // Generate motion trail for smooth gliding effect (optimized for performance)
-  // NOTE: Motion trail is disabled during export because it relies on sequential
-  // frame-by-frame position history which isn't deterministic during parallel export
-  const motionTrail = useMemo(() => {
-    if (isRendering) return null; // Disable during export - not deterministic
-    if (!cursorData || !cursorData.gliding) return null;
-    if (motionVelocity.speed < 3) return null; // Higher threshold to reduce renders
+  // Simple cursor motion blur - clean CSS blur proportional to velocity
+  const cursorMotionBlurPx = useMemo(() => {
+    if (!motionBlurEnabled || !motionBlurSample) return 0;
+    const intensity = motionBlurIntensity / 100;
+    // Gate low-speed blur to avoid mushiness during micro-movements.
+    const minVelocity = 6;
+    const maxVelocity = 28;
+    if (motionBlurSample.velocity < minVelocity) return 0;
+    const t = Math.min(1, Math.max(0, (motionBlurSample.velocity - minVelocity) / (maxVelocity - minVelocity)));
+    const eased = t * t;
+    return Math.round(eased * intensity * 2.4 * 10) / 10;
+  }, [motionBlurEnabled, motionBlurIntensity, motionBlurSample]);
 
-    const trailCount = Math.min(Math.floor(motionVelocity.speed / 3), 3); // Fewer trails for better performance
-    const trails = [];
+  // Simplified trail: single ghost cursor for clean motion effect
+  const motionBlurTrail = useMemo(() => {
+    if (!motionBlurEnabled || !motionBlurSample) return null;
+    if (previousCursorX == null || previousCursorY == null) return null;
 
-    for (let i = 1; i <= trailCount; i++) {
-      const opacity = cursorState.opacity * (0.08 * (1 - i / (trailCount + 1))); // Subtler opacity
-      const offset = i * 4; // Slightly larger spacing
-      const offsetX = -Math.cos(motionVelocity.angle * Math.PI / 180) * offset;
-      const offsetY = -Math.sin(motionVelocity.angle * Math.PI / 180) * offset;
+    const deltaX = stableCursorX - previousCursorX;
+    const deltaY = stableCursorY - previousCursorY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-      trails.push(
-        <div
-          key={`trail-${i}`}
+    // Only show trail for significant movement
+    if (distance < 16) return null;
+
+    const intensity = motionBlurIntensity / 100;
+    const trailOffset = Math.min(12, distance * 0.4);
+    const unitX = deltaX / distance;
+    const unitY = deltaY / distance;
+    const velocityEase = Math.min(1, Math.max(0, (motionBlurSample.velocity - 8) / 24));
+    if (velocityEase < 0.45 || intensity < 0.35) return null;
+
+    // Single clean ghost trail
+    const trailX = stableCursorX - unitX * trailOffset * (0.5 + 0.5 * velocityEase);
+    const trailY = stableCursorY - unitY * trailOffset * (0.5 + 0.5 * velocityEase);
+    const trailOpacity = cursorState.opacity * intensity * (0.06 + 0.12 * velocityEase);
+    const trailBlur = 0.9 + intensity * (0.9 + 1.1 * velocityEase);
+
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          transform: `translate3d(${trailX}px, ${trailY}px, 0)`,
+          opacity: trailOpacity,
+          zIndex: 99,
+          pointerEvents: 'none',
+        }}
+      >
+        <Img
+          src={getCursorImagePath(cursorType)}
           style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            transform: `translate3d(${stableCursorX + offsetX}px, ${stableCursorY + offsetY}px, 0)`,
-            opacity,
-            zIndex: 99 - i,
-            pointerEvents: 'none',
-            willChange: 'transform, opacity',
+            width: renderedWidth,
+            height: renderedHeight,
+            transform: `scale(${clickScale * 0.95})`,
+            transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
+            filter: `blur(${trailBlur}px)`,
           }}
-        >
-          <Img
-            src={getCursorImagePath(cursorType)}
-            style={{
-              width: renderedWidth,
-              height: renderedHeight,
-              transform: `perspective(${cursorPerspective}px) rotateX(${cursorTiltX}deg) rotateY(${cursorTiltY}deg) rotateZ(${cursorRotation}deg) scale(${clickScale * (1 - i * 0.1)})`,
-              transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
-              filter: `blur(${i * 0.5}px)`,
-              willChange: 'transform',
-              transformStyle: 'preserve-3d',
-              backfaceVisibility: 'hidden',
-            }}
-          />
-        </div>
-      );
-    }
-
-    return trails;
-  }, [isRendering, motionVelocity, cursorX, cursorY, cursorType, renderedWidth, renderedHeight, hotspot, clickScale, cursorData, cursorState.opacity]);
+        />
+      </div>
+    );
+  }, [
+    clickScale,
+    cursorState.opacity,
+    cursorType,
+    hotspot.x,
+    hotspot.y,
+    motionBlurEnabled,
+    motionBlurIntensity,
+    motionBlurSample,
+    previousCursorX,
+    previousCursorY,
+    renderedHeight,
+    renderedWidth,
+    stableCursorX,
+    stableCursorY,
+  ]);
 
   // Don't unmount when hidden - keep component mounted to prevent blinking
   // Instead, return transparent AbsoluteFill
@@ -654,8 +667,8 @@ export const CursorLayer = React.memo(({
               pointerEvents: 'none',
             }}
           >
-            {/* Motion trail for gliding effect */}
-            {motionTrail}
+            {/* Motion blur trail */}
+            {motionBlurTrail}
 
             {/* Click effects */}
             {clickEffects}
@@ -670,7 +683,7 @@ export const CursorLayer = React.memo(({
                 opacity: cursorState.opacity,
                 zIndex: 100,
                 pointerEvents: 'none',
-                filter: motionBlurFilter,
+                filter: cursorShadow,
                 willChange: 'transform, opacity',
               }}
             >
@@ -685,6 +698,7 @@ export const CursorLayer = React.memo(({
                   willChange: 'transform',
                   transformStyle: 'preserve-3d',
                   backfaceVisibility: 'hidden',
+                  filter: cursorMotionBlurPx > 0 ? `blur(${cursorMotionBlurPx}px)` : undefined,
                   transition: 'none' // Disable CSS transitions for smoother frame-by-frame animation
                 }}
               />

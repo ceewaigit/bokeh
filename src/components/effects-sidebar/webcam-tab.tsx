@@ -168,6 +168,15 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
   }, [webcamRecording?.width, webcamRecording?.height])
 
   const sourceCrop = webcamData?.sourceCrop ?? DEFAULT_CROP_DATA
+  const flipCropX = useCallback((crop: CropEffectData) => {
+    return clampCropData({
+      ...crop,
+      x: 1 - crop.x - crop.width
+    })
+  }, [])
+  const displayCrop = useMemo(() => (
+    mirror ? flipCropX(sourceCrop) : sourceCrop
+  ), [flipCropX, mirror, sourceCrop])
 
   const constrainCropToSquare = useCallback((crop: CropEffectData) => {
     const centerX = crop.x + crop.width / 2
@@ -195,8 +204,9 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
   }, [webcamAspectRatio])
 
   const handleCropChange = useCallback((nextCrop: CropEffectData) => {
-    handleUpdate({ sourceCrop: constrainCropToSquare(nextCrop) })
-  }, [constrainCropToSquare, handleUpdate])
+    const normalized = mirror ? flipCropX(nextCrop) : nextCrop
+    handleUpdate({ sourceCrop: constrainCropToSquare(normalized) })
+  }, [constrainCropToSquare, flipCropX, handleUpdate, mirror])
 
   const handleCropReset = useCallback(() => {
     handleUpdate({ sourceCrop: DEFAULT_CROP_DATA })
@@ -339,7 +349,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                 />
               ))}
             </div>
-            <p className="text-[12px] text-muted-foreground/70 text-center">Position the picture-in-picture, then refine the framing below.</p>
+          <p className="text-[12px] text-muted-foreground/70 text-center">Position the picture-in-picture on the canvas.</p>
           </div>
 
           {/* Framing Crop */}
@@ -347,7 +357,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Webcam Framing</label>
+                  <label className="text-[12px] font-semibold tracking-[-0.01em]">Webcam Framing</label>
                   <InfoTooltip content="Crop the source to control what shows." />
                 </div>
                 <button
@@ -364,21 +374,25 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                 className="relative w-full overflow-hidden rounded-xl border border-border/50 bg-black/50"
                 style={{ aspectRatio: `${webcamAspectRatio}` }}
               >
-                <video
-                  src={webcamPreviewSrc}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  muted
-                  playsInline
-                  preload="metadata"
-                  onLoadedMetadata={handleCropPreviewLoaded}
-                  onLoadedData={handleCropPreviewLoaded}
-                />
-                {cropPreviewSize.width > 0 && cropPreviewSize.height > 0 && (
-                  <CropOverlay
-                    cropData={sourceCrop}
-                    onCropChange={handleCropChange}
-                    onConfirm={() => null}
-                    onReset={handleCropReset}
+                    <video
+                      src={webcamPreviewSrc}
+                      className="absolute inset-0 h-full w-full object-cover"
+                      style={{
+                        transform: mirror ? 'scaleX(-1)' : undefined,
+                        transformOrigin: 'center'
+                      }}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      onLoadedMetadata={handleCropPreviewLoaded}
+                      onLoadedData={handleCropPreviewLoaded}
+                    />
+                    {cropPreviewSize.width > 0 && cropPreviewSize.height > 0 && (
+                      <CropOverlay
+                        cropData={displayCrop}
+                        onCropChange={handleCropChange}
+                        onConfirm={() => null}
+                        onReset={handleCropReset}
                     videoRect={{
                       x: 0,
                       y: 0,
@@ -396,196 +410,6 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
             </div>
           )}
 
-          {/* Padding Slider */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Edge Padding</label>
-                <InfoTooltip content="Distance from the edges of the canvas." />
-              </div>
-              <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{padding}px</span>
-            </div>
-            <Slider
-              value={[padding]}
-              min={0}
-              max={100}
-              step={4}
-              onValueChange={([v]) => {
-                setPadding(v)
-                handleUpdate({ padding: v })
-              }}
-            />
-          </div>
-
-          {/* Border Section */}
-          <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold tracking-[-0.01em]">Border</span>
-                <InfoTooltip content="Add an outline around the webcam." />
-              </div>
-              <Switch
-                checked={borderEnabled}
-                onCheckedChange={(checked) => {
-                  setBorderEnabled(checked)
-                  handleUpdate({ borderEnabled: checked })
-                }}
-              />
-            </div>
-            {borderEnabled && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="w-12 text-[12px] font-medium text-muted-foreground">Width</label>
-                  <Slider
-                    value={[borderWidth]}
-                    min={1}
-                    max={10}
-                    step={1}
-                    onValueChange={([v]) => {
-                      setBorderWidth(v)
-                      handleUpdate({ borderWidth: v })
-                    }}
-                    className="flex-1"
-                  />
-                  <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{borderWidth}px</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="w-12 text-[12px] font-medium text-muted-foreground">Color</label>
-                  <input
-                    type="color"
-                    value={borderColor}
-                    onChange={(e) => {
-                      setBorderColor(e.target.value)
-                      handleUpdate({ borderColor: e.target.value })
-                    }}
-                    className="h-6 w-12 cursor-pointer rounded-md border border-border/60 bg-background"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Shadow Section */}
-          <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold tracking-[-0.01em]">Shadow</span>
-                <InfoTooltip content="Soft depth behind the webcam." />
-              </div>
-              <Switch
-                checked={shadowEnabled}
-                onCheckedChange={(checked) => {
-                  setShadowEnabled(checked)
-                  handleUpdate({ shadowEnabled: checked })
-                }}
-              />
-            </div>
-            {shadowEnabled && (
-              <div className="flex items-center gap-2">
-                <label className="w-12 text-[12px] font-medium text-muted-foreground">Blur</label>
-                <Slider
-                  value={[shadowBlur]}
-                  min={0}
-                  max={50}
-                  step={1}
-                  onValueChange={([v]) => {
-                    setShadowBlur(v)
-                    handleUpdate({ shadowBlur: v })
-                  }}
-                  className="flex-1"
-                />
-                <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{shadowBlur}px</span>
-              </div>
-            )}
-          </div>
-
-          {/* Animations */}
-          <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-semibold tracking-[-0.01em]">Animations</span>
-              <InfoTooltip content="Choose how the webcam appears, exits, and floats." />
-            </div>
-            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[12px] font-medium text-muted-foreground">Entry</label>
-                <Select
-                  value={entryAnimation}
-                  onValueChange={(v: WebcamEntryAnimation) => {
-                    setEntryAnimation(v)
-                    handleUpdate({
-                      animations: {
-                        ...(webcamData?.animations ?? DEFAULT_WEBCAM_DATA.animations),
-                        entry: { ...DEFAULT_WEBCAM_DATA.animations.entry, type: v }
-                      }
-                    })
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="fade">Fade</SelectItem>
-                    <SelectItem value="scale">Scale</SelectItem>
-                    <SelectItem value="slide">Slide</SelectItem>
-                    <SelectItem value="bounce">Bounce</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[12px] font-medium text-muted-foreground">Exit</label>
-                <Select
-                  value={exitAnimation}
-                  onValueChange={(v: WebcamExitAnimation) => {
-                    setExitAnimation(v)
-                    handleUpdate({
-                      animations: {
-                        ...(webcamData?.animations ?? DEFAULT_WEBCAM_DATA.animations),
-                        exit: { ...DEFAULT_WEBCAM_DATA.animations.exit, type: v }
-                      }
-                    })
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="fade">Fade</SelectItem>
-                    <SelectItem value="scale">Scale</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <label className="text-[12px] font-medium text-muted-foreground">Inset Motion</label>
-                <InfoTooltip content="Subtle movement for the picture-in-picture window." />
-              </div>
-              <Select
-                value={pipAnimation}
-                onValueChange={(v: WebcamPipAnimation) => {
-                  setPipAnimation(v)
-                  handleUpdate({
-                    animations: {
-                      ...(webcamData?.animations ?? DEFAULT_WEBCAM_DATA.animations),
-                      pip: { ...DEFAULT_WEBCAM_DATA.animations.pip, type: v }
-                    }
-                  })
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="float">Float</SelectItem>
-                  <SelectItem value="breathe">Breathe</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           {/* Advanced Section */}
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
@@ -597,6 +421,196 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
 
           {showAdvanced && (
             <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
+              {/* Edge Padding */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[12px] font-semibold tracking-[-0.01em]">Edge Padding</label>
+                    <InfoTooltip content="Distance from the edges of the canvas." />
+                  </div>
+                  <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{padding}px</span>
+                </div>
+                <Slider
+                  value={[padding]}
+                  min={0}
+                  max={100}
+                  step={4}
+                  onValueChange={([v]) => {
+                    setPadding(v)
+                    handleUpdate({ padding: v })
+                  }}
+                />
+              </div>
+
+              {/* Border */}
+              <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em]">Border</span>
+                    <InfoTooltip content="Add an outline around the webcam." />
+                  </div>
+                  <Switch
+                    checked={borderEnabled}
+                    onCheckedChange={(checked) => {
+                      setBorderEnabled(checked)
+                      handleUpdate({ borderEnabled: checked })
+                    }}
+                  />
+                </div>
+                {borderEnabled && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <label className="w-12 text-[12px] font-medium text-muted-foreground">Width</label>
+                      <Slider
+                        value={[borderWidth]}
+                        min={1}
+                        max={10}
+                        step={1}
+                        onValueChange={([v]) => {
+                          setBorderWidth(v)
+                          handleUpdate({ borderWidth: v })
+                        }}
+                        className="flex-1"
+                      />
+                      <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{borderWidth}px</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="w-12 text-[12px] font-medium text-muted-foreground">Color</label>
+                      <input
+                        type="color"
+                        value={borderColor}
+                        onChange={(e) => {
+                          setBorderColor(e.target.value)
+                          handleUpdate({ borderColor: e.target.value })
+                        }}
+                        className="h-6 w-12 cursor-pointer rounded-md border border-border/60 bg-background"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Shadow */}
+              <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold tracking-[-0.01em]">Shadow</span>
+                    <InfoTooltip content="Soft depth behind the webcam." />
+                  </div>
+                  <Switch
+                    checked={shadowEnabled}
+                    onCheckedChange={(checked) => {
+                      setShadowEnabled(checked)
+                      handleUpdate({ shadowEnabled: checked })
+                    }}
+                  />
+                </div>
+                {shadowEnabled && (
+                  <div className="flex items-center gap-2">
+                    <label className="w-12 text-[12px] font-medium text-muted-foreground">Blur</label>
+                    <Slider
+                      value={[shadowBlur]}
+                      min={0}
+                      max={50}
+                      step={1}
+                      onValueChange={([v]) => {
+                        setShadowBlur(v)
+                        handleUpdate({ shadowBlur: v })
+                      }}
+                      className="flex-1"
+                    />
+                    <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{shadowBlur}px</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Animations */}
+              <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-semibold tracking-[-0.01em]">Animations</span>
+                  <InfoTooltip content="Choose how the webcam appears, exits, and floats." />
+                </div>
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[12px] font-medium text-muted-foreground">Entry</label>
+                    <Select
+                      value={entryAnimation}
+                      onValueChange={(v: WebcamEntryAnimation) => {
+                        setEntryAnimation(v)
+                        handleUpdate({
+                          animations: {
+                            ...(webcamData?.animations ?? DEFAULT_WEBCAM_DATA.animations),
+                            entry: { ...DEFAULT_WEBCAM_DATA.animations.entry, type: v }
+                          }
+                        })
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="fade">Fade</SelectItem>
+                        <SelectItem value="scale">Scale</SelectItem>
+                        <SelectItem value="slide">Slide</SelectItem>
+                        <SelectItem value="bounce">Bounce</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[12px] font-medium text-muted-foreground">Exit</label>
+                    <Select
+                      value={exitAnimation}
+                      onValueChange={(v: WebcamExitAnimation) => {
+                        setExitAnimation(v)
+                        handleUpdate({
+                          animations: {
+                            ...(webcamData?.animations ?? DEFAULT_WEBCAM_DATA.animations),
+                            exit: { ...DEFAULT_WEBCAM_DATA.animations.exit, type: v }
+                          }
+                        })
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="fade">Fade</SelectItem>
+                        <SelectItem value="scale">Scale</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[12px] font-medium text-muted-foreground">Inset Motion</label>
+                    <InfoTooltip content="Subtle movement for the picture-in-picture window." />
+                  </div>
+                  <Select
+                    value={pipAnimation}
+                    onValueChange={(v: WebcamPipAnimation) => {
+                      setPipAnimation(v)
+                      handleUpdate({
+                        animations: {
+                          ...(webcamData?.animations ?? DEFAULT_WEBCAM_DATA.animations),
+                          pip: { ...DEFAULT_WEBCAM_DATA.animations.pip, type: v }
+                        }
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="float">Float</SelectItem>
+                      <SelectItem value="breathe">Breathe</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               {/* Mirror toggle */}
               <div className="flex items-center justify-between">
                 <div>

@@ -1,3 +1,4 @@
+import { BrowserWindow, Session } from 'electron'
 import { isDev } from '../config'
 
 const DEV_CONNECT_SOURCES = [
@@ -19,7 +20,7 @@ export function getContentSecurityPolicy(): string {
 
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+    "script-src 'self' 'unsafe-inline' blob:",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: file: video-stream:",
     "font-src 'self' data:",
@@ -31,4 +32,22 @@ export function getContentSecurityPolicy(): string {
     "object-src 'none'",
     "form-action 'none'"
   ].join('; ')
+}
+
+const appliedSessions = new WeakSet<Session>()
+
+export function applyContentSecurityPolicy(window: BrowserWindow): void {
+  const session = window.webContents.session
+  if (appliedSessions.has(session)) return
+
+  session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': getContentSecurityPolicy()
+      }
+    })
+  })
+
+  appliedSessions.add(session)
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, RotateCcw, Plus, Minus, Sparkles, Gauge, Zap, CircleOff } from 'lucide-react'
+import { ChevronRight, RotateCcw, Plus, Minus, Wind, Gauge, Zap, CircleOff, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -13,6 +13,7 @@ import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/lib/constants/defa
 import { InfoTooltip } from './info-tooltip'
 import { useProjectStore } from '@/stores/project-store'
 import { clamp } from '@/lib/core/math'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 interface CursorTabProps {
   cursorEffect: Effect | undefined
@@ -93,7 +94,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const fadeOnIdle = cursorData?.fadeOnIdle ?? DEFAULT_CURSOR_DATA.fadeOnIdle
   const clickEffectsEnabled = cursorData?.clickEffects ?? DEFAULT_CURSOR_DATA.clickEffects
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [showFineTune, setShowFineTune] = useState(false)
+  const showFineTune = useWorkspaceStore((s) => s.cursorTabFineTuneOpen)
+  const setShowFineTune = useWorkspaceStore((s) => s.setCursorTabFineTuneOpen)
   const [cursorState, setCursorState] = useState<CursorLocalState>(() => resolveCursorState(cursorData))
   const updateCursorState = useCallback((updates: Partial<CursorLocalState>) => {
     setCursorState((prev) => ({ ...prev, ...updates }))
@@ -199,6 +201,20 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const showTextControls = clickStyle === 'text' || clickStyle === 'ripple-text'
   const showRingControls = clickStyle === 'ripple' || clickStyle === 'ripple-text'
   const effectiveMotionPreset = motionPreset === 'cinematic' ? 'smooth' : motionPreset
+  const glidingEnabled = cursorData?.gliding ?? DEFAULT_CURSOR_DATA.gliding
+  const isNear = (value: number, target: number, epsilon = 0.02) => Math.abs(value - target) <= epsilon
+  const isRawPreset = motionPreset === 'custom'
+    && isNear(speed, 1, 0.04)
+    && isNear(smoothness, 0.1, 0.05)
+    && isNear(glide, 0, 0.04)
+    && glidingEnabled === false
+  const motionLabel = useMemo(() => {
+    if (motionPreset === 'custom') return isRawPreset ? 'Raw' : 'Custom'
+    if (effectiveMotionPreset === 'balanced') return 'Medium'
+    if (effectiveMotionPreset === 'responsive') return 'Rapid'
+    if (effectiveMotionPreset === 'smooth') return 'Smooth'
+    return 'Custom'
+  }, [effectiveMotionPreset, isRawPreset, motionPreset])
   const previewConfig = useMemo(() => getPreviewConfig(previewOverride), [getPreviewConfig, previewOverride])
   const motionPresetOptions: Array<{
     id: string
@@ -214,7 +230,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
         label: 'Smooth',
         preset: 'smooth',
         description: 'Gentle, cinematic glide',
-        icon: Sparkles,
+        icon: Wind,
         gliding: true
       },
       {
@@ -234,10 +250,17 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
         gliding: true
       },
       {
-        id: 'none',
-        label: 'None',
+        id: 'custom',
+        label: 'Custom',
         preset: 'custom',
-        description: 'Raw, no smoothing',
+        description: 'Adjusted manually',
+        icon: SlidersHorizontal
+      },
+      {
+        id: 'raw',
+        label: 'Raw',
+        preset: 'custom',
+        description: 'No smoothing applied',
         icon: CircleOff,
         values: { speed: 1, smoothness: 0.1, glide: 0 },
         gliding: false
@@ -400,14 +423,21 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
           {/* Animation Style Presets */}
           <div className="rounded-md bg-background/40 p-2.5 space-y-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Animation Style</label>
-              <InfoTooltip content="Choose how cursor motion feels" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Style</label>
+                <InfoTooltip content="Choose how cursor motion feels" />
+              </div>
+              <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {motionLabel}
+              </span>
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-5 gap-1.5">
               {motionPresetOptions.map((option) => {
                 const Icon = option.icon
-                const isSelected = effectiveMotionPreset === option.preset
+                const isSelected = option.preset === 'custom'
+                  ? (option.id === 'raw' ? isRawPreset : !isRawPreset && motionPreset === 'custom')
+                  : effectiveMotionPreset === option.preset
                 const presetValues = option.values ?? (option.preset !== 'custom' ? CURSOR_MOTION_PRESETS[option.preset] : undefined)
                 const previewOverride = presetValues
                   ? { speed: presetValues.speed, smoothness: presetValues.smoothness, glide: presetValues.glide, gliding: option.gliding }
@@ -441,6 +471,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   </Tooltip>
                 )
               })}
+            </div>
+            <div className="text-[11px] text-muted-foreground/70 italic">
+              Tweaking sliders below switches to Custom.
             </div>
           </div>
 
@@ -1002,7 +1035,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           </div>
         </div>
       )}
-      <style jsx>{`
+      <style>{`
         @keyframes cursorPreviewSlide {
           0% { left: 0; }
           70% { left: var(--cursor-preview-end); }

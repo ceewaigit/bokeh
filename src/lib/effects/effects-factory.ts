@@ -68,6 +68,20 @@ export class EffectsFactory {
     }
   }
 
+  static createDefaultCinematicScrollEffect(): Effect {
+    return {
+      id: `anno-scroll-cinematic-global`,
+      type: EffectType.Annotation,
+      startTime: 0,
+      endTime: Number.MAX_SAFE_INTEGER,
+      data: {
+        kind: 'scrollCinematic',
+        smoothing: 48,
+      },
+      enabled: true,
+    }
+  }
+
   static createCropEffect(options: {
     clipId: string
     startTime: number
@@ -161,6 +175,13 @@ export class EffectsFactory {
     const hasKeystrokes = effects.some(e => e.type === EffectType.Keystroke)
     if (!hasKeystrokes) {
       syncKeystrokeEffects(project)
+    }
+
+    const hasCinematicScroll = effects.some(
+      e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic'
+    )
+    if (!hasCinematicScroll) {
+      EffectStore.add(project, this.createDefaultCinematicScrollEffect())
     }
 
     const hasWebcamEffect = effects.some(e => e.type === EffectType.Webcam)

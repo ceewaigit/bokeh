@@ -19,6 +19,7 @@ import { TimelineClip } from './timeline-clip'
 import { TimelineTrack } from './timeline-track'
 import { TimelinePlayhead } from './timeline-playhead'
 import { TimelineGhostPlayhead } from './timeline-ghost-playhead'
+import { TimelineSpeedUpOverlays } from './timeline-speed-up-overlays'
 import { SpeedUpSuggestionPopover } from './speed-up-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
@@ -27,11 +28,12 @@ import type { SpeedUpPeriod } from '@/types/speed-up'
 import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 import { ApplySpeedUpCommand } from '@/lib/commands/timeline/ApplySpeedUpCommand'
 import { ApplyAllSpeedUpsCommand } from '@/lib/commands/timeline/ApplyAllSpeedUpsCommand'
-import { EffectStore } from '@/lib/core/effects'
+import { useTimelineEffects } from '@/stores/selectors/timeline-selectors'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
+import { ClipLookup } from '@/lib/timeline/clip-lookup'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { getSnappedDragX } from '@/lib/timeline/drag-positioning'
 import { addAssetRecording } from '@/lib/timeline/timeline-operations'
@@ -53,6 +55,12 @@ import {
   ChangePlaybackRateCommand
 } from '@/lib/commands'
 import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+
+const buildClipBlocks = (clips: Clip[]) => clips.map((clip) => ({
+  id: clip.id,
+  startTime: clip.startTime,
+  endTime: clip.startTime + clip.duration
+}))
 
 interface TimelineCanvasProps {
   className?: string
@@ -97,6 +105,7 @@ function TimelineCanvasContent({
     stageHeight,
     timelineWidth,
     containerWidth,
+    duration,
     pixelsPerMs,
     trackHeights,
     trackPositions,
@@ -147,52 +156,43 @@ function TimelineCanvasContent({
   }, [colors.primary, colors.background, windowSurfaceMode, windowSurfaceOpacity])
 
   // Calculate timeline dimensions - MOVED TO CONTEXT
-  const duration = currentProject?.timeline?.duration || 10000
-  // Memoize video/audio tracks lookup
-  const videoTrack = useMemo(
-    () => currentProject?.timeline.tracks.find(t => t.type === TrackType.Video),
-    [currentProject?.timeline.tracks]
+  const videoClips = useMemo(
+    () => currentProject ? ClipLookup.videoClips(currentProject) : [],
+    [currentProject]
   )
-  const audioTrack = useMemo(
-    () => currentProject?.timeline.tracks.find(t => t.type === TrackType.Audio),
-    [currentProject?.timeline.tracks]
+  const audioClips = useMemo(
+    () => currentProject ? ClipLookup.audioClips(currentProject) : [],
+    [currentProject]
   )
-  const webcamTrack = useMemo(
-    () => currentProject?.timeline.tracks.find(t => t.type === TrackType.Webcam),
-    [currentProject?.timeline.tracks]
+  const webcamClips = useMemo(
+    () => currentProject ? ClipLookup.byTrackType(currentProject, TrackType.Webcam) : [],
+    [currentProject]
   )
-  const videoClips = useMemo(() => videoTrack?.clips || [], [videoTrack])
-  const audioClips = useMemo(() => audioTrack?.clips || [], [audioTrack])
-  const webcamClips = useMemo(() => webcamTrack?.clips || [], [webcamTrack])
+  const clipsByTrack = useMemo(() => ({
+    [TrackType.Video]: videoClips,
+    [TrackType.Audio]: audioClips,
+    [TrackType.Webcam]: webcamClips
+  }), [videoClips, audioClips, webcamClips])
+
   const videoClipBlocks = useMemo(
-    () => videoClips.map((clip) => ({
-      id: clip.id,
-      startTime: clip.startTime,
-      endTime: clip.startTime + clip.duration
-    })),
+    () => buildClipBlocks(videoClips),
     [videoClips]
   )
   const audioClipBlocks = useMemo(
-    () => audioClips.map((clip) => ({
-      id: clip.id,
-      startTime: clip.startTime,
-      endTime: clip.startTime + clip.duration
-    })),
+    () => buildClipBlocks(audioClips),
     [audioClips]
   )
   const webcamClipBlocks = useMemo(
-    () => webcamClips.map((clip) => ({
-      id: clip.id,
-      startTime: clip.startTime,
-      endTime: clip.startTime + clip.duration
-    })),
+    () => buildClipBlocks(webcamClips),
     [webcamClips]
   )
+  const clipBlocksByTrack = useMemo(() => ({
+    [TrackType.Video]: videoClipBlocks,
+    [TrackType.Audio]: audioClipBlocks,
+    [TrackType.Webcam]: webcamClipBlocks
+  }), [videoClipBlocks, audioClipBlocks, webcamClipBlocks])
 
-  const timelineEffects = useMemo(
-    () => currentProject ? EffectStore.getAll(currentProject) : [],
-    [currentProject]
-  )
+  const timelineEffects = useTimelineEffects()
   const allZoomEffects = useMemo(
     () => getZoomEffects(timelineEffects),
     [timelineEffects]
@@ -255,8 +255,6 @@ function TimelineCanvasContent({
     return () => clearInterval(interval)
   }, [isPlaying, pixelsPerMs, stageWidth, containerRef])
 
-  const maxScrollLeft = Math.max(0, stageWidth - containerWidth)
-
   // Handle wheel zoom with non-passive listener to prevent default browser zooming
   const wheelDepsRef = useRef({ zoom, onZoomChange, adaptiveZoomLimits })
   useEffect(() => {
@@ -284,7 +282,7 @@ function TimelineCanvasContent({
     // passive: false is required to use preventDefault()
     container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
-  }, [containerRef, maxScrollLeft]) // Added containerRef dep
+  }, [containerRef]) // Added containerRef dep
 
   // Handle clip context menu
   const handleClipContextMenu = useCallback((e: { evt: { clientX: number; clientY: number } }, clipId: string) => {
@@ -358,28 +356,12 @@ function TimelineCanvasContent({
   }, [setHoverTime])
 
   const getClipsForTrack = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => {
-    switch (trackType) {
-      case TrackType.Audio:
-        return audioClips
-      case TrackType.Webcam:
-        return webcamClips
-      case TrackType.Video:
-      default:
-        return videoClips
-    }
-  }, [audioClips, videoClips, webcamClips])
+    return clipsByTrack[trackType] ?? []
+  }, [clipsByTrack])
 
   const getClipBlocksForTrack = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => {
-    switch (trackType) {
-      case TrackType.Audio:
-        return audioClipBlocks
-      case TrackType.Webcam:
-        return webcamClipBlocks
-      case TrackType.Video:
-      default:
-        return videoClipBlocks
-    }
-  }, [audioClipBlocks, videoClipBlocks, webcamClipBlocks])
+    return clipBlocksByTrack[trackType] ?? []
+  }, [clipBlocksByTrack])
 
   const getTrackBounds = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => {
     const padding = TimelineConfig.TRACK_PADDING
@@ -629,6 +611,14 @@ function TimelineCanvasContent({
     useProjectStore.getState().trimClipEnd(clipId, newEndTime)
   }, [])
 
+  const getStagePoint = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    return {
+      stageX: (e.clientX - rect.left) + e.currentTarget.scrollLeft,
+      stageY: (e.clientY - rect.top) + e.currentTarget.scrollTop
+    }
+  }, [])
+
   const timelineContextValue = useMemo(() => ({
     pixelsPerMs,
     dragPreview,
@@ -738,9 +728,7 @@ function TimelineCanvasContent({
             e.dataTransfer.dropEffect = 'copy'
 
             if (draggingAsset) {
-              const rect = e.currentTarget.getBoundingClientRect()
-              const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
-              const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
+              const { stageX, stageY } = getStagePoint(e)
               const assetDuration = draggingAsset.metadata?.duration || 5000
               const targetTrack = getAssetDropTrackType(draggingAsset.type, stageY)
               if (!targetTrack) {
@@ -803,9 +791,7 @@ function TimelineCanvasContent({
                 type: draggingAsset!.type,
                 name: draggingAsset!.name
               }
-              const rect = e.currentTarget.getBoundingClientRect()
-              const stageX = (e.clientX - rect.left) + e.currentTarget.scrollLeft
-              const stageY = (e.clientY - rect.top) + e.currentTarget.scrollTop
+              const { stageX, stageY } = getStagePoint(e)
               const assetDuration = asset.duration || 5000
               const targetTrack = getAssetDropTrackType(asset.type, stageY) ?? dragAssetTrackType
               if (!targetTrack) {
@@ -883,227 +869,232 @@ function TimelineCanvasContent({
               msUserSelect: 'none'
             }}
           >
-          {/* Background Layer */}
-          <Layer>
-            <Rect
-              x={0}
-              y={0}
-              width={stageWidth}
-              height={stageHeight}
-              fill={colors.background}
-              opacity={backgroundOpacity}
-              name="timeline-background"
-            />
+            {/* Background Layer */}
+            <Layer>
+              <Rect
+                x={0}
+                y={0}
+                width={stageWidth}
+                height={stageHeight}
+                fill={colors.background}
+                opacity={backgroundOpacity}
+                name="timeline-background"
+              />
 
-            <Rect
-              x={0}
-              y={0}
-              width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-              height={rulerHeight}
-              fill={colors.background}
-              opacity={backgroundOpacity}
-            />
-
-            <TimelineTrack
-              type={TimelineTrackType.Video}
-              y={trackPositions.video}
-              width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-              height={videoTrackHeight}
-              onLabelClick={toggleVideoTrackExpanded}
-            />
-
-            {/* Audio/Webcam sub-tracks directly under video */}
-            {audioTrackHeight > 0 && (
-              <TimelineTrack
-                type={TimelineTrackType.Audio}
-                y={trackPositions.audio}
+              <Rect
+                x={0}
+                y={0}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={audioTrackHeight}
+                height={rulerHeight}
+                fill={colors.background}
+                opacity={backgroundOpacity}
               />
-            )}
 
-            {webcamTrackHeight > 0 && (
               <TimelineTrack
-                type={TimelineTrackType.Webcam}
-                y={trackPositions.webcam}
+                type={TimelineTrackType.Video}
+                y={trackPositions.video}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={webcamTrackHeight}
-                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Webcam)}
+                height={videoTrackHeight}
+                onLabelClick={toggleVideoTrackExpanded}
               />
-            )}
 
-            {/* Effect tracks below sub-tracks */}
-            {hasZoomTrack && (
-              <TimelineTrack
-                type={TimelineTrackType.Zoom}
-                y={trackPositions.zoom}
-                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={zoomTrackHeight}
-                muted={!allZoomEffects.some(e => e.enabled)}
-                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Zoom)}
-              />
-            )}
+              {/* Audio/Webcam sub-tracks directly under video */}
+              {audioTrackHeight > 0 && (
+                <TimelineTrack
+                  type={TimelineTrackType.Audio}
+                  y={trackPositions.audio}
+                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                  height={audioTrackHeight}
+                />
+              )}
 
-            {hasScreenTrack && (
-              <TimelineTrack
-                type={TimelineTrackType.Screen}
-                y={trackPositions.screen}
-                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={screenTrackHeight}
-                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Screen)}
-              />
-            )}
+              {webcamTrackHeight > 0 && (
+                <TimelineTrack
+                  type={TimelineTrackType.Webcam}
+                  y={trackPositions.webcam}
+                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                  height={webcamTrackHeight}
+                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Webcam)}
+                />
+              )}
 
-            {hasKeystrokeTrack && (
-              <TimelineTrack
-                type={TimelineTrackType.Keystroke}
-                y={trackPositions.keystroke}
-                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={keystrokeTrackHeight}
-                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Keystroke)}
-              />
-            )}
+              {/* Effect tracks below sub-tracks */}
+              {hasZoomTrack && (
+                <TimelineTrack
+                  type={TimelineTrackType.Zoom}
+                  y={trackPositions.zoom}
+                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                  height={zoomTrackHeight}
+                  muted={!allZoomEffects.some(e => e.enabled)}
+                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Zoom)}
+                />
+              )}
 
-            {hasPluginTrack && (
-              <TimelineTrack
-                type={TimelineTrackType.Plugin}
-                y={trackPositions.plugin}
-                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={pluginTrackHeight}
-                onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
-              />
-            )}
-          </Layer>
+              {hasScreenTrack && (
+                <TimelineTrack
+                  type={TimelineTrackType.Screen}
+                  y={trackPositions.screen}
+                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                  height={screenTrackHeight}
+                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Screen)}
+                />
+              )}
 
-          {/* Ruler Layer - Sticky at top during vertical scroll */}
-          <Layer>
-            <TimelineRuler />
-          </Layer>
+              {hasKeystrokeTrack && (
+                <TimelineTrack
+                  type={TimelineTrackType.Keystroke}
+                  y={trackPositions.keystroke}
+                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                  height={keystrokeTrackHeight}
+                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Keystroke)}
+                />
+              )}
 
-          {/* Clips Layer */}
-          <Layer>
-            {/* Video clips - Uses memoized videoClips */}
-            {videoClips.map((clip) => (
-              <TimelineClip
-                key={clip.id}
-                clip={clip}
-                trackType={TrackType.Video}
-                trackY={trackPositions.video}
-                trackHeight={videoTrackHeight}
-                isSelected={selectedClips.includes(clip.id)}
-              />
-            ))}
+              {hasPluginTrack && (
+                <TimelineTrack
+                  type={TimelineTrackType.Plugin}
+                  y={trackPositions.plugin}
+                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                  height={pluginTrackHeight}
+                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
+                />
+              )}
+            </Layer>
 
-            {/* Effect tracks - rendered from registry */}
-            <TimelineEffectTracks />
+            {/* Clips Layer */}
+            <Layer>
+              {/* Video clips - Uses memoized videoClips */}
+              {videoClips.map((clip) => (
+                <TimelineClip
+                  key={clip.id}
+                  clip={clip}
+                  trackType={TrackType.Video}
+                  trackY={trackPositions.video}
+                  trackHeight={videoTrackHeight}
+                  isSelected={selectedClips.includes(clip.id)}
+                />
+              ))}
 
-            {/* Webcam track */}
-            <TimelineWebcamTrack />
+              {/* Effect tracks - rendered from registry */}
+              <TimelineEffectTracks />
 
-            {audioClips.map((clip) => (
-              <TimelineClip
-                key={clip.id}
-                clip={clip}
-                trackType={TrackType.Audio}
-                trackY={trackPositions.audio}
-                trackHeight={audioTrackHeight}
-                isSelected={selectedClips.includes(clip.id)}
-              />
-            ))}
-          </Layer>
+              {/* Webcam track */}
+              <TimelineWebcamTrack />
 
-          {/* Playhead Layer */}
-          <Layer>
-            <TimelineGhostPlayhead />
-            <TimelinePlayhead />
-          </Layer>
+              {audioClips.map((clip) => (
+                <TimelineClip
+                  key={clip.id}
+                  clip={clip}
+                  trackType={TrackType.Audio}
+                  trackY={trackPositions.audio}
+                  trackHeight={audioTrackHeight}
+                  isSelected={selectedClips.includes(clip.id)}
+                />
+              ))}
+            </Layer>
+
+            {/* Ruler Layer - Sticky at top during vertical scroll */}
+            <Layer>
+              <TimelineRuler />
+            </Layer>
+
+            {/* Speed-up Overlay Layer - Above tracks but below playhead */}
+            <Layer>
+              <TimelineSpeedUpOverlays />
+            </Layer>
+
+            {/* Playhead Layer */}
+            <Layer>
+              <TimelineGhostPlayhead />
+              <TimelinePlayhead />
+            </Layer>
           </Stage>
 
-        {/* Context Menu */}
-        {contextMenu && (
-          <TimelineContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            clipId={contextMenu.clipId}
-            onClose={() => setContextMenu(null)}
-          />
-        )}
-
-        {/* Asset drop target highlight */}
-        {(() => {
-          if (!draggingAsset) return null
-          const targetTrackType = dragAssetTrackType ?? (dragPreview?.clipId === '__asset__' ? dragPreview.trackType : null)
-          if (!targetTrackType) return null
-          const bounds = getTrackBounds(targetTrackType)
-          return (
-            <div
-              className="absolute pointer-events-none z-40 timeline-drop-target"
-              style={{
-                left: 0,
-                top: bounds.y + 'px',
-                width: (timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH) + 'px',
-                height: bounds.height + 'px',
-              }}
+          {/* Context Menu */}
+          {contextMenu && (
+            <TimelineContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              clipId={contextMenu.clipId}
+              onClose={() => setContextMenu(null)}
             />
-          )
-        })()}
+          )}
 
-        {/* Drag Preview Overlay (Ghost Clip) */}
-        {(() => {
-          const assetTrackType = dragAssetTrackType ?? (dragPreview?.clipId === '__asset__' ? dragPreview.trackType : null)
-          if (!draggingAsset || dragTime === null || !assetTrackType) return null
-          const bounds = getTrackBounds(assetTrackType)
-          return (
-            <div
-              className="absolute pointer-events-none z-50 flex flex-col justify-center overflow-hidden rounded-md border-2 border-primary bg-primary/20 backdrop-blur-[1px] timeline-asset-ghost"
-              style={{
-                left: (TimelineConfig.TRACK_LABEL_WIDTH + TimeConverter.msToPixels(dragTime, pixelsPerMs)) + 'px',
-                top: bounds.clipY + 'px',
-                width: Math.max(TimelineConfig.MIN_CLIP_WIDTH, TimeConverter.msToPixels(draggingAsset.metadata?.duration || 5000, pixelsPerMs)) + 'px',
-                height: bounds.clipHeight + 'px',
-              }}
-            >
-              {/* Thumbnail if available */}
-              {draggingAsset.type === 'image' || draggingAsset.type === 'video' ? (
-                <div className="w-full h-full opacity-50 relative">
-                  {/* We can't easily load video thumb here synchronously, but we can try image source */}
-                  {(draggingAsset.type === 'image' && draggingAsset.path) ? (
-                    <img
-                      src={draggingAsset.path.startsWith('/')
-                        ? `video-stream://local/${encodeURIComponent(draggingAsset.path)}`
-                        : draggingAsset.path}
-                      className="w-full h-full object-cover"
-                      alt=""
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-black/20">
-                      <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
-                </div>
-              )}
-            </div>
-          )
-        })()}
+          {/* Asset drop target highlight */}
+          {(() => {
+            if (!draggingAsset) return null
+            const targetTrackType = dragAssetTrackType ?? (dragPreview?.clipId === '__asset__' ? dragPreview.trackType : null)
+            if (!targetTrackType) return null
+            const bounds = getTrackBounds(targetTrackType)
+            return (
+              <div
+                className="absolute pointer-events-none z-40 timeline-drop-target"
+                style={{
+                  left: 0,
+                  top: bounds.y + 'px',
+                  width: (timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH) + 'px',
+                  height: bounds.height + 'px',
+                }}
+              />
+            )
+          })()}
 
-        {/* Speed-up suggestion popover */}
-        {speedUpPopover && (
-          <SpeedUpSuggestionPopover
-            x={speedUpPopover.x}
-            y={speedUpPopover.y}
-            period={speedUpPopover.period}
-            allTypingPeriods={speedUpPopover.allTypingPeriods}
-            allIdlePeriods={speedUpPopover.allIdlePeriods}
-            onApply={(p) => handleApplySpeedUp(p, speedUpPopover.clipId)}
-            onApplyAll={handleApplyAllSpeedUps}
-            onClose={() => setSpeedUpPopover(null)}
-          />
-        )}
-      </div>
+          {/* Drag Preview Overlay (Ghost Clip) */}
+          {(() => {
+            const assetTrackType = dragAssetTrackType ?? (dragPreview?.clipId === '__asset__' ? dragPreview.trackType : null)
+            if (!draggingAsset || dragTime === null || !assetTrackType) return null
+            const bounds = getTrackBounds(assetTrackType)
+            return (
+              <div
+                className="absolute pointer-events-none z-50 flex flex-col justify-center overflow-hidden rounded-md border-2 border-primary bg-primary/20 backdrop-blur-[1px] timeline-asset-ghost"
+                style={{
+                  left: (TimelineConfig.TRACK_LABEL_WIDTH + TimeConverter.msToPixels(dragTime, pixelsPerMs)) + 'px',
+                  top: bounds.clipY + 'px',
+                  width: Math.max(TimelineConfig.MIN_CLIP_WIDTH, TimeConverter.msToPixels(draggingAsset.metadata?.duration || 5000, pixelsPerMs)) + 'px',
+                  height: bounds.clipHeight + 'px',
+                }}
+              >
+                {/* Thumbnail if available */}
+                {draggingAsset.type === 'image' || draggingAsset.type === 'video' ? (
+                  <div className="w-full h-full opacity-50 relative">
+                    {/* We can't easily load video thumb here synchronously, but we can try image source */}
+                    {(draggingAsset.type === 'image' && draggingAsset.path) ? (
+                      <img
+                        src={draggingAsset.path.startsWith('/')
+                          ? `video-stream://local/${encodeURIComponent(draggingAsset.path)}`
+                          : draggingAsset.path}
+                        className="w-full h-full object-cover"
+                        alt=""
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-black/20">
+                        <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Speed-up suggestion popover */}
+          {speedUpPopover && (
+            <SpeedUpSuggestionPopover
+              x={speedUpPopover.x}
+              y={speedUpPopover.y}
+              period={speedUpPopover.period}
+              allTypingPeriods={speedUpPopover.allTypingPeriods}
+              allIdlePeriods={speedUpPopover.allIdlePeriods}
+              onApply={(p) => handleApplySpeedUp(p, speedUpPopover.clipId)}
+              onApplyAll={handleApplyAllSpeedUps}
+              onClose={() => setSpeedUpPopover(null)}
+            />
+          )}
+        </div>
       </div>
     </TimelineContextProvider>
   )

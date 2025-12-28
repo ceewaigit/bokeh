@@ -63,5 +63,13 @@ export function usePlayerConfiguration(
       enhanceAudio: project.settings.audio.enhanceAudio,
       cameraSettings: cameraSettingsOverride ?? project.settings.camera,
     };
-  }, [project, videoWidth, videoHeight, fps, windowSurfaceMode, cameraSettingsOverride]);
+  }, [
+    project,
+    project?.timeline?.effects,
+    videoWidth,
+    videoHeight,
+    fps,
+    windowSurfaceMode,
+    cameraSettingsOverride
+  ]);
 }

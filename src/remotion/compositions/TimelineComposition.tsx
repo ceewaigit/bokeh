@@ -22,6 +22,7 @@ import { PlaybackSettingsProvider } from '../context/playback/PlaybackSettingsCo
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
 import { CursorLayer } from './layers/CursorLayer';
+import { AnnotationLayer } from './layers/AnnotationLayer';
 import { PluginLayer } from './layers/PluginLayer';
 import { CropEditingLayer } from './layers/CropEditingLayer';
 import { WebcamLayer } from './layers/WebcamLayer';
@@ -281,6 +282,9 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
 
         {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
         {!renderSettings.isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={resources.metadataUrls} />}
+
+        {/* Annotation overlay rendered on the same video coordinates */}
+        {!renderSettings.isGlowMode && <AnnotationLayer effects={effects} />}
 
         {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
         {useVideoConfig().width > 300 && (

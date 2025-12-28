@@ -304,7 +304,7 @@ export function calculateCursorState(
     const dy = position.y - referencePosition.y
     const velocity = Math.sqrt(dx * dx + dy * dy)
 
-    if (velocity > 2) { // Only show blur for significant movement
+    if (velocity > 6) { // Only show blur for significant movement
       motionBlur = {
         previousX: referencePosition.x,
         previousY: referencePosition.y,
@@ -410,9 +410,9 @@ function calculateDirectionalTilt(options: {
 
   // Higher deadzone threshold to ignore micro-movements and reduce jitter
   // Smoother ramp for gradual tilt engagement
-  const speed01Raw = clamp01((speedPxPerSec - 80) / 800)  // was 40/600
+  const speed01Raw = clamp01((speedPxPerSec - 60) / 700)  // was 40/600
   const speed01Smooth = speed01Raw * speed01Raw * (3 - 2 * speed01Raw) // smoothstep
-  const speed01 = clamp01(speed01Smooth) // removed baseline tilt for cleaner look
+  const speed01 = clamp01(speed01Smooth * 1.1) // slightly more dynamic response
 
   // Smooth direction mapping; avoids sign flip jitter on tiny vx.
   const direction = Math.tanh(vxHat / 900)

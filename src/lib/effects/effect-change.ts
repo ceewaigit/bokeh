@@ -187,6 +187,13 @@ export async function applyEffectChange(
   if (type === EffectType.Zoom && (data?.enabled !== undefined || data?.regenerate)) {
     if (data?.enabled !== undefined) {
       if (data.enabled) {
+        const existingZoomEffects = context.effects.filter(effect => effect.type === EffectType.Zoom)
+        if (existingZoomEffects.length > 0) {
+          existingZoomEffects.forEach(effect => {
+            updateEffectEnabled(context.executeCommand, effect.id, true)
+          })
+          return
+        }
         await maybeGenerateZoomEffects(context, data.enabled)
       } else {
         context.effects.forEach(effect => {

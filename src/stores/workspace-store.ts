@@ -29,6 +29,11 @@ interface WorkspaceStore {
   // Active Tabs
   activeUtilityTab: UtilityTabId
 
+  // Clip tab UI state
+  clipTabSpeedAdvancedOpen: boolean
+  clipTabFadeAdvancedOpen: boolean
+  cursorTabFineTuneOpen: boolean
+
   // Workspace Actions
   toggleProperties: () => void
   toggleUtilities: () => void  // Toggle left sidebar
@@ -43,6 +48,9 @@ interface WorkspaceStore {
   setPreviewScale: (scale: number) => void
   setActiveUtilityTab: (tab: UtilityTabId) => void
   setCurrentView: (view: WorkspaceView) => void
+  setClipTabSpeedAdvancedOpen: (open: boolean) => void
+  setClipTabFadeAdvancedOpen: (open: boolean) => void
+  setCursorTabFineTuneOpen: (open: boolean) => void
 
   // Workspace Presets
   loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => void
@@ -64,6 +72,9 @@ const defaultWorkspaceState = {
   previewScale: 1,
   currentView: 'library' as WorkspaceView,
   activeUtilityTab: 'import' as UtilityTabId,
+  clipTabSpeedAdvancedOpen: false,
+  clipTabFadeAdvancedOpen: false,
+  cursorTabFineTuneOpen: false,
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -126,6 +137,18 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         set({ currentView: view })
       },
 
+      setClipTabSpeedAdvancedOpen: (open: boolean) => {
+        set({ clipTabSpeedAdvancedOpen: open })
+      },
+
+      setClipTabFadeAdvancedOpen: (open: boolean) => {
+        set({ clipTabFadeAdvancedOpen: open })
+      },
+
+      setCursorTabFineTuneOpen: (open: boolean) => {
+        set({ cursorTabFineTuneOpen: open })
+      },
+
 
 
       loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => {
@@ -169,7 +192,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     }),
     {
       name: 'workspace-storage',
-      version: 3,
+      version: 5,
       migrate: (persistedState: any) => {
         if (!persistedState) return persistedState
 
@@ -206,6 +229,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         timelineHeight: state.timelineHeight,
         previewScale: state.previewScale,
         activeUtilityTab: state.activeUtilityTab,
+        clipTabSpeedAdvancedOpen: state.clipTabSpeedAdvancedOpen,
+        clipTabFadeAdvancedOpen: state.clipTabFadeAdvancedOpen,
+        cursorTabFineTuneOpen: state.cursorTabFineTuneOpen,
       }),
     }
   )

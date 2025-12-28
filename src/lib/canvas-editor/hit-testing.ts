@@ -9,7 +9,8 @@
  */
 
 import { EffectType } from '@/types/effects'
-import type { Effect, PluginEffectData, AnnotationData } from '@/types/project'
+import type { Effect, PluginEffectData, AnnotationData, AnnotationStyle } from '@/types/project'
+import { AnnotationType } from '@/types/project'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 import { percentToPixels, isPointInRect, type VideoRect } from './coordinate-utils'
 
@@ -39,6 +40,52 @@ export interface EffectBounds {
 
 const HANDLE_SIZE = 12
 const HANDLE_HIT_PADDING = 4 // Extra padding for easier handle clicks
+
+const DEFAULT_TEXT_BOX = { width: 160, height: 44 }
+const DEFAULT_KEYBOARD_BOX = { width: 180, height: 48 }
+
+let textMeasureCtx: CanvasRenderingContext2D | null = null
+
+function getTextMeasureContext(): CanvasRenderingContext2D | null {
+  if (textMeasureCtx) return textMeasureCtx
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  textMeasureCtx = canvas.getContext('2d')
+  return textMeasureCtx
+}
+
+function resolvePadding(padding?: AnnotationStyle['padding']): number {
+  if (typeof padding === 'number') return padding
+  if (!padding || typeof padding !== 'object') return 8
+  const { top, right, bottom, left } = padding as { top: number; right: number; bottom: number; left: number }
+  return (top + right + bottom + left) / 4
+}
+
+function getAnnotationLabel(data: AnnotationData): string {
+  if (data.type === AnnotationType.Keyboard) {
+    return (data.keys ?? []).join(' + ')
+  }
+  return data.content ?? ''
+}
+
+function measureAnnotationBox(data: AnnotationData): { width: number; height: number } {
+  const label = getAnnotationLabel(data)
+  const fontSize = data.style?.fontSize ?? 18
+  const fontFamily = data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif'
+  const fontWeight = data.style?.fontWeight ?? 'normal'
+  const padding = resolvePadding(data.style?.padding) + (data.type === AnnotationType.Keyboard ? 4 : 0)
+
+  const ctx = getTextMeasureContext()
+  if (!ctx || !label) {
+    return data.type === AnnotationType.Keyboard ? DEFAULT_KEYBOARD_BOX : DEFAULT_TEXT_BOX
+  }
+
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+  const metrics = ctx.measureText(label)
+  const width = Math.max(40, metrics.width + padding * 2)
+  const height = Math.max(24, fontSize * 1.4 + padding * 2)
+  return { width, height }
+}
 
 /**
  * Check if an effect is positionable (has drag/resize support)
@@ -94,20 +141,63 @@ export function getEffectBounds(
       const annotationData = effect.data as AnnotationData
       if (!annotationData.position) return null
 
-      // Annotation positions use 0-100% coordinates
-      const center = percentToPixels(
+      if (annotationData.type === AnnotationType.Arrow) {
+        const start = percentToPixels(
+          annotationData.position.x,
+          annotationData.position.y,
+          videoRect
+        )
+        const rawEnd = annotationData.endPosition ?? { x: annotationData.position.x + 10, y: annotationData.position.y + 10 }
+        const end = percentToPixels(rawEnd.x, rawEnd.y, videoRect)
+        const strokeWidth = annotationData.style?.strokeWidth ?? 3
+        const arrowHead = annotationData.style?.arrowHeadSize ?? 10
+        const padding = Math.max(strokeWidth, arrowHead) + 6
+
+        const minX = Math.min(start.x, end.x) - padding
+        const minY = Math.min(start.y, end.y) - padding
+        const maxX = Math.max(start.x, end.x) + padding
+        const maxY = Math.max(start.y, end.y) + padding
+
+        return {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+        }
+      }
+
+      if (annotationData.type === AnnotationType.Highlight) {
+        const topLeft = percentToPixels(
+          annotationData.position.x,
+          annotationData.position.y,
+          videoRect
+        )
+        const width = ((annotationData.width ?? 20) / 100) * videoRect.width
+        const height = ((annotationData.height ?? 10) / 100) * videoRect.height
+        return {
+          x: topLeft.x,
+          y: topLeft.y,
+          width,
+          height,
+        }
+      }
+
+      const topLeft = percentToPixels(
         annotationData.position.x,
         annotationData.position.y,
         videoRect
       )
-
-      // Width/height are also percentages of canvas
-      const width = ((annotationData.width ?? 10) / 100) * videoRect.width
-      const height = ((annotationData.height ?? 5) / 100) * videoRect.height
+      const measured = measureAnnotationBox(annotationData)
+      const width = annotationData.width
+        ? (annotationData.width / 100) * videoRect.width
+        : measured.width
+      const height = annotationData.height
+        ? (annotationData.height / 100) * videoRect.height
+        : measured.height
 
       return {
-        x: center.x - width / 2,
-        y: center.y - height / 2,
+        x: topLeft.x,
+        y: topLeft.y,
         width,
         height,
       }

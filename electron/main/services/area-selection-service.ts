@@ -1,6 +1,7 @@
 import { BrowserWindow, screen, ipcMain } from 'electron'
 import * as path from 'path'
 import { getAppURL } from '../config'
+import { applyContentSecurityPolicy } from '../windows/content-security-policy'
 
 interface AreaSelectionResult {
   success: boolean
@@ -144,6 +145,7 @@ class AreaSelectionService {
       // Ensure visible on all workspaces and above everything
       overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
+      applyContentSecurityPolicy(overlayWindow)
       return overlayWindow
     })
 

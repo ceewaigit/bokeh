@@ -10,7 +10,7 @@ import { useWorkspaceStore, type UtilityTabId } from '@/stores/workspace-store'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 
-const springConfig = { type: "spring", stiffness: 380, damping: 28 } as const
+const tabMotion = { type: "tween", duration: 0.12, ease: [0.2, 0.8, 0.2, 1] } as const
 
 const UTILITY_TABS: { id: UtilityTabId; label: string; icon: React.ElementType }[] = [
     { id: 'import', label: 'Media', icon: Upload },
@@ -61,9 +61,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
                                                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
                                         )}
                                         aria-label={tab.label}
-                                        whileHover={{ scale: 1.04 }}
-                                        whileTap={{ scale: 0.96 }}
-                                        transition={springConfig}
+                                        transition={tabMotion}
                                     >
                                         <AnimatePresence>
                                             {activeUtilityTab === tab.id && (
@@ -72,7 +70,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
                                                     initial={{ opacity: 0, scale: 0.98 }}
                                                     animate={{ opacity: 1, scale: 1 }}
                                                     exit={{ opacity: 0, scale: 0.98 }}
-                                                    transition={springConfig}
+                                                    transition={tabMotion}
                                                     layoutId="utilities-sidebar-tab-active"
                                                 />
                                             )}

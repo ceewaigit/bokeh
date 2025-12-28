@@ -1,11 +1,11 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { KeystrokeEffectData, Effect } from '@/types/project'
+import type { KeystrokeEffectData, Effect, KeyboardEvent } from '@/types/project'
 import { EffectType, KeystrokePosition } from '@/types'
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
@@ -13,6 +13,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { getKeystrokeEffects } from '@/lib/effects/effect-filters'
 import { EffectStore } from '@/lib/core/effects'
 import { ChevronRight } from 'lucide-react'
+import { KeystrokePreviewOverlay } from '@/components/keystroke-preview-overlay'
 
 interface KeystrokeTabProps {
   keystrokeEffect: Effect | undefined
@@ -36,6 +37,20 @@ const POSITION_OPTIONS = [
   { value: KeystrokePosition.TopCenter, label: 'Top', description: 'Centered at top' },
   { value: KeystrokePosition.BottomRight, label: 'Right', description: 'Bottom right corner' },
 ] as const
+
+const PREVIEW_TEXT = 'bokeh.'
+const PREVIEW_CHAR_INTERVAL_MS = 120
+const PREVIEW_PAUSE_MS = 900
+
+const buildPreviewEvents = (text: string, intervalMs: number): KeyboardEvent[] => {
+  let timestamp = 0
+  return text.split('').map((char) => {
+    const key = char === ' ' ? 'Space' : char
+    const event = { timestamp, key, modifiers: [] }
+    timestamp += intervalMs
+    return event
+  })
+}
 
 export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChange, onBulkToggleKeystrokes }: KeystrokeTabProps) {
   const keystrokeData = keystrokeEffect?.data as KeystrokeEffectData | undefined
@@ -73,6 +88,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
   const [localPadding, setLocalPadding] = useState(padding)
   const [localScale, setLocalScale] = useState(scale)
   const [localFadeOutDuration, setLocalFadeOutDuration] = useState(fadeOutDuration)
+  const [previewTimeMs, setPreviewTimeMs] = useState(0)
 
   useEffect(() => setLocalFontSize(fontSize), [fontSize])
   useEffect(() => setLocalDisplayDuration(displayDuration), [displayDuration])
@@ -80,6 +96,39 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
   useEffect(() => setLocalPadding(padding), [padding])
   useEffect(() => setLocalScale(scale), [scale])
   useEffect(() => setLocalFadeOutDuration(fadeOutDuration), [fadeOutDuration])
+
+  const previewEvents = useMemo(
+    () => buildPreviewEvents(PREVIEW_TEXT, PREVIEW_CHAR_INTERVAL_MS),
+    []
+  )
+  const previewDurationMs = useMemo(() => {
+    const lastTimestamp = previewEvents[previewEvents.length - 1]?.timestamp ?? 0
+    return lastTimestamp + localDisplayDuration + localFadeOutDuration + PREVIEW_PAUSE_MS
+  }, [previewEvents, localDisplayDuration, localFadeOutDuration])
+
+  useEffect(() => {
+    if (!hasEnabledKeystrokes || previewDurationMs <= 0) {
+      setPreviewTimeMs(0)
+      return
+    }
+    const interval = window.setInterval(() => {
+      setPreviewTimeMs((prev) => (prev + 50) % previewDurationMs)
+    }, 50)
+    return () => window.clearInterval(interval)
+  }, [hasEnabledKeystrokes, previewDurationMs])
+
+  const previewSettings: Partial<KeystrokeEffectData> = {
+    ...keystrokeData,
+    stylePreset: preset,
+    fontSize: localFontSize,
+    displayDuration: localDisplayDuration,
+    position,
+    borderRadius: localBorderRadius,
+    padding: localPadding,
+    scale: localScale,
+    fadeOutDuration: localFadeOutDuration,
+    showModifierSymbols,
+  }
 
   return (
     <div className="space-y-2.5">
@@ -107,6 +156,26 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
 
       {hasEnabledKeystrokes && (
         <div className="rounded-md bg-background/40 p-2.5 space-y-3">
+          {/* Preview */}
+          <div className="rounded-md bg-background/40 p-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Preview</div>
+              <div className="text-[12px] text-muted-foreground/60 italic">Live sample</div>
+            </div>
+            <div className="relative h-20 rounded-lg border border-border/50 bg-muted/30 ring-1 ring-border/20 shadow-inner overflow-hidden">
+              <KeystrokePreviewOverlay
+                currentTimeMs={previewTimeMs}
+                keystrokeEvents={previewEvents}
+                settings={previewSettings}
+                enabled
+                centered
+              />
+            </div>
+            <div className="text-[12px] text-muted-foreground/60 italic">
+              Uses your current style settings
+            </div>
+          </div>
+
           {/* Style */}
           <div className="space-y-1.5">
             <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Style</label>

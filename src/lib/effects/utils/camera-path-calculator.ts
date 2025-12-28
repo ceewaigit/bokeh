@@ -7,6 +7,7 @@ import type { CameraPathFrame } from '@/types'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import { calculateMockupPosition } from '@/lib/mockups/mockup-transform'
+import { getActiveBackgroundEffect } from '@/lib/effects/effect-filters'
 
 // Re-using types from hook or defining shared types locally if needed
 type CameraVideoArea = {
@@ -16,7 +17,7 @@ type CameraVideoArea = {
     offsetY: number
 }
 
-function getCameraOutputParams(args: {
+export function getCameraOutputParams(args: {
     canvasWidth: number
     canvasHeight: number
     videoArea: CameraVideoArea
@@ -55,6 +56,99 @@ function getCameraOutputParams(args: {
         },
     }
 }
+
+/**
+ * Get camera output context for a given clip at a specific time.
+ * This is the SSOT (Single Source of Truth) for camera output parameters.
+ */
+export function getCameraOutputContext(args: {
+    clipEffects: Effect[]
+    timelineMs: number
+    compositionWidth: number
+    compositionHeight: number
+    recording: Recording | null | undefined
+    sourceVideoWidth?: number
+    sourceVideoHeight?: number
+}): {
+    outputWidth: number
+    outputHeight: number
+    overscan?: { left: number; right: number; top: number; bottom: number }
+    mockupScreenPosition?: { x: number; y: number; width: number; height: number }
+    forceFollowCursor: boolean
+} {
+    const {
+        clipEffects,
+        timelineMs,
+        compositionWidth,
+        compositionHeight,
+        recording,
+        sourceVideoWidth,
+        sourceVideoHeight,
+    } = args
+
+    const backgroundEffect = getActiveBackgroundEffect(clipEffects, timelineMs) as BackgroundEffect | undefined
+    const backgroundData = backgroundEffect?.data ?? null
+    const padding = backgroundData?.padding || 0
+
+    const activeSourceWidth = recording?.width || sourceVideoWidth || compositionWidth
+    const activeSourceHeight = recording?.height || sourceVideoHeight || compositionHeight
+
+    const mockupData = backgroundData?.mockup
+    const mockupEnabled = mockupData?.enabled ?? false
+    const mockupPosition = mockupEnabled && mockupData
+        ? calculateMockupPosition(
+            compositionWidth,
+            compositionHeight,
+            mockupData,
+            activeSourceWidth,
+            activeSourceHeight,
+            padding
+        )
+        : null
+
+    const videoArea: CameraVideoArea = mockupEnabled && mockupPosition
+        ? {
+            drawWidth: mockupPosition.videoWidth,
+            drawHeight: mockupPosition.videoHeight,
+            offsetX: mockupPosition.videoX,
+            offsetY: mockupPosition.videoY,
+        }
+        : (() => {
+            const position = calculateVideoPosition(
+                compositionWidth,
+                compositionHeight,
+                activeSourceWidth,
+                activeSourceHeight,
+                padding
+            )
+            return {
+                drawWidth: position.drawWidth,
+                drawHeight: position.drawHeight,
+                offsetX: position.offsetX,
+                offsetY: position.offsetY,
+            }
+        })()
+
+    const { outputWidth, outputHeight, overscan } = getCameraOutputParams({
+        canvasWidth: compositionWidth,
+        canvasHeight: compositionHeight,
+        videoArea,
+        mockupPosition,
+    })
+
+    const mockupScreenPosition = mockupEnabled && mockupPosition
+        ? { x: 0, y: 0, width: outputWidth, height: outputHeight }
+        : undefined
+
+    return {
+        outputWidth,
+        outputHeight,
+        overscan,
+        mockupScreenPosition,
+        forceFollowCursor: Boolean(mockupEnabled && mockupPosition),
+    }
+}
+
 
 export interface CalculateCameraPathArgs {
     frameLayout: FrameLayoutItem[]
@@ -99,7 +193,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
     // OPTIMIZATION: If no camera tracking, skip heavy camera path computation
     // Just return default center coordinates for all frames
     if (!hasCameraTracking) {
-        const defaultResult = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 } }
+        const defaultResult = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, velocity: { x: 0, y: 0 } }
         const out = new Array(totalFrames).fill(defaultResult)
         return out
     }
@@ -113,13 +207,13 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
         lastSourceTimeMs: 0,
     }
 
-    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number } }[] = new Array(totalFrames)
+    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number }; velocity: { x: number; y: number } }[] = new Array(totalFrames)
 
     for (let f = 0; f < totalFrames; f++) {
         const tMs = (f / fps) * 1000
         const clipData = getActiveClipDataAtFrame({ frame: f, frameLayout, fps, effects, getRecording })
         if (!clipData) {
-            out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 } }
+            out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, velocity: { x: 0, y: 0 } }
             continue
         }
 
@@ -206,7 +300,14 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
         })
 
         Object.assign(physics, computed.physics)
-        out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter }
+
+        // Calculate velocity from previous frame's zoom center (deterministic)
+        const prevCenter = f > 0 && out[f - 1] ? out[f - 1].zoomCenter : computed.zoomCenter
+        const velocity = {
+            x: computed.zoomCenter.x - prevCenter.x,
+            y: computed.zoomCenter.y - prevCenter.y,
+        }
+        out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter, velocity }
     }
 
     // @ts-ignore - mismatch in return type slightly but compatible in structure, we'll fix strict types if needed

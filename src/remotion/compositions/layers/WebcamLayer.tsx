@@ -179,10 +179,16 @@ export const WebcamLayer = React.memo(({
   const sourceWidth = webcamRecording?.width || webcamSize;
   const sourceHeight = webcamRecording?.height || webcamSize;
   const sourceCrop = clampCropData(data.sourceCrop ?? DEFAULT_CROP_DATA);
-  const cropCenterX = (sourceCrop.x + sourceCrop.width / 2) * sourceWidth;
-  const cropCenterY = (sourceCrop.y + sourceCrop.height / 2) * sourceHeight;
-  const cropWidthPx = Math.max(1, sourceCrop.width * sourceWidth);
-  const cropHeightPx = Math.max(1, sourceCrop.height * sourceHeight);
+  const renderCrop = data.mirror
+    ? clampCropData({
+      ...sourceCrop,
+      x: 1 - sourceCrop.x - sourceCrop.width,
+    })
+    : sourceCrop;
+  const cropCenterX = (renderCrop.x + renderCrop.width / 2) * sourceWidth;
+  const cropCenterY = (renderCrop.y + renderCrop.height / 2) * sourceHeight;
+  const cropWidthPx = Math.max(1, renderCrop.width * sourceWidth);
+  const cropHeightPx = Math.max(1, renderCrop.height * sourceHeight);
   const scaleX = webcamSize / cropWidthPx;
   const scaleY = webcamSize / cropHeightPx;
   const scale = Math.max(scaleX, scaleY);

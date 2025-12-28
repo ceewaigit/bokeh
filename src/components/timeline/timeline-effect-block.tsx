@@ -115,8 +115,9 @@ export const TimelineEffectBlock = React.memo(({
   }
 
   // Define colors using tokens
-  const lightFill = withAlpha(baseStroke, isSelected ? 0.35 : 0.25)
-  const darkFill = withAlpha(baseStroke, isSelected ? 0.45 : 0.35)
+  // Promoted "selected" opacity to default for that solid glass look
+  const lightFill = withAlpha(baseStroke, 0.35)
+  const darkFill = withAlpha(baseStroke, 0.45)
   const blockFill = isDarkMode ? darkFill : lightFill
 
   // Use glass-safe colors for maximum contrast on any background
@@ -214,19 +215,18 @@ export const TimelineEffectBlock = React.memo(({
       hoverTweenRef.current = null
     }
 
-    const targetShadowBlur = isHovering && !isDragging && !isTransforming ? 10 : (isSelected ? 8 : 0)
-    const targetShadowOpacity = isHovering && !isDragging && !isTransforming ? 0.28 : (isSelected ? 0.25 : 0)
+    // Aligned with new subtle design
+    const targetShadowBlur = isHovering && !isDragging && !isTransforming ? 8 : (isSelected ? 4 : 1) // Higher blurry lift on hover
+    const targetShadowOpacity = isHovering && !isDragging && !isTransforming ? 0.2 : (isSelected ? 0.15 : 0.05)
 
     hoverTweenRef.current = new Konva.Tween({
       node,
-      duration: 0.1,
-      x: 0,
-      y: 0,
+      duration: 0.15, // Slightly longer for the physics feel of a lift
       scaleX: 1,
       scaleY: 1,
       shadowBlur: targetShadowBlur,
       shadowOpacity: targetShadowOpacity,
-      easing: Konva.Easings.EaseOut,
+      easing: Konva.Easings.EaseOut, // Snappy ease out
       onFinish: () => {
         // Clear ref when tween completes naturally
         hoverTweenRef.current = null
@@ -363,121 +363,126 @@ export const TimelineEffectBlock = React.memo(({
         onMouseDown={(e) => {
           e.cancelBubble = true
         }}
+
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         listening={true}
       >
-          {/* Main block */}
-          <Rect
-            ref={rectRef}
-            x={0}
-            y={0}
-            width={safeWidth}
-            height={safeHeight}
-            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: safeHeight }}
-            fillLinearGradientColorStops={[
-              0, withAlpha(blockFill, 0.7),
-              1, withAlpha(blockFill, 1)
-            ]}
-            stroke={withAlpha(baseStroke, isSelected ? 0.8 : 0.4)}
-            strokeWidth={isSelected ? 1.5 : 1}
-            cornerRadius={6}
-            opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
-            shadowColor="black"
-            shadowBlur={isSelected ? 12 : 2}
-            shadowOpacity={isSelected ? 0.15 : 0.05}
-            shadowOffsetY={1}
-            listening={true}
-          />
+        {/* Main block */}
+        <Rect
+          ref={rectRef}
+          x={0}
+          y={0}
+          width={safeWidth}
+          height={safeHeight}
+          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+          fillLinearGradientEndPoint={{ x: 0, y: safeHeight }}
+          fillLinearGradientColorStops={[
+            0, withAlpha(blockFill, 0.7),
+            1, withAlpha(blockFill, 1) // Solid glass feel
+          ]}
+          // New Selected Look: White/High-contrast border when selected
+          stroke={isSelected
+            ? (isDarkMode ? 'rgba(255,255,255,0.9)' : colors.primary)
+            : withAlpha(baseStroke, 0.4)
+          }
+          strokeWidth={isSelected ? 1.5 : 1}
+          // Aligned with TimelineClip: 8px radius
+          cornerRadius={8}
+          opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
+          // Aligned with TimelineClip: Subtle shadow instead of heavy glow
+          shadowColor="black"
+          shadowBlur={isSelected ? 4 : 1}
+          shadowOpacity={isSelected ? 0.15 : 0.05} // Slightly boosted from clip for effect visibility
+          shadowOffsetY={1}
+          listening={true}
+        />
 
-          {/* Subtle glassmorphism overlay on select */}
-          {isSelected && (
-            <>
-              {/* Subtle top highlight */}
-              <Rect
-                x={1}
-                y={1}
-                width={Math.max(1, safeWidth - 2)}
-                height={Math.max(1, (safeHeight - 2) / 2)}
-                fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-                fillLinearGradientEndPoint={{ x: 0, y: (safeHeight - 2) / 2 }}
-                fillLinearGradientColorStops={[
-                  0,
-                  withAlpha(colors.foreground, 0.08),
-                  1,
-                  withAlpha(colors.foreground, 0)
-                ]}
-                cornerRadius={[5, 5, 0, 0]}
-                listening={false}
-              />
-            </>
-          )}
+        {/* Glass highlight - Adapted for 8px radius */}
+        <Rect
+          x={1}
+          y={1}
+          width={Math.max(1, safeWidth - 2)}
+          height={Math.max(1, (safeHeight - 2) / 2)}
+          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+          fillLinearGradientEndPoint={{ x: 0, y: (safeHeight - 2) / 2 }}
+          fillLinearGradientColorStops={[
+            0,
+            withAlpha(colors.foreground, 0.12),
+            1,
+            withAlpha(colors.foreground, 0)
+          ]}
+          cornerRadius={[7, 7, 0, 0]} // Match new border radius (8-1)
+          listening={false}
+        />
 
-          {/* Resize handles - pill dots like reference */}
-          {(isHovering || isSelected) && (
-            <>
-              <Rect
-                x={-handleWidth / 2}
-                y={safeHeight / 2 - handleHeight / 2}
-                width={handleWidth}
-                height={handleHeight}
-                fill={handleFill}
-                cornerRadius={2}
-                listening={false}
-                shadowColor="black"
-                shadowBlur={2}
-                shadowOpacity={0.1}
-              />
-              <Rect
-                x={safeWidth - handleWidth / 2}
-                y={safeHeight / 2 - handleHeight / 2}
-                width={handleWidth}
-                height={handleHeight}
-                fill={handleFill}
-                cornerRadius={2}
-                listening={false}
-                shadowColor="black"
-                shadowBlur={2}
-                shadowOpacity={0.1}
-              />
-            </>
-          )}
-
-          {/* Only show curve in non-compact mode */}
-          {!isCompact && curvePoints.length > 0 && (
-            <>
-              <Line
-                points={curvePoints}
-                stroke={curveStroke}
-                strokeWidth={1.5}
-                lineCap="round"
-                lineJoin="round"
-                listening={false}
-              />
-            </>
-          )}
-
-          {/* Label - centered in compact mode, top-left otherwise */}
-          {(label && safeWidth > 32) && (
-            <Text
-              x={isCompact ? 0 : 8}
-              y={isCompact ? safeHeight / 2 - 5 : 6}
-              width={isCompact ? safeWidth : safeWidth - 16}
-              text={label}
-              fontSize={isCompact ? 10 : 11}
-              fill={labelFill}
-              fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text'"
-              fontStyle="600"
-              align={isCompact ? "center" : "left"}
-              wrap="none"
+        {/* Resize handles - Modern Pill Shape */}
+        {(isHovering || isSelected) && (
+          <>
+            {/* Left Handle */}
+            <Rect
+              x={-handleWidth / 2}
+              y={safeHeight / 2 - handleHeight / 2}
+              width={handleWidth}
+              height={handleHeight}
+              fill={isSelected ? (isDarkMode ? '#ffffff' : colors.primary) : handleFill}
+              cornerRadius={handleWidth / 2} // Pill shape
               listening={false}
-              shadowColor={labelShadowColor}
+              shadowColor="black"
               shadowBlur={4}
-              shadowOpacity={0.9}
-              shadowOffsetY={1}
+              shadowOpacity={0.2}
             />
-          )}
+            {/* Right Handle */}
+            <Rect
+              x={safeWidth - handleWidth / 2}
+              y={safeHeight / 2 - handleHeight / 2}
+              width={handleWidth}
+              height={handleHeight}
+              fill={isSelected ? (isDarkMode ? '#ffffff' : colors.primary) : handleFill}
+              cornerRadius={handleWidth / 2} // Pill shape
+              listening={false}
+              shadowColor="black"
+              shadowBlur={4}
+              shadowOpacity={0.2}
+            />
+          </>
+        )}
+
+        {/* Only show curve in non-compact mode */}
+        {!isCompact && curvePoints.length > 0 && (
+          <>
+            <Line
+              points={curvePoints}
+              stroke={curveStroke}
+              strokeWidth={1.5}
+              lineCap="round"
+              lineJoin="round"
+              listening={false}
+            />
+          </>
+        )}
+
+        {/* Label - centered in compact mode, top-left otherwise */}
+        {(label && safeWidth > 32) && (
+          <Text
+            x={isCompact ? 0 : 8}
+            y={isCompact ? safeHeight / 2 - 5 : 6}
+            width={isCompact ? safeWidth : safeWidth - 16}
+            text={label}
+            fontSize={isCompact ? 10 : 11}
+            fill={labelFill}
+            // Improved Typography: SF Pro Display
+            fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            fontStyle="500" // Slightly lighter weight for modern clean look
+            align={isCompact ? "center" : "left"}
+            wrap="none"
+            listening={false}
+            shadowColor={labelShadowColor}
+            shadowBlur={4}
+            shadowOpacity={0.9}
+            shadowOffsetY={1}
+          />
+        )}
       </Group>
 
       {/* Transformer always rendered - attachment controlled by useEffect based on hover/selection */}

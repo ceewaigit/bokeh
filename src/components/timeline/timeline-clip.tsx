@@ -510,6 +510,7 @@ const TimelineClipComponent = ({
       opacity={isDragging ? (isValidPosition ? 0.95 : 0.7) : 1}
     >
       {/* Clip background with rounded corners */}
+      {/* Clip background with rounded corners */}
       <Rect
         // Center pivot for scaling
         offsetX={clipWidth / 2}
@@ -525,21 +526,23 @@ const TimelineClipComponent = ({
               ? (isGeneratedClip ? colors.muted : (showMissingThumb ? missingThumbFill : 'rgba(127,127,127,0.15)'))
               : colors.success
         }
+        // New Selected Look: White/High-contrast border when selected
         stroke={
           isDragging && !isValidPosition
             ? colors.destructive
             : isSelected
-              ? colors.primary
+              ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary)
               : showMissingThumb
                 ? missingThumbStroke
                 : 'transparent'
         }
-        strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1 : showMissingThumb ? 1 : 0}
+        strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1.5 : showMissingThumb ? 1 : 0}
         cornerRadius={8}
         opacity={1}
-        shadowColor="black"
-        shadowBlur={isSelected ? 3 : 1}
-        shadowOpacity={isSelected ? 0.08 : 0.02}
+        // Updated Shadow: Subtle and clean
+        shadowColor={isSelected ? (colors.primary) : 'black'}
+        shadowBlur={isSelected ? 4 : 1}
+        shadowOpacity={isSelected ? 0.15 : 0.05}
         shadowOffsetY={1}
       />
 
@@ -547,7 +550,10 @@ const TimelineClipComponent = ({
         <Group
           clipFunc={(ctx) => {
             ctx.beginPath()
-            ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 8)
+            const h = trackHeight - TimelineConfig.TRACK_PADDING * 2
+            if (clipWidth > 0 && h > 0) {
+              ctx.roundRect(0, 0, clipWidth, h, 8)
+            }
             ctx.closePath()
           }}
         >
@@ -588,8 +594,9 @@ const TimelineClipComponent = ({
               y={10}
               text={generatedLabel}
               fontSize={10}
-              fontFamily="system-ui"
-              fontStyle="bold"
+              // Improved Typography
+              fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+              fontStyle="600"
               fill="rgba(255,255,255,0.7)"
               listening={false}
             />
@@ -602,7 +609,10 @@ const TimelineClipComponent = ({
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
-          ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 8)
+          const h = trackHeight - TimelineConfig.TRACK_PADDING * 2
+          if (clipWidth > 0 && h > 0) {
+            ctx.roundRect(0, 0, clipWidth, h, 8)
+          }
           ctx.closePath()
         }}>
           {/* Distribute thumbnails across clip width */}
@@ -654,8 +664,8 @@ const TimelineClipComponent = ({
           y={8}
           text={clipFileName}
           fontSize={11}
-          fontFamily="system-ui"
-          fontStyle="bold"
+          fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          fontStyle="500"
           fill={colors.foreground}
           opacity={0.85}
           listening={false}
@@ -675,7 +685,9 @@ const TimelineClipComponent = ({
             const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
             const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
             // Rounded bottom corners only - match clip's 8px radius
-            ctx.roundRect(0, 0, clipWidth, stripHeight, [0, 0, 8, 8])
+            if (clipWidth > 0 && stripHeight > 0) {
+              ctx.roundRect(0, 0, clipWidth, stripHeight, [0, 0, 8, 8])
+            }
             ctx.closePath()
           }}
         >
@@ -804,7 +816,9 @@ const TimelineClipComponent = ({
             clipFunc={(ctx) => {
               // Clip to rounded rectangle to match clip shape
               ctx.beginPath()
-              ctx.roundRect(0, 0, clipWidth, clipInnerHeight, 8)
+              if (clipWidth > 0 && clipInnerHeight > 0) {
+                ctx.roundRect(0, 0, clipWidth, clipInnerHeight, 8)
+              }
               ctx.closePath()
             }}
           >
@@ -846,16 +860,7 @@ const TimelineClipComponent = ({
         )
       })()}
 
-      {/* Speed-up suggestions bar - shows typing and idle indicators */}
-      {trackType === TrackType.Video && (typingPeriods.length > 0 || idlePeriods.length > 0) && showTypingSuggestions && (
-        <SpeedUpSuggestionsBar
-          typingPeriods={typingPeriods}
-          idlePeriods={idlePeriods}
-          clip={clip}
-          clipWidth={clipWidth}
-          pixelsPerMs={pixelsPerMs}
-        />
-      )}
+
 
       {/* Trim ghost overlay - shows the region being trimmed away */}
       {trimPreview && trimEdge && (

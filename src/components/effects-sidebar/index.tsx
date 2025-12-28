@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 
 import { cn } from '@/lib/utils'
-import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData, Effect } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
 import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffects } from '@/lib/effects/effect-filters'
@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
 import { TrackType } from '@/types/project'
-import { useTrackExistence, useEffectTrackExistence } from '@/stores/selectors/timeline-selectors'
+import { useTrackExistence } from '@/stores/selectors/timeline-selectors'
 
 import { BackgroundTab } from './background-tab'
 import { CursorTab } from './cursor-tab'
@@ -23,7 +23,7 @@ import { ShapeTab } from './shape-tab'
 import { ScreenTab } from './screen-tab'
 import { CropTab } from './crop-tab'
 import { ClipTab } from './clip-tab'
-import { AdvancedTab } from './advanced-tab'
+import { MotionTab } from './motion-tab'
 import { CanvasTab } from './canvas-tab'
 import { WebcamTab } from './webcam-tab'
 import { AnnotationsTab } from './annotations-tab'
@@ -32,7 +32,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { useSelectedClip } from '@/stores/selectors/clip-selectors'
 import { useEffectsSidebarContext } from './EffectsSidebarContext'
 
-const springConfig = { type: "spring", stiffness: 380, damping: 28 } as const
+const tabMotion = { type: "tween", duration: 0.12, ease: [0.2, 0.8, 0.2, 1] } as const
 
 interface EffectsSidebarProps {
   className?: string
@@ -51,7 +51,7 @@ const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Zoom]: 'Focus',
   [EffectLayerType.Crop]: 'Frame',
   [EffectLayerType.Plugin]: 'Tools',
-  [EffectLayerType.Annotation]: 'Note',
+  [EffectLayerType.Annotation]: 'Overlay',
 }
 
 function SubTabs<T extends string>({
@@ -79,9 +79,7 @@ function SubTabs<T extends string>({
               ? "text-foreground"
               : "text-muted-foreground hover:text-foreground"
           )}
-          whileHover={tab.disabled ? undefined : { scale: 1.02 }}
-          whileTap={tab.disabled ? undefined : { scale: 0.98 }}
-          transition={springConfig}
+          transition={tabMotion}
         >
           <AnimatePresence>
             {value === tab.id && (
@@ -90,7 +88,7 @@ function SubTabs<T extends string>({
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
-                transition={springConfig}
+                transition={tabMotion}
                 layoutId={`subtab-pill-${layoutId}`}
               />
             )}
@@ -134,6 +132,9 @@ export function EffectsSidebar({
     onStartEditCrop
   } = useEffectsSidebarContext()
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer)
+  const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection)
+  const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay)
+  const stopEditingOverlay = useProjectStore((s) => s.stopEditingOverlay)
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
   const isEditingCrop = useProjectStore((s) => s.isEditingCrop)
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
@@ -152,8 +153,6 @@ export function EffectsSidebar({
 
   // Check if webcam/annotation tracks have content
   const { hasWebcamContent } = useTrackExistence()
-  const effectTrackExistence = useEffectTrackExistence()
-  const hasAnnotationTrack = effectTrackExistence[EffectType.Annotation] ?? false
 
   // Extract current effects from the array using effect-filters helpers
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
@@ -164,6 +163,21 @@ export function EffectsSidebar({
   const webcamEffect = webcamEffectId
     ? webcamEffects.find(effect => effect.id === webcamEffectId)
     : undefined
+  const selectedAnnotation = React.useMemo(() => {
+    if (selectedEffectLayer?.type !== EffectLayerType.Annotation || !selectedEffectLayer.id) {
+      return null
+    }
+    return effects.find(effect => effect.id === selectedEffectLayer.id) ?? null
+  }, [effects, selectedEffectLayer])
+  const handleSelectAnnotation = useCallback((effect: Effect | null) => {
+    if (effect) {
+      selectEffectLayer(EffectLayerType.Annotation, effect.id)
+      startEditingOverlay(effect.id)
+      return
+    }
+    clearEffectSelection()
+    stopEditingOverlay()
+  }, [clearEffectSelection, selectEffectLayer, startEditingOverlay, stopEditingOverlay])
 
   // Track last selected clip id and previous effect layer type to control auto-tab switching
   const lastClipIdRef = React.useRef<string | null>(null)
@@ -298,11 +312,9 @@ export function EffectsSidebar({
       if (tab.id === SidebarTabId.Clip) return !!selectedClip
       // Only show Webcam tab when there's webcam content on the timeline
       if (tab.id === SidebarTabId.Webcam) return hasWebcamContent
-      // Only show Annotation tab when there are annotations
-      if (tab.id === SidebarTabId.Annotation) return hasAnnotationTrack
       return true
     })
-  }, [selectedClip, hasWebcamContent, hasAnnotationTrack])
+  }, [selectedClip, hasWebcamContent])
 
   useEffect(() => {
     if (!selectedClip && activeTab === SidebarTabId.Clip) {
@@ -312,11 +324,7 @@ export function EffectsSidebar({
     if (!hasWebcamContent && activeTab === SidebarTabId.Webcam) {
       setActiveTab(SidebarTabId.Style)
     }
-    // Switch away from Annotation tab if annotation content is removed
-    if (!hasAnnotationTrack && activeTab === SidebarTabId.Annotation) {
-      setActiveTab(SidebarTabId.Style)
-    }
-  }, [activeTab, selectedClip, hasWebcamContent, hasAnnotationTrack])
+  }, [activeTab, selectedClip, hasWebcamContent])
 
   useEffect(() => {
     if (activeTab !== SidebarTabId.Webcam) return
@@ -352,7 +360,7 @@ export function EffectsSidebar({
     <TooltipProvider>
       <div ref={tooltipRef} className={cn("flex h-full bg-transparent border-l border-border/30", className)}>
         {/* Left sidebar with section tabs */}
-        <div className="w-[56px] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent">
+        <div className="w-[56px] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent relative z-50">
           <div className="flex flex-col gap-1.5 w-full px-1.5">
             {visibleTabs.map((tab) => (
               <Tooltip key={tab.id} delayDuration={200}>
@@ -366,9 +374,7 @@ export function EffectsSidebar({
                         : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
                     )}
                     aria-label={tab.label}
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    transition={springConfig}
+                    transition={tabMotion}
                   >
                     <AnimatePresence>
                       {activeTab === tab.id && (
@@ -377,7 +383,7 @@ export function EffectsSidebar({
                           initial={{ opacity: 0, scale: 0.98 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.98 }}
-                          transition={springConfig}
+                          transition={tabMotion}
                           layoutId="effects-sidebar-tab-active"
                         />
                       )}
@@ -589,8 +595,6 @@ export function EffectsSidebar({
                             effects={effects}
                             selectedEffectLayer={selectedEffectLayer}
                             selectedClip={selectedClip}
-                            onUpdateZoom={(updates) => onEffectChange(EffectType.Zoom, updates)}
-                            onEffectChange={onEffectChange}
                             onZoomBlockUpdate={onZoomBlockUpdate}
                           />
                         </motion.div>
@@ -664,7 +668,10 @@ export function EffectsSidebar({
                     exit="exit"
                     className="space-y-3"
                   >
-                    <AnnotationsTab />
+                    <AnnotationsTab
+                      selectedAnnotation={selectedAnnotation ?? undefined}
+                      onSelectAnnotation={handleSelectAnnotation}
+                    />
                   </motion.div>
                 )}
 
@@ -693,7 +700,7 @@ export function EffectsSidebar({
                     exit="exit"
                     className="space-y-4"
                   >
-                    <AdvancedTab
+                    <MotionTab
                       effects={effects}
                       onEffectChange={onEffectChange}
                     />

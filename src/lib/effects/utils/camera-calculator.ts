@@ -13,7 +13,7 @@ import { interpolateMousePosition } from './mouse-interpolation'
 import { calculateZoomScale } from '@/remotion/compositions/utils/transforms/zoom-transform'
 import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/lib/effects/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
-import { lerp, smootherStep } from '@/lib/core/math'
+import { clamp01, lerp, smootherStep } from '@/lib/core/math'
 import { getSourceDimensions } from '@/lib/core/coordinates'
 import { CAMERA_CONFIG, CURSOR_STOP_CONFIG } from '@/lib/effects/config/physics-config'
 
@@ -152,7 +152,12 @@ export function computeCameraState({
   const isCinematicScrollEnabled = (cinematicScrollEffect?.data as any)?.kind === 'scrollCinematic' && cinematicScrollEffect?.enabled
   const cinematicSmoothing = isCinematicScrollEnabled ? normalizeSmoothingAmount((cinematicScrollEffect?.data as any)?.smoothing ?? 20) : 0
   const zoomSmoothing = normalizeSmoothingAmount(activeZoomBlock?.smoothing)
-  const smoothingAmount = Math.max(cinematicSmoothing, zoomSmoothing)
+  // Scale baseline smoothing with zoom to prevent high-zoom micro-jitter.
+  const zoomSmoothingBoost = activeZoomBlock
+    ? clamp01((currentScale - 1) / 1.5)
+    : 0
+  const basePanSmoothing = activeZoomBlock ? lerp(8, 22, zoomSmoothingBoost) : 0
+  const smoothingAmount = Math.max(cinematicSmoothing, zoomSmoothing, basePanSmoothing)
 
   const dtTimelineFromState = timelineMs - (physics.lastTimeMs ?? timelineMs)
   const isSeek = !isDeterministic && (Math.abs(dtTimelineFromState) > SEEK_THRESHOLD_MS)
@@ -165,7 +170,7 @@ export function computeCameraState({
     if (timelineMs >= activeZoomBlock.startTime + introMs) return 1
     if (zoomTargetScale <= 1.001) return smootherStep((timelineMs - activeZoomBlock.startTime) / introMs)
     const scaleProgress = (currentScale - 1) / (zoomTargetScale - 1)
-    return smootherStep(scaleProgress)
+    return clamp01(scaleProgress)
   })()
 
   // Estimate playback rate for predictive tracking
@@ -173,15 +178,7 @@ export function computeCameraState({
   const playbackRateEstimate = dtTimelineFromState > 1 ? dtSource / dtTimelineFromState : 1
   const rate = Math.max(0.5, Math.min(3, playbackRateEstimate || 1))
 
-  // Predictive Tracking during zoom-in
-  let effectiveSourceTimeMs = sourceTimeMs
-  if (activeZoomBlock && timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs) {
-    const timeUntilIntroEnd = (activeZoomBlock.startTime + activeZoomBlock.introMs) - timelineMs
-    const sourceTimeUntilIntroEnd = timeUntilIntroEnd * rate
-    effectiveSourceTimeMs = sourceTimeMs + sourceTimeUntilIntroEnd * introBlend
-  }
-
-  const attractor = calculateAttractor(mouseEvents, effectiveSourceTimeMs, sourceWidth, sourceHeight, smoothingAmount)
+  const attractor = calculateAttractor(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount)
 
   let cursorNormX = 0.5, cursorNormY = 0.5
   if (attractor) { cursorNormX = attractor.x / sourceWidth; cursorNormY = attractor.y / sourceHeight }
@@ -297,7 +294,8 @@ export function computeCameraState({
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
   } else {
     const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
-    const baseTau = lerp(0.08, 0.5, smoothingAmount / 100)
+    const smoothingT = clamp01(smoothingAmount / 100)
+    const baseTau = lerp(0.06, 0.55, smootherStep(smoothingT))
     const effectiveTau = baseTau / rate
     const tau = cursorIsFrozen ? effectiveTau * 3 : effectiveTau
     const alpha = dtSeconds > 0 ? Math.min(1, Math.max(0.001, 1 - Math.exp(-dtSeconds / tau))) : 0

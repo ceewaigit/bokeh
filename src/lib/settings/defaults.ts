@@ -15,10 +15,15 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   },
   camera: {
     motionBlurEnabled: true,
-    motionBlurIntensity: 40,
-    motionBlurThreshold: 30,
+    motionBlurIntensity: 50,
+    motionBlurThreshold: 50,
+    motionBlurSmoothWindow: 6,
+    motionBlurRampRange: 0.5,
+    motionBlurClamp: 60,
+    motionBlurGamma: 1.0,
+    motionBlurBlackLevel: -0.13,
     refocusBlurEnabled: true,
-    refocusBlurIntensity: 40
+    refocusBlurIntensity: 50
   },
   canvas: {
     aspectRatio: AspectRatioPreset.Original,
@@ -40,10 +45,15 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   playback: { previewSpeed: 1 },
   camera: {
     motionBlurEnabled: true,
-    motionBlurIntensity: 40,
-    motionBlurThreshold: 30,
+    motionBlurIntensity: 50,
+    motionBlurThreshold: 50,
+    motionBlurSmoothWindow: 6,
+    motionBlurRampRange: 0.5,
+    motionBlurClamp: 60,
+    motionBlurGamma: 1.0,
+    motionBlurBlackLevel: -0.13,
     refocusBlurEnabled: true,
-    refocusBlurIntensity: 40
+    refocusBlurIntensity: 50
   },
   recording: {
     lowMemoryEncoder: false,

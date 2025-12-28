@@ -10,6 +10,7 @@ export { CommandExecutor } from './base/CommandExecutor'
 // Timeline commands
 export {
   AddClipCommand,
+  ImportRecordingCommand,
   RemoveClipCommand,
   SplitClipCommand,
   DuplicateClipCommand,
@@ -40,6 +41,7 @@ export {
 // Command registry helper
 import { CommandManager } from './base/CommandManager'
 import { AddClipCommand } from './timeline/AddClipCommand'
+import { ImportRecordingCommand } from './timeline/ImportRecordingCommand'
 import { RemoveClipCommand } from './timeline/RemoveClipCommand'
 import { SplitClipCommand } from './timeline/SplitClipCommand'
 import { DuplicateClipCommand } from './timeline/DuplicateClipCommand'
@@ -59,6 +61,7 @@ import { PasteCommand } from './clipboard/PasteCommand'
 export function registerAllCommands(manager: CommandManager): void {
   // Timeline commands
   manager.registerCommand('AddClip', AddClipCommand as any)
+  manager.registerCommand('ImportRecording', ImportRecordingCommand as any)
   manager.registerCommand('RemoveClip', RemoveClipCommand as any)
   manager.registerCommand('SplitClip', SplitClipCommand as any)
   manager.registerCommand('DuplicateClip', DuplicateClipCommand as any)

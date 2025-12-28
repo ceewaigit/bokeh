@@ -1,7 +1,7 @@
 import { BrowserWindow, WebContents, screen } from 'electron'
 import * as path from 'path'
 import { getAppURL, isDev } from '../config'
-import { getContentSecurityPolicy } from './content-security-policy'
+import { applyContentSecurityPolicy } from './content-security-policy'
 
 // Webpack entry points are set as environment variables by electron-forge
 
@@ -62,7 +62,7 @@ export function createMainWindow(): BrowserWindow {
   })
 
   setupPermissions(mainWindow)
-  setupSecurityPolicy(mainWindow)
+  applyContentSecurityPolicy(mainWindow)
 
   // Don't load URL here - let the caller handle it
   // This prevents double loading
@@ -101,15 +101,4 @@ function setupPermissions(window: BrowserWindow): void {
     return permission === 'media' || permission === 'display-capture' || permission === 'screen'
   }
   window.webContents.session.setPermissionCheckHandler(permissionCheckHandler)
-}
-
-function setupSecurityPolicy(window: BrowserWindow): void {
-  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': getContentSecurityPolicy()
-      }
-    })
-  })
 }

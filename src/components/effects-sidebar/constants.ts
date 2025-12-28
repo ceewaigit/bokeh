@@ -25,11 +25,11 @@ import {
   Palette,
   MousePointer,
   Crop,
-  Bot,
   SlidersHorizontal,
   LayoutGrid,
-  Camera,
+  Video,
   StickyNote,
+  Wind,
 } from 'lucide-react'
 
 export enum SidebarTabId {
@@ -48,8 +48,8 @@ export const SIDEBAR_TABS = [
   { id: SidebarTabId.Style, icon: Palette, label: 'Look' },
   { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Pointer & Typing' },
   { id: SidebarTabId.Framing, icon: Crop, label: 'Focus & Frame' },
-  { id: SidebarTabId.Webcam, icon: Camera, label: 'Camera' },
-  { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Notes' },
+  { id: SidebarTabId.Webcam, icon: Video, label: 'Webcam' },
+  { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Overlay' },
+  { id: SidebarTabId.Advanced, icon: Wind, label: 'Motion' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Stage' },
-  { id: SidebarTabId.Advanced, icon: Bot, label: 'More' },
 ] as const

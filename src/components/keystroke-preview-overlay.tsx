@@ -15,6 +15,7 @@ interface KeystrokePreviewOverlayProps {
     keystrokeEvents: KeyboardEvent[];
     settings?: Partial<KeystrokeEffectData>;
     enabled?: boolean;
+    centered?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
     keystrokeEvents,
     settings: userSettings,
     enabled = true,
+    centered = false,
 }) => {
     const settings = useMemo<Required<KeystrokeEffectData>>(() => {
         // Filter out undefined values from userSettings to avoid overriding defaults
@@ -65,17 +67,21 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
 
     // Position based on settings
     let positionStyle: React.CSSProperties = {};
-    switch (settings.position) {
-        case KeystrokePosition.BottomRight:
-            positionStyle = { bottom: margin, right: margin };
-            break;
-        case KeystrokePosition.TopCenter:
-            positionStyle = { top: margin, left: '50%', transform: 'translateX(-50%)' };
-            break;
-        case KeystrokePosition.BottomCenter:
-        default:
-            positionStyle = { bottom: margin, left: '50%', transform: 'translateX(-50%)' };
-            break;
+    if (centered) {
+        positionStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+    } else {
+        switch (settings.position) {
+            case KeystrokePosition.BottomRight:
+                positionStyle = { bottom: margin, right: margin };
+                break;
+            case KeystrokePosition.TopCenter:
+                positionStyle = { top: margin, left: '50%', transform: 'translateX(-50%)' };
+                break;
+            case KeystrokePosition.BottomCenter:
+            default:
+                positionStyle = { bottom: margin, left: '50%', transform: 'translateX(-50%)' };
+                break;
+        }
     }
 
     return (

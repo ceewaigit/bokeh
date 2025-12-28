@@ -38,6 +38,7 @@ export interface FixedTrackHeights {
 /** Fixed track positions (non-effect tracks) */
 export interface FixedTrackPositions {
   ruler: number
+  speedUpBar: number  // Y position for speed-up suggestion bars
   screenGroupHeader: number
   video: number
   audio: number
@@ -197,9 +198,10 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
   // Calculate fixed track heights
   const fixedTrackHeights = useMemo((): FixedTrackHeights => {
-    const hasSuggestions = hasSpeedUpSuggestions.typing || hasSpeedUpSuggestions.idle
     const rulerHeight = TimelineConfig.RULER_HEIGHT
-    const speedUpBarSpace = (showTypingSuggestions && hasSuggestions) ? 24 : 0
+    const speedUpBarSpace = (hasSpeedUpSuggestions.typing || hasSpeedUpSuggestions.idle) && showTypingSuggestions
+      ? TimelineConfig.SPEED_UP_BAR_SPACE
+      : 0
 
     const videoVisible = visibleTracks.has(TimelineTrackType.Video)
     const audioVisible = visibleTracks.has(TimelineTrackType.Audio) && !isScreenGroupCollapsed && isVideoTrackExpanded
@@ -250,8 +252,13 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     y += fixedTrackHeights.ruler
 
     const screenGroupHeaderY = y
+
+    // Add speed-up bar space gap
+    y += fixedTrackHeights.speedUpBarSpace
+
+    // Video starts immediately after header/ruler
     const videoY = y
-    y += fixedTrackHeights.video + fixedTrackHeights.speedUpBarSpace
+    y += fixedTrackHeights.video
 
     const audioY = y
     y += fixedTrackHeights.audio
@@ -260,6 +267,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
     return {
       ruler: rulerY,
+      speedUpBar: screenGroupHeaderY,  // Speed-up bars render in the gap after ruler
       screenGroupHeader: screenGroupHeaderY,
       video: videoY,
       audio: audioY,

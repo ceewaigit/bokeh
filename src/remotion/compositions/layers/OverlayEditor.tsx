@@ -12,8 +12,11 @@ import React, { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { AbsoluteFill, getRemotionEnvironment } from 'remotion'
 import { useVideoPosition } from '../../context/layout/VideoPositionContext'
 import { useProjectStore } from '@/stores/project-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import { EffectType, EffectLayerType } from '@/types/effects'
-import type { Effect } from '@/types/project'
+import type { Effect, AnnotationData } from '@/types/project'
+import { AnnotationType } from '@/types/project'
+import { getDefaultAnnotationSize } from '@/lib/annotations/annotation-defaults'
 import {
   hitTestEffects,
   getEffectBounds,
@@ -40,6 +43,42 @@ interface OverlayEditorProps {
 const HANDLE_SIZE = 12
 const PRIMARY_COLOR = 'hsl(var(--primary))'
 const SURFACE_COLOR = 'hsl(var(--background))'
+const MIN_HIGHLIGHT_SIZE = 4
+
+type AnnotationDragState = {
+  type: AnnotationType
+  position: { x: number; y: number }
+  endPosition?: { x: number; y: number }
+  width?: number
+  height?: number
+}
+
+const clampPercent = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value))
+const clampPoint = (point: { x: number; y: number }, min = 0, max = 100) => ({
+  x: clampPercent(point.x, min, max),
+  y: clampPercent(point.y, min, max),
+})
+
+const clampHighlightBox = (
+  position: { x: number; y: number },
+  width: number,
+  height: number
+) => {
+  const maxX = 100 - MIN_HIGHLIGHT_SIZE
+  const maxY = 100 - MIN_HIGHLIGHT_SIZE
+  const clampedPosition = {
+    x: clampPercent(position.x, 0, maxX),
+    y: clampPercent(position.y, 0, maxY),
+  }
+  const clampedWidth = Math.max(MIN_HIGHLIGHT_SIZE, Math.min(width, 100 - clampedPosition.x))
+  const clampedHeight = Math.max(MIN_HIGHLIGHT_SIZE, Math.min(height, 100 - clampedPosition.y))
+  return {
+    x: clampedPosition.x,
+    y: clampedPosition.y,
+    width: clampedWidth,
+    height: clampedHeight,
+  }
+}
 
 export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   effects,
@@ -58,12 +97,17 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   const stopEditingOverlay = useProjectStore((s) => s.stopEditingOverlay)
   const updateEffect = useProjectStore((s) => s.updateEffect)
 
+  const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
+  const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
+
   // Drag state
   const overlayRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragType, setDragType] = useState<'move' | HandlePosition | null>(null)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [initialPosition, setInitialPosition] = useState<PositionData | null>(null)
+  const [initialAnnotation, setInitialAnnotation] = useState<AnnotationDragState | null>(null)
+  const [dragEffectType, setDragEffectType] = useState<EffectType | null>(null)
 
   // Get the video rect from VideoPositionContext
   const videoRect: VideoRect = {
@@ -73,10 +117,10 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
     height: videoPosition.drawHeight,
   }
 
-  const editingOverlayPosition = useMemo(() => {
+  const pluginEditingPosition = useMemo(() => {
     if (!editingOverlayId) return null
     const effect = effects.find((e) => e.id === editingOverlayId)
-    if (!effect) return null
+    if (!effect || effect.type !== EffectType.Plugin) return null
     const bounds = getEffectBounds(effect, videoRect)
     if (!bounds) return null
     return {
@@ -91,6 +135,9 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   const selectedEffect = selectedEffectLayer?.id
     ? effects.find((e) => e.id === selectedEffectLayer.id)
     : null
+  const selectedAnnotationData = selectedEffect?.type === EffectType.Annotation
+    ? (selectedEffect.data as AnnotationData)
+    : null
 
   // Get bounds of selected effect
   const selectedBounds = selectedEffect
@@ -99,6 +146,16 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
 
   // Check if selected effect is resizable
   const canResize = selectedEffect ? isResizableEffect(selectedEffect) : false
+
+  const badgeText = useMemo(() => {
+    if (selectedAnnotationData?.position) {
+      return `${Math.round(selectedAnnotationData.position.x)}%, ${Math.round(selectedAnnotationData.position.y)}%`
+    }
+    if (pluginEditingPosition) {
+      return `${Math.round(pluginEditingPosition.x)}%, ${Math.round(pluginEditingPosition.y)}%`
+    }
+    return 'Selected'
+  }, [selectedAnnotationData, pluginEditingPosition])
 
   // Convert EffectType to EffectLayerType
   // Note: Webcam is handled separately via WebcamLayer, not OverlayEditor
@@ -116,7 +173,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   // Handle mouse move during drag
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!isDragging || !dragType || !initialPosition || !editingOverlayId) return
+      if (!isDragging || !dragType || !editingOverlayId || !dragEffectType) return
 
       const delta = deltaToPercent(
         e.clientX - dragStart.x,
@@ -124,17 +181,119 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         videoRect
       )
 
+      if (dragEffectType === EffectType.Annotation && initialAnnotation) {
+        const basePosition = initialAnnotation.position
+        const fallback = getDefaultAnnotationSize(initialAnnotation.type)
+        const baseWidth = initialAnnotation.width ?? fallback.width ?? 20
+        const baseHeight = initialAnnotation.height ?? fallback.height ?? 10
+
+        if (dragType === 'move') {
+          if (initialAnnotation.type === AnnotationType.Arrow) {
+            const baseEnd = initialAnnotation.endPosition ?? {
+              x: basePosition.x + 10,
+              y: basePosition.y + 10,
+            }
+            const start = clampPoint({
+              x: basePosition.x + delta.x,
+              y: basePosition.y + delta.y,
+            })
+            const end = clampPoint({
+              x: baseEnd.x + delta.x,
+              y: baseEnd.y + delta.y,
+            })
+            updateEffect(editingOverlayId, {
+              data: { position: start, endPosition: end },
+            })
+            return
+          }
+
+          if (initialAnnotation.type === AnnotationType.Highlight) {
+            const clamped = clampHighlightBox(
+              { x: basePosition.x + delta.x, y: basePosition.y + delta.y },
+              baseWidth,
+              baseHeight
+            )
+            updateEffect(editingOverlayId, {
+              data: {
+                position: { x: clamped.x, y: clamped.y },
+                width: clamped.width,
+                height: clamped.height,
+              },
+            })
+            return
+          }
+
+          const next = clampPoint({
+            x: basePosition.x + delta.x,
+            y: basePosition.y + delta.y,
+          })
+          updateEffect(editingOverlayId, { data: { position: next } })
+          return
+        }
+
+        if (initialAnnotation.type !== AnnotationType.Highlight) return
+
+        let nextX = basePosition.x
+        let nextY = basePosition.y
+        let nextWidth = baseWidth
+        let nextHeight = baseHeight
+
+        switch (dragType) {
+          case 'bottom-right':
+            nextWidth = baseWidth + delta.x
+            nextHeight = baseHeight + delta.y
+            break
+          case 'bottom-left':
+            nextX = basePosition.x + delta.x
+            nextWidth = baseWidth - delta.x
+            nextHeight = baseHeight + delta.y
+            break
+          case 'top-right':
+            nextY = basePosition.y + delta.y
+            nextWidth = baseWidth + delta.x
+            nextHeight = baseHeight - delta.y
+            break
+          case 'top-left':
+            nextX = basePosition.x + delta.x
+            nextY = basePosition.y + delta.y
+            nextWidth = baseWidth - delta.x
+            nextHeight = baseHeight - delta.y
+            break
+          case 'right':
+            nextWidth = baseWidth + delta.x
+            break
+          case 'left':
+            nextX = basePosition.x + delta.x
+            nextWidth = baseWidth - delta.x
+            break
+          case 'bottom':
+            nextHeight = baseHeight + delta.y
+            break
+          case 'top':
+            nextY = basePosition.y + delta.y
+            nextHeight = baseHeight - delta.y
+            break
+        }
+
+        const clamped = clampHighlightBox({ x: nextX, y: nextY }, nextWidth, nextHeight)
+        updateEffect(editingOverlayId, {
+          data: {
+            position: { x: clamped.x, y: clamped.y },
+            width: clamped.width,
+            height: clamped.height,
+          },
+        })
+        return
+      }
+
+      if (!initialPosition) return
+
       let newPosition = { ...initialPosition }
 
       if (dragType === 'move') {
-        // Move: update x and y
         newPosition.x = initialPosition.x + delta.x
         newPosition.y = initialPosition.y + delta.y
       } else {
-        // Resize: update based on handle
-        // For now, we'll handle resize by adjusting width/height
-        // This is a simplified version - full implementation would need
-        // to handle each handle direction properly
         switch (dragType) {
           case 'bottom-right':
             newPosition.width = (initialPosition.width ?? 100) + delta.x
@@ -174,12 +333,28 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
       }
 
       newPosition = clampPosition(newPosition)
-      // Update effect position in store
       updateEffect(editingOverlayId, {
-        data: { position: { x: newPosition.x, y: newPosition.y, width: newPosition.width, height: newPosition.height } },
+        data: {
+          position: {
+            x: newPosition.x,
+            y: newPosition.y,
+            width: newPosition.width,
+            height: newPosition.height,
+          },
+        },
       })
     },
-    [isDragging, dragType, dragStart, initialPosition, editingOverlayId, videoRect, updateEffect]
+    [
+      isDragging,
+      dragType,
+      dragStart,
+      initialAnnotation,
+      initialPosition,
+      editingOverlayId,
+      dragEffectType,
+      videoRect,
+      updateEffect,
+    ]
   )
 
   // Handle mouse up
@@ -187,6 +362,8 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
     setIsDragging(false)
     setDragType(null)
     setInitialPosition(null)
+    setInitialAnnotation(null)
+    setDragEffectType(null)
   }, [])
 
   // Global mouse event listeners
@@ -204,13 +381,14 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   // Keyboard shortcuts (only when element selected)
   useEffect(() => {
     const effectId = selectedEffectLayer?.id
-          if (!effectId || !editingOverlayPosition) return
+    if (!effectId || !selectedEffect) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't handle if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
       const step = e.shiftKey ? 10 : 1
+      const delta = { x: 0, y: 0 }
 
       switch (e.key) {
         case 'Delete':
@@ -223,54 +401,22 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
 
         case 'ArrowUp':
           e.preventDefault()
-          {
-            const newPos = clampPosition({
-              ...editingOverlayPosition,
-              y: editingOverlayPosition.y - step
-            })
-            updateEffect(effectId, {
-              data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
-            })
-          }
+          delta.y = -step
           break
 
         case 'ArrowDown':
           e.preventDefault()
-          {
-            const newPos = clampPosition({
-              ...editingOverlayPosition,
-              y: editingOverlayPosition.y + step
-            })
-            updateEffect(effectId, {
-              data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
-            })
-          }
+          delta.y = step
           break
 
         case 'ArrowLeft':
           e.preventDefault()
-          {
-            const newPos = clampPosition({
-              ...editingOverlayPosition,
-              x: editingOverlayPosition.x - step
-            })
-            updateEffect(effectId, {
-              data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
-            })
-          }
+          delta.x = -step
           break
 
         case 'ArrowRight':
           e.preventDefault()
-          {
-            const newPos = clampPosition({
-              ...editingOverlayPosition,
-              x: editingOverlayPosition.x + step
-            })
-            updateEffect(effectId, {
-              data: { position: { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height } }
-            })
-          }
+          delta.x = step
           break
 
         case 'Escape':
@@ -278,12 +424,89 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
           clearEffectSelection()
           stopEditingOverlay()
           break
+        default:
+          return
       }
+
+      if (delta.x === 0 && delta.y === 0) return
+
+      if (selectedEffect.type === EffectType.Annotation && selectedAnnotationData?.position) {
+        const basePosition = selectedAnnotationData.position
+
+        if (selectedAnnotationData.type === AnnotationType.Arrow) {
+          const baseEnd = selectedAnnotationData.endPosition ?? {
+            x: basePosition.x + 10,
+            y: basePosition.y + 10,
+          }
+          const nextStart = clampPoint({
+            x: basePosition.x + delta.x,
+            y: basePosition.y + delta.y,
+          })
+          const nextEnd = clampPoint({
+            x: baseEnd.x + delta.x,
+            y: baseEnd.y + delta.y,
+          })
+          updateEffect(effectId, { data: { position: nextStart, endPosition: nextEnd } })
+          return
+        }
+
+        if (selectedAnnotationData.type === AnnotationType.Highlight) {
+          const fallback = getDefaultAnnotationSize(AnnotationType.Highlight)
+          const width = selectedAnnotationData.width ?? fallback.width ?? 20
+          const height = selectedAnnotationData.height ?? fallback.height ?? 10
+          const clamped = clampHighlightBox(
+            { x: basePosition.x + delta.x, y: basePosition.y + delta.y },
+            width,
+            height
+          )
+          updateEffect(effectId, {
+            data: {
+              position: { x: clamped.x, y: clamped.y },
+              width: clamped.width,
+              height: clamped.height,
+            },
+          })
+          return
+        }
+
+        const next = clampPoint({
+          x: basePosition.x + delta.x,
+          y: basePosition.y + delta.y,
+        })
+        updateEffect(effectId, { data: { position: next } })
+        return
+      }
+
+      if (selectedEffect.type !== EffectType.Plugin || !pluginEditingPosition) return
+
+      const newPos = clampPosition({
+        ...pluginEditingPosition,
+        x: pluginEditingPosition.x + delta.x,
+        y: pluginEditingPosition.y + delta.y,
+      })
+      updateEffect(effectId, {
+        data: {
+          position: {
+            x: newPos.x,
+            y: newPos.y,
+            width: newPos.width,
+            height: newPos.height,
+          },
+        },
+      })
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEffectLayer, editingOverlayPosition, updateEffect, clearEffectSelection, stopEditingOverlay])
+  }, [
+    selectedEffectLayer,
+    selectedEffect,
+    selectedAnnotationData,
+    pluginEditingPosition,
+    updateEffect,
+    clearEffectSelection,
+    stopEditingOverlay,
+  ])
 
   // Handle click on canvas (selection)
   const handleCanvasClick = useCallback(
@@ -309,17 +532,9 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         const effect = effects.find((e) => e.id === hit.effectId)
         if (effect) {
           selectEffectLayer(effectTypeToLayerType(effect.type), effect.id)
-
-          // Get effect position for editing
-          const bounds = getEffectBounds(effect, videoRect)
-          if (bounds) {
-            const position: PositionData = {
-              x: ((bounds.x + bounds.width / 2 - videoRect.x) / videoRect.width) * 100,
-              y: ((bounds.y + bounds.height / 2 - videoRect.y) / videoRect.height) * 100,
-              width: bounds.width,
-              height: bounds.height,
-            }
-            startEditingOverlay(effect.id)
+          startEditingOverlay(effect.id)
+          if (!isPropertiesOpen) {
+            toggleProperties()
           }
         }
       } else {
@@ -328,7 +543,18 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         stopEditingOverlay()
       }
     },
-    [effects, videoRect, selectedEffectLayer, isDragging, selectEffectLayer, clearEffectSelection, startEditingOverlay, stopEditingOverlay]
+    [
+      effects,
+      videoRect,
+      selectedEffectLayer,
+      isDragging,
+      selectEffectLayer,
+      clearEffectSelection,
+      startEditingOverlay,
+      stopEditingOverlay,
+      isPropertiesOpen,
+      toggleProperties,
+    ]
   )
 
   // Handle mouse down on selection box or handles
@@ -336,12 +562,30 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
     e.preventDefault()
     e.stopPropagation()
 
-    if (!editingOverlayPosition) return
+    if (!selectedEffect) return
+
+    if (selectedEffect.type === EffectType.Annotation) {
+      const data = selectedEffect.data as AnnotationData
+      if (!data.position) return
+      const fallback = getDefaultAnnotationSize(data.type ?? AnnotationType.Text)
+      setInitialAnnotation({
+        type: data.type ?? AnnotationType.Text,
+        position: data.position,
+        endPosition: data.endPosition,
+        width: data.width ?? fallback.width,
+        height: data.height ?? fallback.height,
+      })
+      setInitialPosition(null)
+    } else {
+      if (!pluginEditingPosition) return
+      setInitialPosition(pluginEditingPosition)
+      setInitialAnnotation(null)
+    }
 
     setIsDragging(true)
     setDragType(type)
     setDragStart({ x: e.clientX, y: e.clientY })
-    setInitialPosition(editingOverlayPosition)
+    setDragEffectType(selectedEffect.type)
   }
 
   // Get cursor for handle position
@@ -497,10 +741,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               whiteSpace: 'nowrap',
             }}
           >
-            {editingOverlayPosition
-              ? `${Math.round(editingOverlayPosition.x)}%, ${Math.round(editingOverlayPosition.y)}%`
-              : 'Selected'
-            }
+            {badgeText}
           </div>
         </>
       )}

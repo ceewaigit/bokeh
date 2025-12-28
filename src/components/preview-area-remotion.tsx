@@ -142,22 +142,32 @@ export function PreviewAreaRemotion({
   const lastIsPlayingRef = useRef<boolean>(false);
   const playbackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-
-  // No longer tracking currentTime via prop to avoid re-renders.
-  // Access it directly from store when needed.
-
   const safePlay = useCallback((player: PlayerRef | null) => {
-    const resolvedPlayer = assertDefined(player, '[PreviewAreaRemotion] Player ref missing')
-    return (resolvedPlayer as PlayerRef & { play: () => unknown }).play()
+    const resolvedPlayer = assertDefined(player, '[PreviewAreaRemotion] Player ref missing');
+    try {
+      const playFn = (resolvedPlayer as PlayerRef & { play: () => Promise<void> | void }).play;
+      const result = playFn.call(resolvedPlayer);
+      // Catch AbortErrors that occur when pause() interrupts play()
+      if (result instanceof Promise) {
+        result.catch((err: Error) => {
+          if (err?.name === 'AbortError') return; // Expected when pause interrupts play
+          console.warn('[PreviewAreaRemotion] Playback error:', err);
+        });
+      }
+    } catch (err) {
+      console.warn('[PreviewAreaRemotion] Failed to start playback:', err);
+    }
   }, []);
 
   const project = useProjectStore((s) => s.currentProject);
+  const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects ?? []);
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer);
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer);
   const projectSettings = useProjectStore((s) => s.currentProject?.settings);
   const volume = projectSettings?.audio.volume ?? DEFAULT_PROJECT_SETTINGS.audio.volume;
   const muted = projectSettings?.audio.muted ?? DEFAULT_PROJECT_SETTINGS.audio.muted;
-  const cameraSettings = projectSettings?.camera ?? DEFAULT_PROJECT_SETTINGS.camera;
+  // Subscribe directly to camera to ensure re-renders when camera settings change
+  const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera) ?? DEFAULT_PROJECT_SETTINGS.camera;
   const isHighQualityPlaybackEnabled = usePreviewSettingsStore((s) => s.highQuality);
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow);
   const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity);
@@ -174,7 +184,7 @@ export function PreviewAreaRemotion({
   const projectEffects = useMemo(() => {
     if (!project) return [];
     return EffectStore.getAll(project);
-  }, [project]);
+  }, [project, timelineEffects]);
 
   const backgroundEffectId = useMemo(() => {
     return getBackgroundEffect(projectEffects)?.id ?? null;
@@ -719,10 +729,15 @@ export function PreviewAreaRemotion({
       playbackSyncIntervalRef.current = null;
     }
 
+    const justPaused = lastIsPlayingRef.current;
     lastIsPlayingRef.current = false;
 
     // NOT playing - use throttled seeking to reduce decode pressure
     playerRef.current.pause();
+    // On transition to pause, snap to the target frame to avoid drift
+    if (justPaused) {
+      playerRef.current.seekTo(targetFrame);
+    }
 
     // PERFORMANCE: Subscribe only to currentTime changes, not all store mutations
     // Track previous time to filter out unrelated state changes
@@ -839,8 +854,6 @@ export function PreviewAreaRemotion({
     })
   }, [playerConfig, isEditingCrop, cropData, onCropChange, onCropConfirm, onCropReset, zoomSettings, isHighQualityPlaybackEnabled, muted, volume]);
 
-
-
   return (
     <div className="relative w-full h-full overflow-hidden bg-transparent">
       <div className="absolute inset-0 flex items-center justify-center p-8">
@@ -927,11 +940,7 @@ export function PreviewAreaRemotion({
                       showPosterWhenUnplayed={false}
                       showPosterWhenEnded={false}
                       moveToBeginningWhenEnded={false}
-                      renderLoading={() => (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-sm text-muted-foreground">Loading preview...</div>
-                        </div>
-                      )}
+                      renderLoading={() => null}
                       errorFallback={({ error }: { error: Error }) => {
                         console.error('Remotion Player error:', error);
                         return (

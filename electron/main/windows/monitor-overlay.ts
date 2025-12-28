@@ -3,6 +3,7 @@ import * as path from 'path'
 
 let overlayWindow: BrowserWindow | null = null
 let recordingOverlayWindow: BrowserWindow | null = null
+const overlayCsp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; script-src 'unsafe-inline'; connect-src 'none'; media-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
 
 function resolveTargetDisplay(displayId?: number): Display {
   const displays = screen.getAllDisplays()
@@ -115,6 +116,7 @@ export function showWindowBoundsOverlay(
     <!DOCTYPE html>
     <html>
     <head>
+      <meta http-equiv="Content-Security-Policy" content="${overlayCsp}">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
@@ -250,6 +252,7 @@ export function showMonitorOverlay(displayId?: number, customLabel?: string): vo
     <!DOCTYPE html>
     <html>
     <head>
+      <meta http-equiv="Content-Security-Policy" content="${overlayCsp}">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
@@ -406,6 +409,7 @@ export function showRecordingOverlay(
     <!DOCTYPE html>
     <html>
     <head>
+      <meta http-equiv="Content-Security-Policy" content="${overlayCsp}">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {

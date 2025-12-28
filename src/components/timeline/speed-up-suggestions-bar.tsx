@@ -96,7 +96,8 @@ const SuggestionBar: React.FC<{
       }
     }, [])
 
-    const handleMouseDown = useCallback(() => {
+    const handleMouseDown = useCallback((e: any) => {
+      e.cancelBubble = true
       setIsPressed(true)
     }, [])
 
@@ -296,10 +297,9 @@ export const SpeedUpSuggestionsBar: React.FC<SpeedUpSuggestionsBarProps> = ({
 
   // Simple single-row layout - all bars on same row
   const yOffset = 0
-  const totalBarHeight = 32
 
   return (
-    <Group y={-totalBarHeight}>
+    <Group y={4}> {/* Small margin from ruler */}
       {/* Idle periods */}
       {idlePeriods.map((p, i) => renderPeriod(p, i, yOffset))}
 

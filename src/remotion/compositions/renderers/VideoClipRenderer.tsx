@@ -8,7 +8,7 @@
  * NOTE: This component is rendered OUTSIDE VideoPositionProvider, so it receives
  * layout data via props from SharedVideoController.
  */
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment, Video } from 'remotion';
 import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
@@ -18,6 +18,7 @@ import { AudioEnhancerWrapper } from '@/remotion/components/video-helpers';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { devAssert } from '@/lib/utils/invariant';
 import { useComposition } from '@/remotion/context/CompositionContext';
+import { useProjectStore } from '@/stores/project-store';
 import type { Clip, Recording } from '@/types/project';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import type { SyntheticEvent } from 'react';
@@ -49,6 +50,8 @@ interface VideoClipRendererProps {
   VideoComponent: any;
   premountFor: number;
   postmountFor: number;
+  /** Callback to receive the video element reference for MotionBlurLayer */
+  onVideoRef?: (video: HTMLVideoElement | null) => void;
 }
 
 export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
@@ -58,13 +61,14 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   activeLayoutItem, prevLayoutItem, nextLayoutItem,
   shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
   markRenderReady, handleVideoReady, VideoComponent,
-  premountFor, postmountFor,
+  premountFor, postmountFor, onVideoRef,
 }) => {
   // Remotion hooks
   const currentFrame = useCurrentFrame();
   const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
   const { isRendering } = getRemotionEnvironment();
   const { fps } = useComposition();
+  const setPreviewReady = useProjectStore((s) => s.setPreviewReady);
 
   // Get settings from context
   const { playback, renderSettings, resources } = usePlaybackSettings();
@@ -83,12 +87,58 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // VTDecoder cleanup
   const containerRef = useVideoContainerCleanup(videoUrl);
 
+  // Track video element reference for MotionBlurLayer
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
+  // Find and expose video element when container mounts/updates
+  useEffect(() => {
+    if (!onVideoRef || !containerRef.current) return;
+
+    // Find the video element inside the container
+    const videoElement = containerRef.current.querySelector('video');
+    if (videoElement !== videoElementRef.current) {
+      videoElementRef.current = videoElement;
+      onVideoRef(videoElement);
+    }
+
+    // Use MutationObserver to detect when video element is added/removed
+    const observer = new MutationObserver(() => {
+      const video = containerRef.current?.querySelector('video');
+      if (video !== videoElementRef.current) {
+        videoElementRef.current = video ?? null;
+        onVideoRef(video ?? null);
+      }
+    });
+
+    observer.observe(containerRef.current, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      if (videoElementRef.current) {
+        videoElementRef.current = null;
+        onVideoRef(null);
+      }
+    };
+  }, [onVideoRef, containerRef]);
+
   // Handle video loaded event
   const handleLoaded = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
     if (isRendering) {
       handleVideoReady(e);
+      return;
     }
-  }, [isRendering, handleVideoReady]);
+    if (e.currentTarget.readyState >= 2) {
+      setPreviewReady(true);
+    }
+  }, [isRendering, handleVideoReady, setPreviewReady]);
+
+  useEffect(() => {
+    if (isRendering) return;
+    const video = videoElementRef.current;
+    if (video && video.readyState >= 2) {
+      setPreviewReady(true);
+    }
+  }, [isRendering, videoUrl, setPreviewReady]);
 
   // Early return for invalid recordings
   if (!recording || recording.sourceType === 'generated' || !recording.filePath) {
@@ -124,6 +174,9 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const effectiveOpacity = shouldHideForGeneratedActive ? 0 : renderState.effectiveOpacity;
   const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1));
   const shouldMuteAudio = previewMuted || effectiveVolume <= 0 || !recording?.hasAudio || renderState.isPreloading;
+
+  // Motion blur is now handled as an overlay effect, video always visible
+  // (PixiJS canvas overlays with blur when needed)
 
   return (
     <div ref={containerRef} style={{ display: 'contents' }}>

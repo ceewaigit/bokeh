@@ -1,17 +1,16 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useProjectStore } from '@/stores/project-store'
 import { EffectStore } from '@/lib/core/effects'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { DEFAULT_KEYBOARD_KEYS, getDefaultAnnotationSize } from '@/lib/annotations/annotation-defaults'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
-import { Type, ArrowRight, Highlighter, Keyboard, Plus, Trash2 } from 'lucide-react'
+import { Type, ArrowRight, Highlighter, Keyboard, Trash2 } from 'lucide-react'
 
 interface AnnotationsTabProps {
   selectedAnnotation?: Effect
@@ -52,8 +51,6 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
   const updateEffect = useProjectStore((s) => s.updateEffect)
   const removeEffect = useProjectStore((s) => s.removeEffect)
 
-  const [isAdding, setIsAdding] = useState(false)
-
   // Get all annotation effects
   const annotationEffects = React.useMemo(() => {
     if (!project) return []
@@ -70,6 +67,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
   const handleAddAnnotation = useCallback((type: AnnotationType) => {
     const startTime = currentTime
     const endTime = startTime + 3000 // 3 second default duration
+    const defaultSize = getDefaultAnnotationSize(type)
 
     const effect: Effect = {
       id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -80,22 +78,21 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
       data: {
         type,
         position: { x: 50, y: 50 }, // Center of canvas (0-100%)
-        content: type === 'text' ? 'New text' : undefined,
-        endPosition: type === 'arrow' ? { x: 60, y: 50 } : undefined, // Arrow endpoint
-        width: type === 'highlight' ? 20 : undefined, // 20% of canvas
-        height: type === 'highlight' ? 10 : undefined, // 10% of canvas
-        keys: type === 'keyboard' ? ['Cmd', 'S'] : undefined,
+        content: type === AnnotationType.Text ? 'New text' : undefined,
+        endPosition: type === AnnotationType.Arrow ? { x: 60, y: 50 } : undefined, // Arrow endpoint
+        width: defaultSize.width,
+        height: defaultSize.height,
+        keys: type === AnnotationType.Keyboard ? DEFAULT_KEYBOARD_KEYS : undefined,
         style: {
           color: '#ffffff',
           fontSize: 18,
-          backgroundColor: type === 'highlight' ? 'rgba(255, 255, 0, 0.3)' : undefined,
+          backgroundColor: type === AnnotationType.Highlight ? 'rgba(255, 255, 0, 0.3)' : undefined,
         },
       } satisfies AnnotationData,
     }
 
     addEffect(effect)
     onSelectAnnotation?.(effect)
-    setIsAdding(false)
   }, [currentTime, addEffect, onSelectAnnotation])
 
   // Update annotation content
@@ -118,6 +115,38 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
     updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
   }, [selectedAnnotation, updateEffect])
 
+  const handleUpdateSize = useCallback((axis: 'width' | 'height', value: number) => {
+    if (!selectedAnnotation) return
+    const currentData = selectedAnnotation.data as AnnotationData
+    const newData: AnnotationData = {
+      ...currentData,
+      [axis]: value,
+    }
+    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
+  }, [selectedAnnotation, updateEffect])
+
+  const handleUpdateArrowEnd = useCallback((axis: 'x' | 'y', value: number) => {
+    if (!selectedAnnotation) return
+    const currentData = selectedAnnotation.data as AnnotationData
+    const currentEnd = currentData.endPosition ?? { x: 60, y: 50 }
+    const newData: AnnotationData = {
+      ...currentData,
+      endPosition: { ...currentEnd, [axis]: value },
+    }
+    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
+  }, [selectedAnnotation, updateEffect])
+
+  const handleUpdateKeys = useCallback((value: string) => {
+    if (!selectedAnnotation) return
+    const currentData = selectedAnnotation.data as AnnotationData
+    const keys = value
+      .split(/[,+]/g)
+      .map((part) => part.trim())
+      .filter(Boolean)
+    const newData: AnnotationData = { ...currentData, keys }
+    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
+  }, [selectedAnnotation, updateEffect])
+
   // Delete annotation
   const handleDelete = useCallback(() => {
     if (!selectedAnnotation) return
@@ -132,59 +161,61 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">
-              Annotations
+              Overlays
             </div>
             <div className="mt-1 text-[12px] text-muted-foreground leading-snug">
               Add text, arrows, and highlights
             </div>
             <div className="mt-0.5 text-[12px] text-muted-foreground/70 tabular-nums">
-              {annotationEffects.length} annotations
+              {annotationEffects.length} overlays
             </div>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 px-2 text-xs"
-            onClick={() => setIsAdding(!isAdding)}
-          >
-            <Plus className="mr-1 h-3 w-3" />
-            Add
-          </Button>
+          <div className="text-[10px] text-muted-foreground/70">
+            Select a type below to add
+          </div>
         </div>
       </div>
 
       {/* Add annotation type picker */}
-      {isAdding && (
-        <div className="rounded-md border border-border/50 bg-background/60 p-2.5">
-          <div className="text-[11px] font-medium text-muted-foreground mb-2">
-            Select type
+      <div className="rounded-md border border-border/50 bg-background/60 p-2.5">
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] font-medium text-muted-foreground">
+            Create overlay
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {ANNOTATION_TYPES.map(({ type, label, description, icon: Icon }) => (
-              <button
-                key={type}
-                onClick={() => handleAddAnnotation(type)}
-                className={cn(
-                  'flex flex-col items-center gap-1 p-2.5 rounded-md',
-                  'border border-border/50 bg-background/40',
-                  'hover:bg-background/80 hover:border-border',
-                  'transition-colors duration-100'
-                )}
-              >
-                <Icon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-[11px] font-medium">{label}</span>
-              </button>
-            ))}
+          <div className="text-[10px] text-muted-foreground/70">
+            Click a type to place it
           </div>
         </div>
-      )}
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          {ANNOTATION_TYPES.map(({ type, label, description, icon: Icon }) => (
+            <button
+              key={type}
+              onClick={() => handleAddAnnotation(type)}
+              className={cn(
+                'group flex flex-col items-start gap-1 rounded-md p-2.5 text-left',
+                'border border-border/50 bg-background/40',
+                'hover:bg-background/80 hover:border-border',
+                'transition-colors duration-100'
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Icon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" />
+                <span className="text-[11px] font-medium">{label}</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground/80 leading-snug">
+                {description}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Selected annotation editor */}
       {selectedAnnotation && selectedData && (
         <div className="space-y-2.5 rounded-md border border-primary/30 bg-background/60 p-2.5">
           <div className="flex items-center justify-between">
             <div className="text-[11px] font-medium text-primary capitalize">
-              {selectedData.type ?? 'Unknown'} Annotation
+              {selectedData.type ?? 'Unknown'} Overlay
             </div>
             <Button
               size="sm"
@@ -195,9 +226,12 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
+          <div className="text-[10px] text-muted-foreground/70">
+            Drag on canvas to move. Resize handles appear for highlights.
+          </div>
 
           {/* Content editor for text */}
-          {selectedData.type === 'text' && (
+          {selectedData.type === AnnotationType.Text && (
             <div className="space-y-1.5">
               <label className="text-[11px] font-medium text-muted-foreground">
                 Text Content
@@ -206,6 +240,21 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                 value={selectedData.content ?? ''}
                 onChange={(e) => handleUpdateContent(e.target.value)}
                 placeholder="Enter text..."
+                className="h-8 text-xs"
+              />
+            </div>
+          )}
+
+          {/* Content editor for keyboard */}
+          {selectedData.type === AnnotationType.Keyboard && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-muted-foreground">
+                Keys
+              </label>
+              <Input
+                value={(selectedData.keys ?? []).join(' + ')}
+                onChange={(e) => handleUpdateKeys(e.target.value)}
+                placeholder="Cmd + S"
                 className="h-8 text-xs"
               />
             </div>
@@ -246,6 +295,80 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
               </div>
             </div>
           </div>
+
+          {selectedData.type === AnnotationType.Highlight && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Width
+                </label>
+                <Slider
+                  value={[selectedData.width ?? 20]}
+                  onValueChange={([v]) => handleUpdateSize('width', v)}
+                  min={5}
+                  max={100}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                  {Math.round(selectedData.width ?? 20)}%
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  Height
+                </label>
+                <Slider
+                  value={[selectedData.height ?? 10]}
+                  onValueChange={([v]) => handleUpdateSize('height', v)}
+                  min={5}
+                  max={100}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                  {Math.round(selectedData.height ?? 10)}%
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedData.type === AnnotationType.Arrow && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  End X
+                </label>
+                <Slider
+                  value={[selectedData.endPosition?.x ?? 60]}
+                  onValueChange={([v]) => handleUpdateArrowEnd('x', v)}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                  {Math.round(selectedData.endPosition?.x ?? 60)}%
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  End Y
+                </label>
+                <Slider
+                  value={[selectedData.endPosition?.y ?? 50]}
+                  onValueChange={([v]) => handleUpdateArrowEnd('y', v)}
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                  {Math.round(selectedData.endPosition?.y ?? 50)}%
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -289,10 +412,10 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
       )}
 
       {/* Empty state */}
-      {annotationEffects.length === 0 && !isAdding && (
+      {annotationEffects.length === 0 && !selectedAnnotation && (
         <div className="rounded-md border border-dashed border-border/50 bg-background/30 p-4 text-center">
           <div className="text-[11px] text-muted-foreground">
-            No annotations yet. Click "Add" to create one.
+            No overlays yet. Pick a type above to create one.
           </div>
         </div>
       )}

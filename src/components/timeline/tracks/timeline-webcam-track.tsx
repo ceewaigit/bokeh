@@ -81,6 +81,8 @@ export function TimelineWebcamTrack() {
 
   // Empty state - show drop zone when no webcam effects
   if (webcamEffects.length === 0) {
+    if (blockHeight <= 0) return null
+
     return (
       <Group>
         {/* Drop zone background */}

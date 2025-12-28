@@ -8,6 +8,7 @@ import { precomputeCursorSmoothingCache } from '@/lib/effects/utils/cursor-calcu
 import { precomputeCameraCaches } from '@/lib/effects/utils/camera-calculator'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { EffectStore } from '@/lib/core/effects'
+import { getSourceDimensionsStatic } from '@/lib/core/coordinates'
 import { InvalidPathError, MissingVideoError } from '@/lib/errors'
 
 /**
@@ -15,6 +16,7 @@ import { InvalidPathError, MissingVideoError } from '@/lib/errors'
  */
 export interface LoadProjectOptions {
   onProgress?: (message: string) => void
+  awaitPlaybackPreparation?: boolean
 }
 
 /**
@@ -98,8 +100,9 @@ export class ProjectIOService {
     recording: { path: string; project?: any },
     options: LoadProjectOptions = {}
   ): Promise<Project> {
-    const { onProgress } = options
+    const { onProgress, awaitPlaybackPreparation = false } = options
     let project = recording.project as Project | undefined
+    const pendingProxyTasks: Promise<void>[] = []
 
     // Load project from disk if not already loaded (library only passes lightweight projectInfo)
     if (!project && recording.path) {
@@ -204,8 +207,13 @@ export class ProjectIOService {
         // Once proxy is ready, future loads will use it instantly
         // SKIP for image clips - static images don't need video proxy conversion
         if (rec.sourceType !== 'image') {
-          void this.ensurePreviewProxy(rec, onProgress)
-          void this.ensureGlowProxy(rec)
+          if (awaitPlaybackPreparation) {
+            pendingProxyTasks.push(this.ensurePreviewProxy(rec, onProgress))
+            pendingProxyTasks.push(this.ensureGlowProxy(rec))
+          } else {
+            void this.ensurePreviewProxy(rec, onProgress)
+            void this.ensureGlowProxy(rec)
+          }
         }
       }
     }
@@ -273,6 +281,11 @@ export class ProjectIOService {
     }
 
     EffectsFactory.ensureGlobalEffects(project)
+
+    if (awaitPlaybackPreparation && pendingProxyTasks.length > 0) {
+      onProgress?.('Loading...')
+      await Promise.all(pendingProxyTasks)
+    }
 
     return project
   }
@@ -598,9 +611,8 @@ export class ProjectIOService {
           precomputeCursorSmoothingCache(mouseEvents, cursorData, 5000, 30)
 
           // Pre-compute camera motion clusters
-          const videoWidth = recording.width ?? 1920
-          const videoHeight = recording.height ?? 1080
-          precomputeCameraCaches(mouseEvents, timelineEffects, videoWidth, videoHeight)
+          const { width: sourceWidth, height: sourceHeight } = getSourceDimensionsStatic(recording, recording.metadata)
+          precomputeCameraCaches(mouseEvents, timelineEffects, sourceWidth, sourceHeight)
         }
       }
     }
