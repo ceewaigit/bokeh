@@ -23,11 +23,7 @@ import { useComposition } from '../context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
 import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
 import type { SharedVideoControllerProps } from '@/types';
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
-import {
-  findActiveFrameLayoutItems,
-  getBoundaryOverlapState,
-} from '@/lib/timeline/frame-layout';
+import { type FrameLayoutItem, findActiveFrameLayoutItems, getBoundaryOverlapState } from '@/features/timeline/utils/frame-layout';
 import { useCameraPath } from '@/remotion/hooks/camera/useCameraPath';
 import { getMaxZoomScale } from '@/remotion/hooks/media/useVideoUrl';
 import { useRenderDelay } from '@/remotion/hooks/render/useRenderDelay';

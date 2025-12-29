@@ -1,13 +1,13 @@
 "use client"
 
 import { useRef, useCallback, useEffect } from 'react'
-import { ElectronRecorder } from '@/lib/recording'
+import { ElectronRecorder } from '@/features/recording'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { useProjectStore } from '@/stores/project-store'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { logger } from '@/lib/utils/logger'
+import { logger } from '@/shared/utils/logger'
 import { RecordingError, RecordingErrorCode, PermissionError, ElectronError } from '@/lib/errors'
-import { buildRecordingSettings } from '@/lib/recording/recording-settings'
+import { buildRecordingSettings } from '@/features/recording/recording-settings'
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 import { useTimer } from './use-timer'
 

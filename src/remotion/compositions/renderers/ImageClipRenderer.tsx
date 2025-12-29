@@ -9,7 +9,7 @@ import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { useVideoUrl } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 import type { Clip, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 
 interface ImageClipRendererProps {
   clipForVideo: Clip;

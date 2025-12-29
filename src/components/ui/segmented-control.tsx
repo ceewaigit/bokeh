@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/shared/utils/utils"
 import { motion } from "framer-motion"
 
 interface SegmentedControlProps<T extends string | number> {

@@ -4,7 +4,7 @@
  */
 
 import type { MouseEvent } from '@/types/project'
-import { easeOutCubic } from '@/lib/effects/utils/cursor-calculator'
+import { easeOutCubic } from '@/features/effects/utils/cursor-calculator'
 
 export interface CursorReturnConfig {
   startPosition: { x: number; y: number }
@@ -57,7 +57,7 @@ export function generateCursorReturnEvents(config: CursorReturnConfig): MouseEve
   return events
 }
 
-import { interpolateMousePosition } from '@/lib/effects/utils/mouse-interpolation'
+import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 
 /**
  * Generate cursor return events from source clip's mouse metadata.

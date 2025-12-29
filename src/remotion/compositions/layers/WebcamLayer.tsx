@@ -12,15 +12,15 @@
 import React, { useMemo } from 'react';
 import { Video, Sequence, useCurrentFrame, interpolate, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { Effect, WebcamEffectData, Clip, Recording } from '@/types/project';
-import { getWebcamEffect } from '@/lib/effects/effect-filters';
+import { getWebcamEffect } from '@/features/effects/effect-filters';
 import { DEFAULT_WEBCAM_DATA } from '@/lib/constants/default-effects';
-import { getWebcamLayout } from '@/lib/effects/utils/webcam-layout';
+import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
 import { clampCropData, DEFAULT_CROP_DATA } from '../utils/transforms/crop-transform';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
 import { useVideoContainerCleanup } from '@/remotion/hooks/media/useVTDecoderCleanup';
 import { SafeVideo } from '@/remotion/components/video-helpers';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
-import { calculateWebcamAnimations } from '@/lib/effects/utils/webcam-animations';
+import { calculateWebcamAnimations } from '@/features/effects/utils/webcam-animations';
 
 interface WebcamLayerProps {
   effects: Effect[];

@@ -18,9 +18,9 @@ import {
     combineCropAndZoomTransforms,
 } from '../../compositions/utils/transforms/crop-transform';
 import { calculateScreenTransform } from '../../compositions/utils/transforms/screen-transform';
-import { getCropData, getActiveCropEffect } from '@/lib/effects/effect-filters';
+import { getCropData, getActiveCropEffect } from '@/features/effects/effect-filters';
 import type { Effect } from '@/types/project';
-import type { ParsedZoomBlock } from '@/lib/effects/utils/camera-calculator';
+import type { ParsedZoomBlock } from '@/features/effects/utils/camera-calculator';
 import type { MockupPositionResult } from '@/lib/mockups/mockup-transform';
 import type { ZoomTransform, CropTransform } from '@/types';
 

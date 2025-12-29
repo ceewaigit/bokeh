@@ -3,8 +3,8 @@ import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/remotion/compositions/TimelineComposition';
 import { AmbientGlowPlayer } from './ambient-glow-player';
 import { buildTimelineCompositionInput } from '@/remotion/utils/composition-input';
-import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT, RETINA_MULTIPLIER } from '@/lib/utils/resolution-utils';
-import type { TimelineMetadata } from '@/hooks/useTimelineMetadata';
+import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
+import type { TimelineMetadata } from '@/hooks/use-timeline-metadata';
 import type { PlayerConfiguration, CropEffectData } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
 

@@ -9,10 +9,10 @@
 
 import { useMemo } from 'react'
 import { useProjectStore } from '@/stores/project-store'
-import { ClipLookup, type ClipResult, type ClipWithRecording } from '@/lib/timeline/clip-lookup'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { ClipLookup, type ClipResult, type ClipWithRecording } from '@/features/timeline/clips/clip-lookup'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import type { Clip, Recording } from '@/types/project'
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 
 /**
  * Get all recordings from the current project.

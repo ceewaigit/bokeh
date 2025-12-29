@@ -1,14 +1,14 @@
 'use client'
 
 import React, { useState, useCallback, useMemo } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { BackgroundEffectData, DeviceMockupData, CanvasSettings } from '@/types/project'
 import { AspectRatioPreset, DeviceType, DeviceModel } from '@/types/project'
 import { ASPECT_RATIO_PRESETS, DEFAULT_CANVAS_SETTINGS } from '@/lib/constants/aspect-ratio-presets'
 import { DEVICE_MOCKUPS, getMockupsByType, DEFAULT_MOCKUP_DATA, DEFAULT_MOCKUP_BY_TYPE } from '@/lib/constants/device-mockups'
-import { useAvailableMockups, type MockupFrame, type MockupVariant } from '@/hooks/useAvailableMockups'
+import { useAvailableMockups, type MockupFrame, type MockupVariant } from '@/hooks/use-available-mockups'
 import { useProjectStore } from '@/stores/project-store'
 import { useShallow } from 'zustand/react/shallow'
 import {

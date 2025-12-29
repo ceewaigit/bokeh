@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, Trash2, Search, Sparkles } from 'lucide-react'
-import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
+import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import type { GeneratedPlugin } from './page'
-import type { PluginDefinition } from '@/lib/effects/config/plugin-sdk'
+import type { PluginDefinition } from '@/features/effects/config/plugin-sdk'
 
 interface PluginLibraryDialogProps {
     isOpen: boolean

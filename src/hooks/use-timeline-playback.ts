@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useProjectStore } from '@/stores/project-store'
-import { useKeyboardEvents } from '@/hooks/useKeyboardEvents'
+import { useKeyboardEvents } from '@/hooks/use-keyboard-events'
 import { useShallow } from 'zustand/react/shallow'
 
 interface UseTimelinePlaybackProps {

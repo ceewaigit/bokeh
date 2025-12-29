@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Circle, Square, RectangleHorizontal } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { InfoTooltip } from '@/components/effects-sidebar/info-tooltip'

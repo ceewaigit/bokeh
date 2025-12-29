@@ -4,8 +4,8 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import type { Recording } from '@/types/project'
-import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
+import { TimelineConfig } from '@/features/timeline/config'
 import { createVideoStreamUrl, resolveRecordingPath } from '@/components/recordings-library/utils/recording-paths'
 
 // Max thumbnails per clip to balance visual variety vs performance

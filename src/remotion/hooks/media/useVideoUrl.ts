@@ -31,7 +31,7 @@ export {
   PREVIEW_DISPLAY_WIDTH,
   PREVIEW_DISPLAY_HEIGHT,
   RETINA_MULTIPLIER,
-} from '@/lib/utils/resolution-utils';
+} from '@/shared/utils/resolution-utils';
 
 import {
   isProxySufficientForTarget,
@@ -40,7 +40,7 @@ import {
   PREVIEW_DISPLAY_HEIGHT,
   RETINA_MULTIPLIER,
   isSourceOverkillForPreview,
-} from '@/lib/utils/resolution-utils';
+} from '@/shared/utils/resolution-utils';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 
 export function useVideoUrl({

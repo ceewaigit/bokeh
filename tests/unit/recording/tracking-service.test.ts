@@ -1,4 +1,4 @@
-import { TrackingService } from '@/lib/recording/services/tracking-service'
+import { TrackingService } from '@/features/recording/services/tracking-service'
 import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
 
 const createBridge = () => {
@@ -83,7 +83,7 @@ describe('TrackingService (black box)', () => {
     move?.({ x: 150, y: 100 })
 
     const result = await service.stop()
-    const event = result.find((e) => e.eventType === 'mouse')
+    const event = result.find((e: any) => e.eventType === 'mouse')
     expect(event?.mouseX).toBe(100)
     expect(event?.mouseY).toBe(100)
   })
@@ -104,7 +104,7 @@ describe('TrackingService (black box)', () => {
     move?.({ x: 150, y: 150 })
 
     const result = await service.stop()
-    expect(result.find((e) => e.eventType === 'mouse')).toBeUndefined()
+    expect(result.find((e: any) => e.eventType === 'mouse')).toBeUndefined()
   })
 
   it('ignores events while paused', async () => {
@@ -120,7 +120,7 @@ describe('TrackingService (black box)', () => {
     mouseListeners[0]?.({ x: 20, y: 20 })
 
     const result = await service.stop()
-    const mouseEvents = result.filter((e) => e.eventType === 'mouse')
+    const mouseEvents = result.filter((e: any) => e.eventType === 'mouse')
     expect(mouseEvents).toHaveLength(1)
   })
 })

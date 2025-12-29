@@ -1,4 +1,4 @@
-import { WebcamService } from '@/lib/recording/services/webcam-service'
+import { WebcamService } from '@/features/recording/services/webcam-service'
 import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
 
 // Mock MediaRecorder
@@ -94,7 +94,7 @@ describe('WebcamService (black box)', () => {
   beforeEach(() => {
     originalMediaDevices = navigator.mediaDevices
     originalMediaRecorder = (global as any).MediaRecorder
-    ;(global as any).MediaRecorder = MockMediaRecorder
+      ; (global as any).MediaRecorder = MockMediaRecorder
 
     Object.defineProperty(navigator, 'mediaDevices', {
       value: createMockMediaDevices(),
@@ -109,7 +109,7 @@ describe('WebcamService (black box)', () => {
       value: originalMediaDevices,
       writable: true
     })
-    ;(global as any).MediaRecorder = originalMediaRecorder
+      ; (global as any).MediaRecorder = originalMediaRecorder
     resetRecordingBridge()
     jest.clearAllMocks()
   })

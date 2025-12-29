@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { useProjectStore } from '@/stores/project-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import {
     Dialog,
     DialogContent,
@@ -17,7 +17,7 @@ import {
     DialogTrigger,
     DialogClose
 } from '@/components/ui/dialog'
-import { DEFAULT_EFFECT_GENERATION_CONFIG, type EffectGenerationConfig } from '@/lib/effects/effect-generation-service'
+import { DEFAULT_EFFECT_GENERATION_CONFIG, type EffectGenerationConfig } from '@/features/effects/services/effect-generation-service'
 
 export function EditingSection() {
     const editing = useProjectStore((s) => s.settings.editing)

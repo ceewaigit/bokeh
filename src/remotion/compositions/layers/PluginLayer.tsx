@@ -13,13 +13,13 @@
 
 import React, { useMemo } from 'react'
 import { useCurrentFrame, useVideoConfig, AbsoluteFill } from 'remotion'
-import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
-import { getAllPluginEffects } from '@/lib/effects/effect-filters'
+import { PluginRegistry } from '@/features/effects/config/plugin-registry'
+import { getAllPluginEffects } from '@/features/effects/effect-filters'
 import { frameToMs } from '../utils/time/frame-time'
 import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import type { PluginLayerProps } from '@/types'
-import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config/plugin-sdk'
+import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk'
 import { assertDefined } from '@/lib/errors'
 
 export const PluginLayer: React.FC<PluginLayerProps> = ({

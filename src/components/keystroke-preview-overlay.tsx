@@ -8,7 +8,7 @@ import {
     getKeystrokeFontFamily,
     getKeystrokePresetStyle,
     type KeystrokeStylePreset,
-} from '@/lib/effects/keystroke-utils';
+} from '@/features/effects/keystroke-utils';
 
 interface KeystrokePreviewOverlayProps {
     currentTimeMs: number;

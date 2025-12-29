@@ -1,6 +1,6 @@
 import React from 'react';
 import { Rect, Group, Text } from 'react-konva';
-import { withAlpha } from '@/lib/timeline/colors';
+import { withAlpha } from '@/features/timeline/utils/colors';
 
 interface TimelineClipBackgroundProps {
     clipId: string;

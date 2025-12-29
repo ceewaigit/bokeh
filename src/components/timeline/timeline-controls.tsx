@@ -10,16 +10,16 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
-import { formatTimecode } from '@/lib/utils/time'
+import { formatTimecode } from '@/shared/utils/time'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
 import { TimelineTrackType } from '@/types/project'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
-import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
+import { useTimelineMetadata } from '@/hooks/use-timeline-metadata'
 import { useSelectedClipIds } from '@/stores/selectors/clip-selectors'
-import { timeObserver } from '@/lib/timeline/time-observer'
+import { timeObserver } from '@/features/timeline/time/time-observer'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import {
   Scissors,

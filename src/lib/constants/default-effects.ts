@@ -3,7 +3,7 @@ import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset, Zoo
 import { DEFAULT_CROP_DATA } from '@/remotion/compositions/utils/transforms/crop-transform'
 
 // Re-export schema helpers for gradual migration
-export { getEffectDefaults, getEffectSchema, getParamConstraints } from '@/lib/effects/config/effect-schemas'
+export { getEffectDefaults, getEffectSchema, getParamConstraints } from '@/features/effects/config/effect-schemas'
 
 
 // Default parallax layers (hill images with depth-based factors)

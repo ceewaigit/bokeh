@@ -16,11 +16,11 @@ import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { useVideoContainerCleanup } from '@/remotion/hooks/media/useVTDecoderCleanup';
 import { AudioEnhancerWrapper } from '@/remotion/components/video-helpers';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
-import { devAssert } from '@/lib/utils/invariant';
+import { devAssert } from '@/shared/utils/invariant';
 import { useComposition } from '@/remotion/context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
 import type { Clip, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 import type { SyntheticEvent } from 'react';
 
 interface VideoClipRendererProps {

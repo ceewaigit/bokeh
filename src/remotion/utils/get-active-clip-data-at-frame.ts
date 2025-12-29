@@ -1,11 +1,11 @@
 import type { Clip, Effect, Recording } from '@/types/project'
 import { EffectType } from '@/types/project'
 import type { ActiveClipDataAtFrame } from '@/types'
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
-import { findActiveFrameLayoutIndex } from '@/lib/timeline/frame-layout'
-import { clipRelativeToSource } from '@/lib/timeline/time-space-converter'
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
+import { findActiveFrameLayoutIndex } from '@/features/timeline/utils/frame-layout'
+import { clipRelativeToSource } from '@/features/timeline/time/time-space-converter'
 import { msToFrameFloor } from '@/remotion/compositions/utils/time/frame-time'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
 // Cache timeline-space effect overlap per (effects array ref, frameLayout array ref, clip.id).
 // This dramatically reduces per-frame allocations during playback and during camera path precompute.

@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 
 export const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const

@@ -1,4 +1,4 @@
-import { AudioInputService } from '@/lib/recording/services/audio-input-service'
+import { AudioInputService } from '@/features/recording/services/audio-input-service'
 import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
 
 // Mock MediaRecorder
@@ -133,8 +133,8 @@ describe('AudioInputService (black box)', () => {
     originalMediaRecorder = (global as any).MediaRecorder
     originalAudioContext = (global as any).AudioContext
 
-    ;(global as any).MediaRecorder = MockMediaRecorder
-    ;(global as any).AudioContext = MockAudioContext
+      ; (global as any).MediaRecorder = MockMediaRecorder
+      ; (global as any).AudioContext = MockAudioContext
 
     Object.defineProperty(navigator, 'mediaDevices', {
       value: createMockMediaDevices(),
@@ -149,8 +149,8 @@ describe('AudioInputService (black box)', () => {
       value: originalMediaDevices,
       writable: true
     })
-    ;(global as any).MediaRecorder = originalMediaRecorder
-    ;(global as any).AudioContext = originalAudioContext
+      ; (global as any).MediaRecorder = originalMediaRecorder
+      ; (global as any).AudioContext = originalAudioContext
     resetRecordingBridge()
     jest.clearAllMocks()
   })

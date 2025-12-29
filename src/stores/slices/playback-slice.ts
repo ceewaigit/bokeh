@@ -7,7 +7,7 @@
  * - Timeline zoom
  */
 
-import { playbackService } from '@/lib/timeline/playback-service'
+import { playbackService } from '@/features/timeline/playback/playback-service'
 import type { CreatePlaybackSlice } from './types'
 
 export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({

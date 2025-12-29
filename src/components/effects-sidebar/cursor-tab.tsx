@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, RotateCcw, Plus, Minus, Wind, Gauge, Zap, CircleOff, SlidersHorizontal } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'

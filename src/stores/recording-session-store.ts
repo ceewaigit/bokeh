@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { RecordingState, SessionSettings } from '@/types'
 import { RecordingArea, AudioInput } from '@/types'
 import { useProjectStore } from './project-store'
-import { logger } from '@/lib/utils/logger'
+import { logger } from '@/shared/utils/logger'
 
 interface RecordingStore extends RecordingState {
   settings: SessionSettings

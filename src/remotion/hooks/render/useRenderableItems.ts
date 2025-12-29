@@ -11,8 +11,8 @@
 
 import { useMemo, useRef } from 'react';
 import type { Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
-import { getVisibleFrameLayout } from '@/lib/timeline/frame-layout';
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
+import { getVisibleFrameLayout } from '@/features/timeline/utils/frame-layout';
 
 interface UseRenderableItemsOptions {
   frameLayout: FrameLayoutItem[];

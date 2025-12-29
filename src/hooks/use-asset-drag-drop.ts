@@ -11,11 +11,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { TrackType, type Clip } from '@/types/project'
 import { useAssetLibraryStore } from '@/stores/asset-library-store'
-import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { ClipPositioning } from '@/lib/timeline/clip-positioning'
-import { getSnappedDragX } from '@/lib/timeline/drag-positioning'
-import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+import { TimelineConfig } from '@/features/timeline/config'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
+import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
+import { getSnappedDragX } from '@/features/timeline/utils/drag-positioning'
+import { useCommandExecutor } from '@/hooks/use-command-executor'
 import { AddAssetCommand } from '@/lib/commands'
 
 export interface DragPreviewForAsset {

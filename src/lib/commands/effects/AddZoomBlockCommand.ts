@@ -2,7 +2,7 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig } from '@/features/timeline/config'
 
 /**
  * AddZoomBlockCommand - Adds zoom effects to timeline.effects[] (TIMELINE SPACE)

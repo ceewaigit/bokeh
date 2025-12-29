@@ -3,7 +3,7 @@
  * Handles video loading, caching, and memory management
  */
 
-import { logger } from '@/lib/utils/logger'
+import { logger } from '@/shared/utils/logger'
 import { MemoryError } from '@/lib/errors'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 

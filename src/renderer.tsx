@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { RecordButtonDock } from './components/record-button-dock';
 import { WorkspaceManager } from './components/workspace/workspace-manager';
 import AreaSelectionPage from './app/area-selection/page';
-import { ThemeProvider } from './contexts/theme-context';
+import { ThemeProvider } from './shared/contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { PermissionGuard } from './components/permission-guard';
 import { WindowAppearanceProvider } from './components/window-appearance-provider';

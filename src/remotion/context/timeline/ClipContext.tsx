@@ -18,7 +18,7 @@ import { useRecordingMetadata } from '../../hooks/media/useRecordingMetadata';
 import {
   filterEffectsForClip,
   filterEventsForSourceRange,
-} from '@/lib/effects/effect-filters';
+} from '@/features/effects/effect-filters';
 import { normalizeClickEvents, normalizeMouseEvents } from '../../compositions/utils/events/event-normalizer';
 import type { ClipContextValue } from '@/types';
 

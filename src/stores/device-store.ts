@@ -8,9 +8,9 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { persist } from 'zustand/middleware'
-import type { MediaDeviceInfo, DeviceState } from '@/lib/recording/services/device-manager'
-import { getDeviceManager } from '@/lib/recording/services/device-manager'
-import { logger } from '@/lib/utils/logger'
+import type { MediaDeviceInfo, DeviceState } from '@/features/recording/services/device-manager'
+import { getDeviceManager } from '@/features/recording/services/device-manager'
+import { logger } from '@/shared/utils/logger'
 
 export interface DeviceSettings {
   webcam: {

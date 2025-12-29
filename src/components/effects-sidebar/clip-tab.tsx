@@ -8,10 +8,10 @@ import { ChevronRight, RotateCcw, Zap } from 'lucide-react'
 import type { Clip } from '@/types/project'
 import { ChangePlaybackRateCommand } from '@/lib/commands'
 import { useProjectStore } from '@/stores/project-store'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useSelectedClip } from '@/stores/selectors/clip-selectors'
-import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+import { useCommandExecutor } from '@/hooks/use-command-executor'
 import { InfoTooltip } from './info-tooltip'
 
 interface ClipTabProps {

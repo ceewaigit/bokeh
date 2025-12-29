@@ -66,7 +66,7 @@ function createTestClip(overrides: Partial<Clip> = {}): Clip {
 
 describe('trimClipStart', () => {
     it('calculates correct updates when trimming from start', () => {
-        const { trimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -85,7 +85,7 @@ describe('trimClipStart', () => {
     })
 
     it('handles playback rate when calculating sourceIn', () => {
-        const { trimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -105,7 +105,7 @@ describe('trimClipStart', () => {
     })
 
     it('rejects trim that would result in duration < 1 second', () => {
-        const { trimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -121,7 +121,7 @@ describe('trimClipStart', () => {
     })
 
     it('rejects negative startTime', () => {
-        const { trimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -134,7 +134,7 @@ describe('trimClipStart', () => {
     })
 
     it('respects lockedSourceIn bounds', () => {
-        const { trimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 1000,
@@ -151,7 +151,7 @@ describe('trimClipStart', () => {
     })
 
     it('caps introFadeMs to new duration', () => {
-        const { trimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -172,7 +172,7 @@ describe('trimClipStart', () => {
 
 describe('executeTrimClipStart', () => {
     it('executes trim and updates project state', () => {
-        const { executeTrimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             id: 'clip-1',
@@ -194,7 +194,7 @@ describe('executeTrimClipStart', () => {
     })
 
     it('reflows subsequent clips when shrinking (moving start right)', () => {
-        const { executeTrimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip1 = createTestClip({
             id: 'clip-1',
@@ -223,7 +223,7 @@ describe('executeTrimClipStart', () => {
     })
 
     it('does not reflow when expanding (moving start left)', () => {
-        const { executeTrimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const clip1 = createTestClip({
             id: 'clip-1',
@@ -250,7 +250,7 @@ describe('executeTrimClipStart', () => {
     })
 
     it('returns false for non-existent clip', () => {
-        const { executeTrimClipStart } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipStart } = require('../../src/features/timeline/timeline-operations')
 
         const project = createTestProject([])
 
@@ -262,7 +262,7 @@ describe('executeTrimClipStart', () => {
 
 describe('trimClipEnd', () => {
     it('calculates correct updates when trimming from end', () => {
-        const { trimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -280,7 +280,7 @@ describe('trimClipEnd', () => {
     })
 
     it('handles playback rate when calculating sourceOut', () => {
-        const { trimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -300,7 +300,7 @@ describe('trimClipEnd', () => {
     })
 
     it('rejects trim that would result in duration < 1 second', () => {
-        const { trimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -316,7 +316,7 @@ describe('trimClipEnd', () => {
     })
 
     it('rejects negative endTime', () => {
-        const { trimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -329,7 +329,7 @@ describe('trimClipEnd', () => {
     })
 
     it('respects lockedSourceOut bounds', () => {
-        const { trimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -346,7 +346,7 @@ describe('trimClipEnd', () => {
     })
 
     it('caps outroFadeMs to new duration', () => {
-        const { trimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -365,7 +365,7 @@ describe('trimClipEnd', () => {
     })
 
     it('ensures sourceOut >= sourceIn', () => {
-        const { trimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { trimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             startTime: 0,
@@ -386,7 +386,7 @@ describe('trimClipEnd', () => {
 
 describe('executeTrimClipEnd', () => {
     it('executes trim and updates project state', () => {
-        const { executeTrimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             id: 'clip-1',
@@ -406,7 +406,7 @@ describe('executeTrimClipEnd', () => {
     })
 
     it('reflows subsequent clips when shrinking (moving end left)', () => {
-        const { executeTrimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip1 = createTestClip({
             id: 'clip-1',
@@ -435,7 +435,7 @@ describe('executeTrimClipEnd', () => {
     })
 
     it('pushes subsequent clips when expanding (moving end right)', () => {
-        const { executeTrimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip1 = createTestClip({
             id: 'clip-1',
@@ -464,7 +464,7 @@ describe('executeTrimClipEnd', () => {
     })
 
     it('returns false for non-existent clip', () => {
-        const { executeTrimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const project = createTestProject([])
 
@@ -474,7 +474,7 @@ describe('executeTrimClipEnd', () => {
     })
 
     it('updates timeline duration after trim', () => {
-        const { executeTrimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             id: 'clip-1',
@@ -494,7 +494,7 @@ describe('executeTrimClipEnd', () => {
 
 describe('Trim edge cases', () => {
     it('trim start then trim end maintains consistency', () => {
-        const { executeTrimClipStart, executeTrimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipStart, executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         const clip = createTestClip({
             id: 'clip-1',
@@ -528,7 +528,7 @@ describe('Trim edge cases', () => {
     })
 
     it('playback rate 2x trim correctly calculates source bounds', () => {
-        const { executeTrimClipEnd } = require('../../src/lib/timeline/timeline-operations')
+        const { executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations')
 
         // 2x speed: 4s source plays in 2s timeline
         const clip = createTestClip({

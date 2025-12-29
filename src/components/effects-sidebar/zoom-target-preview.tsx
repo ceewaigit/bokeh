@@ -3,8 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CropEffectData, ZoomEffectData } from '@/types/project'
 import { ZoomFollowStrategy } from '@/types/project'
-import { cn } from '@/lib/utils'
-import { getHalfWindows } from '@/lib/core/camera'
+import { cn } from '@/shared/utils/utils'
+import { getHalfWindows } from '@/features/camera'
 
 type ZoomTargetPreviewProps = {
   zoomData: ZoomEffectData

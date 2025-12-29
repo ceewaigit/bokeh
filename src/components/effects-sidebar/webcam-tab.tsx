@@ -2,14 +2,14 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { Video, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { Switch } from '@/components/ui/switch'
 import type { Effect, WebcamEffectData, WebcamShape, WebcamAnchor, CropEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { DEFAULT_WEBCAM_DATA, WEBCAM_SHAPE_PRESETS } from '@/lib/constants/default-effects'
 import { DEFAULT_CROP_DATA, clampCropData } from '@/remotion/compositions/utils/transforms/crop-transform'
 import { useProjectStore } from '@/stores/project-store'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths'
 
 import { WebcamGeneral } from './webcam/webcam-general'

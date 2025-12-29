@@ -16,7 +16,7 @@ import {
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useProjectStore } from '@/stores/project-store'
 import { usePreviewSettingsStore } from '@/stores/preview-settings-store'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 
 type SettingsTab = 'recording' | 'playback' | 'diagnostics'
 

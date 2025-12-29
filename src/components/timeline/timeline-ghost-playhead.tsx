@@ -1,9 +1,9 @@
 import React from 'react'
 import { Group, Line, Rect } from 'react-konva'
-import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { useTimelineColors } from '@/lib/timeline/colors'
-import { clamp } from '@/lib/utils'
+import { TimelineConfig } from '@/features/timeline/config'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
+import { useTimelineColors } from '@/features/timeline/utils/colors'
+import { clamp } from '@/shared/utils/utils'
 import { useProjectStore } from '@/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
 

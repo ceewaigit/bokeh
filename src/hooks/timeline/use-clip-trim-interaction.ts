@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import Konva from 'konva'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import type { Clip, Recording } from '@/types/project'
 
 // Minimum clip duration in milliseconds

@@ -7,7 +7,7 @@
 
 import type { Clip, ExportSettings, Recording, RecordingMetadata } from '@/types';
 import type { TimelineSegment } from './timeline-processor';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/shared/utils/logger';
 import { getIpcBridge, isIpcAvailable, type IpcBridge } from '@/lib/bridges';
 
 export interface RemotionExportProgress {

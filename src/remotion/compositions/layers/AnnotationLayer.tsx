@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
-import { AnnotationEffectStrategy } from '@/lib/effects/strategies/annotation-strategy';
+import { AnnotationEffectStrategy } from '@/features/effects/strategies/annotation-strategy';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
 import type { Effect } from '@/types/project';
 import { EffectType } from '@/types/project';

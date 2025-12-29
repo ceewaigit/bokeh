@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useWindowAppearanceStore, type WindowSurfaceMode } from '@/stores/window-appearance-store'
-import { clamp } from '@/lib/utils'
+import { clamp } from '@/shared/utils/utils'
 
 const normalizeNumber = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback)
 

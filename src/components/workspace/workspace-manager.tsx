@@ -22,25 +22,20 @@ import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { ZoomBlock, ZoomEffectData } from '@/types/project'
-import { useCropManager } from '@/hooks/useCropManager'
-import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+import { useCropManager } from '@/hooks/use-crop-manager'
+import { useCommandExecutor } from '@/hooks/use-command-executor'
 import { usePlayheadState } from '@/hooks/use-playhead-state'
-import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
+import { useTimelineMetadata } from '@/hooks/use-timeline-metadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
-import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { timelineToSource, getSourceDuration } from '@/features/timeline/time/time-space-converter'
 import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
-import { calculateFullCameraPath } from '@/lib/effects/utils/camera-path-calculator'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
+import { calculateFullCameraPath } from '@/features/effects/utils/camera-path-calculator'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
-import { getZoomEffects } from '@/lib/effects/effect-filters'
 import { EffectStore } from '@/lib/core/effects'
-import { applyEffectChange } from '@/lib/effects/effect-change'
+import { applyEffectChange } from '@/features/effects/services/effect-change'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { ProjectIOService } from '@/lib/storage/project-io-service'
-import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
-import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { UpdateZoomBlockCommand } from '@/lib/commands'
 import { toast } from 'sonner'
 import { useSelectedClip } from '@/stores/selectors/clip-selectors'
@@ -425,8 +420,8 @@ export function WorkspaceManager() {
 
                   // Clear all rendering caches to free memory
                   import('@/lib/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
-                  import('@/lib/effects/utils/cursor-calculator').then(m => m.clearCursorCalculatorCache())
-                  import('@/lib/utils/video-metadata').then(m => m.clearDurationCache())
+                  import('@/features/effects/utils/cursor-calculator').then(m => m.clearCursorCalculatorCache())
+                  import('@/shared/utils/video-metadata').then(m => m.clearDurationCache())
 
                   // Hide record button when returning to library (main window visible)
                   if (window.electronAPI?.minimizeRecordButton) {

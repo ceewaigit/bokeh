@@ -157,7 +157,7 @@ function generatePluginCode(plugin: GeneratedPlugin): string {
         })
         .join(',\n')
 
-    return `import { definePlugin } from '@/lib/effects/config/plugin-sdk'
+    return `import { definePlugin } from '@/features/effects/config/plugin-sdk'
 
 interface ${toPascalCase(plugin.id)}Params {
 ${paramsTypeEntries}

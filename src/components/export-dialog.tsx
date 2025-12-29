@@ -20,7 +20,8 @@ import {
   Zap,
   AlertCircle
 } from 'lucide-react'
-import { cn, clamp } from '@/lib/utils'
+import { clamp } from '@/lib/core/math'
+import { cn } from '@/shared/utils/utils'
 import { toast } from 'sonner'
 import { ExportFormat, QualityLevel, AspectRatioPreset } from '@/types/project'
 import { calculateCanvasDimensions, getAspectRatioPreset } from '@/lib/constants/aspect-ratio-presets'

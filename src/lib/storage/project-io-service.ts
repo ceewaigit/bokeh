@@ -2,10 +2,10 @@ import type { Project, Recording, CursorEffectData, MouseEvent } from '@/types/p
 import { RecordingStorage } from './recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { migrationRunner } from '@/lib/migrations'
-import { getVideoMetadata } from '@/lib/utils/video-metadata'
+import { getVideoMetadata } from '@/shared/utils/video-metadata'
 import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE, buildProjectFilePath } from '@/lib/storage/recording-storage'
-import { precomputeCursorSmoothingCache } from '@/lib/effects/utils/cursor-calculator'
-import { precomputeCameraCaches } from '@/lib/effects/utils/camera-calculator'
+import { precomputeCursorSmoothingCache } from '@/features/effects/utils/cursor-calculator'
+import { precomputeCameraCaches } from '@/features/effects/utils/camera-calculator'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { EffectStore } from '@/lib/core/effects'
 import { getSourceDimensionsStatic } from '@/lib/core/coordinates'
@@ -223,7 +223,8 @@ export class ProjectIOService {
     EffectStore.ensureArray(project)
 
     // Ensure global background/cursor effects exist
-    const { EffectsFactory } = await import('../effects/effects-factory')
+    const { EffectsFactory } = await import('@/features/effects/effects-factory')
+
 
     // DEDUPLICATE CROP EFFECTS: Fix for multiple overlapping crop effects causing glitches
     const timelineEffects = project.timeline.effects || []
@@ -424,8 +425,6 @@ export class ProjectIOService {
           if (needsDimensionsFix) {
             recording.width = metadata.width
             recording.height = metadata.height
-            recording.width = metadata.width
-            recording.height = metadata.height
           }
 
           // Fix clip durations if recording duration was updated
@@ -544,7 +543,8 @@ export class ProjectIOService {
     project: Project,
     onProgress?: (message: string) => void
   ): Promise<void> {
-    const { EffectsFactory } = await import('../effects/effects-factory')
+    const { EffectsFactory } = await import('@/features/effects/effects-factory')
+
 
     // Load assets (eagerly load metadata to ensure SSOT and persistence)
     for (let i = 0; i < project.recordings.length; i++) {

@@ -1,5 +1,5 @@
-import { NativeRecordingStrategy } from '@/lib/recording/strategies/native-recording-strategy'
-import type { RecordingConfig } from '@/lib/recording/types/recording-strategy'
+import { NativeRecordingStrategy } from '@/features/recording/strategies/native-recording-strategy'
+import type { RecordingConfig } from '@/features/recording/types/recording-strategy'
 import { type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
 
 const createBridge = (overrides: Partial<RecordingIpcBridge> = {}): RecordingIpcBridge => ({

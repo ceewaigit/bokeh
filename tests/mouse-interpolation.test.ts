@@ -1,5 +1,5 @@
 
-import { interpolateMousePosition } from '@/lib/effects/utils/mouse-interpolation'
+import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 import type { MouseEvent } from '@/types/project'
 
 describe('interpolateMousePosition', () => {

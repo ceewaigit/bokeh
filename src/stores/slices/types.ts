@@ -21,8 +21,8 @@ import type {
 import type { EffectType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
 import type { CameraPathFrame } from '@/types/remotion'
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
-import type { EffectGenerationConfig } from '@/lib/effects/effect-generation-service'
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
+import type { EffectGenerationConfig } from '@/features/effects/services/effect-generation-service'
 import type { ProxyUrlEntry } from './cache-slice'
 
 // Re-export ClipboardEffect from stores.ts for backward compatibility

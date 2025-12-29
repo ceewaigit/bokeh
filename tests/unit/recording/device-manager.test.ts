@@ -1,4 +1,4 @@
-import { getDeviceManager } from '@/lib/recording/services/device-manager'
+import { getDeviceManager } from '@/features/recording/services/device-manager'
 
 // Mock navigator.mediaDevices
 const createMockMediaDevices = (devices: MediaDeviceInfo[] = []) => ({

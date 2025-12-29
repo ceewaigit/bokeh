@@ -1,4 +1,4 @@
-const { splitClipAtTime } = require('@/lib/timeline/timeline-operations')
+const { splitClipAtTime } = require('@/features/timeline/timeline-operations')
 
 describe('splitClipAtTime source bounds', () => {
   it('safely defaults missing sourceIn/sourceOut when splitting', () => {

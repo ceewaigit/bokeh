@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { AbsoluteFill, useVideoConfig, useCurrentFrame } from 'remotion';
-import { KeystrokeRenderer, type KeystrokeDrawRect } from '@/lib/effects/keystroke-renderer';
+import { KeystrokeRenderer, type KeystrokeDrawRect } from '@/features/effects/keystroke-renderer';
 import type { KeystrokeEffectData } from '@/types/project';
 import type { KeystrokeLayerProps } from '@/types';
 import { useClipContext } from '../../context/timeline/ClipContext';

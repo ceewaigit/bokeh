@@ -5,7 +5,7 @@
 
 import type { Recording, RecordingMetadata, CaptureArea } from '@/types'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { logger } from '@/lib/utils/logger'
+import { logger } from '@/shared/utils/logger'
 import { assertDefined } from '@/lib/errors'
 
 export interface MetadataLoadResult {

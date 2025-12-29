@@ -1,11 +1,11 @@
 import { Clip, Recording, Project, Effect, TrackType, EffectType } from '@/types/project'
-import { PlayheadService } from '@/lib/timeline/playhead-service'
+import { PlayheadService } from '@/features/timeline/playback/playhead-service'
 import { EffectStore } from '@/lib/core/effects'
-import { getCropEffectForClip, getActiveCropEffect } from '@/lib/effects/effect-filters'
-import { captureLastFrame } from '@/lib/utils/frame-capture'
+import { getCropEffectForClip, getActiveCropEffect } from '@/features/effects/effect-filters'
+import { captureLastFrame } from '@/shared/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/lib/cursor/synthetic-events'
 import { resolveProjectRoot } from '@/lib/storage/recording-storage'
-import { findClipById } from '@/lib/timeline/timeline-operations'
+import { findClipById } from '@/features/timeline/timeline-operations'
 
 export interface CursorReturnData {
     imagePath: string

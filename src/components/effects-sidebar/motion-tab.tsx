@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Wind, ChevronRight, Activity } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { useProjectStore } from '@/stores/project-store'
 import { Switch } from '@/components/ui/switch'
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'

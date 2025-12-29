@@ -1,4 +1,4 @@
-import { KeystrokeRenderer } from '@/lib/effects/keystroke-renderer'
+import { KeystrokeRenderer } from '@/features/effects/keystroke-renderer'
 import type { KeyboardEvent } from '@/types/project'
 
 function makeMockCanvas() {

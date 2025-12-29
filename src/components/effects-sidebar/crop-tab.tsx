@@ -5,9 +5,9 @@ import { Crop, RotateCcw, Move, Maximize } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import type { Clip, Effect, CropEffectData } from '@/types/project'
-import { getCropEffectForClip, getCropData } from '@/lib/effects/effect-filters'
+import { getCropEffectForClip, getCropData } from '@/features/effects/effect-filters'
 import { InfoTooltip } from './info-tooltip'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 
 interface CropTabProps {
   effects: Effect[] | undefined

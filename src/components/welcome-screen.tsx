@@ -4,7 +4,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Monitor, Mic, Camera, Check, ArrowRight, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 
 // Apple-esque animation curves
 const spring = { type: 'spring', stiffness: 400, damping: 30 }

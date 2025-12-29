@@ -1,6 +1,6 @@
 'use client'
 
-import type { PluginCategory } from '@/lib/effects/config/plugin-sdk'
+import type { PluginCategory } from '@/features/effects/config/plugin-sdk'
 
 interface LayerVisualizerProps {
     currentCategory: PluginCategory | null

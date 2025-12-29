@@ -5,10 +5,10 @@ import type { BackgroundLayerProps } from '@/types';
 import { BackgroundType } from '@/types/project';
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
-import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-interpolation';
+import { interpolateMousePositionNormalized } from '@/features/effects/utils/mouse-interpolation';
 import { ParallaxBackgroundLayer } from './ParallaxBackgroundLayer';
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects';
-import { calculateBackgroundStyle } from '@/lib/effects/utils/background-calculator';
+import { calculateBackgroundStyle } from '@/features/effects/utils/background-calculator';
 
 /**
  * BATTERY OPTIMIZATION: Static background component that doesn't use useCurrentFrame.

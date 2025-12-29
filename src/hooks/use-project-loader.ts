@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
-import { calculateFullCameraPath } from '@/lib/effects/utils/camera-path-calculator'
+import { calculateFullCameraPath } from '@/features/effects/utils/camera-path-calculator'
 import { EffectStore } from '@/lib/core/effects'
-import { getZoomEffects } from '@/lib/effects/effect-filters'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { getZoomEffects } from '@/features/effects/effect-filters'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
+import { TimelineConfig } from '@/features/timeline/config'
 import { useRecordingsLibraryStore } from '@/stores/recordings-library-store'
-import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
+import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 
 export function useProjectLoader() {
     const [isLoading, setIsLoading] = useState(false)

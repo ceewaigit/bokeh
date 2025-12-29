@@ -13,7 +13,7 @@
 
 import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { findNearestAvailableStart } from '@/lib/timeline/nearest-gap'
+import { findNearestAvailableStart } from '@/features/timeline/utils/nearest-gap'
 
 // Effect types that should not overlap with each other
 export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([

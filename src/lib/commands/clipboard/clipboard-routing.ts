@@ -1,5 +1,5 @@
 import { EffectStore } from '@/lib/core/effects'
-import { isGlobalEffectType } from '@/lib/effects/effect-classification'
+import { isGlobalEffectType } from '@/features/effects/effect-classification'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import type { Effect, Project } from '@/types/project'

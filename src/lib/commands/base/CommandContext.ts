@@ -1,5 +1,5 @@
 import type { Project, Clip, Track, Recording } from '@/types/project'
-import { ClipPositioning } from '@/lib/timeline/clip-positioning'
+import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
 import type { SelectedEffectLayer } from '@/types/effects'
 import type { ProjectStore, ClipboardEffect } from '@/stores/slices/types'
 
@@ -97,4 +97,4 @@ export function findNextValidPosition(
 }
 
 // Re-export calculateTimelineDuration from timeline-operations for backward compatibility
-export { calculateTimelineDuration } from '@/lib/timeline/timeline-operations'
+export { calculateTimelineDuration } from '@/features/timeline/timeline-operations'

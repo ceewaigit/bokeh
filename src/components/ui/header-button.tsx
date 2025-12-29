@@ -4,7 +4,7 @@ import * as React from "react"
 import { type LucideIcon } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
+import { cn } from "@/shared/utils/utils"
 import { motion, type HTMLMotionProps } from "framer-motion"
 import { type VariantProps } from "class-variance-authority"
 

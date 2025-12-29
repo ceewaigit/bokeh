@@ -8,7 +8,7 @@
 import { useCurrentFrame } from 'remotion';
 import { useComposition } from '../../context/CompositionContext';
 import { useClipContext } from '../../context/timeline/ClipContext';
-import { clipRelativeToSource } from '@/lib/timeline/time-space-converter';
+import { clipRelativeToSource } from '@/features/timeline/time/time-space-converter';
 import { useMemo } from 'react';
 
 /**

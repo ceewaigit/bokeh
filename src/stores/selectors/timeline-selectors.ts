@@ -10,7 +10,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { EffectStore } from '@/lib/core/effects'
 import { EffectType, TrackType } from '@/types/project'
 import type { Effect } from '@/types/project'
-import { EFFECT_TRACK_TYPES } from '@/lib/timeline/effect-track-registry'
+import { EFFECT_TRACK_TYPES } from '@/features/timeline/effect-track-registry'
 
 /**
  * Get all timeline effects from the current project.

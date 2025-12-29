@@ -1,6 +1,6 @@
 import React from 'react'
-import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { TimelineConfig } from '@/features/timeline/config'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import type { Asset } from '@/stores/asset-library-store'
 import type { TrackType } from '@/types/project'
 import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths'

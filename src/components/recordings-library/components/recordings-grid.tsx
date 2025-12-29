@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Film, Info, Play, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { cn, formatTime } from '@/lib/utils'
+import { cn, formatTime } from '@/shared/utils/utils'
 import { type LibraryRecordingView } from '@/stores/recordings-library-store'
 import { PROJECT_EXTENSION_REGEX } from '@/lib/storage/recording-storage'
 import { Button } from '@/components/ui/button'

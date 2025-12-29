@@ -11,7 +11,7 @@ import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { metadataLoader } from '@/lib/export/metadata-loader';
 import type { Recording, RecordingMetadata } from '@/types/project';
 import type { UseRecordingMetadataOptions, UseRecordingMetadataResult } from '@/types';
-import { logger } from '@/lib/utils/logger';
+import { logger } from '@/shared/utils/logger';
 import { assertDefined } from '@/lib/errors';
 
 /**

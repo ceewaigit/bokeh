@@ -21,7 +21,7 @@ import { Button } from './ui/button'
 import { HeaderButton } from './ui/header-button'
 import { WindowHeader } from './ui/window-header'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
-import { cn, formatTime } from '@/lib/utils'
+import { cn, formatTime } from '@/shared/utils/utils'
 import type { Project } from '@/types/project'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -30,7 +30,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { toast } from 'sonner'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import { EffectStore } from '@/lib/core/effects'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
 interface ToolbarProps {
   project: Project | null

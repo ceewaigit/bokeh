@@ -9,7 +9,7 @@ import { PluginCodePanel } from './plugin-code-panel'
 import { PluginCodeEditor } from './plugin-code-editor'
 import { PluginLibraryDialog } from './plugin-library-dialog'
 import { PLUGIN_CREATOR_SYSTEM_PROMPT } from './plugin-prompt'
-import type { PluginCategory, PluginDefinition } from '@/lib/effects/config/plugin-sdk'
+import type { PluginCategory, PluginDefinition } from '@/features/effects/config/plugin-sdk'
 
 // Types for LLM-generated plugins
 export interface GeneratedPlugin {
@@ -132,7 +132,7 @@ export function PluginCreator() {
 
     const handleSaveToLibrary = async (plugin: GeneratedPlugin) => {
         // Dynamically import PluginRegistry to avoid SSR issues
-        const { PluginRegistry } = await import('@/lib/effects/config/plugin-registry')
+        const { PluginRegistry } = await import('@/features/effects/config/plugin-registry')
 
         // Register and persist
         PluginRegistry.register({
@@ -201,7 +201,7 @@ export function PluginCreator() {
         // Let's export it from plugin-code-panel.tsx in a separate step or just copy it for now to be safe and fast.
 
         // Simplified generation for save (should match panel)
-        const code = `import { definePlugin } from '@/lib/effects/config/plugin-sdk'
+        const code = `import { definePlugin } from '@/features/effects/config/plugin-sdk'
 
 interface ${plugin.id.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')}Params {
 ${Object.entries(plugin.params || {}).map(([key, def]) => {

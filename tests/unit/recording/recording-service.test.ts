@@ -1,4 +1,4 @@
-import { RecordingService } from '@/lib/recording/services/recording-service'
+import { RecordingService } from '@/features/recording/services/recording-service'
 import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
 import { AudioInput, ExportFormat, QualityLevel, RecordingArea, type RecordingSettings } from '@/types'
 
@@ -59,7 +59,7 @@ const createElectronApi = (overrides: Record<string, unknown> = {}) => ({
 describe('RecordingService (black box)', () => {
   beforeEach(() => {
     resetRecordingBridge()
-    ;(window as any).electronAPI = createElectronApi()
+      ; (window as any).electronAPI = createElectronApi()
   })
 
   afterEach(() => {
@@ -71,29 +71,29 @@ describe('RecordingService (black box)', () => {
     const bridge = createBridge()
     setRecordingBridge(bridge)
 
-    ;(window as any).electronAPI = createElectronApi({
-      getDesktopSources: jest.fn().mockResolvedValue([{
-        id: 'screen:1:0',
-        name: 'Display 1',
-        displayInfo: {
+      ; (window as any).electronAPI = createElectronApi({
+        getDesktopSources: jest.fn().mockResolvedValue([{
+          id: 'screen:1:0',
+          name: 'Display 1',
+          displayInfo: {
+            id: 1,
+            isPrimary: true,
+            isInternal: false,
+            bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+            workArea: { x: 0, y: 0, width: 1920, height: 1040 },
+            scaleFactor: 2
+          }
+        }]),
+        getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1920, height: 1080 }),
+        getScreens: jest.fn().mockResolvedValue([{
           id: 1,
-          isPrimary: true,
-          isInternal: false,
           bounds: { x: 0, y: 0, width: 1920, height: 1080 },
           workArea: { x: 0, y: 0, width: 1920, height: 1040 },
-          scaleFactor: 2
-        }
-      }]),
-      getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1920, height: 1080 }),
-      getScreens: jest.fn().mockResolvedValue([{
-        id: 1,
-        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
-        workArea: { x: 0, y: 0, width: 1920, height: 1040 },
-        scaleFactor: 2,
-        rotation: 0,
-        internal: true
-      }])
-    })
+          scaleFactor: 2,
+          rotation: 0,
+          internal: true
+        }])
+      })
 
     const service = new RecordingService()
     await service.start({ ...baseSettings, sourceId: 'screen:1:0' })
@@ -113,21 +113,21 @@ describe('RecordingService (black box)', () => {
     const bridge = createBridge()
     setRecordingBridge(bridge)
 
-    ;(window as any).electronAPI = createElectronApi({
-      getDesktopSources: jest.fn().mockResolvedValue([{
-        id: 'screen:1:0',
-        name: 'Display 1',
-        displayInfo: {
-          id: 1,
-          isPrimary: true,
-          isInternal: false,
-          bounds: { x: 100, y: 50, width: 1920, height: 1080 },
-          workArea: { x: 100, y: 50, width: 1920, height: 1040 },
-          scaleFactor: 1
-        }
-      }]),
-      getSourceBounds: jest.fn().mockResolvedValue({ x: 100, y: 50, width: 1920, height: 1080 })
-    })
+      ; (window as any).electronAPI = createElectronApi({
+        getDesktopSources: jest.fn().mockResolvedValue([{
+          id: 'screen:1:0',
+          name: 'Display 1',
+          displayInfo: {
+            id: 1,
+            isPrimary: true,
+            isInternal: false,
+            bounds: { x: 100, y: 50, width: 1920, height: 1080 },
+            workArea: { x: 100, y: 50, width: 1920, height: 1040 },
+            scaleFactor: 1
+          }
+        }]),
+        getSourceBounds: jest.fn().mockResolvedValue({ x: 100, y: 50, width: 1920, height: 1080 })
+      })
 
     const service = new RecordingService()
     await service.start({ ...baseSettings, sourceId: 'area:10,20,200,150,1', area: RecordingArea.Region })
@@ -144,10 +144,10 @@ describe('RecordingService (black box)', () => {
     const bridge = createBridge()
     setRecordingBridge(bridge)
 
-    ;(window as any).electronAPI = createElectronApi({
-      checkScreenRecordingPermission: jest.fn().mockResolvedValue({ status: 'denied', granted: false }),
-      requestScreenRecordingPermission: jest.fn().mockResolvedValue({ opened: true, status: 'denied', granted: false })
-    })
+      ; (window as any).electronAPI = createElectronApi({
+        checkScreenRecordingPermission: jest.fn().mockResolvedValue({ status: 'denied', granted: false }),
+        requestScreenRecordingPermission: jest.fn().mockResolvedValue({ opened: true, status: 'denied', granted: false })
+      })
 
     const service = new RecordingService()
 
@@ -166,21 +166,21 @@ describe('RecordingService (black box)', () => {
     })
     setRecordingBridge(bridge)
 
-    ;(window as any).electronAPI = createElectronApi({
-      getDesktopSources: jest.fn().mockResolvedValue([{
-        id: 'screen:1:0',
-        name: 'Display 1',
-        displayInfo: {
-          id: 1,
-          isPrimary: true,
-          isInternal: false,
-          bounds: { x: 0, y: 0, width: 1280, height: 720 },
-          workArea: { x: 0, y: 0, width: 1280, height: 680 },
-          scaleFactor: 1
-        }
-      }]),
-      getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1280, height: 720 })
-    })
+      ; (window as any).electronAPI = createElectronApi({
+        getDesktopSources: jest.fn().mockResolvedValue([{
+          id: 'screen:1:0',
+          name: 'Display 1',
+          displayInfo: {
+            id: 1,
+            isPrimary: true,
+            isInternal: false,
+            bounds: { x: 0, y: 0, width: 1280, height: 720 },
+            workArea: { x: 0, y: 0, width: 1280, height: 680 },
+            scaleFactor: 1
+          }
+        }]),
+        getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1280, height: 720 })
+      })
 
     const service = new RecordingService()
     await service.start({ ...baseSettings, sourceId: 'screen:1:0' })
@@ -198,21 +198,21 @@ describe('RecordingService (black box)', () => {
     })
     setRecordingBridge(bridge)
 
-    ;(window as any).electronAPI = createElectronApi({
-      getDesktopSources: jest.fn().mockResolvedValue([{
-        id: 'screen:1:0',
-        name: 'Display 1',
-        displayInfo: {
-          id: 1,
-          isPrimary: true,
-          isInternal: false,
-          bounds: { x: 0, y: 0, width: 1920, height: 1080 },
-          workArea: { x: 0, y: 0, width: 1920, height: 1040 },
-          scaleFactor: 1
-        }
-      }]),
-      getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1920, height: 1080 })
-    })
+      ; (window as any).electronAPI = createElectronApi({
+        getDesktopSources: jest.fn().mockResolvedValue([{
+          id: 'screen:1:0',
+          name: 'Display 1',
+          displayInfo: {
+            id: 1,
+            isPrimary: true,
+            isInternal: false,
+            bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+            workArea: { x: 0, y: 0, width: 1920, height: 1040 },
+            scaleFactor: 1
+          }
+        }]),
+        getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1920, height: 1080 })
+      })
 
     const service = new RecordingService()
     await expect(
@@ -230,21 +230,21 @@ describe('RecordingService (black box)', () => {
     })
     setRecordingBridge(bridge)
 
-    ;(window as any).electronAPI = createElectronApi({
-      getDesktopSources: jest.fn().mockResolvedValue([{
-        id: 'screen:1:0',
-        name: 'Display 1',
-        displayInfo: {
-          id: 1,
-          isPrimary: true,
-          isInternal: false,
-          bounds: { x: 0, y: 0, width: 1920, height: 1080 },
-          workArea: { x: 0, y: 0, width: 1920, height: 1040 },
-          scaleFactor: 1
-        }
-      }]),
-      getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1920, height: 1080 })
-    })
+      ; (window as any).electronAPI = createElectronApi({
+        getDesktopSources: jest.fn().mockResolvedValue([{
+          id: 'screen:1:0',
+          name: 'Display 1',
+          displayInfo: {
+            id: 1,
+            isPrimary: true,
+            isInternal: false,
+            bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+            workArea: { x: 0, y: 0, width: 1920, height: 1040 },
+            scaleFactor: 1
+          }
+        }]),
+        getSourceBounds: jest.fn().mockResolvedValue({ x: 0, y: 0, width: 1920, height: 1080 })
+      })
 
     const service = new RecordingService()
     await service.start({ ...baseSettings, sourceId: 'screen:1:0' })

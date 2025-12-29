@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { useAudioLevel } from '@/hooks/use-audio-level'
 import { Mic, MicOff } from 'lucide-react'
 

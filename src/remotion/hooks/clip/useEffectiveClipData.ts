@@ -9,13 +9,13 @@
 
 import { useMemo, useRef } from 'react';
 import type { Effect, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 import type { ActiveClipDataAtFrame } from '@/types';
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
-import { applyInheritance, type PersistedVideoState } from '@/lib/effects/effect-inheritance';
+import { applyInheritance, type PersistedVideoState } from '@/features/effects/effect-inheritance';
 
 // Re-export for consumers
-export type { PersistedVideoState } from '@/lib/effects/effect-inheritance';
+export type { PersistedVideoState } from '@/features/effects/effect-inheritance';
 
 // Extended type to include calculated source time for consumers
 export interface ResolvedVideoState extends PersistedVideoState {

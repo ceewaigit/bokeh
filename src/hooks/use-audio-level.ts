@@ -3,9 +3,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getAudioInputService } from '@/lib/recording/services/audio-input-service'
-import { getSharedAudioContext } from '@/lib/audio/shared-audio-context'
-import { logger } from '@/lib/utils/logger'
+import { getAudioInputService } from '@/features/recording/services/audio-input-service'
+import { getSharedAudioContext } from '@/shared/contexts/audio-context'
+import { logger } from '@/shared/utils/logger'
 
 interface UseAudioLevelOptions {
   deviceId: string | null

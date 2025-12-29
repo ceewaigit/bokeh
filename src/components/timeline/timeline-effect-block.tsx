@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Rect, Text, Transformer, Line, Group } from 'react-konva'
-import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { useTimelineColors, withAlpha } from '@/lib/timeline/colors'
-import { getNearestAvailableDragX } from '@/lib/timeline/drag-positioning'
+import { TimelineConfig } from '@/features/timeline/config'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
+import { useTimelineColors, withAlpha } from '@/features/timeline/utils/colors'
+import { getNearestAvailableDragX } from '@/features/timeline/utils/drag-positioning'
 import Konva from 'konva'
 
 interface TimelineTimeBlock {

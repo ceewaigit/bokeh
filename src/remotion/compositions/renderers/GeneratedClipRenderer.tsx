@@ -7,10 +7,10 @@
 import React from 'react';
 import { Sequence } from 'remotion';
 import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
-import { PluginRegistry } from '@/lib/effects/config/plugin-registry';
-import type { PluginFrameContext, PluginRenderProps } from '@/lib/effects/config/plugin-sdk';
+import { PluginRegistry } from '@/features/effects/config/plugin-registry';
+import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk';
 import type { Clip, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 import { assertDefined } from '@/lib/errors';
 
 interface GeneratedClipRendererProps {

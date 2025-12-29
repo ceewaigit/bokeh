@@ -23,7 +23,7 @@ describe('Clip Boundary Transitions', () => {
   describe('findClipAtTimelinePosition', () => {
     it('should find the correct clip at exact boundary (start)', () => {
       // Import the function
-      const { findClipAtTimelinePosition } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -37,7 +37,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should find the correct clip just before boundary', () => {
-      const { findClipAtTimelinePosition } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -51,7 +51,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should find the correct clip one frame before boundary (30fps)', () => {
-      const { findClipAtTimelinePosition } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -66,7 +66,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should handle epsilon tolerance at boundaries', () => {
-      const { findClipAtTimelinePosition } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -80,7 +80,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should return null for timeline position beyond all clips', () => {
-      const { findClipAtTimelinePosition } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -92,7 +92,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should return null for negative timeline position', () => {
-      const { findClipAtTimelinePosition } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -106,7 +106,7 @@ describe('Clip Boundary Transitions', () => {
 
   describe('Cross-Clip Timeline to Source Conversion', () => {
     it('should convert timeline position correctly across clip boundary', () => {
-      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -129,7 +129,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should handle conversion at exact boundary', () => {
-      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -149,7 +149,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should handle sped-up clip correctly', () => {
-      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -219,7 +219,7 @@ describe('Clip Boundary Transitions', () => {
 
   describe('Previous Frame Calculation at Boundaries', () => {
     it('should calculate correct previous frame source time at boundary', () => {
-      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 2000, 0, 2000, 1),
@@ -257,7 +257,7 @@ describe('Clip Boundary Transitions', () => {
     });
 
     it('should handle multiple boundary crossings', () => {
-      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/lib/timeline/time-space-converter');
+      const { findClipAtTimelinePosition, timelineToSource } = require('../../src/features/timeline/time/time-space-converter');
 
       const clips = [
         createClip('clip-a', 0, 1000, 0, 1000, 1),

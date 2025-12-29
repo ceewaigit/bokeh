@@ -12,7 +12,7 @@
 import React, { createContext, useContext, useMemo, useCallback } from 'react';
 import type { Clip, Recording } from '@/types/project';
 import type { VideoResources } from '@/types';
-import { findClipAtTimelinePosition } from '@/lib/timeline/time-space-converter';
+import { findClipAtTimelinePosition } from '@/features/timeline/time/time-space-converter';
 
 // ============================================================================
 // TYPES

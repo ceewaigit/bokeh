@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Group, Line, Rect, Text, RegularPolygon, Circle } from 'react-konva'
 import Konva from 'konva'
-import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { useTimelineColors } from '@/lib/timeline/colors'
-import { clamp, formatTime } from '@/lib/utils'
+import { TimelineConfig } from '@/features/timeline/config'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
+import { useTimelineColors } from '@/features/timeline/utils/colors'
+import { clamp, formatTime } from '@/shared/utils/utils'
 import { useProjectStore } from '@/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
-import { timeObserver } from '@/lib/timeline/time-observer'
+import { timeObserver } from '@/features/timeline/time/time-observer'
 
 export const TimelinePlayhead = React.memo(() => {
   const {

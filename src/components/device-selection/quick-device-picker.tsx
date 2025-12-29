@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { Camera, Mic, Settings, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'

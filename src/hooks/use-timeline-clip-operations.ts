@@ -13,7 +13,7 @@
 import { useCallback } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { useShallow } from 'zustand/react/shallow'
-import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+import { useCommandExecutor } from '@/hooks/use-command-executor'
 import {
     RemoveClipCommand,
     SplitClipCommand,

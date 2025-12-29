@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { usePreviewSettingsStore, type PreviewSettings } from '@/stores/preview-settings-store'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 
 const GUIDE_COLORS = [
     { label: 'Ink', value: '#111111' },

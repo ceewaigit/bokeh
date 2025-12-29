@@ -14,8 +14,8 @@ import type {
   ZoomEffectData,
 } from './project';
 import type { MockupPositionResult } from '@/lib/mockups/mockup-transform';
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
-import type { ParsedZoomBlock } from '@/lib/effects/utils/camera-calculator';
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
+import type { ParsedZoomBlock } from '@/features/effects/utils/camera-calculator';
 import type { MetadataUrlSet } from '@/lib/export/metadata-loader';
 
 export type VideoUrlMap = Record<string, string>;

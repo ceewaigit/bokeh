@@ -1,7 +1,7 @@
 
 import { useCallback, useState } from 'react'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { ClipReorderService } from '@/lib/timeline/clip-reorder-service'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
+import { ClipReorderService } from '@/features/timeline/clips/clip-reorder-service'
 import type { Project } from '@/types/project'
 
 interface UseTimelineSnappingProps {

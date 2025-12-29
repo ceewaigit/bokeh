@@ -2,8 +2,8 @@ import { Command, CommandResult } from '../base/Command'
 import type { CommandContext } from '../base/CommandContext'
 import type { Clip, Effect, Recording } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
-import { addRecordingToProject, findClipById, removeClipFromTrack } from '@/lib/timeline/timeline-operations'
-import { ProjectCleanupService } from '@/lib/timeline/project-cleanup'
+import { addRecordingToProject, findClipById, removeClipFromTrack } from '@/features/timeline/timeline-operations'
+import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
 
 interface ImportRecordingPayload {
   recording: Recording

@@ -14,8 +14,8 @@ import {
 import { toast } from 'sonner'
 import { EffectLayerType } from '@/types/effects'
 import { EffectType } from '@/types'
-import { useCommandExecutor } from '@/hooks/useCommandExecutor'
-import { useKeyboardEvents } from '@/hooks/useKeyboardEvents'
+import { useCommandExecutor } from '@/hooks/use-command-executor'
+import { useKeyboardEvents } from '@/hooks/use-keyboard-events'
 import { assertDefined } from '@/lib/errors'
 
 /** Extract message from Error object or return string as-is */

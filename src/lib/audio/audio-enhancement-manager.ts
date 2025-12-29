@@ -5,7 +5,7 @@
  * caused by captureStream() timing discontinuities.
  */
 
-import { getSharedAudioContext } from './shared-audio-context';
+import { getSharedAudioContext } from '@/shared/contexts/audio-context';
 import type { AudioEnhancementPreset, AudioEnhancementSettings } from '@/types/project';
 
 interface AudioGraph {
@@ -72,7 +72,7 @@ class AudioEnhancementManager {
       return false;
     }
     if (this.activeVideos.size >= AudioEnhancementManager.MAX_ACTIVE_GRAPHS ||
-        this.activeStreamCount >= AudioEnhancementManager.MAX_STREAMS) {
+      this.activeStreamCount >= AudioEnhancementManager.MAX_STREAMS) {
       console.warn('[AudioEnhancementManager] Stream budget exhausted, skipping enhance for new video.');
       return false;
     }
@@ -92,11 +92,13 @@ class AudioEnhancementManager {
       const wetGain = ctx.createGain();
       const dryGain = ctx.createGain();
 
-      source.connect(compressor);
-      compressor.connect(wetGain);
-      source.connect(dryGain);
-      wetGain.connect(ctx.destination);
-      dryGain.connect(ctx.destination);
+      if (source) {
+        source.connect(compressor);
+        compressor.connect(wetGain);
+        source.connect(dryGain);
+        wetGain.connect(ctx.destination);
+        dryGain.connect(ctx.destination);
+      }
       this.activeStreamCount += 2; // wet + dry each connect to destination
 
       wetGain.gain.value = enhanced ? 1 : 0;

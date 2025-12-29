@@ -5,11 +5,11 @@
 import type { ExportSettings, Project, Recording, Clip } from '@/types'
 import { RemotionExportService } from './remotion-export-service'
 import { timelineProcessor } from './timeline-processor'
-import { logger } from '../utils/logger'
+import { logger } from '@/shared/utils/logger'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { memoryMonitor } from '@/lib/utils/memory-monitor'
+import { memoryMonitor } from '@/shared/utils/memory-monitor'
 import { resolveProjectRoot } from '@/lib/storage/recording-storage'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { assertDefined } from '@/lib/errors'
 
 export interface ExportProgress {

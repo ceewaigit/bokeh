@@ -3,16 +3,16 @@
  * Single source of truth for recording blobs and metadata
  */
 
-import { logger } from '@/lib/utils/logger'
-import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
+import { logger } from '@/shared/utils/logger'
+import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import type { Project, Recording, Clip, CaptureArea } from '@/types/project'
 import { TrackType, ExportFormat, QualityLevel, RecordingSourceType } from '@/types/project'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
-import { getKeystrokeEffects } from '@/lib/effects/effect-filters'
-import { EffectGenerationService } from '@/lib/effects/effect-generation-service'
+import { EffectsFactory } from '@/features/effects/effects-factory'
+import { getKeystrokeEffects } from '@/features/effects/effect-filters'
+import { EffectGenerationService } from '@/features/effects/services/effect-generation-service'
 import { EffectStore } from '@/lib/core/effects'
 import { isLikelyKeyboardKey, isStandaloneModifierKey } from '@/lib/keyboard/keyboard-utils'
-import { getVideoMetadataFromPath } from '@/lib/utils/video-metadata'
+import { getVideoMetadataFromPath } from '@/shared/utils/video-metadata'
 import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
 import { migrationRunner } from '@/lib/migrations'
 

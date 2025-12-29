@@ -1,5 +1,5 @@
 import React from 'react'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig } from '@/features/timeline/config'
 import type { TrackType } from '@/types/project'
 
 interface TimelineDropTargetProps {

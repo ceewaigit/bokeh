@@ -1,5 +1,5 @@
 
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 
 describe('Timeline Automatic Zoom', () => {
   describe('calculateOptimalZoom', () => {

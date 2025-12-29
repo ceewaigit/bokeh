@@ -10,11 +10,11 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback, type RefObject } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { useEffectTrackExistence, useMediaTrackExistence, useTimelineDuration } from '@/stores/selectors/timeline-selectors'
-import { TimelineConfig, getClipInnerHeight } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { TimelineConfig, getClipInnerHeight } from '@/features/timeline/config'
+import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { EffectType } from '@/types/effects'
 import { TimelineTrackType, TrackType } from '@/types/project'
-import { EFFECT_TRACK_TYPES, getSortedTrackConfigs } from '@/lib/timeline/effect-track-registry'
+import { EFFECT_TRACK_TYPES, getSortedTrackConfigs } from '@/features/timeline/effect-track-registry'
 
 /** Track type that can be used for visibility/active state */
 export type TrackId = TimelineTrackType | EffectType

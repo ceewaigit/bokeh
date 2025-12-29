@@ -10,7 +10,7 @@
 import { useRef, useEffect, useMemo } from 'react';
 import { calculateVideoPosition } from '../../compositions/utils/layout/video-position';
 import { calculateMockupPosition, type MockupPositionResult } from '@/lib/mockups/mockup-transform';
-import { getActiveBackgroundEffect } from '@/lib/effects/effect-filters';
+import { getActiveBackgroundEffect } from '@/features/effects/effect-filters';
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects';
 
 import type { Effect, BackgroundEffect } from '@/types/project';

@@ -13,9 +13,9 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useTheme } from "@/contexts/theme-context"
+import { useTheme } from "@/shared/contexts/theme-context"
 import { useWindowAppearanceStore, type WindowSurfaceMode } from "@/stores/window-appearance-store"
-import { cn, clamp } from "@/lib/utils"
+import { cn, clamp } from "@/shared/utils/utils"
 
 // Preset definitions matching the store - modern glassmorphism
 const GLASS_PRESETS = {

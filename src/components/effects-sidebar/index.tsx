@@ -2,12 +2,12 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData, Effect } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
-import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffects } from '@/lib/effects/effect-filters'
-import { resolveEffectIdForType } from '@/lib/effects/effect-selection'
+import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffects } from '@/features/effects/effect-filters'
+import { resolveEffectIdForType } from '@/features/effects/effect-selection'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 

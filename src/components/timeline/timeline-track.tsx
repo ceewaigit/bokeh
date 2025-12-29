@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import Konva from 'konva'
-import { TimelineConfig } from '@/lib/timeline/config'
-import { useTimelineColors } from '@/lib/timeline/colors'
+import { TimelineConfig } from '@/features/timeline/config'
+import { useTimelineColors } from '@/features/timeline/utils/colors'
 import { TimelineTrackType } from '@/types/project'
 
 interface TimelineTrackProps {

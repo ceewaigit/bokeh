@@ -11,7 +11,7 @@
 import { EffectType } from '@/types/effects'
 import type { Effect, PluginEffectData, AnnotationData, AnnotationStyle } from '@/types/project'
 import { AnnotationType } from '@/types/project'
-import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
+import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { percentToPixels, isPointInRect, type VideoRect } from './coordinate-utils'
 
 export type HandlePosition =

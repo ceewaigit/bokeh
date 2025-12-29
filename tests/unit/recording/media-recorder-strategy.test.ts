@@ -1,4 +1,4 @@
-import { MediaRecorderStrategy } from '@/lib/recording/strategies/media-recorder-strategy'
+import { MediaRecorderStrategy } from '@/features/recording/strategies/media-recorder-strategy'
 import { type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
 
 const createBridge = (overrides: Partial<RecordingIpcBridge> = {}): RecordingIpcBridge => ({
@@ -35,7 +35,7 @@ const createBridge = (overrides: Partial<RecordingIpcBridge> = {}): RecordingIpc
 
 describe('MediaRecorderStrategy (black box)', () => {
   beforeEach(() => {
-    ;(window as any).electronAPI = {
+    ; (window as any).electronAPI = {
       getDesktopStream: jest.fn().mockResolvedValue({ audio: true, video: true })
     }
   })
@@ -64,7 +64,7 @@ describe('MediaRecorderStrategy (black box)', () => {
   })
 
   it('rejects when desktop stream API is missing', async () => {
-    ;(window as any).electronAPI = {}
+    ; (window as any).electronAPI = {}
     const bridge = createBridge()
     const strategy = new MediaRecorderStrategy(bridge)
 

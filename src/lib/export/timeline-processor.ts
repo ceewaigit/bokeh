@@ -5,7 +5,7 @@
 
 import type { Timeline, Clip, Recording, Effect, Project } from '@/types'
 import { TrackType } from '@/types'
-import { logger } from '@/lib/utils/logger'
+import { logger } from '@/shared/utils/logger'
 import { EffectStore } from '@/lib/core/effects'
 
 export interface TimelineSegment {

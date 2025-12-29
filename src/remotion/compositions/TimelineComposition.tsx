@@ -31,9 +31,9 @@ import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 import { VideoDataProvider, useVideoData } from '../context/video-data-context';
 import { useVideoUrl } from '../hooks/media/useVideoUrl';
-import { findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
-import { getWebcamLayout } from '@/lib/effects/utils/webcam-layout';
-import { isProxySufficientForTarget } from '@/lib/utils/resolution-utils';
+import { findActiveFrameLayoutItems } from '@/features/timeline/utils/frame-layout';
+import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
+import { isProxySufficientForTarget } from '@/shared/utils/resolution-utils';
 import type { WebcamEffectData } from '@/types/project';
 
 /**

@@ -9,9 +9,9 @@
  */
 
 import React, { useMemo } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import type { Effect } from '@/types/project'
-import { getWebcamEffect } from '@/lib/effects/effect-filters'
+import { getWebcamEffect } from '@/features/effects/effect-filters'
 
 interface WebcamOverlayProps {
   effects: Effect[]

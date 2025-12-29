@@ -1,4 +1,4 @@
-import { parseZoomBlocks } from '@/lib/core/camera'
+import { parseZoomBlocks } from '@/features/effects/utils/camera-calculator'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 
 describe('zoom-blocks validation', () => {

@@ -2,13 +2,13 @@ import React, { useState } from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { TimelineTrackType } from '@/types/project'
-import { ActivityDetectionService } from '@/lib/timeline/activity-detection/detection-service'
+import { ActivityDetectionService } from '@/features/timeline/activity-detection/detection-service'
 import { useVideoClips, useRecordings } from '@/stores/selectors/clip-selectors'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig } from '@/features/timeline/config'
 import { useTimelineContext } from './TimelineContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
-import { sourceToTimeline } from '@/lib/timeline/time-space-converter'
+import { sourceToTimeline } from '@/features/timeline/time/time-space-converter'
 
 // Color schemes
 const COLORS = {

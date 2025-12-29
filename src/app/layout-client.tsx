@@ -5,7 +5,7 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { RecordingStorage } from "@/lib/storage/recording-storage"
-import { ThemeProvider } from "@/contexts/theme-context"
+import { ThemeProvider } from "@/shared/contexts/theme-context"
 import { SettingsDialog } from "@/components/settings-dialog"
 
 export default function LayoutClient({

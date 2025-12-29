@@ -8,7 +8,7 @@
  */
 
 import type { CameraPathFrame } from '@/types/remotion'
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 import type { CreateCacheSlice } from './types'
 
 /**

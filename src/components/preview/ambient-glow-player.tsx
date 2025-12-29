@@ -3,13 +3,13 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/remotion/compositions/TimelineComposition';
-import { useTheme } from '@/contexts/theme-context';
+import { useTheme } from '@/shared/contexts/theme-context';
 import { useProjectStore } from '@/stores/project-store';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { buildTimelineCompositionInput } from '@/remotion/utils/composition-input';
-import type { useTimelineMetadata } from '@/hooks/useTimelineMetadata';
-import type { usePlayerConfiguration } from '@/hooks/usePlayerConfiguration';
-import { useThrottledSeek } from '@/hooks/useThrottledSeek';
+import type { useTimelineMetadata } from '@/hooks/use-timeline-metadata';
+import type { usePlayerConfiguration } from '@/hooks/use-player-configuration';
+import { useThrottledSeek } from '@/hooks/use-throttled-seek';
 
 type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
 type PlayerConfig = ReturnType<typeof usePlayerConfiguration>;

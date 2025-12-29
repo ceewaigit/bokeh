@@ -3,7 +3,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { Effect, Project, ZoomBlock } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { EffectStore } from '@/lib/core/effects'
-import { TimelineConfig } from '@/lib/timeline/config'
+import { TimelineConfig } from '@/features/timeline/config'
 
 /**
  * Find zoom effect in the project using EffectStore

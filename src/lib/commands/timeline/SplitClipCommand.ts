@@ -1,7 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
-import { timelineToClipRelative } from '@/lib/timeline/time-space-converter'
+import { timelineToClipRelative } from '@/features/timeline/time/time-space-converter'
 
 export interface SplitClipResult {
   originalClipId: string

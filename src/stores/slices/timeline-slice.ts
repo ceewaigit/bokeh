@@ -25,16 +25,16 @@ import {
     calculateTimelineDuration,
     reflowClips,
     syncCropEffectTimes
-} from '@/lib/timeline/timeline-operations'
-import { ProjectCleanupService } from '@/lib/timeline/project-cleanup'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
-import { SpeedUpApplicationService } from '@/lib/timeline/speed-up-application'
-import { PlayheadService } from '@/lib/timeline/playhead-service'
+} from '@/features/timeline/timeline-operations'
+import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
+import { EffectsFactory } from '@/features/effects/effects-factory'
+import { SpeedUpApplicationService } from '@/features/timeline/speed-up-application'
+import { PlayheadService } from '@/features/timeline/playback/playhead-service'
 import { RecordingStorage, resolveProjectRoot } from '@/lib/storage/recording-storage'
-import { ClipPositioning } from '@/lib/timeline/clip-positioning'
+import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
 import { CursorReturnService } from '@/lib/cursor/cursor-return-service'
 import { EffectStore } from '@/lib/core/effects'
-import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import type { CreateTimelineSlice } from './types'
 
 export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
@@ -702,7 +702,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         if (!projectSnapshot) return
 
         const [{ EffectGenerationService }, { metadataLoader }] = await Promise.all([
-            import('@/lib/effects/effect-generation-service'),
+            import('@/features/effects/services/effect-generation-service'),
             import('@/lib/export/metadata-loader'),
         ])
 

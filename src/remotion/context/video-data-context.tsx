@@ -17,7 +17,7 @@ import {
   findActiveFrameLayoutIndex,
   findActiveFrameLayoutItems,
   type FrameLayoutItem
-} from '@/lib/timeline/frame-layout'
+} from '@/features/timeline/utils/frame-layout'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { ActiveClipDataAtFrame } from '@/types'
 import { useCompositionOptional } from './CompositionContext'

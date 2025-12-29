@@ -1,7 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
-import { computeEffectiveDuration } from '@/lib/timeline/time-space-converter'
+import { computeEffectiveDuration } from '@/features/timeline/time/time-space-converter'
 
 export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbackRate: number }> {
   private originalClip?: Clip

@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 import type { CameraPathFrame } from '@/types'
-import type { Recording, Effect, RecordingMetadata } from '@/types/project'
-import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
+import type { Effect, Recording, RecordingMetadata } from '@/types/project'
+import { useMemo } from 'react'
 
 type UseCameraPathArgs = {
     enabled: boolean

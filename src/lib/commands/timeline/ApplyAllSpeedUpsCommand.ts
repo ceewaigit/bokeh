@@ -7,7 +7,7 @@ import { Command } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
-import { ActivityDetectionService } from '@/lib/timeline/activity-detection/detection-service'
+import { ActivityDetectionService } from '@/features/timeline/activity-detection/detection-service'
 import { ApplySpeedUpCommand } from './ApplySpeedUpCommand'
 
 export interface ApplyAllOptions {

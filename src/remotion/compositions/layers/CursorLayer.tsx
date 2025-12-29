@@ -7,14 +7,14 @@ import {
   CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
   getCursorImagePath,
-} from '../../../lib/effects/cursor-types';
-import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../../../lib/effects/utils/cursor-calculator';
+} from '@/features/effects/cursor-types';
+import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '@/features/effects/utils/cursor-calculator';
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects';
 
 import { normalizeClickEvents, normalizeMouseEvents } from '../utils/events/event-normalizer';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
 import { useComposition } from '../../context/CompositionContext';
-import { getCursorEffect } from '@/lib/effects/effect-filters';
+import { getCursorEffect } from '@/features/effects/effect-filters';
 import { applyCssTransformToPoint } from '../utils/transforms/transform-point';
 
 import { useRecordingMetadata } from '../../hooks/media/useRecordingMetadata';
@@ -324,7 +324,7 @@ export const CursorLayer = React.memo(({
   //
   // This ensures the cursor appears the same visual size whether the source video
   // is 720p, 1080p, 4K, 8K, or any resolution - only the preview/export dimensions matter.
-  const REFERENCE_WIDTH = 1920; // 1080p reference - cursor is designed at this scale
+  const REFERENCE_WIDTH = 1920;
 
   const cursorScaleBaseWidth = isMockup && videoPositionContext.mockupPosition
     ? videoPositionContext.mockupPosition.screenWidth

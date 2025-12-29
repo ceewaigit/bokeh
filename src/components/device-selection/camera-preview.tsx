@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { CameraOff, RefreshCw } from 'lucide-react'
 import { useDeviceStore } from '@/stores/device-store'
 

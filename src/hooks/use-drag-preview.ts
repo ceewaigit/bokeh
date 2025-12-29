@@ -9,8 +9,8 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { TrackType, type Clip } from '@/types/project'
-import { ClipPositioning } from '@/lib/timeline/clip-positioning'
-import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
+import { useCommandExecutor } from '@/hooks/use-command-executor'
 import { ReorderClipCommand } from '@/lib/commands'
 
 export interface DragPreview {

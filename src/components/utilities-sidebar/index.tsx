@@ -1,5 +1,5 @@
 import React from 'react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/shared/utils/utils'
 import { Upload, Volume2, Grid, Settings, Puzzle } from 'lucide-react'
 import { ImportMediaSection } from './import-media-section'
 import { AudioSection } from './audio-section'

@@ -1,4 +1,4 @@
-import { interpolateMousePosition } from '@/lib/effects/utils/mouse-interpolation'
+import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 
 describe('interpolateMousePosition', () => {
   it('does not overshoot between segment endpoints', () => {

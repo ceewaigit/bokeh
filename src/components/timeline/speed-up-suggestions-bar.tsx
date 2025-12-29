@@ -8,7 +8,7 @@ import React, { useState, useCallback } from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
-import { TimeConverter, sourceToTimeline } from '@/lib/timeline/time-space-converter'
+import { TimeConverter, sourceToTimeline } from '@/features/timeline/time/time-space-converter'
 import type { Clip } from '@/types/project'
 import { useTimelineContext } from './TimelineContext'
 
