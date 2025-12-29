@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { getTimelineTimeFromClientX, getTimelineTimeFromStagePointer } from '@/lib/timeline/seek-utils'
+import { timeObserver } from '@/lib/timeline/time-observer'
 
 interface TimelineScrubOptions {
   duration: number
@@ -20,6 +21,8 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, onSeek }: TimelineScru
     if (!onSeek) return
     const time = getTimelineTimeFromStagePointer(stage, pixelsPerMs, duration)
     if (time === null) return
+    // DECOUPLED: Push to timeObserver immediately for playhead UI
+    timeObserver.pushTime(time)
     onSeek(time)
   }, [duration, onSeek, pixelsPerMs])
 
@@ -27,6 +30,8 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, onSeek }: TimelineScru
     if (!onSeek) return
     const time = getTimelineTimeFromClientX(stageRef.current, clientX, pixelsPerMs, duration)
     if (time === null) return
+    // DECOUPLED: Push to timeObserver immediately for playhead UI
+    timeObserver.pushTime(time)
     onSeek(time)
   }, [duration, onSeek, pixelsPerMs])
 

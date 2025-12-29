@@ -32,18 +32,12 @@ import { SpeedUpApplicationService } from '@/lib/timeline/speed-up-application'
 import { PlayheadService } from '@/lib/timeline/playhead-service'
 import { RecordingStorage, resolveProjectRoot } from '@/lib/storage/recording-storage'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
-import { getActiveCropEffect, getCropEffectForClip } from '@/lib/effects/effect-filters'
-import { captureLastFrame } from '@/lib/utils/frame-capture'
-import { generateCursorReturnFromSource } from '@/lib/cursor/synthetic-events'
 import { CursorReturnService } from '@/lib/cursor/cursor-return-service'
 import { EffectStore } from '@/lib/core/effects'
 import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 import type { CreateTimelineSlice } from './types'
 
 export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
-    // State
-    // (Currently empty as per types definition, but ready for future)
-
     // ===========================================================================
     // CLIP ACTIONS
     // ===========================================================================
@@ -55,18 +49,21 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             const clip = addClipToTrack(state.currentProject, clipOrRecordingId, startTime)
 
             if (clip) {
-                // New clip can change mapping; keep derived keystroke blocks aligned.
-                EffectsFactory.syncKeystrokeEffects(state.currentProject)
+                // Determine if we need to sync keystrokes (only if recording has metadata)
+                const recordingId = typeof clipOrRecordingId === 'string' ? clipOrRecordingId : clipOrRecordingId.recordingId
+                const recording = state.currentProject.recordings.find(r => r.id === recordingId)
+
+                // Only sync if strictly necessary - this prevents global scan lag on every paste
+                if (recording && (recording.metadata?.keyboardEvents?.length || 0) > 0) {
+                    EffectsFactory.syncKeystrokeEffects(state.currentProject)
+                }
 
                 state.selectedClips = [clip.id]
 
                 // Enable waveforms by default if the recording has audio
-                const recordingId = typeof clipOrRecordingId === 'string' ? clipOrRecordingId : clipOrRecordingId.recordingId
-                const recording = state.currentProject.recordings.find(r => r.id === recordingId)
                 if (recording?.hasAudio) {
                     state.settings.editing.showWaveforms = true
                 }
-
             }
         })
     },

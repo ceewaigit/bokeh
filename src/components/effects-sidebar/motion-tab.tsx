@@ -9,12 +9,16 @@ import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CompactSlider, SegmentedControl, SectionHeader, springConfig } from './motion-controls'
 
+import { useWorkspaceStore } from '@/stores/workspace-store'
+
 export function MotionTab() {
   const camera = useProjectStore((s) => s.currentProject?.settings.camera ?? DEFAULT_PROJECT_SETTINGS.camera)
   const setCameraSettings = useProjectStore((s) => s.setCameraSettings)
 
   const [motionBlurPreset, setMotionBlurPreset] = React.useState<'subtle' | 'balanced' | 'dynamic' | 'custom'>('balanced')
-  const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false)
+
+  const isAdvancedOpen = useWorkspaceStore((s) => s.motionTabAdvancedOpen)
+  const setIsAdvancedOpen = useWorkspaceStore((s) => s.setMotionTabAdvancedOpen)
 
   const motionBlurPresets = React.useMemo(() => ([
     { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: -0.13, saturation: 1.0 } },

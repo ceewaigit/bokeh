@@ -17,8 +17,9 @@ import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 
 import { useProjectStore } from '@/stores/project-store'
 import { usePreviewSettingsStore } from '@/stores/preview-settings-store'
-import { useAudioClips, useRecordingById, useVideoClips } from '@/stores/selectors/clip-selectors'
+import { useAudioClips, useVideoClips, useRecordingById } from '@/stores/selectors/clip-selectors'
 import { useTimelineContext } from './TimelineContext'
+import { useShallow } from 'zustand/react/shallow'
 
 interface TimelineClipProps {
   clip: Clip
@@ -48,10 +49,20 @@ const TimelineClipComponent = ({
     onTrimStart,
     onTrimEnd
   } = useTimelineContext()
+
+  // Use selectors that are less likely to trigger unnecessary re-renders
+  // Note: We use useRecordingById which is memoized in the selector system
   const recording = useRecordingById(clip.recordingId)
+
+  // These selectors fetch ALL clips, which might be heavy if not shallow checked.
+  // Ideally we should pass the relevant siblings from parent or use a tailored selector.
+  // For now, we assume these are stable enough via existing selectors.
   const videoClips = useVideoClips()
   const audioClips = useAudioClips()
-  const otherClipsInTrack = trackType === TrackType.Video ? videoClips : audioClips
+  const otherClipsInTrack = useMemo(() =>
+    trackType === TrackType.Video ? videoClips : audioClips,
+    [trackType, videoClips, audioClips]
+  )
 
   const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -69,20 +80,25 @@ const TimelineClipComponent = ({
   const groupRef = useRef<Konva.Group>(null)
 
   const colors = useTimelineColors()
-  const showWaveforms = useProjectStore((s) => s.settings.editing.showWaveforms ?? true)
+  // Subscribe specifically to the waveform setting
+  const showWaveforms = useProjectStore(useShallow((s) => s.settings.editing.showWaveforms ?? true))
   const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
+
   const isGeneratedClip = trackType === TrackType.Video && recording?.sourceType === 'generated'
   // Max 10 thumbnails per clip to balance visual variety vs performance
   const MAX_THUMBNAILS_PER_CLIP = 10
   const [thumbnails, setThumbnails] = useState<HTMLImageElement[]>([])
+
   const previewStartTime = dragPreview?.trackType === trackType && dragPreview.clipId !== clip.id
     ? dragPreview.startTimes[clip.id]
     : undefined
+
   const generatedLabel = React.useMemo(() => {
     const pluginId = recording?.generatedSource?.pluginId
     if (!pluginId) return 'Generated Clip'
     return PluginRegistry.get(pluginId)?.name ?? 'Generated Clip'
   }, [recording?.generatedSource?.pluginId])
+
   useRecordingMetadata({
     recordingId: recording?.sourceType === 'generated' ? '' : (recording?.id || ''),
     folderPath: recording?.folderPath,
@@ -90,18 +106,17 @@ const TimelineClipComponent = ({
     inlineMetadata: recording?.metadata,
   })
 
-  // Use preview values during trimming for live feedback
-  const effectiveStartTime = trimPreview?.startTime ?? clip.startTime
-  const effectiveDuration = trimPreview
-    ? trimPreview.endTime - trimPreview.startTime
-    : clip.duration
-
-  const visualStartTime = previewStartTime ?? effectiveStartTime
-  const clipX = TimeConverter.msToPixels(visualStartTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+  // OPTIMIZATION: Use COMMITTED values for the main clip rendering to avoid
+  // heavy re-calculation of waveforms/thumbnails during drag.
+  // The 'trimPreview' will be drawn as a separate ghost overlay.
+  const visualStartTime = previewStartTime ?? clip.startTime
   const clipWidth = Math.max(
     TimelineConfig.MIN_CLIP_WIDTH,
-    TimeConverter.msToPixels(effectiveDuration, pixelsPerMs)
+    TimeConverter.msToPixels(clip.duration, pixelsPerMs)
   )
+
+  const clipX = TimeConverter.msToPixels(visualStartTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+
   // REFACTOR: Single source of truth for clip inner height (replaces 24 duplicate calculations)
   const clipInnerHeight = getClipInnerHeight(trackHeight)
   const hasThumbnails = showTimelineThumbnails && thumbnails.length > 0
@@ -109,13 +124,12 @@ const TimelineClipComponent = ({
   const warningColor = colors.warning || 'hsl(38, 92%, 50%)'
   const missingThumbFill = withAlpha(warningColor, colors.isDark ? 0.5 : 0.35)
   const missingThumbStroke = withAlpha(warningColor, colors.isDark ? 0.7 : 0.55)
+
   const clipFileName = useMemo(() => {
     if (!recording?.filePath) return ''
     const parts = recording.filePath.split('/')
     return parts[parts.length - 1] || recording.filePath
   }, [recording?.filePath])
-
-  // Track height is now passed as a prop
 
   // Load audio waveform data
   useEffect(() => {
@@ -254,10 +268,9 @@ const TimelineClipComponent = ({
     return () => {
       cancelled = true
     }
-  }, [recording, resolvedVideoPath, clip.id, clip.sourceIn, clip.sourceOut, trackHeight, trackType, isGeneratedClip, showTimelineThumbnails])
+  }, [recording, resolvedVideoPath, clip.id, clip.sourceIn, clip.sourceOut, trackHeight, trackType, isGeneratedClip, showTimelineThumbnails, clipInnerHeight])
 
   // Calculate trim boundaries based on source material and locked bounds
-  // Adjacent clips are handled by push/reflow after trim, not by blocking expansion
   const getTrimBoundaries = useCallback(() => {
     const playbackRate = clip.playbackRate || 1
     const recordingDuration = recording?.duration || 0
@@ -380,518 +393,473 @@ const TimelineClipComponent = ({
   // Must be after all hooks to prevent "Rendered fewer hooks" error
   if (trackHeight <= TimelineConfig.TRACK_PADDING * 2) return null
 
+  // Calculate ghost dimensions for trim preview
+  const ghostX = trimPreview
+    ? TimeConverter.msToPixels(trimPreview.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+    : 0
+
+  const ghostWidth = trimPreview
+    ? TimeConverter.msToPixels(trimPreview.endTime - trimPreview.startTime, pixelsPerMs)
+    : 0
+
   return (
-    <Group
-      ref={groupRef}
-      x={clipX}
-      y={trackY + TimelineConfig.TRACK_PADDING}
-      draggable={!trimEdge}
-      dragBoundFunc={(pos) => {
-        const proposedTime = Math.max(
-          0,
-          TimeConverter.pixelsToMs(pos.x - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-        )
-        const preview = ClipPositioning.computeContiguousPreview(otherClipsInTrack, proposedTime, { clipId: clip.id })
-        const insertTime = preview?.insertTime ?? proposedTime
-        const snappedX = TimeConverter.msToPixels(insertTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
-        return {
-          x: snappedX,
-          y: trackY + TimelineConfig.TRACK_PADDING
-        }
-      }}
-      onDragStart={() => {
-        setIsDragging(true)
-        setIsValidPosition(true)
-      }}
-      onDragMove={(e) => {
-        const draggedX = e.target.x()
-        const proposedStartTime = Math.max(
-          0,
-          TimeConverter.pixelsToMs(draggedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-        )
-        onDragPreview(clip.id, trackType, proposedStartTime)
-      }}
-      onDragEnd={(e) => {
-        setIsDragging(false)
+    <>
+      <Group
+        ref={groupRef}
+        x={clipX}
+        y={trackY + TimelineConfig.TRACK_PADDING}
+        draggable={!trimEdge}
+        dragBoundFunc={(pos) => {
+          const proposedTime = Math.max(
+            0,
+            TimeConverter.pixelsToMs(pos.x - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+          )
+          const preview = ClipPositioning.computeContiguousPreview(otherClipsInTrack, proposedTime, { clipId: clip.id })
+          const insertTime = preview?.insertTime ?? proposedTime
+          const snappedX = TimeConverter.msToPixels(insertTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+          return {
+            x: snappedX,
+            y: trackY + TimelineConfig.TRACK_PADDING
+          }
+        }}
+        onDragStart={() => {
+          setIsDragging(true)
+          setIsValidPosition(true)
+        }}
+        onDragMove={(e) => {
+          const draggedX = e.target.x()
+          const proposedStartTime = Math.max(
+            0,
+            TimeConverter.pixelsToMs(draggedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+          )
+          onDragPreview(clip.id, trackType, proposedStartTime)
+        }}
+        onDragEnd={(e) => {
+          setIsDragging(false)
 
-        const finalX = e.target.x()
-        const proposedStartTime = Math.max(
-          0,
-          TimeConverter.pixelsToMs(finalX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-        )
-        onDragCommit(clip.id, trackType, proposedStartTime)
-        setIsValidPosition(true)
-      }}
-      onClick={() => {
-        // Simple click handler - just select the clip
-        // Suggestion bars will handle their own clicks and stop propagation
-        onSelect(clip.id)
-      }}
-      onMouseDown={(e) => {
-        e.cancelBubble = true
-      }}
-      onTap={(e) => {
-        e.cancelBubble = true
-      }}
-      onContextMenu={(e) => {
-        e.evt.preventDefault()
-        onContextMenu(e, clip.id)
-      }}
-      onMouseEnter={() => {
-        if (!trimEdge) {
-          document.body.style.cursor = 'grab'
-        }
-        setIsHovering(true)
-      }}
-      onMouseLeave={() => {
-        if (!trimEdge) {
-          document.body.style.cursor = 'default'
-        }
-        setIsHovering(false)
-      }}
-      opacity={isDragging ? (isValidPosition ? 0.95 : 0.7) : 1}
-    >
-      {/* Clip background with rounded corners */}
-      {/* Clip background with rounded corners */}
-      <Rect
-        // Center pivot for scaling
-        offsetX={clipWidth / 2}
-        offsetY={(clipInnerHeight) / 2}
-        x={clipWidth / 2}
-        y={(clipInnerHeight) / 2}
-        width={clipWidth}
-        height={clipInnerHeight}
-        fill={
-          trackType === TrackType.Video && hasThumbnails
-            ? 'transparent'
-            : trackType === TrackType.Video
-              ? (isGeneratedClip ? colors.muted : (showMissingThumb ? missingThumbFill : 'rgba(127,127,127,0.15)'))
-              : colors.success
-        }
-        // New Selected Look: White/High-contrast border when selected
-        stroke={
-          isDragging && !isValidPosition
-            ? colors.destructive
-            : isSelected
-              ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary)
-              : showMissingThumb
-                ? missingThumbStroke
-                : 'transparent'
-        }
-        strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1.5 : showMissingThumb ? 1 : 0}
-        cornerRadius={8}
-        opacity={1}
-        // Updated Shadow: Subtle and clean
-        shadowColor={isSelected ? (colors.primary) : 'black'}
-        shadowBlur={isSelected ? 4 : 1}
-        shadowOpacity={isSelected ? 0.15 : 0.05}
-        shadowOffsetY={1}
-      />
+          const finalX = e.target.x()
+          const proposedStartTime = Math.max(
+            0,
+            TimeConverter.pixelsToMs(finalX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+          )
+          onDragCommit(clip.id, trackType, proposedStartTime)
+          setIsValidPosition(true)
+        }}
+        onClick={() => {
+          // Simple click handler - just select the clip
+          // Suggestion bars will handle their own clicks and stop propagation
+          onSelect(clip.id)
+        }}
+        onMouseDown={(e) => {
+          e.cancelBubble = true
+        }}
+        onTap={(e) => {
+          e.cancelBubble = true
+        }}
+        onContextMenu={(e) => {
+          e.evt.preventDefault()
+          onContextMenu(e, clip.id)
+        }}
+        onMouseEnter={() => {
+          if (!trimEdge) {
+            document.body.style.cursor = 'grab'
+          }
+          setIsHovering(true)
+        }}
+        onMouseLeave={() => {
+          if (!trimEdge) {
+            document.body.style.cursor = 'default'
+          }
+          setIsHovering(false)
+        }}
+        opacity={isDragging ? (isValidPosition ? 0.95 : 0.7) : 1}
+      >
+        {/* Clip background with rounded corners */}
+        <Rect
+          // Center pivot for scaling
+          offsetX={clipWidth / 2}
+          offsetY={(clipInnerHeight) / 2}
+          x={clipWidth / 2}
+          y={(clipInnerHeight) / 2}
+          width={clipWidth}
+          height={clipInnerHeight}
+          fill={
+            trackType === TrackType.Video && hasThumbnails
+              ? 'transparent'
+              : trackType === TrackType.Video
+                ? (isGeneratedClip ? colors.muted : (showMissingThumb ? missingThumbFill : 'rgba(127,127,127,0.15)'))
+                : colors.success
+          }
+          // New Selected Look: White/High-contrast border when selected
+          stroke={
+            isDragging && !isValidPosition
+              ? colors.destructive
+              : isSelected
+                ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary)
+                : showMissingThumb
+                  ? missingThumbStroke
+                  : 'transparent'
+          }
+          strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1.5 : showMissingThumb ? 1 : 0}
+          cornerRadius={8}
+          opacity={1}
+          // Updated Shadow: Subtle and clean
+          shadowColor={isSelected ? (colors.primary) : 'black'}
+          shadowBlur={isSelected ? 4 : 1}
+          shadowOpacity={isSelected ? 0.15 : 0.05}
+          shadowOffsetY={1}
+        />
 
-      {isGeneratedClip && thumbnails.length === 0 && (
-        <Group
-          clipFunc={(ctx) => {
+        {isGeneratedClip && thumbnails.length === 0 && (
+          <Group
+            clipFunc={(ctx) => {
+              ctx.beginPath()
+              const h = clipInnerHeight
+              if (clipWidth > 0 && h > 0) {
+                ctx.roundRect(0, 0, clipWidth, h, 8)
+              }
+              ctx.closePath()
+            }}
+          >
+            {(() => {
+              const stripeWidth = 10
+              const stripeGap = 10
+              const stripeCount = Math.max(1, Math.ceil(clipWidth / (stripeWidth + stripeGap)))
+
+              return Array.from({ length: stripeCount }, (_, i) => (
+                <Rect
+                  key={`gen-stripe-${clip.id}-${i}`}
+                  x={i * (stripeWidth + stripeGap)}
+                  y={0}
+                  width={stripeWidth}
+                  height={clipInnerHeight}
+                  fill="rgba(255,255,255,0.06)"
+                  opacity={0.6}
+                  listening={false}
+                />
+              ))
+            })()}
+            <Rect
+              width={clipWidth}
+              height={clipInnerHeight}
+              fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+              fillLinearGradientEndPoint={{ x: 0, y: clipInnerHeight }}
+              fillLinearGradientColorStops={[
+                0, 'rgba(255,255,255,0.05)',
+                0.5, 'rgba(255,255,255,0)',
+                1, 'rgba(0,0,0,0.1)'
+              ]}
+              listening={false}
+            />
+            {clipWidth > 80 && (
+              <Text
+                x={12}
+                y={10}
+                text={generatedLabel}
+                fontSize={10}
+                // Improved Typography
+                fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                fontStyle="600"
+                fill="rgba(255,255,255,0.7)"
+                listening={false}
+              />
+            )}
+          </Group>
+        )}
+
+        {/* Video thumbnails - multiple frames distributed across clip */}
+        {trackType === TrackType.Video && hasThumbnails && (
+          <Group clipFunc={(ctx) => {
+            // Clip to rounded rectangle
             ctx.beginPath()
             const h = clipInnerHeight
             if (clipWidth > 0 && h > 0) {
               ctx.roundRect(0, 0, clipWidth, h, 8)
             }
             ctx.closePath()
-          }}
-        >
-          {(() => {
-            const stripeWidth = 10
-            const stripeGap = 10
-            const stripeCount = Math.max(1, Math.ceil(clipWidth / (stripeWidth + stripeGap)))
+          }}>
+            {/* Distribute thumbnails across clip width */}
+            {(() => {
+              const thumbHeight = clipInnerHeight
+              const firstThumb = thumbnails[0]
+              if (!firstThumb) return null
+              const aspectRatio = firstThumb.width / firstThumb.height
+              const thumbWidth = Math.floor(thumbHeight * aspectRatio)
+              const tileCount = Math.max(1, Math.ceil(clipWidth / thumbWidth))
 
-            return Array.from({ length: stripeCount }, (_, i) => (
-              <Rect
-                key={`gen-stripe-${clip.id}-${i}`}
-                x={i * (stripeWidth + stripeGap)}
-                y={0}
-                width={stripeWidth}
-                height={clipInnerHeight}
-                fill="rgba(255,255,255,0.06)"
-                opacity={0.6}
-                listening={false}
-              />
-            ))
-          })()}
-          <Rect
-            width={clipWidth}
-            height={clipInnerHeight}
-            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: clipInnerHeight }}
-            fillLinearGradientColorStops={[
-              0, 'rgba(255,255,255,0.05)',
-              0.5, 'rgba(255,255,255,0)',
-              1, 'rgba(0,0,0,0.1)'
-            ]}
-            listening={false}
-          />
-          {clipWidth > 80 && (
-            <Text
-              x={12}
-              y={10}
-              text={generatedLabel}
-              fontSize={10}
-              // Improved Typography
-              fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-              fontStyle="600"
-              fill="rgba(255,255,255,0.7)"
-              listening={false}
-            />
-          )}
-        </Group>
-      )}
-
-      {/* Video thumbnails - multiple frames distributed across clip */}
-      {trackType === TrackType.Video && hasThumbnails && (
-        <Group clipFunc={(ctx) => {
-          // Clip to rounded rectangle
-          ctx.beginPath()
-          const h = clipInnerHeight
-          if (clipWidth > 0 && h > 0) {
-            ctx.roundRect(0, 0, clipWidth, h, 8)
-          }
-          ctx.closePath()
-        }}>
-          {/* Distribute thumbnails across clip width */}
-          {(() => {
-            const thumbHeight = clipInnerHeight
-            const firstThumb = thumbnails[0]
-            if (!firstThumb) return null
-            const aspectRatio = firstThumb.width / firstThumb.height
-            const thumbWidth = Math.floor(thumbHeight * aspectRatio)
-            const tileCount = Math.max(1, Math.ceil(clipWidth / thumbWidth))
-
-            return Array.from({ length: tileCount }, (_, i) => {
-              // Distribute available thumbnails across tile positions
-              const thumbIndex = Math.floor((i / tileCount) * thumbnails.length)
-              const thumb = thumbnails[thumbIndex] || thumbnails[0]
-              if (!thumb) return null
-              return (
-                // eslint-disable-next-line jsx-a11y/alt-text
-                <Image
-                  key={i}
-                  image={thumb}
-                  x={i * thumbWidth}
-                  y={0}
-                  width={thumbWidth}
-                  height={thumbHeight}
-                  opacity={0.95}
-                />
-              )
-            })
-          })()}
-          {/* Gradient overlay for text visibility */}
-          <Rect
-            width={clipWidth}
-            height={clipInnerHeight}
-            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: clipInnerHeight }}
-            fillLinearGradientColorStops={[
-              0, 'rgba(0,0,0,0.02)', // Very subtle top
-              0.7, 'rgba(0,0,0,0)',
-              1, 'rgba(0,0,0,0.1)' // Much more subtle bottom
-            ]}
-          />
-        </Group>
-      )}
-
-      {trackType === TrackType.Video && showMissingThumb && clipFileName && (
-        <Text
-          x={10}
-          y={8}
-          text={clipFileName}
-          fontSize={11}
-          fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-          fontStyle="500"
-          fill={colors.foreground}
-          opacity={0.85}
-          listening={false}
-        />
-      )}
-
-      {/* Audio waveform visualization - minimal bottom strip */}
-      {trackType === TrackType.Video && recording?.hasAudio && showWaveforms && (
-        <Group
-          y={(() => {
-            const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
-            return clipInnerHeight - stripHeight - 2 // Lift up slightly
-          })()}
-          clipFunc={(ctx) => {
-            ctx.beginPath()
-            const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
-            // Rounded bottom corners only - match clip's 8px radius
-            if (clipWidth > 0 && stripHeight > 0) {
-              ctx.roundRect(0, 0, clipWidth, stripHeight, [0, 0, 8, 8])
-            }
-            ctx.closePath()
-          }}
-        >
-          {(() => {
-            const stripHeight = Math.max(16, Math.min(34, Math.floor(clipInnerHeight * 0.7)))
-            const baselineY = stripHeight - 1
-            const maxAmplitude = stripHeight - 4
-            const minBarHeight = 3
-            const heightBoost = 1.6
-
-            // Modern minimal waveform: thin, rounded bars centered on the midline
-            const barWidth = 2
-            const barGap = 1
-            const peaks = waveformData?.peaks?.length
-              ? WaveformAnalyzer.resamplePeaks(waveformData.peaks, clipWidth, barWidth, barGap)
-              : []
-
-            const fill = isSelected ? colors.primary : 'rgba(255,255,255,0.9)'
-            const opacity = isSelected ? 0.8 : 0.6
-
-            return (
-              <>
-                {/* Contrast backdrop so waveform stays visible over thumbnails */}
-                <Rect
-                  x={0}
-                  y={0}
-                  width={clipWidth}
-                  height={stripHeight}
-                  fill="rgba(0,0,0,0.15)"
-                  opacity={1}
-                  cornerRadius={[0, 0, 8, 8]}
-                  listening={false}
-                />
-                {peaks.length > 0 && peaks.map((peak, i) => {
-                  const clamped = Math.max(0, Math.min(1, peak))
-                  const shaped = Math.pow(clamped, 0.5)
-                  const scaled = minBarHeight + shaped * (maxAmplitude - minBarHeight) * heightBoost
-                  const barHeight = Math.max(minBarHeight, Math.min(maxAmplitude, scaled))
-                  const x = i * (barWidth + barGap)
-                  if (x > clipWidth) return null
-                  return (
-                    <Rect
-                      key={`wf-${clip.id}-${i}`}
-                      x={x}
-                      y={baselineY - barHeight}
-                      width={barWidth}
-                      height={barHeight}
-                      fill={fill}
-                      opacity={opacity}
-                      cornerRadius={1}
-                      listening={false}
-                    />
-                  )
-                })}
-              </>
-            )
-          })()}
-        </Group>
-      )}
-
-      {/* Speed indicator badge - only shown when playback rate is modified */}
-      {trackType === TrackType.Video && clip.playbackRate && clip.playbackRate !== 1.0 && (() => {
-        const rateText = `${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`
-        return (
-          <Group x={6} y={6}>
+              return Array.from({ length: tileCount }, (_, i) => {
+                // Distribute available thumbnails across tile positions
+                const thumbIndex = Math.floor((i / tileCount) * thumbnails.length)
+                const thumb = thumbnails[thumbIndex] || thumbnails[0]
+                if (!thumb) return null
+                return (
+                  // eslint-disable-next-line jsx-a11y/alt-text
+                  <Image
+                    key={i}
+                    image={thumb}
+                    x={i * thumbWidth}
+                    y={0}
+                    width={thumbWidth}
+                    height={thumbHeight}
+                    opacity={0.95}
+                  />
+                )
+              })
+            })()}
+            {/* Gradient overlay for text visibility */}
             <Rect
-              width={24}
-              height={14}
-              fill={'rgba(0,0,0,0.6)'}
-              cornerRadius={7}
-              stroke={'rgba(255,255,255,0.2)'}
-              strokeWidth={1}
-            />
-            <Text
-              x={12}
-              y={7}
-              text={rateText}
-              fontSize={9}
-              fill={'white'}
-              fontFamily="system-ui"
-              fontStyle="bold"
-              align="center"
-              verticalAlign="middle"
-              offsetX={rateText.length * 2.5}
-              offsetY={4.5}
+              width={clipWidth}
+              height={clipInnerHeight}
+              fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+              fillLinearGradientEndPoint={{ x: 0, y: clipInnerHeight }}
+              fillLinearGradientColorStops={[
+                0, 'rgba(0,0,0,0.02)', // Very subtle top
+                0.7, 'rgba(0,0,0,0)',
+                1, 'rgba(0,0,0,0.1)' // Much more subtle bottom
+              ]}
             />
           </Group>
-        )
-      })()}
+        )}
 
-      {/* Fade indicators - accent colored edge bars showing intro/outro fade regions */}
-      {trackType === TrackType.Video && (clip.introFadeMs || clip.outroFadeMs) && (() => {
-        const introWidth = clip.introFadeMs
-          ? Math.max(6, Math.min(clipWidth * 0.3, TimeConverter.msToPixels(clip.introFadeMs, pixelsPerMs)))
-          : 0
-        const outroWidth = clip.outroFadeMs
-          ? Math.max(6, Math.min(clipWidth * 0.3, TimeConverter.msToPixels(clip.outroFadeMs, pixelsPerMs)))
-          : 0
+        {trackType === TrackType.Video && showMissingThumb && clipFileName && (
+          <Text
+            x={10}
+            y={8}
+            text={clipFileName}
+            fontSize={11}
+            fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            fontStyle="500"
+            fill={colors.foreground}
+            opacity={0.85}
+            listening={false}
+          />
+        )}
 
-        // Use centralized withAlpha utility with fallback for empty color
-        const applyAlpha = (color: string, alpha: number) =>
-          withAlpha(color || 'rgba(168, 85, 247, 1)', alpha) || `rgba(168, 85, 247, ${alpha})`
-
-        const colorFull = applyAlpha(colors.primary, 0.8)
-        const colorMid = applyAlpha(colors.primary, 0.4)
-        const colorNone = applyAlpha(colors.primary, 0)
-
-        return (
+        {/* Audio waveform visualization - minimal bottom strip */}
+        {trackType === TrackType.Video && recording?.hasAudio && showWaveforms && (
           <Group
+            y={(() => {
+              const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
+              return clipInnerHeight - stripHeight - 2 // Lift up slightly
+            })()}
             clipFunc={(ctx) => {
-              // Clip to rounded rectangle to match clip shape
               ctx.beginPath()
-              if (clipWidth > 0 && clipInnerHeight > 0) {
-                ctx.roundRect(0, 0, clipWidth, clipInnerHeight, 8)
+              const stripHeight = Math.max(12, Math.min(24, Math.floor(clipInnerHeight * 0.4)))
+              // Rounded bottom corners only - match clip's 8px radius
+              if (clipWidth > 0 && stripHeight > 0) {
+                ctx.roundRect(0, 0, clipWidth, stripHeight, [0, 0, 8, 8])
               }
               ctx.closePath()
             }}
           >
-            {/* Intro fade indicator (left side) - gradient bar */}
-            {introWidth > 0 && (
-              <Rect
-                x={0}
-                y={0}
-                width={introWidth}
-                height={clipInnerHeight}
-                fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-                fillLinearGradientEndPoint={{ x: introWidth, y: 0 }}
-                fillLinearGradientColorStops={[
-                  0, colorFull,
-                  0.6, colorMid,
-                  1, colorNone
-                ]}
-                listening={false}
-              />
-            )}
-            {/* Outro fade indicator (right side) - gradient bar */}
-            {outroWidth > 0 && (
-              <Rect
-                x={clipWidth - outroWidth}
-                y={0}
-                width={outroWidth}
-                height={clipInnerHeight}
-                fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-                fillLinearGradientEndPoint={{ x: outroWidth, y: 0 }}
-                fillLinearGradientColorStops={[
-                  0, colorNone,
-                  0.4, colorMid,
-                  1, colorFull
-                ]}
-                listening={false}
-              />
-            )}
+            {(() => {
+              const stripHeight = Math.max(16, Math.min(34, Math.floor(clipInnerHeight * 0.7)))
+              const baselineY = stripHeight - 1
+              const maxAmplitude = stripHeight - 4
+              const minBarHeight = 3
+              const heightBoost = 1.6
+
+              // Modern minimal waveform: thin, rounded bars centered on the midline
+              const barWidth = 2
+              const barGap = 1
+              const peaks = waveformData?.peaks?.length
+                ? WaveformAnalyzer.resamplePeaks(waveformData.peaks, clipWidth, barWidth, barGap)
+                : []
+
+              const fill = isSelected ? colors.primary : 'rgba(255,255,255,0.9)'
+              const opacity = isSelected ? 0.8 : 0.6
+
+              return (
+                <>
+                  {/* Contrast backdrop so waveform stays visible over thumbnails */}
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={clipWidth}
+                    height={stripHeight}
+                    fill="rgba(0,0,0,0.15)"
+                    opacity={1}
+                    cornerRadius={[0, 0, 8, 8]}
+                    listening={false}
+                  />
+                  {peaks.length > 0 && peaks.map((peak, i) => {
+                    const clamped = Math.max(0, Math.min(1, peak))
+                    const shaped = Math.pow(clamped, 0.5)
+                    const scaled = minBarHeight + shaped * (maxAmplitude - minBarHeight) * heightBoost
+                    const barHeight = Math.max(minBarHeight, Math.min(maxAmplitude, scaled))
+                    const x = i * (barWidth + barGap)
+                    if (x > clipWidth) return null
+                    return (
+                      <Rect
+                        key={`wf-${clip.id}-${i}`}
+                        x={x}
+                        y={baselineY - barHeight}
+                        width={barWidth}
+                        height={barHeight}
+                        fill={fill}
+                        opacity={opacity}
+                        cornerRadius={1}
+                        listening={false}
+                      />
+                    )
+                  })}
+                </>
+              )
+            })()}
           </Group>
-        )
-      })()}
+        )}
 
+        {/* Speed indicator badge - only shown when playback rate is modified */}
+        {trackType === TrackType.Video && clip.playbackRate && clip.playbackRate !== 1.0 && (() => {
+          const rateText = `${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`
+          return (
+            <Group x={6} y={6}>
+              <Rect
+                width={24}
+                height={14}
+                fill={'rgba(0,0,0,0.6)'}
+                cornerRadius={7}
+                stroke={'rgba(255,255,255,0.2)'}
+                strokeWidth={1}
+              />
+              <Text
+                x={12}
+                y={7}
+                text={rateText}
+                fontSize={9}
+                fill={'white'}
+                fontFamily="system-ui"
+                fontStyle="bold"
+                align="center"
+                verticalAlign="middle"
+                offsetX={rateText.length * 2.5}
+                offsetY={4.5}
+              />
+            </Group>
+          )
+        })()}
 
+        {/* Fade indicators - accent colored edge bars showing intro/outro fade regions */}
+        {trackType === TrackType.Video && (clip.introFadeMs || clip.outroFadeMs) && (() => {
+          const introWidth = clip.introFadeMs
+            ? Math.max(6, Math.min(clipWidth * 0.3, TimeConverter.msToPixels(clip.introFadeMs, pixelsPerMs)))
+            : 0
+          const outroWidth = clip.outroFadeMs
+            ? Math.max(6, Math.min(clipWidth * 0.3, TimeConverter.msToPixels(clip.outroFadeMs, pixelsPerMs)))
+            : 0
 
-      {/* Trim ghost overlay - shows the region being trimmed away */}
-      {trimPreview && trimEdge && (
-        <>
-          {trimEdge === 'left' && trimPreview.startTime > clip.startTime && (
-            // Ghost showing trimmed region on left
+          // Use centralized withAlpha utility with fallback for empty color
+          const applyAlpha = (color: string, alpha: number) =>
+            withAlpha(color || 'rgba(168, 85, 247, 1)', alpha) || `rgba(168, 85, 247, ${alpha})`
+
+          const colorFull = applyAlpha(colors.primary, 0.8)
+          const colorMid = applyAlpha(colors.primary, 0.4)
+          const colorNone = applyAlpha(colors.primary, 0)
+
+          return (
+            <Group
+              clipFunc={(ctx) => {
+                // Clip to rounded rectangle to match clip shape
+                ctx.beginPath()
+                if (clipWidth > 0 && clipInnerHeight > 0) {
+                  ctx.roundRect(0, 0, clipWidth, clipInnerHeight, 8)
+                }
+                ctx.closePath()
+              }}
+            >
+              {/* Intro fade indicator (left side) - gradient bar */}
+              {introWidth > 0 && (
+                <Rect
+                  x={0}
+                  y={0}
+                  width={introWidth}
+                  height={clipInnerHeight}
+                  fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+                  fillLinearGradientEndPoint={{ x: introWidth, y: 0 }}
+                  fillLinearGradientColorStops={[
+                    0, colorFull,
+                    0.6, colorMid,
+                    1, colorNone
+                  ]}
+                  listening={false}
+                />
+              )}
+              {/* Outro fade indicator (right side) - gradient bar */}
+              {outroWidth > 0 && (
+                <Rect
+                  x={clipWidth - outroWidth}
+                  y={0}
+                  width={outroWidth}
+                  height={clipInnerHeight}
+                  fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+                  fillLinearGradientEndPoint={{ x: outroWidth, y: 0 }}
+                  fillLinearGradientColorStops={[
+                    0, colorNone,
+                    0.4, colorMid,
+                    1, colorFull
+                  ]}
+                  listening={false}
+                />
+              )}
+            </Group>
+          )
+        })()}
+
+        {/* Trim handles (invisible hover targets) */}
+        {!isDragging && isHovering && (
+          <>
+            {/* Left handle */}
             <Rect
-              x={TimeConverter.msToPixels(clip.startTime - effectiveStartTime, pixelsPerMs)}
+              x={0}
               y={0}
-              width={TimeConverter.msToPixels(trimPreview.startTime - clip.startTime, pixelsPerMs)}
+              width={10}
               height={clipInnerHeight}
-              fill={colors.destructive}
-              opacity={0.3}
-              cornerRadius={[8, 0, 0, 8]}
-              listening={false}
+              fill="transparent"
+              onMouseDown={(e) => handleTrimMouseDown('left', e)}
+              onMouseEnter={() => {
+                document.body.style.cursor = 'ew-resize'
+              }}
+              onMouseLeave={() => {
+                if (!trimEdge) document.body.style.cursor = 'default'
+              }}
             />
-          )}
-          {trimEdge === 'right' && trimPreview.endTime < (clip.startTime + clip.duration) && (
-            // Ghost showing trimmed region on right
+            {/* Right handle */}
             <Rect
-              x={clipWidth}
+              x={clipWidth - 10}
               y={0}
-              width={TimeConverter.msToPixels((clip.startTime + clip.duration) - trimPreview.endTime, pixelsPerMs)}
+              width={10}
               height={clipInnerHeight}
-              fill={colors.destructive}
-              opacity={0.3}
-              cornerRadius={[0, 8, 8, 0]}
-              listening={false}
+              fill="transparent"
+              onMouseDown={(e) => handleTrimMouseDown('right', e)}
+              onMouseEnter={() => {
+                document.body.style.cursor = 'ew-resize'
+              }}
+              onMouseLeave={() => {
+                if (!trimEdge) document.body.style.cursor = 'default'
+              }}
             />
-          )}
-        </>
+          </>
+        )}
+      </Group>
+
+      {/* Ghost overlay for trim preview - rendered OUTSIDE main group to be decoupled */}
+      {trimPreview && (
+        <Rect
+          x={ghostX}
+          y={trackY + TimelineConfig.TRACK_PADDING}
+          width={ghostWidth}
+          height={clipInnerHeight}
+          fill={colors.primary}
+          opacity={0.3}
+          stroke={colors.primary}
+          strokeWidth={2}
+          cornerRadius={8}
+          listening={false}
+        />
       )}
-
-      {/* Trim handles - shown on hover */}
-      {(isHovering || trimEdge) && !isDragging && (
-        <>
-          {/* Left trim handle */}
-          <Rect
-            x={0}
-            y={0}
-            width={8}
-            height={clipInnerHeight}
-            fill={trimEdge === 'left' ? colors.primary : 'transparent'}
-            opacity={trimEdge === 'left' ? 0.6 : 1}
-            cornerRadius={[8, 0, 0, 8]}
-            onMouseEnter={() => {
-              document.body.style.cursor = 'ew-resize'
-            }}
-            onMouseLeave={() => {
-              if (!trimEdge) {
-                document.body.style.cursor = 'grab'
-              }
-            }}
-            onMouseDown={(e) => handleTrimMouseDown('left', e)}
-          />
-          {/* Left handle visual indicator */}
-          <Rect
-            x={2}
-            y={(clipInnerHeight) / 2 - 10}
-            width={4}
-            height={20}
-            fill={colors.primary}
-            opacity={0.8}
-            cornerRadius={2}
-            listening={false}
-          />
-
-          {/* Right trim handle */}
-          <Rect
-            x={clipWidth - 8}
-            y={0}
-            width={8}
-            height={clipInnerHeight}
-            fill={trimEdge === 'right' ? colors.primary : 'transparent'}
-            opacity={trimEdge === 'right' ? 0.6 : 1}
-            cornerRadius={[0, 8, 8, 0]}
-            onMouseEnter={() => {
-              document.body.style.cursor = 'ew-resize'
-            }}
-            onMouseLeave={() => {
-              if (!trimEdge) {
-                document.body.style.cursor = 'grab'
-              }
-            }}
-            onMouseDown={(e) => handleTrimMouseDown('right', e)}
-          />
-          {/* Right handle visual indicator */}
-          <Rect
-            x={clipWidth - 6}
-            y={(clipInnerHeight) / 2 - 10}
-            width={4}
-            height={20}
-            fill={colors.primary}
-            opacity={0.8}
-            cornerRadius={2}
-            listening={false}
-          />
-        </>
-      )}
-
-    </Group>
+    </>
   )
 }
 
-export const TimelineClip = React.memo(TimelineClipComponent, (prev, next) => {
-  return prev.clip === next.clip &&
-    prev.trackType === next.trackType &&
-    prev.trackY === next.trackY &&
-    prev.trackHeight === next.trackHeight &&
-    prev.isSelected === next.isSelected
-})
+// Memoize the component to prevent unnecessary re-renders
+export const TimelineClip = React.memo(TimelineClipComponent)

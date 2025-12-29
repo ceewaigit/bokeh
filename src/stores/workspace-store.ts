@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { SidebarTabId } from '@/components/effects-sidebar/constants'
 
 export type UtilityTabId = 'import' | 'audio' | 'guides' | 'plugins' | 'advanced'
 
@@ -28,11 +29,13 @@ interface WorkspaceStore {
 
   // Active Tabs
   activeUtilityTab: UtilityTabId
+  activeSidebarTab: SidebarTabId
 
   // Clip tab UI state
   clipTabSpeedAdvancedOpen: boolean
   clipTabFadeAdvancedOpen: boolean
   cursorTabFineTuneOpen: boolean
+  motionTabAdvancedOpen: boolean
 
   // Workspace Actions
   toggleProperties: () => void
@@ -47,10 +50,12 @@ interface WorkspaceStore {
   setTimelineHeight: (height: number) => void
   setPreviewScale: (scale: number) => void
   setActiveUtilityTab: (tab: UtilityTabId) => void
+  setActiveSidebarTab: (tab: SidebarTabId) => void
   setCurrentView: (view: WorkspaceView) => void
   setClipTabSpeedAdvancedOpen: (open: boolean) => void
   setClipTabFadeAdvancedOpen: (open: boolean) => void
   setCursorTabFineTuneOpen: (open: boolean) => void
+  setMotionTabAdvancedOpen: (open: boolean) => void
 
   // Workspace Presets
   loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => void
@@ -72,9 +77,11 @@ const defaultWorkspaceState = {
   previewScale: 1,
   currentView: 'library' as WorkspaceView,
   activeUtilityTab: 'import' as UtilityTabId,
+  activeSidebarTab: SidebarTabId.Style,
   clipTabSpeedAdvancedOpen: false,
   clipTabFadeAdvancedOpen: false,
   cursorTabFineTuneOpen: false,
+  motionTabAdvancedOpen: false,
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -133,6 +140,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         set({ activeUtilityTab: tab })
       },
 
+      setActiveSidebarTab: (tab: SidebarTabId) => {
+        set({ activeSidebarTab: tab })
+      },
+
       setCurrentView: (view: WorkspaceView) => {
         set({ currentView: view })
       },
@@ -149,7 +160,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         set({ cursorTabFineTuneOpen: open })
       },
 
-
+      setMotionTabAdvancedOpen: (open: boolean) => {
+        set({ motionTabAdvancedOpen: open })
+      },
 
       loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => {
         switch (preset) {
@@ -192,9 +205,18 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     }),
     {
       name: 'workspace-storage',
-      version: 5,
-      migrate: (persistedState: any) => {
+      version: 6,
+      migrate: (persistedState: any, version: number) => {
         if (!persistedState) return persistedState
+
+        // Migration from version 5 or lower
+        if (version < 6) {
+          persistedState = {
+            ...persistedState,
+            activeSidebarTab: SidebarTabId.Style,
+            motionTabAdvancedOpen: false
+          }
+        }
 
         // Migrate old utility tabs into the new "advanced" bucket.
         if (persistedState.activeUtilityTab === 'editing') {
@@ -229,9 +251,11 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         timelineHeight: state.timelineHeight,
         previewScale: state.previewScale,
         activeUtilityTab: state.activeUtilityTab,
+        activeSidebarTab: state.activeSidebarTab,
         clipTabSpeedAdvancedOpen: state.clipTabSpeedAdvancedOpen,
         clipTabFadeAdvancedOpen: state.clipTabFadeAdvancedOpen,
         cursorTabFineTuneOpen: state.cursorTabFineTuneOpen,
+        motionTabAdvancedOpen: state.motionTabAdvancedOpen,
       }),
     }
   )

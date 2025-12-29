@@ -169,6 +169,12 @@ interface RecordingBase {
    */
   glowProxyUrl?: string
 
+  /**
+   * URL to a low-latency "scrub" proxy (e.g. 360p/480p, GOP 15).
+   * Prioritized when isScrubbing is true.
+   */
+  scrubProxyUrl?: string
+
   // Capture area information
   captureArea?: CaptureArea
 

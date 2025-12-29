@@ -291,6 +291,9 @@ export class ProjectIOService {
   /**
    * Generate a preview proxy for large source videos
    * This reduces memory usage by decoding 1080p instead of 5K+ during preview
+   * 
+   * IMPORTANT: Uses setProxyUrl instead of updateProjectData to avoid
+   * triggering cache invalidation when proxy completes.
    */
   private static async ensurePreviewProxy(
     recording: Recording,
@@ -306,19 +309,16 @@ export class ProjectIOService {
       const checkResult = await window.electronAPI.checkPreviewProxy(recording.filePath)
 
       if (checkResult.existingProxyUrl) {
-        // Use existing proxy
+        // Use existing proxy - store in ephemeral state (doesn't trigger cache invalidation)
         try {
           (recording as any).previewProxyUrl = checkResult.existingProxyUrl
         } catch (e) {
-          // If object is frozen (loaded into store), update via store action
-          import('../../stores/project-store').then(({ useProjectStore }) => {
-            useProjectStore.getState().updateProjectData(project => {
-              const r = project.recordings.find(rec => rec.id === recording.id)
-              if (r) (r as any).previewProxyUrl = checkResult.existingProxyUrl
-              return project
-            })
-          })
+          // Object is frozen - use ephemeral proxy URL store instead
         }
+        // Always update ephemeral store for consistent access
+        import('../../stores/project-store').then(({ useProjectStore }) => {
+          useProjectStore.getState().setProxyUrl(recording.id, 'preview', checkResult.existingProxyUrl!)
+        })
         return
       }
 
@@ -343,14 +343,12 @@ export class ProjectIOService {
           try {
             (recording as any).previewProxyUrl = result.proxyUrl
           } catch (e) {
-            import('../../stores/project-store').then(({ useProjectStore }) => {
-              useProjectStore.getState().updateProjectData(project => {
-                const r = project.recordings.find(rec => rec.id === recording.id)
-                if (r) (r as any).previewProxyUrl = result.proxyUrl
-                return project
-              })
-            })
+            // Object is frozen - that's fine, we use ephemeral store
           }
+          // Store in ephemeral proxy URL store (doesn't trigger cache invalidation)
+          import('../../stores/project-store').then(({ useProjectStore }) => {
+            useProjectStore.getState().setProxyUrl(recording.id, 'preview', result.proxyUrl!)
+          })
         } else if (result.error) {
           console.warn(`[ProjectIO] ❌ Proxy generation failed: ${result.error}`)
         }
@@ -364,6 +362,9 @@ export class ProjectIOService {
   /**
    * Generate a glow proxy for the ambient glow player
    * This keeps glow decoding ultra-lightweight regardless of source size
+   * 
+   * IMPORTANT: Uses setProxyUrl instead of updateProjectData to avoid
+   * triggering cache invalidation when proxy completes.
    */
   private static async ensureGlowProxy(recording: Recording): Promise<void> {
     if (!recording.filePath || !window.electronAPI?.generateGlowProxy) {
@@ -376,14 +377,12 @@ export class ProjectIOService {
         try {
           (recording as any).glowProxyUrl = result.proxyUrl
         } catch (e) {
-          import('../../stores/project-store').then(({ useProjectStore }) => {
-            useProjectStore.getState().updateProjectData(project => {
-              const r = project.recordings.find(rec => rec.id === recording.id)
-              if (r) (r as any).glowProxyUrl = result.proxyUrl
-              return project
-            })
-          })
+          // Object is frozen - that's fine, we use ephemeral store
         }
+        // Store in ephemeral proxy URL store (doesn't trigger cache invalidation)
+        import('../../stores/project-store').then(({ useProjectStore }) => {
+          useProjectStore.getState().setProxyUrl(recording.id, 'glow', result.proxyUrl!)
+        })
       } else if (result.error) {
         console.warn(`[ProjectIO] ❌ Glow proxy failed: ${result.error}`)
       }

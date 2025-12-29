@@ -18,7 +18,9 @@ export {
   TrimCommand,
   ChangePlaybackRateCommand,
   ApplySpeedUpCommand,
-  ApplyAllSpeedUpsCommand
+  ApplyAllSpeedUpsCommand,
+  ReorderClipCommand,
+  AddAssetCommand
 } from './timeline'
 
 // Effect commands
@@ -41,6 +43,8 @@ export {
 // Command registry helper
 import { CommandManager } from './base/CommandManager'
 import { AddClipCommand } from './timeline/AddClipCommand'
+import { AddAssetCommand } from './timeline/AddAssetCommand'
+import { ReorderClipCommand } from './timeline/ReorderClipCommand'
 import { ImportRecordingCommand } from './timeline/ImportRecordingCommand'
 import { RemoveClipCommand } from './timeline/RemoveClipCommand'
 import { SplitClipCommand } from './timeline/SplitClipCommand'
@@ -61,6 +65,8 @@ import { PasteCommand } from './clipboard/PasteCommand'
 export function registerAllCommands(manager: CommandManager): void {
   // Timeline commands
   manager.registerCommand('AddClip', AddClipCommand as any)
+  manager.registerCommand('AddAsset', AddAssetCommand as any)
+  manager.registerCommand('ReorderClip', ReorderClipCommand as any)
   manager.registerCommand('ImportRecording', ImportRecordingCommand as any)
   manager.registerCommand('RemoveClip', RemoveClipCommand as any)
   manager.registerCommand('SplitClip', SplitClipCommand as any)

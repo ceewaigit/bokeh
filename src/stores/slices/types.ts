@@ -23,6 +23,7 @@ import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
 import type { CameraPathFrame } from '@/types/remotion'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import type { EffectGenerationConfig } from '@/lib/effects/effect-generation-service'
+import type { ProxyUrlEntry } from './cache-slice'
 
 // Re-export ClipboardEffect from stores.ts for backward compatibility
 export type { ClipboardEffect } from '@/types/stores'
@@ -109,6 +110,11 @@ export interface CacheSliceState {
   frameLayoutCache: FrameLayoutItem[] | null
   timelineMutationCounter: number
   previewReady: boolean
+  /**
+   * Ephemeral proxy URL storage - stored separately from project data
+   * to avoid triggering cache invalidation when proxies complete.
+   */
+  proxyUrls: Record<string, ProxyUrlEntry>
 }
 
 export interface ProgressState {
@@ -244,6 +250,10 @@ export interface CacheSliceActions {
   setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
   setPreviewReady: (ready: boolean) => void
   invalidateAllCaches: () => void
+  // Proxy URL actions (ephemeral, don't trigger cache invalidation)
+  setProxyUrl: (recordingId: string, proxyType: 'preview' | 'glow' | 'scrub', url: string) => void
+  getProxyUrl: (recordingId: string, proxyType: 'preview' | 'glow' | 'scrub') => string | undefined
+  clearProxyUrls: () => void
 }
 
 export interface SettingsSliceActions {

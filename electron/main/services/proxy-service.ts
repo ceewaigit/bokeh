@@ -34,7 +34,7 @@ export interface ProxyOptions {
     /** Maintain aspect ratio with padding */
     maintainAspectRatio?: boolean
     /** Proxy type for organizing cache directories */
-    proxyType?: 'preview' | 'export' | 'glow'
+    proxyType?: 'preview' | 'export' | 'glow' | 'scrub'
     /** Target Framerate (force CFR) */
     fps?: number
 }
@@ -86,6 +86,19 @@ const GLOW_DEFAULTS: Required<Pick<ProxyOptions, 'targetWidth' | 'targetHeight' 
     fps: 15,
 }
 
+// Default settings for scrub (low latency, fast seek)
+const SCRUB_DEFAULTS: Required<Pick<ProxyOptions, 'targetWidth' | 'targetHeight' | 'videoBitrate' | 'audioBitrate' | 'preset' | 'crf' | 'maintainAspectRatio' | 'proxyType' | 'fps'>> = {
+    targetWidth: 640,
+    targetHeight: 360,
+    videoBitrate: '1M',
+    audioBitrate: '64k',
+    preset: 'ultrafast',
+    crf: 28,
+    maintainAspectRatio: true,
+    proxyType: 'scrub',
+    fps: 15, // Match glow FPS or go slightly higher (e.g. 30) if desired. User said 'fix keyframes', low FPS helps GOP structure.
+}
+
 // Minimum source width to trigger proxy generation for preview
 const MIN_SOURCE_WIDTH_FOR_PROXY = 2560 // 1440p
 const MIN_SOURCE_WIDTH_FOR_GLOW_PROXY = 1920
@@ -103,7 +116,7 @@ const activeGenerations = new Map<string, Promise<ProxyResult>>()
 /**
  * Get the directory where proxies are stored
  */
-function getProxiesDirectory(proxyType: 'preview' | 'export' | 'glow'): string {
+function getProxiesDirectory(proxyType: 'preview' | 'export' | 'glow' | 'scrub'): string {
     const tempRoot = app.getPath('temp')
     return path.join(tempRoot, `bokeh-${proxyType}-proxies`)
 }
@@ -112,7 +125,7 @@ function getProxiesDirectory(proxyType: 'preview' | 'export' | 'glow'): string {
  * Generate a unique cache key for a proxy
  */
 function getProxyCacheKey(inputPath: string, options: ProxyOptions): string {
-    const key = `${inputPath}|${options.targetWidth}x${options.targetHeight}|${options.proxyType || 'generic'}|${options.fps || 'auto'}|v12`
+    const key = `${inputPath}|${options.targetWidth}x${options.targetHeight}|${options.proxyType || 'generic'}|${options.fps || 'auto'}|v13`
     return crypto.createHash('sha1').update(key).digest('hex').slice(0, 16)
 }
 
@@ -331,7 +344,8 @@ async function generateProxyInternal(
         // SEEK FIX: Use All-Intra (GOP=1) for EXPORT proxies to ensure instant random access.
         // Prevents "stuck frames" caused by decoder seek lag on P-frames.
         // For preview, we can be more relaxed (GOP=30) to save space.
-        '-g', proxyType === 'export' ? '1' : '30',
+        // For scrubbing, we want snappy seeking, so GOP 15 (~0.5-1s) is a good balance.
+        '-g', proxyType === 'export' ? '1' : (proxyType === 'scrub' ? '15' : '30'),
         // STRICT GOP: Disable scene change detection to force strictly periodic keyframes
         '-sc_threshold', '0',
         // OPTIMIZE SEEKING: Optimize for fast decode/random access
@@ -482,6 +496,44 @@ export async function ensureGlowProxy(
     return promise
 }
 
+// ============================================
+// Public API - Scrub Proxies
+// ============================================
+
+/**
+ * Generate or retrieve a scrub proxy for a video file
+ * Used for low-latency scrubbing
+ */
+export async function ensureScrubProxy(
+    inputPath: string,
+    onProgress?: (progress: number) => void
+): Promise<ProxyResult> {
+    const normalizedPath = path.resolve(inputPath)
+    const options: ProxyOptions = { ...SCRUB_DEFAULTS }
+
+    // Check if proxy already exists
+    const existingProxy = await checkExistingProxy(normalizedPath, options)
+    if (existingProxy) {
+        console.log(`[ProxyService] Using cached scrub proxy: ${path.basename(existingProxy)}`)
+        return { success: true, proxyPath: existingProxy }
+    }
+
+    // Check if generation is already in progress
+    const genKey = `scrub:${normalizedPath}`
+    const existing = activeGenerations.get(genKey)
+    if (existing) {
+        return existing
+    }
+
+    // Start generation
+    // Use lower GOP for scrub proxies to ensure fast seeking
+    const promise = generateProxyInternal(normalizedPath, options, onProgress)
+        .finally(() => activeGenerations.delete(genKey))
+
+    activeGenerations.set(genKey, promise)
+    return promise
+}
+
 /**
  * Check if a video needs a preview proxy (based on dimensions)
  */
@@ -571,6 +623,13 @@ export async function clearPreviewProxies(): Promise<void> {
 }
 
 /**
+ * Clear all scrub proxies to free disk space
+ */
+export async function clearScrubProxies(): Promise<void> {
+    await clearProxiesOfType('scrub')
+}
+
+/**
  * Clear all glow proxies to free disk space
  */
 export async function clearGlowProxies(): Promise<void> {
@@ -587,7 +646,7 @@ export async function clearExportProxies(): Promise<void> {
 /**
  * Clear proxies of a specific type
  */
-async function clearProxiesOfType(proxyType: 'preview' | 'export' | 'glow'): Promise<void> {
+async function clearProxiesOfType(proxyType: 'preview' | 'export' | 'glow' | 'scrub'): Promise<void> {
     const proxiesDir = getProxiesDirectory(proxyType)
 
     // Clear relevant entries from cache
@@ -613,15 +672,16 @@ async function clearProxiesOfType(proxyType: 'preview' | 'export' | 'glow'): Pro
  */
 export async function getProxyCacheSize(): Promise<number> {
     const previewSize = await getProxySizeOfType('preview')
+    const scrubSize = await getProxySizeOfType('scrub')
     const exportSize = await getProxySizeOfType('export')
     const glowSize = await getProxySizeOfType('glow')
-    return previewSize + exportSize + glowSize
+    return previewSize + scrubSize + exportSize + glowSize
 }
 
 /**
  * Get the size of proxies of a specific type
  */
-async function getProxySizeOfType(proxyType: 'preview' | 'export' | 'glow'): Promise<number> {
+async function getProxySizeOfType(proxyType: 'preview' | 'export' | 'glow' | 'scrub'): Promise<number> {
     const proxiesDir = getProxiesDirectory(proxyType)
 
     try {

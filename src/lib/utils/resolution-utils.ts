@@ -12,6 +12,10 @@ import { EffectType } from '@/types/project';
 export const PROXY_WIDTH = 2560;
 export const PROXY_HEIGHT = 1440;
 
+// Scrub proxy dimensions (low res for performance)
+export const SCRUB_WIDTH = 640;
+export const SCRUB_HEIGHT = 360;
+
 // Preview display constants for smart resolution capping
 export const PREVIEW_DISPLAY_WIDTH = 640;
 export const PREVIEW_DISPLAY_HEIGHT = 360;

@@ -8,6 +8,7 @@ import { clamp, formatTime } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
+import { timeObserver } from '@/lib/timeline/time-observer'
 
 export const TimelinePlayhead = React.memo(() => {
   const {
@@ -17,7 +18,15 @@ export const TimelinePlayhead = React.memo(() => {
     duration: maxTime
   } = useTimelineLayout()
   const { onSeek } = useTimelineContext()
-  const currentTime = useProjectStore((s) => s.currentTime)
+
+  // DECOUPLED: Use timeObserver instead of store subscription
+  // This prevents playhead freezing during heavy store operations
+  const [currentTime, setCurrentTime] = useState(() => timeObserver.getTime())
+
+  useEffect(() => {
+    return timeObserver.subscribe(setCurrentTime)
+  }, [])
+
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -177,7 +186,11 @@ export const TimelinePlayhead = React.memo(() => {
       onDragMove={(e) => {
         const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH
         const time = TimeConverter.pixelsToMs(newX, pixelsPerMs)
-        onSeek(clamp(time, 0, maxTime))
+        const clampedTime = clamp(time, 0, maxTime)
+        // Push to observer immediately for visual feedback
+        timeObserver.pushTime(clampedTime)
+        // Also update store via onSeek for persistence
+        onSeek(clampedTime)
       }}
       onMouseEnter={() => {
         document.body.style.cursor = 'grab'

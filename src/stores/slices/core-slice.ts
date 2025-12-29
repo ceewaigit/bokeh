@@ -166,6 +166,8 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       state.isPlaying = false
       state.selectedClips = []
       state.selectedEffectLayer = null
+      // Clear ephemeral proxy URLs
+      state.proxyUrls = {}
       // playhead state is computed, no need to clear
     })
 

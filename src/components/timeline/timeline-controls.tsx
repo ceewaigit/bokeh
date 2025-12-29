@@ -19,6 +19,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
 import { useSelectedClipIds } from '@/stores/selectors/clip-selectors'
+import { timeObserver } from '@/lib/timeline/time-observer'
 import {
   Scissors,
   Play,
@@ -126,7 +127,13 @@ export const TimelineControls = React.memo(() => {
   } = useTimelineContext()
   const { duration: maxDuration, zoom } = useTimelineLayout()
   const currentProject = useProjectStore((s) => s.currentProject)
-  const currentTime = useProjectStore((s) => s.currentTime)
+
+  // DECOUPLED: Use timeObserver for timecode display (updates at 60fps)
+  const [displayTime, setDisplayTime] = React.useState(() => timeObserver.getTime())
+  React.useEffect(() => {
+    return timeObserver.subscribe(setDisplayTime)
+  }, [])
+
   const isPlaying = useProjectStore((s) => s.isPlaying)
   const selectedClips = useSelectedClipIds()
   const previewScale = useWorkspaceStore((s) => s.previewScale)
@@ -178,7 +185,11 @@ export const TimelineControls = React.memo(() => {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => onSeek(Math.max(0, currentTime - 1000))}
+                onClick={() => {
+                  // Get current time from observer at click time
+                  const currentTime = timeObserver.getTime()
+                  onSeek(Math.max(0, currentTime - 1000))
+                }}
                 className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 <SkipBack className="w-3.5 h-3.5" />
@@ -210,7 +221,10 @@ export const TimelineControls = React.memo(() => {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => onSeek(Math.min(maxDuration, currentTime + 1000))}
+                onClick={() => {
+                  const currentTime = timeObserver.getTime()
+                  onSeek(Math.min(maxDuration, currentTime + 1000))
+                }}
                 className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 <SkipForward className="w-3.5 h-3.5" />
@@ -314,7 +328,7 @@ export const TimelineControls = React.memo(() => {
 
         {/* Timecode Display */}
         <div className="timeline-controls-timecode absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-2.5 py-0.5 rounded-lg font-mono text-[11px] tabular-nums text-muted-foreground">
-          {formatTimecode(currentTime, fps)}
+          {formatTimecode(displayTime, fps)}
         </div>
 
         {/* Preview Size + Zoom Controls */}

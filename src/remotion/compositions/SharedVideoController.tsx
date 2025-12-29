@@ -76,6 +76,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   const currentTimeMs = frameToMs(currentFrame, fps);
   const cameraPathCache = useProjectStore((s) => s.cameraPathCache);
+  const isScrubbing = useProjectStore((s) => s.isScrubbing);
 
   // ==========================================================================
   // ACTIVE CLIP DATA (from Context)
@@ -402,6 +403,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             VideoComponent={useOffthreadVideo ? OffthreadVideo : Video}
             premountFor={preloadFrames}
             postmountFor={preloadFrames}
+            isScrubbing={isScrubbing}
           />
         );
       } else if (recording.sourceType === 'image') {

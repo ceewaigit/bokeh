@@ -9,14 +9,14 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
-import { TrackType, type Clip, type Project } from '@/types/project'
+import { TrackType, type Clip } from '@/types/project'
 import { useAssetLibraryStore } from '@/stores/asset-library-store'
-import { useProjectStore } from '@/stores/project-store'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { getSnappedDragX } from '@/lib/timeline/drag-positioning'
-import { addAssetRecording } from '@/lib/timeline/timeline-operations'
+import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+import { AddAssetCommand } from '@/lib/commands'
 
 export interface DragPreviewForAsset {
     clipId: string
@@ -62,6 +62,8 @@ export function useAssetDragDrop({
     const [dragTime, setDragTime] = useState<number | null>(null)
     const [dragAssetTrackType, setDragAssetTrackType] = useState<TrackType.Video | TrackType.Audio | TrackType.Webcam | null>(null)
     const [dragPreview, setDragPreview] = useState<DragPreviewForAsset | null>(null)
+
+    const executorRef = useCommandExecutor()
 
     const getAssetDropTrackType = useCallback((
         assetType: 'video' | 'audio' | 'image',
@@ -169,7 +171,7 @@ export function useAssetDragDrop({
         resetAssetDragState(false)
     }, [resetAssetDragState])
 
-    const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const onDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault()
         const assetData = e.dataTransfer.getData('application/x-bokeh-asset')
 
@@ -214,23 +216,27 @@ export function useAssetDragDrop({
                 { durationMs: assetDuration }
             )
 
-            // Use the shared helper to add the asset
-            useProjectStore.getState().updateProjectData((project: Project) => {
-                const updatedProject = { ...project }
-                if (preview) {
-                    addAssetRecording(updatedProject, asset, { insertIndex: preview.insertIndex, trackType: targetTrack })
-                } else {
-                    addAssetRecording(updatedProject, asset, { startTime: proposedTime, trackType: targetTrack })
-                }
-                return updatedProject
-            })
+            const insertIndex = preview?.insertIndex
+            const startTime = preview ? undefined : proposedTime
+
+            if (executorRef.current) {
+                await executorRef.current.execute(AddAssetCommand, {
+                    asset,
+                    options: {
+                        insertIndex,
+                        startTime,
+                        trackType: targetTrack
+                    }
+                })
+            }
+
             setDragAssetTrackType(null)
         } catch (err) {
             console.error('Failed to parse asset data on drop', err)
         } finally {
             resetAssetDragState(true)
         }
-    }, [draggingAsset, getStagePoint, getAssetDropTrackType, dragAssetTrackType, pixelsPerMs, getClipBlocksForTrack, getClipsForTrack, resetAssetDragState])
+    }, [draggingAsset, getStagePoint, getAssetDropTrackType, dragAssetTrackType, pixelsPerMs, getClipBlocksForTrack, getClipsForTrack, resetAssetDragState, executorRef])
 
     return {
         isDragging: !!draggingAsset,

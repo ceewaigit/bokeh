@@ -23,26 +23,35 @@ import { createSettingsSlice } from './slices/settings-slice'
 import { createProgressSlice } from './slices/progress-slice'
 import type { ProjectStore } from './slices/types'
 
+/**
+ * Cache Invalidation Middleware
+ * 
+ * PERFORMANCE OPTIMIZATION: Only invalidate caches on STRUCTURAL changes.
+ * - Structural = tracks array, timeline.effects array
+ * - Non-structural = modifiedAt, recordings metadata, settings
+ * 
+ * This prevents unnecessary cache rebuilds during:
+ * - Playback (time updates)
+ * - Proxy generation (recording URL updates)  
+ * - Project save (modifiedAt updates)
+ */
 const cacheInvalidationMiddleware =
   <T extends ProjectStore>(config: (set: any, get: any, api: any) => T) =>
     (set: any, get: any, api: any) =>
       config(
         (args: any, replace?: boolean) => {
           const prevTimeline = get().currentProject?.timeline
-          const prevRecordings = get().currentProject?.recordings
-          const prevEffects = get().currentProject?.effects
 
           set(args, replace)
 
           const nextTimeline = get().currentProject?.timeline
-          const nextRecordings = get().currentProject?.recordings
-          const nextEffects = get().currentProject?.effects
 
-          if (
-            prevTimeline !== nextTimeline ||
-            prevRecordings !== nextRecordings ||
-            prevEffects !== nextEffects
-          ) {
+          // OPTIMIZED: Only invalidate on structural changes
+          // tracks or effects arrays changed (Immer produces new refs on mutation)
+          const tracksChanged = prevTimeline?.tracks !== nextTimeline?.tracks
+          const effectsChanged = prevTimeline?.effects !== nextTimeline?.effects
+
+          if (tracksChanged || effectsChanged) {
             get().invalidateAllCaches()
           }
         },

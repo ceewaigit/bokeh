@@ -37,14 +37,14 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
   const handleCopy = useCallback(async () => {
     const result = await getExecutor().execute(CopyCommand)
-      if (result.success) {
-        const msg = result.data?.type === 'effect'
-          ? `${(result.data.effectType || 'Effect').charAt(0).toUpperCase() + (result.data.effectType || 'effect').slice(1)} block copied`
-          : 'Clip copied'
-        toast(msg)
-      } else {
-        toast.error(getErrorMessage(result.error))
-      }
+    if (result.success) {
+      const msg = result.data?.type === 'effect'
+        ? `${(result.data.effectType || 'Effect').charAt(0).toUpperCase() + (result.data.effectType || 'effect').slice(1)} block copied`
+        : 'Clip copied'
+      toast(msg)
+    } else {
+      toast.error(getErrorMessage(result.error))
+    }
   }, [getExecutor])
 
   const handleCut = useCallback(async () => {
@@ -58,10 +58,15 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
   const handlePaste = useCallback(async () => {
     const result = await getExecutor().execute(PasteCommand)
+    const state = useProjectStore.getState()
+
     if (result.success) {
       if (result.data?.type === 'effect' && result.data.effectType === EffectType.Zoom && result.data.blockId) {
-        useProjectStore.getState().selectEffectLayer(EffectLayerType.Zoom, result.data.blockId)
+        state.selectEffectLayer(EffectLayerType.Zoom, result.data.blockId)
+      } else if (result.data?.type === 'clip' && result.data.clipId) {
+        state.selectClip(result.data.clipId)
       }
+
       const msg = result.data?.type === 'effect'
         ? `${(result.data.effectType || 'Effect').charAt(0).toUpperCase() + (result.data.effectType || 'effect').slice(1)} block pasted`
         : 'Clip pasted'
@@ -83,7 +88,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         useProjectStore.getState().clearEffectSelection()
         const name = isZoom ? 'Zoom block' :
           effectLayer.type === EffectLayerType.Screen ? 'Screen block' :
-          effectLayer.type === EffectLayerType.Keystroke ? 'Keystroke block' : 'Effect block'
+            effectLayer.type === EffectLayerType.Keystroke ? 'Keystroke block' : 'Effect block'
         toast(`${name} deleted`)
       } else {
         toast.error(getErrorMessage(result.error))

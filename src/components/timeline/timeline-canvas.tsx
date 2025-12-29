@@ -38,6 +38,7 @@ import { TimelineContextProvider } from './TimelineContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 import { ApplySpeedUpCommand } from '@/lib/commands/timeline/ApplySpeedUpCommand'
+import { timeObserver } from '@/lib/timeline/time-observer'
 import { ApplyAllSpeedUpsCommand } from '@/lib/commands/timeline/ApplyAllSpeedUpsCommand'
 import { useTimelineEffects } from '@/stores/selectors/timeline-selectors'
 
@@ -82,20 +83,9 @@ interface TimelineCanvasProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main Component: Wraps content with layout provider
-// ─────────────────────────────────────────────────────────────────────────────
-export function TimelineCanvas(props: TimelineCanvasProps) {
-  return (
-    <TimelineLayoutProvider>
-      <TimelineCanvasContent {...props} />
-    </TimelineLayoutProvider>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Content Component: Uses hooks for clean separation of concerns
 // ─────────────────────────────────────────────────────────────────────────────
-function TimelineCanvasContent({
+const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   className = "h-full w-full",
   currentProject,
   zoom,
@@ -129,6 +119,7 @@ function TimelineCanvasContent({
     stageWidth,
     stageHeight,
     timelineWidth,
+    containerWidth,
     duration,
     pixelsPerMs,
     trackHeights,
@@ -147,6 +138,7 @@ function TimelineCanvasContent({
   // Local state
   // ─────────────────────────────────────────────────────────────────────────
   const [scrollTop, setScrollTop] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
   const [speedUpPopover, setSpeedUpPopover] = useState<{
     x: number
@@ -169,19 +161,36 @@ function TimelineCanvasContent({
   )
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Derived clip data
+  // Derived clip data (with Viewport Culling)
   // ─────────────────────────────────────────────────────────────────────────
+  const BUFFER_PIXELS = 1000 // Render extra pixels before/after to prevent popping
+  const visibleStartTime = useMemo(() =>
+    Math.max(0, TimeConverter.pixelsToMs(scrollLeft - BUFFER_PIXELS, pixelsPerMs)),
+    [scrollLeft, pixelsPerMs]
+  )
+  const visibleEndTime = useMemo(() =>
+    TimeConverter.pixelsToMs(scrollLeft + containerWidth + BUFFER_PIXELS, pixelsPerMs),
+    [scrollLeft, containerWidth, pixelsPerMs]
+  )
+
+  const filterVisible = useCallback((clips: Clip[]) => {
+    return clips.filter(c => {
+      const clipEnd = c.startTime + c.duration
+      return clipEnd > visibleStartTime && c.startTime < visibleEndTime
+    })
+  }, [visibleStartTime, visibleEndTime])
+
   const videoClips = useMemo(
-    () => currentProject ? ClipLookup.videoClips(currentProject) : [],
-    [currentProject]
+    () => currentProject ? filterVisible(ClipLookup.videoClips(currentProject)) : [],
+    [currentProject, filterVisible]
   )
   const audioClips = useMemo(
-    () => currentProject ? ClipLookup.audioClips(currentProject) : [],
-    [currentProject]
+    () => currentProject ? filterVisible(ClipLookup.audioClips(currentProject)) : [],
+    [currentProject, filterVisible]
   )
   const webcamClips = useMemo(
-    () => currentProject ? ClipLookup.byTrackType(currentProject, TrackType.Webcam) : [],
-    [currentProject]
+    () => currentProject ? filterVisible(ClipLookup.byTrackType(currentProject, TrackType.Webcam)) : [],
+    [currentProject, filterVisible]
   )
 
   const clipsByTrack = useMemo(() => ({
@@ -310,7 +319,7 @@ function TimelineCanvasContent({
       const container = containerRef.current
       if (!container) return
 
-      const time = useProjectStore.getState().currentTime
+      const time = timeObserver.getTime()
       const playheadX = TimeConverter.msToPixels(time, pixelsPerMs)
       const scrollWidth = container.scrollWidth - container.clientWidth
       const currentScrollLeft = container.scrollLeft
@@ -356,6 +365,7 @@ function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop)
+    setScrollLeft(e.currentTarget.scrollLeft)
   }
 
   const handleClipSelect = useCallback((clipId: string) => {
@@ -757,4 +767,15 @@ function TimelineCanvasContent({
       </div>
     </TimelineContextProvider>
   )
-}
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Component: Wraps content with layout provider
+// ─────────────────────────────────────────────────────────────────────────────
+export const TimelineCanvas = React.memo(function TimelineCanvas(props: TimelineCanvasProps) {
+  return (
+    <TimelineLayoutProvider>
+      <TimelineCanvasContent {...props} />
+    </TimelineLayoutProvider>
+  )
+})

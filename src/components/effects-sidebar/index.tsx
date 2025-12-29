@@ -31,6 +31,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useProjectStore } from '@/stores/project-store'
 import { useSelectedClip } from '@/stores/selectors/clip-selectors'
 import { useEffectsSidebarContext } from './EffectsSidebarContext'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 const tabMotion = { type: "tween", duration: 0.12, ease: [0.2, 0.8, 0.2, 1] } as const
 
@@ -142,9 +143,10 @@ export function EffectsSidebar({
   const selectedClipResult = useSelectedClip()
   const selectedClip = selectedClipResult?.clip ?? null
   const selectedTrackType = selectedClipResult?.track.type
-  const [activeTab, setActiveTab] = useState<SidebarTabId>(() =>
-    selectedClip ? SidebarTabId.Clip : SidebarTabId.Style
-  )
+
+  const activeTab = useWorkspaceStore((s) => s.activeSidebarTab)
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveSidebarTab)
+
   const [styleSubTab, setStyleSubTab] = useState<StyleSubTabId>('background')
   const [pointerSubTab, setPointerSubTab] = useState<PointerSubTabId>('cursor')
   const [framingSubTab, setFramingSubTab] = useState<FramingSubTabId>('zoom')
@@ -268,7 +270,7 @@ export function EffectsSidebar({
       default:
         setActiveTab(SidebarTabId.Advanced)
     }
-  }, [])
+  }, [setActiveTab])
 
   // Update active tab based on selection changes (without overriding manual tab clicks)
   useEffect(() => {
@@ -293,7 +295,7 @@ export function EffectsSidebar({
 
     // Remember last effect type
     prevEffectTypeRef.current = currentEffectType
-  }, [routeToEffect, selectedEffectLayer, selectedClip])
+  }, [routeToEffect, selectedEffectLayer, selectedClip, setActiveTab])
 
   const updateEffect = useCallback((category: EffectType.Cursor | EffectType.Keystroke, updates: Partial<CursorEffectData | KeystrokeEffectData>) => {
     const effect = category === EffectType.Cursor ? cursorEffect : keystrokeEffect
@@ -324,7 +326,7 @@ export function EffectsSidebar({
     if (!hasWebcamContent && activeTab === SidebarTabId.Webcam) {
       setActiveTab(SidebarTabId.Style)
     }
-  }, [activeTab, selectedClip, hasWebcamContent])
+  }, [activeTab, selectedClip, hasWebcamContent, setActiveTab])
 
   useEffect(() => {
     if (activeTab !== SidebarTabId.Webcam) return

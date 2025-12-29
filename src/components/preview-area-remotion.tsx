@@ -40,6 +40,7 @@ import { WebcamOverlay } from './preview/webcam-overlay';
 import { useTimelineEffects } from '@/stores/selectors/timeline-selectors';
 import { toast } from 'sonner';
 import { useThrottledSeek } from '@/hooks/useThrottledSeek';
+import { timeObserver } from '@/lib/timeline/time-observer';
 
 
 type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | null;
@@ -154,7 +155,6 @@ export function PreviewAreaRemotion({
   const throttledSeek = useThrottledSeek(playerRef);
 
   const project = useProjectStore((s) => s.currentProject);
-  const timelineEffects = useTimelineEffects();
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer);
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer);
   const projectSettings = useProjectStore((s) => s.currentProject?.settings);
@@ -552,32 +552,24 @@ export function PreviewAreaRemotion({
     return () => unsubscribe();
   }, [timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame]);
 
-  // Synchronize state using the player's frame update event.
-  // Fires on every frame change during playback and seeking.
+  // Connect timeObserver to the player ref for RAF-based polling.
+  // This happens once on mount and handles remounts via playerRef.
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    const handleFrameUpdate = (e: { detail: { frame: number } }) => {
-      // Only sync during playback - scrub sync is handled separately
-      const { isPlaying, isScrubbing } = useProjectStore.getState();
-      if (!isPlaying) return;
-      if (isScrubbing) return;
-      const now = performance.now();
-      if (now - lastFrameSyncMsRef.current < 1000 / 30) return;
-      lastFrameSyncMsRef.current = now;
-
-      const frame = e.detail.frame;
-      const timeMs = (frame / timelineMetadata.fps) * 1000;
-      storeSeekFromPlayer(timeMs);
-    };
-
-    player.addEventListener('frameupdate', handleFrameUpdate as any);
-
+    timeObserver.connect(playerRef, timelineMetadata.fps);
     return () => {
-      player.removeEventListener('frameupdate', handleFrameUpdate as any);
+      timeObserver.stopPolling();
     };
-  }, [timelineMetadata.fps, storeSeekFromPlayer]);
+  }, [timelineMetadata.fps]);
+
+  // Start/stop RAF polling based on playback state.
+  // RAF runs independently of React's render cycle - copy/paste can't break it.
+  useEffect(() => {
+    if (isPlaying && !isScrubbing && !isExporting) {
+      timeObserver.startPolling(storeSeekFromPlayer);
+    } else {
+      timeObserver.stopPolling();
+    }
+  }, [isPlaying, isScrubbing, isExporting, storeSeekFromPlayer]);
 
   // Scrub behavior: pause player while dragging, resume from final position.
   useEffect(() => {

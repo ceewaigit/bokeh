@@ -10,7 +10,8 @@
 import { useState, useCallback, useRef } from 'react'
 import { TrackType, type Clip } from '@/types/project'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
-import { useProjectStore } from '@/stores/project-store'
+import { useCommandExecutor } from '@/hooks/useCommandExecutor'
+import { ReorderClipCommand } from '@/lib/commands'
 
 export interface DragPreview {
     clipId: string
@@ -38,6 +39,8 @@ export function useDragPreview({ getClipsForTrack }: UseDragPreviewOptions): Use
         trackType: TrackType.Video | TrackType.Audio
         proposedTime: number
     } | null>(null)
+
+    const executorRef = useCommandExecutor()
 
     const buildContiguousPreview = useCallback((
         clips: Clip[],
@@ -90,18 +93,19 @@ export function useDragPreview({ getClipsForTrack }: UseDragPreviewOptions): Use
         schedulePreviewUpdate(clipId, trackType, proposedTime)
     }, [schedulePreviewUpdate])
 
-    const handleDragCommit = useCallback((
+    const handleDragCommit = useCallback(async (
         clipId: string,
         trackType: TrackType.Video | TrackType.Audio,
         proposedTime: number
     ) => {
         const clips = getClipsForTrack(trackType)
         const preview = buildContiguousPreview(clips, clipId, proposedTime)
-        if (preview) {
-            useProjectStore.getState().reorderClip(clipId, preview.insertIndex)
+
+        if (preview && executorRef.current) {
+            await executorRef.current.execute(ReorderClipCommand, clipId, preview.insertIndex)
         }
         clearPreview()
-    }, [buildContiguousPreview, clearPreview, getClipsForTrack])
+    }, [buildContiguousPreview, clearPreview, getClipsForTrack, executorRef])
 
     return {
         dragPreview,

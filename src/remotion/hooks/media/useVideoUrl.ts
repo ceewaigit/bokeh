@@ -6,11 +6,18 @@
  *
  * Key insight: Once a source is selected for a clip, it stays consistent
  * throughout playback - no switching means no blink.
+ * 
+ * PROXY URL RESOLUTION:
+ * Proxy URLs are stored in an ephemeral store (cache-slice.proxyUrls) to avoid
+ * triggering cache invalidation when proxies complete. This hook checks the
+ * ephemeral store first, then falls back to recording properties for backward
+ * compatibility with projects that have proxy URLs baked in.
  */
 
 import { useMemo, useRef } from 'react';
 import { getRemotionEnvironment } from 'remotion';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
+import { useProjectStore } from '@/stores/project-store';
 import type { UseVideoUrlProps } from '@/types';
 
 // Re-export shared utilities for backwards compatibility
@@ -47,28 +54,60 @@ export function useVideoUrl({
   forceProxy = false,
   isHighQualityPlaybackEnabled = false,
   isPlaying = false,
-}: UseVideoUrlProps): string | undefined {
+  isScrubbing = false,
+}: UseVideoUrlProps & { isScrubbing?: boolean }): string | undefined {
   const { isRendering } = getRemotionEnvironment();
   const { videoUrls, videoUrlsHighRes } = resources || {};
+
+  // Get proxy URLs from ephemeral store (first priority) with recording fallback
+  const ephemeralProxyUrls = useProjectStore((s) => recording ? s.proxyUrls[recording.id] : undefined);
+
+  // Helper to resolve proxy URL: ephemeral store first, then recording property
+  const getProxyUrl = (type: 'preview' | 'glow' | 'scrub'): string | undefined => {
+    if (!recording) return undefined;
+    if (type === 'preview') {
+      return ephemeralProxyUrls?.previewProxyUrl || recording.previewProxyUrl;
+    }
+    if (type === 'glow') {
+      return ephemeralProxyUrls?.glowProxyUrl || recording.glowProxyUrl;
+    }
+    return ephemeralProxyUrls?.scrubProxyUrl || recording.scrubProxyUrl;
+  };
 
   const computedUrl = useMemo(() => {
     if (!recording) return undefined;
     if (recording.sourceType === 'generated') return undefined;
 
+    // Resolve proxy URLs: ephemeral store first, then recording property fallback
+    const previewProxyUrl = ephemeralProxyUrls?.previewProxyUrl || recording.previewProxyUrl;
+    const glowProxyUrl = ephemeralProxyUrls?.glowProxyUrl || recording.glowProxyUrl;
+    const scrubProxyUrl = ephemeralProxyUrls?.scrubProxyUrl || recording.scrubProxyUrl;
+
     // Use maxZoomScale (stable) instead of currentZoomScale (frame-varying)
     // to prevent URL switching during zoom animations which causes VTDecoder churn
     const zoomScaleForQuality = Math.max(maxZoomScale || 1, 1);
+
+    // PRIORITY 0: Force proxy during scrubbing for performance
+    if (isScrubbing) {
+      if (scrubProxyUrl) {
+        return scrubProxyUrl;
+      }
+      if (previewProxyUrl) {
+        return previewProxyUrl;
+      }
+    }
+
 
     // Glow player (64×36) always uses proxy
     // No point decoding 5K when output is 64px wide
     if (isGlowMode) {
       // PRIORITY 0: Specific glow proxy (super low res)
-      if (recording.glowProxyUrl) {
-        return recording.glowProxyUrl;
+      if (glowProxyUrl) {
+        return glowProxyUrl;
       }
 
-      if (recording.previewProxyUrl) {
-        return recording.previewProxyUrl;
+      if (previewProxyUrl) {
+        return previewProxyUrl;
       } else {
         // console.warn(`[useVideoUrl] ⚠️ GLOW has NO proxy, will use full source: ${recording.id}`);
       }
@@ -77,14 +116,14 @@ export function useVideoUrl({
     // Now we use consistent resolution logic regardless of playback state
 
     // KISS: In preview, prefer proxy for performance unless user explicitly asked for high quality.
-    if (!isRendering && !isHighQualityPlaybackEnabled && recording.previewProxyUrl) {
-      return recording.previewProxyUrl;
+    if (!isRendering && !isHighQualityPlaybackEnabled && previewProxyUrl) {
+      return previewProxyUrl;
     }
 
     // Force proxy for preload videos
     // Preload shows first frame briefly - doesn't need full resolution
-    if (forceProxy && recording.previewProxyUrl) {
-      return recording.previewProxyUrl;
+    if (forceProxy && previewProxyUrl) {
+      return previewProxyUrl;
     }
 
     if (isRendering) {
@@ -114,7 +153,7 @@ export function useVideoUrl({
     }
 
     // PRIORITY 3: Smart proxy selection with resolution capping
-    if (recording.previewProxyUrl) {
+    if (previewProxyUrl) {
       const sourceWidth = recording.width || 1920;
       const sourceHeight = recording.height || 1080;
 
@@ -130,7 +169,7 @@ export function useVideoUrl({
         // Use proxy only when it is sufficient AND source is overkill for the preview display.
         // This preserves visible quality while avoiding needless full-res decodes.
         if (proxySufficient && sourceOverkill) {
-          return recording.previewProxyUrl;
+          return previewProxyUrl;
         }
       } else {
         // MEMORY OPTIMIZATION: When high-res preview is disabled, be aggressive about using proxy
@@ -141,7 +180,7 @@ export function useVideoUrl({
         // If source resolution exceeds what preview can actually use by >20%, use proxy
         // Use proxy if: proxy is sufficient for quality OR source is overkill for display
         if (proxySufficient || sourceOverkill) {
-          return recording.previewProxyUrl;
+          return previewProxyUrl;
         }
       }
     }
@@ -172,7 +211,7 @@ export function useVideoUrl({
     }
 
     return `video-stream://${recording.id}`;
-  }, [recording, isRendering, videoUrls, videoUrlsHighRes, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled]);
+  }, [recording, isRendering, videoUrls, videoUrlsHighRes, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled, isScrubbing, ephemeralProxyUrls]);
 
   // Use URL locking to prevent mid-playback URL switches that cause video reloads
   // Merged from useUrlLocking logic:
@@ -187,7 +226,7 @@ export function useVideoUrl({
     lockedUrlRef.current = computedUrl;
     lockedKeyRef.current = invalidateKey;
   } else if (canUpdateWhileIdle && computedUrl && computedUrl !== lockedUrlRef.current) {
-    // Allow resolution downgrades (proxy availability) when idle to reduce memory.
+    // Allow resolution downgrades (proxy/scrub availability) when idle to reduce memory.
     lockedUrlRef.current = computedUrl;
   } else if (!lockedUrlRef.current && computedUrl) {
     // First time getting a valid URL for this recording - lock it

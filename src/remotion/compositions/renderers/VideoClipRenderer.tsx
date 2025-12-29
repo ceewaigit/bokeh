@@ -50,8 +50,8 @@ interface VideoClipRendererProps {
   VideoComponent: any;
   premountFor: number;
   postmountFor: number;
-  /** Callback to receive the video element reference for MotionBlurLayer */
   onVideoRef?: (video: HTMLVideoElement | null) => void;
+  isScrubbing?: boolean;
 }
 
 export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
@@ -61,7 +61,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   activeLayoutItem, prevLayoutItem, nextLayoutItem,
   shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
   markRenderReady, handleVideoReady, VideoComponent,
-  premountFor, postmountFor, onVideoRef,
+  premountFor, postmountFor, onVideoRef, isScrubbing,
 }) => {
   // Remotion hooks
   const currentFrame = useCurrentFrame();
@@ -82,6 +82,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     recording, resources, clipId: clipForVideo.id, preferOffthreadVideo,
     targetWidth: compositionWidth, targetHeight: compositionHeight,
     maxZoomScale, currentZoomScale, isGlowMode, isHighQualityPlaybackEnabled, isPlaying,
+    isScrubbing
   });
 
   // VTDecoder cleanup
