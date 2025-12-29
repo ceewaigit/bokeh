@@ -300,7 +300,7 @@ export class RecordingService {
 
     try {
       await window.electronAPI.showRecordingOverlay(this.captureArea.fullBounds, label)
-    } catch (_) {
+    } catch {
       // Overlay is best-effort; recording should still proceed.
     }
   }
@@ -309,7 +309,7 @@ export class RecordingService {
     if (!window.electronAPI?.hideRecordingOverlay) return
     try {
       await window.electronAPI.hideRecordingOverlay()
-    } catch (_) {
+    } catch {
       // Ignore overlay cleanup errors.
     }
   }
@@ -417,7 +417,7 @@ export class RecordingService {
             if (displayInfo?.scaleFactor && displayInfo.scaleFactor > 0) {
               scaleFactor = displayInfo.scaleFactor
             }
-          } catch (_) {
+          } catch {
             // Keep scaleFactor = 1
           }
         }
@@ -455,7 +455,7 @@ export class RecordingService {
                 }
               }
             }
-          } catch (_) {
+          } catch {
             // Keep defaults
           }
         }

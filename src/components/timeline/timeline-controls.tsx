@@ -18,6 +18,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
+import { useSelectedClipIds } from '@/stores/selectors/clip-selectors'
 import {
   Scissors,
   Play,
@@ -127,7 +128,7 @@ export const TimelineControls = React.memo(() => {
   const currentProject = useProjectStore((s) => s.currentProject)
   const currentTime = useProjectStore((s) => s.currentTime)
   const isPlaying = useProjectStore((s) => s.isPlaying)
-  const selectedClips = useProjectStore((s) => s.selectedClips ?? [])
+  const selectedClips = useSelectedClipIds()
   const previewScale = useWorkspaceStore((s) => s.previewScale)
   const setPreviewScale = useWorkspaceStore((s) => s.setPreviewScale)
   const fps = useTimelineMetadata(currentProject)?.fps || 60
@@ -427,3 +428,5 @@ export const TimelineControls = React.memo(() => {
     </TooltipProvider>
   )
 })
+
+TimelineControls.displayName = 'TimelineControls'

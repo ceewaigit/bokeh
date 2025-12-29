@@ -175,9 +175,9 @@ export class MediaRecorderStrategy implements RecordingStrategy {
 
       try {
         this.mediaRecorder!.stop()
-      } catch (e) {
-        logger.error('[MediaRecorderStrategy] Error stopping:', e)
-        reject(e)
+      } catch (error) {
+        logger.error('[MediaRecorderStrategy] Error stopping:', error)
+        reject(error)
       }
     })
   }

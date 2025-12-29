@@ -12,7 +12,7 @@
  * - useRenderableItems: Determines which clips to render
  */
 
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import {
   useVideoData,
@@ -22,7 +22,6 @@ import {
 import { useComposition } from '../context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
 import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
-// Zoom blur is calculated via zoomTransform.refocusBlur (set in zoom-transform.ts)
 import type { SharedVideoControllerProps } from '@/types';
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 import {
@@ -58,9 +57,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   sourceVideoHeight,
   children,
   cameraSettings,
-  playback,
   renderSettings,
-  cropSettings: _cropSettings,
 }) => {
   // ==========================================================================
   // REMOTION HOOKS & CONTEXT
@@ -93,7 +90,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   // Layout navigation
   const layoutNav = useLayoutNavigation(currentFrame);
-  const { activeIndex: activeLayoutIndex, activeItem: activeLayoutItem, prevItem: prevLayoutItem, nextItem: nextLayoutItem } = layoutNav;
+  const { activeItem: activeLayoutItem, prevItem: prevLayoutItem, nextItem: nextLayoutItem } = layoutNav;
 
   const visualLayoutNav = useMemo(() => {
     const isVisualItem = (item: FrameLayoutItem | null) => {
@@ -249,11 +246,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // CAMERA MOTION BLUR (WebGL-based directional blur)
   // ==========================================================================
 
-  // Video element ref for WebGL texture source
-  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
-  const handleVideoRef = useCallback((video: HTMLVideoElement | null) => {
-    setVideoElement(video);
-  }, []);
+  // Video container ref for motion blur to discover video element from DOM
+  // This makes motion blur clip-agnostic - it always finds the active video
+  const videoContainerRef = useRef<HTMLDivElement>(null);
 
   // Get motion blur config from camera settings
   const motionBlurConfig = useMemo(
@@ -337,10 +332,11 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const effectiveBlurPx = refocusBlurRaw < 0.5 ? 0 : Math.round(refocusBlurRaw);
 
   useEffect(() => {
-    if (!isRendering && !motionBlurEnabled && (videoElement?.readyState ?? 0) >= 2) {
+    // Preview ready when no motion blur (which handles its own readiness)
+    if (!isRendering && !motionBlurEnabled) {
       setPreviewReady(true);
     }
-  }, [isRendering, motionBlurEnabled, videoElement, setPreviewReady]);
+  }, [isRendering, motionBlurEnabled, setPreviewReady]);
 
   // ==========================================================================
   // RENDERABLE ITEMS
@@ -378,7 +374,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     return renderableItems.map((item) => {
       const recording = recordingsMap.get(item.clip.recordingId);
       if (!recording) return null;
-      const isActiveVisualClip = item.clip.id === renderActiveLayoutItem?.clip.id;
 
       if (recording.sourceType === 'video') {
         return (
@@ -407,7 +402,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             VideoComponent={useOffthreadVideo ? OffthreadVideo : Video}
             premountFor={preloadFrames}
             postmountFor={preloadFrames}
-            onVideoRef={isActiveVisualClip ? handleVideoRef : undefined}
           />
         );
       } else if (recording.sourceType === 'image') {
@@ -470,7 +464,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     activeLayoutItem, prevLayoutItem, nextLayoutItem,
     renderActiveLayoutItem, renderPrevLayoutItem, renderNextLayoutItem,
     shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
-    markRenderReady, handleVideoReady, useOffthreadVideo, handleVideoRef, isMotionBlurActive
+    markRenderReady, handleVideoReady, useOffthreadVideo, isMotionBlurActive
   ]);
 
   // ==========================================================================
@@ -523,17 +517,19 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             willChange: isRendering ? undefined : 'transform, filter',
           }}
         >
-          {/* Video content - always visible */}
-          {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
-            <MockupLayer
-              mockupData={layout.mockupData}
-              mockupPosition={layout.mockupPosition}
-            >
-              {renderedContent}
-            </MockupLayer>
-          ) : (
-            renderedContent
-          )}
+          {/* Video content container - also used by MotionBlurLayer to find active video */}
+          <div ref={videoContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
+              <MockupLayer
+                mockupData={layout.mockupData}
+                mockupPosition={layout.mockupPosition}
+              >
+                {renderedContent}
+              </MockupLayer>
+            ) : (
+              renderedContent
+            )}
+          </div>
 
           {/* WebGL Motion Blur - overlays on video when blur is active */}
           <MotionBlurLayer
@@ -545,7 +541,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             gamma={Number.isFinite(cameraSettings?.motionBlurGamma) ? (cameraSettings?.motionBlurGamma ?? 1.0) : 1.0}
             rampRange={Number.isFinite(cameraSettings?.motionBlurRampRange) ? (cameraSettings?.motionBlurRampRange ?? 0.5) : 0.5}
             clamp={Number.isFinite(cameraSettings?.motionBlurClamp) ? (cameraSettings?.motionBlurClamp ?? 60) : 60}
-            videoElement={videoElement}
+            containerRef={videoContainerRef}
             drawWidth={layout.drawWidth}
             drawHeight={layout.drawHeight}
             offsetX={0}
@@ -558,6 +554,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             useSRGBBuffer={false}
             samples={cameraSettings?.motionBlurSamples === 0 ? undefined : cameraSettings?.motionBlurSamples}
             blackLevel={Number.isFinite(cameraSettings?.motionBlurBlackLevel) ? (cameraSettings?.motionBlurBlackLevel ?? 0) : 0}
+            saturation={Number.isFinite(cameraSettings?.motionBlurSaturation) ? (cameraSettings?.motionBlurSaturation ?? 1.0) : 1.0}
             unpackPremultiplyAlpha={cameraSettings?.motionBlurUnpackPremultiply ?? false}
             force={cameraSettings?.motionBlurForce ?? false}
           />

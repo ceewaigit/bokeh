@@ -36,7 +36,7 @@ export function calculateTimelineDuration(project: Project): number {
  * This ensures the effect↔clip binding survives timeline operations.
  */
 export function syncCropEffectTimes(project: Project): void {
-  // Use EffectStore to get all effects (the SSOT)
+  // Use EffectStore to get all effects (the source of truth)
   const allEffects = EffectStore.getAll(project)
   if (allEffects.length === 0) return
 
@@ -96,11 +96,11 @@ export function sortClipsByTime(track: Track): void {
 /**
  * Reflow clips to maintain contiguous layout.
  *
- * DESIGN PRINCIPLE: Array order IS the ONLY source of truth.
+ * Array order is the single source of truth.
  * This function computes startTime values from array indices.
  * - Clip at index 0 starts at time 0
  * - Each subsequent clip starts where the previous one ends
- * - This function NEVER sorts - it preserves array order
+ * - This function preserves array order
  *
  * @param track - The track containing clips to reflow
  * @param startFromIndex - Start reflowing from this index (optimization)
@@ -113,7 +113,7 @@ export function reflowClips(
 
   // Validate and fix any duration inconsistencies
   // This ensures clip.duration matches the formula: (sourceOut - sourceIn) / playbackRate
-  // IMPORTANT: Create NEW clip objects when fixing to break stale references
+  // Create new clip objects when fixing to break stale references
   const DEBUG_REFLOW = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
 
   for (let i = 0; i < track.clips.length; i++) {
@@ -132,13 +132,13 @@ export function reflowClips(
           playbackRate: clip.playbackRate
         })
       }
-      // Create NEW clip object to ensure React/Zustand detects the change
+      // Create new clip object to ensure React/Zustand detects the change
       track.clips[i] = { ...clip, duration: expectedDuration }
     }
   }
 
   // First clip always starts at 0
-  // IMPORTANT: Create NEW clip object to break stale references in memoized contexts
+  // Create new clip object to break stale references in memoized contexts
   if (startFromIndex === 0 && track.clips.length > 0) {
     if (track.clips[0].startTime !== 0) {
       track.clips[0] = { ...track.clips[0], startTime: 0 }
@@ -146,7 +146,7 @@ export function reflowClips(
   }
 
   // Chain clips contiguously: each clip starts where previous ends
-  // IMPORTANT: Create NEW clip objects to ensure React/Zustand detects changes
+  // Create new clip objects to ensure React/Zustand detects changes
   for (let i = Math.max(1, startFromIndex); i < track.clips.length; i++) {
     const prevClip = track.clips[i - 1]
     const newStart = prevClip.startTime + prevClip.duration
@@ -167,19 +167,24 @@ export function splitClipAtTime(
   }
 
   // Import the proper conversion function
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { clipRelativeToSource } = require('../timeline/time-space-converter')
+
+  // Safely handle missing source bounds
+  const clipSourceIn = clip.sourceIn ?? 0
+  const clipSourceOut = clip.sourceOut ?? (clipSourceIn + (clip.duration * (clip.playbackRate || 1)))
 
   // Convert clip-relative split time to source space
   const sourceSplitAbsolute = clipRelativeToSource(relativeSplitTime, clip)
-  const sourceSplitPoint = sourceSplitAbsolute - clip.sourceIn
+  const sourceSplitPoint = sourceSplitAbsolute - clipSourceIn
 
   const firstClip: Clip = {
     id: crypto.randomUUID(),
     recordingId: clip.recordingId,
     startTime: clip.startTime,
     duration: relativeSplitTime,
-    sourceIn: clip.sourceIn,
-    sourceOut: clip.sourceIn + sourceSplitPoint,
+    sourceIn: clipSourceIn,
+    sourceOut: clipSourceIn + sourceSplitPoint,
     playbackRate: clip.playbackRate,
     // Keep intro fade on first clip, remove outro (clean cut at split point)
     introFadeMs: clip.introFadeMs,
@@ -196,7 +201,7 @@ export function splitClipAtTime(
 
   // Only handle timeRemapPeriods if they exist (for backward compatibility)
   if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-    const splitSourceTime = clip.sourceIn + sourceSplitPoint
+    const splitSourceTime = clipSourceIn + sourceSplitPoint
     const firstPeriods = clip.timeRemapPeriods
       .filter(p => p.sourceStartTime < splitSourceTime)
       .map(p => ({
@@ -213,8 +218,8 @@ export function splitClipAtTime(
     recordingId: clip.recordingId,
     startTime: clip.startTime + relativeSplitTime,
     duration: clip.duration - relativeSplitTime,
-    sourceIn: clip.sourceIn + sourceSplitPoint,
-    sourceOut: clip.sourceOut,
+    sourceIn: clipSourceIn + sourceSplitPoint,
+    sourceOut: clipSourceOut,
     playbackRate: clip.playbackRate,
     // Remove intro fade from second clip (clean cut at split), keep outro
     // introFadeMs intentionally not set - clean cut at split
@@ -231,7 +236,7 @@ export function splitClipAtTime(
 
   // Only handle timeRemapPeriods if they exist (for backward compatibility)
   if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-    const splitSourceTime = clip.sourceIn + sourceSplitPoint
+    const splitSourceTime = clipSourceIn + sourceSplitPoint
     const secondPeriods = clip.timeRemapPeriods
       .filter(p => p.sourceEndTime > splitSourceTime)
       .map(p => ({
@@ -307,6 +312,7 @@ export function executeSplitClip(
 
   // Sync keystroke effects to ensure cursor metadata follows the split clips
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { EffectsFactory } = require('../effects/effects-factory')
     // We need to pass metadataByRecordingId if generic syncing is needed, but for now mostly recording metadata is enough
     EffectsFactory.syncKeystrokeEffects(project)
@@ -509,6 +515,7 @@ export function updateClipInTrack(
 
   // Sync keystroke effects to ensure cursor metadata follows the moved clips
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { EffectsFactory } = require('../effects/effects-factory')
     EffectsFactory.syncKeystrokeEffects(project)
   } catch (e) {
@@ -631,8 +638,7 @@ export function restoreClipToTrack(
   clip: Clip,
   index: number
 ): boolean {
-  // Idempotency guard: undo should not be able to "double restore" the same clip
-  // even if commands are triggered twice or history gets desynced.
+  // Idempotency guard: prevent restoring the same clip twice.
   if (findClipById(project, clip.id)) return true
 
   const track = project.timeline.tracks.find(t => t.id === trackId)
@@ -722,6 +728,7 @@ export function addRecordingToProject(
   }
 
   // Ensure global effects exist (background, cursor, webcam)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { EffectsFactory } = require('../effects/effects-factory')
   EffectsFactory.ensureGlobalEffects(project)
 
@@ -919,8 +926,8 @@ export function addAssetRecording(
       }
     }
 
-    // 5. Prevent Effect Bleed (Mutually Exclusive Logic)
-    // Ensure that timeline-level effects (Zoom, Screen) do not implicitly cover the new clip.
+    // 5. Prevent effect bleed.
+    // Ensure that timeline-level effects (e.g., Zoom, Screen) do not implicitly cover the new clip.
     // We truncate any existing effects that would overlap the new clip's start time.
     const timelineEffects = EffectStore.getAll(project)
     if (timelineEffects.length > 0) {
@@ -933,9 +940,7 @@ export function addAssetRecording(
             // Truncate the effect to end exactly where the new clip starts
             effect.endTime = newClip.startTime
           }
-          // Note: If effect started AFTER new clip start, we leave it alone (it might be a future effect).
-          // If it was "surrounding" the clip, we just cut it off. 
-          // This satisfies "mutually exclusive" - the previous state stops.
+          // Effects starting after the new clip are preserved.
         }
       })
     }

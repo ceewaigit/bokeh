@@ -2,7 +2,6 @@
  * useDragPreview
  *
  * Manages clip drag preview state with RAF-throttled updates.
- * Extracts ~50 lines of preview logic from timeline-canvas.tsx.
  *
  * Usage:
  *   const { dragPreview, handleDragPreview, handleDragCommit, clearPreview } = useDragPreview()

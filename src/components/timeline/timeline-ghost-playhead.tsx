@@ -44,3 +44,5 @@ export const TimelineGhostPlayhead = React.memo(() => {
     </Group>
   )
 })
+
+TimelineGhostPlayhead.displayName = 'TimelineGhostPlayhead'

@@ -54,6 +54,7 @@ export interface StoreSettings {
     motionBlurClamp?: number
     motionBlurGamma?: number
     motionBlurBlackLevel: number
+    motionBlurSaturation: number
     refocusBlurEnabled: boolean
     refocusBlurIntensity: number
   }

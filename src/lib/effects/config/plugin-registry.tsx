@@ -138,6 +138,7 @@ class PluginRegistryClass {
 
                             p.render = (props: PluginRenderProps) => {
                                 const { params, frame, width, height } = props
+                                // eslint-disable-next-line @typescript-eslint/no-require-imports
                                 const React = require('react')
                                 const sandboxPrelude = `
                                     'use strict';
@@ -786,7 +787,7 @@ export const ProgressBarPlugin: PluginDefinition<ProgressBarParams> = {
         segments: { type: 'number', default: 10, label: 'Segments', min: 2, max: 50, step: 1 },
     },
     render(props: PluginRenderProps<ProgressBarParams>) {
-        const { params, frame, width: canvasWidth, height: _canvasHeight } = props
+        const { params, frame, width: canvasWidth } = props
         const {
             position,
             width,
@@ -997,7 +998,7 @@ export const BlankClipPlugin: PluginDefinition<BlankClipParams> = {
         borderStrength: { type: 'number', default: 0, label: 'Frame Border', min: 0, max: 100, step: 4, unit: '%' },
     },
     render(props: PluginRenderProps<BlankClipParams>) {
-        const { params, frame: _frame, width, height } = props
+        const { params, width, height } = props
         const {
             backgroundColor,
             accentColor,

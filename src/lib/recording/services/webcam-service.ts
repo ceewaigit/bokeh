@@ -234,9 +234,9 @@ export class WebcamService {
 
       try {
         this.mediaRecorder!.stop()
-      } catch (e) {
-        logger.error('[WebcamService] Error stopping:', e)
-        reject(e)
+      } catch (error) {
+        logger.error('[WebcamService] Error stopping:', error)
+        reject(error)
       }
     })
   }

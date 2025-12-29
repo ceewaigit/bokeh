@@ -10,7 +10,7 @@ export function SectionHeader({
   title,
   subtitle,
 }: {
-  icon: any
+  icon: React.ElementType
   title: string
   subtitle?: string
 }) {

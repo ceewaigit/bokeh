@@ -10,20 +10,14 @@ import { interpolateMousePosition } from './mouse-interpolation'
 import { CursorType, electronToCustomCursor } from '../cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { clamp01, lerp, easeOutCubic, clamp } from '@/lib/core/math'
-
-// PERF: Memoization cache for smoothing results to avoid re-simulation
-type SmoothedPosition = { x: number; y: number }
-
-const smoothingCache = new Map<string, SmoothedPosition>()
-// PERF: Reduced from 1000 to 300 (~5 seconds at 60fps)
-// Pre-computation covers first 5 seconds, so this handles scrubbing/seeking
-const MAX_SMOOTHING_CACHE_SIZE = 300
+import { CameraDataService } from '@/lib/core/camera/camera-data-service'
 
 /**
  * Clear the smoothing cache - call when switching projects or recordings
+ * @deprecated Use CameraDataService.invalidateCache() instead.
  */
 export function clearCursorCalculatorCache(): void {
-  smoothingCache.clear()
+  CameraDataService.invalidateCache()
 }
 
 /**
@@ -471,9 +465,14 @@ function smoothPositionWithHistory(
   }
 
   // PERF: Check cache first - key includes timestamp and smoothing params
-  const timeKey = timestamp.toFixed(2)
-  const cacheKey = `${timeKey}-${(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness).toFixed(2)}-${(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed).toFixed(2)}-${(cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75).toFixed(2)}-${(cursorData.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9).toFixed(2)}`
-  const cached = smoothingCache.get(cacheKey)
+  const cacheKey = CameraDataService.getSmoothingCacheKey(
+    timestamp,
+    cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness,
+    cursorData.speed ?? DEFAULT_CURSOR_DATA.speed,
+    cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75,
+    cursorData.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9
+  )
+  const cached = CameraDataService.getSmoothingPosition(cacheKey)
   if (cached) {
     return { position: cached }
   }
@@ -484,11 +483,6 @@ function smoothPositionWithHistory(
   const sampleCount = Math.max(6, Math.min(16, Math.round(historyWindowMs / stepMs)))
   const tauMs = Math.max(120, historyWindowMs * 0.45)
 
-  // PERF: Cache result with LRU eviction
-  if (smoothingCache.size >= MAX_SMOOTHING_CACHE_SIZE) {
-    const firstKey = smoothingCache.keys().next().value
-    if (firstKey) smoothingCache.delete(firstKey)
-  }
   const smoothed = computeExponentialSmooth(
     mouseEvents,
     timestamp,
@@ -498,7 +492,7 @@ function smoothPositionWithHistory(
     tauMs,
     cursorData
   )
-  smoothingCache.set(cacheKey, smoothed)
+  CameraDataService.setSmoothingPosition(cacheKey, smoothed)
 
   return { position: smoothed }
 }

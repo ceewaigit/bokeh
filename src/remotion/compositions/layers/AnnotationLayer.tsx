@@ -25,10 +25,14 @@ export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({ effects }) => 
     });
   }, [effects, currentTimeMs]);
 
+  // During rendering/export, use dpr of 1 for consistent output
+  // In preview, use device pixel ratio for sharp display (max 2)
   const dpr = useMemo(() => {
-    if (typeof window === 'undefined') return 1;
-    return Math.min(2, window.devicePixelRatio || 1);
-  }, []);
+    // In server-side rendering or export, use 1
+    if (typeof window === 'undefined') return 1
+    // Fixed DPR for reliable canvas rendering
+    return Math.min(2, window.devicePixelRatio || 1)
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current;

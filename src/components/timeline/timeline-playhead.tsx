@@ -304,3 +304,5 @@ export const TimelinePlayhead = React.memo(() => {
     </Group>
   )
 })
+
+TimelinePlayhead.displayName = 'TimelinePlayhead'

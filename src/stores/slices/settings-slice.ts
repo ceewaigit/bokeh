@@ -1,13 +1,10 @@
 /**
- * Settings Slice
- *
- * Manages application settings with clear separation:
- * - UI PREFERENCES: Only in state.settings (not saved with project)
- * - PROJECT SETTINGS: Stored directly on currentProject.settings (single source)
+/**
+ * PROJECT SETTINGS: Stored directly on currentProject.settings (single source)
  */
 import type { CreateSettingsSlice } from './types'
 
-export const createSettingsSlice: CreateSettingsSlice = (set, _get) => ({
+export const createSettingsSlice: CreateSettingsSlice = (set) => ({
   // =========================================================================
   // UI PREFERENCES (not synced to project)
   // =========================================================================
@@ -63,7 +60,7 @@ export const createSettingsSlice: CreateSettingsSlice = (set, _get) => ({
   updateSettings: (updates) => set((state) => {
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        // @ts-ignore - dynamic assignment
+        // @ts-expect-error - dynamic assignment
         state.settings[key] = value
       }
     })

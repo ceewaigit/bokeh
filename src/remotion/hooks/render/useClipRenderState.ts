@@ -23,7 +23,7 @@ import type { FrameLayoutItem } from '@/lib/timeline/frame-layout';
 
 export interface ClipRenderStateOptions {
     clip: Clip;
-    recording: Recording;
+    recording: Recording | undefined;
     startFrame: number;
     durationFrames: number;
     groupStartFrame: number;
@@ -137,8 +137,8 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
         // ==========================================================================
         // SCALING
         // ==========================================================================
-        const baseWidth = recording.width || drawWidth;
-        const baseHeight = recording.height || drawHeight;
+        const baseWidth = recording?.width || drawWidth;
+        const baseHeight = recording?.height || drawHeight;
         const scaleX = baseWidth > 0 ? drawWidth / baseWidth : 1;
         const scaleY = baseHeight > 0 ? drawHeight / baseHeight : 1;
         const scaleTransform = `scale(${scaleX}, ${scaleY})`;

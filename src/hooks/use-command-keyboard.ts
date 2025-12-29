@@ -49,7 +49,11 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
   const handleCut = useCallback(async () => {
     const result = await getExecutor().execute(CutCommand)
-    result.success ? toast('Clip cut') : toast.error(getErrorMessage(result.error))
+    if (result.success) {
+      toast('Clip cut')
+    } else {
+      toast.error(getErrorMessage(result.error))
+    }
   }, [getExecutor])
 
   const handlePaste = useCallback(async () => {
@@ -103,7 +107,11 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       return
     }
     const result = await getExecutor().execute(SplitClipCommand, selectedClips[0], currentTime)
-    result.success ? toast('Clip split') : toast.error(getErrorMessage(result.error))
+    if (result.success) {
+      toast('Clip split')
+    } else {
+      toast.error(getErrorMessage(result.error))
+    }
   }, [getExecutor])
 
   const handleTrimStart = useCallback(async () => {

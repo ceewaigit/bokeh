@@ -21,7 +21,7 @@ import { UtilitiesSidebar } from '../utilities-sidebar'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
-import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
+import type { ZoomBlock, ZoomEffectData } from '@/types/project'
 import { useCropManager } from '@/hooks/useCropManager'
 import { useCommandExecutor } from '@/hooks/useCommandExecutor'
 import { usePlayheadState } from '@/hooks/use-playhead-state'
@@ -62,8 +62,8 @@ async function loadProjectRecording(
     // This handles: file reading, migrations, path resolution, file validation,
     // video property detection/repair, metadata loading, and effects initialization
     const project = await ProjectIOService.loadProjectFromRecording(recording, {
-      onProgress: setLoadingMessage,
-      awaitPlaybackPreparation: true
+      onProgress: setLoadingMessage
+      // Proxy generation runs in background - don't block project load
     })
 
     // Create project in store
@@ -183,7 +183,6 @@ export function WorkspaceManager() {
     utilitiesPanelWidth,
     timelineHeight,
     toggleProperties,
-    toggleUtilities,
     setPropertiesPanelWidth,
     setUtilitiesPanelWidth,
     setTimelineHeight,
@@ -200,7 +199,6 @@ export function WorkspaceManager() {
       utilitiesPanelWidth: s.utilitiesPanelWidth,
       timelineHeight: s.timelineHeight,
       toggleProperties: s.toggleProperties,
-      toggleUtilities: s.toggleUtilities,
       setPropertiesPanelWidth: s.setPropertiesPanelWidth,
       setUtilitiesPanelWidth: s.setUtilitiesPanelWidth,
       setTimelineHeight: s.setTimelineHeight,
@@ -467,7 +465,7 @@ export function WorkspaceManager() {
     storeSeek(time)
   }, [storeSeek])
 
-  const handleClipSelect = useCallback((_clipId: string) => {
+  const handleClipSelect = useCallback(() => {
     setHasUnsavedChanges(false)
   }, [])
 
@@ -533,7 +531,7 @@ export function WorkspaceManager() {
   const showLoadingOverlay = isLoading || shouldWaitForPreview
   const loadingOverlayMessage = loadingMessage || 'Loading...'
   const loadingOverlay = showLoadingOverlay ? (
-    <div className="fixed inset-0 flex flex-col items-center justify-center z-50">
+    <div className="fixed inset-0 flex flex-col items-center justify-center z-50 bg-background/90 backdrop-blur-sm">
       <div className="text-center space-y-6">
         {/* Single animated spinner */}
         <div className="w-16 h-16 mx-auto border-4 border-primary/20 rounded-full border-t-primary animate-spin" />

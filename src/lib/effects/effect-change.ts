@@ -179,6 +179,19 @@ function updateAnnotationEffect(context: EffectChangeContext, data: any): void {
   context.executeCommand('AddEffect', newEffect)
 }
 
+/**
+ * Apply changes to an effect based on its type.
+ * 
+ * Handles different strategies for different effect types:
+ * - Zoom: Toggles generation or updates selected zoom block.
+ * - Screen: Updates selected screen effect.
+ * - Webcam: Updates selected webcam overlay.
+ * - Annotation/Keystroke/Cursor/Background: Handles global or singleton effect updates.
+ * 
+ * @param type - The type of effect to change.
+ * @param data - The new data to apply (can include 'enabled').
+ * @param context - Context containing current project, effects, and command executor.
+ */
 export async function applyEffectChange(
   type: EffectType,
   data: any,

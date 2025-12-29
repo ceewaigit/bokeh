@@ -296,8 +296,8 @@ export const CursorLayer = React.memo(({
   const cursorInVideoY = normalizedY * cursorAreaHeight;
 
   // Initialize cursor tip position in screen coordinates
-  let cursorTipX = cursorBaseOffsetX + cursorInVideoX;
-  let cursorTipY = cursorBaseOffsetY + cursorInVideoY;
+  const cursorTipX = cursorBaseOffsetX + cursorInVideoX;
+  const cursorTipY = cursorBaseOffsetY + cursorInVideoY;
   const debugTipX = cursorBaseOffsetX + debugNormalizedX * cursorAreaWidth;
   const debugTipY = cursorBaseOffsetY + debugNormalizedY * cursorAreaHeight;
 
@@ -762,3 +762,5 @@ export const CursorLayer = React.memo(({
     </AbsoluteFill>
   );
 });
+
+CursorLayer.displayName = 'CursorLayer'

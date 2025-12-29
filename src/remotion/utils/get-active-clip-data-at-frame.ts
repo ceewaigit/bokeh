@@ -5,6 +5,7 @@ import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 import { findActiveFrameLayoutIndex } from '@/lib/timeline/frame-layout'
 import { clipRelativeToSource } from '@/lib/timeline/time-space-converter'
 import { msToFrameFloor } from '@/remotion/compositions/utils/time/frame-time'
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 
 // Cache timeline-space effect overlap per (effects array ref, frameLayout array ref, clip.id).
 // This dramatically reduces per-frame allocations during playback and during camera path precompute.
@@ -116,33 +117,27 @@ export function resolveClipDataForLayoutItem(args: {
   // Use clip.startTime (clip property) instead of layoutItem.startFrame (layout-derived)
   // to ensure stable cache keys after clip deletion/reorder operations
   const cacheKey = `${clip.id}-${clip.startTime}`;
-  const prev = activeEffectsCache.get(cacheKey);
+  const prev = TimelineDataService.getActiveEffectsFromCache(cacheKey);
 
   // Check if IDs and enabled states match exactly
   if (prev && areEffectsSemanticallyEqual(prev, mergedEffects)) {
     return { clip, recording, sourceTimeMs, effects: prev };
   }
 
-  activeEffectsCache.set(cacheKey, mergedEffects);
-
-  // Prune cache to avoid memory leaks (simple random eviction if too large)
-  if (activeEffectsCache.size > 100) {
-    const keyToDelete = activeEffectsCache.keys().next().value;
-    if (keyToDelete) activeEffectsCache.delete(keyToDelete);
-  }
+  TimelineDataService.setActiveEffectsCache(cacheKey, mergedEffects);
 
   return { clip, recording, sourceTimeMs, effects: mergedEffects }
 }
 
-// Global cache for effect stability checks (Module-scoped)
-const activeEffectsCache = new Map<string, Effect[]>();
-
 /**
  * Clear the active effects cache.
- * Call this when clips/effects change.
+ * @deprecated Use TimelineDataService.invalidateCache() instead for centralized cache management.
+ * This function is kept for backward compatibility.
  */
 export function clearActiveEffectsCache(): void {
-  activeEffectsCache.clear();
+  // Delegate to centralized service - requires a project reference
+  // For now, just log a deprecation warning. The actual clearing happens via TimelineDataService.
+  console.warn('[clearActiveEffectsCache] Deprecated - use TimelineDataService.invalidateCache() instead');
 }
 
 function areEffectsSemanticallyEqual(prev: Effect[], next: Effect[]): boolean {

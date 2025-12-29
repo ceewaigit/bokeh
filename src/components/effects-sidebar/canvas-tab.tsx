@@ -250,7 +250,6 @@ export function CanvasTab({
         onChange={setSubTab}
         tabs={[
           { id: 'aspect', label: 'Aspect Ratio' },
-          // { id: 'mockup', label: 'Device Mockup' }, // TODO: WIP, POST v1.0 feature
         ]}
       />
 

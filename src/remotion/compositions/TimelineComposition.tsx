@@ -250,7 +250,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         cropSettings={cropSettings}
       >
         {/* Overlay layers (cursor, keystrokes, etc.) rendered per clip as children */}
-        {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
+        {!renderSettings.isGlowMode && visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
           return (
             <ClipSequence
               key={clip.id}
@@ -262,7 +262,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
               startFrame={startFrame}
               durationFrames={durationFrames}
               includeBackground={false}
-              includeKeystrokes={!renderSettings.isGlowMode}
+              includeKeystrokes={true}
             />
           );
         })}

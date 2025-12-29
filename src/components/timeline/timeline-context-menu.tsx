@@ -202,3 +202,5 @@ export const TimelineContextMenu = React.memo(({
 
   return menuContent
 })
+
+TimelineContextMenu.displayName = 'TimelineContextMenu'

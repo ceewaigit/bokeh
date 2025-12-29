@@ -118,7 +118,7 @@ export function PluginCodeEditor({ plugin, onSave, onCancel }: PluginCodeEditorP
                 <code className="bg-muted px-1 rounded">frame</code>{' '}
                 <code className="bg-muted px-1 rounded">width</code>{' '}
                 <code className="bg-muted px-1 rounded">height</code>{' '}
-                | Return JSX with <code className="bg-muted px-1 rounded">position: 'absolute'</code>{' '}
+                | Return JSX with <code className="bg-muted px-1 rounded">position: &apos;absolute&apos;</code>{' '}
                 | Tab inserts spaces
             </div>
         </div>

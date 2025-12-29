@@ -243,7 +243,7 @@ export function getKeystrokePresetStyle(
 }
 
 function formatModifierKey(key: string, modifiers: string[], useSymbols: boolean): string {
-  let displayKey = normalizeKey(key)
+  const displayKey = normalizeKey(key)
   if (modifiers.length > 0 && displayKey.length === 1) {
     const parts: string[] = []
     if (modifiers.includes('cmd') || modifiers.includes('meta')) parts.push(useSymbols ? '⌘' : 'Cmd+')

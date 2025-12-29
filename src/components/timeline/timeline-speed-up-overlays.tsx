@@ -1,10 +1,9 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState } from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import { useTimelineLayout } from './timeline-layout-provider'
-import { useProjectStore } from '@/stores/project-store'
 import { TimelineTrackType } from '@/types/project'
 import { ActivityDetectionService } from '@/lib/timeline/activity-detection/detection-service'
-import { useVideoClips } from '@/stores/selectors/clip-selectors'
+import { useVideoClips, useRecordings } from '@/stores/selectors/clip-selectors'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { useTimelineContext } from './TimelineContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
@@ -159,6 +158,8 @@ const SuggestionBarItem = React.memo(({
     )
 })
 
+SuggestionBarItem.displayName = 'SuggestionBarItem'
+
 /**
  * Renders speed up suggestion bars for all visible video clips.
  */
@@ -172,7 +173,7 @@ export const TimelineSpeedUpOverlays = React.memo(() => {
 
     const { onOpenSpeedUpSuggestion } = useTimelineContext()
     const videoClips = useVideoClips()
-    const recordings = useProjectStore(s => s.currentProject?.recordings ?? [])
+    const recordings = useRecordings()
 
     // Only render if video track is visible and suggestions are enabled
     if (!visibleTracks.has(TimelineTrackType.Video) || !showTypingSuggestions) {
@@ -249,3 +250,5 @@ export const TimelineSpeedUpOverlays = React.memo(() => {
         </Group>
     )
 })
+
+TimelineSpeedUpOverlays.displayName = 'TimelineSpeedUpOverlays'

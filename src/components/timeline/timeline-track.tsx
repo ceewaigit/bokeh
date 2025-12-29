@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Group, Rect, Text, Circle } from 'react-konva'
+import { Group, Rect, Text } from 'react-konva'
 import Konva from 'konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -14,8 +14,8 @@ interface TimelineTrackProps {
   onLabelClick?: () => void
 }
 
-const TRACK_ANIMATION_DURATION = 0.5
-const TRACK_ANIMATION_EASING = Konva.Easings.EaseInOut
+const TRACK_ANIMATION_DURATION = 0.2
+const TRACK_ANIMATION_EASING = Konva.Easings.EaseOut
 
 // Animated Group wrapper to handle smooth Y transitions
 const AnimatedGroup = ({ y, children }: { y: number; children: React.ReactNode }) => {
@@ -259,60 +259,65 @@ export const TimelineTrack = React.memo(({
   // Sub-tracks (Audio, Webcam) get indented visual treatment
   const isSubTrack = type === TimelineTrackType.Audio || type === TimelineTrackType.Webcam
   const indentSize = isSubTrack ? 8 : 0 // Left indent for hierarchy
-  const labelRadius = isSubTrack ? 9 : 10 // Slightly larger for readability
   const fontSize = 10
-  const labelDiameter = labelRadius * 2
 
   const getTrackStyle = () => {
     switch (type) {
       case TimelineTrackType.Video:
         return {
           bgFill: colors.background,
-          bgOpacity: 0.5,
-          labelText: 'V',
+          bgOpacity: 0.08,
+          labelText: 'Video',
           labelColor: colors.foreground
         }
       case TimelineTrackType.Zoom:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
-          labelText: 'Z',
+          labelText: 'Zoom',
           labelColor: colors.foreground
         }
       case TimelineTrackType.Screen:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
-          labelText: 'S',
+          labelText: 'Screen',
           labelColor: colors.foreground
         }
       case TimelineTrackType.Keystroke:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
-          labelText: 'K',
+          labelText: 'Keys',
           labelColor: colors.foreground
         }
       case TimelineTrackType.Plugin:
         return {
           bgFill: colors.muted,
           bgOpacity: 0.05,
-          labelText: 'P',
+          labelText: 'Plugin',
           labelColor: colors.foreground
         }
       case TimelineTrackType.Audio:
         return {
           bgFill: colors.primary,
           bgOpacity: 0.08,
-          labelText: 'A',
+          labelText: 'Audio',
           labelColor: colors.primary
         }
       case TimelineTrackType.Webcam:
         return {
           bgFill: colors.webcamTrack || colors.primary,
           bgOpacity: 0.08,
-          labelText: 'W',
+          labelText: 'Cam',
           labelColor: colors.webcamTrack || colors.primary
+        }
+      case TimelineTrackType.Annotation:
+        return {
+          bgFill: colors.muted,
+          bgOpacity: 0.05,
+          labelText: 'Overlay',
+          labelColor: colors.foreground
         }
       default:
         return {
@@ -392,7 +397,7 @@ export const TimelineTrack = React.memo(({
         />
       )}
 
-      {/* Track Icon/Label - Indented for sub-tracks */}
+      {/* Track Label - Clean word label */}
       <AnimatedLabelContent
         x={TimelineConfig.TRACK_LABEL_WIDTH / 2}
         y={height / 2}
@@ -402,37 +407,22 @@ export const TimelineTrack = React.memo(({
           onLabelClick()
         }}
       >
-        {isSubTrack && (
-          <Circle
-            x={0}
-            y={0}
-            radius={labelRadius + 2}
-            fill={colors.foreground}
-            opacity={muted ? 0.08 : 0.18}
-          />
-        )}
-        <Circle
-          x={0}
-          y={0}
-          radius={labelRadius}
-          fill={isSubTrack ? colors.foreground : style.labelColor}
-          opacity={muted ? 0.12 : (isSubTrack ? 0.28 : 0.15)}
-        />
         <Text
-          text={style.labelText}
+          text={style.labelText.toUpperCase()}
           fontSize={fontSize}
           fill={labelTextColor}
-          // Improved Typography
-          fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+          fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
           fontStyle="600"
+          letterSpacing={0.8}
           align="center"
           verticalAlign="middle"
           x={0}
           y={0}
-          width={labelDiameter}
-          height={labelDiameter}
-          offsetX={labelDiameter / 2}
-          offsetY={labelDiameter / 2 - 1.5} // Slight vertical correction for font baseline
+          width={TimelineConfig.TRACK_LABEL_WIDTH - 8}
+          height={20}
+          offsetX={(TimelineConfig.TRACK_LABEL_WIDTH - 8) / 2}
+          offsetY={10}
+          opacity={muted ? 0.5 : 0.9}
         />
       </AnimatedLabelContent>
     </AnimatedGroup>

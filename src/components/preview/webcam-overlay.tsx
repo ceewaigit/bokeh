@@ -38,11 +38,6 @@ export function WebcamOverlay({
   const webcamEffect = getWebcamEffect(effects)
   const data: WebcamEffectData = (webcamEffect?.data as WebcamEffectData) ?? DEFAULT_WEBCAM_DATA
 
-  // Don't render if webcam effect is disabled
-  if (!webcamEffect || webcamEffect.enabled === false) {
-    return null
-  }
-
   const layout = useMemo(() => {
     const next = getWebcamLayout(data, containerWidth, containerHeight)
     return {
@@ -51,6 +46,11 @@ export function WebcamOverlay({
       size: Math.round(next.size),
     }
   }, [data, containerWidth, containerHeight])
+
+  // Don't render if webcam effect is disabled
+  if (!webcamEffect || webcamEffect.enabled === false) {
+    return null
+  }
 
   const handleSize = Math.max(22, Math.round(layout.size * 0.22))
   const handleX = layout.x + layout.size / 2 - handleSize / 2

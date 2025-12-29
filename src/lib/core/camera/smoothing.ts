@@ -7,6 +7,7 @@
 import type { MouseEvent } from '@/types/project'
 import { interpolateMousePosition } from '@/lib/effects/utils/mouse-interpolation'
 import { CAMERA_CONFIG } from '@/lib/effects/config/physics-config'
+import { CameraDataService, type Cluster } from './camera-data-service'
 
 const {
     clusterRadiusRatio: CLUSTER_RADIUS_RATIO,
@@ -15,31 +16,8 @@ const {
     cinematicSamples: CINEMATIC_SAMPLES,
 } = CAMERA_CONFIG
 
-export interface Cluster {
-    startTime: number
-    endTime: number
-    centroidX: number
-    centroidY: number
-}
-
-type MotionClusterCacheEntry = {
-    clusters: Cluster[]
-}
-
-// Use Map with stable content-based key instead of WeakMap with array reference
-// This prevents cache misses when React re-renders create new array references
-const motionClusterCache = new Map<string, MotionClusterCacheEntry>()
-const MAX_CACHE_ENTRIES = 50 // Limit cache size to prevent memory leaks
-
-function getClusterCacheKey(
-    mouseEvents: MouseEvent[],
-    videoWidth: number,
-    videoHeight: number
-): string {
-    const firstTs = mouseEvents[0]?.timestamp ?? 0
-    const lastTs = mouseEvents[mouseEvents.length - 1]?.timestamp ?? 0
-    return `${firstTs}-${mouseEvents.length}-${lastTs}-${videoWidth}-${videoHeight}`
-}
+// Re-export Cluster type from centralized service
+export type { Cluster }
 
 /**
  * Analyze mouse events to find clusters of activity.
@@ -160,7 +138,7 @@ function findActiveCluster(
 }
 
 /**
- * Get motion clusters (cached).
+ * Get motion clusters (cached via CameraDataService).
  */
 export function getMotionClusters(
     mouseEvents: MouseEvent[],
@@ -169,22 +147,15 @@ export function getMotionClusters(
 ): Cluster[] {
     if (!mouseEvents || mouseEvents.length === 0) return []
 
-    const cacheKey = getClusterCacheKey(mouseEvents, videoWidth, videoHeight)
-    const cached = motionClusterCache.get(cacheKey)
+    const cacheKey = CameraDataService.getMotionClusterCacheKey(mouseEvents, videoWidth, videoHeight)
+    const cached = CameraDataService.getMotionClusters(cacheKey)
 
     if (cached) {
-        return cached.clusters
+        return cached
     }
 
     const clusters = analyzeMotionClusters(mouseEvents, videoWidth, videoHeight)
-
-    // Evict oldest entries if cache is full (simple LRU-like behavior)
-    if (motionClusterCache.size >= MAX_CACHE_ENTRIES) {
-        const firstKey = motionClusterCache.keys().next().value
-        if (firstKey) motionClusterCache.delete(firstKey)
-    }
-
-    motionClusterCache.set(cacheKey, { clusters })
+    CameraDataService.setMotionClusters(cacheKey, clusters)
     return clusters
 }
 

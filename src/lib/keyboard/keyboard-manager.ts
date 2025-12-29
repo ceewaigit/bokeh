@@ -1,15 +1,15 @@
 // Simple browser-compatible event emitter
 class EventEmitter {
-  private events: Map<string, Set<Function>> = new Map()
+  private events: Map<string, Set<(...args: any[]) => void>> = new Map()
 
-  on(event: string, handler: Function) {
+  on(event: string, handler: (...args: any[]) => void) {
     if (!this.events.has(event)) {
       this.events.set(event, new Set())
     }
     this.events.get(event)!.add(handler)
   }
 
-  off(event: string, handler: Function) {
+  off(event: string, handler: (...args: any[]) => void) {
     this.events.get(event)?.delete(handler)
   }
 
@@ -21,7 +21,7 @@ class EventEmitter {
     this.events.delete(event)
   }
 
-  removeListener(event: string, handler: Function) {
+  removeListener(event: string, handler: (...args: any[]) => void) {
     this.off(event, handler)
   }
 }

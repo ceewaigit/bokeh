@@ -179,8 +179,10 @@ export function buildFrameLayout(
         currentGroup = [];
       }
 
-      // Start new group
-      currentGroupId = `group-${clip.recordingId}-${clip.id}`;
+      // Start new group - use startFrame for temporal stability across split/trim
+      // This ensures groupId remains stable when clips are split, preventing
+      // unnecessary video element remounts that cause video/motion blur disappearance
+      currentGroupId = `group-${clip.recordingId}-${startFrame}`;
       currentGroupStartFrame = startFrame;
       currentGroupStartSourceIn = clip.sourceIn || 0;
     }

@@ -50,6 +50,10 @@ export class ProgressTracker {
     return { avgFps, etaSeconds }
   }
 
+  /**
+   * Logs progress only if it has increased by at least 1% since the last log.
+   * Also samples memory and CPU usage periodically.
+   */
   private maybeLogPercentDelta(
     progress: number,
     stage: string | undefined,

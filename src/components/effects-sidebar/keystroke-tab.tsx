@@ -17,8 +17,8 @@ import { KeystrokePreviewOverlay } from '@/components/keystroke-preview-overlay'
 
 interface KeystrokeTabProps {
   keystrokeEffect: Effect | undefined
-  onUpdateKeystroke: (updates: any) => void
-  onEffectChange: (type: EffectType, data: any) => void
+  onUpdateKeystroke: (updates: Partial<KeystrokeEffectData>) => void
+  onEffectChange: (type: EffectType, data: Partial<Effect['data']> & { enabled?: boolean }) => void
   onBulkToggleKeystrokes?: (enabled: boolean) => void
 }
 

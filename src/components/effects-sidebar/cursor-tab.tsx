@@ -17,8 +17,8 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 
 interface CursorTabProps {
   cursorEffect: Effect | undefined
-  onUpdateCursor: (updates: any) => void
-  onEffectChange: (type: EffectType, data: any) => void
+  onUpdateCursor: (updates: Partial<CursorEffectData>) => void
+  onEffectChange: (type: EffectType, data: Partial<Effect['data']> & { enabled?: boolean }) => void
 }
 
 type PreviewMotionOverride = {
@@ -352,9 +352,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
   const previewTrackStyle = useMemo(() => ({
     height: `${previewConfig.dotSize}px`,
-    ['--cursor-preview-end' as any]: `calc(100% - ${previewConfig.dotSize}px)`,
-    ['--cursor-preview-settle' as any]: `${previewConfig.settlePx}px`
-  }) as React.CSSProperties, [previewConfig.dotSize, previewConfig.settlePx])
+    '--cursor-preview-end': `calc(100% - ${previewConfig.dotSize}px)`,
+    '--cursor-preview-settle': `${previewConfig.settlePx}px`
+  }) as React.CSSProperties & Record<string, string | number>, [previewConfig.dotSize, previewConfig.settlePx])
 
   const previewDotStyle = useMemo(() => ({
     width: `${previewConfig.dotSize}px`,

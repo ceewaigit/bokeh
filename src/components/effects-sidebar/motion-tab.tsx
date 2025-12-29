@@ -4,19 +4,12 @@ import React from 'react'
 import { Wind, ChevronRight, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
-import type { Effect, EffectType } from '@/types/project'
 import { Switch } from '@/components/ui/switch'
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CompactSlider, SegmentedControl, SectionHeader, springConfig } from './motion-controls'
 
-export function MotionTab({
-  effects: _effects,
-  onEffectChange: _onEffectChange,
-}: {
-  effects: Effect[] | undefined
-  onEffectChange: (type: EffectType, data: any) => void
-}) {
+export function MotionTab() {
   const camera = useProjectStore((s) => s.currentProject?.settings.camera ?? DEFAULT_PROJECT_SETTINGS.camera)
   const setCameraSettings = useProjectStore((s) => s.setCameraSettings)
 
@@ -24,9 +17,9 @@ export function MotionTab({
   const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false)
 
   const motionBlurPresets = React.useMemo(() => ([
-    { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45 } },
-    { id: 'balanced', label: 'Balanced', values: { intensity: 50, threshold: 50, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60 } },
-    { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100 } },
+    { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: -0.13, saturation: 1.0 } },
+    { id: 'balanced', label: 'Balanced', values: { intensity: 100, threshold: 70, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60, black: -0.11, saturation: 1.1 } },
+    { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100, black: -0.13, saturation: 1.0 } },
     { id: 'custom', label: 'Custom', values: null },
   ] as const), [])
 
@@ -53,6 +46,8 @@ export function MotionTab({
       motionBlurSmoothWindow: values.smooth,
       motionBlurRampRange: values.ramp,
       motionBlurClamp: values.clamp,
+      motionBlurBlackLevel: values.black ?? -0.13,
+      motionBlurSaturation: values.saturation ?? 1.0,
       motionBlurEnabled: true
     })
   }
@@ -76,7 +71,7 @@ export function MotionTab({
         <SegmentedControl
           options={motionBlurPresets}
           value={motionBlurPreset}
-          onChange={(id) => applyMotionBlurPreset(id as any)}
+          onChange={(id) => applyMotionBlurPreset(id as typeof motionBlurPreset)}
           namespace="motion-blur"
         />
 
@@ -150,6 +145,27 @@ export function MotionTab({
                       onCheckedChange={(checked) => setCameraSettings({ motionBlurUnpackPremultiply: checked })}
                     />
                   </div>
+
+                  <CompactSlider
+                    label="Black Level"
+                    value={camera.motionBlurBlackLevel ?? -0.13}
+                    min={-0.2}
+                    max={0.2}
+                    step={0.01}
+                    onValueChange={(val) => setCameraSettings({ motionBlurBlackLevel: val })}
+                    description="Adjust black point to match native video."
+                  />
+
+                  <CompactSlider
+                    label="Saturation"
+                    value={Math.round((camera.motionBlurSaturation ?? 1.0) * 100)}
+                    min={0}
+                    max={200}
+                    step={5}
+                    unit="%"
+                    onValueChange={(val) => setCameraSettings({ motionBlurSaturation: val / 100 })}
+                    description="Match color saturation."
+                  />
 
                   <div className="flex items-center justify-between py-1">
                     <span className="text-[11px] font-medium text-muted-foreground">Debug View</span>

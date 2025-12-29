@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useCallback, useRef, useState, useEffect } from 'react'
+import React, { useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Check, RotateCcw } from 'lucide-react'
 import type { CropEffectData } from '@/types/project'
 import { clampCropData } from '@/remotion/compositions/utils/transforms/crop-transform'
+import { useCanvasDrag, type DragType, type CanvasDragDelta, type HandlePosition, getHandleCursorStyle } from '@/hooks/use-canvas-drag'
 
 interface CropOverlayProps {
   /** Current crop data (0-1 normalized) */
@@ -28,16 +29,6 @@ interface CropOverlayProps {
   showInfo?: boolean
 }
 
-type HandlePosition =
-  | 'top-left'
-  | 'top'
-  | 'top-right'
-  | 'right'
-  | 'bottom-right'
-  | 'bottom'
-  | 'bottom-left'
-  | 'left'
-
 const HANDLE_SIZE = 12
 
 export function CropOverlay({
@@ -50,10 +41,6 @@ export function CropOverlay({
   showInfo = true,
 }: CropOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragType, setDragType] = useState<'move' | HandlePosition | null>(null)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [initialCrop, setInitialCrop] = useState(cropData)
 
   // Convert crop data to pixel coordinates
   const cropRect = {
@@ -63,33 +50,19 @@ export function CropOverlay({
     height: cropData.height * videoRect.height,
   }
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent, type: 'move' | HandlePosition) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging(true)
-      setDragType(type)
-      setDragStart({ x: e.clientX, y: e.clientY })
-      setInitialCrop(cropData)
-    },
-    [cropData]
-  )
+  const handleDrag = useCallback(
+    (delta: CanvasDragDelta, dragType: DragType, initialCrop: CropEffectData | null) => {
+      if (!initialCrop) return
 
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging || !dragType) return
-
-      const deltaX = (e.clientX - dragStart.x) / videoRect.width
-      const deltaY = (e.clientY - dragStart.y) / videoRect.height
+      const deltaX = delta.x / videoRect.width
+      const deltaY = delta.y / videoRect.height
 
       let newCrop = { ...initialCrop }
 
       if (dragType === 'move') {
-        // Move the entire crop region
         newCrop.x = initialCrop.x + deltaX
         newCrop.y = initialCrop.y + deltaY
       } else {
-        // Resize based on handle position
         switch (dragType) {
           case 'top-left':
             newCrop.x = initialCrop.x + deltaX
@@ -128,48 +101,18 @@ export function CropOverlay({
         }
       }
 
-      // Clamp to valid bounds
       newCrop = clampCropData(newCrop)
       onCropChange(newCrop)
     },
-    [isDragging, dragType, dragStart, initialCrop, videoRect, onCropChange]
+    [videoRect, onCropChange]
   )
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-    setDragType(null)
-  }, [])
+  const { startDrag } = useCanvasDrag<CropEffectData>({
+    onDrag: handleDrag,
+  })
 
-  // Global mouse event listeners
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mouseup', handleMouseUp)
-      }
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp])
-
-  // Handle cursor style based on handle position
-  const getCursor = (position: HandlePosition): string => {
-    switch (position) {
-      case 'top-left':
-      case 'bottom-right':
-        return 'nwse-resize'
-      case 'top-right':
-      case 'bottom-left':
-        return 'nesw-resize'
-      case 'top':
-      case 'bottom':
-        return 'ns-resize'
-      case 'left':
-      case 'right':
-        return 'ew-resize'
-      default:
-        return 'default'
-    }
+  const handleMouseDown = (e: React.MouseEvent, type: DragType) => {
+    startDrag(e, type, cropData)
   }
 
   // Render a drag handle
@@ -221,7 +164,7 @@ export function CropOverlay({
           top,
           width: HANDLE_SIZE,
           height: HANDLE_SIZE,
-          cursor: getCursor(position),
+          cursor: getHandleCursorStyle(position),
         }}
         onMouseDown={(e) => handleMouseDown(e, position)}
       />

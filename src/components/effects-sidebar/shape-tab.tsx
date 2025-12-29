@@ -7,7 +7,7 @@ import { InfoTooltip } from './info-tooltip'
 
 interface ShapeTabProps {
   backgroundEffect: Effect | undefined
-  onUpdateBackground: (updates: any) => void
+  onUpdateBackground: (updates: Partial<BackgroundEffectData>) => void
 }
 
 export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps) {

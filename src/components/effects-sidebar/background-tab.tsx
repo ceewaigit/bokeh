@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import Image from 'next/image'
 import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
@@ -13,15 +14,23 @@ import { GRADIENT_PRESETS, COLOR_PRESETS } from './constants'
 import { getElectronAssetUrl } from '@/lib/assets/electron-asset-url'
 import { InfoTooltip } from './info-tooltip'
 
+interface Wallpaper {
+  name: string
+  path: string
+  absolutePath?: string
+  thumbnail?: string
+  isPreinstalled?: boolean
+}
+
 interface BackgroundTabProps {
   backgroundEffect: Effect | undefined
-  onUpdateBackground: (updates: any) => void
+  onUpdateBackground: (updates: Partial<BackgroundEffectData>) => void
 }
 
 type ParallaxPreset = { id: string; name: string; folder: string; files: string[] }
 
-let cachedMacOSWallpapers: any[] | null = null
-let macOSWallpapersPromise: Promise<any[] | null> | null = null
+let cachedMacOSWallpapers: Wallpaper[] | null = null
+let macOSWallpapersPromise: Promise<Wallpaper[] | null> | null = null
 
 const WALLPAPERS_PER_PAGE = 12
 const DEFAULT_WALLPAPER_NAME = 'Sonoma'
@@ -43,7 +52,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     ]
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(BackgroundType.Gradient)
   const [preinstalledWallpapers, setPreinstalledWallpapers] = useState<PreinstalledWallpaper[]>([])
-  const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({
+  const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: Wallpaper[] }>({
     wallpapers: cachedMacOSWallpapers || []
   })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
@@ -58,7 +67,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   // Combined wallpapers: preinstalled first, then macOS
   const allWallpapers = useMemo(() => {
     // Convert preinstalled wallpapers to the same format
-    const preinstalled = preinstalledWallpapers.map(w => ({
+    const preinstalled: Wallpaper[] = preinstalledWallpapers.map(w => ({
       ...w,
       thumbnail: w.thumbnail,
       isPreinstalled: true
@@ -128,8 +137,8 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     if (window.electronAPI?.getMacOSWallpapers) {
       setLoadingWallpapers(true)
       macOSWallpapersPromise = window.electronAPI.getMacOSWallpapers()
-        .then((data) => {
-          const wallpapers = data?.wallpapers || []
+        .then((data: { wallpapers: Wallpaper[] }) => {
+          const wallpapers = (data?.wallpapers || []) as Wallpaper[]
           cachedMacOSWallpapers = wallpapers
           setMacOSWallpapers({ wallpapers })
           return wallpapers
@@ -149,7 +158,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
       setMacOSWallpapers({ wallpapers: [] })
       setLoadingWallpapers(false)
     }
-  }, [backgroundType])
+  }, [backgroundType, loadingWallpapers, macOSWallpapers.wallpapers.length])
 
   // Load thumbnails for the current wallpaper page in a batch
   useEffect(() => {
@@ -400,7 +409,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       onClick={async () => {
                         setLoadingWallpaperId(wallpaperId)
                         try {
-                          if (wallpaper.isPreinstalled) {
+                          if (wallpaper.isPreinstalled && wallpaper.absolutePath) {
                             // For preinstalled wallpapers, load via absolutePath
                             const dataUrl = await window.electronAPI?.loadImageAsDataUrl?.(wallpaper.absolutePath)
                             if (dataUrl) {
@@ -433,10 +442,12 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       title={wallpaper.name + (isDefault ? ' (Default)' : '')}
                     >
                       {resolvedThumbnail ? (
-                        <img
+                        <Image
+                          unoptimized
                           src={resolvedThumbnail.startsWith('data:') ? resolvedThumbnail : (wallpaper.isPreinstalled ? getElectronAssetUrl(resolvedThumbnail) : resolvedThumbnail)}
                           alt={wallpaper.name}
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
                         />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
@@ -526,19 +537,27 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     const moveY = offsetY / layer.factor
 
                     return (
-                      <img
+                      <div
                         key={layer.image}
-                        src={getElectronAssetUrl(layer.image)}
-                        alt=""
                         className="absolute bottom-0 w-full"
                         style={{
-                          opacity,
-                          filter: 'grayscale(40%)',
-                          transform: `translate3d(${moveX}px, ${moveY}px, 0) scale(1.05)`,
-                          transition: parallaxPreviewMouse.active ? 'transform 40ms linear' : 'transform 200ms ease-out',
-                          willChange: 'transform',
+                            opacity,
+                            filter: 'grayscale(40%)',
+                            transform: `translate3d(${moveX}px, ${moveY}px, 0) scale(1.05)`,
+                            transition: parallaxPreviewMouse.active ? 'transform 40ms linear' : 'transform 200ms ease-out',
+                            willChange: 'transform',
+                            height: '100%',
+                            position: 'absolute'
                         }}
+                      >
+                       <Image
+                        unoptimized
+                        src={getElectronAssetUrl(layer.image)}
+                        alt=""
+                        fill
+                        className="object-contain object-bottom"
                       />
+                      </div>
                     )
                   })}
                 </div>
@@ -605,7 +624,6 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     onUpdateBackground({
                       type: BackgroundType.Gradient,
                       gradient: {
-                        type: 'linear',
                         colors: wallpaper.colors,
                         angle: 135
                       }
@@ -718,10 +736,12 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             </button>
             {bgData?.image && (
               <div className="relative aspect-video rounded-md overflow-hidden ring-1 ring-border/20">
-                <img
+                 <Image
+                  unoptimized
                   src={bgData.image}
                   alt="Background"
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
                 />
                 <button
                   onClick={() => {
@@ -730,7 +750,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       image: undefined
                     })
                   }}
-                  className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 rounded text-white text-xs"
+                  className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 rounded text-white text-xs z-10"
                 >
                   Remove
                 </button>

@@ -333,6 +333,7 @@ export interface TimelineCompositionProps {
   renderSettings: RenderSettings;
   cropSettings: CropSettings;
   zoomSettings: ZoomSettings;
+  [key: string]: unknown;
 }
 
 export interface SharedVideoControllerProps {

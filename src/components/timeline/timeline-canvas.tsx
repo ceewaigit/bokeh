@@ -146,7 +146,6 @@ function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   // Local state
   // ─────────────────────────────────────────────────────────────────────────
-  const [scrollLeft, setScrollLeft] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
   const [speedUpPopover, setSpeedUpPopover] = useState<{
@@ -230,7 +229,7 @@ function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   // HOOK: Drag preview
   // ─────────────────────────────────────────────────────────────────────────
-  const { dragPreview, handleDragPreview, handleDragCommit, clearPreview } = useDragPreview({
+  const { dragPreview, handleDragPreview, handleDragCommit } = useDragPreview({
     getClipsForTrack
   })
 
@@ -319,7 +318,6 @@ function TimelineCanvasContent({
       if (playheadX > currentScrollLeft + stageWidth - 100) {
         const newScroll = Math.min(scrollWidth, playheadX - 100)
         container.scrollLeft = newScroll
-        setScrollLeft(newScroll)
       }
     }
 
@@ -357,7 +355,6 @@ function TimelineCanvasContent({
   // Event handlers
   // ─────────────────────────────────────────────────────────────────────────
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setScrollLeft(e.currentTarget.scrollLeft)
     setScrollTop(e.currentTarget.scrollTop)
   }
 

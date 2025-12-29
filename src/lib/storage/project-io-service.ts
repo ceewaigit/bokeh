@@ -180,13 +180,11 @@ export class ProjectIOService {
         // Also resolve imageSource.imagePath if present (for image clips like cursor return freeze frames)
         if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
           const resolvedImagePath = `${projectDir}/${rec.imageSource.imagePath}`
-          console.log(`[ProjectIO] 🖼️ Resolving imageSource.imagePath: ${rec.imageSource.imagePath} -> ${resolvedImagePath}`)
           rec.imageSource.imagePath = resolvedImagePath
         }
 
         // For image clips, also sync filePath to resolved imageSource path
         if (rec.sourceType === 'image' && rec.imageSource?.imagePath && rec.imageSource.imagePath.startsWith('/')) {
-          console.log(`[ProjectIO] 🖼️ Syncing filePath for image clip: ${rec.filePath} -> ${rec.imageSource.imagePath}`)
           rec.filePath = rec.imageSource.imagePath
         }
 
@@ -321,7 +319,6 @@ export class ProjectIOService {
             })
           })
         }
-        console.log(`[ProjectIO] ✅ Using existing proxy for ${recording.id}:`, checkResult.existingProxyUrl)
         return
       }
 
@@ -332,15 +329,12 @@ export class ProjectIOService {
           recording.width > 2560;
         if (!needsProxyByMetadata) {
           // Video is small enough, no proxy needed
-          console.log(`[ProjectIO] ⏭️ Video doesn't need proxy (below 1440p threshold)`)
           return
         }
-        console.log(`[ProjectIO] ⚠️ Proxy check skipped, but metadata suggests large source. Forcing proxy generation.`)
       }
 
       // Generate proxy
       onProgress?.('Generating preview for faster playback...')
-      console.log(`[ProjectIO] 🔄 Generating preview for ${recording.id}...`)
 
       if (window.electronAPI.generatePreviewProxy) {
         const result = await window.electronAPI.generatePreviewProxy(recording.filePath)
@@ -357,9 +351,6 @@ export class ProjectIOService {
               })
             })
           }
-          console.log(`[ProjectIO] ✅ Preview proxy ready for ${recording.id}:`, result.proxyUrl)
-        } else if (result.skipped) {
-          console.log(`[ProjectIO] ⏭️ Proxy skipped: ${result.reason}`)
         } else if (result.error) {
           console.warn(`[ProjectIO] ❌ Proxy generation failed: ${result.error}`)
         }
@@ -393,9 +384,6 @@ export class ProjectIOService {
             })
           })
         }
-        console.log(`[ProjectIO] 🌟 Glow proxy ready for ${recording.id}:`, result.proxyUrl)
-      } else if (result.skipped) {
-        console.log(`[ProjectIO] ⏭️ Glow proxy skipped: ${result.reason}`)
       } else if (result.error) {
         console.warn(`[ProjectIO] ❌ Glow proxy failed: ${result.error}`)
       }
@@ -541,7 +529,7 @@ export class ProjectIOService {
     }
 
     // Run versioned migrations using MigrationRunner
-    let migratedProject = migrationRunner.migrateProject(project)
+    const migratedProject = migrationRunner.migrateProject(project)
 
     return migratedProject
   }
@@ -583,7 +571,6 @@ export class ProjectIOService {
 
           recording.metadata = meta
           RecordingStorage.setMetadata(recording.id, meta)
-          console.log(`[ProjectIO] eager loaded metadata for ${recording.id}`)
         } catch (e) {
           console.warn(`[ProjectIO] Failed to eager load metadata for ${recording.id}:`, e)
         }
@@ -740,7 +727,6 @@ export class ProjectIOService {
         // Initialize if missing
         if (!recording.metadataChunks) {
           recording.metadataChunks = manifest
-          console.log('[ProjectIO] 🔧 Reconstructed missing metadata manifest:', manifest)
         } else {
           // Merge/Repair: If found files that are not in manifest, add them
           let repaired = false
@@ -753,10 +739,6 @@ export class ProjectIOService {
             repaired = true
           }
           // We can extend this to other types if needed, but keyboard is the reported issue
-
-          if (repaired) {
-            console.log('[ProjectIO] 🔧 Repaired metadata manifest (added missing chunks):', recording.metadataChunks)
-          }
         }
       }
     } catch (e) {

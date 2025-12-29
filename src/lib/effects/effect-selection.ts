@@ -5,14 +5,15 @@ import { EffectType } from '@/types/project'
 export function resolveEffectIdForType(
   effects: Effect[],
   selectedEffectLayer: SelectedEffectLayer | undefined,
-  effectType: EffectType
+  effectType: EffectType,
+  autoSelectIfSingle = true
 ): string | null {
   if (selectedEffectLayer?.id && selectedEffectLayer.type === (effectType as unknown as typeof selectedEffectLayer.type)) {
     return selectedEffectLayer.id
   }
 
   const matching = effects.filter(effect => effect.type === effectType)
-  if (matching.length === 1) {
+  if (autoSelectIfSingle && matching.length === 1) {
     return matching[0].id
   }
 

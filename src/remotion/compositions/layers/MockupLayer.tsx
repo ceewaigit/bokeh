@@ -46,17 +46,17 @@ export const MockupLayer = React.memo(({
     return resolveMockupMetadata(mockupData)
   }, [mockupData])
 
-  if (!deviceMetadata) {
-    // Fallback: render children without mockup if device not found
-    return <>{children}</>
-  }
-
   // Shadow style based on intensity
   // Rotation transform
   const rotationTransform = useMemo(() => {
     if (!mockupData.rotation || mockupData.rotation === 0) return ''
     return `rotate(${mockupData.rotation}deg)`
   }, [mockupData.rotation])
+
+  if (!deviceMetadata) {
+    // Fallback: render children without mockup if device not found
+    return <>{children}</>
+  }
 
   return (
     <div
@@ -123,6 +123,8 @@ export const MockupLayer = React.memo(({
     </div>
   )
 })
+
+MockupLayer.displayName = 'MockupLayer'
 
 /**
  * Device frame component that renders the SVG mockup.

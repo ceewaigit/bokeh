@@ -2,7 +2,6 @@
  * useAssetDragDrop
  *
  * Manages asset library drag-and-drop onto timeline.
- * Extracts ~100 lines of inline handler code from timeline-canvas.tsx.
  *
  * Usage:
  *   const { isDragging, handlers, ...state } = useAssetDragDrop({ ... })

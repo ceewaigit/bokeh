@@ -11,10 +11,7 @@ import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors, withAlpha } from '@/lib/timeline/colors'
 import { WaveformAnalyzer, type WaveformData } from '@/lib/audio/waveform-analyzer'
-import { SpeedUpSuggestionsBar } from './speed-up-suggestions-bar'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
-import type { SpeedUpPeriod } from '@/types/speed-up'
-import { ActivityDetectionService } from '@/lib/timeline/activity-detection/detection-service'
 import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadata'
 import { PluginRegistry } from '@/lib/effects/config/plugin-registry'
 
@@ -59,8 +56,6 @@ const TimelineClipComponent = ({
   const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isValidPosition, setIsValidPosition] = useState(true)
-  const [typingPeriods, setTypingPeriods] = useState<SpeedUpPeriod[]>([])
-  const [idlePeriods, setIdlePeriods] = useState<SpeedUpPeriod[]>([])
   const [isHovering, setIsHovering] = useState(false)
   const [trimEdge, setTrimEdge] = useState<'left' | 'right' | null>(null)
   const [trimPreview, setTrimPreview] = useState<{ startTime: number; endTime: number } | null>(null)
@@ -75,7 +70,6 @@ const TimelineClipComponent = ({
 
   const colors = useTimelineColors()
   const showWaveforms = useProjectStore((s) => s.settings.editing.showWaveforms ?? true)
-  const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
   const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
   const isGeneratedClip = trackType === TrackType.Video && recording?.sourceType === 'generated'
   // Max 10 thumbnails per clip to balance visual variety vs performance
@@ -89,7 +83,7 @@ const TimelineClipComponent = ({
     if (!pluginId) return 'Generated Clip'
     return PluginRegistry.get(pluginId)?.name ?? 'Generated Clip'
   }, [recording?.generatedSource?.pluginId])
-  const { metadata: lazyMetadata } = useRecordingMetadata({
+  useRecordingMetadata({
     recordingId: recording?.sourceType === 'generated' ? '' : (recording?.id || ''),
     folderPath: recording?.folderPath,
     metadataChunks: recording?.metadataChunks,
@@ -157,38 +151,6 @@ const TimelineClipComponent = ({
     loadWaveform()
   }, [recording?.id, recording?.filePath, recording?.folderPath, recording?.hasAudio, clip.id, clip.sourceIn, clip.sourceOut])
 
-  // Analyze activity patterns for speed-up suggestions (typing + idle)
-  useEffect(() => {
-    if (!recording) {
-      setTypingPeriods([])
-      setIdlePeriods([])
-      return
-    }
-
-    // Use unified detection service - handles caching internally
-    const effectiveMetadata = lazyMetadata || recording.metadata
-    const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip, effectiveMetadata)
-
-    setTypingPeriods(suggestions.typing)
-    setIdlePeriods(suggestions.idle)
-  }, [
-    recording?.id,
-    lazyMetadata?.keyboardEvents,
-    lazyMetadata?.mouseEvents,
-    lazyMetadata?.detectedIdlePeriods,
-    lazyMetadata?.detectedTypingPeriods,
-    recording?.metadata?.keyboardEvents,
-    recording?.metadata?.mouseEvents,
-    recording?.metadata?.detectedIdlePeriods,  // Re-run when idle cache is updated (e.g., after regenerate with new config)
-    recording?.metadata?.detectedTypingPeriods,
-    clip.id,
-    clip.sourceIn,
-    clip.sourceOut,
-    clip.duration,
-    clip.playbackRate,
-    clip.typingSpeedApplied,
-    clip.idleSpeedApplied
-  ])
 
   const resolvedVideoPath = useMemo(() => {
     if (!recording?.filePath) return null

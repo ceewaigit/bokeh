@@ -35,7 +35,9 @@ import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { getActiveCropEffect, getCropEffectForClip } from '@/lib/effects/effect-filters'
 import { captureLastFrame } from '@/lib/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/lib/cursor/synthetic-events'
+import { CursorReturnService } from '@/lib/cursor/cursor-return-service'
 import { EffectStore } from '@/lib/core/effects'
+import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 import type { CreateTimelineSlice } from './types'
 
 export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
@@ -196,136 +198,29 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         const state = get()
         if (!state.currentProject) return
 
-        const project = state.currentProject
-        const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
-        if (!videoTrack) return
-
-        // Find source clip - either specified or current playhead clip
-        let sourceClip: Clip | null = null
-        let sourceRecording: Recording | null = null
-
-        if (sourceClipId) {
-            const result = findClipById(project, sourceClipId)
-            if (result) {
-                sourceClip = result.clip
-                sourceRecording = project.recordings.find(r => r.id === sourceClip!.recordingId) ?? null
-            }
-        } else {
-            // Compute playhead state on-demand (SSOT - no stored playhead state)
-            const playheadState = PlayheadService.updatePlayheadState(project, state.currentTime)
-            sourceClip = playheadState.playheadClip
-            sourceRecording = playheadState.playheadRecording
+        const fileSystem = {
+            saveRecording: window.electronAPI?.saveRecording,
+            fileExists: window.electronAPI?.fileExists
         }
 
-        if (!sourceClip || !sourceRecording) {
-            console.warn('addCursorReturnClip: No source clip found')
-            return
-        }
-
-        // Only work with video clips (not generated or image)
-        if (sourceRecording.sourceType !== 'video') {
-            console.warn('addCursorReturnClip: Source must be a video clip')
-            return
-        }
-
-        // Capture freeze frame from last frame of source clip
-        const captureResult = await captureLastFrame(
-            sourceRecording.filePath,
-            sourceClip.sourceOut
-        )
-
-        if (!captureResult.success || !captureResult.dataUrl) {
-            console.error('addCursorReturnClip: Failed to capture freeze frame:', captureResult.error)
-            return
-        }
-
-        // Get mouse events from source recording
-        const sourceEvents = sourceRecording.metadata?.mouseEvents ?? []
-
-        // Generate synthetic cursor return events
-        const syntheticEvents = generateCursorReturnFromSource(
-            sourceEvents,
-            sourceClip.sourceIn ?? 0,
-            sourceClip.sourceOut,
+        const data = await CursorReturnService.prepareCursorReturn(
+            state.currentProject,
+            state.currentTime,
+            sourceClipId,
+            fileSystem,
             durationMs
         )
 
-        if (!syntheticEvents) {
-            console.warn('addCursorReturnClip: Could not generate cursor return events (no mouse data)')
-        }
-
-        // Collect effects to copy from both source recording and timeline
-        const timelineEffects = EffectStore.getAll(project)
-        const clipEnd = sourceClip!.startTime + sourceClip!.duration
-
-        // Get crop effect using clipId-based matching first, then fall back to active-at-end
-        const cropEffect = getCropEffectForClip(timelineEffects, sourceClip!)
-            ?? getActiveCropEffect(timelineEffects, Math.max(0, clipEnd - 1))
-
-        // Get other effects (Background, Screen) using time-range filtering
-        const activeTimelineEffects = timelineEffects.filter(e =>
-            e.type !== EffectType.Crop &&
-            e.startTime <= clipEnd && e.endTime >= clipEnd
-        )
-
-        const sourceOut = sourceClip!.sourceOut
-        const activeSourceEffects = (sourceRecording.effects ?? []).filter(e =>
-            e.startTime <= sourceOut && e.endTime >= sourceOut
-        )
-
-        const effectsToCopy = [
-            ...(cropEffect ? [cropEffect] : []),
-            ...activeTimelineEffects.filter(e =>
-                e.type === EffectType.Background || e.type === EffectType.Screen
-            ),
-            ...activeSourceEffects.filter(e =>
-                e.type === EffectType.Background || e.type === EffectType.Screen
-            )
-        ]
-
-        // Clone and adjust timing for new clip
-        // Calculate insert time (right after source clip ends)
-        const insertTime = sourceClip.startTime + sourceClip.duration
-
-        // Save freeze frame to disk instead of using data URL directly
-        let imagePath = captureResult.dataUrl
-
-        if (window.electronAPI?.saveRecording && project.filePath) {
-            try {
-                const projectFolder = await resolveProjectRoot(project.filePath, window.electronAPI?.fileExists)
-                const freezeFrameId = `freeze-${Date.now()}`
-                const freezeFramePath = `${projectFolder}/${freezeFrameId}.jpg`
-
-                const match = captureResult.dataUrl.match(/^data:([^;]+);base64,(.+)$/)
-                if (match) {
-                    const base64 = match[2]
-                    const binary = atob(base64)
-                    const bytes = new Uint8Array(binary.length)
-                    for (let i = 0; i < binary.length; i++) {
-                        bytes[i] = binary.charCodeAt(i)
-                    }
-
-                    const saveResult = await window.electronAPI.saveRecording(freezeFramePath, bytes.buffer)
-                    if (saveResult?.success) {
-                        imagePath = freezeFramePath
-                        console.log('[CursorReturn] Saved freeze frame to:', freezeFramePath)
-                    } else {
-                        console.warn('[CursorReturn] Failed to save freeze frame, using data URL fallback')
-                    }
-                }
-            } catch (error) {
-                console.warn('[CursorReturn] Error saving freeze frame to disk:', error)
-            }
-        }
+        if (!data) return
 
         // Add image clip with freeze frame and synthetic events
         const created = get().addImageClip({
-            imagePath,
-            width: captureResult.width,
-            height: captureResult.height,
-            durationMs,
-            startTime: insertTime,
-            syntheticMouseEvents: syntheticEvents ?? undefined,
+            imagePath: data.imagePath,
+            width: data.width,
+            height: data.height,
+            durationMs: data.durationMs,
+            startTime: data.startTime,
+            syntheticMouseEvents: data.syntheticEvents,
             effects: []
         })
 
@@ -334,7 +229,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         const clipStart = created.clip.startTime
         const newClipEnd = created.clip.startTime + created.clip.duration
 
-        const clonedEffects = effectsToCopy.map(effect => {
+        const clonedEffects = data.effectsToCopy.map(effect => {
             const cloned = {
                 ...effect,
                 id: `${effect.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -419,6 +314,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 // Always clean up clip-specific resources
                 ProjectCleanupService.cleanupClipResources(clipId)
 
+                // Clear render caches to prevent stale data after clip removal
+                TimelineDataService.invalidateCache(state.currentProject)
             }
         })
     },
@@ -473,6 +370,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Clip restoration changes layout; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
+            // Clear render caches to ensure fresh lookups after restoration
+            TimelineDataService.invalidateCache(state.currentProject)
         })
     },
 
@@ -501,6 +401,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (state.currentTime >= splitTime) {
                 state.currentTime = splitTime - 1
             }
+
+            // Clear render caches to prevent stale data after split
+            TimelineDataService.invalidateCache(state.currentProject)
         })
     },
 
@@ -514,6 +417,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
+            // Clear render caches after trim operation
+            TimelineDataService.invalidateCache(state.currentProject)
         })
     },
 
@@ -527,6 +433,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
             EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
+            // Clear render caches after trim operation
+            TimelineDataService.invalidateCache(state.currentProject)
         })
     },
 
@@ -736,6 +645,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (restoreClipsToTrack(state.currentProject, trackId, clipIdsToRemove, clipsToRestore)) {
                 // Clip layout changed; rebuild derived keystroke blocks.
                 EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
+                // Clear render caches after undo/redo
+                TimelineDataService.invalidateCache(state.currentProject)
             }
         })
     },

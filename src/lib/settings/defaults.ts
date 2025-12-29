@@ -22,6 +22,7 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
     motionBlurClamp: 60,
     motionBlurGamma: 1.0,
     motionBlurBlackLevel: -0.13,
+    motionBlurSaturation: 1.0,
     refocusBlurEnabled: true,
     refocusBlurIntensity: 50
   },
@@ -52,6 +53,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
     motionBlurClamp: 60,
     motionBlurGamma: 1.0,
     motionBlurBlackLevel: -0.13,
+    motionBlurSaturation: 1.0,
     refocusBlurEnabled: true,
     refocusBlurIntensity: 50
   },

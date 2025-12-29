@@ -3,16 +3,16 @@
 /**
  * CropEditingLayer - Rendered inside the Remotion composition
  * 
- * Uses VideoPositionContext (SSOT) to get the exact video position,
- * matching the same coordinate system as CursorLayer and other overlays.
- * This ensures the crop overlay is positioned correctly relative to the video.
+ * Uses VideoPositionContext (SSOT) to get the exact video position.
+ * Refactored to use useCanvasDrag for consistent drag behavior.
  */
 
-import React, { useCallback, useRef, useState, useEffect } from 'react'
+import React, { useRef, useCallback } from 'react'
 import { AbsoluteFill, getRemotionEnvironment } from 'remotion'
 import { useVideoPosition } from '../../context/layout/VideoPositionContext'
 import type { CropEffectData } from '@/types/project'
 import { clampCropData, calculateCropTransform } from '../utils/transforms/crop-transform'
+import { useCanvasDrag, type DragType, type CanvasDragDelta, type HandlePosition, getHandleCursorStyle } from '@/hooks/use-canvas-drag'
 
 interface CropEditingLayerProps {
     /** Whether crop editing is active */
@@ -26,16 +26,6 @@ interface CropEditingLayerProps {
     /** Called when user resets/cancels the crop */
     onCropReset?: () => void
 }
-
-type HandlePosition =
-    | 'top-left'
-    | 'top'
-    | 'top-right'
-    | 'right'
-    | 'bottom-right'
-    | 'bottom'
-    | 'bottom-left'
-    | 'left'
 
 const HANDLE_SIZE = 12
 const OVERLAY_SHADE = 'rgba(0,0,0,0.55)'
@@ -51,15 +41,8 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
     onCropReset,
 }) => {
     const { isRendering } = getRemotionEnvironment()
-
-    // Get video position from the SSOT (VideoPositionContext) (Moved up)
     const videoPosition = useVideoPosition()
-
     const overlayRef = useRef<HTMLDivElement>(null)
-    const [isDragging, setIsDragging] = useState(false)
-    const [dragType, setDragType] = useState<'move' | HandlePosition | null>(null)
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-    const [initialCrop, setInitialCrop] = useState<CropEffectData>({ x: 0, y: 0, width: 1, height: 1 })
 
     // Get the video rect from VideoPositionContext
     const videoRect = {
@@ -69,76 +52,71 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
         height: videoPosition.drawHeight,
     }
 
-    const handleMouseMove = useCallback((e: MouseEvent) => {
-        if (!isDragging || !dragType || !onCropChange || !cropData) return
+    const handleDrag = useCallback(
+        (delta: CanvasDragDelta, dragType: DragType, initialCrop: CropEffectData | null) => {
+            if (!initialCrop || !onCropChange || !cropData) return
 
-        const deltaX = (e.clientX - dragStart.x) / videoRect.width
-        const deltaY = (e.clientY - dragStart.y) / videoRect.height
+            const deltaX = delta.x / videoRect.width
+            const deltaY = delta.y / videoRect.height
 
-        let newCrop = { ...initialCrop }
+            let newCrop = { ...initialCrop }
 
-        if (dragType === 'move') {
-            newCrop.x = initialCrop.x + deltaX
-            newCrop.y = initialCrop.y + deltaY
-        } else {
-            switch (dragType) {
-                case 'top-left':
-                    newCrop.x = initialCrop.x + deltaX
-                    newCrop.y = initialCrop.y + deltaY
-                    newCrop.width = initialCrop.width - deltaX
-                    newCrop.height = initialCrop.height - deltaY
-                    break
-                case 'top':
-                    newCrop.y = initialCrop.y + deltaY
-                    newCrop.height = initialCrop.height - deltaY
-                    break
-                case 'top-right':
-                    newCrop.y = initialCrop.y + deltaY
-                    newCrop.width = initialCrop.width + deltaX
-                    newCrop.height = initialCrop.height - deltaY
-                    break
-                case 'right':
-                    newCrop.width = initialCrop.width + deltaX
-                    break
-                case 'bottom-right':
-                    newCrop.width = initialCrop.width + deltaX
-                    newCrop.height = initialCrop.height + deltaY
-                    break
-                case 'bottom':
-                    newCrop.height = initialCrop.height + deltaY
-                    break
-                case 'bottom-left':
-                    newCrop.x = initialCrop.x + deltaX
-                    newCrop.width = initialCrop.width - deltaX
-                    newCrop.height = initialCrop.height + deltaY
-                    break
-                case 'left':
-                    newCrop.x = initialCrop.x + deltaX
-                    newCrop.width = initialCrop.width - deltaX
-                    break
+            if (dragType === 'move') {
+                newCrop.x = initialCrop.x + deltaX
+                newCrop.y = initialCrop.y + deltaY
+            } else {
+                switch (dragType) {
+                    case 'top-left':
+                        newCrop.x = initialCrop.x + deltaX
+                        newCrop.y = initialCrop.y + deltaY
+                        newCrop.width = initialCrop.width - deltaX
+                        newCrop.height = initialCrop.height - deltaY
+                        break
+                    case 'top':
+                        newCrop.y = initialCrop.y + deltaY
+                        newCrop.height = initialCrop.height - deltaY
+                        break
+                    case 'top-right':
+                        newCrop.y = initialCrop.y + deltaY
+                        newCrop.width = initialCrop.width + deltaX
+                        newCrop.height = initialCrop.height - deltaY
+                        break
+                    case 'right':
+                        newCrop.width = initialCrop.width + deltaX
+                        break
+                    case 'bottom-right':
+                        newCrop.width = initialCrop.width + deltaX
+                        newCrop.height = initialCrop.height + deltaY
+                        break
+                    case 'bottom':
+                        newCrop.height = initialCrop.height + deltaY
+                        break
+                    case 'bottom-left':
+                        newCrop.x = initialCrop.x + deltaX
+                        newCrop.width = initialCrop.width - deltaX
+                        newCrop.height = initialCrop.height + deltaY
+                        break
+                    case 'left':
+                        newCrop.x = initialCrop.x + deltaX
+                        newCrop.width = initialCrop.width - deltaX
+                        break
+                }
             }
-        }
 
-        newCrop = clampCropData(newCrop)
-        onCropChange(newCrop)
-    }, [isDragging, dragType, dragStart, initialCrop, videoRect.width, videoRect.height, onCropChange, cropData])
+            newCrop = clampCropData(newCrop)
+            onCropChange(newCrop)
+        },
+        [onCropChange, cropData, videoRect.width, videoRect.height]
+    )
 
-    const handleMouseUp = useCallback(() => {
-        setIsDragging(false)
-        setDragType(null)
-    }, [])
+    const { startDrag } = useCanvasDrag<CropEffectData>({
+        onDrag: handleDrag,
+    })
 
-    // Global mouse event listeners
-    useEffect(() => {
-        if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove)
-            window.addEventListener('mouseup', handleMouseUp)
-            return () => {
-                window.removeEventListener('mousemove', handleMouseMove)
-                window.removeEventListener('mouseup', handleMouseUp)
-            }
-        }
-    }, [isDragging, handleMouseMove, handleMouseUp])
+    const handleMouseDown = (e: React.MouseEvent, type: DragType) => {
+        if (!cropData) return
+        startDrag(e, type, cropData)
+    }
 
     // Don't render during export or when not editing
     if (isRendering || !isEditingCrop || !cropData) {
@@ -153,37 +131,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
         height: cropData.height * videoRect.height,
     }
 
-    // Calculate the crop transform to show what the final result will look like
-    // This uses the exact same math as the actual crop effect in SharedVideoController
     const cropTransform = calculateCropTransform(cropData, videoRect.width, videoRect.height)
-
-    const handleMouseDown = (e: React.MouseEvent, type: 'move' | HandlePosition) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsDragging(true)
-        setDragType(type)
-        setDragStart({ x: e.clientX, y: e.clientY })
-        setInitialCrop(cropData)
-    }
-
-    const getCursor = (position: HandlePosition): string => {
-        switch (position) {
-            case 'top-left':
-            case 'bottom-right':
-                return 'nwse-resize'
-            case 'top-right':
-            case 'bottom-left':
-                return 'nesw-resize'
-            case 'top':
-            case 'bottom':
-                return 'ns-resize'
-            case 'left':
-            case 'right':
-                return 'ew-resize'
-            default:
-                return 'default'
-        }
-    }
 
     const renderHandle = (position: HandlePosition) => {
         let left = 0
@@ -237,7 +185,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                     border: `1.5px solid ${PRIMARY_COLOR}`,
                     borderRadius: 6,
                     boxShadow: '0 6px 14px rgba(0,0,0,0.18)',
-                    cursor: getCursor(position),
+                    cursor: getHandleCursorStyle(position),
                     zIndex: 20,
                 }}
                 onMouseDown={(e) => handleMouseDown(e, position)}
@@ -254,7 +202,6 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
             }}
         >
             {/* Darkened regions outside crop */}
-            {/* Top */}
             <div
                 style={{
                     position: 'absolute',
@@ -265,7 +212,6 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                     backgroundColor: OVERLAY_SHADE,
                 }}
             />
-            {/* Bottom */}
             <div
                 style={{
                     position: 'absolute',
@@ -276,7 +222,6 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                     backgroundColor: OVERLAY_SHADE,
                 }}
             />
-            {/* Left */}
             <div
                 style={{
                     position: 'absolute',
@@ -287,7 +232,6 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                     backgroundColor: OVERLAY_SHADE,
                 }}
             />
-            {/* Right */}
             <div
                 style={{
                     position: 'absolute',
@@ -386,7 +330,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                 {Math.round(cropData.width * 100)}% x {Math.round(cropData.height * 100)}%
             </div>
 
-            {/* Live preview indicator - shows the transform that will be applied */}
+            {/* Live preview indicator */}
             {
                 cropTransform.isActive && (
                     <div

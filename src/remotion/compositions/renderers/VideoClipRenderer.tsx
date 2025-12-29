@@ -140,17 +140,17 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     }
   }, [isRendering, videoUrl, setPreviewReady]);
 
-  // Early return for invalid recordings
-  if (!recording || recording.sourceType === 'generated' || !recording.filePath) {
-    return null;
-  }
-
   // Shared render state
   const renderState = useClipRenderState({
     clip: clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
     currentFrame, fps, isRendering, drawWidth, drawHeight,
     activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
   });
+
+  // Early return for invalid recordings
+  if (!recording || recording.sourceType === 'generated' || !recording.filePath) {
+    return null;
+  }
 
   // Sizing
   const needsHighRes = isHighQualityPlaybackEnabled
@@ -226,3 +226,5 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     </div>
   );
 });
+
+VideoClipRenderer.displayName = 'VideoClipRenderer'

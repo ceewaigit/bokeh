@@ -95,7 +95,6 @@ class AreaSelectionService {
 
       const fs = require('fs')
       for (const p of possiblePaths) {
-        console.log('[AreaSelection] Checking preload path:', p, 'exists:', fs.existsSync(p))
         if (fs.existsSync(p)) {
           preloadPath = p
           break
@@ -103,22 +102,11 @@ class AreaSelectionService {
       }
     }
 
-    console.log('[AreaSelection] Final preload path:', preloadPath)
-    console.log('[AreaSelection] __dirname:', __dirname)
-
     // Get all displays to create one overlay per screen.
     // macOS "Displays have separate Spaces" prevents a single window from spanning monitors reliably.
     const allDisplays = screen.getAllDisplays()
 
-    console.log('[AreaSelection] Primary display:', {
-      bounds: primaryDisplay.bounds,
-      workArea: primaryDisplay.workArea,
-      scaleFactor: primaryDisplay.scaleFactor
-    })
-    console.log('[AreaSelection] All displays count:', allDisplays.length)
-
     this.overlayWindows = allDisplays.map((display) => {
-      console.log('[AreaSelection] Overlay bounds:', { displayId: display.id, bounds: display.bounds })
       const overlayWindow = new BrowserWindow({
         x: display.bounds.x,
         y: display.bounds.y,
@@ -162,8 +150,6 @@ class AreaSelectionService {
     this.completeHandler = (_event: any, bounds: SelectionBounds) => {
       if (this.selectionResolved) return
       this.selectionResolved = true
-      console.log('[AreaSelection] IPC: area-selection-complete received')
-      console.log('[AreaSelection] Raw selection bounds (window CSS pixels):', bounds)
 
       const senderWindow = BrowserWindow.fromWebContents(_event.sender)
       const senderBounds = senderWindow?.getBounds()
@@ -179,13 +165,6 @@ class AreaSelectionService {
       const centerX = globalBounds.x + globalBounds.width / 2
       const centerY = globalBounds.y + globalBounds.height / 2
       const targetDisplay = displayFromWindow ?? screen.getDisplayNearestPoint({ x: centerX, y: centerY })
-
-      console.log('[AreaSelection] Selection center:', { x: centerX, y: centerY })
-      console.log('[AreaSelection] Target display:', {
-        id: targetDisplay.id,
-        bounds: targetDisplay.bounds,
-        scaleFactor: targetDisplay.scaleFactor
-      })
 
       // IMPORTANT: ScreenCaptureKit expects coordinates relative to the display origin
       // in LOGICAL POINTS (not physical pixels). The native code handles scale factor internally.
@@ -234,8 +213,6 @@ class AreaSelectionService {
       displayRelativeBounds.x = clampedX
       displayRelativeBounds.y = clampedY
 
-      console.log('[AreaSelection] Display-relative bounds (logical points):', displayRelativeBounds)
-
       this.resolvePromise?.({
         success: true,
         area: { ...displayRelativeBounds, displayId: targetDisplay.id }
@@ -245,8 +222,6 @@ class AreaSelectionService {
 
     // Handle cancellation (Escape key or click outside)
     this.cancelHandler = () => {
-      console.log('[AreaSelection] IPC: area-selection-cancelled received')
-      console.log('[AreaSelection] Selection cancelled')
       if (!this.selectionResolved) {
         this.selectionResolved = true
         this.resolvePromise?.({
@@ -258,7 +233,6 @@ class AreaSelectionService {
     }
 
     // Use once() to prevent listener accumulation
-    console.log('[AreaSelection] Setting up IPC listeners for area-selection-complete and area-selection-cancelled')
     ipcMain.once('area-selection-complete', this.completeHandler)
     ipcMain.once('area-selection-cancelled', this.cancelHandler)
 
@@ -277,7 +251,6 @@ class AreaSelectionService {
       })
 
       overlayWindow.webContents.on('did-finish-load', () => {
-        console.log('[AreaSelection] Content loaded successfully')
         // Focus the webContents to ensure it receives keyboard events
         overlayWindow?.webContents.focus()
       })
@@ -286,7 +259,6 @@ class AreaSelectionService {
       overlayWindow.on('closed', () => {
         // If closed without completion, resolve as cancelled
         if (this.resolvePromise && !this.selectionResolved) {
-          console.log('[AreaSelection] Window closed without selection')
           this.selectionResolved = true
           this.resolvePromise({ success: false, cancelled: true })
           this.resolvePromise = null
@@ -307,14 +279,12 @@ class AreaSelectionService {
     if (!this.overlayWindows.length) return
 
     const url = getAppURL('/area-selection')
-    console.log('[AreaSelection] Loading URL:', url)
 
     for (const overlayWindow of this.overlayWindows) {
       overlayWindow.loadURL(url)
 
       // Show and focus when ready
       overlayWindow.once('ready-to-show', () => {
-        console.log('[AreaSelection] Window ready to show')
         overlayWindow?.show()
         overlayWindow?.focus()
       })

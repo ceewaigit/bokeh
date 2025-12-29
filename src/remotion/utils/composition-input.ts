@@ -67,5 +67,5 @@ export function buildTimelineCompositionInput(
       ...DEFAULT_RESOURCES,
       ...options.resources
     }
-  }
+  } as TimelineCompositionProps
 }

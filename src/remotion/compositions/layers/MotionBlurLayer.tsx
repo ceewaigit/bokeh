@@ -30,8 +30,14 @@ export interface MotionBlurLayerProps {
     gamma: number;
     rampRange: number;
     clamp: number;
-    /** Video element to use as texture source */
-    videoElement: HTMLVideoElement | null;
+    /** Video element to use as texture source (legacy - prefer containerRef) */
+    videoElement?: HTMLVideoElement | null;
+    /**
+     * Container ref to search for video element.
+     * When provided, MotionBlurLayer will query for a video element inside this container.
+     * This makes motion blur independent of clip identity - it always finds the active video.
+     */
+    containerRef?: React.RefObject<HTMLElement>;
     /** Dimensions of the rendered video */
     drawWidth: number;
     drawHeight: number;
@@ -50,6 +56,8 @@ export interface MotionBlurLayerProps {
     samples?: number;
     /** Manual Black Level (0.0 - 0.2) */
     blackLevel?: number;
+    /** Saturation adjustment (0.0 - 2.0) */
+    saturation?: number;
     /** Unpack Premultiply Alpha */
     unpackPremultiplyAlpha?: boolean;
     /** Force enable blur for debugging */
@@ -85,10 +93,11 @@ uniform sampler2D u_image;
 uniform vec2 u_velocity;     // Velocity in texture coordinates (0..1)
 uniform float u_intensity;   // Blur intensity
 uniform int u_samples;       // Number of samples
-uniform float u_mix;         // Blend between original and blurred
+
 uniform float u_debugSplit;  // 0 = normal, 1 = debug split (show only right half)
 uniform float u_gamma;       // Gamma correction factor
 uniform float u_blackLevel;  // Manual Black Level (0.0 - 0.2)
+uniform float u_saturation;  // Saturation (0.0 - 2.0)
 
 // Pseudo-random number generator
 float hash12(vec2 p) {
@@ -149,22 +158,29 @@ void main() {
     }
 
     vec4 baseSample = texture(u_image, v_texCoord);
-    vec3 baseLinear = sRGBToLinear(baseSample.rgb);
-
+    
     vec4 blurred = color / totalWeight;
-    vec3 mixedLinear = mix(baseLinear, blurred.rgb, clamp(u_mix, 0.0, 1.0));
-    vec3 correctedBlur = blurred.rgb;
-    if (u_blackLevel != 0.0) {
-        correctedBlur = max(vec3(0.0), correctedBlur - u_blackLevel) / (1.0 - u_blackLevel);
-    }
-    if (u_gamma != 1.0) {
-        correctedBlur = pow(correctedBlur, vec3(1.0 / u_gamma));
-    }
-    correctedBlur = clamp(correctedBlur, 0.0, 1.0);
+    
+    // Pure accumulation - no mixing with base image
+    vec3 corrected = blurred.rgb;
 
-    vec3 mixedLinearCorrected = mix(baseLinear, correctedBlur, clamp(u_mix, 0.0, 1.0));
-    mixedLinearCorrected = clamp(mixedLinearCorrected, 0.0, 1.0);
-    vec4 finalColor = vec4(mixedLinearCorrected, baseSample.a);
+    if (u_blackLevel != 0.0) {
+        corrected = max(vec3(0.0), corrected - u_blackLevel) / (1.0 - u_blackLevel);
+    }
+
+    // Saturation adjustment (Luma-based)
+    if (u_saturation != 1.0) {
+        const vec3 lumaWeights = vec3(0.2126, 0.7152, 0.0722);
+        float luma = dot(corrected, lumaWeights);
+        corrected = mix(vec3(luma), corrected, u_saturation);
+    }
+
+    if (u_gamma != 1.0) {
+        corrected = pow(corrected, vec3(1.0 / u_gamma));
+    }
+    corrected = clamp(corrected, 0.0, 1.0);
+
+    vec4 finalColor = vec4(corrected, baseSample.a);
 
     // Linear -> sRGB
     finalColor.rgb = linearToSRGB(finalColor.rgb);
@@ -181,7 +197,8 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
     velocityThreshold,
     rampRange,
     clamp,
-    videoElement,
+    videoElement: propsVideoElement,
+    containerRef,
     drawWidth,
     drawHeight,
     offsetX,
@@ -193,6 +210,7 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
     useSRGBBuffer = false,
     samples,
     blackLevel = 0,
+    saturation = 1.0,
     unpackPremultiplyAlpha = false,
     force = false,
 }) => {
@@ -208,6 +226,42 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
     // Force re-render on video events
     const [tick, setTick] = useState(0);
     const frame = useCurrentFrame();
+
+    // Discover video element from container (clip-agnostic)
+    const [discoveredVideoElement, setDiscoveredVideoElement] = useState<HTMLVideoElement | null>(null);
+
+    useEffect(() => {
+        if (!containerRef?.current) {
+            setDiscoveredVideoElement(null);
+            return;
+        }
+
+        // Find the video element in the container
+        const findVideo = () => {
+            const video = containerRef.current?.querySelector('video');
+            if (video !== discoveredVideoElement) {
+                setDiscoveredVideoElement(video || null);
+            }
+        };
+
+        findVideo();
+
+        // Observe for video element changes (clips switching)
+        const observer = new MutationObserver(findVideo);
+        observer.observe(containerRef.current, { childList: true, subtree: true });
+
+        return () => observer.disconnect();
+    }, [containerRef, discoveredVideoElement]);
+
+    // Use discovered video element if containerRef is provided, otherwise use prop
+    // NOTE: This automatic discovery is CRITICAL for the "Motion Blur" feature.
+    // By finding the <video> tag inside the current clip's container, we ensure:
+    // 1. Clips can switch freely without breaking the blur reference.
+    // 2. We automatically use the CORRECT video source (Proxy or High-Res) chosen by VideoClipRenderer.
+    //    - In Preview: Uses Proxy (fast)
+    //    - In Export: Uses Source/High-Res (quality)
+    // This gives us "WYSIWYG" preview performance and perfect export quality without extra logic here.
+    const videoElement = containerRef ? discoveredVideoElement : propsVideoElement;
 
     // 1. Initialization
     useEffect(() => {
@@ -260,10 +314,10 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
             u_velocity: gl.getUniformLocation(program, 'u_velocity'),
             u_intensity: gl.getUniformLocation(program, 'u_intensity'),
             u_samples: gl.getUniformLocation(program, 'u_samples'),
-            u_mix: gl.getUniformLocation(program, 'u_mix'),
             u_debugSplit: gl.getUniformLocation(program, 'u_debugSplit'),
             u_gamma: gl.getUniformLocation(program, 'u_gamma'),
             u_blackLevel: gl.getUniformLocation(program, 'u_blackLevel'),
+            u_saturation: gl.getUniformLocation(program, 'u_saturation'),
         };
 
         // Buffers
@@ -308,7 +362,7 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
                 g.deleteTexture(texture);
             }
         };
-    }, [colorSpace, useSRGBBuffer]); // Removed drawWidth/drawHeight to prevent context trashing on resize
+    }, [colorSpace, useSRGBBuffer]);
 
     // 2. Render Loop
     React.useLayoutEffect(() => {
@@ -320,10 +374,6 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
         if ('requestVideoFrameCallback' in videoElement) {
             handle = (videoElement as any).requestVideoFrameCallback(() => setTick(t => t + 1));
         }
-
-
-        const vxTarget = velocity.x;
-        const vyTarget = velocity.y;
 
         // DETERMINISTIC: Use passed-in velocity directly (already smoothed by controller)
         // This ensures export/multi-thread consistency.
@@ -408,7 +458,6 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
         const targetRadius = (force ? 600 : speed) * (force ? 1.0 : validIntensity);
         const maxRadius = clamp > 0 ? clamp : maxBlurRadius;
         const effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
-        const blendFactor = clamp01(effectiveRadius / Math.max(1, maxRadius * 0.6));
 
         if (canvasRef.current && canvasRef.current.style.opacity !== '1') {
             canvasRef.current.style.opacity = '1';
@@ -431,19 +480,20 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
         gl.uniform1f(locationsRef.current.u_intensity, 1.0);
         const sampleCount = Math.max(8, Math.min(128, Math.ceil(effectiveRadius)));
         gl.uniform1i(locationsRef.current.u_samples, samples ?? sampleCount);
-        gl.uniform1f(locationsRef.current.u_mix, Number.isFinite(blendFactor) ? blendFactor : 0);
         gl.uniform1f(locationsRef.current.u_debugSplit, debugSplit ? 1.0 : 0.0);
         gl.uniform1f(locationsRef.current.u_gamma, Number.isFinite(gamma) ? gamma : 1.0);
         // SAFETY: Clamp black level < 0.99 to prevent divide-by-zero in shader
         const safeBlackLevel = Math.min(0.99, Number.isFinite(blackLevel) ? blackLevel : -0.13);
         gl.uniform1f(locationsRef.current.u_blackLevel, safeBlackLevel);
+        const safeSaturation = Number.isFinite(saturation) ? saturation : 1.0;
+        gl.uniform1f(locationsRef.current.u_saturation, safeSaturation);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
         return () => {
             if (handle && 'cancelVideoFrameCallback' in videoElement) (videoElement as any).cancelVideoFrameCallback(handle);
         };
-    }, [frame, velocity, blurIntensity, debugSplit, drawWidth, drawHeight, videoElement, rampRange, velocityThreshold, clamp, maxBlurRadius, tick, gamma, unpackColorspaceConversion, useSRGBBuffer, samples, blackLevel, unpackPremultiplyAlpha, force]);
+    }, [frame, velocity, blurIntensity, debugSplit, drawWidth, drawHeight, videoElement, rampRange, velocityThreshold, clamp, maxBlurRadius, tick, gamma, unpackColorspaceConversion, useSRGBBuffer, samples, blackLevel, saturation, unpackPremultiplyAlpha, force]);
 
     if (!enabled) return null;
 

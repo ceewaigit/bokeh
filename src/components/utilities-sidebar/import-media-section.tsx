@@ -274,6 +274,8 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
     )
 })
 
+AssetItem.displayName = 'AssetItem'
+
 export function ImportMediaSection() {
     const [isDragOver, setIsDragOver] = useState(false)
     const [ingestQueue, setIngestQueue] = useState<IngestQueueItem[]>([])

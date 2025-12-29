@@ -17,7 +17,7 @@ import { useProjectStore } from '@/stores/project-store'
 interface ScreenTabProps {
   selectedClip: Clip | null
   selectedEffectLayer?: SelectedEffectLayer
-  onEffectChange: (type: EffectType, data: any) => void
+  onEffectChange: (type: EffectType, data: Partial<Effect['data']>) => void
 }
 
 export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }: ScreenTabProps) {

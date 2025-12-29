@@ -57,6 +57,10 @@ export class TimelineDataService {
   // Cache for sorted clips (cheap, frequently accessed)
   private static sortedClipsCache = new WeakMap<Project, { video: Clip[]; audio: Clip[] }>()
 
+  // Cache for active effects at clip positions (was orphaned in get-active-clip-data-at-frame.ts)
+  // Key: `{clipId}-{startTime}`, Value: effects array for that clip position
+  private static activeEffectsCache = new Map<string, Effect[]>()
+
   /**
    * Get all video clips from the project.
    */
@@ -181,11 +185,33 @@ export class TimelineDataService {
 
   /**
    * Invalidate caches for a project.
-   * Call this when project data changes (clips added/removed, recordings change).
+   * Call this when project data changes (clips added/removed, recordings change, split, trim).
    */
   static invalidateCache(project: Project): void {
     this.recordingsMapCache.delete(project)
     this.sortedClipsCache.delete(project)
+    // Clear global caches that depend on clip structure
+    this.activeEffectsCache.clear()
+  }
+
+  /**
+   * Get cached active effects for a clip position.
+   * Used by get-active-clip-data-at-frame.ts for render optimization.
+   */
+  static getActiveEffectsFromCache(key: string): Effect[] | undefined {
+    return this.activeEffectsCache.get(key)
+  }
+
+  /**
+   * Set cached active effects for a clip position.
+   */
+  static setActiveEffectsCache(key: string, effects: Effect[]): void {
+    this.activeEffectsCache.set(key, effects)
+    // Prune cache to prevent unbounded growth
+    if (this.activeEffectsCache.size > 100) {
+      const keyToDelete = this.activeEffectsCache.keys().next().value
+      if (keyToDelete) this.activeEffectsCache.delete(keyToDelete)
+    }
   }
 
   /**

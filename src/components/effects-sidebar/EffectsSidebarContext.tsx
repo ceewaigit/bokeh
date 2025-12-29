@@ -1,14 +1,14 @@
 import React, { createContext, useContext } from 'react'
 
-import type { EffectType } from '@/types/project'
+import type { EffectType, Effect, ZoomBlock, CropEffectData } from '@/types/project'
 
 export interface EffectsSidebarContextValue {
-  onEffectChange: (type: EffectType, data: any) => void
-  onZoomBlockUpdate?: (blockId: string, updates: any) => void
+  onEffectChange: (type: EffectType, data: Partial<Effect['data']> & { enabled?: boolean; data?: Record<string, unknown> }) => void
+  onZoomBlockUpdate?: (blockId: string, updates: Partial<ZoomBlock>) => void
   onBulkToggleKeystrokes?: (enabled: boolean) => void
   onAddCrop?: () => void
   onRemoveCrop?: (effectId: string) => void
-  onUpdateCrop?: (effectId: string, updates: any) => void
+  onUpdateCrop?: (effectId: string, updates: Partial<CropEffectData>) => void
   onStartEditCrop?: () => void
 }
 

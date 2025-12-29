@@ -45,8 +45,8 @@ export interface TimelineClipOperations {
     handlePaste: () => Promise<void>
 
     // Edge trim handlers (direct store updates, not commands)
-    handleEdgeTrimStart: (clipId: string, newStartTime: number) => void
-    handleEdgeTrimEnd: (clipId: string, newEndTime: number) => void
+    handleEdgeTrimStart: (clipId: string, newStartTime: number) => Promise<void>
+    handleEdgeTrimEnd: (clipId: string, newEndTime: number) => Promise<void>
 }
 
 export function useTimelineClipOperations(): TimelineClipOperations {
@@ -162,13 +162,15 @@ export function useTimelineClipOperations(): TimelineClipOperations {
     // Edge trim handlers (direct store mutations, not commands)
     // ─────────────────────────────────────────────────────────────────────────
 
-    const handleEdgeTrimStart = useCallback((clipId: string, newStartTime: number) => {
-        useProjectStore.getState().trimClipStart(clipId, newStartTime)
-    }, [])
+    const handleEdgeTrimStart = useCallback(async (clipId: string, newStartTime: number) => {
+        if (!executorRef.current) return
+        await executorRef.current.execute(TrimCommand, clipId, newStartTime, 'start')
+    }, [executorRef])
 
-    const handleEdgeTrimEnd = useCallback((clipId: string, newEndTime: number) => {
-        useProjectStore.getState().trimClipEnd(clipId, newEndTime)
-    }, [])
+    const handleEdgeTrimEnd = useCallback(async (clipId: string, newEndTime: number) => {
+        if (!executorRef.current) return
+        await executorRef.current.execute(TrimCommand, clipId, newEndTime, 'end')
+    }, [executorRef])
 
     return {
         // Context menu operations

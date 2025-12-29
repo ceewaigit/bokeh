@@ -8,7 +8,6 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { type SortKey, type SortDirection } from '@/stores/recordings-library-store'
-import { cn } from '@/lib/utils'
 
 interface LibrarySortProps {
     sortKey: SortKey

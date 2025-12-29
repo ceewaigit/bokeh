@@ -311,10 +311,16 @@ async function generateProxyInternal(
         vf = `scale=${targetWidth}:${targetHeight}`
     }
 
+    // Platform-specific hardware acceleration for decode
+    const hwAccelArgs = process.platform === 'darwin'
+        ? ['-hwaccel', 'videotoolbox'] // macOS: VideoToolbox HW decode
+        : [] // Other platforms: software decode (could add NVDEC/VAAPI later)
+
     const baseArgs = [
         '-hide_banner',
         '-loglevel', 'error',
         '-y',
+        ...hwAccelArgs,
         '-i', inputPath,
         // Force CFR if requested (Must be AFTER -i to resample output, preserving sync)
         ...(fps ? ['-r', String(fps)] : []),

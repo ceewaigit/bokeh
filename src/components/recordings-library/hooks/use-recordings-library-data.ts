@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Project } from '@/types'
-import { useRecordingsLibraryStore, type LibraryRecording, type LibraryRecordingHydration, type LibraryRecordingView, type SortKey, type SortDirection } from '@/stores/recordings-library-store'
+import { useRecordingsLibraryStore, type LibraryRecording, type LibraryRecordingHydration, type LibraryRecordingView } from '@/stores/recordings-library-store'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { PROJECT_EXTENSION } from '@/lib/storage/recording-storage'
 import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'

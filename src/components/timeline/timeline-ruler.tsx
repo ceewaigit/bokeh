@@ -108,3 +108,5 @@ export const TimelineRuler = React.memo(() => {
 
   return <Group y={scrollTop}>{marks}</Group>
 })
+
+TimelineRuler.displayName = 'TimelineRuler'

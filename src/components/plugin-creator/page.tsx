@@ -9,7 +9,7 @@ import { PluginCodePanel } from './plugin-code-panel'
 import { PluginCodeEditor } from './plugin-code-editor'
 import { PluginLibraryDialog } from './plugin-library-dialog'
 import { PLUGIN_CREATOR_SYSTEM_PROMPT } from './plugin-prompt'
-import type { PluginCategory } from '@/lib/effects/config/plugin-sdk'
+import type { PluginCategory, PluginDefinition } from '@/lib/effects/config/plugin-sdk'
 
 // Types for LLM-generated plugins
 export interface GeneratedPlugin {
@@ -151,7 +151,7 @@ export function PluginCreator() {
             // We need to add a dummy render or hydrate it.
             render: () => null, // Placeholder, will be hydrated on reload or we can implement hydration here too
             renderCode: plugin.renderCode
-        } as any)
+        } as PluginDefinition)
 
         PluginRegistry.persist()
     }
@@ -205,6 +205,7 @@ export function PluginCreator() {
 
 interface ${plugin.id.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')}Params {
 ${Object.entries(plugin.params || {}).map(([key, def]) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const d = def as any
             return `  ${key}: ${d.type === 'number' ? 'number' : d.type === 'boolean' ? 'boolean' : 'string'}`
         }).join('\n')}

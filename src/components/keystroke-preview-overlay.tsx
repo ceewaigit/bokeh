@@ -111,7 +111,7 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
                 zIndex: 100,
                 // Ensure crisp text rendering
                 WebkitFontSmoothing: 'antialiased',
-                MozOsxFontSmoothing: 'grayscale' as any,
+                MozOsxFontSmoothing: 'grayscale',
             }}
         >
             {displayState.text}

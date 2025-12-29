@@ -116,22 +116,22 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
   const makeEven = (n: number) => Math.max(2, Math.floor(n / 2) * 2)
 
-  const computeDimsForTargetHeight = (targetHeight: number) => {
+  const computeDimsForTargetHeight = useMemo(() => (targetHeight: number) => {
     const safeSourceW = Math.max(2, sourceResolution.width)
     const safeSourceH = Math.max(2, sourceResolution.height)
     const aspect = safeSourceW / safeSourceH
     const height = makeEven(targetHeight)
     const width = makeEven(Math.round(height * aspect))
     return { width, height }
-  }
+  }, [sourceResolution])
 
-  const formatPixelsTooltip = (dims: { width: number; height: number }, hint?: string) => {
+  const formatPixelsTooltip = useMemo(() => (dims: { width: number; height: number }, hint?: string) => {
     const sourcePixels = Math.max(1, sourceResolution.width * sourceResolution.height)
     const pixels = Math.max(1, dims.width * dims.height)
     const pct = Math.round((pixels / sourcePixels) * 100)
     const pctText = pct === 100 ? '100% pixels' : `${pct}% pixels`
     return `${dims.width}×${dims.height}${hint ? ` · ${hint}` : ''} · ${pctText}`
-  }
+  }, [sourceResolution])
 
   // Available resolution options based on source - show native + sensible downscales.
   const resolutionOptions = useMemo(() => {
@@ -182,7 +182,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     }
 
     return options
-  }, [sourceResolution])
+  }, [sourceResolution, computeDimsForTargetHeight, formatPixelsTooltip])
 
   // Default to 1080p when available; fallback handled by option validation.
   const [resolution, setResolution] = useState<Resolution>('1080p')
@@ -205,8 +205,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         ? navigator.hardwareConcurrency
         : 8
     const totalMemoryGB =
-      typeof navigator !== 'undefined' && typeof (navigator as any).deviceMemory === 'number'
-        ? Number((navigator as any).deviceMemory)
+      typeof navigator !== 'undefined' && typeof (navigator as Navigator & { deviceMemory?: number }).deviceMemory === 'number'
+        ? Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory)
         : 16
     // We don’t have a reliable GPU capability signal in the renderer; assume true for user-facing estimates.
     setMachineProfile({ cpuCores, totalMemoryGB, gpuAvailable: true })
@@ -335,8 +335,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         await exportProject(currentProject, settings)
       }
       toast.success('Export completed')
-    } catch (e: any) {
-      toast.error(e?.message || 'Export failed')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Export failed'
+      toast.error(msg)
     }
   }
 
@@ -353,8 +354,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
       await saveLastExport(filename)
       toast.success('File saved')
       reset()
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to save file')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to save file'
+      toast.error(msg)
     }
   }
 

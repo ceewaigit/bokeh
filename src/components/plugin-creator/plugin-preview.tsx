@@ -19,7 +19,7 @@ export function PluginPreview({
     const containerRef = useRef<HTMLDivElement>(null)
 
     // Compile the render function when code changes
-    const [renderFn, setRenderFn] = useState<Function | null>(null)
+    const [renderFn, setRenderFn] = useState<((params: Record<string, unknown>, frame: Record<string, unknown>, width: number, height: number, React: unknown) => unknown) | null>(null)
 
     useEffect(() => {
         if (!plugin?.renderCode) {

@@ -138,7 +138,7 @@ export function EffectsSidebar({
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
   const isEditingCrop = useProjectStore((s) => s.isEditingCrop)
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
-  const effects = timelineEffects ?? []
+  const effects = React.useMemo(() => timelineEffects ?? [], [timelineEffects])
   const selectedClipResult = useSelectedClip()
   const selectedClip = selectedClipResult?.clip ?? null
   const selectedTrackType = selectedClipResult?.track.type
@@ -159,7 +159,7 @@ export function EffectsSidebar({
   const cursorEffect = effects ? getCursorEffect(effects) : undefined
   const keystrokeEffect = effects ? getKeystrokeEffect(effects) : undefined
   const webcamEffects = effects ? getWebcamEffects(effects) : []
-  const webcamEffectId = resolveEffectIdForType(webcamEffects, selectedEffectLayer, EffectType.Webcam)
+  const webcamEffectId = resolveEffectIdForType(webcamEffects, selectedEffectLayer, EffectType.Webcam, false)
   const webcamEffect = webcamEffectId
     ? webcamEffects.find(effect => effect.id === webcamEffectId)
     : undefined
@@ -272,11 +272,11 @@ export function EffectsSidebar({
 
   // Update active tab based on selection changes (without overriding manual tab clicks)
   useEffect(() => {
-    const currentEffectType = selectedEffectLayer?.type as any | undefined
+    const currentEffectType = selectedEffectLayer?.type as EffectLayerType | undefined
 
     // If an effect layer is explicitly selected, always show its tab
     if (currentEffectType) {
-      routeToEffect(currentEffectType as EffectLayerType)
+      routeToEffect(currentEffectType)
     } else {
       // If effect selection was cleared (transition from some type to none), go to clip tab once
       if (prevEffectTypeRef.current) {
@@ -295,7 +295,7 @@ export function EffectsSidebar({
     prevEffectTypeRef.current = currentEffectType
   }, [routeToEffect, selectedEffectLayer, selectedClip])
 
-  const updateEffect = useCallback((category: EffectType.Cursor | EffectType.Keystroke, updates: any) => {
+  const updateEffect = useCallback((category: EffectType.Cursor | EffectType.Keystroke, updates: Partial<CursorEffectData | KeystrokeEffectData>) => {
     const effect = category === EffectType.Cursor ? cursorEffect : keystrokeEffect
     const effectType = category
     if (effect) {
@@ -335,7 +335,7 @@ export function EffectsSidebar({
   }, [activeTab, selectedEffectLayer, webcamEffectId, selectEffectLayer])
 
   // Update background while preserving existing properties
-  const updateBackgroundEffect = useCallback((updates: any) => {
+  const updateBackgroundEffect = useCallback((updates: Partial<BackgroundEffectData>) => {
     // If no background effect exists, create it with sensible defaults
     if (!backgroundEffect) {
       onEffectChange(EffectType.Background, {
@@ -366,7 +366,7 @@ export function EffectsSidebar({
               <Tooltip key={tab.id} delayDuration={200}>
                 <TooltipTrigger asChild>
                   <motion.button
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => setActiveTab(tab.id as SidebarTabId)}
                     className={cn(
                       "group relative flex w-full items-center justify-center p-2 rounded-lg transition-colors duration-150",
                       activeTab === tab.id
@@ -700,10 +700,7 @@ export function EffectsSidebar({
                     exit="exit"
                     className="space-y-4"
                   >
-                    <MotionTab
-                      effects={effects}
-                      onEffectChange={onEffectChange}
-                    />
+                    <MotionTab />
                   </motion.div>
                 )}
               </AnimatePresence>

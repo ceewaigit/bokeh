@@ -5,7 +5,7 @@ import { ZoomIn, ChevronRight, Sparkles, Gauge, AppWindow } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { useProjectStore } from '@/stores/project-store'
-import type { Clip, Effect, ZoomEffectData } from '@/types/project'
+import type { Clip, Effect, ZoomEffectData, ZoomBlock, AnnotationEffect } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
@@ -32,7 +32,7 @@ interface ZoomTabProps {
   effects: Effect[] | undefined
   selectedEffectLayer?: SelectedEffectLayer
   selectedClip: Clip | null
-  onZoomBlockUpdate?: (blockId: string, updates: any) => void
+  onZoomBlockUpdate?: (blockId: string, updates: Partial<ZoomBlock>) => void
 }
 
 export function ZoomTab({
@@ -135,9 +135,15 @@ export function ZoomTab({
     return (match?.id ?? 'custom') as typeof zoomBlurPreset
   }, [zoomBlurPresets])
 
-  const currentSmoothing = (effects?.find(
-    (e) => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled
-  ) as any)?.data?.smoothing ?? 0
+  const currentSmoothing = useMemo(() => {
+    const effect = effects?.find(
+      (e): e is AnnotationEffect =>
+        e.type === EffectType.Annotation &&
+        e.enabled &&
+        e.data.kind === 'scrollCinematic'
+    )
+    return effect?.data?.smoothing ?? 0
+  }, [effects])
 
   React.useEffect(() => {
     setCameraStylePreset(resolveCameraStylePreset(currentSmoothing))
@@ -257,7 +263,7 @@ export function ZoomTab({
         <SegmentedControl
           options={cameraStylePresets}
           value={cameraStylePreset}
-          onChange={(id) => applyCameraStylePreset(id as any)}
+          onChange={(id) => applyCameraStylePreset(id as typeof cameraStylePreset)}
           namespace="camera-style"
           wrap
           columns={3}
@@ -292,7 +298,7 @@ export function ZoomTab({
         <SegmentedControl
           options={zoomBlurPresets}
           value={zoomBlurPreset}
-          onChange={(id) => applyZoomBlurPreset(id as any)}
+          onChange={(id) => applyZoomBlurPreset(id as typeof zoomBlurPreset)}
           namespace="zoom-blur"
           wrap
           columns={3}

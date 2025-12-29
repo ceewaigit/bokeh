@@ -15,6 +15,25 @@ import type { Clip, Recording } from '@/types/project'
 import type { FrameLayoutItem } from '@/lib/timeline/frame-layout'
 
 /**
+ * Get all recordings from the current project.
+ */
+export function useRecordings(): Recording[] {
+  const project = useProjectStore((s) => s.currentProject)
+
+  return useMemo(() => {
+    if (!project) return []
+    return project.recordings
+  }, [project])
+}
+
+/**
+ * Get all selected clip IDs.
+ */
+export function useSelectedClipIds(): string[] {
+  return useProjectStore((s) => s.selectedClips)
+}
+
+/**
  * Get all video clips from the current project.
  */
 export function useVideoClips(): Clip[] {

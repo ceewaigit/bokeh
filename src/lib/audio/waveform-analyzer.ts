@@ -40,7 +40,7 @@ export class WaveformAnalyzer {
         try {
           const result = await this._performAnalysis(blobUrl, cacheKey, startTime, duration, samplesPerSecond)
           resolve(result)
-        } catch (e) {
+        } catch {
           resolve(null)
         }
       }

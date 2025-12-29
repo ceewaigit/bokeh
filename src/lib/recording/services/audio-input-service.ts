@@ -161,7 +161,7 @@ export class AudioInputService {
       if (this.mediaRecorder?.state === 'recording') {
         try {
           this.mediaRecorder.requestData()
-        } catch (e) {
+        } catch {
           this.clearDataInterval()
         }
       }
@@ -371,7 +371,7 @@ export class AudioInputService {
     this.levelCallbacks.forEach(callback => {
       try {
         callback(this.lastLevel)
-      } catch (err) {
+      } catch {
         // Ignore callback errors
       }
     })

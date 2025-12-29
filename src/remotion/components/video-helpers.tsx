@@ -98,7 +98,7 @@ export const SafeVideo = React.forwardRef<HTMLVideoElement, SafeVideoProps>((pro
   }, []);
 
   // Filter out Remotion-specific props that <video> doesn't understand
-  const { startFrom, endAt, playbackRate, volume, pauseWhenBuffering, ...nativeProps } = props;
+  const { volume, ...nativeProps } = props;
 
   return (
     <video

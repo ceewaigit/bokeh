@@ -854,6 +854,8 @@ export interface ProjectSettings {
     motionBlurDebugSplit?: boolean
     /** Force enable blur for debugging (ignores velocity). Default false. */
     motionBlurForce?: boolean
+    /** Saturation adjustment (0.0 - 2.0). Default 1.0. */
+    motionBlurSaturation?: number
   }
   /** Canvas settings for aspect ratio and output dimensions */
   canvas: CanvasSettings

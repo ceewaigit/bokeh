@@ -63,7 +63,7 @@ export const TimelineEffectBlock = React.memo(({
 }: TimelineEffectBlockProps) => {
   // Prevent rendering if collapsed/invalid bounds to avoid invalid shape errors
 
-  const EFFECT_TRACK_ANIMATION_DURATION = 0.45
+  const EFFECT_TRACK_ANIMATION_DURATION = 0.18
 
   const colors = useTimelineColors()
   const isDarkMode = colors.isDark
@@ -99,10 +99,6 @@ export const TimelineEffectBlock = React.memo(({
   const handleFill = colors.foreground
   // Always use text shadow for glass mode legibility
   const labelShadowColor = colors.effectLabelShadow
-
-  if (width <= 0 || height <= 0) {
-    return null
-  }
 
   const safeWidth = Math.max(1, currentWidth)
   const safeHeight = Math.max(1, height)
@@ -277,7 +273,9 @@ export const TimelineEffectBlock = React.memo(({
   const curvePoints = generateZoomCurve()
   const durationMs = Math.max(0, endTime - startTime)
 
-  if (safeHeight < 4) return null
+  if (width <= 0 || height <= 0 || safeHeight < 4) {
+    return null
+  }
 
   return (
     <>
@@ -576,4 +574,7 @@ export const TimelineEffectBlock = React.memo(({
       />
     </>
   )
-}) 
+})
+
+TimelineEffectBlock.displayName = 'TimelineEffectBlock'
+
