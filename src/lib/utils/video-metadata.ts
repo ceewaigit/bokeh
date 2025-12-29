@@ -1,4 +1,5 @@
 // Cache for video durations to prevent repeated metadata loads
+import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 const durationCache = new Map<string, Promise<number>>()
 
 // Global semaphore to limit concurrent video decoder operations
@@ -191,6 +192,6 @@ export async function getVideoMetadata(videoUrl: string): Promise<VideoMetadata>
  * Convenience wrapper for Electron file paths
  */
 export async function getVideoMetadataFromPath(filePath: string): Promise<VideoMetadata> {
-  const videoUrl = `video-stream://local/${encodeURIComponent(filePath)}`
+  const videoUrl = createVideoStreamUrl(filePath) || filePath
   return getVideoMetadata(videoUrl)
 }

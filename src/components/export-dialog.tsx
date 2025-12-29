@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useExportStore } from '@/stores/export-store'
 import { useProjectStore } from '@/stores/project-store'
 import { Button } from './ui/button'
+import { SegmentedControl } from './ui/segmented-control'
 import {
   Tooltip,
   TooltipContent,
@@ -372,71 +373,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   }
 
   // Segmented control component
-  const SegmentedControl = <T extends string | number>({
-    value,
-    onChange,
-    options,
-    disabled,
-    layout = 'inline',
-    columns = 4,
-    className,
-  }: {
-    value: T
-    onChange: (value: T) => void
-    options: { value: T; label: string; tooltip?: string }[]
-    disabled?: boolean
-    layout?: 'inline' | 'grid'
-    columns?: 2 | 3 | 4
-    className?: string
-  }) => (
-    <div
-      className={cn(
-        layout === 'grid'
-          ? cn(
-            'grid gap-1 rounded-lg p-1 transition-colors',
-            columns === 2 ? 'grid-cols-2' : columns === 3 ? 'grid-cols-3' : 'grid-cols-4'
-          )
-          : 'inline-flex rounded-lg p-1 transition-colors',
-        disabled ? 'bg-muted/20' : 'bg-muted/40',
-        className
-      )}
-    >
-      {options.map((option) => {
-        // When disabled, don't show any selection
-        const isSelected = !disabled && value === option.value
 
-        const button = (
-          <button
-            key={String(option.value)}
-            onClick={() => !disabled && onChange(option.value)}
-            disabled={disabled}
-            className={cn(
-              "relative text-[13px] font-medium rounded-md transition-all duration-150",
-              layout === 'grid' ? "px-0 py-2 text-center" : "px-4 py-2",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-              isSelected
-                ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                : disabled
-                  ? "text-muted-foreground/40 cursor-not-allowed"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-            )}
-          >
-            {option.label}
-          </button>
-        )
-
-        if (option.tooltip && !disabled) {
-          return (
-            <Tooltip key={String(option.value)}>
-              <TooltipTrigger asChild>{button}</TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">{option.tooltip}</TooltipContent>
-            </Tooltip>
-          )
-        }
-        return button
-      })}
-    </div>
-  )
 
   return (
     <TooltipProvider delayDuration={300}>

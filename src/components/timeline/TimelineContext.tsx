@@ -13,9 +13,6 @@ export interface DragPreview {
 export interface TimelineContextValue {
   pixelsPerMs: number
   dragPreview: DragPreview | null
-  scrollTop: number
-  minZoom: number
-  maxZoom: number
   onPlay: () => void
   onPause: () => void
   onSeek: (time: number) => void

@@ -23,6 +23,7 @@ import { TimelineLayoutProvider, useTimelineLayout } from './timeline-layout-pro
 import { useAssetLibraryStore } from '@/stores/asset-library-store'
 import { TimelineEffectTracks } from './tracks/timeline-effect-track'
 import { TimelineWebcamTrack } from './tracks/timeline-webcam-track'
+import { TimelineUIProvider, useTimelineUI } from './timeline-ui-context'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -40,13 +41,14 @@ import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 import { ApplySpeedUpCommand } from '@/lib/commands/timeline/ApplySpeedUpCommand'
 import { timeObserver } from '@/lib/timeline/time-observer'
 import { ApplyAllSpeedUpsCommand } from '@/lib/commands/timeline/ApplyAllSpeedUpsCommand'
+import { TimelineAssetGhost } from './timeline-asset-ghost'
+import { TimelineDropTarget } from './timeline-drop-target'
 import { useTimelineEffects } from '@/stores/selectors/timeline-selectors'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
 import { ClipLookup } from '@/lib/timeline/clip-lookup'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { useTimelineScrub } from '@/hooks/use-timeline-scrub'
@@ -134,11 +136,22 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     getTrackBounds,
   } = useTimelineLayout()
 
+  const safeGetTrackBounds = useCallback((type: TrackType) => {
+    return { y: 0, height: 0, clipY: 0, clipHeight: 0 }
+  }, [getTrackBounds])
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UI Context (Scroll State)
+  // ─────────────────────────────────────────────────────────────────────────
+  const {
+    scrollLeft,
+    onScroll,
+    scrollContainerRef
+  } = useTimelineUI()
+
   // ─────────────────────────────────────────────────────────────────────────
   // Local state
   // ─────────────────────────────────────────────────────────────────────────
-  const [scrollTop, setScrollTop] = useState(0)
-  const [scrollLeft, setScrollLeft] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
   const [speedUpPopover, setSpeedUpPopover] = useState<{
     x: number
@@ -267,7 +280,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   // Keyboard shortcuts
   // ─────────────────────────────────────────────────────────────────────────
-  useCommandKeyboard({ enabled: true })
   useTimelinePlayback({ enabled: true })
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -316,7 +328,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     if (!isPlaying) return
 
     const checkAutoScroll = () => {
-      const container = containerRef.current
+      const container = scrollContainerRef.current
       if (!container) return
 
       const time = timeObserver.getTime()
@@ -332,7 +344,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 
     const interval = setInterval(checkAutoScroll, 100)
     return () => clearInterval(interval)
-  }, [isPlaying, pixelsPerMs, stageWidth, containerRef])
+  }, [isPlaying, pixelsPerMs, stageWidth, scrollContainerRef])
 
   // ─────────────────────────────────────────────────────────────────────────
   // Wheel zoom handler
@@ -343,7 +355,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   })
 
   useEffect(() => {
-    const container = containerRef.current
+    const container = scrollContainerRef.current
     if (!container) return
 
     const handleWheel = (e: WheelEvent) => {
@@ -358,16 +370,11 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 
     container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
-  }, [containerRef])
+  }, [scrollContainerRef])
 
   // ─────────────────────────────────────────────────────────────────────────
   // Event handlers
   // ─────────────────────────────────────────────────────────────────────────
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop)
-    setScrollLeft(e.currentTarget.scrollLeft)
-  }
-
   const handleClipSelect = useCallback((clipId: string) => {
     if (selectedClips.length === 1 && selectedClips[0] === clipId) {
       clearSelection()
@@ -423,9 +430,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     // Layout values
     pixelsPerMs,
     dragPreview: effectiveDragPreview,
-    scrollTop,
-    minZoom: adaptiveZoomLimits.min,
-    maxZoom: adaptiveZoomLimits.max,
 
     // Playback controls (passed from parent)
     onPlay,
@@ -465,9 +469,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   }), [
     pixelsPerMs,
     effectiveDragPreview,
-    scrollTop,
-    adaptiveZoomLimits.min,
-    adaptiveZoomLimits.max,
     onPlay,
     onPause,
     onSeek,
@@ -502,15 +503,18 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   return (
     <TimelineContextProvider value={timelineContextValue}>
       <div className={cn("flex flex-col h-full w-full", className)}>
-        <TimelineControls />
+        <TimelineControls
+          minZoom={adaptiveZoomLimits.min}
+          maxZoom={adaptiveZoomLimits.max}
+        />
 
         <div
-          ref={containerRef}
+          ref={scrollContainerRef}
           className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
           tabIndex={0}
-          onScroll={handleScroll}
+          onScroll={onScroll}
           onMouseLeave={() => scheduleHoverUpdate(null)}
-          onMouseDown={() => containerRef.current?.focus()}
+          onMouseDown={() => scrollContainerRef.current?.focus()}
           onDragOver={assetDragDrop.handlers.onDragOver}
           onDragLeave={assetDragDrop.handlers.onDragLeave}
           onDrop={assetDragDrop.handlers.onDrop}
@@ -692,63 +696,22 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
           )}
 
           {/* Asset drop target highlight */}
-          {(() => {
-            if (!draggingAsset) return null
-            const targetTrackType = assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview.trackType : null)
-            if (!targetTrackType) return null
-            const bounds = getTrackBounds(targetTrackType)
-            return (
-              <div
-                className="absolute pointer-events-none z-40 timeline-drop-target"
-                style={{
-                  left: 0,
-                  top: bounds.y + 'px',
-                  width: (timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH) + 'px',
-                  height: bounds.height + 'px',
-                }}
-              />
-            )
-          })()}
+          {/* Asset drop target highlight */}
+          <TimelineDropTarget
+            visible={!!draggingAsset && !!(assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview.trackType : null))}
+            trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
+            getTrackBounds={safeGetTrackBounds}
+            timelineWidth={timelineWidth}
+          />
 
           {/* Drag Preview Overlay (Ghost Clip) */}
-          {(() => {
-            const assetTrackType = assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview.trackType : null)
-            if (!draggingAsset || assetDragDrop.dragTime === null || !assetTrackType) return null
-            const bounds = getTrackBounds(assetTrackType)
-            return (
-              <div
-                className="absolute pointer-events-none z-50 flex flex-col justify-center overflow-hidden rounded-md border-2 border-primary bg-primary/20 backdrop-blur-[1px] timeline-asset-ghost"
-                style={{
-                  left: (TimelineConfig.TRACK_LABEL_WIDTH + TimeConverter.msToPixels(assetDragDrop.dragTime, pixelsPerMs)) + 'px',
-                  top: bounds.clipY + 'px',
-                  width: Math.max(TimelineConfig.MIN_CLIP_WIDTH, TimeConverter.msToPixels(draggingAsset.metadata?.duration || 5000, pixelsPerMs)) + 'px',
-                  height: bounds.clipHeight + 'px',
-                }}
-              >
-                {(draggingAsset.type === 'image' || draggingAsset.type === 'video') ? (
-                  <div className="w-full h-full opacity-50 relative">
-                    {(draggingAsset.type === 'image' && draggingAsset.path) ? (
-                      <img
-                        src={draggingAsset.path.startsWith('/')
-                          ? `video-stream://local/${encodeURIComponent(draggingAsset.path)}`
-                          : draggingAsset.path}
-                        className="w-full h-full object-cover"
-                        alt=""
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-black/20">
-                        <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-xs text-white/70 truncate px-2">{draggingAsset.name}</span>
-                  </div>
-                )}
-              </div>
-            )
-          })()}
+          <TimelineAssetGhost
+            draggingAsset={draggingAsset}
+            dragTime={assetDragDrop.dragTime}
+            trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
+            getTrackBounds={safeGetTrackBounds}
+            pixelsPerMs={pixelsPerMs}
+          />
 
           {/* Speed-up suggestion popover */}
           {speedUpPopover && (
@@ -775,7 +738,9 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 export const TimelineCanvas = React.memo(function TimelineCanvas(props: TimelineCanvasProps) {
   return (
     <TimelineLayoutProvider>
-      <TimelineCanvasContent {...props} />
+      <TimelineUIProvider>
+        <TimelineCanvasContent {...props} />
+      </TimelineUIProvider>
     </TimelineLayoutProvider>
   )
 })

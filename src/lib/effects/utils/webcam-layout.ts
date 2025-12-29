@@ -51,3 +51,22 @@ export function getWebcamLayout(
 
   return { x, y, size }
 }
+
+export function getWebcamAnchorPoint(
+  layout: { x: number; y: number; size: number },
+  anchor: WebcamEffectData['position']['anchor']
+): { x: number; y: number } {
+  const { x, y, size } = layout;
+  switch (anchor) {
+    case 'top-left': return { x, y };
+    case 'top-center': return { x: x + size / 2, y };
+    case 'top-right': return { x: x + size, y };
+    case 'center-left': return { x, y: y + size / 2 };
+    case 'center': return { x: x + size / 2, y: y + size / 2 };
+    case 'center-right': return { x: x + size, y: y + size / 2 };
+    case 'bottom-left': return { x, y: y + size };
+    case 'bottom-center': return { x: x + size / 2, y: y + size };
+    case 'bottom-right': return { x: x + size, y: y + size };
+    default: return { x: x + size / 2, y: y + size / 2 };
+  }
+}

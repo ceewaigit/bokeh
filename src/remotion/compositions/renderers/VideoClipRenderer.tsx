@@ -31,7 +31,6 @@ interface VideoClipRendererProps {
   groupStartFrame: number;
   groupStartSourceIn: number;
   groupDuration: number;
-  // Layout props (from SharedVideoController - can't use context as we're outside VideoPositionProvider)
   cornerRadius: number;
   drawWidth: number;
   drawHeight: number;
@@ -74,7 +73,6 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const { playback, renderSettings, resources } = usePlaybackSettings();
   const { isPlaying, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
   const { isGlowMode, preferOffthreadVideo, enhanceAudio } = renderSettings;
-  // KISS: Just use the VideoComponent directly - Remotion handles playback natively
   const preload = 'auto';
 
   // Video URL resolution
@@ -175,9 +173,6 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const effectiveOpacity = shouldHideForGeneratedActive ? 0 : renderState.effectiveOpacity;
   const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1));
   const shouldMuteAudio = previewMuted || effectiveVolume <= 0 || !recording?.hasAudio || renderState.isPreloading;
-
-  // Motion blur is now handled as an overlay effect, video always visible
-  // (PixiJS canvas overlays with blur when needed)
 
   return (
     <div ref={containerRef} style={{ display: 'contents' }}>

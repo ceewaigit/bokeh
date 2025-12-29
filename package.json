@@ -84,6 +84,7 @@
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "uiohook-napi": "^1.5.4",
+    "use-resize-observer": "^9.1.0",
     "webm-muxer": "^5.1.4",
     "zustand": "^5.0.2"
   },

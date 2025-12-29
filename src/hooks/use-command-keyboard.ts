@@ -26,9 +26,10 @@ const getErrorMessage = (error: Error | string | undefined): string => {
 
 interface UseCommandKeyboardProps {
   enabled?: boolean
+  onSave?: () => void | Promise<void>
 }
 
-export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps = {}) {
+export function useCommandKeyboard({ enabled = true, onSave }: UseCommandKeyboardProps = {}) {
   const executorRef = useCommandExecutor()
 
   const getExecutor = useCallback(() => {
@@ -168,6 +169,12 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     if (result.success) toast('Redone')
   }, [getExecutor])
 
+  const handleSave = useCallback(async () => {
+    if (onSave) {
+      await onSave()
+    }
+  }, [onSave])
+
   const bindings = useMemo(() => ([
     { event: 'copy', handler: handleCopy },
     { event: 'cut', handler: handleCut },
@@ -178,7 +185,8 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     { event: 'trimEnd', handler: handleTrimEnd },
     { event: 'duplicate', handler: handleDuplicate },
     { event: 'undo', handler: handleUndo },
-    { event: 'redo', handler: handleRedo }
+    { event: 'redo', handler: handleRedo },
+    { event: 'save', handler: handleSave }
   ]), [
     handleCopy,
     handleCut,
@@ -189,7 +197,8 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     handleTrimEnd,
     handleDuplicate,
     handleUndo,
-    handleRedo
+    handleRedo,
+    handleSave,
   ])
 
   useKeyboardEvents(bindings, enabled)

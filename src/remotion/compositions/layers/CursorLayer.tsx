@@ -675,6 +675,7 @@ export const CursorLayer = React.memo(({
 
             {/* Main cursor */}
             <div
+              data-cursor-layer="true"
               style={{
                 position: 'absolute',
                 left: 0,

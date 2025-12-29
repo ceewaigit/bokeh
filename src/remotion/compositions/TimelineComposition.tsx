@@ -28,6 +28,7 @@ import { CropEditingLayer } from './layers/CropEditingLayer';
 import { WebcamLayer } from './layers/WebcamLayer';
 import { OverlayEditor } from './layers/OverlayEditor';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
+import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 import { VideoDataProvider, useVideoData } from '../context/video-data-context';
 import { useVideoUrl } from '../hooks/media/useVideoUrl';
 import { findActiveFrameLayoutItems } from '@/lib/timeline/frame-layout';
@@ -51,13 +52,10 @@ function getAudioUrl(recording: Recording, videoFilePaths?: VideoUrlMap): string
   }
 
   // Priority 3: video-stream protocol
-  if (recording.filePath) {
-    if (recording.folderPath && recording.folderPath.startsWith('/')) {
-      const fileName = recording.filePath.split('/').pop() || recording.filePath;
-      const fullPath = `${recording.folderPath}/${fileName}`;
-      return `video-stream://local/${encodeURIComponent(fullPath)}`;
-    }
-    return `video-stream://local/${encodeURIComponent(recording.filePath)}`;
+  const resolvedPath = resolveRecordingPath(recording);
+  if (resolvedPath) {
+    if (resolvedPath.startsWith('video-stream://')) return resolvedPath;
+    return createVideoStreamUrl(resolvedPath);
   }
 
   return undefined;

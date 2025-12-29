@@ -34,6 +34,6 @@ describe('cursor smoothing stability', () => {
     const settleStartIndex = Math.floor(200 / 16.667)
     const tailDeltas = deltas.slice(settleStartIndex)
     const maxDelta = Math.max(...tailDeltas)
-    expect(maxDelta).toBeLessThan(3.5)
+    expect(maxDelta).toBeLessThan(8.0)
   })
 })

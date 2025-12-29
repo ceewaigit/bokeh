@@ -17,7 +17,7 @@ import { LibrarySearch } from '@/components/recordings-library/components/librar
 import { LibrarySort } from '@/components/recordings-library/components/library-sort'
 import { RecordingsGrid } from '@/components/recordings-library/components/recordings-grid'
 import { type LibraryRecordingView } from '@/stores/recordings-library-store'
-import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '@/components/recordings-library/utils/recording-paths'
+import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath, resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { CommandExecutor } from '@/lib/commands/base/CommandExecutor'
@@ -46,7 +46,7 @@ async function getAudioMetadata(filePath: string): Promise<{ duration: number }>
             URL.revokeObjectURL(audio.src)
             reject(new Error('Failed to load audio metadata'))
         }
-        audio.src = `video-stream://local/${encodeURIComponent(filePath)}`
+        audio.src = createVideoStreamUrl(filePath) || filePath
     })
 }
 
@@ -61,7 +61,7 @@ async function getImageMetadata(filePath: string): Promise<{ width: number; heig
             URL.revokeObjectURL(img.src)
             reject(new Error('Failed to load image metadata'))
         }
-        img.src = `video-stream://local/${encodeURIComponent(filePath)}`
+        img.src = createVideoStreamUrl(filePath) || filePath
     })
 }
 
@@ -160,7 +160,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
         >
             {asset.type === 'image' ? (
                 <img
-                    src={`video-stream://local/${encodeURIComponent(asset.path)}`}
+                    src={createVideoStreamUrl(asset.path) || asset.path}
                     className="w-full h-full object-cover"
                     loading="lazy"
                     alt={asset.name}
@@ -170,7 +170,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
                     {/* Video Player (only on hover) */}
                     {isHovered ? (
                         <video
-                            src={`video-stream://local/${encodeURIComponent(asset.path)}`}
+                            src={createVideoStreamUrl(asset.path) || asset.path}
                             className="w-full h-full object-cover"
                             autoPlay
                             muted
@@ -510,18 +510,18 @@ export function ImportMediaSection() {
                 executor.beginGroup('import-recordings')
             }
 
-                for (const entry of toImport) {
-                    const result = await executor.execute(ImportRecordingCommand, {
-                        recording: entry.recording,
-                        trackType: entry.trackType,
-                        sourceClip: entry.sourceClip,
-                        sourceEffects
-                    })
-                    if (!result.success) {
-                        const errorMessage = result.error instanceof Error ? result.error.message : result.error
-                        throw new Error(errorMessage || 'Failed to import recording')
-                    }
+            for (const entry of toImport) {
+                const result = await executor.execute(ImportRecordingCommand, {
+                    recording: entry.recording,
+                    trackType: entry.trackType,
+                    sourceClip: entry.sourceClip,
+                    sourceEffects
+                })
+                if (!result.success) {
+                    const errorMessage = result.error instanceof Error ? result.error.message : result.error
+                    throw new Error(errorMessage || 'Failed to import recording')
                 }
+            }
 
             if (toImport.length > 1) {
                 await executor.endGroup()
@@ -721,107 +721,107 @@ export function ImportMediaSection() {
             </Dialog>
 
             <div className="flex flex-col h-full bg-transparent">
-            {/* Import Drop Area */}
-            <div className="p-2.5 bg-transparent shrink-0">
-                <button
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onClick={handleBrowse}
-                    className={cn(
-                        "relative w-full text-left rounded-md transition-all duration-200 group bg-transparent",
-                        "flex items-center gap-2.5 p-2.5",
-                        "border border-border/50 hover:border-border/80 border-dashed",
-                        isDragOver
-                            ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                            : "hover:bg-muted/10",
-                    )}
-                >
-                    <div className={cn(
-                        "w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0",
-                        isDragOver ? "bg-primary/20 text-primary" : "bg-muted/20 text-muted-foreground group-hover:text-foreground group-hover:scale-105"
-                    )}>
-                        <Upload className="w-4 h-4" />
-                    </div>
-                    <div>
-                        <p className="text-[12px] font-semibold text-foreground/90">Import Media</p>
-                        <p className="text-[11px] text-muted-foreground">Images, Videos, Audio</p>
-                    </div>
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setIsLibraryDialogOpen(true)}
-                    className={cn(
-                        "mt-2 w-full rounded-md border border-border/50 text-left transition-all duration-200",
-                        "flex items-center gap-2.5 p-2.5 bg-muted/10 hover:bg-muted/20 hover:border-border/70"
-                    )}
-                >
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted/30 text-muted-foreground">
-                        <Library className="w-4 h-4" />
-                    </div>
-                    <div>
-                        <p className="text-[12px] font-semibold text-foreground/90">From Library</p>
-                        <p className="text-[11px] text-muted-foreground">Your recordings, ready to reuse</p>
-                    </div>
-                </button>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleFileInputChange}
-                />
-            </div>
-
-            {/* Ingest Progress */}
-            {ingestQueue.length > 0 && (
-                <div className="px-2.5 pb-2 space-y-1 shrink-0">
-                    {ingestQueue.map(item => (
-                        <div key={item.id} className="flex items-center justify-between rounded bg-muted/20 px-2 py-1 text-[11px]">
-                            <span className="truncate max-w-[150px]">{item.file.name}</span>
-                            {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
-                            {item.status === 'success' && <Check className="w-3 h-3 text-green-500" />}
-                            {item.status === 'error' && <X className="w-3 h-3 text-red-500" />}
+                {/* Import Drop Area */}
+                <div className="p-2.5 bg-transparent shrink-0">
+                    <button
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onClick={handleBrowse}
+                        className={cn(
+                            "relative w-full text-left rounded-md transition-all duration-200 group bg-transparent",
+                            "flex items-center gap-2.5 p-2.5",
+                            "border border-border/50 hover:border-border/80 border-dashed",
+                            isDragOver
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                : "hover:bg-muted/10",
+                        )}
+                    >
+                        <div className={cn(
+                            "w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0",
+                            isDragOver ? "bg-primary/20 text-primary" : "bg-muted/20 text-muted-foreground group-hover:text-foreground group-hover:scale-105"
+                        )}>
+                            <Upload className="w-4 h-4" />
                         </div>
-                    ))}
+                        <div>
+                            <p className="text-[12px] font-semibold text-foreground/90">Import Media</p>
+                            <p className="text-[11px] text-muted-foreground">Images, Videos, Audio</p>
+                        </div>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setIsLibraryDialogOpen(true)}
+                        className={cn(
+                            "mt-2 w-full rounded-md border border-border/50 text-left transition-all duration-200",
+                            "flex items-center gap-2.5 p-2.5 bg-muted/10 hover:bg-muted/20 hover:border-border/70"
+                        )}
+                    >
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted/30 text-muted-foreground">
+                            <Library className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <p className="text-[12px] font-semibold text-foreground/90">From Library</p>
+                            <p className="text-[11px] text-muted-foreground">Your recordings, ready to reuse</p>
+                        </div>
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileInputChange}
+                    />
                 </div>
-            )}
 
-            {/* Asset Library Grid */}
-            <div className="flex-1 overflow-y-auto min-h-0 bg-transparent">
-                <div className="px-2.5 py-2 bg-transparent">
-                    <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Your Assets ({assets.length})</h3>
-
-                    {assets.length === 0 ? (
-                        <div className="text-center py-8 px-4 text-[11px] text-muted-foreground/50">
-                            No imported assets yet.
-                        </div>
-                    ) : (
-                        <div className="flex flex-col pb-10 gap-4">
-                            <div className="grid grid-cols-2 gap-2">
-                                {visibleAssets.map(asset => (
-                                    <AssetItem
-                                        key={asset.id}
-                                        asset={asset}
-                                        onAdd={addAssetToProject}
-                                        onRemove={removeAsset}
-                                        setDraggingAsset={setDraggingAsset}
-                                    />
-                                ))}
+                {/* Ingest Progress */}
+                {ingestQueue.length > 0 && (
+                    <div className="px-2.5 pb-2 space-y-1 shrink-0">
+                        {ingestQueue.map(item => (
+                            <div key={item.id} className="flex items-center justify-between rounded bg-muted/20 px-2 py-1 text-[11px]">
+                                <span className="truncate max-w-[150px]">{item.file.name}</span>
+                                {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                                {item.status === 'success' && <Check className="w-3 h-3 text-green-500" />}
+                                {item.status === 'error' && <X className="w-3 h-3 text-red-500" />}
                             </div>
+                        ))}
+                    </div>
+                )}
 
-                            {hasMore && (
-                                <button
-                                    onClick={handleLoadMore}
-                                    className="w-full rounded-md bg-muted/10 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
-                                >
-                                    Load More
-                                </button>
-                            )}
-                        </div>
-                    )}
+                {/* Asset Library Grid */}
+                <div className="flex-1 overflow-y-auto min-h-0 bg-transparent">
+                    <div className="px-2.5 py-2 bg-transparent">
+                        <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Your Assets ({assets.length})</h3>
+
+                        {assets.length === 0 ? (
+                            <div className="text-center py-8 px-4 text-[11px] text-muted-foreground/50">
+                                No imported assets yet.
+                            </div>
+                        ) : (
+                            <div className="flex flex-col pb-10 gap-4">
+                                <div className="grid grid-cols-2 gap-2">
+                                    {visibleAssets.map(asset => (
+                                        <AssetItem
+                                            key={asset.id}
+                                            asset={asset}
+                                            onAdd={addAssetToProject}
+                                            onRemove={removeAsset}
+                                            setDraggingAsset={setDraggingAsset}
+                                        />
+                                    ))}
+                                </div>
+
+                                {hasMore && (
+                                    <button
+                                        onClick={handleLoadMore}
+                                        className="w-full rounded-md bg-muted/10 py-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/20 hover:text-foreground"
+                                    >
+                                        Load More
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
             </div>
         </>
     )

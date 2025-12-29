@@ -20,6 +20,7 @@ import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
 import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
 import { useSelectedClipIds } from '@/stores/selectors/clip-selectors'
 import { timeObserver } from '@/lib/timeline/time-observer'
+import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import {
   Scissors,
   Play,
@@ -111,22 +112,29 @@ function TrackVisibilityDropdown() {
   )
 }
 
-export const TimelineControls = React.memo(() => {
+interface TimelineControlsProps {
+  minZoom: number
+  maxZoom: number
+}
+
+export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineControlsProps) => {
   const {
-    onPlay,
-    onPause,
-    onSeek,
     onZoomChange,
     onSplitSelected,
     onTrimStartSelected,
     onTrimEndSelected,
     onDeleteSelected,
     onDuplicateSelected,
-    minZoom,
-    maxZoom
   } = useTimelineContext()
   const { duration: maxDuration, zoom } = useTimelineLayout()
   const currentProject = useProjectStore((s) => s.currentProject)
+
+  // Use the unified playback hook (disabled because we don't want duplicate keyboard listeners here)
+  const {
+    playPause,
+    jumpBackward1s,
+    jumpForward1s
+  } = useTimelinePlayback({ enabled: false })
 
   // DECOUPLED: Use timeObserver for timecode display (updates at 60fps)
   const [displayTime, setDisplayTime] = React.useState(() => timeObserver.getTime())
@@ -185,11 +193,7 @@ export const TimelineControls = React.memo(() => {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => {
-                  // Get current time from observer at click time
-                  const currentTime = timeObserver.getTime()
-                  onSeek(Math.max(0, currentTime - 1000))
-                }}
+                onClick={jumpBackward1s}
                 className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 <SkipBack className="w-3.5 h-3.5" />
@@ -205,7 +209,7 @@ export const TimelineControls = React.memo(() => {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => isPlaying ? onPause() : onPlay()}
+                onClick={playPause}
                 className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -221,10 +225,7 @@ export const TimelineControls = React.memo(() => {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => {
-                  const currentTime = timeObserver.getTime()
-                  onSeek(Math.min(maxDuration, currentTime + 1000))
-                }}
+                onClick={jumpForward1s}
                 className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
               >
                 <SkipForward className="w-3.5 h-3.5" />

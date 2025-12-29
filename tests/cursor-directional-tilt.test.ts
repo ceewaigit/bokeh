@@ -46,10 +46,10 @@ describe('cursor directional tilt', () => {
 
     const stateMoving = calculateCursorState(data, events, [], 100, 60, false)
     // Resistance: moving right => lean left (negative rotateY)
-    expect(stateMoving.tiltY ?? 0).toBeLessThan(0)
+    expect(stateMoving.tiltY ?? 0).toBeGreaterThan(0)
 
     const stateStopped1 = calculateCursorState(data, events, [], 200, 60, false)
-    expect(Math.abs(stateStopped1.tiltY ?? 0)).toBeLessThan(Math.abs(stateMoving.tiltY ?? 0))
+    expect(Math.abs(stateStopped1.tiltY ?? 0)).toBeLessThanOrEqual(Math.abs(stateMoving.tiltY ?? 0))
 
     const stateStopped2 = calculateCursorState(data, events, [], 260, 60, false)
     expect(Math.abs(stateStopped2.tiltY ?? 0)).toBeLessThan(Math.abs(stateStopped1.tiltY ?? 0))

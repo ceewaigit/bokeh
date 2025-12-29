@@ -41,6 +41,7 @@ import {
   RETINA_MULTIPLIER,
   isSourceOverkillForPreview,
 } from '@/lib/utils/resolution-utils';
+import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 
 export function useVideoUrl({
   recording,
@@ -192,22 +193,12 @@ export function useVideoUrl({
     }
 
     // PRIORITY 5: Fallback to video-stream protocol
-    // Include folderPath context for proper path resolution
-    if (recording.filePath) {
-      if (recording.filePath.startsWith('data:')) {
-        return recording.filePath;
+    const resolvedPath = resolveRecordingPath(recording);
+    if (resolvedPath) {
+      if (resolvedPath.startsWith('data:')) {
+        return resolvedPath;
       }
-
-      // If we have an absolute folderPath, construct the full path
-      if (recording.folderPath && recording.folderPath.startsWith('/')) {
-        // folderPath is absolute to the recording folder (e.g., /path/to/project/recording-123)
-        // filePath is relative (e.g., recording-123/recording-123.mov)
-        // The file is inside folderPath, using just the basename of filePath
-        const fileName = recording.filePath.split('/').pop() || recording.filePath;
-        const fullPath = `${recording.folderPath}/${fileName}`;
-        return `video-stream://local/${encodeURIComponent(fullPath)}`;
-      }
-      return `video-stream://local/${encodeURIComponent(recording.filePath)}`;
+      return createVideoStreamUrl(resolvedPath);
     }
 
     return `video-stream://${recording.id}`;

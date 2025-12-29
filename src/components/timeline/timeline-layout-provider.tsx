@@ -198,7 +198,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
   const pixelsPerMs = useMemo(
     () => TimeConverter.calculatePixelsPerMs(containerSize.width, zoom),
-    [containerSize.width, zoom]
+    [zoom]
   )
 
   const timelineWidth = useMemo(

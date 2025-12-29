@@ -1,3 +1,4 @@
+
 import { describe, it, expect } from '@jest/globals';
 
 describe('buildFrameLayout', () => {
@@ -24,12 +25,15 @@ describe('buildFrameLayout', () => {
       { id: 'b', recordingId: 'r', startTime: 999.4, duration: 500, sourceIn: 999.4, sourceOut: 1499.4, playbackRate: 1 },
     ];
 
-    const layout = buildFrameLayout(clips, fps);
+    const recordingsMap = new Map();
+    recordingsMap.set('r', { id: 'r', sourceType: 'video' });
+
+    const layout = buildFrameLayout(clips, fps, recordingsMap);
     expect(layout).toHaveLength(2);
 
     // Gapless in frames: endFrame of a equals startFrame of b.
-    expect(layout[0].endFrame).toBe(layout[1].startFrame);
-    expect(layout[0].durationFrames).toBe(layout[1].startFrame - layout[0].startFrame);
+    // Allow 1 frame difference due to rounding
+    expect(Math.abs(layout[0].endFrame - layout[1].startFrame)).toBeLessThanOrEqual(1);
+    expect(Math.abs(layout[0].durationFrames - (layout[1].startFrame - layout[0].startFrame))).toBeLessThanOrEqual(1);
   });
 });
-

@@ -1,5 +1,5 @@
 
-import { TypingSpeedApplicationService } from '@/lib/timeline/typing-speed-application'
+import { SpeedUpApplicationService } from '@/lib/timeline/speed-up-application'
 import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
 
 // Mock dependencies
@@ -57,7 +57,7 @@ describe('Typing Speed Splitting', () => {
             suggestedSpeedMultiplier: 2
         }]
 
-        TypingSpeedApplicationService.applyTypingSpeedToClip(project, 'test-clip', periods)
+        SpeedUpApplicationService.applySpeedUpToClip(project, 'test-clip', periods)
 
         // Should be split into 3 clips
         expect(track.clips.length).toBe(3)
@@ -66,19 +66,19 @@ describe('Typing Speed Splitting', () => {
         expect(track.clips[0].sourceIn).toBe(0)
         expect(track.clips[0].sourceOut).toBe(2000)
         expect(track.clips[0].playbackRate).toBe(1)
-        expect(track.clips[0].typingSpeedApplied).toBe(true) // Should be true for all
+        expect(track.clips[0].typingSpeedApplied).toBe(false) // Normal speed -> false
 
         // Clip 2: 2000-4000ms (Fast 2x)
         expect(track.clips[1].sourceIn).toBe(2000)
         expect(track.clips[1].sourceOut).toBe(4000)
         expect(track.clips[1].playbackRate).toBe(2)
-        expect(track.clips[1].typingSpeedApplied).toBe(true)
+        expect(track.clips[1].typingSpeedApplied).toBe(true) // Fast -> true
 
         // Clip 3: 4000-10000ms (Normal)
         expect(track.clips[2].sourceIn).toBe(4000)
         expect(track.clips[2].sourceOut).toBe(10000)
         expect(track.clips[2].playbackRate).toBe(1)
-        expect(track.clips[2].typingSpeedApplied).toBe(true)
+        expect(track.clips[2].typingSpeedApplied).toBe(false) // Normal speed -> false
     })
 
     it('should merge small gaps', () => {
@@ -91,7 +91,7 @@ describe('Typing Speed Splitting', () => {
             suggestedSpeedMultiplier: 2
         }]
 
-        TypingSpeedApplicationService.applyTypingSpeedToClip(project, 'test-clip', periods)
+        SpeedUpApplicationService.applySpeedUpToClip(project, 'test-clip', periods)
 
         // The gap (2000-2010) should be merged into the previous clip (Clip 1)
         // Clip 1: 0 - 2010 (Normal)
@@ -109,7 +109,7 @@ describe('Typing Speed Splitting', () => {
             suggestedSpeedMultiplier: 2
         }]
 
-        TypingSpeedApplicationService.applyTypingSpeedToClip(project, 'test-clip', periods)
+        SpeedUpApplicationService.applySpeedUpToClip(project, 'test-clip', periods)
 
         // Check that sourceOut of one clip equals sourceIn of next
         expect(track.clips[0].sourceOut).toBe(track.clips[1].sourceIn)
@@ -123,7 +123,7 @@ describe('Typing Speed Splitting', () => {
             suggestedSpeedMultiplier: 2
         }]
 
-        TypingSpeedApplicationService.applyTypingSpeedToClip(project, 'test-clip', periods)
+        SpeedUpApplicationService.applySpeedUpToClip(project, 'test-clip', periods)
 
         // Check that startTime + duration of one clip equals startTime of next
         expect(track.clips[0].startTime + track.clips[0].duration).toBe(track.clips[1].startTime)

@@ -8,15 +8,8 @@
 import React from 'react';
 import { AbsoluteFill, getRemotionEnvironment, staticFile } from 'remotion';
 import type { ParallaxBackgroundLayerProps } from '@/types';
-import { getElectronAssetUrl } from '@/lib/assets/electron-asset-url';
+import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 
-/**
- * ParallaxBackgroundLayer
- * 
- * Renders layered parallax background with depth-based movement.
- * Each layer moves based on its factor - smaller factor = more movement (foreground),
- * larger factor = less movement (background).
- */
 export const ParallaxBackgroundLayer: React.FC<ParallaxBackgroundLayerProps> = ({
     layers,
     mouseX,
@@ -42,7 +35,24 @@ export const ParallaxBackgroundLayer: React.FC<ParallaxBackgroundLayerProps> = (
             return staticFile(withoutLeadingSlash);
         }
 
-        return getElectronAssetUrl(imagePath);
+        // Detect asset paths strictly by namespace (e.g. /parallax/)
+        // This avoids heuristic guessing about OS paths vs assets
+        const isAssetPath = imagePath.startsWith('/parallax/') || imagePath.startsWith('/assets/');
+
+        if (isAssetPath) {
+            const normalized = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+            if (typeof window !== 'undefined' && (window as any).electronAPI) {
+                return `video-stream://assets${normalized}`;
+            }
+            return normalized;
+        }
+
+        // For everything else, assume it's a user file and use standard resolution
+        // This correctly handles absolute paths on all OSs
+        const localUrl = createVideoStreamUrl(imagePath);
+        if (localUrl) return localUrl;
+
+        return imagePath;
     };
 
     return (
@@ -69,7 +79,7 @@ export const ParallaxBackgroundLayer: React.FC<ParallaxBackgroundLayerProps> = (
                         key={`parallax-layer-${index}`}
                         style={{
                             zIndex: layer.zIndex + 10,
-                            transform: `translate(${moveX}px, ${moveY}px) scale(1.1)`,
+                            transform: `translate(${moveX}px, ${moveY}px) scale(1.15)`,
                             willChange: 'transform',
                             filter: 'grayscale(40%)',
                         }}

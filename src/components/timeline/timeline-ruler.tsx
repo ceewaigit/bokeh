@@ -8,7 +8,10 @@ import { useProjectStore } from '@/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
 
+import { useTimelineUI } from './timeline-ui-context'
+
 export const TimelineRuler = React.memo(() => {
+  const { scrollTop } = useTimelineUI()
   const {
     duration,
     stageWidth,
@@ -19,7 +22,6 @@ export const TimelineRuler = React.memo(() => {
     onScrubStart,
     onScrubMove,
     onScrubEnd,
-    scrollTop
   } = useTimelineContext()
   const colors = useTimelineColors()
   const [isHovering, setIsHovering] = React.useState(false)

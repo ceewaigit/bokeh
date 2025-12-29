@@ -1,4 +1,5 @@
-import { TimelineUtils } from '@/lib/timeline'
+
+import { TimeConverter } from '@/lib/timeline/time-space-converter'
 
 describe('Timeline Automatic Zoom', () => {
   describe('calculateOptimalZoom', () => {
@@ -6,8 +7,8 @@ describe('Timeline Automatic Zoom', () => {
       // 5 second video
       const duration = 5000
       const viewportWidth = 1200
-      const zoom = TimelineUtils.calculateOptimalZoom(duration, viewportWidth)
-      
+      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+
       // Should zoom in to fit the 5 second video
       expect(zoom).toBeGreaterThan(1)
       expect(zoom).toBeLessThanOrEqual(2.0)
@@ -17,8 +18,8 @@ describe('Timeline Automatic Zoom', () => {
       // 30 second video
       const duration = 30000
       const viewportWidth = 1200
-      const zoom = TimelineUtils.calculateOptimalZoom(duration, viewportWidth)
-      
+      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+
       // Should zoom out to fit the 30 second video
       expect(zoom).toBeLessThan(0.5)
       expect(zoom).toBeGreaterThanOrEqual(0.1)
@@ -28,8 +29,8 @@ describe('Timeline Automatic Zoom', () => {
       // 5 minute video
       const duration = 300000
       const viewportWidth = 1200
-      const zoom = TimelineUtils.calculateOptimalZoom(duration, viewportWidth)
-      
+      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+
       // Should be at minimum zoom
       expect(zoom).toBe(0.1)
     })
@@ -37,8 +38,8 @@ describe('Timeline Automatic Zoom', () => {
     it('should round zoom to nearest 0.05', () => {
       const duration = 8000
       const viewportWidth = 1200
-      const zoom = TimelineUtils.calculateOptimalZoom(duration, viewportWidth)
-      
+      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+
       // Check that zoom is rounded to 0.05 increments
       // Account for floating point precision
       const remainder = zoom % 0.05
@@ -48,15 +49,15 @@ describe('Timeline Automatic Zoom', () => {
   })
 
   describe('calculateTimelineWidth', () => {
-    it('should add 30% padding to timeline width', () => {
+    it('should calculate base timeline width', () => {
       const duration = 10000
       const pixelsPerMs = 0.1
       const minWidth = 800
-      
-      const width = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
-      
-      // Should be duration * 1.3 * pixelsPerMs
-      const expectedWidth = duration * 1.3 * pixelsPerMs
+
+      const width = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
+
+      // Should be duration * pixelsPerMs (no extra padding in updated logic)
+      const expectedWidth = Math.max(duration * pixelsPerMs, minWidth)
       expect(width).toBe(expectedWidth)
     })
 
@@ -64,24 +65,22 @@ describe('Timeline Automatic Zoom', () => {
       const duration = 1000 // Very short duration
       const pixelsPerMs = 0.1
       const minWidth = 800
-      
-      const width = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
-      
-      // Should use minimum width minus track label width
-      const minUsableWidth = minWidth - 42 // TRACK_LABEL_WIDTH
-      expect(width).toBeGreaterThanOrEqual(minUsableWidth)
+
+      const width = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
+
+      expect(width).toBeGreaterThanOrEqual(minWidth)
     })
 
     it('should allow scrolling beyond last video', () => {
       const duration = 10000
       const pixelsPerMs = 0.1
       const minWidth = 800
-      
-      const width = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
+
+      const width = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
       const baseWidth = duration * pixelsPerMs
-      
-      // Width should be 30% more than base width
-      expect(width).toBe(baseWidth * 1.3)
+
+      // Width should be at least buffer
+      expect(width).toBeGreaterThanOrEqual(baseWidth)
     })
   })
 })

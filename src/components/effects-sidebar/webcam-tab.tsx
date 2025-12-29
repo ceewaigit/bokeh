@@ -10,6 +10,7 @@ import { DEFAULT_WEBCAM_DATA, WEBCAM_SHAPE_PRESETS } from '@/lib/constants/defau
 import { DEFAULT_CROP_DATA, clampCropData } from '@/remotion/compositions/utils/transforms/crop-transform'
 import { useProjectStore } from '@/stores/project-store'
 import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
+import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths'
 
 import { WebcamGeneral } from './webcam/webcam-general'
 import { WebcamPreview } from './webcam/webcam-preview'
@@ -130,15 +131,8 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
   }, [webcamClips, recordingsMap])
 
   const webcamPreviewSrc = useMemo(() => {
-    if (!webcamRecording?.filePath) return null
-    const basename = webcamRecording.filePath.split('/').pop() || webcamRecording.filePath
-    const resolvedPath = webcamRecording.folderPath
-      ? `${webcamRecording.folderPath.replace(/\/$/, '')}/${basename}`
-      : webcamRecording.filePath
-    if (resolvedPath.startsWith('/')) {
-      return `video-stream://local/${encodeURIComponent(resolvedPath)}`
-    }
-    return resolvedPath
+    const resolvedPath = resolveRecordingPath(webcamRecording)
+    return createVideoStreamUrl(resolvedPath) || resolvedPath
   }, [webcamRecording])
 
   const webcamAspectRatio = useMemo(() => {

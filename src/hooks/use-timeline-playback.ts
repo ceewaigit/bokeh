@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { useKeyboardEvents } from '@/hooks/useKeyboardEvents'
+import { useShallow } from 'zustand/react/shallow'
 
 interface UseTimelinePlaybackProps {
   enabled?: boolean
@@ -14,37 +15,28 @@ interface UseTimelinePlaybackProps {
  */
 export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps = {}) {
   const {
-    currentProject,
-    currentTime,
-    isPlaying,
     play,
     pause,
     seek,
     selectClip
-  } = useProjectStore()
+  } = useProjectStore(useShallow((s) => ({
+    play: s.play,
+    pause: s.pause,
+    seek: s.seek,
+    selectClip: s.selectClip
+  })))
 
   const playbackSpeedRef = useRef(1)
   const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const currentTimeRef = useRef(currentTime)
-  const currentProjectRef = useRef(currentProject)
-
-  // Keep refs in sync
-  useEffect(() => {
-    currentTimeRef.current = currentTime
-  }, [currentTime])
-
-  useEffect(() => {
-    currentProjectRef.current = currentProject
-  }, [currentProject])
-
   const handlePlayPause = useCallback(() => {
+    const isPlaying = useProjectStore.getState().isPlaying
     if (isPlaying) {
       pause()
     } else {
       play()
     }
-  }, [isPlaying, pause, play])
+  }, [pause, play])
 
   const handleShuttleReverse = useCallback(() => {
     // Always clear existing interval first to prevent stacking
@@ -61,8 +53,8 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     if (playbackSpeedRef.current !== 0) {
       shuttleIntervalRef.current = setInterval(() => {
         const frameTime = (1000 / 30) * playbackSpeedRef.current
-        // Use ref instead of stale closure
-        seek(Math.max(0, currentTimeRef.current + frameTime))
+        const currentTime = useProjectStore.getState().currentTime
+        seek(Math.max(0, currentTime + frameTime))
       }, 1000 / 30)
     }
   }, [pause, seek])
@@ -91,33 +83,38 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     if (playbackSpeedRef.current !== 0) {
       shuttleIntervalRef.current = setInterval(() => {
         const frameTime = (1000 / 30) * playbackSpeedRef.current
-        // Use refs instead of stale closures
-        const maxTime = currentProjectRef.current?.timeline?.duration || 0
-        seek(Math.min(maxTime, currentTimeRef.current + frameTime))
+        const state = useProjectStore.getState()
+        const currentTime = state.currentTime
+        const maxTime = state.currentProject?.timeline?.duration || 0
+        seek(Math.min(maxTime, currentTime + frameTime))
       }, 1000 / 30)
     }
   }, [pause, seek])
 
   const handleFramePrevious = useCallback(() => {
     const frameTime = 1000 / 30 // 30fps
-    seek(Math.max(0, currentTimeRef.current - frameTime))
+    const currentTime = useProjectStore.getState().currentTime
+    seek(Math.max(0, currentTime - frameTime))
   }, [seek])
 
   const handleFrameNext = useCallback(() => {
     const frameTime = 1000 / 30
-    const maxTime = currentProjectRef.current?.timeline?.duration || 0
-    seek(Math.min(maxTime, currentTimeRef.current + frameTime))
+    const state = useProjectStore.getState()
+    const maxTime = state.currentProject?.timeline?.duration || 0
+    seek(Math.min(maxTime, state.currentTime + frameTime))
   }, [seek])
 
   const handleFramePrevious10 = useCallback(() => {
     const frameTime = (1000 / 30) * 10
-    seek(Math.max(0, currentTimeRef.current - frameTime))
+    const currentTime = useProjectStore.getState().currentTime
+    seek(Math.max(0, currentTime - frameTime))
   }, [seek])
 
   const handleFrameNext10 = useCallback(() => {
     const frameTime = (1000 / 30) * 10
-    const maxTime = currentProjectRef.current?.timeline?.duration || 0
-    seek(Math.min(maxTime, currentTimeRef.current + frameTime))
+    const state = useProjectStore.getState()
+    const maxTime = state.currentProject?.timeline?.duration || 0
+    seek(Math.min(maxTime, state.currentTime + frameTime))
   }, [seek])
 
   const handleTimelineStart = useCallback(() => {
@@ -125,14 +122,14 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
   }, [seek])
 
   const handleTimelineEnd = useCallback(() => {
-    const maxTime = currentProjectRef.current?.timeline?.duration || 0
+    const maxTime = useProjectStore.getState().currentProject?.timeline?.duration || 0
     seek(maxTime)
   }, [seek])
 
   const handleClipPrevious = useCallback(() => {
-    const project = currentProjectRef.current
+    const project = useProjectStore.getState().currentProject
     if (!project) return
-    const time = currentTimeRef.current
+    const time = useProjectStore.getState().currentTime
     const clips = project.timeline.tracks
       .flatMap(t => t.clips)
       .sort((a, b) => a.startTime - b.startTime)
@@ -146,9 +143,9 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
   }, [seek, selectClip])
 
   const handleClipNext = useCallback(() => {
-    const project = currentProjectRef.current
+    const project = useProjectStore.getState().currentProject
     if (!project) return
-    const time = currentTimeRef.current
+    const time = useProjectStore.getState().currentTime
     const clips = project.timeline.tracks
       .flatMap(t => t.clips)
       .sort((a, b) => a.startTime - b.startTime)
@@ -160,6 +157,17 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
       selectClip(clip.id)
     }
   }, [seek, selectClip])
+
+  const handleJumpBackward1s = useCallback(() => {
+    const currentTime = useProjectStore.getState().currentTime
+    seek(Math.max(0, currentTime - 1000))
+  }, [seek])
+
+  const handleJumpForward1s = useCallback(() => {
+    const state = useProjectStore.getState()
+    const maxTime = state.currentProject?.timeline?.duration || 0
+    seek(Math.min(maxTime, state.currentTime + 1000))
+  }, [seek])
 
   const bindings = useMemo(() => ([
     { event: 'playPause', handler: handlePlayPause },
@@ -207,7 +215,36 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     }
   }, [])
 
-  return {
-    playbackSpeed: playbackSpeedRef.current
-  }
+  return useMemo(() => ({
+    playbackSpeed: playbackSpeedRef.current,
+    shuttleReverse: handleShuttleReverse,
+    shuttleStop: handleShuttleStop,
+    shuttleForward: handleShuttleForward,
+    framePrevious: handleFramePrevious,
+    frameNext: handleFrameNext,
+    framePrevious10: handleFramePrevious10,
+    frameNext10: handleFrameNext10,
+    timelineStart: handleTimelineStart,
+    timelineEnd: handleTimelineEnd,
+    clipPrevious: handleClipPrevious,
+    clipNext: handleClipNext,
+    playPause: handlePlayPause,
+    jumpBackward1s: handleJumpBackward1s,
+    jumpForward1s: handleJumpForward1s
+  }), [
+    handleShuttleReverse,
+    handleShuttleStop,
+    handleShuttleForward,
+    handleFramePrevious,
+    handleFrameNext,
+    handleFramePrevious10,
+    handleFrameNext10,
+    handleTimelineStart,
+    handleTimelineEnd,
+    handleClipPrevious,
+    handleClipNext,
+    handlePlayPause,
+    handleJumpBackward1s,
+    handleJumpForward1s
+  ])
 }

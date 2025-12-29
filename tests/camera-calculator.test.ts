@@ -1,3 +1,4 @@
+
 import { computeCameraState, type CameraPhysicsState } from '@/lib/effects/utils/camera-calculator'
 import { EffectType } from '@/types/effects'
 
@@ -14,7 +15,7 @@ describe('camera-calculator spring simulation', () => {
         enabled: true,
         startTime: 0,
         endTime: 2000,
-        data: { scale: 2, introMs: 500, outroMs: 500, followStrategy: 'mouse' },
+        data: { scale: 2, introMs: 500, outroMs: 500, followStrategy: 'mouse', origin: 'auto' as const, smoothing: 0.1 },
       },
     ]
 
@@ -75,7 +76,7 @@ describe('camera-calculator spring simulation', () => {
         enabled: true,
         startTime: 0,
         endTime: 2000,
-        data: { scale: 2, introMs: 500, outroMs: 500, followStrategy: 'mouse' },
+        data: { scale: 2, introMs: 500, outroMs: 500, followStrategy: 'mouse', origin: 'auto' as const, smoothing: 0.1 },
       },
     ]
 
@@ -135,7 +136,7 @@ describe('camera-calculator spring simulation', () => {
         enabled: true,
         startTime: 0,
         endTime: 3000,
-        data: { scale: 2, introMs: 0, outroMs: 0, followStrategy: 'mouse' },
+        data: { scale: 2, introMs: 0, outroMs: 0, followStrategy: 'mouse', origin: 'auto' as const, smoothing: 0.1 },
       },
     ]
 

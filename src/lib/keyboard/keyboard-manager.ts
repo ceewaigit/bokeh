@@ -202,6 +202,16 @@ class KeyboardManager extends EventEmitter {
     })
 
     this.register({
+      id: 'redo-alt',
+      key: 'y',
+      modifiers: ['cmd'],
+      action: 'redo',
+      description: 'Redo',
+      context: ['timeline', 'global'],
+      preventDefault: true
+    })
+
+    this.register({
       id: 'copy',
       key: 'c',
       modifiers: ['cmd'],

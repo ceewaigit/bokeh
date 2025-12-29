@@ -5,7 +5,7 @@
  * Manages video clip rendering, transforms, and visual effects for both
  * preview playback and export rendering modes.
  *
- * Now uses extracted hooks for clean separation of concerns:
+ * Uses extracted hooks for clean separation of concerns:
  * - useEffectiveClipData: Resolves clip with inheritance logic
  * - useLayoutCalculation: Computes dimensions and positions
  * - useTransformCalculation: Computes zoom, crop, 3D transforms
@@ -501,7 +501,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   return (
     <AbsoluteFill>
-      {/* Main Transform Container - simplified without SVG filter rotation */}
+      {/* Main Transform Container */}
       <AbsoluteFill>
         <div
           style={{
@@ -589,8 +589,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
         ...layout,
         zoomTransform: zoomTransform ?? null,
         contentTransform: outerTransform,
-        refocusBlurPx: effectiveBlurPx, // Refocus blur only - motion blur handled by PixiJS
-        cameraMotionBlur: { enabled: false, angle: 0, filterId: '' }, // Cursor uses its own blur system
+        refocusBlurPx: effectiveBlurPx,
+        cameraMotionBlur: { enabled: false, angle: 0, filterId: '' },
         activeClipData,
         effectiveClipData: resolvedClipData,
         prevFrameClipData,

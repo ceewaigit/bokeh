@@ -29,6 +29,7 @@ import { useTimelineMetadata } from '@/hooks/useTimelineMetadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
+import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { TimelineDataService } from '@/lib/timeline/timeline-data-service'
 import { calculateFullCameraPath } from '@/lib/effects/utils/camera-path-calculator'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
@@ -43,88 +44,10 @@ import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { UpdateZoomBlockCommand } from '@/lib/commands'
 import { toast } from 'sonner'
 import { useSelectedClip } from '@/stores/selectors/clip-selectors'
+import { useProjectLoader } from '@/hooks/use-project-loader'
+import { usePanelResizer } from '@/hooks/use-panel-resizer'
 
-// Simplified project loading - delegates to ProjectIOService for all heavy lifting
-async function loadProjectRecording(
-  recording: any,
-  setLoadingMessage: (message: string) => void,
-  newProject: (name: string) => void,
-  setLastSavedAt: (timestamp: string | null) => void,
-  setProject: (project: any) => void,
-  setCameraPathCache: (cache: any) => void,
-  setAutoZoom: (zoom: number) => void
-) {
-  try {
-    // Initialize wallpaper if not already done
-    await initializeDefaultWallpaper()
 
-    // Use centralized ProjectIOService for project loading
-    // This handles: file reading, migrations, path resolution, file validation,
-    // video property detection/repair, metadata loading, and effects initialization
-    const project = await ProjectIOService.loadProjectFromRecording(recording, {
-      onProgress: setLoadingMessage
-      // Proxy generation runs in background - don't block project load
-    })
-
-    // Create project in store
-    setLoadingMessage('Creating project...')
-    newProject(project.name)
-
-    // Set last saved timestamp to the project's modified time
-    setLastSavedAt(project.modifiedAt || new Date().toISOString())
-
-    // Set the project ONCE after all recordings are processed
-    setProject(project)
-
-    // Pre-compute camera path for smooth playback
-    setLoadingMessage('Optimizing playback...')
-
-    // Build frame layout once using centralized service
-    const fps = TimelineDataService.getFps(project)
-    const recordingsMap = TimelineDataService.getRecordingsMap(project)
-    const frameLayout = TimelineDataService.getFrameLayout(project, fps)
-
-    // Run the heavy calculation
-    const cameraPath = calculateFullCameraPath({
-      frameLayout,
-      fps,
-      videoWidth: project.settings.resolution.width,
-      videoHeight: project.settings.resolution.height,
-      effects: EffectStore.getAll(project),
-      getRecording: (id) => recordingsMap.get(id),
-      loadedMetadata: undefined
-    })
-
-    // Store in cache
-    if (cameraPath) {
-      setCameraPathCache(cameraPath)
-    }
-
-    const viewportWidth = window.innerWidth
-    const allZoomEffects = getZoomEffects(EffectStore.getAll(project))
-    const zoomBlocks = allZoomEffects.map((e: any) => ({
-      startTime: e.startTime,
-      endTime: e.endTime
-    }))
-    const adaptiveLimits = TimeConverter.calculateAdaptiveZoomLimits(
-      project.timeline.duration,
-      viewportWidth,
-      zoomBlocks,
-      TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX
-    )
-
-    // Calculate optimal zoom and clamp to adaptive limits
-    const optimalZoom = TimeConverter.calculateOptimalZoom(project.timeline.duration, viewportWidth)
-    const clampedZoom = Math.max(adaptiveLimits.min, Math.min(adaptiveLimits.max, optimalZoom))
-    setAutoZoom(clampedZoom)
-
-    return true
-  } catch (error) {
-    console.error('Failed to load project:', error)
-    alert(error instanceof Error ? error.message : 'Failed to load project')
-    return false
-  }
-}
 
 export function WorkspaceManager() {
   // Store hooks - using reactive state from single source of truth
@@ -212,20 +135,19 @@ export function WorkspaceManager() {
   const isExporting = useProjectStore((s) => s.progress.isProcessing)
   const previewReady = useProjectStore((s) => s.previewReady)
   const setPreviewReady = useProjectStore((s) => s.setPreviewReady)
-  const clearLibrary = useRecordingsLibraryStore((s) => s.clearLibrary)
 
+  // Custom hooks
+  const { isLoading, loadingMessage, loadRecording } = useProjectLoader()
+  const {
+    panelMaxWidth,
+    dragUtilitiesWidth,
+    dragPropertiesWidth,
+    startResizingUtilities,
+    startResizingProperties,
+    startResizingTimeline
+  } = usePanelResizer()
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [loadingMessage, setLoadingMessage] = useState('Loading...')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const isResizingUtilitiesRef = useRef(false)
-  const isResizingPropertiesRef = useRef(false)
-  const isResizingTimelineRef = useRef(false)
-  const [dragUtilitiesWidth, setDragUtilitiesWidth] = useState<number | null>(null)
-  const [dragPropertiesWidth, setDragPropertiesWidth] = useState<number | null>(null)
-  const [panelMaxWidth, setPanelMaxWidth] = useState(() =>
-    typeof window === 'undefined' ? 0 : window.innerWidth * 0.3
-  )
 
   // Command executor for undo/redo support
   const executorRef = useCommandExecutor()
@@ -235,10 +157,7 @@ export function WorkspaceManager() {
       setPreviewReady(false)
       return
     }
-    if (previewReady && isLoading) {
-      setIsLoading(false)
-    }
-  }, [currentProject, previewReady, isLoading, setPreviewReady])
+  }, [currentProject, setPreviewReady])
 
   // Subscribe to cache invalidation to trigger recalculation
   const cameraPathCache = useProjectStore((s) => s.cameraPathCache)
@@ -273,73 +192,7 @@ export function WorkspaceManager() {
     return () => clearTimeout(timeoutId)
   }, [currentProject, cameraPathCache, timelineMutationCounter, setCameraPathCache])
 
-  useEffect(() => {
-    const updatePanelMaxWidth = () => {
-      setPanelMaxWidth(window.innerWidth * 0.3)
-    }
-    updatePanelMaxWidth()
-    window.addEventListener('resize', updatePanelMaxWidth)
-    return () => window.removeEventListener('resize', updatePanelMaxWidth)
-  }, [])
 
-  useEffect(() => {
-    const UTIL_MIN = 200
-    const PROPS_MIN = 300
-    const getPanelMaxWidth = () => window.innerWidth * 0.3
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (isResizingUtilitiesRef.current) {
-        const rawWidth = Math.max(0, event.clientX)
-        const panelMaxWidth = getPanelMaxWidth()
-        const utilMin = Math.min(UTIL_MIN, panelMaxWidth)
-        const clampedWidth = Math.min(Math.max(rawWidth, utilMin), panelMaxWidth)
-        setDragUtilitiesWidth(clampedWidth)
-      }
-      if (isResizingPropertiesRef.current) {
-        const rawWidth = Math.max(0, window.innerWidth - event.clientX)
-        const panelMaxWidth = getPanelMaxWidth()
-        const propsMin = Math.min(PROPS_MIN, panelMaxWidth)
-        const clampedWidth = Math.min(Math.max(rawWidth, propsMin), panelMaxWidth)
-        setDragPropertiesWidth(clampedWidth)
-      }
-      if (isResizingTimelineRef.current) {
-        // Calculate height from bottom of viewport
-        const newHeight = window.innerHeight - event.clientY
-        setTimelineHeight(newHeight)
-      }
-    }
-
-    const handleMouseUp = () => {
-      if (isResizingUtilitiesRef.current || isResizingPropertiesRef.current || isResizingTimelineRef.current) {
-        const utilitiesWidth = dragUtilitiesWidth ?? utilitiesPanelWidth
-        const propertiesWidth = dragPropertiesWidth ?? propertiesPanelWidth
-        const maxWidth = getPanelMaxWidth()
-        const utilMin = Math.min(UTIL_MIN, maxWidth)
-        const propsMin = Math.min(PROPS_MIN, maxWidth)
-        isResizingUtilitiesRef.current = false
-        isResizingPropertiesRef.current = false
-        isResizingTimelineRef.current = false
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-        setDragUtilitiesWidth(null)
-        setDragPropertiesWidth(null)
-        if (isUtilitiesOpen) {
-          setUtilitiesPanelWidth(Math.min(Math.max(utilMin, utilitiesWidth), maxWidth))
-        }
-        if (isPropertiesOpen) {
-          setPropertiesPanelWidth(Math.min(Math.max(propsMin, propertiesWidth), maxWidth))
-        }
-      }
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [setUtilitiesPanelWidth, setPropertiesPanelWidth, setTimelineHeight, utilitiesPanelWidth, propertiesPanelWidth, isUtilitiesOpen, isPropertiesOpen, dragUtilitiesWidth, dragPropertiesWidth])
 
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
   const contextEffects = timelineEffects ?? []
@@ -351,8 +204,6 @@ export function WorkspaceManager() {
 
   const selectedZoomData = selectedZoomEffect?.data as ZoomEffectData | undefined
   const isManualZoom = selectedZoomData?.followStrategy === ZoomFollowStrategy.Manual
-
-
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
@@ -384,38 +235,10 @@ export function WorkspaceManager() {
   }, [saveCurrentProject])
 
   // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      // Cmd+S or Ctrl+S to save
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        await handleSaveProject()
-      }
-
-      // Cmd+Z or Ctrl+Z for Undo
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        if (executorRef.current?.canUndo()) {
-          await executorRef.current.undo()
-        }
-      }
-
-      // Cmd+Shift+Z or Ctrl+Shift+Z (or Ctrl+Y) for Redo
-      if (((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') ||
-        ((e.metaKey || e.ctrlKey) && e.key === 'y')) {
-        e.preventDefault()
-        if (executorRef.current?.canRedo()) {
-          await executorRef.current.redo()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleSaveProject])
-
-  // Playhead recording now comes directly from store's reactive state
-  // No need to calculate - store maintains this
+  useCommandKeyboard({
+    enabled: !isExporting,
+    onSave: handleSaveProject
+  })
 
   // Subscribe to isPlaying only where needed (e.g., clip boundary monitoring)
   // This is a "hot" subscription but only causes re-render when isPlaying changes (rare)
@@ -525,8 +348,6 @@ export function WorkspaceManager() {
     }
   }, [selectedZoomEffect, selectedZoomData, isManualZoom, isEditingCrop])
 
-
-
   const shouldWaitForPreview = Boolean(currentProject && timelineMetadata) && !previewReady
   const showLoadingOverlay = isLoading || shouldWaitForPreview
   const loadingOverlayMessage = loadingMessage || 'Loading...'
@@ -570,43 +391,9 @@ export function WorkspaceManager() {
       <div className="fixed inset-0 flex flex-col">
         <RecordingsLibrary
           onSelectRecording={async (recording) => {
-            setIsLoading(true)
-            setPreviewReady(false)
-            setLoadingMessage('Loading recording...')
-
-            try {
-              const success = await loadProjectRecording(
-                recording,
-                setLoadingMessage,
-                newProject,
-                setLastSavedAt,
-                setProject,
-                setCameraPathCache,
-                setAutoZoom
-              )
-
-              if (!success) {
-                setIsLoading(false)
-                setPreviewReady(false)
-                setLoadingMessage('')
-                return
-              }
-
-              // Clear library data to free memory once the workspace is ready
-              clearLibrary()
-              ThumbnailGenerator.clearAllCache()
-
-              // Hide record button when entering workspace
-              if (window.electronAPI?.minimizeRecordButton) {
-                window.electronAPI.minimizeRecordButton()
-              }
-
-              setIsLoading(false)
-              setLoadingMessage('Loading...')
-            } catch (error) {
-              console.error('Failed to load recording:', error)
-              setIsLoading(false)
-              setPreviewReady(false)
+            const success = await loadRecording(recording, setLastSavedAt)
+            if (!success) {
+              return
             }
           }}
         />
@@ -684,12 +471,7 @@ export function WorkspaceManager() {
                 {isUtilitiesOpen && (
                   <div
                     className="w-4 cursor-col-resize bg-transparent hover:bg-border/30 transition-colors flex items-center justify-center group"
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                      isResizingUtilitiesRef.current = true
-                      document.body.style.cursor = 'col-resize'
-                      document.body.style.userSelect = 'none'
-                    }}
+                    onMouseDown={startResizingUtilities}
                   >
                     <div className="h-10 w-2 rounded-full bg-foreground/20 shadow-sm group-hover:bg-foreground/30 transition-colors" />
                   </div>
@@ -727,12 +509,7 @@ export function WorkspaceManager() {
                   <>
                     <div
                       className="w-4 cursor-col-resize bg-transparent hover:bg-border/30 transition-colors flex items-center justify-center group"
-                      onMouseDown={(event) => {
-                        event.preventDefault()
-                        isResizingPropertiesRef.current = true
-                        document.body.style.cursor = 'col-resize'
-                        document.body.style.userSelect = 'none'
-                      }}
+                      onMouseDown={startResizingProperties}
                     >
                       <div className="h-10 w-2 rounded-full bg-foreground/20 shadow-sm group-hover:bg-foreground/30 transition-colors" />
                     </div>
@@ -766,12 +543,7 @@ export function WorkspaceManager() {
               {/* Timeline Resize Divider */}
               <div
                 className="h-2 cursor-row-resize bg-transparent hover:bg-border/30 transition-all duration-150 flex-shrink-0 flex items-center justify-center group"
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                  isResizingTimelineRef.current = true
-                  document.body.style.cursor = 'row-resize'
-                  document.body.style.userSelect = 'none'
-                }}
+                onMouseDown={startResizingTimeline}
               >
                 {/* Subtle resize handle indicator */}
                 <div className="w-8 h-1 rounded-full bg-border/40 group-hover:bg-border/60 transition-colors" />

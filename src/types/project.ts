@@ -797,7 +797,24 @@ export interface Transition {
   easing: string
 }
 
+
 export type AudioEnhancementPreset = 'off' | 'subtle' | 'balanced' | 'broadcast' | 'custom'
+
+export interface PlayerConfiguration {
+  clips: Clip[]
+  audioClips: Clip[]
+  webcamClips: Clip[]
+  recordings: Recording[]
+  effects: Effect[]
+  videoWidth: number
+  videoHeight: number
+  fps: number
+  backgroundColor: string
+  enhanceAudio: boolean
+  cameraSettings: ProjectSettings['camera']
+  [key: string]: unknown
+}
+
 
 export interface AudioEnhancementSettings {
   threshold: number  // -60 to 0 dB

@@ -1,12 +1,22 @@
+
 import { RemotionExportService } from '@/lib/export/remotion-export-service'
 import { MockIpcBridge } from '@/lib/bridges/mock-ipc-bridge'
 import { resetIpcBridge, setIpcBridge } from '@/lib/bridges'
 
+jest.mock('@/lib/bridges', () => ({
+  ...jest.requireActual('@/lib/bridges'),
+  isIpcAvailable: jest.fn().mockReturnValue(true)
+}))
+
 describe('export cancellation', () => {
   test('abort triggers export-cancel IPC', async () => {
-    ;(window as any).electronAPI = {
+    ; (window as any).electronAPI = {
       ...(window as any).electronAPI,
-      ipcRenderer: {}
+      ipcRenderer: {
+        invoke: jest.fn(),
+        on: jest.fn(),
+        removeListener: jest.fn()
+      }
     }
 
     const bridge = new MockIpcBridge()

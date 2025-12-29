@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
-import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -523,44 +523,40 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               }}
             >
               {/* Preview of layered parallax effect */}
-              <div className="absolute inset-0 flex items-end justify-center">
-                <div className="relative w-full h-3/4">
-                  {(previewParallaxLayers || []).slice().sort((a, b) => a.zIndex - b.zIndex).map((layer, index, all) => {
-                    const steps = Math.max(1, all.length - 1)
-                    const t = steps === 0 ? 0 : index / steps
-                    const opacity = 0.6 + t * 0.4
-                    const intensityMultiplier = (bgData?.parallaxIntensity ?? 50) / 50
-                    const offsetX = (parallaxPreviewMouse.x - 0.5) * 120 * intensityMultiplier
-                    const offsetY = (parallaxPreviewMouse.y - 0.5) * 80 * intensityMultiplier
+              <div className="absolute inset-0 overflow-hidden rounded-lg">
+                {(previewParallaxLayers || []).slice().sort((a, b) => a.zIndex - b.zIndex).map((layer, index, all) => {
+                  const steps = Math.max(1, all.length - 1)
+                  const t = steps === 0 ? 0 : index / steps
+                  const opacity = 0.6 + t * 0.4
+                  const intensityMultiplier = (bgData?.parallaxIntensity ?? 50) / 50
+                  const offsetX = (parallaxPreviewMouse.x - 0.5) * 120 * intensityMultiplier
+                  const offsetY = (parallaxPreviewMouse.y - 0.5) * 80 * intensityMultiplier
 
-                    const moveX = offsetX / layer.factor
-                    const moveY = offsetY / layer.factor
+                  const moveX = offsetX / layer.factor
+                  const moveY = offsetY / layer.factor
 
-                    return (
-                      <div
-                        key={layer.image}
-                        className="absolute bottom-0 w-full"
-                        style={{
-                            opacity,
-                            filter: 'grayscale(40%)',
-                            transform: `translate3d(${moveX}px, ${moveY}px, 0) scale(1.05)`,
-                            transition: parallaxPreviewMouse.active ? 'transform 40ms linear' : 'transform 200ms ease-out',
-                            willChange: 'transform',
-                            height: '100%',
-                            position: 'absolute'
-                        }}
-                      >
-                       <Image
+                  return (
+                    <div
+                      key={layer.image}
+                      className="absolute inset-0 w-full h-full"
+                      style={{
+                        opacity,
+                        filter: 'grayscale(40%)',
+                        transform: `translate3d(${moveX}px, ${moveY}px, 0) scale(1.05)`,
+                        transition: parallaxPreviewMouse.active ? 'transform 40ms linear' : 'transform 200ms ease-out',
+                        willChange: 'transform',
+                      }}
+                    >
+                      <Image
                         unoptimized
                         src={getElectronAssetUrl(layer.image)}
                         alt=""
                         fill
-                        className="object-contain object-bottom"
+                        className="object-cover object-bottom"
                       />
-                      </div>
-                    )
-                  })}
-                </div>
+                    </div>
+                  )
+                })}
               </div>
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                 <span className="text-white text-xs font-medium px-2 py-1 bg-black/40 rounded">Hill Depth</span>
@@ -736,7 +732,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             </button>
             {bgData?.image && (
               <div className="relative aspect-video rounded-md overflow-hidden ring-1 ring-border/20">
-                 <Image
+                <Image
                   unoptimized
                   src={bgData.image}
                   alt="Background"
@@ -759,14 +755,14 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
           </div>
         )}
 
-        {/* Soft focus - only show for image-based backgrounds */}
+        {/* bokeh. - only show for image-based backgrounds */}
         {(backgroundType === BackgroundType.Wallpaper || backgroundType === BackgroundType.Image) && (
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
-            <h4 className="text-[12px] font-semibold text-muted-foreground tracking-[-0.01em]">Soft Focus</h4>
+            <h4 className="text-[12px] font-semibold text-muted-foreground tracking-[-0.01em]">Soft focus</h4>
             <div className="rounded-lg bg-background/40 p-3 space-y-3">
               <label className="flex items-center justify-between cursor-pointer">
                 <span className="flex items-center gap-2 text-[12px]">
-                  Soft focus
+                  bokeh.
                   <InfoTooltip content="Blur for depth of field" />
                 </span>
                 <Switch

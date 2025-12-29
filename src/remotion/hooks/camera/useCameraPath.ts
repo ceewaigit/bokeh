@@ -37,6 +37,18 @@ const DEFAULT_RESULT: CameraPathFrame & { path?: CameraPathFrame[] } = {
  * We no longer fallback to expensive realtime physics because the cache
  * should always be populated when a project is loaded.
  */
+// Utility for safe frame lookup (SSOT)
+export function getCameraFrameForTime(
+    cache: (CameraPathFrame & { path?: CameraPathFrame[] })[],
+    currentFrame: number
+): CameraPathFrame & { path?: CameraPathFrame[] } {
+    const safeFrame = Math.max(0, Math.floor(currentFrame))
+    if (safeFrame < cache.length) {
+        return cache[safeFrame]
+    }
+    return cache[cache.length - 1] || DEFAULT_RESULT
+}
+
 export function useCameraPath(args: UseCameraPathArgs): (CameraPathFrame & { path?: CameraPathFrame[] }) | null {
     const {
         enabled,
@@ -49,14 +61,7 @@ export function useCameraPath(args: UseCameraPathArgs): (CameraPathFrame & { pat
 
         // 1. Use Cache if available (This is the happy path for 99% of cases)
         if (cachedPath) {
-            // Bounds check handled by JS array access (undefined if out of bounds)
-            // but let's be safe for negative frames
-            const safeFrame = Math.max(0, currentFrame)
-            if (safeFrame < cachedPath.length) {
-                return cachedPath[safeFrame]
-            }
-            // If frame is out of bounds (e.g. slight overshot), return last known or default
-            return cachedPath[cachedPath.length - 1] || DEFAULT_RESULT
+            return getCameraFrameForTime(cachedPath, currentFrame);
         }
 
         // 2. Fallback: No cache means we treat camera as static centered.
