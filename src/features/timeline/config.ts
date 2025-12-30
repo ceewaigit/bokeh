@@ -5,7 +5,7 @@ export const TimelineConfig = {
   // Layout dimensions
   RULER_HEIGHT: 24,
   SPEED_UP_BAR_SPACE: 40, // Extra space for speed-up suggestion bars (increased to 40 to clear ruler + shadows)
-  TRACK_LABEL_WIDTH: 56,
+  TRACK_LABEL_WIDTH: 0, // Labels now shown inside blocks
   TRACK_PADDING: 4,
   MIN_CLIP_WIDTH: 1,
   MAX_TRACK_HEIGHT: 120,
@@ -36,8 +36,8 @@ export const TimelineConfig = {
 
   // Effects defaults
   ZOOM_EFFECT_DEFAULT_SCALE: 2.0,
-  ZOOM_EFFECT_DEFAULT_INTRO_MS: 500,
-  ZOOM_EFFECT_DEFAULT_OUTRO_MS: 500,
+  ZOOM_EFFECT_DEFAULT_INTRO_MS: 800,
+  ZOOM_EFFECT_DEFAULT_OUTRO_MS: 800,
   ZOOM_EFFECT_MIN_DURATION_MS: 100,
   ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX: 8,
   ZOOM_EFFECT_COMPACT_THRESHOLD_PX: 50,

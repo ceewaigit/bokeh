@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
-import { ZoomIn, ChevronRight, Sparkles, Gauge, AppWindow } from 'lucide-react'
+import React, { useMemo } from 'react'
+import { ZoomIn, Sparkles, Gauge, AppWindow } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
+import { AccordionSection } from '@/components/ui/accordion-section'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect, ZoomEffectData, ZoomBlock, AnnotationEffect } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
@@ -72,7 +73,6 @@ export function ZoomTab({
   const [localSmoothing, setLocalSmoothing] = React.useState<number | null>(null)
   const [cameraStylePreset, setCameraStylePreset] = React.useState<'tight' | 'balanced' | 'steady' | 'cinematic' | 'floaty' | 'custom'>('cinematic')
   const [zoomBlurPreset, setZoomBlurPreset] = React.useState<'subtle' | 'balanced' | 'dynamic' | 'custom'>('balanced')
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const scaleResetTimeoutRef = React.useRef<number | null>(null)
   const introResetTimeoutRef = React.useRef<number | null>(null)
   const outroResetTimeoutRef = React.useRef<number | null>(null)
@@ -587,7 +587,7 @@ export function ZoomTab({
                       }
                     }}
                     min={0}
-                    max={1000}
+                    max={2000}
                     step={50}
                     className="w-full"
                   />
@@ -611,7 +611,7 @@ export function ZoomTab({
                       }
                     }}
                     min={0}
-                    max={1000}
+                    max={2000}
                     step={50}
                     className="w-full"
                   />
@@ -619,47 +619,50 @@ export function ZoomTab({
               </div>
             </div>
 
-            {/* Advanced Settings Toggle */}
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
+            <AccordionSection
+              title={
+                <span className="flex items-center gap-2">
+                  Advanced
+                  <InfoTooltip content="Fine-tune how zoom regions track pointer movement." />
+                </span>
+              }
+              className="bg-background/30"
+              contentClassName="pt-2.5"
             >
-              <span className="flex items-center gap-2">
-                Advanced
-                <InfoTooltip content="Fine-tune how zoom regions track pointer movement." />
-              </span>
-              <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200", showAdvanced && "rotate-90")} />
-            </button>
-
-            {showAdvanced && !isFillScreen && (
-              <div className="rounded-md bg-background/30 p-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Dead Zone</span>
-                    <InfoTooltip content="How far cursor must move before camera follows" />
+              {!isFillScreen ? (
+                <div className="rounded-md bg-background/30 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Dead Zone</span>
+                      <InfoTooltip content="How far cursor must move before camera follows" />
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground tabular-nums">
+                      {zoomData.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3}px
+                    </span>
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground tabular-nums">
-                    {zoomData.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3}px
-                  </span>
+                  <Slider
+                    key={`mouseidle-${selectedEffectLayer.id}`}
+                    value={[localMouseIdlePx ?? (zoomData.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3)]}
+                    onValueChange={([value]) => setLocalMouseIdlePx(value)}
+                    onValueCommit={([value]) => {
+                      if (selectedEffectLayer.id && onZoomBlockUpdate) {
+                        onZoomBlockUpdate(selectedEffectLayer.id, { mouseIdlePx: value })
+                        scheduleReset(mouseIdleResetTimeoutRef, () => setLocalMouseIdlePx(null), 200)
+                      }
+                    }}
+                    min={1}
+                    max={20}
+                    step={1}
+                    className="w-full"
+                  />
+                  <p className="text-[12px] text-muted-foreground/70 leading-snug">Minimum cursor movement to trigger pan</p>
                 </div>
-                <Slider
-                  key={`mouseidle-${selectedEffectLayer.id}`}
-                  value={[localMouseIdlePx ?? (zoomData.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3)]}
-                  onValueChange={([value]) => setLocalMouseIdlePx(value)}
-                  onValueCommit={([value]) => {
-                    if (selectedEffectLayer.id && onZoomBlockUpdate) {
-                      onZoomBlockUpdate(selectedEffectLayer.id, { mouseIdlePx: value })
-                      scheduleReset(mouseIdleResetTimeoutRef, () => setLocalMouseIdlePx(null), 200)
-                    }
-                  }}
-                  min={1}
-                  max={20}
-                  step={1}
-                  className="w-full"
-                />
-                <p className="text-[12px] text-muted-foreground/70 leading-snug">Minimum cursor movement to trigger pan</p>
-              </div>
-            )}
+              ) : (
+                <div className="text-[12px] text-muted-foreground/70 leading-snug">
+                  Advanced tracking is disabled when “Fill screen” is enabled.
+                </div>
+              )}
+            </AccordionSection>
 
             {/* Divider */}
             <div className="border-t border-border/30" />

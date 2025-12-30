@@ -36,8 +36,8 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
 export const DEFAULT_ZOOM_DATA: ZoomEffectData = {
   origin: 'manual',
   scale: 2.0,
-  introMs: 500,
-  outroMs: 500,
+  introMs: 800,
+  outroMs: 800,
   smoothing: 50,
   followStrategy: ZoomFollowStrategy.Mouse,
   mouseIdlePx: 3
@@ -66,7 +66,7 @@ export const SCREEN_EFFECT_PRESETS: Record<string, { tiltX: number; tiltY: numbe
 
 // Cursor motion presets - maps preset name to speed/smoothness/glide values
 export const CURSOR_MOTION_PRESETS: Record<Exclude<CursorMotionPreset, 'custom'>, { speed: number; smoothness: number; glide: number }> = {
-  cinematic: { speed: 0.01, smoothness: 1.0, glide: 1.0 },    // Ultra-smooth, maximum lag - like Screen Studio
+  cinematic: { speed: 0.01, smoothness: 1.0, glide: 1.0 },    // Ultra-smooth, maximum lag
   smooth: { speed: 0.05, smoothness: 0.9, glide: 0.85 },      // Very smooth, slight response
   balanced: { speed: 0.15, smoothness: 0.7, glide: 0.6 },     // Middle ground
   responsive: { speed: 0.5, smoothness: 0.4, glide: 0.3 }     // Snappy, tight following
@@ -75,12 +75,12 @@ export const CURSOR_MOTION_PRESETS: Record<Exclude<CursorMotionPreset, 'custom'>
 // Default cursor effect data
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   style: CursorStyle.MacOS,
-  size: 4.0,
+  size: 7.0,
   color: '#ffffff',
   clickEffects: true,
   clickEffectStyle: 'none',
   clickEffectAnimation: 'expand',
-  clickEffectDurationMs: 300,
+  clickEffectDurationMs: 480,
   clickEffectMaxRadius: 50,
   clickEffectLineWidth: 2,
   clickEffectColor: '#ffffff',
@@ -101,7 +101,7 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   gliding: true,
   // Motion preset controls cursor smoothing behavior
   motionPreset: 'cinematic',
-  // Values derived from cinematic preset - ultra-smooth like Screen Studio
+  // Values derived from cinematic preset
   speed: 0.01,
   smoothness: 1.0,
   glide: 1.0,
@@ -141,7 +141,7 @@ export const DEFAULT_WEBCAM_DATA: WebcamEffectData = {
   shape: 'squircle',
   cornerRadius: 40, // Larger radius for smoother squircle
 
-  // No border by default for cleaner appearance
+  // No border by default for cleaner appearanc\e
   borderEnabled: false,
   borderWidth: 3,
   borderColor: '#ffffff',

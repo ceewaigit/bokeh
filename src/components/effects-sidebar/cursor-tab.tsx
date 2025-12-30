@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AccordionSection } from '@/components/ui/accordion-section'
 import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, CursorMotionPreset, Effect } from '@/types/project'
 import { EffectType } from '@/types'
 import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
@@ -73,7 +74,7 @@ const resolveCursorState = (cursorData?: CursorEffectData): CursorLocalState => 
     tiltMaxDeg: cursorData?.directionalTiltMaxDeg ?? defaults.directionalTiltMaxDeg ?? 10,
     clickStyle: cursorData?.clickEffectStyle ?? defaults.clickEffectStyle ?? 'ripple',
     clickAnimation: cursorData?.clickEffectAnimation ?? defaults.clickEffectAnimation ?? 'expand',
-    clickDurationMs: cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 300,
+    clickDurationMs: cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 480,
     clickRadius: cursorData?.clickEffectMaxRadius ?? defaults.clickEffectMaxRadius ?? 50,
     clickLineWidth: cursorData?.clickEffectLineWidth ?? defaults.clickEffectLineWidth ?? 2,
     clickColor: cursorData?.clickEffectColor ?? defaults.clickEffectColor ?? '#ffffff',
@@ -93,7 +94,6 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const hideOnIdle = cursorData?.hideOnIdle ?? DEFAULT_CURSOR_DATA.hideOnIdle
   const fadeOnIdle = cursorData?.fadeOnIdle ?? DEFAULT_CURSOR_DATA.fadeOnIdle
   const clickEffectsEnabled = cursorData?.clickEffects ?? DEFAULT_CURSOR_DATA.clickEffects
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const showFineTune = useWorkspaceStore((s) => s.cursorTabFineTuneOpen)
   const setShowFineTune = useWorkspaceStore((s) => s.setCursorTabFineTuneOpen)
   const [cursorState, setCursorState] = useState<CursorLocalState>(() => resolveCursorState(cursorData))
@@ -477,30 +477,33 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </div>
           </div>
 
-          {/* Preview */}
-          <div className="rounded-md bg-background/40 p-2.5 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Preview</div>
-              <div className="text-[12px] text-muted-foreground/60 italic">Hover a style to see it</div>
+          <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm">
+            <div className="px-3 py-3 text-left font-[var(--font-display)] text-[13px] font-semibold tracking-tight text-foreground">
+              Preview
             </div>
-            <div className="relative h-12 rounded-lg border border-border/40 bg-background/60 px-3 overflow-hidden">
-              <div className="absolute inset-y-0 left-3 right-3 flex items-center">
-                <div className="relative w-full" style={previewTrackStyle}>
-                  <div
-                    className="absolute left-0 top-0 rounded-full bg-primary/40"
-                    key={`trail-${previewKey}`}
-                    style={previewTrailStyle}
-                  />
-                  <div
-                    className="absolute left-0 top-0 rounded-full bg-primary ring-2 ring-primary/40"
-                    key={`dot-${previewKey}`}
-                    style={previewDotStyle}
-                  />
+            <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
+              <div className="space-y-2">
+                <div className="text-[12px] text-muted-foreground/60 italic">Hover a style to see it</div>
+                <div className="relative h-12 rounded-lg border border-border/40 bg-background/60 px-3 overflow-hidden">
+                  <div className="absolute inset-y-0 left-3 right-3 flex items-center">
+                    <div className="relative w-full" style={previewTrackStyle}>
+                      <div
+                        className="absolute left-0 top-0 rounded-full bg-primary/40"
+                        key={`trail-${previewKey}`}
+                        style={previewTrailStyle}
+                      />
+                      <div
+                        className="absolute left-0 top-0 rounded-full bg-primary ring-2 ring-primary/40"
+                        key={`dot-${previewKey}`}
+                        style={previewDotStyle}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[12px] text-muted-foreground/60 italic">
+                  Uses the current preset and movement tuning
                 </div>
               </div>
-            </div>
-            <div className="text-[12px] text-muted-foreground/60 italic">
-              Uses the current preset and movement tuning
             </div>
           </div>
 
@@ -527,58 +530,48 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             />
           </div>
 
-          {/* Motion Blur */}
-          <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Blur</label>
-                <InfoTooltip content="Add blur trails on fast movement" />
+          <AccordionSection title="Effects" className="bg-background/30" contentClassName="pt-2.5">
+            <div className="space-y-2.5">
+              <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Blur</label>
+                    <InfoTooltip content="Add blur trails on fast movement" />
+                  </div>
+                  <span className="text-[12px] text-muted-foreground/60 font-mono tabular-nums">{(Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0).toFixed(0)}%</span>
+                </div>
+                <Slider
+                  value={[Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0]}
+                  onValueChange={([value]) => updateCursorState({ motionBlurIntensity: value })}
+                  onValueCommit={([value]) =>
+                    onUpdateCursor({ motionBlur: value > 0, motionBlurIntensity: value })
+                  }
+                  min={0}
+                  max={100}
+                  step={5}
+                  className="w-full"
+                />
               </div>
-              <span className="text-[12px] text-muted-foreground/60 font-mono tabular-nums">{motionBlurIntensity.toFixed(0)}%</span>
-            </div>
-            <Slider
-              value={[motionBlurIntensity]}
-              onValueChange={([value]) => updateCursorState({ motionBlurIntensity: value })}
-              onValueCommit={([value]) =>
-                onUpdateCursor({ motionBlur: value > 0, motionBlurIntensity: value })
-              }
-              min={0}
-              max={100}
-              step={5}
-              className="w-full"
-            />
-          </div>
 
-          {/* Click Animation */}
-          <div className="rounded-md bg-background/40 p-2.5 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Click Animation</div>
-                <div className="mt-0.5 text-[12px] text-muted-foreground leading-snug">
-                  Adds a visual pulse on click
+              <div className="rounded-md bg-background/40 p-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Click Animation</div>
+                    <div className="mt-0.5 text-[12px] text-muted-foreground leading-snug">
+                      Adds a visual pulse on click
+                    </div>
+                  </div>
+                  <Switch
+                    className="scale-90 origin-right"
+                    checked={clickEffectsEnabled}
+                    onCheckedChange={(checked) => onUpdateCursor({ clickEffects: checked })}
+                  />
                 </div>
               </div>
-              <Switch
-                className="scale-90 origin-right"
-                checked={clickEffectsEnabled}
-                onCheckedChange={(checked) => onUpdateCursor({ clickEffects: checked })}
-              />
             </div>
-            <div className="text-[12px] text-muted-foreground/60 italic">Customize in Advanced</div>
-          </div>
+          </AccordionSection>
 
-
-
-          {/* Advanced Section */}
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
-          >
-            <span>Advanced</span>
-            <ChevronRight className={cn("w-3 h-3 transition-transform duration-200", showAdvanced && "rotate-90")} />
-          </button>
-
-          {showAdvanced && (
+          <AccordionSection title="Advanced" className="bg-background/30" contentClassName="pt-2.5">
             <div className="rounded-md bg-background/40 p-2.5 space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
               {/* Fine-tune Section */}
               <button
@@ -692,13 +685,13 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         <div className="space-y-1.5">
                           <div className="text-[12px] font-medium text-muted-foreground">Animation</div>
                           <Select
-                          value={clickAnimation}
-                          onValueChange={(value) => {
-                            const next = value as ClickEffectAnimation
-                            updateCursorState({ clickAnimation: next })
-                            onUpdateCursor({ clickEffectAnimation: next })
-                          }}
-                        >
+                            value={clickAnimation}
+                            onValueChange={(value) => {
+                              const next = value as ClickEffectAnimation
+                              updateCursorState({ clickAnimation: next })
+                              onUpdateCursor({ clickEffectAnimation: next })
+                            }}
+                          >
                             <SelectTrigger className="h-8 text-xs">
                               <SelectValue />
                             </SelectTrigger>
@@ -857,14 +850,14 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           <div className="space-y-1.5">
                             <div className="text-[12px] font-medium text-muted-foreground">Text Color</div>
                             <input
-                            type="color"
-                            value={clickTextColor}
-                            onChange={(e) => {
-                              updateCursorState({ clickTextColor: e.target.value })
-                              onUpdateCursor({ clickTextColor: e.target.value })
-                            }}
-                            className="h-8 w-full rounded border border-border/40 bg-background/60"
-                          />
+                              type="color"
+                              value={clickTextColor}
+                              onChange={(e) => {
+                                updateCursorState({ clickTextColor: e.target.value })
+                                onUpdateCursor({ clickTextColor: e.target.value })
+                              }}
+                              className="h-8 w-full rounded border border-border/40 bg-background/60"
+                            />
                           </div>
                         </div>
 
@@ -990,13 +983,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 )}
               </div>
             </div>
-          )}
+          </AccordionSection>
 
-          {/* Cursor Return Clip Utility */}
-          <div className="pt-2 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-200">
-            <div className="flex items-center justify-between mb-2 px-1">
-              <div className="text-[12px] font-semibold text-muted-foreground/60 uppercase tracking-wider">Utilities</div>
-            </div>
+          <AccordionSection title="Utilities" className="bg-background/30" contentClassName="pt-2.5">
             <div className="space-y-2">
               <div className="space-y-1.5">
                 <div className="text-[12px] font-medium text-muted-foreground">Duration (seconds)</div>
@@ -1032,7 +1021,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 Animate cursor back to start, great for seamless loops
               </div>
             </div>
-          </div>
+          </AccordionSection>
         </div>
       )}
       <style>{`

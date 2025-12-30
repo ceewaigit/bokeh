@@ -83,6 +83,8 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
     const key = config.colorKey
     if (key === 'zoomBlock') return colors.zoomBlock
     if (key === 'screenBlock') return colors.screenBlock
+    if (key === 'keystrokeBlock') return colors.keystrokeBlock
+    if (key === 'annotationBlock') return colors.annotationBlock
     if (key === 'warning') return colors.warning
     if (key === 'primary') return colors.primary
     if (key === 'muted') return colors.muted
@@ -103,6 +105,15 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
         const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
 
         const label = config.getBlockLabel(effect)
+        const metaLabel = config.label
+        const iconKey = (() => {
+          if (effectType === EffectType.Zoom) return 'zoom'
+          if (effectType === EffectType.Screen) return 'screen'
+          if (effectType === EffectType.Keystroke) return 'keys'
+          if (effectType === EffectType.Plugin) return 'plugin'
+          if (effectType === EffectType.Annotation) return 'note'
+          return 'note'
+        })()
 
         return (
           <TimelineEffectBlock
@@ -116,6 +127,8 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
             startTime={startTime}
             endTime={endTime}
             label={label}
+            metaLabel={metaLabel}
+            iconKey={iconKey}
             fillColor={getColor()}
             isSelected={isBlockSelected}
             isEnabled={effect.enabled}

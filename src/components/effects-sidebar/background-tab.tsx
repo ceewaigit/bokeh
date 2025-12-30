@@ -213,6 +213,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   const parallaxPreviewRef = useRef<HTMLDivElement | null>(null)
   const parallaxPreviewRafRef = useRef<number | null>(null)
   const [parallaxPreviewMouse, setParallaxPreviewMouse] = useState({ x: 0.5, y: 0.5, active: false })
+  const softFocusEnabled = (bgData?.blur ?? 0) > 0
 
   useEffect(() => {
     if (backgroundType !== BackgroundType.Parallax) return
@@ -758,34 +759,39 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* bokeh. - only show for image-based backgrounds */}
         {(backgroundType === BackgroundType.Wallpaper || backgroundType === BackgroundType.Image) && (
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
-            <h4 className="text-[12px] font-semibold text-muted-foreground tracking-[-0.01em]">Soft focus</h4>
-            <div className="rounded-lg bg-background/40 p-3 space-y-3">
-              <label className="flex items-center justify-between cursor-pointer">
-                <span className="flex items-center gap-2 text-[12px]">
+            <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm">
+              <div className="flex items-center justify-between gap-3 px-3 py-3">
+                <div className="flex items-center gap-2 text-left font-[var(--font-display)] text-[13px] font-semibold tracking-tight text-foreground">
                   bokeh.
                   <InfoTooltip content="Blur for depth of field" />
-                </span>
-                <Switch
-                  checked={bgData?.blur ? bgData.blur > 0 : false}
-                  onCheckedChange={(checked) =>
-                    onUpdateBackground({ blur: checked ? 10 : undefined })
-                  }
-                />
-              </label>
-              {bgData?.blur != null && bgData.blur > 0 && (
-                <div className="space-y-2">
-                  <Slider
-                    value={[localBlur ?? bgData.blur]}
-                    onValueChange={([value]) => setLocalBlur(value)}
-                    onValueCommit={([value]) => onUpdateBackground({ blur: value })}
-                    min={1}
-                    max={50}
-                    step={1}
-                    className="w-full"
-                  />
-                  <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
                 </div>
-              )}
+                <Switch
+                  checked={softFocusEnabled}
+                  onCheckedChange={(checked) => {
+                    onUpdateBackground({ blur: checked ? 10 : undefined })
+                  }}
+                />
+              </div>
+              <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
+                {softFocusEnabled && bgData?.blur != null ? (
+                  <div className="space-y-2">
+                    <Slider
+                      value={[localBlur ?? bgData.blur]}
+                      onValueChange={([value]) => setLocalBlur(value)}
+                      onValueCommit={([value]) => onUpdateBackground({ blur: value })}
+                      min={1}
+                      max={50}
+                      step={1}
+                      className="w-full"
+                    />
+                    <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
+                  </div>
+                ) : (
+                  <div className="text-[12px] text-muted-foreground/70 leading-snug">
+                    Toggle on to add depth-of-field blur.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

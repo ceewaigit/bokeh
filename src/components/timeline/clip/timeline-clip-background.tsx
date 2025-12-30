@@ -31,9 +31,9 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
     hasThumbnails,
     colors,
 }) => {
-    const warningColor = colors.warning || 'hsl(38, 92%, 50%)';
-    const missingThumbFill = withAlpha(warningColor, colors.isDark ? 0.5 : 0.35);
-    const missingThumbStroke = withAlpha(warningColor, colors.isDark ? 0.7 : 0.55);
+    // Better clip colors - darker, richer amber/gold
+    const clipBaseColor = colors.isDark ? 'hsl(35, 65%, 40%)' : 'hsl(35, 60%, 55%)';
+    const clipFillColor = showMissingThumb ? clipBaseColor : 'rgba(127,127,127,0.15)';
 
     return (
         <>
@@ -50,7 +50,7 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                     trackType === 'video' && hasThumbnails
                         ? 'transparent'
                         : trackType === 'video'
-                            ? (isGeneratedClip ? colors.muted : (showMissingThumb ? missingThumbFill : 'rgba(127,127,127,0.15)'))
+                            ? (isGeneratedClip ? colors.muted : clipFillColor)
                             : colors.success
                 }
                 // New Selected Look: White/High-contrast border when selected
@@ -60,7 +60,7 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                         : isSelected
                             ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary)
                             : showMissingThumb
-                                ? missingThumbStroke
+                                ? withAlpha(clipBaseColor, 0.8)
                                 : 'transparent'
                 }
                 strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1.5 : showMissingThumb ? 1 : 0}
@@ -72,6 +72,23 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                 shadowOpacity={isSelected ? 0.15 : 0.05}
                 shadowOffsetY={1}
             />
+
+            {/* Gradient overlay - darker at top, lighter at bottom (like effect blocks) */}
+            {showMissingThumb && trackType === 'video' && !hasThumbnails && (
+                <Rect
+                    width={width}
+                    height={height}
+                    fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+                    fillLinearGradientEndPoint={{ x: 0, y: height }}
+                    fillLinearGradientColorStops={[
+                        0, 'rgba(0,0,0,0.25)',
+                        0.4, 'rgba(0,0,0,0)',
+                        1, 'rgba(255,255,255,0.08)'
+                    ]}
+                    cornerRadius={8}
+                    listening={false}
+                />
+            )}
 
             {isGeneratedClip && !hasThumbnails && (
                 <Group

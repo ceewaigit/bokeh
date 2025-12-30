@@ -423,8 +423,8 @@ export class ZoomDetector {
     const scale = this.ACTION.minZoomScale + (scaleRange * Math.min(1, normalizedImportance))
 
     // Longer, smoother transitions for cinematic feel
-    const introMs = 600  // Slow ease in
-    const outroMs = 500  // Slow ease out
+    const introMs = 800  // Slow ease in
+    const outroMs = 800  // Slow ease out
 
     // Calculate timing with anticipation
     const startTime = Math.max(0, cluster.startTime - this.ACTION.anticipationMs)
@@ -621,8 +621,8 @@ export class ZoomDetector {
           origin: 'auto',
           startTime: cluster.startTime,
           endTime: cluster.startTime + effectiveDuration,
-          introMs: 400,
-          outroMs: 500,
+          introMs: 800,
+          outroMs: 800,
           scale: zoomScale,
           targetX: cluster.center.x,
           targetY: cluster.center.y,

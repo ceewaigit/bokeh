@@ -15,7 +15,7 @@ export interface EffectTrackConfig {
   /** Order in which tracks appear (lower = higher on timeline) */
   order: number
   /** Color key from useTimelineColors() */
-  colorKey: 'zoomBlock' | 'screenBlock' | 'warning' | 'primary' | 'muted'
+  colorKey: 'zoomBlock' | 'screenBlock' | 'keystrokeBlock' | 'annotationBlock' | 'warning' | 'primary' | 'muted'
   /** Generate label for individual blocks */
   getBlockLabel: (effect: Effect) => string
   /** EffectLayerType for selection */
@@ -43,14 +43,14 @@ export const EFFECT_TRACK_REGISTRY: Partial<Record<EffectType, EffectTrackConfig
     order: 1,
     colorKey: 'screenBlock',
     layerType: EffectLayerType.Screen,
-    getBlockLabel: () => 'Screen'
+    getBlockLabel: () => '3D'
   },
   [EffectType.Keystroke]: {
     label: 'Keys',
     order: 2,
-    colorKey: 'warning',
+    colorKey: 'keystrokeBlock',
     layerType: EffectLayerType.Keystroke,
-    getBlockLabel: () => 'Keys'
+    getBlockLabel: () => 'Type'
   },
   [EffectType.Plugin]: {
     label: 'Plugins',
@@ -66,7 +66,7 @@ export const EFFECT_TRACK_REGISTRY: Partial<Record<EffectType, EffectTrackConfig
   [EffectType.Annotation]: {
     label: 'Notes',
     order: 4,
-    colorKey: 'primary',
+    colorKey: 'annotationBlock',
     layerType: EffectLayerType.Annotation,
     getBlockLabel: (effect) => {
       const data = effect.data as AnnotationData

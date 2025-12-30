@@ -5,6 +5,7 @@ import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AccordionSection } from '@/components/ui/accordion-section'
 import type { KeystrokeEffectData, Effect, KeyboardEvent } from '@/types/project'
 import { EffectType, KeystrokePosition } from '@/types'
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
@@ -12,7 +13,6 @@ import { InfoTooltip } from './info-tooltip'
 import { useProjectStore } from '@/stores/project-store'
 import { getKeystrokeEffects } from '@/features/effects/effect-filters'
 import { EffectStore } from '@/lib/core/effects'
-import { ChevronRight } from 'lucide-react'
 import { KeystrokePreviewOverlay } from '@/components/keystroke-preview-overlay'
 
 interface KeystrokeTabProps {
@@ -55,7 +55,6 @@ const buildPreviewEvents = (text: string, intervalMs: number): KeyboardEvent[] =
 export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChange, onBulkToggleKeystrokes }: KeystrokeTabProps) {
   const keystrokeData = keystrokeEffect?.data as KeystrokeEffectData | undefined
   const project = useProjectStore((s) => s.currentProject)
-  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const keystrokeEffects = React.useMemo(() => {
     if (!project) return []
@@ -156,23 +155,25 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
 
       {hasEnabledKeystrokes && (
         <div className="rounded-md bg-background/40 p-2.5 space-y-3">
-          {/* Preview */}
-          <div className="rounded-md bg-background/40 p-2.5 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Preview</div>
-              <div className="text-[12px] text-muted-foreground/60 italic">Live sample</div>
+          <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm">
+            <div className="px-3 py-3 text-left font-[var(--font-display)] text-[13px] font-semibold tracking-tight text-foreground">
+              Preview
             </div>
-            <div className="relative h-20 rounded-lg border border-border/50 bg-muted/30 ring-1 ring-border/20 shadow-inner overflow-hidden">
-              <KeystrokePreviewOverlay
-                currentTimeMs={previewTimeMs}
-                keystrokeEvents={previewEvents}
-                settings={previewSettings}
-                enabled
-                centered
-              />
-            </div>
-            <div className="text-[12px] text-muted-foreground/60 italic">
-              Uses your current style settings
+            <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
+              <div className="space-y-2">
+                <div className="relative h-20 rounded-lg border border-border/50 bg-muted/30 ring-1 ring-border/20 shadow-inner overflow-hidden">
+                  <KeystrokePreviewOverlay
+                    currentTimeMs={previewTimeMs}
+                    keystrokeEvents={previewEvents}
+                    settings={previewSettings}
+                    enabled
+                    centered
+                  />
+                </div>
+                <div className="text-[12px] text-muted-foreground/60 italic">
+                  Uses your current style settings
+                </div>
+              </div>
             </div>
           </div>
 
@@ -264,17 +265,8 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             />
           </div>
 
-          {/* Advanced toggle */}
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
-          >
-            <span>Advanced</span>
-            <ChevronRight className={cn("h-3 w-3 transition-transform", showAdvanced && "rotate-90")} />
-          </button>
-
-          {showAdvanced && (
-            <div className="space-y-3 pt-1 border-t border-border/20">
+          <AccordionSection title="Advanced" className="bg-background/30" contentClassName="pt-2.5">
+            <div className="space-y-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-[12px] font-medium text-muted-foreground">Corner Radius</label>
@@ -354,7 +346,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
                 />
               </div>
             </div>
-          )}
+          </AccordionSection>
         </div>
       )}
     </div>

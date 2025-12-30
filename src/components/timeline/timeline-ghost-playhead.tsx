@@ -11,8 +11,10 @@ export const TimelineGhostPlayhead = React.memo(() => {
   const { stageHeight: totalHeight, pixelsPerMs, duration: maxTime } = useTimelineLayout()
   const hoverTime = useProjectStore((s) => s.hoverTime)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
+  const isPlaying = useProjectStore((s) => s.isPlaying)
   const colors = useTimelineColors()
-  if (hoverTime === null || isScrubbing) return null
+  // Hide ghost playhead during playback - only show when paused
+  if (hoverTime === null || isScrubbing || isPlaying) return null
   const time = clamp(hoverTime, 0, maxTime)
   const x = TimeConverter.msToPixels(time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 

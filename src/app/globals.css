@@ -22,6 +22,7 @@
   --radius-sm: 0.25rem;
   --radius-lg: 0.75rem;
   --radius-full: 9999px;
+  --window-surface-radius: 1rem;
 
   /* Typography Scale */
   --font-size-xs: 0.75rem;
@@ -306,6 +307,8 @@
     -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.2) contrast(1.02);
     backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.2) contrast(1.02);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    border-radius: var(--window-surface-radius);
+    overflow: hidden;
   }
 
   :root:not(.dark) [data-window-surface="glass"] .window-surface,
@@ -376,6 +379,10 @@
   [data-window-surface="glass"],
   [data-window-surface="clear"] {
     --timeline-ruler: var(--timeline-track);
+  }
+
+  .textured-panel {
+    background: transparent;
   }
 
   /* Electron title bar */

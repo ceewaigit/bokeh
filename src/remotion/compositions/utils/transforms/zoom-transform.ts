@@ -73,7 +73,7 @@ export function calculateZoomScale(
   elapsed: number,
   blockDuration: number,
   targetScale: number,
-  introMs: number = 450,
+  introMs: number = 800,
   outroMs: number = 800
 ): number {
   const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(
@@ -150,7 +150,7 @@ export function calculateZoomTransform(
   const blockDuration = activeBlock.endTime - activeBlock.startTime;
   const elapsed = currentTimeMs - activeBlock.startTime;
 
-  const introMs = activeBlock.introMs ?? 450;
+  const introMs = activeBlock.introMs ?? 800;
   const outroMs = activeBlock.outroMs ?? 800;
 
   // Calculate zoom scale - completely deterministic

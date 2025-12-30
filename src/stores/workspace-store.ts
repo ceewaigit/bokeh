@@ -223,7 +223,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           persistedState = { ...persistedState, activeUtilityTab: 'advanced' }
         }
 
-        // Version 3: Force compact timeline for existing users (Screen Studio style)
+        // Version 3: Force compact timeline for existing users
         if (typeof persistedState.timelineHeight === 'number') {
           // If it was the old default (250) or larger, reducing it to new compact default
           if (persistedState.timelineHeight >= 250) {

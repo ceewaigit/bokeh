@@ -455,9 +455,25 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
 
         gl.uniform1i(locationsRef.current.u_image, 0);
 
-        const targetRadius = (force ? 600 : speed) * (force ? 1.0 : validIntensity);
+        // VELOCITY-PROPORTIONAL CINEMATIC BLUR
+        // slow movements = subtle blur, fast movements = dramatic blur
+        // This creates a natural camera pan feel instead of binary on/off blur
         const maxRadius = clamp > 0 ? clamp : maxBlurRadius;
-        const effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
+
+        let effectiveRadius: number;
+        if (force) {
+            effectiveRadius = 600 * rampFactor;
+        } else {
+            // Velocity-proportional scaling with cinematic curve
+            // Map excess velocity to 0-1 range, then apply smoothstep for natural falloff
+            const velocityRange = maxRadius * 1.5; // Velocity range for full blur
+            const velocityRatio = clamp01(excess / Math.max(1, velocityRange));
+            // Cinematic curve: smoothstep gives natural acceleration/deceleration feel
+            const cinematicCurve = velocityRatio * velocityRatio * (3 - 2 * velocityRatio);
+            // Scale blur radius proportionally: slow = subtle, fast = dramatic
+            const targetRadius = cinematicCurve * validIntensity * maxRadius;
+            effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
+        }
 
         if (canvasRef.current && canvasRef.current.style.opacity !== '1') {
             canvasRef.current.style.opacity = '1';

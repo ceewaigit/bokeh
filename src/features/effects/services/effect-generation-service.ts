@@ -41,8 +41,8 @@ export const DEFAULT_EFFECT_GENERATION_CONFIG: EffectGenerationConfig = {
     defaultZoomScale: 2.0,
     maxZoomsPerMinute: 5,            // Catches meaningful clicks
     minZoomGapMs: 5000,              // 5 seconds between zooms
-    defaultIntroMs: 400,
-    defaultOutroMs: 400
+    defaultIntroMs: 800,
+    defaultOutroMs: 800
 }
 
 export interface GeneratedEffects {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Rect, Text, Transformer, Line, Group } from 'react-konva'
+import { Rect, Text, Transformer, Line, Group, Circle } from 'react-konva'
 import { TimelineConfig } from '@/features/timeline/config'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { useTimelineColors, withAlpha } from '@/features/timeline/utils/colors'
@@ -21,6 +21,8 @@ interface TimelineEffectBlockProps {
   endTime: number
   // Visuals
   label?: string
+  metaLabel?: string
+  iconKey?: 'zoom' | 'screen' | 'keys' | 'plugin' | 'note'
   fillColor?: string
   // Zoom visuals (optional)
   scale?: number
@@ -47,6 +49,8 @@ export const TimelineEffectBlock = React.memo(({
   startTime,
   endTime,
   label,
+  metaLabel,
+  iconKey,
   fillColor,
   scale,
   introMs = 500,
@@ -61,6 +65,8 @@ export const TimelineEffectBlock = React.memo(({
   onUpdate,
   onHover
 }: TimelineEffectBlockProps) => {
+  // Determine if block is in expanded track for enhanced styling
+  const isExpanded = !isCompact
   // Prevent rendering if collapsed/invalid bounds to avoid invalid shape errors
 
   const EFFECT_TRACK_ANIMATION_DURATION = 0.18
@@ -79,15 +85,20 @@ export const TimelineEffectBlock = React.memo(({
   // PERFORMANCE: Store tween ref to cancel before creating new one
   const hoverTweenRef = useRef<Konva.Tween | null>(null)
   // Use token color if no custom fill is provided
-  const baseStroke = fillColor || colors.zoomBlock
+  const baseStroke = fillColor || colors.muted
   const handleWidth = 6
   const handleHeight = 14
 
   // Define colors using tokens
-  // Promoted "selected" opacity to default for that solid glass look
-  const lightFill = withAlpha(baseStroke, 0.35)
-  const darkFill = withAlpha(baseStroke, 0.45)
-  const blockFill = isDarkMode ? darkFill : lightFill
+  // Enhanced styling for expanded state - more depth and polish
+  const blockFill = baseStroke
+
+  // Enhanced shadow configuration for expanded state
+  const shadowConfig = {
+    blur: isExpanded ? (isSelected ? 12 : 8) : (isSelected ? 4 : 1),
+    opacity: isExpanded ? (isSelected ? 0.35 : 0.25) : (isSelected ? 0.15 : 0.05),
+    offsetY: isExpanded ? 3 : 1
+  }
 
   // Use glass-safe colors for maximum contrast on any background
   const labelFill = isEnabled
@@ -102,6 +113,8 @@ export const TimelineEffectBlock = React.memo(({
 
   const safeWidth = Math.max(1, currentWidth)
   const safeHeight = Math.max(1, height)
+  // Only show full metadata if block is wide AND tall enough
+  const showMetadata = Boolean(metaLabel) && Boolean(iconKey) && !isCompact && safeWidth >= 72 && safeHeight >= 28
 
   // Debounced hover handlers to prevent flickering when moving between Group and Transformer
   const handleMouseEnter = () => {
@@ -180,13 +193,20 @@ export const TimelineEffectBlock = React.memo(({
       hoverTweenRef.current = null
     }
 
-    // Aligned with new subtle design
-    const targetShadowBlur = isHovering && !isDragging && !isTransforming ? 8 : (isSelected ? 4 : 1) // Higher blurry lift on hover
-    const targetShadowOpacity = isHovering && !isDragging && !isTransforming ? 0.2 : (isSelected ? 0.15 : 0.05)
+    // Enhanced depth and lift effect - more pronounced when expanded
+    const baseBlur = isExpanded ? shadowConfig.blur : (isSelected ? 4 : 1)
+    const baseOpacity = isExpanded ? shadowConfig.opacity : (isSelected ? 0.15 : 0.05)
+
+    const targetShadowBlur = isHovering && !isDragging && !isTransforming
+      ? (isExpanded ? 16 : 8)  // Higher lift on hover, even more when expanded
+      : baseBlur
+    const targetShadowOpacity = isHovering && !isDragging && !isTransforming
+      ? (isExpanded ? 0.4 : 0.2)  // Deeper shadow on hover
+      : baseOpacity
 
     hoverTweenRef.current = new Konva.Tween({
       node,
-      duration: 0.15, // Slightly longer for the physics feel of a lift
+      duration: 0.18, // Slightly longer for smooth physics feel
       scaleX: 1,
       scaleY: 1,
       shadowBlur: targetShadowBlur,
@@ -206,7 +226,7 @@ export const TimelineEffectBlock = React.memo(({
         hoverTweenRef.current = null
       }
     }
-  }, [isHovering, isDragging, isTransforming, isSelected])
+  }, [isHovering, isDragging, isTransforming, isSelected, isExpanded, shadowConfig.blur, shadowConfig.opacity])
 
   const generateZoomCurve = () => {
     if (!scale) return [] as number[]
@@ -335,82 +355,99 @@ export const TimelineEffectBlock = React.memo(({
         onMouseLeave={handleMouseLeave}
         listening={true}
       >
-        {/* Main block */}
+        {/* Main block - Colored fill with gradient overlay for depth */}
         <Rect
           ref={rectRef}
           x={0}
           y={0}
           width={safeWidth}
           height={safeHeight}
-          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: 0, y: safeHeight }}
-          fillLinearGradientColorStops={[
-            0, withAlpha(blockFill, 0.7),
-            1, withAlpha(blockFill, 1) // Solid glass feel
-          ]}
-          // New Selected Look: White/High-contrast border when selected
+          fill={withAlpha(blockFill, isExpanded ? 0.85 : 0.75)}
+          // Enhanced border - slightly thicker and more prominent when expanded
           stroke={isSelected
-            ? (isDarkMode ? 'rgba(255,255,255,0.9)' : colors.primary)
-            : withAlpha(baseStroke, 0.4)
+            ? (isDarkMode ? 'rgba(255,255,255,0.95)' : colors.primary)
+            : withAlpha(blockFill, isExpanded ? 0.7 : 0.6)
           }
-          strokeWidth={isSelected ? 1.5 : 1}
-          // Aligned with TimelineClip: 8px radius
-          cornerRadius={8}
+          strokeWidth={isSelected ? (isExpanded ? 2 : 1.5) : (isExpanded ? 1.5 : 1)}
+          // Refined corner radius
+          cornerRadius={isExpanded ? 10 : 8}
           opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
-          // Aligned with TimelineClip: Subtle shadow instead of heavy glow
-          shadowColor="black"
-          shadowBlur={isSelected ? 4 : 1}
-          shadowOpacity={isSelected ? 0.15 : 0.05} // Slightly boosted from clip for effect visibility
-          shadowOffsetY={1}
+          // Enhanced shadow system for depth
+          shadowColor={isDarkMode ? 'black' : 'rgba(0,0,0,0.7)'}
+          shadowBlur={shadowConfig.blur}
+          shadowOpacity={shadowConfig.opacity}
+          shadowOffsetY={shadowConfig.offsetY}
           listening={true}
         />
 
-        {/* Glass highlight - Adapted for 8px radius */}
+        {/* Dark gradient overlay at top for cinematic depth */}
+        <Rect
+          x={0}
+          y={0}
+          width={safeWidth}
+          height={Math.min(safeHeight * 0.45, 20)}
+          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+          fillLinearGradientEndPoint={{ x: 0, y: Math.min(safeHeight * 0.45, 20) }}
+          fillLinearGradientColorStops={[
+            0, 'rgba(0,0,0,0.35)',
+            1, 'rgba(0,0,0,0)'
+          ]}
+          cornerRadius={[isExpanded ? 10 : 8, isExpanded ? 10 : 8, 0, 0]}
+          listening={false}
+        />
+
+        {/* Glass highlight - Enhanced with stronger texture for expanded state */}
         <Rect
           x={1}
           y={1}
           width={Math.max(1, safeWidth - 2)}
-          height={Math.max(1, (safeHeight - 2) / 2)}
+          height={Math.max(1, (safeHeight - 2) * (isExpanded ? 0.4 : 0.5))}
           fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: 0, y: (safeHeight - 2) / 2 }}
-          fillLinearGradientColorStops={[
-            0,
-            withAlpha(colors.foreground, 0.12),
-            1,
-            withAlpha(colors.foreground, 0)
-          ]}
-          cornerRadius={[7, 7, 0, 0]} // Match new border radius (8-1)
+          fillLinearGradientEndPoint={{ x: 0, y: (safeHeight - 2) * (isExpanded ? 0.4 : 0.5) }}
+          fillLinearGradientColorStops={
+            isExpanded
+              ? [
+                0, withAlpha(colors.foreground, 0.14),
+                0.5, withAlpha(colors.foreground, 0.06),
+                1, withAlpha(colors.foreground, 0)
+              ]
+              : [
+                0, withAlpha(colors.foreground, 0.10),
+                1, withAlpha(colors.foreground, 0)
+              ]
+          }
+          cornerRadius={[isExpanded ? 9 : 7, isExpanded ? 9 : 7, 0, 0]}
           listening={false}
         />
 
-        {/* Resize handles - Modern Pill Shape */}
+        {/* Resize handles - Modern Pill Shape with enhanced styling */}
         {(isHovering || isSelected) && (
           <>
             {/* Left Handle */}
             <Rect
               x={-handleWidth / 2}
-              y={safeHeight / 2 - handleHeight / 2}
+              y={safeHeight / 2 - (isExpanded ? handleHeight * 1.2 : handleHeight) / 2}
               width={handleWidth}
-              height={handleHeight}
+              height={isExpanded ? handleHeight * 1.2 : handleHeight}
               fill={isSelected ? (isDarkMode ? '#ffffff' : colors.primary) : handleFill}
               cornerRadius={handleWidth / 2} // Pill shape
               listening={false}
               shadowColor="black"
-              shadowBlur={4}
-              shadowOpacity={0.2}
+              shadowBlur={isExpanded ? 6 : 4}
+              shadowOpacity={isExpanded ? 0.3 : 0.2}
             />
             {/* Right Handle */}
             <Rect
               x={safeWidth - handleWidth / 2}
-              y={safeHeight / 2 - handleHeight / 2}
+              y={safeHeight / 2 - (isExpanded ? handleHeight * 1.2 : handleHeight) / 2}
               width={handleWidth}
-              height={handleHeight}
+              height={isExpanded ? handleHeight * 1.2 : handleHeight}
               fill={isSelected ? (isDarkMode ? '#ffffff' : colors.primary) : handleFill}
               cornerRadius={handleWidth / 2} // Pill shape
               listening={false}
               shadowColor="black"
-              shadowBlur={4}
-              shadowOpacity={0.2}
+              shadowBlur={isExpanded ? 6 : 4}
+              shadowOpacity={isExpanded ? 0.3 : 0.2}
             />
           </>
         )}
@@ -429,24 +466,27 @@ export const TimelineEffectBlock = React.memo(({
           </>
         )}
 
-        {/* Label - centered in compact mode, top-left otherwise */}
-        {(label && safeWidth > 32) && (
+        {/* Label / Metadata - simple centered layout */}
+        {(label || metaLabel) && (
           <Text
-            x={isCompact ? 0 : 8}
-            y={isCompact ? safeHeight / 2 - 5 : 6}
-            width={isCompact ? safeWidth : safeWidth - 16}
-            text={label}
-            fontSize={isCompact ? 10 : 11}
+            x={0}
+            y={0}
+            width={safeWidth}
+            height={safeHeight}
+            text={showMetadata ? `${(metaLabel ?? '').toUpperCase()}\n${label || ''}` : (label || '')}
+            fontSize={showMetadata ? 9 : 11}
+            lineHeight={1.4}
+            fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            fontStyle="500"
             fill={labelFill}
-            // Improved Typography: SF Pro Display
-            fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-            fontStyle="500" // Slightly lighter weight for modern clean look
-            align={isCompact ? "center" : "left"}
+            opacity={0.95}
+            align="center"
+            verticalAlign="middle"
             wrap="none"
             listening={false}
             shadowColor={labelShadowColor}
-            shadowBlur={4}
-            shadowOpacity={0.9}
+            shadowBlur={2}
+            shadowOpacity={0.5}
             shadowOffsetY={1}
           />
         )}
@@ -577,4 +617,3 @@ export const TimelineEffectBlock = React.memo(({
 })
 
 TimelineEffectBlock.displayName = 'TimelineEffectBlock'
-

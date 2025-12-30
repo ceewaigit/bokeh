@@ -326,12 +326,17 @@ export const CursorLayer = React.memo(({
   // is 720p, 1080p, 4K, 8K, or any resolution - only the preview/export dimensions matter.
   const REFERENCE_WIDTH = 1920;
 
+  // ZOOM-AGNOSTIC CURSOR SIZING:
+  // Use the COMPOSITION width (videoWidth) as the base for cursor scale, NOT the video offset width.
+  // videoOffset.width changes when the video is zoomed, which would make the cursor shrink/grow with zoom.
+  // The cursor should maintain a consistent visual size on screen regardless of zoom level.
+  // For mockups, use the screen area width at its natural (unzoomed) size.
   const cursorScaleBaseWidth = isMockup && videoPositionContext.mockupPosition
     ? videoPositionContext.mockupPosition.screenWidth
-    : videoOffset.width;
+    : videoWidth; // Use composition width, NOT videoOffset.width
   const videoDisplayScale = useMemo(() => {
-    // Use drawWidth (actual display size) divided by fixed reference
-    // This makes sizing independent of source video resolution
+    // Use composition width divided by fixed reference
+    // This makes cursor size independent of both source resolution AND zoom level
     return cursorScaleBaseWidth / REFERENCE_WIDTH;
   }, [cursorScaleBaseWidth]);
 

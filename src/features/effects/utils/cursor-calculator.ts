@@ -106,7 +106,7 @@ export function resolveClickEffectConfig(cursorData?: CursorEffectData): Resolve
 
   const style = (cursorData?.clickEffectStyle ?? defaults.clickEffectStyle ?? 'ripple')
   const animation = (cursorData?.clickEffectAnimation ?? defaults.clickEffectAnimation ?? 'expand')
-  const durationMs = clamp(cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 300, 80, 2000)
+  const durationMs = clamp(cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 480, 80, 2000)
   const maxRadius = clamp(cursorData?.clickEffectMaxRadius ?? defaults.clickEffectMaxRadius ?? 50, 4, 200)
   const lineWidth = clamp(cursorData?.clickEffectLineWidth ?? defaults.clickEffectLineWidth ?? 2, 1, 12)
   const color = cursorData?.clickEffectColor ?? defaults.clickEffectColor ?? '#ffffff'
@@ -369,12 +369,12 @@ function calculateDirectionalTilt(options: {
   const dtMs = 1000 / fps
   const dtSec = dtMs / 1000
 
-  // Wider window + slower decay for smoother, more cinematic tilt response
+  // Wider window + slower decay for ultra-smooth, polished tilt response
   // Prevents jerky snapping on fast direction changes
-  const windowMs = 400  // was 280ms - wider for more stability
-  const sampleCount = Math.max(8, Math.min(18, Math.round(windowMs / dtMs)))
+  const windowMs = 500  // was 400ms - wider for more stability
+  const sampleCount = Math.max(8, Math.min(20, Math.round(windowMs / dtMs)))
 
-  const tauMs = 200 // was 120ms - slower decay for gentler response
+  const tauMs = 280 // was 200ms - slower decay for gentler, more refined response
 
   let sumW = 0
   let sumVx = 0
@@ -402,14 +402,14 @@ function calculateDirectionalTilt(options: {
   const vyHat = sumVy / sumW
   const speedPxPerSec = Math.sqrt(vxHat * vxHat + vyHat * vyHat)
 
-  // Higher deadzone threshold to ignore micro-movements and reduce jitter
-  // Smoother ramp for gradual tilt engagement
-  const speed01Raw = clamp01((speedPxPerSec - 60) / 700)  // was 40/600
+  // REFINED: Higher deadzone to ignore micro-movements, gentler ramp for polished feel
+  // subtle at low speed, natural at medium, capped at high
+  const speed01Raw = clamp01((speedPxPerSec - 80) / 900)  // was 60/700 - higher deadzone, gentler ramp
   const speed01Smooth = speed01Raw * speed01Raw * (3 - 2 * speed01Raw) // smoothstep
-  const speed01 = clamp01(speed01Smooth * 1.1) // slightly more dynamic response
+  const speed01 = clamp01(speed01Smooth)
 
-  // Smooth direction mapping; avoids sign flip jitter on tiny vx.
-  const direction = Math.tanh(vxHat / 900)
+  // Smooth direction mapping; avoids sign flip jitter on tiny vx
+  const direction = Math.tanh(vxHat / 1000) // was 900 - smoother direction response
 
   // Normalize for 360° tilt direction (all angles).
   const invSpeed = speedPxPerSec > 1e-6 ? (1 / speedPxPerSec) : 0

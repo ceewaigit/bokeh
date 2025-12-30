@@ -163,6 +163,8 @@ export const getTimelineColors = () => {
     playhead: getCSSVar('--destructive') || 'hsl(263, 70%, 60%)',
     zoomBlock: getCSSVar('--primary') || 'hsl(263, 70%, 50%)',
     screenBlock: getCSSVar('--info') || (isDark ? 'hsl(152, 55%, 45%)' : 'hsl(152, 55%, 35%)'),
+    keystrokeBlock: isDark ? 'hsl(83, 65%, 50%)' : 'hsl(83, 65%, 40%)', // Green for keystrokes
+    annotationBlock: isDark ? 'hsl(45, 90%, 55%)' : 'hsl(45, 90%, 45%)', // Amber/yellow for annotations
 
     // Webcam track colors
     webcamClip: 'hsl(196, 82%, 52%)',
@@ -205,6 +207,8 @@ const getDefaultColors = () => ({
   playhead: 'hsl(263, 70%, 60%)',
   zoomBlock: 'hsl(263, 70%, 65%)',
   screenBlock: 'hsl(152, 55%, 35%)',
+  keystrokeBlock: 'hsl(83, 65%, 50%)',
+  annotationBlock: 'hsl(45, 90%, 55%)',
   webcamClip: 'hsl(196, 82%, 52%)',
   webcamCircle: 'rgba(255, 255, 255, 0.15)',
   webcamTrack: 'rgba(34, 211, 238, 0.12)',

@@ -82,8 +82,8 @@ export const ZOOM_SCHEMA: EffectSchema = {
     category: 'transform',
     params: {
         scale: { type: 'number', default: 2.0, label: 'Scale', min: 1, max: 7, step: 0.1, unit: 'x' },
-        introMs: { type: 'number', default: 300, label: 'Ease In', min: 0, max: 1000, step: 50, unit: 'ms' },
-        outroMs: { type: 'number', default: 300, label: 'Ease Out', min: 0, max: 1000, step: 50, unit: 'ms' },
+        introMs: { type: 'number', default: 800, label: 'Ease In', min: 0, max: 2000, step: 50, unit: 'ms' },
+        outroMs: { type: 'number', default: 800, label: 'Ease Out', min: 0, max: 2000, step: 50, unit: 'ms' },
         mouseIdlePx: { type: 'number', default: 3, label: 'Idle Threshold', min: 1, max: 20, step: 1, unit: 'px', description: 'Minimum movement to trigger pan' },
     }
 }

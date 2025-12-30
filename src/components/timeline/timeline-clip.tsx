@@ -31,8 +31,6 @@ interface TimelineClipProps {
   isSelected: boolean
 }
 
-
-
 const TimelineClipComponent = ({
   clip,
   trackType,
@@ -259,19 +257,39 @@ const TimelineClipComponent = ({
           />
         )}
 
-        {trackType === TrackType.Video && showMissingThumb && clipFileName && (
-          <Text
-            x={10}
-            y={8}
-            text={clipFileName}
-            fontSize={11}
-            fontFamily="'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-            fontStyle="500"
-            fill={colors.foreground}
-            opacity={0.85}
-            listening={false}
-          />
-        )}
+        {/* Clip metadata display - simple centered layout */}
+        {trackType === TrackType.Video && showMissingThumb && (() => {
+          const durationSec = Math.round(clip.duration / 1000)
+          const durationText = `${durationSec}s`
+          const speedText = clip.playbackRate && clip.playbackRate !== 1.0
+            ? `${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`
+            : '1x'
+
+          const showMeta = clipWidth > 60
+
+          return (
+            <Group>
+              {/* Single centered text block with both label and value */}
+              <Text
+                x={0}
+                y={0}
+                width={clipWidth}
+                height={clipInnerHeight}
+                text={showMeta ? `Clip\n${durationText}  ⊘ ${speedText}` : 'Clip'}
+                fontSize={showMeta ? 12 : 10}
+                lineHeight={1.5}
+                fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                fontStyle="500"
+                fill={colors.foreground}
+                opacity={0.8}
+                align="center"
+                verticalAlign="middle"
+                wrap="none"
+                listening={false}
+              />
+            </Group>
+          )
+        })()}
 
         {/* Audio waveform visualization - minimal bottom strip */}
         {trackType === TrackType.Video && recording?.hasAudio && showWaveforms && (
@@ -284,36 +302,6 @@ const TimelineClipComponent = ({
             colors={colors}
           />
         )}
-
-        {/* Speed indicator badge - only shown when playback rate is modified */}
-        {trackType === TrackType.Video && clip.playbackRate && clip.playbackRate !== 1.0 && (() => {
-          const rateText = `${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`
-          return (
-            <Group x={6} y={6}>
-              <Rect
-                width={24}
-                height={14}
-                fill={'rgba(0,0,0,0.6)'}
-                cornerRadius={7}
-                stroke={'rgba(255,255,255,0.2)'}
-                strokeWidth={1}
-              />
-              <Text
-                x={12}
-                y={7}
-                text={rateText}
-                fontSize={9}
-                fill={'white'}
-                fontFamily="system-ui"
-                fontStyle="bold"
-                align="center"
-                verticalAlign="middle"
-                offsetX={rateText.length * 2.5}
-                offsetY={4.5}
-              />
-            </Group>
-          )
-        })()}
 
         {/* Fade indicators - accent colored edge bars showing intro/outro fade regions */}
         {trackType === TrackType.Video && (clip.introFadeMs || clip.outroFadeMs) && (() => {
