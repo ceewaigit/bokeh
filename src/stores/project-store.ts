@@ -12,7 +12,7 @@
  * - cache-slice: Centralized caching (camera path, frame layout)
  */
 
-import { create } from 'zustand'
+import { create, StateCreator } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { createCoreSlice } from './slices/core-slice'
 import { createSelectionSlice } from './slices/selection-slice'
@@ -36,15 +36,15 @@ import type { ProjectStore } from './slices/types'
  * - Project save (modifiedAt updates)
  */
 const cacheInvalidationMiddleware =
-  <T extends ProjectStore>(config: (set: any, get: any, api: any) => T) =>
-    (set: any, get: any, api: any) =>
+  <T extends ProjectStore>(config: StateCreator<T, any, any>): StateCreator<T, any, any> =>
+    (set, get, api) =>
       config(
-        (args: any, replace?: boolean) => {
-          const prevTimeline = get().currentProject?.timeline
+        (args, replace) => {
+          const prevTimeline = (get() as ProjectStore).currentProject?.timeline
 
-          set(args, replace)
+          set(args, replace as any)
 
-          const nextTimeline = get().currentProject?.timeline
+          const nextTimeline = (get() as ProjectStore).currentProject?.timeline
 
           // OPTIMIZED: Only invalidate on structural changes
           // tracks or effects arrays changed (Immer produces new refs on mutation)
@@ -52,7 +52,7 @@ const cacheInvalidationMiddleware =
           const effectsChanged = prevTimeline?.effects !== nextTimeline?.effects
 
           if (tracksChanged || effectsChanged) {
-            get().invalidateAllCaches()
+            (get() as ProjectStore).invalidateAllCaches()
           }
         },
         get,

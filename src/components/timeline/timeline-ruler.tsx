@@ -37,7 +37,7 @@ export const TimelineRuler = React.memo(() => {
       y={0}
       width={stageWidth}
       height={TimelineConfig.RULER_HEIGHT}
-      fill={colors.trackBackground}
+      fill="transparent"
       name="timeline-ruler"
       onMouseDown={onScrubStart}
       onTouchStart={onScrubStart}

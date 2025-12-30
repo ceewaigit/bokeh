@@ -42,7 +42,7 @@ export function addRecordingToProject(
     }
 
     // Create clip
-    const clip = addClipToTrack(project, recording.id)
+    const clip = addClipToTrack(project, recording.id, undefined, options)
 
     return clip
 }

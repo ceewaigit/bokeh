@@ -44,8 +44,8 @@ export interface BackgroundStyle {
  */
 export function calculateBackgroundStyle(
   backgroundData: BackgroundEffectData | undefined,
-  width: number,
-  height: number
+  _width: number,
+  _height: number
 ): BackgroundStyle {
   if (!backgroundData?.type) {
     return { type: BackgroundType.None }
@@ -68,12 +68,12 @@ export function calculateBackgroundStyle(
       if (!backgroundData.gradient?.colors?.length) {
         return { type: BackgroundType.None }
       }
-      return createGradientStyle(backgroundData.gradient, width, height)
+      return createGradientStyle(backgroundData.gradient)
 
     case BackgroundType.Wallpaper:
       // Wallpaper is gradient + optional image overlay
       const baseGradient = backgroundData.gradient?.colors?.length
-        ? createGradientStyle(backgroundData.gradient, width, height)
+        ? createGradientStyle(backgroundData.gradient)
         : { type: BackgroundType.None as const }
 
       if (backgroundData.wallpaper) {
@@ -131,8 +131,6 @@ export function calculateBackgroundStyle(
  */
 function createGradientStyle(
   gradient: { colors: string[]; angle?: number },
-  _width: number,
-  _height: number
 ): BackgroundStyle {
   const { colors, angle = 135 } = gradient
 

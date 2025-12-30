@@ -1,6 +1,7 @@
 import React from 'react';
 import { Rect, Group } from 'react-konva';
 import { WaveformAnalyzer } from '@/lib/audio/waveform-analyzer';
+import { useTimelineColors } from '@/features/timeline/utils/colors';
 
 interface TimelineClipWaveformProps {
     clipId: string;
@@ -8,7 +9,7 @@ interface TimelineClipWaveformProps {
     clipInnerHeight: number;
     peaks: number[];
     isSelected: boolean;
-    colors: any; // Using explicit any for now
+    colors: ReturnType<typeof useTimelineColors>;
 }
 
 export const TimelineClipWaveform: React.FC<TimelineClipWaveformProps> = ({

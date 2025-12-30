@@ -6,7 +6,7 @@
  */
 
 import type { Project, Clip } from '@/types/project'
-import { findClipById, reflowClips, calculateTimelineDuration, syncCropEffectTimes } from './clip-reflow'
+import { findClipById, reflowClips, calculateTimelineDuration } from './clip-reflow'
 
 // Minimum clip duration (1 second) - matches UI constraint
 export const MIN_CLIP_DURATION_MS = 1000

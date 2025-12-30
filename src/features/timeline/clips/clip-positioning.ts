@@ -221,7 +221,6 @@ export class ClipPositioning {
     _duration: number,
     clips: Clip[],
     excludeClipId?: string,
-    _currentTime?: number
   ): { time: number; snappedTo?: SnapPoint } {
     const sorted = clips
       .filter(c => !excludeClipId || c.id !== excludeClipId)
@@ -284,8 +283,7 @@ export class ClipPositioning {
         proposedTime,
         duration,
         clips,
-        excludeClipId,
-        options.currentTime
+        excludeClipId
       )
       finalTime = snapResult.time
     }

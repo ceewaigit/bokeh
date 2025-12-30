@@ -86,7 +86,7 @@ const defaultWorkspaceState = {
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
   persist(
-    (set, _get) => ({
+    (set) => ({
       ...defaultWorkspaceState,
 
       toggleProperties: () => {
@@ -206,41 +206,43 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     {
       name: 'workspace-storage',
       version: 6,
-      migrate: (persistedState: any, version: number) => {
-        if (!persistedState) return persistedState
+      migrate: (persistedState: unknown, version: number) => {
+        if (!persistedState || typeof persistedState !== 'object') return persistedState
+
+        let state = persistedState as any
 
         // Migration from version 5 or lower
         if (version < 6) {
-          persistedState = {
-            ...persistedState,
+          state = {
+            ...state,
             activeSidebarTab: SidebarTabId.Style,
             motionTabAdvancedOpen: false
           }
         }
 
         // Migrate old utility tabs into the new "advanced" bucket.
-        if (persistedState.activeUtilityTab === 'editing') {
-          persistedState = { ...persistedState, activeUtilityTab: 'advanced' }
+        if (state.activeUtilityTab === 'editing') {
+          state = { ...state, activeUtilityTab: 'advanced' }
         }
 
         // Version 3: Force compact timeline for existing users
-        if (typeof persistedState.timelineHeight === 'number') {
+        if (typeof state.timelineHeight === 'number') {
           // If it was the old default (250) or larger, reducing it to new compact default
-          if (persistedState.timelineHeight >= 250) {
-            persistedState = { ...persistedState, timelineHeight: 160 }
+          if (state.timelineHeight >= 250) {
+            state = { ...state, timelineHeight: 160 }
           }
         }
 
-        if (typeof persistedState.isHighQualityPlaybackEnabled === 'boolean') {
-          return persistedState
+        if (typeof state.isHighQualityPlaybackEnabled === 'boolean') {
+          return state
         }
-        if (typeof persistedState.isHighResPreviewEnabled === 'boolean') {
+        if (typeof state.isHighResPreviewEnabled === 'boolean') {
           return {
-            ...persistedState,
-            isHighQualityPlaybackEnabled: persistedState.isHighResPreviewEnabled,
+            ...state,
+            isHighQualityPlaybackEnabled: state.isHighResPreviewEnabled,
           }
         }
-        return persistedState
+        return state
       },
       partialize: (state) => ({
         isPropertiesOpen: state.isPropertiesOpen,

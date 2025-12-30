@@ -6,8 +6,8 @@
 
 import type { CursorEffectData, MouseEvent, ClickEvent } from '@/types/project'
 import { CursorStyle } from '@/types/project'
-import { interpolateMousePosition } from './mouse-interpolation'
-import { CursorType, electronToCustomCursor } from '../cursor-types'
+import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
+import { CursorType, electronToCustomCursor } from '../store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { clamp01, lerp, easeOutCubic, clamp } from '@/lib/core/math'
 import { CameraDataService } from '@/features/camera/camera-data-service'
@@ -847,4 +847,74 @@ export function getMotionBlurTrail(
   }
 
   return trail
+}
+
+export interface PreviewMotionOverride {
+  speed?: number
+  smoothness?: number
+  glide?: number
+  gliding?: boolean
+}
+
+export function calculateCursorPreviewConfig(
+  cursorData: CursorEffectData | undefined,
+  override?: PreviewMotionOverride | null
+) {
+  const defaults = DEFAULT_CURSOR_DATA
+
+  // Resolve effective values (store data + defaults + overrides)
+  const baseSpeed = cursorData?.speed ?? defaults.speed
+  const baseSmoothness = cursorData?.smoothness ?? defaults.smoothness
+  const baseGlide = cursorData?.glide ?? defaults.glide ?? 0.75
+  const baseContinuity = cursorData?.smoothingJumpThreshold ?? defaults.smoothingJumpThreshold ?? 0.9
+  const baseSize = cursorData?.size ?? defaults.size
+  const baseMotionBlur = typeof cursorData?.motionBlurIntensity === 'number'
+    ? cursorData.motionBlurIntensity
+    : (cursorData?.motionBlur === false ? 0 : (defaults.motionBlurIntensity ?? 40))
+
+  const glidingEnabled = override?.gliding ?? cursorData?.gliding ?? defaults.gliding
+  const effectiveSpeed = clamp(override?.speed ?? baseSpeed, 0.01, 1)
+  const effectiveSmoothness = clamp(override?.smoothness ?? baseSmoothness, 0.1, 1)
+  const effectiveGlide = clamp(override?.glide ?? baseGlide, 0, 1)
+  const effectiveContinuity = clamp(baseContinuity, 0.4, 1.6)
+
+  const sizeScale = clamp(baseSize / defaults.size, 0.65, 1.8)
+  const dotSize = Math.round(14 * sizeScale)
+
+  const speedFactor = 1 - effectiveSpeed
+  const glideFactor = glidingEnabled ? effectiveGlide : 0
+  const durationMs = Math.round(
+    clamp(260 + speedFactor * 720 + effectiveSmoothness * 220 + glideFactor * 180, 200, 1600)
+  )
+
+  let easing = 'cubic-bezier(0.25, 0.2, 0.2, 1)'
+  if (!glidingEnabled || effectiveGlide < 0.2) {
+    easing = effectiveSpeed > 0.6
+      ? 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+      : 'cubic-bezier(0.3, 0.6, 0.2, 1)'
+  } else if (effectiveSmoothness > 0.8 || effectiveGlide > 0.7) {
+    easing = 'cubic-bezier(0.16, 0, 0.2, 1)'
+  } else if (effectiveSpeed > 0.4) {
+    easing = 'cubic-bezier(0.25, 0.7, 0.35, 1)'
+  }
+
+  const continuityFactor = clamp((effectiveContinuity - 0.8) / 0.8, 0, 1)
+  const settlePx = glidingEnabled ? Math.round(dotSize * 0.35 * continuityFactor) : 0
+
+  const blurStrength = clamp(baseMotionBlur / 100, 0, 1)
+  const trailOpacity = glidingEnabled
+    ? clamp(0.15 + blurStrength * 0.45 + effectiveSpeed * 0.1, 0.12, 0.65)
+    : clamp(0.08 + blurStrength * 0.3, 0.08, 0.35)
+  const trailBlur = Math.round(1 + blurStrength * 6 + effectiveSpeed * 2)
+  const glowStrength = clamp(0.3 + blurStrength * 0.5, 0.3, 0.75)
+
+  return {
+    durationMs,
+    easing,
+    dotSize,
+    settlePx,
+    trailOpacity,
+    trailBlur,
+    glowStrength
+  }
 }

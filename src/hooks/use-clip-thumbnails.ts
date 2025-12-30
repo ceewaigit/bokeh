@@ -34,7 +34,6 @@ export function useClipThumbnails({
     recording,
     sourceIn,
     sourceOut,
-    clipInnerHeight,
     enabled = true,
 }: UseClipThumbnailsOptions): UseClipThumbnailsReturn {
     const [thumbnails, setThumbnails] = useState<HTMLImageElement[]>([])

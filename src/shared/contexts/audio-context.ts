@@ -26,7 +26,7 @@ export const getSharedAudioContext = (): AudioContext | null => {
 
     if (!sharedContext) {
         try {
-            const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+            const AudioContextClass = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
             sharedContext = new AudioContextClass({
                 latencyHint: 'playback',
                 sampleRate: 48000  // Explicit sample rate for consistency with video standard

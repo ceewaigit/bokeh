@@ -14,54 +14,29 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useCurrentFrame } from 'remotion';
 import { clamp01, smootherStep } from '@/lib/core/math';
+import { useProjectStore } from '@/stores/project-store';
+import { getMotionBlurConfig } from '../utils/transforms/zoom-transform';
 
 export interface MotionBlurLayerProps {
-    /** Whether motion blur feature is enabled */
-    enabled: boolean;
-    /** Blur intensity (0-1) - acts as Shutter Angle multiplier */
-    blurIntensity: number;
+    /** Whether motion blur feature is enabled (layout check) */
+    enabled?: boolean;
     /** Velocity vector in pixels per frame */
     velocity: { x: number; y: number };
-    /** Maximum blur radius in pixels */
-    maxBlurRadius: number;
-    /** Velocity threshold (px/frame) to trigger blur */
-    velocityThreshold: number;
-    /** Advanced tuning */
-    gamma: number;
-    rampRange: number;
-    clamp: number;
+
+    // Removed config props - now read from store
+    // maxBlurRadius, velocityThreshold, etc.
+
     /** Video element to use as texture source (legacy - prefer containerRef) */
     videoElement?: HTMLVideoElement | null;
-    /**
-     * Container ref to search for video element.
-     * When provided, MotionBlurLayer will query for a video element inside this container.
-     * This makes motion blur independent of clip identity - it always finds the active video.
-     */
+    /** Container ref to search for video element */
     containerRef?: React.RefObject<HTMLElement>;
+
     /** Dimensions of the rendered video */
     drawWidth: number;
     drawHeight: number;
     /** Position offset */
     offsetX: number;
     offsetY: number;
-    /** Debug Mode: Split screen */
-    debugSplit?: boolean;
-    /** Color Space Configuration */
-    colorSpace?: 'srgb' | 'display-p3';
-    /** Texture Unpack Configuration */
-    unpackColorspaceConversion?: 'default' | 'none';
-    /** Use SRGB8_ALPHA8 internal format + FRAMEBUFFER_SRGB (Correct Linear Workflow) */
-    useSRGBBuffer?: boolean;
-    /** Manual number of samples (override default calculation) */
-    samples?: number;
-    /** Manual Black Level (0.0 - 0.2) */
-    blackLevel?: number;
-    /** Saturation adjustment (0.0 - 2.0) */
-    saturation?: number;
-    /** Unpack Premultiply Alpha */
-    unpackPremultiplyAlpha?: boolean;
-    /** Force enable blur for debugging */
-    force?: boolean;
 }
 
 // Shader Sources
@@ -84,6 +59,7 @@ void main() {
 `;
 
 const FRAGMENT_SHADER = `#version 300 es
+// ... (keep shader content same, but I can't express "keep same" here easily without copying it or using multiple chunks. I'll include it for safety)
 precision highp float;
 
 in vec2 v_texCoord;
@@ -190,30 +166,47 @@ void main() {
 `;
 
 export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
-    enabled,
-    blurIntensity,
+    enabled: enabledProp = true, // Default to true if not passed
     velocity,
-    maxBlurRadius,
-    velocityThreshold,
-    rampRange,
-    clamp,
     videoElement: propsVideoElement,
     containerRef,
     drawWidth,
     drawHeight,
     offsetX,
     offsetY,
-    debugSplit = false,
-    gamma = 1.0,
-    colorSpace = 'display-p3',
-    unpackColorspaceConversion = 'none',
-    useSRGBBuffer = false,
-    samples,
-    blackLevel = 0,
-    saturation = 1.0,
-    unpackPremultiplyAlpha = false,
-    force = false,
 }) => {
+    // DIRECT STORE SUBSCRIPTION
+    const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera);
+
+    // Derive config from store settings safely
+    const config = getMotionBlurConfig(cameraSettings);
+
+    const cs = cameraSettings;
+    const blurIntensity = (cs?.motionBlurIntensity !== undefined) ? cs.motionBlurIntensity / 100 : 0.5;
+    // Use config for some defaults, or direct access with fallbacks
+    // Note: getMotionBlurConfig already handles maxBlurRadius and velocityThreshold
+    const maxBlurRadius = config.maxBlurRadius;
+    const velocityThreshold = config.velocityThreshold;
+
+    const rampRange = cs?.motionBlurRampRange ?? 0.5;
+    const clamp = cs?.motionBlurClamp ?? 60;
+    const gamma = cs?.motionBlurGamma ?? 1.0;
+    const blackLevel = cs?.motionBlurBlackLevel ?? 0;
+    const saturation = cs?.motionBlurSaturation ?? 1.0;
+
+    // Developer flags
+    const debugSplit = cs?.motionBlurDebugSplit ?? false;
+    const colorSpace = cs?.motionBlurColorSpace ?? 'display-p3';
+    const unpackColorspaceConversion = 'none';
+    const useSRGBBuffer = false;
+    const samplesProp = cs?.motionBlurSamples;
+    const samples = (samplesProp ?? 0) === 0 ? undefined : samplesProp;
+    const unpackPremultiplyAlpha = cs?.motionBlurUnpackPremultiply ?? false;
+    const force = cs?.motionBlurForce ?? false;
+
+    // Layout check implies enabled
+    const enabled = enabledProp && config.enabled && blurIntensity > 0;
+
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const glRef = useRef<WebGL2RenderingContext | null>(null);
     const textureRef = useRef<WebGLTexture | null>(null);
@@ -362,7 +355,7 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
                 g.deleteTexture(texture);
             }
         };
-    }, [colorSpace, useSRGBBuffer]);
+    }, [colorSpace, useSRGBBuffer, drawWidth, drawHeight]);
 
     // 2. Render Loop
     React.useLayoutEffect(() => {
@@ -464,14 +457,24 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
         if (force) {
             effectiveRadius = 600 * rampFactor;
         } else {
-            // Velocity-proportional scaling with cinematic curve
-            // Map excess velocity to 0-1 range, then apply smoothstep for natural falloff
-            const velocityRange = maxRadius * 1.5; // Velocity range for full blur
+            // Velocity-proportional scaling with natural cinematic falloff
+            // We want a response that feels like a 180-degree shutter but handles low-speed noise gracefully.
+
+            // 1. Normalize excess velocity (how much are we moving?)
+            // We use a broader range to prevent early clapping.
+            const velocityRange = maxRadius * 2.0;
             const velocityRatio = clamp01(excess / Math.max(1, velocityRange));
-            // Cinematic curve: smoothstep gives natural acceleration/deceleration feel
-            const cinematicCurve = velocityRatio * velocityRatio * (3 - 2 * velocityRatio);
-            // Scale blur radius proportionally: slow = subtle, fast = dramatic
+
+            // 2. Cinematic Response
+            // Instead of a steep bell curve that kills low-speed blur, we use a gentle power curve.
+            // Power of 1.2 gives a slightly "eased" linear feel (soft start) without being unresponsive.
+            const cinematicCurve = Math.pow(velocityRatio, 1.1);
+
+            // 3. Target Radius
+            // Scale blur radius proportionally. 
             const targetRadius = cinematicCurve * validIntensity * maxRadius;
+
+            // 4. Smooth limit
             effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
         }
 

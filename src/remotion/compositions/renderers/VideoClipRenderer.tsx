@@ -5,11 +5,11 @@
  * Uses Remotion's Sequence and Video components for frame-accurate timing.
  * Works for both preview and export modes.
  *
- * NOTE: This component is rendered OUTSIDE VideoPositionProvider, so it receives
- * layout data via props from SharedVideoController.
+ * REFACTORED: Now uses VideoPositionContext (Zero Prop Pattern)
+ * Layout, transform, and boundary state are sourced from context.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment, Video } from 'remotion';
+import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
@@ -19,31 +19,23 @@ import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { devAssert } from '@/shared/utils/invariant';
 import { useComposition } from '@/remotion/context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
 import type { Clip, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 import type { SyntheticEvent } from 'react';
 
 interface VideoClipRendererProps {
+  // Identity and Source (Minimal Props)
   clipForVideo: Clip;
   recording: Recording | undefined;
+
+  // Sequence / Timing Props (Specific to instance)
   startFrame: number;
   durationFrames: number;
   groupStartFrame: number;
   groupStartSourceIn: number;
   groupDuration: number;
-  cornerRadius: number;
-  drawWidth: number;
-  drawHeight: number;
-  maxZoomScale: number;
-  currentZoomScale: number;
-  activeLayoutItem: FrameLayoutItem | null;
-  prevLayoutItem: FrameLayoutItem | null;
-  nextLayoutItem: FrameLayoutItem | null;
-  // Boundary state
-  shouldHoldPrevFrame: boolean;
-  isNearBoundaryEnd: boolean;
-  overlapFrames: number;
-  // Render coordination
+
+  // Render Coordination (Callbacks)
   markRenderReady: (source?: string) => void;
   handleVideoReady: (e: SyntheticEvent<HTMLVideoElement>) => void;
   VideoComponent: any;
@@ -56,10 +48,7 @@ interface VideoClipRendererProps {
 export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   clipForVideo, recording, startFrame, durationFrames,
   groupStartFrame, groupStartSourceIn, groupDuration,
-  cornerRadius, drawWidth, drawHeight, maxZoomScale, currentZoomScale,
-  activeLayoutItem, prevLayoutItem, nextLayoutItem,
-  shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
-  markRenderReady, handleVideoReady, VideoComponent,
+  handleVideoReady, VideoComponent,
   premountFor, postmountFor, onVideoRef, isScrubbing,
 }) => {
   // Remotion hooks
@@ -68,6 +57,27 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const { isRendering } = getRemotionEnvironment();
   const { fps } = useComposition();
   const setPreviewReady = useProjectStore((s) => s.setPreviewReady);
+
+  // Consume Shared Context (SSOT)
+  const {
+    drawWidth,
+    drawHeight,
+    cornerRadius,
+    zoomTransform,
+    maxZoomScale,
+    activeLayoutItem,
+    prevLayoutItem,
+    nextLayoutItem,
+    boundaryState
+  } = useVideoPosition();
+
+  // Extract boundary state
+  const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false;
+  const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false;
+  const overlapFrames = boundaryState?.overlapFrames ?? 0;
+
+  // Derive current zoom scale from transform
+  const currentZoomScale = zoomTransform?.scale ?? 1;
 
   // Get settings from context
   const { playback, renderSettings, resources } = usePlaybackSettings();
@@ -79,7 +89,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const videoUrl = useVideoUrl({
     recording, resources, clipId: clipForVideo.id, preferOffthreadVideo,
     targetWidth: compositionWidth, targetHeight: compositionHeight,
-    maxZoomScale, currentZoomScale, isGlowMode, isHighQualityPlaybackEnabled, isPlaying,
+    maxZoomScale: maxZoomScale ?? 1, currentZoomScale, isGlowMode, isHighQualityPlaybackEnabled, isPlaying,
     isScrubbing
   });
 
@@ -143,7 +153,10 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const renderState = useClipRenderState({
     clip: clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
     currentFrame, fps, isRendering, drawWidth, drawHeight,
-    activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+    activeLayoutItem: activeLayoutItem ?? null,
+    prevLayoutItem: prevLayoutItem ?? null,
+    nextLayoutItem: nextLayoutItem ?? null,
+    shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
   });
 
   // Early return for invalid recordings
@@ -153,7 +166,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Sizing
   const needsHighRes = isHighQualityPlaybackEnabled
-    && !isProxySufficientForTarget(compositionWidth, compositionHeight, currentZoomScale || maxZoomScale || 1);
+    && !isProxySufficientForTarget(compositionWidth, compositionHeight, currentZoomScale || (maxZoomScale ?? 1) || 1);
   const useHighResSizing = isRendering || needsHighRes;
   const playbackRate = clipForVideo.playbackRate && clipForVideo.playbackRate > 0 ? clipForVideo.playbackRate : 1;
 

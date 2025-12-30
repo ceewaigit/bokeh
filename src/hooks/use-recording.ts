@@ -45,7 +45,7 @@ export function useRecording() {
     return () => {
       timer.stop()
     }
-  }, [])
+  }, [timer])
 
   // Error handling
   const handleRecordingError = useCallback((error: unknown) => {

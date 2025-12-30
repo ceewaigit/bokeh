@@ -84,7 +84,7 @@ export function CameraPreview({
       mounted = false
       stopPreview()
     }
-  }, [deviceId, startPreview, stopPreview, onError])
+  }, [deviceId, startPreview, stopPreview, onError, stream])
 
   // Attach stream to video element when it changes
   useEffect(() => {

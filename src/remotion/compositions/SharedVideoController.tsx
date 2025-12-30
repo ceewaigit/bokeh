@@ -232,6 +232,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     clipEffects: resolvedClipData?.effects ?? effects,
     calculatedZoomBlock: cameraPathFrame?.activeZoomBlock,
     calculatedZoomCenter: cameraPathFrame?.zoomCenter ?? { x: 0.5, y: 0.5 },
+    calculatedZoomScale: cameraPathFrame?.zoomScale,
     compositionWidth: width,
     compositionHeight: height,
     isEditingCrop
@@ -383,17 +384,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             groupStartFrame={item.groupStartFrame}
             groupStartSourceIn={item.groupStartSourceIn}
             groupDuration={item.groupDuration}
-            cornerRadius={layout.cornerRadius}
-            drawWidth={layout.drawWidth}
-            drawHeight={layout.drawHeight}
-            maxZoomScale={maxZoom}
-            currentZoomScale={currentScale}
-            activeLayoutItem={renderActiveLayoutItem}
-            prevLayoutItem={renderPrevLayoutItem}
-            nextLayoutItem={renderNextLayoutItem}
-            shouldHoldPrevFrame={shouldHoldPrevFrame}
-            isNearBoundaryEnd={isNearBoundaryEnd}
-            overlapFrames={overlapFrames}
             markRenderReady={markRenderReady}
             handleVideoReady={handleVideoReady}
             VideoComponent={useOffthreadVideo ? OffthreadVideo : Video}
@@ -462,33 +452,40 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     activeLayoutItem, prevLayoutItem, nextLayoutItem,
     renderActiveLayoutItem, renderPrevLayoutItem, renderNextLayoutItem,
     shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
-    markRenderReady, handleVideoReady, useOffthreadVideo, isMotionBlurActive
+    markRenderReady, handleVideoReady, useOffthreadVideo,
+    isScrubbing
   ]);
 
   // ==========================================================================
   // RETURN
   // ==========================================================================
+
+  // Prepare context value
+  const videoPositionContextValue = {
+    ...layout,
+    zoomTransform: zoomTransform ?? null,
+    contentTransform: outerTransform,
+    refocusBlurPx: effectiveBlurPx,
+    cameraMotionBlur: { enabled: false, angle: 0, filterId: '' },
+    activeClipData,
+    effectiveClipData: resolvedClipData,
+    prevFrameClipData,
+    frameLayout,
+    activeLayoutItem,
+    prevLayoutItem,
+    nextLayoutItem,
+    videoWidth,
+    videoHeight,
+    maxZoomScale: getMaxZoomScale(effects),
+    boundaryState
+  };
+
   // If no active content, render children (overlays) or empty container
   if (!resolvedClipData && !shouldHoldPrevFrame) {
     return (
       <AbsoluteFill>
         <div style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
-        <VideoPositionProvider value={{
-          ...layout,
-          zoomTransform: zoomTransform ?? null,
-          contentTransform: outerTransform,
-          refocusBlurPx: effectiveBlurPx,
-          cameraMotionBlur: { enabled: false, angle: 0, filterId: '' },
-          activeClipData,
-          effectiveClipData: resolvedClipData,
-          prevFrameClipData,
-          frameLayout,
-          activeLayoutItem,
-          prevLayoutItem,
-          nextLayoutItem,
-          videoWidth,
-          videoHeight
-        }}>
+        <VideoPositionProvider value={videoPositionContextValue}>
           {children}
         </VideoPositionProvider>
       </AbsoluteFill>
@@ -497,106 +494,74 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   return (
     <AbsoluteFill>
-      {/* Main Transform Container */}
-      <AbsoluteFill>
-        <div
-          style={{
-            position: 'absolute',
-            left: layout.mockupEnabled ? 0 : layout.offsetX,
-            top: layout.mockupEnabled ? 0 : layout.offsetY,
-            width: layout.mockupEnabled ? '100%' : layout.drawWidth,
-            height: layout.mockupEnabled ? '100%' : layout.drawHeight,
-            transform: outerTransform,
-            transformOrigin: 'center center',
-            filter: effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : undefined,
-            clipPath: layout.mockupEnabled ? undefined : cropClipPath,
-            borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
-            overflow: cropClipPath ? 'hidden' : undefined,
-            willChange: isRendering ? undefined : 'transform, filter',
-          }}
-        >
-          {/* Video content container - also used by MotionBlurLayer to find active video */}
-          <div ref={videoContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-            {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
-              <MockupLayer
-                mockupData={layout.mockupData}
-                mockupPosition={layout.mockupPosition}
-              >
-                {renderedContent}
-              </MockupLayer>
-            ) : (
-              renderedContent
+      <VideoPositionProvider value={videoPositionContextValue}>
+        {/* Main Transform Container */}
+        <AbsoluteFill>
+          <div
+            style={{
+              position: 'absolute',
+              left: layout.mockupEnabled ? 0 : layout.offsetX,
+              top: layout.mockupEnabled ? 0 : layout.offsetY,
+              width: layout.mockupEnabled ? '100%' : layout.drawWidth,
+              height: layout.mockupEnabled ? '100%' : layout.drawHeight,
+              transform: outerTransform,
+              transformOrigin: 'center center',
+              filter: effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : undefined,
+              clipPath: layout.mockupEnabled ? undefined : cropClipPath,
+              borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
+              overflow: cropClipPath ? 'hidden' : undefined,
+              willChange: isRendering ? undefined : 'transform, filter',
+            }}
+          >
+            {/* Video content container - also used by MotionBlurLayer to find active video */}
+            <div ref={videoContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+              {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
+                <MockupLayer
+                  mockupData={layout.mockupData}
+                  mockupPosition={layout.mockupPosition}
+                >
+                  {renderedContent}
+                </MockupLayer>
+              ) : (
+                renderedContent
+              )}
+            </div>
+
+            {/* WebGL Motion Blur - overlays on video when blur is active */}
+            <MotionBlurLayer
+              enabled={motionBlurEnabled && isMainVideo}
+              velocity={cameraVelocity}
+              containerRef={videoContainerRef}
+              drawWidth={layout.drawWidth}
+              drawHeight={layout.drawHeight}
+              offsetX={0}
+              offsetY={0}
+            />
+
+            {/* Debug Overlay - Independent visual guide if needed */}
+            {false && (
+              <MotionBlurDebugLayer
+                enabled={true}
+                drawWidth={layout.drawWidth}
+                drawHeight={layout.drawHeight}
+              />
             )}
           </div>
 
-          {/* WebGL Motion Blur - overlays on video when blur is active */}
-          <MotionBlurLayer
-            enabled={motionBlurEnabled && isMainVideo}
-            blurIntensity={Number.isFinite(motionBlurIntensity) ? motionBlurIntensity / 100 : 0}
-            velocity={cameraVelocity}
-            maxBlurRadius={Number.isFinite(motionBlurConfig.maxBlurRadius) ? motionBlurConfig.maxBlurRadius : 20}
-            velocityThreshold={Number.isFinite(motionBlurConfig.velocityThreshold) ? motionBlurConfig.velocityThreshold : 1}
-            gamma={Number.isFinite(cameraSettings?.motionBlurGamma) ? (cameraSettings?.motionBlurGamma ?? 1.0) : 1.0}
-            rampRange={Number.isFinite(cameraSettings?.motionBlurRampRange) ? (cameraSettings?.motionBlurRampRange ?? 0.5) : 0.5}
-            clamp={Number.isFinite(cameraSettings?.motionBlurClamp) ? (cameraSettings?.motionBlurClamp ?? 60) : 60}
-            containerRef={videoContainerRef}
-            drawWidth={layout.drawWidth}
-            drawHeight={layout.drawHeight}
-            offsetX={0}
-            offsetY={0}
-            // Enable Debug Split to verify exact color matching
-            debugSplit={cameraSettings?.motionBlurDebugSplit ?? false}
-            // COLOR MATCHING STRATEGY: FULLY CONFIGURABLE
-            colorSpace={cameraSettings?.motionBlurColorSpace ?? 'srgb'}
-            unpackColorspaceConversion="default"
-            useSRGBBuffer={false}
-            samples={cameraSettings?.motionBlurSamples === 0 ? undefined : cameraSettings?.motionBlurSamples}
-            blackLevel={Number.isFinite(cameraSettings?.motionBlurBlackLevel) ? (cameraSettings?.motionBlurBlackLevel ?? 0) : 0}
-            saturation={Number.isFinite(cameraSettings?.motionBlurSaturation) ? (cameraSettings?.motionBlurSaturation ?? 1.0) : 1.0}
-            unpackPremultiplyAlpha={cameraSettings?.motionBlurUnpackPremultiply ?? false}
-            force={cameraSettings?.motionBlurForce ?? false}
-          />
-
-          {/* Debug Overlay - Independent visual guide if needed */}
-          {false && (
-            <MotionBlurDebugLayer
-              enabled={true}
-              drawWidth={layout.drawWidth}
-              drawHeight={layout.drawHeight}
+          {/* Preview Guides */}
+          {isPreview && (
+            <PreviewGuides
+              rect={{
+                x: layout.offsetX,
+                y: layout.offsetY,
+                width: layout.drawWidth,
+                height: layout.drawHeight
+              }}
             />
           )}
-        </div>
+        </AbsoluteFill>
 
-        {/* Preview Guides */}
-        {isPreview && (
-          <PreviewGuides
-            rect={{
-              x: layout.offsetX,
-              y: layout.offsetY,
-              width: layout.drawWidth,
-              height: layout.drawHeight
-            }}
-          />
-        )}
-      </AbsoluteFill>
-
-      {/* Overlays */}
-      <VideoPositionProvider value={{
-        ...layout,
-        zoomTransform: zoomTransform ?? null,
-        contentTransform: outerTransform,
-        refocusBlurPx: effectiveBlurPx,
-        cameraMotionBlur: { enabled: false, angle: 0, filterId: '' },
-        activeClipData,
-        effectiveClipData: resolvedClipData,
-        prevFrameClipData,
-        frameLayout,
-        activeLayoutItem,
-        prevLayoutItem,
-        nextLayoutItem,
-        videoWidth,
-        videoHeight
-      }}>
+        {/* Overlays */}
         {children}
       </VideoPositionProvider>
     </AbsoluteFill>

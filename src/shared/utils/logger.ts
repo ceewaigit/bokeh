@@ -32,25 +32,25 @@ class Logger {
     return this.levels[level] >= this.levels[this.config.minLevel]
   }
 
-  debug(...args: any[]): void {
+  debug(...args: unknown[]): void {
     if (this.shouldLog('debug')) {
       console.debug('[DEBUG]', ...args)
     }
   }
 
-  info(...args: any[]): void {
+  info(...args: unknown[]): void {
     if (this.shouldLog('info')) {
       console.info('[INFO]', ...args)
     }
   }
 
-  warn(...args: any[]): void {
+  warn(...args: unknown[]): void {
     if (this.shouldLog('warn')) {
       console.warn('[WARN]', ...args)
     }
   }
 
-  error(...args: any[]): void {
+  error(...args: unknown[]): void {
     if (this.shouldLog('error')) {
       console.error('[ERROR]', ...args)
     }

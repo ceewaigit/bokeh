@@ -44,7 +44,7 @@ const AnimatedGroup = ({ y, children }: { y: number; children: React.ReactNode }
   // Initialize position immediately on mount to prevent jumping
   useEffect(() => {
     if (groupRef.current) groupRef.current.y(y)
-  }, [])
+  }, [y])
 
   return <Group ref={groupRef}>{children}</Group>
 }
@@ -88,7 +88,7 @@ const AnimatedRect = ({
       rectRef.current.height(height)
       rectRef.current.width(width)
     }
-  }, [])
+  }, [height, width])
 
   return (
     <Rect
@@ -132,7 +132,7 @@ const AnimatedSeparator = ({ width, height, fill, opacity }: { width: number; he
     if (rectRef.current) {
       rectRef.current.y(height - 1)
     }
-  }, [])
+  }, [height])
 
   return (
     <Rect
@@ -209,7 +209,7 @@ const AnimatedLabelContent = ({
   x: number
   y: number
   children: React.ReactNode
-  onClick?: (e: Konva.KonvaEventObject<MouseEvent>) => void
+  onClick?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
 }) => {
   const groupRef = useRef<Konva.Group>(null)
   const hasMountedRef = useRef(false)
@@ -231,14 +231,14 @@ const AnimatedLabelContent = ({
 
   useEffect(() => {
     if (groupRef.current) groupRef.current.y(y)
-  }, [])
+  }, [y])
 
   return (
     <Group
       x={x}
       ref={groupRef}
       onClick={onClick}
-      onTap={onClick as any}
+      onTap={onClick}
     >
       {children}
     </Group>

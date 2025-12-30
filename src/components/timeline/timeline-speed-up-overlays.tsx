@@ -39,7 +39,13 @@ const SuggestionBarItem = React.memo(({
 }: {
     bar: BarData
     y: number
-    onOpen: (clipId: string, opts: any) => void
+    onOpen: (clipId: string, opts: {
+        x: number
+        y: number
+        period: SpeedUpPeriod
+        allTypingPeriods: SpeedUpPeriod[]
+        allIdlePeriods: SpeedUpPeriod[]
+    }) => void
 }) => {
     const [isHovered, setIsHovered] = useState(false)
     const [isPressed, setIsPressed] = useState(false)

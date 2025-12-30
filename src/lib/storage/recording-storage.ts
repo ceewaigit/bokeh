@@ -352,7 +352,7 @@ export class RecordingStorage {
         if (videoUrl) {
           this.setBlobUrl(recording.id, videoUrl)
         }
-      } catch (e) {
+      } catch {
         console.warn('Failed to cache video URL for recording:', recording.id)
       }
     }))
@@ -815,7 +815,7 @@ export class RecordingStorage {
               if (webcamMeta.width > 0) webcamWidth = webcamMeta.width
               if (webcamMeta.height > 0) webcamHeight = webcamMeta.height
               if (webcamMeta.duration > 0) webcamDuration = webcamMeta.duration
-            } catch (e) {
+            } catch (_e) {
               logger.warn('[Recording Storage] Failed to read webcam metadata, using defaults')
             }
 

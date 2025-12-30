@@ -14,7 +14,7 @@ import { getPluginDefaults } from '@/features/effects/config/plugin-sdk'
 import { EffectStore } from '@/lib/core/effects'
 import { useProjectStore, useSelectedClipId } from '@/stores/project-store'
 import { findClipById } from '@/features/timeline/timeline-operations'
-import type { ParamDef, NumberParam, EnumParam } from '@/features/effects/config/plugin-sdk'
+import type { ParamDef, NumberParam, EnumParam, StringParam } from '@/features/effects/config/plugin-sdk'
 import type { PluginDefinition } from '@/features/effects/config/plugin-sdk'
 import { EffectLayerType } from '@/types/effects'
 
@@ -567,7 +567,8 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
     }
 
     if (param.type === 'string') {
-        const displayValue = typeof value === 'string' ? value : String((param as any).default ?? '')
+        const stringParam = param as StringParam
+        const displayValue = typeof value === 'string' ? value : String(stringParam.default ?? '')
         return (
             <div className="space-y-2">
                 <Label className="text-[11px] text-foreground">{param.label}</Label>
@@ -575,8 +576,8 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
                     type="text"
                     value={displayValue}
                     onChange={(e) => onChange(e.target.value)}
-                    placeholder={(param as any).placeholder}
-                    maxLength={(param as any).maxLength}
+                    placeholder={stringParam.placeholder}
+                    maxLength={stringParam.maxLength}
                     className="w-full h-8 px-2.5 text-[11px] bg-background/60 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/40"
                 />
             </div>

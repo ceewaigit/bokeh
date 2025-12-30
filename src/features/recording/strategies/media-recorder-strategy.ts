@@ -133,7 +133,7 @@ export class MediaRecorderStrategy implements RecordingStrategy {
       if (this.mediaRecorder?.state === 'recording') {
         try {
           this.mediaRecorder.requestData()
-        } catch (e) {
+        } catch {
           this.clearDataInterval()
         }
       }

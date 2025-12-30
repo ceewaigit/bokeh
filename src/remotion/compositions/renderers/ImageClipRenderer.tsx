@@ -96,11 +96,17 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
         borderRadius: effectiveRadius,
         overflow: 'hidden',
       }}>
-        {isRendering ? (
-          <Img src={imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} draggable={false} />
-        )}
+        <Img
+          src={imageUrl}
+          alt=""
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            pointerEvents: isRendering ? 'auto' : 'none'
+          }}
+          draggable={false}
+        />
       </div>
     </Sequence>
   );

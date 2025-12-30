@@ -788,7 +788,7 @@ export interface Annotation {
   startTime: number
   endTime: number
   position: { x: number; y: number }
-  data: any  // Type-specific data
+  data: unknown  // Type-specific data
 }
 
 export interface Transition {
@@ -879,6 +879,10 @@ export interface ProjectSettings {
     motionBlurForce?: boolean
     /** Saturation adjustment (0.0 - 2.0). Default 1.0. */
     motionBlurSaturation?: number
+    /** Cameraman style smoothness (0-100). Controls how floaty camera panning feels. Default 48. */
+    cameraSmoothness?: number
+    /** Physics-based camera dynamics configuration */
+    cameraDynamics?: CameraDynamics
   }
   /** Canvas settings for aspect ratio and output dimensions */
   canvas: CanvasSettings
@@ -1018,4 +1022,13 @@ export interface WebcamEffectData {
 
   // Crop the webcam source (0-1 normalized)
   sourceCrop?: CropEffectData
+}
+
+export interface CameraDynamics {
+  /** Spring stiffness (responsiveness). Higher = faster. Default ~120. */
+  stiffness: number
+  /** Spring damping (friction). Higher = less oscillation. Default ~25. */
+  damping: number
+  /** Mass (inertia). Default 1. */
+  mass: number
 }

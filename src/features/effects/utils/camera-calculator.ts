@@ -7,11 +7,11 @@
  * Core algorithms are extracted to @/lib/core/camera for reuse.
  */
 
-import type { CursorEffectData, Effect, MouseEvent, Recording, RecordingMetadata } from '@/types/project'
+import type { CursorEffectData, Effect, MouseEvent, Recording, RecordingMetadata, CameraDynamics } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { interpolateMousePosition } from './mouse-interpolation'
 import { calculateZoomScale } from '@/remotion/compositions/utils/transforms/zoom-transform'
-import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/features/effects/cursor-types'
+import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/features/cursor/store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { clamp01, lerp, smootherStep } from '@/lib/core/math'
 import { getSourceDimensions } from '@/lib/core/coordinates'
@@ -55,6 +55,8 @@ export interface CameraPhysicsState {
   cursorStoppedAtMs?: number
   frozenTargetX?: number
   frozenTargetY?: number
+  scale?: number
+  vScale?: number
 }
 
 export interface CameraComputeInput {
@@ -70,6 +72,10 @@ export interface CameraComputeInput {
   forceFollowCursor?: boolean
   physics: CameraPhysicsState
   deterministic?: boolean
+  /** Cameraman style smoothness (0-100) from ProjectSettings.camera */
+  cameraSmoothness?: number
+  /** Physics-based camera dynamics configuration */
+  cameraDynamics?: CameraDynamics
 }
 
 export interface CameraComputeOutput {
@@ -102,6 +108,8 @@ export function computeCameraState({
   forceFollowCursor,
   physics,
   deterministic,
+  cameraSmoothness,
+  cameraDynamics,
 }: CameraComputeInput): CameraComputeOutput {
   const effectiveMetadata = metadata ?? recording?.metadata
   const isDeterministic = Boolean(deterministic)
@@ -117,7 +125,7 @@ export function computeCameraState({
     ? (activeZoomBlock.autoScale === 'fill' ? fillScale : activeZoomBlock.scale)
     : 1
 
-  const currentScale = activeZoomBlock
+  const commandedScale = activeZoomBlock
     ? calculateZoomScale(
       timelineMs - activeZoomBlock.startTime,
       activeZoomBlock.endTime - activeZoomBlock.startTime,
@@ -126,6 +134,10 @@ export function computeCameraState({
       activeZoomBlock.outroMs
     )
     : 1
+
+  // If deterministic (or first run), use commanded scale directly.
+  // Otherwise, use physics state or fall back to commanded scale.
+  let currentScale = isDeterministic ? commandedScale : (physics.scale ?? commandedScale)
 
   const mouseEvents = ((effectiveMetadata as any)?.mouseEvents || []) as MouseEvent[]
   const { sourceWidth, sourceHeight } = getSourceDimensionsAtTime(
@@ -145,18 +157,20 @@ export function computeCameraState({
   const clampCursorX = (x: number) => Math.max(cursorClampBounds.minX, Math.min(cursorClampBounds.maxX, x))
   const clampCursorY = (y: number) => Math.max(cursorClampBounds.minY, Math.min(cursorClampBounds.maxY, y))
 
-  // Check for Cinematic Scroll effect
-  const cinematicScrollEffect = effects.find(e =>
-    e.type === EffectType.Annotation && e.startTime <= timelineMs && e.endTime > timelineMs
-  )
-  const isCinematicScrollEnabled = (cinematicScrollEffect?.data as any)?.kind === 'scrollCinematic' && cinematicScrollEffect?.enabled
-  const cinematicSmoothing = isCinematicScrollEnabled ? normalizeSmoothingAmount((cinematicScrollEffect?.data as any)?.smoothing ?? 20) : 0
+  // Use cameraSmoothness from ProjectSettings.camera (if provided)
+  // Disable legacy cinematic smoothing if physics dynamics are used, to avoid double-smoothing.
+  const cinematicSmoothing = (cameraDynamics || cameraSmoothness == null)
+    ? 0
+    : normalizeSmoothingAmount(cameraSmoothness)
   const zoomSmoothing = normalizeSmoothingAmount(activeZoomBlock?.smoothing)
   // Scale baseline smoothing with zoom to prevent high-zoom micro-jitter.
   const zoomSmoothingBoost = activeZoomBlock
     ? clamp01((currentScale - 1) / 1.5)
     : 0
-  const basePanSmoothing = activeZoomBlock ? lerp(8, 22, zoomSmoothingBoost) : 0
+  // Disable base pan smoothing if using physics dynamics
+  const basePanSmoothing = (activeZoomBlock && !cameraDynamics)
+    ? lerp(8, 22, zoomSmoothingBoost)
+    : 0
   const smoothingAmount = Math.max(cinematicSmoothing, zoomSmoothing, basePanSmoothing)
 
   const dtTimelineFromState = timelineMs - (physics.lastTimeMs ?? timelineMs)
@@ -174,9 +188,9 @@ export function computeCameraState({
   })()
 
   // Estimate playback rate for predictive tracking
-  const dtSource = sourceTimeMs - (physics.lastSourceTimeMs ?? sourceTimeMs)
-  const playbackRateEstimate = dtTimelineFromState > 1 ? dtSource / dtTimelineFromState : 1
-  const rate = Math.max(0.5, Math.min(3, playbackRateEstimate || 1))
+  // const dtSource = sourceTimeMs - (physics.lastSourceTimeMs ?? sourceTimeMs)
+  // const playbackRateEstimate = dtTimelineFromState > 1 ? dtSource / dtTimelineFromState : 1
+  // const rate = Math.max(0.5, Math.min(3, playbackRateEstimate || 1))
 
   const attractor = calculateAttractor(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount)
 
@@ -294,22 +308,115 @@ export function computeCameraState({
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
   } else {
     const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
-    const smoothingT = clamp01(smoothingAmount / 100)
-    const baseTau = lerp(0.06, 0.55, smootherStep(smoothingT))
-    const effectiveTau = baseTau / rate
-    const tau = cursorIsFrozen ? effectiveTau * 3 : effectiveTau
-    const alpha = dtSeconds > 0 ? Math.min(1, Math.max(0.001, 1 - Math.exp(-dtSeconds / tau))) : 0
 
-    let x = physics.x, y = physics.y
-    if (activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')) {
-      x = 0.5; y = 0.5
-    } else {
-      x = lerp(x, targetCenter.x, alpha)
-      y = lerp(y, targetCenter.y, alpha)
+    // Default spring parameters (cinematic)
+    let stiffness = 60
+    let damping = 15
+    let mass = 1
+
+    if (cameraDynamics) {
+      stiffness = cameraDynamics.stiffness
+      damping = cameraDynamics.damping
+      mass = cameraDynamics.mass || 1
+    } else if (cameraSmoothness != null) {
+      // Legacy mapping if dynamics not provided
+      const t = clamp01(cameraSmoothness / 100)
+      stiffness = lerp(300, 40, t)
+      damping = lerp(20, 35, t)
     }
-    const distToTarget = Math.sqrt(Math.pow(x - targetCenter.x, 2) + Math.pow(y - targetCenter.y, 2))
-    if (distToTarget < 0.0001) { x = targetCenter.x; y = targetCenter.y }
-    nextPhysics = { x, y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
+
+    // Freeze logic dampens velocity significantly
+    if (cursorIsFrozen) {
+      stiffness = 600 // snap effectively
+      damping = 80
+    }
+
+    // Semi-Implicit Euler Integration
+    // F = -k*(x - target) - c*v
+    let currentX = physics.x
+    let currentY = physics.y
+    let currentVX = physics.vx
+    let currentVY = physics.vy
+    let currentVScale = physics.vScale ?? 0
+
+    // Simulation steps for stability if dt is large
+    const MAX_STEP = 0.016 // ~60fps
+    let remainingDt = dtSeconds
+
+    // Cap extremely large time steps (e.g. resume from background)
+    if (remainingDt > 0.5) {
+      currentX = targetCenter.x
+      currentY = targetCenter.y
+      currentVX = 0
+      currentVY = 0
+      currentScale = commandedScale
+      currentVScale = 0
+      remainingDt = 0
+    }
+
+    const snapToCenter = activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')
+
+    while (remainingDt > 0) {
+      const dt = Math.min(remainingDt, MAX_STEP)
+
+      // Position Physics
+      if (snapToCenter) {
+        // Hard lock to center (instantaneous, no physics)
+        currentX = 0.5
+        currentY = 0.5
+        currentVX = 0
+        currentVY = 0
+      } else {
+        const fx = -stiffness * (currentX - targetCenter.x) - damping * currentVX
+        const fy = -stiffness * (currentY - targetCenter.y) - damping * currentVY
+        const ax = fx / mass
+        const ay = fy / mass
+        currentVX += ax * dt
+        currentVY += ay * dt
+        currentX += currentVX * dt
+        currentY += currentVY * dt
+      }
+
+      // Scale Physics (Targeting commandedScale)
+      // Use same stiffness/damping for consistent feel
+      const fScale = -stiffness * (currentScale - commandedScale) - damping * currentVScale
+      const aScale = fScale / mass
+      currentVScale += aScale * dt
+      currentScale += currentVScale * dt
+
+      remainingDt -= dt
+    }
+
+    // Snap to zero velocity if very small to prevent micro-jitter
+    if (Math.abs(currentVX) < 0.0001) currentVX = 0
+    if (Math.abs(currentVY) < 0.0001) currentVY = 0
+    if (Math.abs(currentVScale) < 0.0001) currentVScale = 0
+
+    // Snap position if very close
+    const dist = Math.sqrt(Math.pow(currentX - targetCenter.x, 2) + Math.pow(currentY - targetCenter.y, 2))
+    if (dist < 0.0001 && Math.abs(currentVX) < 0.001 && Math.abs(currentVY) < 0.001) {
+      currentX = targetCenter.x
+      currentY = targetCenter.y
+      currentVX = 0
+      currentVY = 0
+    }
+
+    // Snap scale
+    if (Math.abs(currentScale - commandedScale) < 0.001 && Math.abs(currentVScale) < 0.001) {
+      currentScale = commandedScale
+      currentVScale = 0
+    }
+
+    nextPhysics = {
+      x: currentX,
+      y: currentY,
+      vx: currentVX,
+      vy: currentVY,
+      scale: currentScale,
+      vScale: currentVScale,
+      lastTimeMs: timelineMs,
+      lastSourceTimeMs: sourceTimeMs
+    }
   }
 
   let finalCenter = { x: nextPhysics.x, y: nextPhysics.y }

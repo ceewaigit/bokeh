@@ -17,8 +17,8 @@ export interface TimelineContextValue {
   onPause: () => void
   onSeek: (time: number) => void
   onZoomChange: (zoom: number) => void
-  onScrubStart: (e: any) => void
-  onScrubMove: (e: any) => void
+  onScrubStart: (e: unknown) => void
+  onScrubMove: (e: unknown) => void
   onScrubEnd: () => void
   onSelect: (clipId: string) => void
   onDragPreview: (clipId: string, trackType: TrackType.Video | TrackType.Audio, proposedStartTime: number) => void

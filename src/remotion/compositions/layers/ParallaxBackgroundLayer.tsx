@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { AbsoluteFill, getRemotionEnvironment, staticFile } from 'remotion';
+import { AbsoluteFill, getRemotionEnvironment, staticFile, Img } from 'remotion';
 import type { ParallaxBackgroundLayerProps } from '@/types';
 import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 
@@ -84,7 +84,7 @@ export const ParallaxBackgroundLayer: React.FC<ParallaxBackgroundLayerProps> = (
                             filter: 'grayscale(40%)',
                         }}
                     >
-                        <img
+                        <Img
                             src={imageSrc}
                             alt=""
                             style={{

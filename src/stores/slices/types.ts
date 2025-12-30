@@ -11,12 +11,10 @@ import type {
   Effect,
   Project,
   Recording,
-  ZoomEffectData,
-  CursorEffectData,
-  BackgroundEffectData,
   MouseEvent as ProjectMouseEvent,
   QualityLevel,
-  ExportFormat
+  ExportFormat,
+  CameraDynamics
 } from '@/types/project'
 import type { EffectType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
@@ -26,8 +24,8 @@ import type { EffectGenerationConfig } from '@/features/effects/services/effect-
 import type { ProxyUrlEntry } from './cache-slice'
 
 // Re-export ClipboardEffect from stores.ts for backward compatibility
-export type { ClipboardEffect } from '@/types/stores'
 import type { ClipboardEffect } from '@/types/stores'
+export type { ClipboardEffect }
 
 // =============================================================================
 // Settings Type (used by Core Slice)
@@ -58,6 +56,7 @@ export interface StoreSettings {
     motionBlurSaturation: number
     refocusBlurEnabled: boolean
     refocusBlurIntensity: number
+    cameraDynamics?: CameraDynamics
   }
   recording: {
     lowMemoryEncoder: boolean

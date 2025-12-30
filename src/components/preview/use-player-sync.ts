@@ -46,8 +46,8 @@ export function usePlayerSync({
         const resolvedPlayer = assertDefined(player, '[PreviewAreaRemotion] Player ref missing');
         try {
             const result = resolvedPlayer.play();
-            if ((result as any) instanceof Promise) {
-                (result as any).catch((err: Error) => {
+            if ((result as unknown) instanceof Promise) {
+                (result as unknown as Promise<void>).catch((err: Error) => {
                     if (err?.name === 'AbortError') return;
                     console.warn('[PreviewAreaRemotion] Playback error:', err);
                 });
@@ -75,7 +75,7 @@ export function usePlayerSync({
         });
 
         return () => unsubscribe();
-    }, [timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame]);
+    }, [timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame, playerRef]);
 
     // Connect timeObserver to the player ref
     useEffect(() => {
@@ -83,7 +83,7 @@ export function usePlayerSync({
         return () => {
             timeObserver.stopPolling();
         };
-    }, [timelineMetadata.fps]);
+    }, [timelineMetadata.fps, playerRef]);
 
     // Start/stop RAF polling
     useEffect(() => {
@@ -113,7 +113,7 @@ export function usePlayerSync({
         }
 
         wasPlayingBeforeScrubRef.current = false;
-    }, [isScrubbing, isPlaying, timelineMetadata, safePlay, clampFrame, timeToFrame]);
+    }, [isScrubbing, isPlaying, timelineMetadata, safePlay, clampFrame, timeToFrame, playerRef]);
 
     // Allow intentional seeks during playback
     useEffect(() => {
@@ -141,7 +141,7 @@ export function usePlayerSync({
         });
 
         return () => unsubscribe();
-    }, [isPlaying, isExporting, timelineMetadata, safePlay, clampFrame, timeToFrame, isScrubbing]);
+    }, [isPlaying, isExporting, timelineMetadata, safePlay, clampFrame, timeToFrame, isScrubbing, playerRef]);
 
     // Main player sync effect
     useEffect(() => {
@@ -207,7 +207,7 @@ export function usePlayerSync({
         return () => {
             unsubscribe();
         };
-    }, [isPlaying, timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame, muted, safePlay, volume]);
+    }, [isPlaying, timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame, muted, safePlay, volume, playerRef]);
 
     // Sync volume/mute changes
     useEffect(() => {
@@ -219,7 +219,7 @@ export function usePlayerSync({
             playerRef.current.unmute();
         }
         playerRef.current.setVolume(Math.min(volume / 100, 1));
-    }, [volume, muted]);
+    }, [volume, muted, playerRef]);
 
     return {
         safePlay,

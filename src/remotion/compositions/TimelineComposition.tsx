@@ -17,11 +17,10 @@ import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig, getRemo
 import type { Recording, Effect } from '@/types/project';
 import { EffectType } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
-import { CompositionProvider, useComposition } from '../context/CompositionContext';
 import { PlaybackSettingsProvider } from '../context/playback/PlaybackSettingsContext';
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
-import { CursorLayer } from './layers/CursorLayer';
+import { CursorLayer } from '@/features/cursor/components/CursorLayer';
 import { AnnotationLayer } from './layers/AnnotationLayer';
 import { PluginLayer } from './layers/PluginLayer';
 import { CropEditingLayer } from './layers/CropEditingLayer';
@@ -29,12 +28,13 @@ import { WebcamLayer } from './layers/WebcamLayer';
 import { OverlayEditor } from './layers/OverlayEditor';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
-import { VideoDataProvider, useVideoData } from '../context/video-data-context';
+import { useVideoData } from '../context/video-data-context';
 import { useVideoUrl } from '../hooks/media/useVideoUrl';
 import { findActiveFrameLayoutItems } from '@/features/timeline/utils/frame-layout';
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
 import { isProxySufficientForTarget } from '@/shared/utils/resolution-utils';
 import type { WebcamEffectData } from '@/types/project';
+import { TimelineProvider } from '../context/TimelineContext';
 
 /**
  * Get audio URL for a recording
@@ -279,7 +279,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         )}
 
         {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
-        {!renderSettings.isGlowMode && <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} metadataUrls={resources.metadataUrls} />}
+        {!renderSettings.isGlowMode && <CursorLayer />}
 
         {/* Annotation overlay rendered on the same video coordinates */}
         {!renderSettings.isGlowMode && <AnnotationLayer effects={effects} />}
@@ -349,6 +349,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
  * - PlaybackSettingsProvider: playback state, render settings
  * - VideoDataProvider: computed frame layout, clip accessors
  */
+
 export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) => {
   const {
     clips,
@@ -375,13 +376,8 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) =
 
   const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
 
-  // Sort clips by start time for consistent rendering
-  const sortedClips = React.useMemo(() => {
-    return [...clips].sort((a, b) => a.startTime - b.startTime);
-  }, [clips]);
-
   return (
-    <CompositionProvider
+    <TimelineProvider
       compositionWidth={compositionWidth}
       compositionHeight={compositionHeight}
       videoWidth={videoWidth}
@@ -389,8 +385,9 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) =
       sourceVideoWidth={sourceVideoWidth}
       sourceVideoHeight={sourceVideoHeight}
       fps={fps}
-      clips={sortedClips}
+      clips={clips}
       recordings={recordings}
+      effects={effects}
       resources={resources}
     >
       <PlaybackSettingsProvider
@@ -398,10 +395,8 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) =
         renderSettings={renderSettings}
         resources={resources}
       >
-        <VideoDataProvider effects={effects}>
-          <TimelineCompositionContent {...props} />
-        </VideoDataProvider>
+        <TimelineCompositionContent {...props} />
       </PlaybackSettingsProvider>
-    </CompositionProvider>
+    </TimelineProvider>
   );
 };

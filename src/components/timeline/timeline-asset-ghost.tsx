@@ -1,4 +1,5 @@
 import React from 'react'
+import Image from 'next/image'
 import { TimelineConfig } from '@/features/timeline/config'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import type { Asset } from '@/stores/asset-library-store'
@@ -38,10 +39,12 @@ export const TimelineAssetGhost = ({
             {(draggingAsset.type === 'image' || draggingAsset.type === 'video') ? (
                 <div className="w-full h-full opacity-50 relative">
                     {(draggingAsset.type === 'image' && draggingAsset.path) ? (
-                        <img
+                        <Image
                             src={createVideoStreamUrl(draggingAsset.path) || draggingAsset.path}
-                            className="w-full h-full object-cover"
-                            alt=""
+                            className="object-cover"
+                            alt={draggingAsset.name}
+                            fill
+                            unoptimized
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center bg-black/20">

@@ -160,6 +160,7 @@ export interface CalculateCameraPathArgs {
     effects: Effect[]
     getRecording: (recordingId: string) => Recording | null | undefined
     loadedMetadata?: Map<string, RecordingMetadata>
+    cameraSettings?: { cameraSmoothness?: number; cameraDynamics?: any }
 }
 
 export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraPathFrame & { path?: CameraPathFrame[] })[] | null {
@@ -173,6 +174,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
         effects,
         getRecording,
         loadedMetadata,
+        cameraSettings
     } = args
 
     if (!frameLayout || frameLayout.length === 0) return null
@@ -203,17 +205,19 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
         y: 0.5,
         vx: 0,
         vy: 0,
+        scale: 1,
+        vScale: 0,
         lastTimeMs: 0,
         lastSourceTimeMs: 0,
     }
 
-    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number }; velocity: { x: number; y: number } }[] = new Array(totalFrames)
+    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number }; zoomScale: number; velocity: { x: number; y: number } }[] = new Array(totalFrames)
 
     for (let f = 0; f < totalFrames; f++) {
         const tMs = (f / fps) * 1000
         const clipData = getActiveClipDataAtFrame({ frame: f, frameLayout, fps, effects, getRecording })
         if (!clipData) {
-            out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, velocity: { x: 0, y: 0 } }
+            out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, zoomScale: 1, velocity: { x: 0, y: 0 } }
             continue
         }
 
@@ -297,6 +301,8 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             physics,
             // We simulate sequentially into a lookup table, so stateful physics is safe here.
             deterministic: false,
+            cameraSmoothness: cameraSettings?.cameraSmoothness,
+            cameraDynamics: cameraSettings?.cameraDynamics
         })
 
         Object.assign(physics, computed.physics)
@@ -307,9 +313,8 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             x: computed.zoomCenter.x - prevCenter.x,
             y: computed.zoomCenter.y - prevCenter.y,
         }
-        out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter, velocity }
+        out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter, zoomScale: computed.zoomScale, velocity }
     }
 
-    // @ts-ignore - mismatch in return type slightly but compatible in structure, we'll fix strict types if needed
     return out
 }

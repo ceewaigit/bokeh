@@ -34,7 +34,7 @@ export class UpdateEffectCommand extends Command {
         this.originalData = {}
         for (const key in this.updates) {
             if (Object.prototype.hasOwnProperty.call(this.updates, key)) {
-                // @ts-ignore
+                                // @ts-expect-error - Partial<Effect> index signature mismatch
                 this.originalData[key] = effect[key]
             }
         }
@@ -51,9 +51,7 @@ export class UpdateEffectCommand extends Command {
                     // Best-effort deep clone for nested values (keep undo correct without cloning unrelated huge blobs).
                     // `structuredClone` is available in modern runtimes; fall back to JSON for plain objects.
                     try {
-                        // @ts-ignore
                         originalDataForKeys[dataKey] = typeof structuredClone === 'function'
-                            // @ts-ignore
                             ? structuredClone(prevValue)
                             : JSON.parse(JSON.stringify(prevValue))
                     } catch {

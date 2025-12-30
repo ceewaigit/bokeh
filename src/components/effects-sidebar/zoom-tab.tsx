@@ -6,7 +6,7 @@ import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { useProjectStore } from '@/stores/project-store'
-import type { Clip, Effect, ZoomEffectData, ZoomBlock, AnnotationEffect } from '@/types/project'
+import type { Clip, Effect, ZoomEffectData, ZoomBlock } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
@@ -17,7 +17,6 @@ import { useCommandExecutor } from '@/hooks/use-command-executor'
 import { DEFAULT_ZOOM_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from './info-tooltip'
 import { ZoomTargetPreview } from './zoom-target-preview'
-import { useEffectsSidebarContext } from './EffectsSidebarContext'
 import { CompactSlider, SegmentedControl, SectionHeader, springConfig } from './motion-controls'
 import { useTimelineMetadata } from '@/hooks/use-timeline-metadata'
 import { getSourceDimensions, getSourceDimensionsStatic } from '@/lib/core/coordinates'
@@ -42,7 +41,6 @@ export function ZoomTab({
   selectedClip,
   onZoomBlockUpdate
 }: ZoomTabProps) {
-  const { onEffectChange } = useEffectsSidebarContext()
   const executorRef = useCommandExecutor()
   const project = useProjectStore((s) => s.currentProject)
   const currentTime = useProjectStore((s) => s.currentTime)
@@ -70,14 +68,14 @@ export function ZoomTab({
   const [localIntroMs, setLocalIntroMs] = React.useState<number | null>(null)
   const [localOutroMs, setLocalOutroMs] = React.useState<number | null>(null)
   const [localMouseIdlePx, setLocalMouseIdlePx] = React.useState<number | null>(null)
-  const [localSmoothing, setLocalSmoothing] = React.useState<number | null>(null)
+  const [localStiffness, setLocalStiffness] = React.useState<number | null>(null)
+  const [localDamping, setLocalDamping] = React.useState<number | null>(null)
   const [cameraStylePreset, setCameraStylePreset] = React.useState<'tight' | 'balanced' | 'steady' | 'cinematic' | 'floaty' | 'custom'>('cinematic')
   const [zoomBlurPreset, setZoomBlurPreset] = React.useState<'subtle' | 'balanced' | 'dynamic' | 'custom'>('balanced')
   const scaleResetTimeoutRef = React.useRef<number | null>(null)
   const introResetTimeoutRef = React.useRef<number | null>(null)
   const outroResetTimeoutRef = React.useRef<number | null>(null)
   const mouseIdleResetTimeoutRef = React.useRef<number | null>(null)
-  const smoothingResetTimeoutRef = React.useRef<number | null>(null)
 
   const scheduleReset = (
     timeoutRef: React.MutableRefObject<number | null>,
@@ -96,8 +94,7 @@ export function ZoomTab({
         scaleResetTimeoutRef,
         introResetTimeoutRef,
         outroResetTimeoutRef,
-        mouseIdleResetTimeoutRef,
-        smoothingResetTimeoutRef
+        mouseIdleResetTimeoutRef
       ]
       for (const ref of timeouts) {
         if (ref.current !== null) {
@@ -109,12 +106,17 @@ export function ZoomTab({
   }, [])
 
   const cameraStylePresets = React.useMemo(() => ([
-    { id: 'tight', label: 'Tight', value: 8 },
-    { id: 'balanced', label: 'Balanced', value: 24 },
-    { id: 'steady', label: 'Steady', value: 36 },
-    { id: 'cinematic', label: 'Cinematic', value: 48 },
-    { id: 'floaty', label: 'Floaty', value: 72 },
-    { id: 'custom', label: 'Custom', value: null },
+    // Tight: k=300, c=35 (zeta=1.0) -> Snappy, instant verification
+    { id: 'tight', label: 'Tight', stiffness: 300, damping: 35, mass: 1, value: 8 },
+    // Balanced: k=180, c=27 (zeta=1.0) -> Good balance of smoothness and tracking
+    { id: 'balanced', label: 'Balanced', stiffness: 180, damping: 27, mass: 1, value: 24 },
+    // Steady: k=100, c=20 (zeta=1.0) -> Smoother, absorbs jitters
+    { id: 'steady', label: 'Steady', stiffness: 100, damping: 20, mass: 1, value: 36 },
+    // Cinematic: k=60, c=15 (zeta=1.0) -> Slow, deliberate pans
+    { id: 'cinematic', label: 'Cinematic', stiffness: 60, damping: 15, mass: 1, value: 48 },
+    // Floaty: k=30, c=6 (zeta=0.55) -> Slight overshoot, very fluid
+    { id: 'floaty', label: 'Floaty', stiffness: 30, damping: 6, mass: 1, value: 72 },
+    { id: 'custom', label: 'Custom', stiffness: null, damping: null, mass: null, value: null },
   ] as const), [])
 
   const zoomBlurPresets = React.useMemo(() => ([
@@ -124,8 +126,18 @@ export function ZoomTab({
     { id: 'custom', label: 'Custom', value: null },
   ] as const), [])
 
-  const resolveCameraStylePreset = React.useCallback((smoothing: number) => {
-    const effectiveSmoothing = smoothing ?? 0
+  const resolveCameraStylePreset = React.useCallback((settings: typeof camera) => {
+    // If we have dynamics, try to match a preset
+    if (settings.cameraDynamics) {
+      const { stiffness, damping } = settings.cameraDynamics
+      const match = cameraStylePresets.find(p =>
+        p.stiffness === stiffness && p.damping === damping
+      )
+      return (match?.id ?? 'custom') as typeof cameraStylePreset
+    }
+
+    // Fallback to lightness/smoothness legacy check
+    const effectiveSmoothing = settings.cameraSmoothness ?? 48
     const match = cameraStylePresets.find(p => p.value === effectiveSmoothing)
     return (match?.id ?? 'custom') as typeof cameraStylePreset
   }, [cameraStylePresets])
@@ -135,42 +147,32 @@ export function ZoomTab({
     return (match?.id ?? 'custom') as typeof zoomBlurPreset
   }, [zoomBlurPresets])
 
-  const currentSmoothing = useMemo(() => {
-    const effect = effects?.find(
-      (e): e is AnnotationEffect =>
-        e.type === EffectType.Annotation &&
-        e.enabled &&
-        e.data.kind === 'scrollCinematic'
-    )
-    return effect?.data?.smoothing ?? 0
-  }, [effects])
-
   React.useEffect(() => {
-    setCameraStylePreset(resolveCameraStylePreset(currentSmoothing))
-  }, [currentSmoothing, resolveCameraStylePreset])
+    setCameraStylePreset(resolveCameraStylePreset(camera))
+  }, [camera, resolveCameraStylePreset])
 
   React.useEffect(() => {
     setZoomBlurPreset(resolveZoomBlurPreset(camera.refocusBlurIntensity ?? 40))
   }, [camera.refocusBlurIntensity, resolveZoomBlurPreset])
 
-  const scheduleSmoothingReset = (delayMs: number) => {
-    if (smoothingResetTimeoutRef.current !== null) {
-      window.clearTimeout(smoothingResetTimeoutRef.current)
-    }
-    smoothingResetTimeoutRef.current = window.setTimeout(() => setLocalSmoothing(null), delayMs)
-  }
-
   const applyCameraStylePreset = (preset: typeof cameraStylePreset) => {
     setCameraStylePreset(preset)
-    const presetValue = cameraStylePresets.find((item) => item.id === preset)?.value
-    if (presetValue == null) return
-    setLocalSmoothing(presetValue)
-    onEffectChange(EffectType.Annotation, {
-      kind: 'scrollCinematic',
-      enabled: presetValue > 0,
-      data: { smoothing: presetValue },
+    const presetData = cameraStylePresets.find((item) => item.id === preset)
+    if (!presetData || presetData.id === 'custom') return
+
+    setLocalStiffness(presetData.stiffness)
+    setLocalDamping(presetData.damping)
+
+    // Update settings with new dynamics
+    setCameraSettings({
+      cameraDynamics: {
+        stiffness: presetData.stiffness!,
+        damping: presetData.damping!,
+        mass: presetData.mass!
+      },
+      // Keep legacy sync just in case
+      cameraSmoothness: presetData.value
     })
-    scheduleSmoothingReset(200)
   }
 
   const applyZoomBlurPreset = (preset: typeof zoomBlurPreset) => {
@@ -269,23 +271,54 @@ export function ZoomTab({
           columns={3}
         />
 
-        <CompactSlider
-          label="Smoothness"
-          value={localSmoothing ?? currentSmoothing}
-          min={0}
-          max={100}
-          unit="%"
-          onValueChange={(val) => setLocalSmoothing(val)}
-          onValueCommit={(val) => {
-            onEffectChange(EffectType.Annotation, {
-              kind: 'scrollCinematic',
-              enabled: val > 0,
-              data: { smoothing: val },
-            })
-            setCameraStylePreset(resolveCameraStylePreset(val))
-            scheduleSmoothingReset(200)
-          }}
-        />
+        <AnimatePresence initial={false}>
+          {cameraStylePreset === 'custom' && (
+            <motion.div
+              key="camera-style-custom"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={springConfig}
+              layout
+              className="pt-1 space-y-4"
+            >
+              <CompactSlider
+                label="Responsiveness (Stiffness)"
+                value={localStiffness ?? camera.cameraDynamics?.stiffness ?? 120}
+                min={10}
+                max={300}
+                step={10}
+                onValueChange={(val) => setLocalStiffness(val)}
+                onValueCommit={(val) => {
+                  setCameraSettings({
+                    cameraDynamics: {
+                      stiffness: val,
+                      damping: localDamping ?? camera.cameraDynamics?.damping ?? 30,
+                      mass: camera.cameraDynamics?.mass ?? 1
+                    }
+                  })
+                }}
+              />
+              <CompactSlider
+                label="Damping (Friction)"
+                value={localDamping ?? camera.cameraDynamics?.damping ?? 30}
+                min={5}
+                max={100}
+                step={5}
+                onValueChange={(val) => setLocalDamping(val)}
+                onValueCommit={(val) => {
+                  setCameraSettings({
+                    cameraDynamics: {
+                      stiffness: localStiffness ?? camera.cameraDynamics?.stiffness ?? 120,
+                      damping: val,
+                      mass: camera.cameraDynamics?.mass ?? 1
+                    }
+                  })
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="rounded-xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30">

@@ -6,10 +6,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { Button } from './ui/button'
 import { SegmentedControl } from './ui/segmented-control'
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from './ui/tooltip'
 import {
   Download,

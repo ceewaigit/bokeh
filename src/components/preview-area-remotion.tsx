@@ -103,11 +103,10 @@ export function PreviewAreaRemotion({
   const playerKey = useMemo(() => {
     if (!project || !timelineMetadata) return "player-empty";
     const recordingIds = project?.recordings
-      ? project.recordings.map((recording) => recording.id).sort().join(",")
-      : "";
-    return `player-${timelineMetadata.durationInFrames}-${timelineMetadata.fps}-${timelineMetadata.width}-${timelineMetadata.height}-${recordingIds}`;
-  }, [project?.recordings, timelineMetadata]);
-
+                  ? project.recordings.map((recording) => recording.id).sort().join(",")
+                  : "";
+              return `player-${timelineMetadata.durationInFrames}-${timelineMetadata.fps}-${timelineMetadata.width}-${timelineMetadata.height}-${recordingIds}`;
+          }, [project, timelineMetadata]);
   // Sync hook
   const { lastIsPlayingRef } = usePlayerSync({
     playerRef,

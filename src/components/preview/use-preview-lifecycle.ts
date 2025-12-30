@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import { useProjectStore } from '@/stores/project-store';
 import { globalBlobManager } from '@/lib/security/blob-url-manager';
 import { Project } from '@/types/project';
 

@@ -65,7 +65,8 @@ export function useProjectLoader() {
                 videoHeight: project.settings.resolution.height,
                 effects: EffectStore.getAll(project),
                 getRecording: (id) => recordingsMap.get(id),
-                loadedMetadata: undefined
+                loadedMetadata: undefined,
+                cameraSettings: project.settings.camera
             })
 
             // Store in cache

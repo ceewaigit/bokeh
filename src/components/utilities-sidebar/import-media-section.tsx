@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import Image from 'next/image'
 import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera, Library } from 'lucide-react'
 import { cn, formatTime } from '@/shared/utils/utils'
 import { useProjectStore } from '@/stores/project-store'
@@ -17,7 +18,7 @@ import { LibrarySearch } from '@/components/recordings-library/components/librar
 import { LibrarySort } from '@/components/recordings-library/components/library-sort'
 import { RecordingsGrid } from '@/components/recordings-library/components/recordings-grid'
 import { type LibraryRecordingView } from '@/stores/recordings-library-store'
-import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath, resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths'
+import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { CommandExecutor } from '@/lib/commands/base/CommandExecutor'
@@ -52,7 +53,7 @@ async function getAudioMetadata(filePath: string): Promise<{ duration: number }>
 
 async function getImageMetadata(filePath: string): Promise<{ width: number; height: number }> {
     return new Promise((resolve, reject) => {
-        const img = new Image()
+        const img = new window.Image()
         img.onload = () => {
             resolve({ width: img.naturalWidth, height: img.naturalHeight })
             URL.revokeObjectURL(img.src)
@@ -159,11 +160,12 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
             onClick={() => onAdd(asset)}
         >
             {asset.type === 'image' ? (
-                <img
+                <Image
                     src={createVideoStreamUrl(asset.path) || asset.path}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
+                    className="object-cover"
                     alt={asset.name}
+                    fill
+                    unoptimized
                 />
             ) : asset.type === 'video' ? (
                 <div className="w-full h-full bg-black relative">
@@ -180,10 +182,12 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
                     ) : (
                         /* Thumbnail Image */
                         thumbnail ? (
-                            <img
+                            <Image
                                 src={thumbnail}
-                                className="w-full h-full object-cover opacity-80"
+                                className="object-cover opacity-80"
                                 alt={asset.name}
+                                fill
+                                unoptimized
                             />
                         ) : (
                             /* Loading / Fallback placeholder */
@@ -327,7 +331,7 @@ export function ImportMediaSection() {
         const type = getMediaType(file.name)
         if (!type || type === 'project') return
 
-        const path = (file as any).path || file.name
+        const path = (file as File & { path?: string }).path || file.name
         const assetId = `asset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
         try {
@@ -536,7 +540,7 @@ export function ImportMediaSection() {
             console.error('Failed to import from library:', error)
             toast.error('Failed to import from library')
         }
-    }, [currentProject, updateProjectData])
+    }, [currentProject])
 
     // --- Add Asset To Project Logic ---
 

@@ -237,7 +237,7 @@ export async function initializeDefaultWallpaper() {
     if (dataUrl) {
       setDefaultWallpaper(dataUrl)
     }
-  } catch (error) {
+  } catch {
     // Silently fail - will use gradient background
   }
 }

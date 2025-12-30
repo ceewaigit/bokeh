@@ -24,7 +24,13 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
     motionBlurBlackLevel: -0.13,
     motionBlurSaturation: 1.0,
     refocusBlurEnabled: true,
-    refocusBlurIntensity: 50
+    refocusBlurIntensity: 50,
+    cameraSmoothness: 48,
+    cameraDynamics: {
+      stiffness: 60,
+      damping: 15,
+      mass: 1
+    }
   },
   canvas: {
     aspectRatio: AspectRatioPreset.Original,
@@ -55,7 +61,12 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
     motionBlurBlackLevel: -0.13,
     motionBlurSaturation: 1.0,
     refocusBlurEnabled: true,
-    refocusBlurIntensity: 50
+    refocusBlurIntensity: 50,
+    cameraDynamics: {
+      stiffness: 60,
+      damping: 15,
+      mass: 1
+    }
   },
   recording: {
     lowMemoryEncoder: false,

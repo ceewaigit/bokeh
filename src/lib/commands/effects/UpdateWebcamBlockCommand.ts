@@ -1,6 +1,6 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { Effect, Project, WebcamEffectData } from '@/types/project'
+import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { EffectStore } from '@/lib/core/effects'
 

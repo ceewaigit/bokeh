@@ -11,7 +11,7 @@
 import type { EffectSchema, ParamDef } from './effect-schemas'
 
 // Re-export types from effect-schemas for consumers
-export type { EffectSchema, ParamDef, NumberParam, BooleanParam, EnumParam, ColorParam } from './effect-schemas'
+export type { EffectSchema, ParamDef, NumberParam, BooleanParam, EnumParam, ColorParam, StringParam } from './effect-schemas'
 
 // =============================================================================
 // SAFE PARAMETER TYPES (What plugins can use)

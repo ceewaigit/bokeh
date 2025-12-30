@@ -1,23 +1,23 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { AbsoluteFill, Img, delayRender, continueRender } from 'remotion';
+import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
-import type { CursorLayerProps } from '@/types';
 import {
   CursorType,
   CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
   getCursorImagePath,
-} from '@/features/effects/cursor-types';
-import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '@/features/effects/utils/cursor-calculator';
+} from '../store/cursor-types';
+import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../logic/cursor-logic';
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects';
 
-import { normalizeClickEvents, normalizeMouseEvents } from '../utils/events/event-normalizer';
-import { useVideoPosition } from '../../context/layout/VideoPositionContext';
-import { useComposition } from '../../context/CompositionContext';
+import { useProjectStore } from '@/stores/project-store';
+import { normalizeClickEvents, normalizeMouseEvents } from '@/remotion/compositions/utils/events/event-normalizer';
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
+import { useTimelineContext } from '@/remotion/context/TimelineContext';
 import { getCursorEffect } from '@/features/effects/effect-filters';
-import { applyCssTransformToPoint } from '../utils/transforms/transform-point';
+import { applyCssTransformToPoint } from '@/remotion/compositions/utils/transforms/transform-point';
 
-import { useRecordingMetadata } from '../../hooks/media/useRecordingMetadata';
+import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadata';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -85,13 +85,10 @@ class CursorImagePreloader {
 
 // MEMOIZATION: Prevent re-renders when parent (SharedVideoController) updates but props/context are stable.
 // This works with VideoPositionContext optimization to allow "static" cursor frames during video playback.
-export const CursorLayer = React.memo(({
-  effects: _effects,
-  videoWidth,
-  videoHeight,
-  metadataUrls,
-}: CursorLayerProps) => {
-  const { fps } = useComposition();
+export const CursorLayer = React.memo(() => {
+  const { fps } = useVideoConfig();
+  const { videoWidth, videoHeight, resources } = useTimelineContext();
+  const metadataUrls = resources.metadataUrls;
 
   // Get ACTUAL video position and clip data from SharedVideoController (SSOT)
   const videoPositionContext = useVideoPosition();
@@ -122,9 +119,18 @@ export const CursorLayer = React.memo(({
   // NOTE: Do NOT early return here - it violates React Rules of Hooks
   // All hooks must be called unconditionally; we handle generated recordings at the end
 
+  // DIRECT STORE SUBSCRIPTION: Bypass prop drilling for cursor settings.
+  // We use the recording ID from activeClipData to fetch the LIVE effect data from the store.
+  const liveEffects = useProjectStore((s) => {
+    if (!recordingId || !s.currentProject) return null;
+    return s.currentProject.recordings.find((r) => r.id === recordingId)?.effects;
+  });
+
   const cursorEffect = useMemo(() => {
-    return activeClipData ? getCursorEffect(activeClipData.effects) : undefined;
-  }, [activeClipData]);
+    // Prefer live store data if available, fall back to context data (for export/offline)
+    const effectsToUse = liveEffects ?? activeClipData?.effects ?? [];
+    return activeClipData ? getCursorEffect(effectsToUse) : undefined;
+  }, [activeClipData, liveEffects]);
 
   const cursorData = (cursorEffect?.data as CursorEffectData | undefined);
   const clickEffectConfig = useMemo(() => resolveClickEffectConfig(cursorData), [cursorData]);
@@ -132,15 +138,24 @@ export const CursorLayer = React.memo(({
   // Use lazy-loaded metadata, falling back to recording.metadata if available
   const effectiveMetadata = lazyMetadata || recording?.metadata;
 
-  // For image clips with synthetic mouse events (cursor return), use those instead of metadata
-  const isImageWithSyntheticEvents = recording?.sourceType === 'image' && recording?.syntheticMouseEvents?.length;
-  const rawCursorEvents = isImageWithSyntheticEvents
-    ? (recording.syntheticMouseEvents as MouseEvent[])
-    : ((effectiveMetadata?.mouseEvents || []) as MouseEvent[]);
+  const { rawCursorEvents, rawClickEvents } = useMemo(() => {
+    // For image clips with synthetic mouse events (cursor return), use those instead of metadata
+    const isImageWithSyntheticEvents = recording?.sourceType === 'image' && recording?.syntheticMouseEvents?.length;
+
+    const cursorEvents = isImageWithSyntheticEvents
+      ? (recording.syntheticMouseEvents as MouseEvent[])
+      : ((effectiveMetadata?.mouseEvents || []) as MouseEvent[]);
+
+    // Image clips with synthetic events have no click events
+    const clickEvents = isImageWithSyntheticEvents
+      ? []
+      : ((effectiveMetadata?.clickEvents || []) as ClickEvent[]);
+
+    return { rawCursorEvents: cursorEvents, rawClickEvents: clickEvents };
+  }, [recording?.sourceType, recording?.syntheticMouseEvents, effectiveMetadata]);
+
   // Image clips with synthetic events have no click events
-  const rawClickEvents = isImageWithSyntheticEvents
-    ? []
-    : ((effectiveMetadata?.clickEvents || []) as ClickEvent[]);
+  const isImageWithSyntheticEvents = recording?.sourceType === 'image' && recording?.syntheticMouseEvents?.length;
 
   const cursorEvents = useMemo(() => normalizeMouseEvents(rawCursorEvents), [rawCursorEvents]);
   const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents), [rawClickEvents]);
@@ -208,7 +223,7 @@ export const CursorLayer = React.memo(({
 
     cache.set(cacheKey, newState);
     return newState;
-  }, [clickEvents, cursorData, cursorEvents, currentSourceTime, fps, recordingId, isImageWithSyntheticEvents]);
+  }, [clickEvents, cursorData, cursorEvents, currentSourceTime, fps, isImageWithSyntheticEvents]);
 
 
   useEffect(() => {
@@ -429,14 +444,15 @@ export const CursorLayer = React.memo(({
     cursorAreaWidth,
     cursorBaseOffsetX,
     cursorBaseOffsetY,
-    screenOffsetX,
-    screenOffsetY,
     videoDisplayScale,
     videoOffset.height,
     videoOffset.width,
     videoOffset.x,
     videoOffset.y,
     videoPositionContext.contentTransform,
+    videoPositionContext.mockupEnabled,
+    videoWidth,
+    videoHeight,
     useContainerTransform,
   ]);
 

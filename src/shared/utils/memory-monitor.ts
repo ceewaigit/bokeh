@@ -20,7 +20,7 @@ export class MemoryMonitor {
    */
   getMemoryStats() {
     if (typeof window !== 'undefined' && 'memory' in performance) {
-      const memory = (performance as any).memory;
+      const memory = (performance as unknown as { memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
       return {
         usedJSHeapSize: memory.usedJSHeapSize,
         totalJSHeapSize: memory.totalJSHeapSize,
@@ -108,8 +108,8 @@ export class MemoryMonitor {
       }
 
       // Force GC if available
-      if (typeof global !== 'undefined' && (global as any).gc) {
-        (global as any).gc();
+      if (typeof global !== 'undefined' && (global as unknown as { gc?: () => void }).gc) {
+        (global as unknown as { gc: () => void }).gc();
       }
 
       await new Promise(resolve => setTimeout(resolve, 1000));

@@ -134,9 +134,9 @@ export interface ElectronAPI {
 
   // IPC communication (restricted surface)
   ipc?: {
-    on: (channel: string, listener: (event: any, ...args: any[]) => void) => void
-    removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => void
-    invoke: (channel: string, ...args: any[]) => Promise<any>
+    on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void
+    removeListener: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void
+    invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
   }
 
   // Platform-specific features

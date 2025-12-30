@@ -4,7 +4,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { migrationRunner } from '@/lib/migrations'
 import { getVideoMetadata } from '@/shared/utils/video-metadata'
 import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE, buildProjectFilePath } from '@/lib/storage/recording-storage'
-import { precomputeCursorSmoothingCache } from '@/features/effects/utils/cursor-calculator'
+import { precomputeCursorSmoothingCache } from '@/features/cursor/logic/cursor-logic'
 import { precomputeCameraCaches } from '@/features/effects/utils/camera-calculator'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { EffectStore } from '@/lib/core/effects'
@@ -266,7 +266,7 @@ export class ProjectIOService {
           groups.get(key)!.push(e);
         });
 
-        groups.forEach((group, _key) => {
+        groups.forEach((group) => {
           if (group.length > 1) {
             group.sort((a, b) => getTimestampFromId(b.id) - getTimestampFromId(a.id)); // Newest first
             otherEffects.push(group[0]); // Keep newest
@@ -313,7 +313,7 @@ export class ProjectIOService {
         // Use existing proxy - store in ephemeral state (doesn't trigger cache invalidation)
         try {
           (recording as any).previewProxyUrl = checkResult.existingProxyUrl
-        } catch (e) {
+        } catch {
           // Object is frozen - use ephemeral proxy URL store instead
         }
         // Always update ephemeral store for consistent access
@@ -343,10 +343,9 @@ export class ProjectIOService {
         if (result.success && result.proxyUrl) {
           try {
             (recording as any).previewProxyUrl = result.proxyUrl
-          } catch (e) {
+          } catch {
             // Object is frozen - that's fine, we use ephemeral store
-          }
-          // Store in ephemeral proxy URL store (doesn't trigger cache invalidation)
+          }          // Store in ephemeral proxy URL store (doesn't trigger cache invalidation)
           import('../../stores/project-store').then(({ useProjectStore }) => {
             useProjectStore.getState().setProxyUrl(recording.id, 'preview', result.proxyUrl!)
           })
@@ -377,7 +376,7 @@ export class ProjectIOService {
       if (result.success && result.proxyUrl) {
         try {
           (recording as any).glowProxyUrl = result.proxyUrl
-        } catch (e) {
+        } catch {
           // Object is frozen - that's fine, we use ephemeral store
         }
         // Store in ephemeral proxy URL store (doesn't trigger cache invalidation)
@@ -462,6 +461,7 @@ export class ProjectIOService {
       ...project,
       recordings: project.recordings.map(r => {
         // Destructure to omit temp proxy URLs and deprecated effects array from saved project
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { previewProxyUrl, glowProxyUrl, effects, ...rest } = r as any
         return rest
       }),
@@ -728,14 +728,11 @@ export class ProjectIOService {
           recording.metadataChunks = manifest
         } else {
           // Merge/Repair: If found files that are not in manifest, add them
-          let repaired = false
           if (manifest.keyboard.length > 0 && (!recording.metadataChunks.keyboard || recording.metadataChunks.keyboard.length === 0)) {
             recording.metadataChunks.keyboard = manifest.keyboard
-            repaired = true
           }
           if (manifest.mouse.length > 0 && (!recording.metadataChunks.mouse || recording.metadataChunks.mouse.length === 0)) {
             recording.metadataChunks.mouse = manifest.mouse
-            repaired = true
           }
           // We can extend this to other types if needed, but keyboard is the reported issue
         }

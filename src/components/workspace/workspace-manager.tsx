@@ -50,8 +50,6 @@ export function WorkspaceManager() {
   // TimelineCanvas) subscribe directly to avoid re-rendering entire workspace every frame
   const {
     currentProject,
-    newProject,
-    setProject,
     setCameraPathCache,
     selectedEffectLayer,
     play: storePlay,
@@ -59,14 +57,11 @@ export function WorkspaceManager() {
     seek: storeSeek,
     saveCurrentProject,
     setZoom,
-    setAutoZoom,
     zoom,
     cleanupProject,
   } = useProjectStore(
     useShallow((s) => ({
       currentProject: s.currentProject,
-      newProject: s.newProject,
-      setProject: s.setProject,
       setCameraPathCache: s.setCameraPathCache,
       selectedEffectLayer: s.selectedEffectLayer,
       play: s.play,
@@ -74,7 +69,6 @@ export function WorkspaceManager() {
       seek: s.seek,
       saveCurrentProject: s.saveCurrentProject,
       setZoom: s.setZoom,
-      setAutoZoom: s.setAutoZoom,
       zoom: s.zoom,
       cleanupProject: s.cleanupProject,
     }))
@@ -101,9 +95,6 @@ export function WorkspaceManager() {
     utilitiesPanelWidth,
     timelineHeight,
     toggleProperties,
-    setPropertiesPanelWidth,
-    setUtilitiesPanelWidth,
-    setTimelineHeight,
     setExportOpen,
     currentView,
     setCurrentView,
@@ -117,9 +108,6 @@ export function WorkspaceManager() {
       utilitiesPanelWidth: s.utilitiesPanelWidth,
       timelineHeight: s.timelineHeight,
       toggleProperties: s.toggleProperties,
-      setPropertiesPanelWidth: s.setPropertiesPanelWidth,
-      setUtilitiesPanelWidth: s.setUtilitiesPanelWidth,
-      setTimelineHeight: s.setTimelineHeight,
       setExportOpen: s.setExportOpen,
       currentView: s.currentView,
       setCurrentView: s.setCurrentView,
@@ -176,7 +164,8 @@ export function WorkspaceManager() {
         videoHeight: currentProject.settings.resolution.height,
         effects: EffectStore.getAll(currentProject),
         getRecording: (id) => recordingsMap.get(id),
-        loadedMetadata: undefined
+        loadedMetadata: undefined,
+        cameraSettings: currentProject.settings.camera
       })
 
       if (newCameraPath) {
@@ -190,7 +179,7 @@ export function WorkspaceManager() {
 
 
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
-  const contextEffects = timelineEffects ?? []
+  const contextEffects = useMemo(() => timelineEffects ?? [], [timelineEffects])
 
   const selectedZoomEffect = useMemo(() => {
     if (!selectedEffectLayer || selectedEffectLayer.type !== EffectLayerType.Zoom) return null
@@ -287,7 +276,7 @@ export function WorkspaceManager() {
     setHasUnsavedChanges(false)
   }, [])
 
-  const handleEffectChange = useCallback((type: EffectType, data: any) => {
+  const handleEffectChange = useCallback((type: EffectType, data: Record<string, unknown>) => {
     const executor = executorRef.current
 
     if (!executor) return
@@ -303,7 +292,7 @@ export function WorkspaceManager() {
         executor.executeByName(commandName, ...args)
       }
     })
-  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, contextEffects])
+  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, contextEffects, executorRef])
 
   // Bulk toggle all keystroke effects
   const handleBulkToggleKeystrokes = useCallback((enabled: boolean) => {
@@ -313,7 +302,7 @@ export function WorkspaceManager() {
     keystrokeEffects.forEach(effect => {
       executorRef.current?.executeByName('UpdateEffect', effect.id, { enabled })
     })
-  }, [contextEffects])
+  }, [contextEffects, executorRef])
 
   // Crop editing state managed by hook
   const {
@@ -330,7 +319,7 @@ export function WorkspaceManager() {
 
   const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
     executorRef.current?.execute(UpdateZoomBlockCommand, blockId, updates)
-  }, [])
+  }, [executorRef])
 
   const zoomSettings = useMemo(() => {
     if (!selectedZoomEffect || !isManualZoom || isEditingCrop) {
@@ -420,7 +409,7 @@ export function WorkspaceManager() {
 
                   // Clear all rendering caches to free memory
                   import('@/lib/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
-                  import('@/features/effects/utils/cursor-calculator').then(m => m.clearCursorCalculatorCache())
+                  import('@/features/cursor/logic/cursor-logic').then(m => m.clearCursorCalculatorCache())
                   import('@/shared/utils/video-metadata').then(m => m.clearDurationCache())
 
                   // Hide record button when returning to library (main window visible)
@@ -465,10 +454,10 @@ export function WorkspaceManager() {
                 )}
                 {isUtilitiesOpen && (
                   <div
-                    className="w-4 cursor-col-resize bg-transparent hover:bg-border/30 transition-colors flex items-center justify-center group"
+                    className="w-3 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10"
                     onMouseDown={startResizingUtilities}
                   >
-                    <div className="h-10 w-2 rounded-full bg-foreground/20 shadow-sm group-hover:bg-foreground/30 transition-colors" />
+                    <div className="h-12 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/50 transition-all duration-300 ease-out" />
                   </div>
                 )}
 
@@ -503,10 +492,10 @@ export function WorkspaceManager() {
                 {isPropertiesOpen && (
                   <>
                     <div
-                      className="w-4 cursor-col-resize bg-transparent hover:bg-border/30 transition-colors flex items-center justify-center group"
+                      className="w-3 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10"
                       onMouseDown={startResizingProperties}
                     >
-                      <div className="h-10 w-2 rounded-full bg-foreground/20 shadow-sm group-hover:bg-foreground/30 transition-colors" />
+                      <div className="h-12 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/50 transition-all duration-300 ease-out" />
                     </div>
                     <div
                       className="bg-transparent overflow-hidden flex-shrink-0"

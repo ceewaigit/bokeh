@@ -159,7 +159,7 @@ export async function getVideoMetadata(videoUrl: string): Promise<VideoMetadata>
         // Estimate frame rate (default to 30 if can't detect)
         const frameRate = 30
         // Check if video has audio tracks (assume has audio if can't detect)
-        const hasAudio = (video as any).audioTracks?.length > 0 || true
+        const hasAudio = (video as unknown as { audioTracks?: unknown[] }).audioTracks?.length ? true : true
 
         cleanup()
         resolve({ duration, width, height, frameRate, hasAudio })

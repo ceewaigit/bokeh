@@ -10,7 +10,7 @@
  * Call invalidateCache() when switching projects/recordings.
  */
 
-import type { MouseEvent, Effect } from '@/types/project'
+import type { MouseEvent } from '@/types/project'
 
 export interface Cluster {
     startTime: number

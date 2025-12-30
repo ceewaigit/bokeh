@@ -60,6 +60,7 @@ import { useDragPreview } from '@/hooks/use-drag-preview'
 import { useAssetDragDrop } from '@/hooks/use-asset-drag-drop'
 
 import { useCommandExecutor } from '@/hooks/use-command-executor'
+import { KonvaEventObject } from 'konva/lib/Node'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Build time blocks from clips (for snapping)
@@ -130,15 +131,14 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     hasScreenTrack,
     hasKeystrokeTrack,
     hasPluginTrack,
-    containerRef,
     toggleEffectTrackExpanded,
     toggleVideoTrackExpanded,
     getTrackBounds,
   } = useTimelineLayout()
 
-  const safeGetTrackBounds = useCallback((type: TrackType) => {
+  const safeGetTrackBounds = useCallback(() => {
     return { y: 0, height: 0, clipY: 0, clipHeight: 0 }
-  }, [getTrackBounds])
+  }, [])
 
   // ─────────────────────────────────────────────────────────────────────────
   // UI Context (Scroll State)
@@ -399,7 +399,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     setSpeedUpPopover({ ...opts, clipId })
   }, [])
 
-  const handleStageScrubStart = useCallback((e: any) => {
+  const handleStageScrubStart = useCallback((e: KonvaEventObject<MouseEvent | TouchEvent>) => {
     const target = e.target
     if (target?.name?.() === 'timeline-ruler') return
     clearEffectSelection()
@@ -562,14 +562,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                 name="timeline-background"
               />
 
-              <Rect
-                x={0}
-                y={0}
-                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={trackHeights.ruler}
-                fill={colors.background}
-                opacity={backgroundOpacity}
-              />
+              {/* Ruler background removed to match main bg */}
 
               <TimelineTrack
                 type={TimelineTrackType.Video}
@@ -695,7 +688,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
             />
           )}
 
-          {/* Asset drop target highlight */}
           {/* Asset drop target highlight */}
           <TimelineDropTarget
             visible={!!draggingAsset && !!(assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview.trackType : null))}

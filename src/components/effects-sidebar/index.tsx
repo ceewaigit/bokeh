@@ -16,7 +16,7 @@ import { TrackType } from '@/types/project'
 import { useTrackExistence } from '@/stores/selectors/timeline-selectors'
 
 import { BackgroundTab } from './background-tab'
-import { CursorTab } from './cursor-tab'
+import { CursorTab } from '@/features/cursor/ui/CursorTab'
 import { KeystrokeTab } from './keystroke-tab'
 import { ZoomTab } from './zoom-tab'
 import { ShapeTab } from './shape-tab'

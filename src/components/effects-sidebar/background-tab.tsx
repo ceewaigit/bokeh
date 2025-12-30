@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
-import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'

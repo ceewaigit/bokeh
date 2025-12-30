@@ -29,29 +29,17 @@ export function WebcamOverlay({
   containerWidth,
   containerHeight,
   isSelected = false,
-  onSelect,
   className,
   playerContainerRef,
 }: WebcamOverlayProps) {
   // Get webcam effect to check if enabled
   const webcamEffect = getWebcamEffect(effects)
 
-  // Don't render if webcam effect is disabled
-  if (!webcamEffect || webcamEffect.enabled === false) {
-    return null
-  }
-
-  // For now, we use a transparent button that covers where the webcam should be
-  // The actual visual representation is the webcam layer itself
-  // This is just for click affordance when the webcam is already visible
-
-  // We don't need to calculate position - the DOM-based hit testing in 
-  // preview-interactions.tsx handles detection. This component is purely
-  // for visual affordance (e.g., selected state ring).
-
   // If we need to show a visual ring around the webcam when selected,
   // we can query the DOM for the webcam element position
   const webcamBounds = useMemo(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const _ = [containerWidth, containerHeight]; 
     if (!playerContainerRef?.current) return null;
     const webcamEl = playerContainerRef.current.querySelector('[data-webcam-overlay="true"]');
     if (!webcamEl) return null;
@@ -69,6 +57,11 @@ export function WebcamOverlay({
       height: webcamRect.height,
     };
   }, [playerContainerRef, containerWidth, containerHeight]); // Re-compute when container size changes
+
+  // Don't render if webcam effect is disabled
+  if (!webcamEffect || webcamEffect.enabled === false) {
+    return null
+  }
 
   // Only render selection ring when selected and we have bounds
   if (!isSelected || !webcamBounds) {

@@ -40,7 +40,9 @@ export function useCropManager(
     )
 
     // Derived effects list
-    const contextEffects = currentProject ? EffectStore.getAll(currentProject) : []
+    const contextEffects = useMemo(() => {
+        return currentProject ? EffectStore.getAll(currentProject) : []
+    }, [currentProject])
 
     // Monitor effect existence to auto-close editing if removed externally
     useEffect(() => {

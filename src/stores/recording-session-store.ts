@@ -51,12 +51,12 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   selectedDisplayId: undefined,
 
   setRecording: (isRecording) =>
-    set((state) => ({
+    set(() => ({
       isRecording
     })),
 
   setPaused: (isPaused) =>
-    set((state) => ({
+    set(() => ({
       isPaused
     })),
 

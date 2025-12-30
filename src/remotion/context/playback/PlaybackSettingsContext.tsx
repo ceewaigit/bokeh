@@ -69,19 +69,9 @@ export function PlaybackSettingsProvider({
       resources,
     }),
     [
-      // Playback primitives
-      playback.isPlaying,
-      playback.isScrubbing,
-      playback.isHighQualityPlaybackEnabled,
-      playback.previewMuted,
-      playback.previewVolume,
-      // RenderSettings primitives
-      renderSettings.isGlowMode,
-      renderSettings.preferOffthreadVideo,
-      renderSettings.enhanceAudio,
-      renderSettings.isEditingCrop,
-      // Resources - compare by reference (should be stable from parent)
       resources,
+      playback,
+      renderSettings,
     ]
   );
 

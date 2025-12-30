@@ -316,7 +316,7 @@ export function Toolbar({
               // Construct segments from timeline tracks
               const segments = videoClips.map(c => ({
                 clips: [{ clip: c }],
-                effects: [] as any[]
+                effects: [] as any // Using any to avoid complex type matching with Electron API
               }))
 
               // Attach global timeline effects to the first segment if they exist

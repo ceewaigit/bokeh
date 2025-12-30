@@ -156,7 +156,7 @@ const DeviceFrame: React.FC<DeviceFrameProps> = ({
       return `${basePath}-${colorVariant}.svg`
     }
     return svgPath
-  }, [svgPath, colorVariant])
+  }, [svgPath, colorVariant, allowVariant])
 
   const resolvedFullDimensions = frameFullDimensions ?? { width, height }
   const resolvedBounds = frameBounds ?? {

@@ -10,7 +10,6 @@ interface TimelineClipThumbnailsProps {
 
 export const TimelineClipThumbnails: React.FC<TimelineClipThumbnailsProps> = ({
     thumbnails,
-    width,     // This is usually clipInnerHeight for the thumbnail aspect ratio calculation
     height,    // This is clipInnerHeight
     clipWidth,
 }) => {
@@ -38,6 +37,7 @@ export const TimelineClipThumbnails: React.FC<TimelineClipThumbnailsProps> = ({
                     const thumb = thumbnails[thumbIndex] || thumbnails[0];
                     if (!thumb) return null;
                     return (
+                        // eslint-disable-next-line jsx-a11y/alt-text
                         <Image
                             key={i}
                             image={thumb}

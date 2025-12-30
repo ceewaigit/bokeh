@@ -11,6 +11,7 @@ import { SpeedUpType } from '@/types/speed-up'
 import { TimeConverter, sourceToTimeline } from '@/features/timeline/time/time-space-converter'
 import type { Clip } from '@/types/project'
 import { useTimelineContext } from './TimelineContext'
+import { KonvaEventObject } from 'konva/lib/Node'
 
 // Color schemes by type and intensity
 const COLORS = {
@@ -77,7 +78,7 @@ const SuggestionBar: React.FC<{
     const [isHovered, setIsHovered] = useState(false)
     const [isPressed, setIsPressed] = useState(false)
 
-    const handleMouseEnter = useCallback((e: any) => {
+    const handleMouseEnter = useCallback((e: KonvaEventObject<MouseEvent>) => {
       setIsHovered(true)
       // Change cursor to pointer
       const stage = e.target.getStage()
@@ -86,7 +87,7 @@ const SuggestionBar: React.FC<{
       }
     }, [])
 
-    const handleMouseLeave = useCallback((e: any) => {
+    const handleMouseLeave = useCallback((e: KonvaEventObject<MouseEvent>) => {
       setIsHovered(false)
       setIsPressed(false)
       // Reset cursor
@@ -96,7 +97,7 @@ const SuggestionBar: React.FC<{
       }
     }, [])
 
-    const handleMouseDown = useCallback((e: any) => {
+    const handleMouseDown = useCallback((e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true
       setIsPressed(true)
     }, [])
@@ -105,7 +106,7 @@ const SuggestionBar: React.FC<{
       setIsPressed(false)
     }, [])
 
-    const handleClick = useCallback((e: any) => {
+    const handleClick = useCallback((e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true
       onOpenSuggestion({
         x: e.evt.clientX,

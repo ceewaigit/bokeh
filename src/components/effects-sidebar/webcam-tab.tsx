@@ -89,7 +89,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
   }
 
   // Position grid click
-  const handlePositionChange = (_anchor: WebcamAnchor) => {
+  const handlePositionChange = () => {
     // We only update the anchor visually here if needed, but the main update happens in onPositionUpdate
     // Actually, position is an object {x, y, anchor}, so we need to set the preset.
     // This logic is slightly split between 'anchor' selection and updating the full position object.

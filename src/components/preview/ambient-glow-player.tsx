@@ -85,12 +85,12 @@ export function AmbientGlowPlayer({
         if (!timelineMetadata) return 0;
         const maxFrame = timelineMetadata.durationInFrames - 1;
         return Math.max(0, Math.min(frame, maxFrame));
-    }, [timelineMetadata?.durationInFrames]);
+    }, [timelineMetadata]);
 
     const timeToFrame = useCallback((timeMs: number) => {
         if (!timelineMetadata) return 0;
         return msToFrame(timeMs, timelineMetadata.fps);
-    }, [timelineMetadata?.fps]);
+    }, [timelineMetadata]);
 
     const safePlay = useCallback((player: PlayerRef | null) => {
         if (!player) return;
@@ -169,9 +169,9 @@ export function AmbientGlowPlayer({
             glowPlayer.seekTo(targetFrame);
         };
 
-        mainPlayer.addEventListener('frameupdate', handleFrameUpdate as any);
+        mainPlayer.addEventListener('frameupdate', handleFrameUpdate);
         return () => {
-            mainPlayer.removeEventListener('frameupdate', handleFrameUpdate as any);
+            mainPlayer.removeEventListener('frameupdate', handleFrameUpdate);
         };
     }, [clampFrame, mainPlayerRef, timelineMetadata, isPlaying, isScrubbing]);
 

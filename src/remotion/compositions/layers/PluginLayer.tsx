@@ -24,8 +24,6 @@ import { assertDefined } from '@/lib/errors'
 
 export const PluginLayer: React.FC<PluginLayerProps> = ({
   effects,
-  videoWidth: _videoWidth,
-  videoHeight: _videoHeight,
   layer = 'below-cursor'
 }) => {
   const frame = useCurrentFrame()

@@ -39,7 +39,7 @@ export function AudioSection() {
         ? customSettings
         : ENHANCEMENT_PRESETS[currentPreset]
 
-    const updateAudioSettings = (key: keyof typeof audio, value: any) => {
+    const updateAudioSettings = (key: keyof typeof audio, value: unknown) => {
         setAudioSettings({
             [key]: value
         })

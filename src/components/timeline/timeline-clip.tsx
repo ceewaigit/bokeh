@@ -140,12 +140,6 @@ const TimelineClipComponent = ({
   const hasThumbnails = showTimelineThumbnails && thumbnails.length > 0
   const showMissingThumb = trackType === TrackType.Video && !isGeneratedClip && !hasThumbnails
 
-  const clipFileName = useMemo(() => {
-    if (!recording?.filePath) return ''
-    const parts = recording.filePath.split('/')
-    return parts[parts.length - 1] || recording.filePath
-  }, [recording?.filePath])
-
   // Prevent rendering if track is collapsed (height 0) to avoid invalid shape errors
   // Must be after all hooks to prevent "Rendered fewer hooks" error
   if (trackHeight <= TimelineConfig.TRACK_PADDING * 2) return null

@@ -53,20 +53,6 @@ export const EffectCreation = {
         }
     },
 
-    createDefaultCinematicScrollEffect(): Effect {
-        return {
-            id: `anno-scroll-cinematic-global`,
-            type: EffectType.Annotation,
-            startTime: 0,
-            endTime: Number.MAX_SAFE_INTEGER,
-            data: {
-                kind: 'scrollCinematic',
-                smoothing: 48,
-            },
-            enabled: true,
-        }
-    },
-
     createCropEffect(options: {
         clipId: string
         startTime: number

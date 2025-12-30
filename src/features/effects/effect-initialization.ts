@@ -5,17 +5,14 @@
  * Ensures default effects (background, cursor) and initial states are set up correctly.
  */
 
-import type { Project, Recording, Effect } from '@/types/project'
+import type { Project } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
 import { EffectStore } from '@/lib/core/effects'
 import { EffectCreation } from './effect-creation'
 import { syncKeystrokeEffects } from './services/keystroke-sync-service'
 
 export const EffectInitialization = {
-    createInitialEffectsForRecording(
-        _recording: Recording,
-        _existingGlobalEffects: Effect[] = []
-    ): void {
+    createInitialEffectsForRecording(): void {
         // NOTE: All effects now live in timeline.effects (the SSOT)
         // This method is kept for API compatibility but does nothing
     },
@@ -37,13 +34,6 @@ export const EffectInitialization = {
         const hasKeystrokes = effects.some(e => e.type === EffectType.Keystroke)
         if (!hasKeystrokes) {
             syncKeystrokeEffects(project)
-        }
-
-        const hasCinematicScroll = effects.some(
-            e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic'
-        )
-        if (!hasCinematicScroll) {
-            EffectStore.add(project, EffectCreation.createDefaultCinematicScrollEffect())
         }
 
         const hasWebcamEffect = effects.some(e => e.type === EffectType.Webcam)

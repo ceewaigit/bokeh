@@ -65,11 +65,10 @@ export function usePlayerConfiguration(
     };
   }, [
     project,
-    project?.timeline?.effects,
     videoWidth,
     videoHeight,
     fps,
-    windowSurfaceMode,
-    cameraSettingsOverride
+    cameraSettingsOverride,
+    windowSurfaceMode
   ]);
 }

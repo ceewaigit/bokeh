@@ -107,7 +107,7 @@ export { EffectType } from './effects'
 // Keyframe interface for animations
 export interface KeyframeData {
   time: number
-  value: any
+  value: unknown
   easing?: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out'
 }
 

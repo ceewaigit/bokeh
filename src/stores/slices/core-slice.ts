@@ -158,7 +158,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       // Clear undo/redo history to release references to old project state
       try {
         CommandManager.getInstance().clearHistory()
-      } catch (e) {
+      } catch {
         // Ignore if CommandManager not initialized
       }
       state.currentProject = null

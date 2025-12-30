@@ -36,9 +36,6 @@ export {
 import {
   isProxySufficientForTarget,
   isProxySufficientForExport,
-  PREVIEW_DISPLAY_WIDTH,
-  PREVIEW_DISPLAY_HEIGHT,
-  RETINA_MULTIPLIER,
   isSourceOverkillForPreview,
 } from '@/shared/utils/resolution-utils';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
@@ -47,14 +44,12 @@ export function useVideoUrl({
   recording,
   resources,
   clipId,
-  preferOffthreadVideo: _preferOffthreadVideo,
   targetWidth = 1280,
   targetHeight = 720,
   maxZoomScale = 1,
   isGlowMode = false,
   forceProxy = false,
   isHighQualityPlaybackEnabled = false,
-  isPlaying = false,
   isScrubbing = false,
 }: UseVideoUrlProps & { isScrubbing?: boolean }): string | undefined {
   const { isRendering } = getRemotionEnvironment();
@@ -62,18 +57,6 @@ export function useVideoUrl({
 
   // Get proxy URLs from ephemeral store (first priority) with recording fallback
   const ephemeralProxyUrls = useProjectStore((s) => recording ? s.proxyUrls[recording.id] : undefined);
-
-  // Helper to resolve proxy URL: ephemeral store first, then recording property
-  const getProxyUrl = (type: 'preview' | 'glow' | 'scrub'): string | undefined => {
-    if (!recording) return undefined;
-    if (type === 'preview') {
-      return ephemeralProxyUrls?.previewProxyUrl || recording.previewProxyUrl;
-    }
-    if (type === 'glow') {
-      return ephemeralProxyUrls?.glowProxyUrl || recording.glowProxyUrl;
-    }
-    return ephemeralProxyUrls?.scrubProxyUrl || recording.scrubProxyUrl;
-  };
 
   const computedUrl = useMemo(() => {
     if (!recording) return undefined;
@@ -174,9 +157,6 @@ export function useVideoUrl({
         }
       } else {
         // MEMORY OPTIMIZATION: When high-res preview is disabled, be aggressive about using proxy
-        // Calculate max useful resolution for preview display
-        const maxUsefulWidth = PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * zoomScaleForQuality;
-        const maxUsefulHeight = PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * zoomScaleForQuality;
 
         // If source resolution exceeds what preview can actually use by >20%, use proxy
         // Use proxy if: proxy is sufficient for quality OR source is overkill for display

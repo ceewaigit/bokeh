@@ -156,24 +156,5 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
             introFadeDuration,
             outroFadeDuration,
         };
-    }, [
-        options.clip,
-        options.recording,
-        options.startFrame,
-        options.durationFrames,
-        options.groupStartFrame,
-        options.groupDuration,
-        options.currentFrame,
-        options.fps,
-        options.isRendering,
-        options.drawWidth,
-        options.drawHeight,
-        options.activeLayoutItem,
-        options.prevLayoutItem,
-        options.nextLayoutItem,
-        options.shouldHoldPrevFrame,
-        options.isNearBoundaryEnd,
-        options.overlapFrames,
-        isGlowMode,
-    ]);
+    }, [options, isGlowMode]);
 }

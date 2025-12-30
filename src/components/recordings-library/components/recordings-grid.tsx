@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import Image from 'next/image'
 import { Film, Info, Play, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/shared/utils/utils'
@@ -115,11 +116,12 @@ export const RecordingsGrid = ({
                 <div className="aspect-video relative bg-muted/10 overflow-hidden">
                   {recording.thumbnailUrl ? (
                     <>
-                      <img
+                      <Image
                         src={recording.thumbnailUrl}
                         alt={recording.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
+                        className="object-cover"
+                        fill
+                        unoptimized
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                     </>

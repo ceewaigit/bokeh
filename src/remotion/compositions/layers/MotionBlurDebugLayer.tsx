@@ -1,5 +1,4 @@
 import React, { CSSProperties } from 'react';
-import { AbsoluteFill } from 'remotion';
 
 interface MotionBlurDebugLayerProps {
     enabled: boolean;

@@ -16,7 +16,8 @@ import { findClipById, reflowClips, calculateTimelineDuration, syncCropEffectTim
 export function addClipToTrack(
     project: Project,
     clipOrRecordingId: Clip | string,
-    startTime?: number
+    startTime?: number,
+    options?: { trackType?: TrackType }
 ): Clip | null {
     let clip: Clip
 
@@ -36,14 +37,15 @@ export function addClipToTrack(
         }
     }
 
-    const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
-    if (!videoTrack) return null
+    const targetTrackType = options?.trackType || TrackType.Video
+    const targetTrack = project.timeline.tracks.find(t => t.type === targetTrackType)
+    if (!targetTrack) return null
 
     const proposedTime = startTime ?? project.timeline.duration
-    const { insertIndex } = ClipPositioning.getReorderTarget(proposedTime, videoTrack.clips)
+    const { insertIndex } = ClipPositioning.getReorderTarget(proposedTime, targetTrack.clips)
 
-    videoTrack.clips.splice(insertIndex, 0, clip)
-    reflowClips(videoTrack, Math.max(0, insertIndex - 1))
+    targetTrack.clips.splice(insertIndex, 0, clip)
+    reflowClips(targetTrack, Math.max(0, insertIndex - 1))
     syncCropEffectTimes(project)
 
     project.timeline.duration = calculateTimelineDuration(project)

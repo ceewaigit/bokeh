@@ -76,8 +76,6 @@ function usePreviewHover({
     const [cursorOverlay, setCursorOverlay] = useState<CursorOverlayData | null>(null);
     const [webcamOverlay, setWebcamOverlay] = useState<WebcamOverlayData | null>(null);
 
-    const currentTime = useProjectStore((s) => s.currentTime);
-
     const setHoverState = useCallback((
         nextLayer: PreviewHoverLayer,
         nextCursor: CursorOverlayData | null,
@@ -174,7 +172,6 @@ function usePreviewHover({
         setHoverState,
         aspectContainerRef,
         playerContainerRef,
-        currentTime, // Re-run on time change to update overlay positions
     ]);
 
     const handlePreviewLeave = useCallback(() => {

@@ -150,7 +150,7 @@ function setupStorageListener() {
           const nextState = normalizeWindowAppearanceState(stored.state)
           useWindowAppearanceStore.setState(nextState)
         }
-      } catch (e) {
+      } catch {
         // Ignore parse errors
       }
     }

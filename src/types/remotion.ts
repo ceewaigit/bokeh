@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode, SyntheticEvent, VideoHTMLAttributes } from 'react';
+import type { ReactElement, ReactNode, SyntheticEvent } from 'react';
 import type {
   Clip,
   Effect,
@@ -115,6 +115,7 @@ export interface UseRenderDelayResult {
 export type CameraPathFrame = {
   activeZoomBlock: ParsedZoomBlock | undefined;
   zoomCenter: { x: number; y: number };
+  zoomScale?: number;
   /** Precomputed velocity for motion blur (normalized 0-1 delta per frame) */
   velocity?: { x: number; y: number };
 };
@@ -170,7 +171,7 @@ export interface VideoPositionContextValue {
   mockupEnabled?: boolean;
   /** Device mockup position and dimensions (when enabled) */
   mockupPosition?: MockupPositionResult | null;
-  mockupData?: any;
+  mockupData?: unknown;
 
   // Frame layout and clip data (SSOT from SharedVideoController)
   /** Active clip data for current frame */
@@ -187,6 +188,15 @@ export interface VideoPositionContextValue {
   prevLayoutItem?: FrameLayoutItem | null;
   /** Next layout item (for boundary logic) */
   nextLayoutItem?: FrameLayoutItem | null;
+
+  // Rendering State (for VideoClipRenderer)
+  maxZoomScale?: number;
+  boundaryState?: {
+    shouldHoldPrevFrame: boolean;
+    isNearBoundaryEnd: boolean;
+    overlapFrames: number;
+    isNearBoundaryStart: boolean;
+  };
 }
 
 export interface ClipContextValue {
@@ -258,14 +268,6 @@ export interface ClipFadeDurations {
   outroFadeDuration: number;
 }
 
-export interface SafeVideoProps extends Omit<VideoHTMLAttributes<HTMLVideoElement>, 'ref'> {
-  startFrom?: number;
-  endAt?: number;
-  playbackRate?: number;
-  volume?: number;
-  pauseWhenBuffering?: boolean;
-}
-
 export interface AudioEnhancerWrapperProps {
   children: ReactElement;
   /** @deprecated Use RenderSettings.enhanceAudio instead */
@@ -291,12 +293,7 @@ export interface KeystrokeLayerProps {
   videoHeight: number;
 }
 
-export interface CursorLayerProps {
-  effects: Effect[];
-  videoWidth: number;
-  videoHeight: number;
-  metadataUrls?: MetadataUrlMap;
-}
+
 
 export interface ClipSequenceProps {
   clip: Clip;
@@ -365,35 +362,14 @@ export interface VideoClipRendererProps {
   groupStartFrame: number;
   groupStartSourceIn: number;
   groupDuration: number;
-  currentFrame: number;
-  fps: number;
-  isRendering: boolean;
-  cornerRadius: number;
-  drawWidth: number;
-  drawHeight: number;
-  compositionWidth: number;
-  compositionHeight: number;
-  maxZoomScale: number;
-  currentZoomScale: number;
-  mockupEnabled?: boolean;
-
-  activeLayoutItem: FrameLayoutItem | null;
-  prevLayoutItem: FrameLayoutItem | null;
-  nextLayoutItem: FrameLayoutItem | null;
-  shouldHoldPrevFrame: boolean;
-  isNearBoundaryEnd: boolean;
-  overlapFrames: number;
 
   markRenderReady: (source?: string) => void;
   handleVideoReady: (e: SyntheticEvent<HTMLVideoElement>) => void;
-  VideoComponent: any;
+  VideoComponent: import('react').ComponentType<any>;
   premountFor: number;
   postmountFor: number;
-
-  // New Config Objects
-  resources: VideoResources;
-  playback: PlaybackSettings;
-  renderSettings: RenderSettings;
+  onVideoRef?: (video: HTMLVideoElement | null) => void;
+  isScrubbing?: boolean;
 }
 
 export interface PreviewVideoRendererProps {

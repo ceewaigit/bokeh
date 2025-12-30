@@ -1,6 +1,6 @@
 import React from 'react';
 import { Rect, Group, Text } from 'react-konva';
-import { withAlpha } from '@/features/timeline/utils/colors';
+import { withAlpha, useTimelineColors } from '@/features/timeline/utils/colors';
 
 interface TimelineClipBackgroundProps {
     clipId: string;
@@ -14,7 +14,7 @@ interface TimelineClipBackgroundProps {
     showMissingThumb: boolean;
     trackType: 'video' | 'audio';
     hasThumbnails: boolean;
-    colors: any; // Using explicit any for now as useTimelineColors return type isn't strictly typed here
+    colors: ReturnType<typeof useTimelineColors>;
 }
 
 export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
@@ -31,8 +31,9 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
     hasThumbnails,
     colors,
 }) => {
-    // Better clip colors - darker, richer amber/gold
-    const clipBaseColor = colors.isDark ? 'hsl(35, 65%, 40%)' : 'hsl(35, 60%, 55%)';
+    // Better clip colors - darker, richer amber/gold with more saturation
+    // Better clip colors - vibrant amber/gold with glass feel
+    const clipBaseColor = colors.isDark ? 'hsl(42, 95%, 45%)' : 'hsl(42, 95%, 45%)';
     const clipFillColor = showMissingThumb ? clipBaseColor : 'rgba(127,127,127,0.15)';
 
     return (
@@ -60,7 +61,7 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                         : isSelected
                             ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary)
                             : showMissingThumb
-                                ? withAlpha(clipBaseColor, 0.8)
+                                ? withAlpha(clipBaseColor, 1)
                                 : 'transparent'
                 }
                 strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1.5 : showMissingThumb ? 1 : 0}
@@ -68,12 +69,12 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                 opacity={1}
                 // Updated Shadow: Subtle and clean
                 shadowColor={isSelected ? (colors.primary) : 'black'}
-                shadowBlur={isSelected ? 4 : 1}
-                shadowOpacity={isSelected ? 0.15 : 0.05}
+                shadowBlur={isSelected ? 6 : 2}
+                shadowOpacity={isSelected ? 0.25 : 0.15}
                 shadowOffsetY={1}
             />
 
-            {/* Gradient overlay - darker at top, lighter at bottom (like effect blocks) */}
+            {/* Subtle top highlight for glass feel (premium look) */}
             {showMissingThumb && trackType === 'video' && !hasThumbnails && (
                 <Rect
                     width={width}
@@ -81,9 +82,8 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                     fillLinearGradientStartPoint={{ x: 0, y: 0 }}
                     fillLinearGradientEndPoint={{ x: 0, y: height }}
                     fillLinearGradientColorStops={[
-                        0, 'rgba(0,0,0,0.25)',
-                        0.4, 'rgba(0,0,0,0)',
-                        1, 'rgba(255,255,255,0.08)'
+                        0, 'rgba(255,255,255,0.12)', // Subtle top glass highlight
+                        1, 'rgba(255,255,255,0)'
                     ]}
                     cornerRadius={8}
                     listening={false}

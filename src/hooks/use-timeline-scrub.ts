@@ -51,7 +51,7 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, onSeek }: TimelineScru
     window.addEventListener('mouseup', clearPointerDown, { once: true })
     window.addEventListener('touchend', clearPointerDown, { once: true })
     window.addEventListener('touchcancel', clearPointerDown, { once: true })
-  }, [onSeek, seekFromStage, setScrubbing])
+  }, [onSeek, seekFromStage])
 
   const handleScrubMove = useCallback((e: any) => {
     if (!pointerDownRef.current) return false

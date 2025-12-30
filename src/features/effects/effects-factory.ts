@@ -32,10 +32,6 @@ export class EffectsFactory {
     return EffectCreation.createDefaultWebcamEffect()
   }
 
-  static createDefaultCinematicScrollEffect(): Effect {
-    return EffectCreation.createDefaultCinematicScrollEffect()
-  }
-
   static createCropEffect(options: {
     clipId: string
     startTime: number
@@ -59,10 +55,10 @@ export class EffectsFactory {
   // === INITIALIZATION (Delegated to EffectInitialization) ===
 
   static createInitialEffectsForRecording(
-    recording: Recording,
-    existingGlobalEffects: Effect[] = []
+    _recording: Recording,
+    _existingGlobalEffects: Effect[] = []
   ): void {
-    EffectInitialization.createInitialEffectsForRecording(recording, existingGlobalEffects)
+    EffectInitialization.createInitialEffectsForRecording()
   }
 
   static ensureGlobalEffects(project: Project): void {

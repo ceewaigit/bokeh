@@ -185,7 +185,7 @@ export class WebcamService {
       if (this.mediaRecorder?.state === 'recording') {
         try {
           this.mediaRecorder.requestData()
-        } catch (e) {
+        } catch {
           this.clearDataInterval()
         }
       }

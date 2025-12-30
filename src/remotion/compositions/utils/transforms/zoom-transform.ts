@@ -121,12 +121,14 @@ export function calculateZoomTransform(
   /** Disable refocus blur regardless of timing */
   disableRefocusBlur: boolean = false,
   /** Allow panning at scale=1 (used for mockup cursor centering). */
-  allowPanWithoutZoom: boolean = false
+  allowPanWithoutZoom: boolean = false,
+  /** Explicitly set the current scale (e.g. from physics), bypassing non-target interpolation. */
+  currentScaleOverride?: number
 ): ZoomTransform {
   if (!activeBlock) {
     if (!allowPanWithoutZoom) {
       return {
-        scale: 1,
+        scale: currentScaleOverride ?? 1,
         scaleCompensationX: 0,
         scaleCompensationY: 0,
         panX: 0,
@@ -135,14 +137,27 @@ export function calculateZoomTransform(
       };
     }
 
-    const panX = (0.5 - zoomCenter.x) * videoWidth;
-    const panY = (0.5 - zoomCenter.y) * videoHeight;
+    // Fallback for no-block pan
+    // If physics says scale=1.45 but block is undefined (transitioning out?), we should respect physics.
+
+    // But existing logic for no-block:
+    /*
+      const panX = (0.5 - zoomCenter.x) * videoWidth;
+      const panY = (0.5 - zoomCenter.y) * videoHeight;
+      return { scale: 1, ..., panX, panY }
+    */
+    // If I return actualScale, I should probably scale pan?
+    // But 'pan without zoom' implies just centering.
+    // I'll stick to legacy behavior for no-block unless I'm sure.
+    // The physics calculator returns scale=1 if no block (or linearly interpolates out).
+    // So currentScaleOverride should be 1.
+
     return {
-      scale: 1,
+      scale: currentScaleOverride ?? 1,
       scaleCompensationX: 0,
       scaleCompensationY: 0,
-      panX,
-      panY,
+      panX: (0.5 - zoomCenter.x) * videoWidth,
+      panY: (0.5 - zoomCenter.y) * videoHeight,
       refocusBlur: 0
     };
   }
@@ -155,7 +170,7 @@ export function calculateZoomTransform(
 
   // Calculate zoom scale - completely deterministic
   const targetScale = overrideScale ?? (activeBlock.scale || 2);
-  const scale = calculateZoomScale(
+  const scale = currentScaleOverride ?? calculateZoomScale(
     elapsed,
     blockDuration,
     targetScale,
@@ -313,15 +328,14 @@ export function calculateCameraMotionBlurFromCenters(
  * Get motion blur config from camera settings.
  */
 export function getMotionBlurConfig(settings?: CameraSettings): MotionBlurConfig {
-  const intensity = settings?.motionBlurIntensity ?? 40;
-  const threshold = settings?.motionBlurThreshold ?? 30;
+  const intensity = settings?.motionBlurIntensity ?? 50;
+  const threshold = settings?.motionBlurThreshold ?? 50;
   return {
     enabled: settings?.motionBlurEnabled ?? true,
-    maxBlurRadius: (intensity / 100) * 30, // Increased from 22 to 30 for more visible blur
-    velocityThreshold: (threshold / 100) * 40, // Scaled to pixels/frame (0-40px). Allows masking slow moves.
-    // Significantly increased multiplier - camera physics smoothing produces small deltas,
-    // so we need a much higher multiplier to produce visible blur
-    intensityMultiplier: 1.0 + (intensity / 100) * 5.0, // Was 0.25 + 0.6, now 1.0 + 5.0
+    maxBlurRadius: (intensity / 100) * 40, // Slightly increased max range
+    velocityThreshold: (threshold / 100) * 10, // Reduced from 40 to 10 to catch slower cinematic pans
+    // Adjusted multiplier for more consistent shutter-angle feel
+    intensityMultiplier: 2.0 + (intensity / 100) * 4.0,
   };
 }
 

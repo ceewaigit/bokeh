@@ -5,7 +5,7 @@
  * within the canvas, handling aspect ratio fitting and video fit modes.
  */
 
-import type { DeviceMockupData, MockupVideoFit } from '@/types/project'
+import type { DeviceMockupData } from '@/types/project'
 import { DeviceModel } from '@/types/project'
 import { resolveMockupMetadata } from '@/lib/mockups/mockup-metadata'
 import { DEVICE_MOCKUPS } from '@/lib/constants/device-mockups'
@@ -109,8 +109,7 @@ export function calculateMockupPosition(
     screenWidth,
     screenHeight,
     sourceVideoWidth,
-    sourceVideoHeight,
-    mockupData.videoFit
+    sourceVideoHeight
   )
 
   return {
@@ -139,7 +138,6 @@ function calculateVideoFit(
   screenHeight: number,
   videoWidth: number,
   videoHeight: number,
-  _fitMode: MockupVideoFit
 ): { x: number; y: number; width: number; height: number } {
   const screenAspect = screenWidth / screenHeight
   const videoAspect = videoWidth / videoHeight

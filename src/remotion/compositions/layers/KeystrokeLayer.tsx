@@ -10,8 +10,6 @@ import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects';
 
 export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
   keystrokeEffects,
-  videoWidth: _videoWidth,
-  videoHeight: _videoHeight
 }) => {
   const sourceTimeMs = useSourceTime();
   const { keystrokeEvents, clip } = useClipContext();
@@ -96,7 +94,7 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     if (rect) {
       lastDrawRectRef.current = rect;
     }
-  }, [shouldRender, sourceTimeMs, width, height, settingsVersionRef.current]);
+  }, [shouldRender, sourceTimeMs, width, height]);
 
   if (!shouldRender) {
     return null;

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Rect, Text, Transformer, Line, Group, Circle } from 'react-konva'
+import { Rect, Text, Transformer, Line, Group } from 'react-konva'
 import { TimelineConfig } from '@/features/timeline/config'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { useTimelineColors, withAlpha } from '@/features/timeline/utils/colors'
@@ -385,11 +385,12 @@ export const TimelineEffectBlock = React.memo(({
           x={0}
           y={0}
           width={safeWidth}
-          height={Math.min(safeHeight * 0.45, 20)}
+          // Full height smooth fade
+          height={safeHeight}
           fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: 0, y: Math.min(safeHeight * 0.45, 20) }}
+          fillLinearGradientEndPoint={{ x: 0, y: safeHeight }}
           fillLinearGradientColorStops={[
-            0, 'rgba(0,0,0,0.35)',
+            0, 'rgba(0,0,0,0.15)', // Very subtle top shadow
             1, 'rgba(0,0,0,0)'
           ]}
           cornerRadius={[isExpanded ? 10 : 8, isExpanded ? 10 : 8, 0, 0]}
@@ -407,12 +408,12 @@ export const TimelineEffectBlock = React.memo(({
           fillLinearGradientColorStops={
             isExpanded
               ? [
-                0, withAlpha(colors.foreground, 0.14),
-                0.5, withAlpha(colors.foreground, 0.06),
+                0, withAlpha(colors.foreground, 0.18), // Slightly brighter highlight
+                0.5, withAlpha(colors.foreground, 0.08),
                 1, withAlpha(colors.foreground, 0)
               ]
               : [
-                0, withAlpha(colors.foreground, 0.10),
+                0, withAlpha(colors.foreground, 0.12),
                 1, withAlpha(colors.foreground, 0)
               ]
           }

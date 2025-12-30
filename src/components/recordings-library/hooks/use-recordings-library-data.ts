@@ -306,7 +306,8 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     generateThumbnail,
     loadThumbnailFromDisk,
     saveThumbnailToDisk,
-    runWithConcurrency
+    runWithConcurrency,
+    displayedRecordings
   ])
 
   const loadRecordings = useCallback(async (forceReload = false) => {
@@ -368,7 +369,7 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     return () => {
       removeListener?.()
     }
-  }, [])
+  }, [loadRecordings, recordings.length])
 
   useEffect(() => {
     // If listings change (due to filter/sort) and we are on an invalid page, reset to page 1

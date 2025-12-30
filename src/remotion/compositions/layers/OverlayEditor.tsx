@@ -7,7 +7,7 @@
  * Refactored to use useCanvasDrag for shared drag logic.
  */
 
-import React, { useCallback, useRef, useEffect, useMemo } from 'react'
+import React, { useCallback, useRef, useEffect, useMemo, useState } from 'react'
 import { AbsoluteFill, getRemotionEnvironment } from 'remotion'
 import { useVideoPosition } from '../../context/layout/VideoPositionContext'
 import { useProjectStore } from '@/stores/project-store'
@@ -110,13 +110,17 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
 
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  // Local drag preview state - prevents store updates during drag which cause remount/flicker
+  const [dragPreviewBounds, setDragPreviewBounds] = useState<EffectBounds | null>(null)
+  const pendingUpdateRef = useRef<{ id: string; data: unknown } | null>(null)
+
   // Get the video rect from VideoPositionContext
-  const videoRect: VideoRect = {
+  const videoRect: VideoRect = useMemo(() => ({
     x: videoPosition.offsetX,
     y: videoPosition.offsetY,
     width: videoPosition.drawWidth,
     height: videoPosition.drawHeight,
-  }
+  }), [videoPosition.offsetX, videoPosition.offsetY, videoPosition.drawWidth, videoPosition.drawHeight])
 
   // --- Derived State ---
 
@@ -170,12 +174,13 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   }
 
   // --- Drag Handling ---
-
-  const handleDrag = useCallback(
-    (delta: CanvasDragDelta, dragType: DragType, initial: EditorDragState | null) => {
-      if (!initial || !editingOverlayId) return
-
-      // Convert pixel delta to percentage delta
+  // Computes new position data and pixel bounds from a drag delta
+  const computeDragResult = useCallback(
+    (
+      delta: { x: number; y: number },
+      dragType: DragType,
+      initial: EditorDragState
+    ): { data: unknown; bounds: EffectBounds } | null => {
       const percentDelta = deltaToPercent(delta.x, delta.y, videoRect)
 
       if (initial.kind === 'annotation') {
@@ -185,10 +190,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
 
         if (dragType === 'move') {
           if (type === AnnotationType.Arrow) {
-            const safeEnd = baseEnd ?? {
-              x: basePosition.x + 10,
-              y: basePosition.y + 10,
-            }
+            const safeEnd = baseEnd ?? { x: basePosition.x + 10, y: basePosition.y + 10 }
             const start = clampPoint({
               x: basePosition.x + percentDelta.x,
               y: basePosition.y + percentDelta.y,
@@ -197,10 +199,17 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               x: safeEnd.x + percentDelta.x,
               y: safeEnd.y + percentDelta.y,
             })
-            updateEffect(editingOverlayId, {
+            const topLeft = { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y) }
+            const bottomRight = { x: Math.max(start.x, end.x), y: Math.max(start.y, end.y) }
+            return {
               data: { position: start, endPosition: end },
-            })
-            return
+              bounds: {
+                x: videoRect.x + (topLeft.x / 100) * videoRect.width - 10,
+                y: videoRect.y + (topLeft.y / 100) * videoRect.height - 10,
+                width: ((bottomRight.x - topLeft.x) / 100) * videoRect.width + 20,
+                height: ((bottomRight.y - topLeft.y) / 100) * videoRect.height + 20,
+              },
+            }
           }
 
           if (type === AnnotationType.Highlight) {
@@ -209,26 +218,38 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
               safeWidth,
               safeHeight
             )
-            updateEffect(editingOverlayId, {
-              data: {
-                position: { x: clamped.x, y: clamped.y },
-                width: clamped.width,
-                height: clamped.height,
+            return {
+              data: { position: { x: clamped.x, y: clamped.y }, width: clamped.width, height: clamped.height },
+              bounds: {
+                x: videoRect.x + (clamped.x / 100) * videoRect.width,
+                y: videoRect.y + (clamped.y / 100) * videoRect.height,
+                width: (clamped.width / 100) * videoRect.width,
+                height: (clamped.height / 100) * videoRect.height,
               },
-            })
-            return
+            }
           }
 
+          // Text / Keyboard
           const next = clampPoint({
             x: basePosition.x + percentDelta.x,
             y: basePosition.y + percentDelta.y,
           })
-          updateEffect(editingOverlayId, { data: { position: next } })
-          return
+          const fallbackSize = getDefaultAnnotationSize(type)
+          const w = safeWidth ?? fallbackSize.width ?? 20
+          const h = safeHeight ?? fallbackSize.height ?? 10
+          return {
+            data: { position: next },
+            bounds: {
+              x: videoRect.x + (next.x / 100) * videoRect.width,
+              y: videoRect.y + (next.y / 100) * videoRect.height,
+              width: (w / 100) * videoRect.width,
+              height: (h / 100) * videoRect.height,
+            },
+          }
         }
 
-        // Resize logic for annotation
-        if (type !== AnnotationType.Highlight) return
+        // Resize logic for highlight only
+        if (type !== AnnotationType.Highlight) return null
 
         let nextX = basePosition.x
         let nextY = basePosition.y
@@ -273,17 +294,18 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         }
 
         const clamped = clampHighlightBox({ x: nextX, y: nextY }, nextWidth, nextHeight)
-        updateEffect(editingOverlayId, {
-          data: {
-            position: { x: clamped.x, y: clamped.y },
-            width: clamped.width,
-            height: clamped.height,
+        return {
+          data: { position: { x: clamped.x, y: clamped.y }, width: clamped.width, height: clamped.height },
+          bounds: {
+            x: videoRect.x + (clamped.x / 100) * videoRect.width,
+            y: videoRect.y + (clamped.y / 100) * videoRect.height,
+            width: (clamped.width / 100) * videoRect.width,
+            height: (clamped.height / 100) * videoRect.height,
           },
-        })
-        return
+        }
       }
 
-      // Plugin Drag Logic
+      // Plugin
       if (initial.kind === 'plugin') {
         const initialPosition = initial.data
         let newPosition = { ...initialPosition }
@@ -331,23 +353,61 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         }
 
         newPosition = clampPosition(newPosition)
-        updateEffect(editingOverlayId, {
+        const w = newPosition.width ?? 100
+        const h = newPosition.height ?? 100
+        return {
           data: {
             position: {
               x: newPosition.x,
               y: newPosition.y,
-              width: newPosition.width,
-              height: newPosition.height,
+              width: w,
+              height: h,
             },
           },
-        })
+          bounds: {
+            x: videoRect.x + (newPosition.x / 100) * videoRect.width - w / 2,
+            y: videoRect.y + (newPosition.y / 100) * videoRect.height - h / 2,
+            width: w,
+            height: h,
+          },
+        }
       }
+
+      return null
     },
-    [editingOverlayId, videoRect, updateEffect]
+    [videoRect]
   )
 
-  const { isDragging, dragType, startDrag } = useCanvasDrag<EditorDragState>({
+  // During drag, update local preview only (no store updates)
+  const handleDrag = useCallback(
+    (delta: CanvasDragDelta, dragType: DragType, initial: EditorDragState | null) => {
+      if (!initial || !editingOverlayId) return
+
+      const result = computeDragResult(delta, dragType, initial)
+      if (!result) return
+
+      // Update local preview bounds for smooth visual feedback
+      setDragPreviewBounds(result.bounds)
+      // Store pending update to commit on drag end
+      pendingUpdateRef.current = { id: editingOverlayId, data: result.data }
+
+    },
+    [editingOverlayId, computeDragResult]
+  )
+
+  // Commit to store only on drag end
+  const handleDragEnd = useCallback(() => {
+    const pending = pendingUpdateRef.current
+    if (pending) {
+      updateEffect(pending.id, { data: pending.data } as Partial<Effect>)
+      pendingUpdateRef.current = null
+    }
+    setDragPreviewBounds(null)
+  }, [updateEffect])
+
+  const { isDragging, startDrag } = useCanvasDrag<EditorDragState>({
     onDrag: handleDrag,
+    onDragEnd: handleDragEnd,
   })
 
   // Keyboard shortcuts (unchanged)
@@ -705,17 +765,17 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         cursor: isDragging ? 'grabbing' : 'default',
       }}
     >
-      {/* Selection box for selected effect */}
-      {selectedBounds && selectedEffectLayer && (
+      {/* Selection box for selected effect - use drag preview during drag for smooth movement */}
+      {(dragPreviewBounds || selectedBounds) && selectedEffectLayer && (
         <>
           {/* Selection border */}
           <div
             style={{
               position: 'absolute',
-              left: selectedBounds.x,
-              top: selectedBounds.y,
-              width: selectedBounds.width,
-              height: selectedBounds.height,
+              left: (dragPreviewBounds ?? selectedBounds!).x,
+              top: (dragPreviewBounds ?? selectedBounds!).y,
+              width: (dragPreviewBounds ?? selectedBounds!).width,
+              height: (dragPreviewBounds ?? selectedBounds!).height,
               border: `2px solid ${PRIMARY_COLOR}`,
               cursor: 'move',
               zIndex: 10,
@@ -728,14 +788,14 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
           {/* Resize handles (only if resizable) */}
           {canResize && (
             <>
-              {renderHandle('top-left', selectedBounds)}
-              {renderHandle('top', selectedBounds)}
-              {renderHandle('top-right', selectedBounds)}
-              {renderHandle('right', selectedBounds)}
-              {renderHandle('bottom-right', selectedBounds)}
-              {renderHandle('bottom', selectedBounds)}
-              {renderHandle('bottom-left', selectedBounds)}
-              {renderHandle('left', selectedBounds)}
+              {renderHandle('top-left', dragPreviewBounds ?? selectedBounds!)}
+              {renderHandle('top', dragPreviewBounds ?? selectedBounds!)}
+              {renderHandle('top-right', dragPreviewBounds ?? selectedBounds!)}
+              {renderHandle('right', dragPreviewBounds ?? selectedBounds!)}
+              {renderHandle('bottom-right', dragPreviewBounds ?? selectedBounds!)}
+              {renderHandle('bottom', dragPreviewBounds ?? selectedBounds!)}
+              {renderHandle('bottom-left', dragPreviewBounds ?? selectedBounds!)}
+              {renderHandle('left', dragPreviewBounds ?? selectedBounds!)}
             </>
           )}
 
@@ -743,8 +803,8 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
           <div
             style={{
               position: 'absolute',
-              left: selectedBounds.x + selectedBounds.width / 2,
-              top: selectedBounds.y - 28,
+              left: (dragPreviewBounds ?? selectedBounds!).x + (dragPreviewBounds ?? selectedBounds!).width / 2,
+              top: (dragPreviewBounds ?? selectedBounds!).y - 28,
               transform: 'translateX(-50%)',
               padding: '4px 8px',
               backgroundColor: 'rgba(0,0,0,0.75)',

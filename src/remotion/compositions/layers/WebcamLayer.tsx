@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Video, Sequence, useCurrentFrame, interpolate, useVideoConfig, getRemotionEnvironment } from 'remotion';
+import { Video, Sequence, useCurrentFrame, interpolate, useVideoConfig } from 'remotion';
 import type { Effect, WebcamEffectData, Clip, Recording } from '@/types/project';
 import { getWebcamEffect } from '@/features/effects/effect-filters';
 import { DEFAULT_WEBCAM_DATA } from '@/lib/constants/default-effects';
@@ -18,7 +18,6 @@ import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
 import { clampCropData, DEFAULT_CROP_DATA } from '../utils/transforms/crop-transform';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
 import { useVideoContainerCleanup } from '@/remotion/hooks/media/useVTDecoderCleanup';
-import { SafeVideo } from '@/remotion/components/video-helpers';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 import { calculateWebcamAnimations } from '@/features/effects/utils/webcam-animations';
 
@@ -58,10 +57,6 @@ export const WebcamLayer = React.memo(({
   const frame = useCurrentFrame();
   const { fps, width: compositionWidth, height: compositionHeight } = useVideoConfig();
   const { playback } = usePlaybackSettings();
-  const { isRendering } = getRemotionEnvironment();
-  // Keep component type stable during preview to avoid VTDecoder churn/blink.
-  const useSafeVideo = isRendering;
-  const WebcamVideo = useSafeVideo ? SafeVideo : Video;
   const preload = 'auto';
   const effectiveVolume = Math.max(0, Math.min(1, playback.previewVolume ?? 1));
   const shouldMuteAudio = playback.previewMuted || effectiveVolume <= 0 || !webcamRecording?.hasAudio;
@@ -247,7 +242,7 @@ export const WebcamLayer = React.memo(({
         <div style={sourceStyle} ref={webcamContainerRef}>
           {/* Wrap Video in Sequence so it has its own frame context starting from 0 */}
           <Sequence from={effectStartFrame} durationInFrames={durationFrames} layout="none">
-            <WebcamVideo
+            <Video
               src={webcamVideoUrl}
               style={webcamStyle}
               startFrom={sourceInFrame}

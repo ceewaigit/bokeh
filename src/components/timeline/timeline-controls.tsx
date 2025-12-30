@@ -37,6 +37,7 @@ import {
   VolumeX,
   ZoomIn,
 } from 'lucide-react'
+import { useTimelineColors, withAlpha } from '@/features/timeline/utils/colors'
 
 // Track labels for dropdown display
 const TRACK_LABELS: Record<TimelineTrackType, string> = {
@@ -126,7 +127,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
     onDeleteSelected,
     onDuplicateSelected,
   } = useTimelineContext()
-  const { duration: maxDuration, zoom } = useTimelineLayout()
+  const { zoom, duration } = useTimelineLayout()
   const currentProject = useProjectStore((s) => s.currentProject)
 
   // Use the unified playback hook (disabled because we don't want duplicate keyboard listeners here)
@@ -179,62 +180,66 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   const effectiveMinZoom = Math.max(0.01, minZoom)
   const effectiveMaxZoom = Math.min(10, maxZoom)
 
+  const colors = useTimelineColors()
+
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="timeline-controls flex items-center justify-between px-3 py-1.5 border-b border-border/40">
-        <div className="flex items-center gap-1">
+      <div
+        className="timeline-controls grid grid-cols-3 items-center px-3 py-1.5"
+        style={{ backgroundColor: withAlpha(colors.background, 0.08) }}
+      >
+
+        {/* LEFT: Tracks, Volume, Edit Actions */}
+        <div className="flex items-center gap-1 justify-start">
           {/* Track Visibility Dropdown */}
           <TrackVisibilityDropdown />
 
           <div className="w-px h-4 bg-border/40 mx-1" />
-          {/* Playback Controls */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={jumpBackward1s}
-                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
-              >
-                <SkipBack className="w-3.5 h-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={4}>
-              <span>Jump back 1s</span>
-            </TooltipContent>
-          </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={playPause}
-                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
-              >
-                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={4}>
-              <span>{isPlaying ? 'Pause' : 'Play'} (Space)</span>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={jumpForward1s}
-                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
-              >
-                <SkipForward className="w-3.5 h-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={4}>
-              <span>Jump forward 1s</span>
-            </TooltipContent>
-          </Tooltip>
+          {/* Volume Control */}
+          <div
+            className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1"
+            onMouseEnter={() => setHoveredControl('volume')}
+            onMouseLeave={() => setHoveredControl(null)}
+            onFocusCapture={() => handleControlFocus('volume')}
+            onBlurCapture={handleControlBlur}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLastChangedControl('volume')
+                    setAudioSettings({ muted: !muted })
+                  }}
+                  className="flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label={muted ? 'Unmute' : 'Mute'}
+                >
+                  {muted ? (
+                    <VolumeX className="w-3.5 h-3.5" />
+                  ) : (
+                    <Volume2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4}>
+                <span>{muted ? 'Unmute' : 'Mute'} master audio</span>
+              </TooltipContent>
+            </Tooltip>
+            <div style={getSliderWrapperStyle('volume')} aria-hidden={expandedControl !== 'volume'}>
+              <Slider
+                value={[volume]}
+                onValueChange={([value]) => {
+                  setLastChangedControl('volume')
+                  setAudioSettings({ volume: value })
+                }}
+                min={0}
+                max={200}
+                step={1}
+                className="w-20"
+              />
+            </div>
+          </div>
 
           <div className="w-px h-4 bg-border/40 mx-1.5" />
 
@@ -327,56 +332,77 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
         </div>
 
-        {/* Timecode Display */}
-        <div className="timeline-controls-timecode absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-2.5 py-0.5 rounded-lg font-mono text-[11px] tabular-nums text-muted-foreground">
-          {formatTimecode(displayTime, fps)}
-        </div>
-
-        {/* Preview Size + Zoom Controls */}
-        <div className="flex items-center gap-2">
-          <div
-            className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1"
-            onMouseEnter={() => setHoveredControl('volume')}
-            onMouseLeave={() => setHoveredControl(null)}
-            onFocusCapture={() => handleControlFocus('volume')}
-            onBlurCapture={handleControlBlur}
-          >
+        {/* CENTER: Playback Controls & Timecode */}
+        <div className="flex items-center justify-center gap-4">
+          {/* Playback Controls */}
+          <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLastChangedControl('volume')
-                    setAudioSettings({ muted: !muted })
-                  }}
-                  className="flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={muted ? 'Unmute' : 'Mute'}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={jumpBackward1s}
+                  className="h-8 w-8 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                 >
-                  {muted ? (
-                    <VolumeX className="w-3.5 h-3.5" />
-                  ) : (
-                    <Volume2 className="w-3.5 h-3.5" />
-                  )}
-                </button>
+                  <SkipBack className="w-4 h-4 fill-current opacity-80" />
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={4}>
-                <span>{muted ? 'Unmute' : 'Mute'} master audio</span>
+                <span>Jump back 1s</span>
               </TooltipContent>
             </Tooltip>
-            <div style={getSliderWrapperStyle('volume')} aria-hidden={expandedControl !== 'volume'}>
-              <Slider
-                value={[volume]}
-                onValueChange={([value]) => {
-                  setLastChangedControl('volume')
-                  setAudioSettings({ volume: value })
-                }}
-                min={0}
-                max={200}
-                step={1}
-                className="w-20"
-              />
-            </div>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={playPause}
+                  className="h-8 w-8 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                >
+                  {isPlaying ? (
+                    <Pause className="w-4 h-4 fill-current" />
+                  ) : (
+                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4}>
+                <span>{isPlaying ? 'Pause' : 'Play'} (Space)</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={jumpForward1s}
+                  className="h-8 w-8 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                >
+                  <SkipForward className="w-4 h-4 fill-current opacity-80" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4}>
+                <span>Jump forward 1s</span>
+              </TooltipContent>
+            </Tooltip>
           </div>
+
+          {/* Timecode Display */}
+          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-muted/30 border border-border/10">
+            <span className="font-mono text-xs font-medium tabular-nums text-foreground">
+              {formatTimecode(displayTime, fps)}
+            </span>
+            <span className="text-muted-foreground/40 text-[10px] mx-0.5">/</span>
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {formatTimecode(duration, fps)}
+            </span>
+          </div>
+        </div>
+
+        {/* RIGHT: Preview Size + Zoom Controls */}
+        <div className="flex items-center gap-2 justify-end">
           <div
             className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1"
             onMouseEnter={() => setHoveredControl('preview')}
