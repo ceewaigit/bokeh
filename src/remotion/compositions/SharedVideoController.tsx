@@ -57,6 +57,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const { recordingsMap, effects, getActiveClipData, frameLayout } = useTimelineContext();
 
   const { preferOffthreadVideo } = renderSettings;
+  // Note: Motion blur works via DOM fallback + requestVideoFrameCallback for both preview and export.
+  // OffthreadVideo caused blob URL failures in the compositor, so we use regular <Video>.
   const useOffthreadVideo = isRendering && preferOffthreadVideo;
 
   const isScrubbing = useProjectStore((s) => s.isScrubbing);

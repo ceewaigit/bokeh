@@ -1,17 +1,18 @@
 /**
  * MotionBlurWrapper.tsx
  *
- * Wrapper component that adds motion blur to a video element using IoC pattern.
- * The video is NEVER hidden - motion blur canvas overlays on top.
+ * Wrapper component that adds motion blur to a video element.
+ * Uses Remotion's onVideoFrame pattern for export, DOM fallback for preview.
  *
  * Key principles:
- * - Video always renders at full opacity (graceful degradation)
- * - Motion blur canvas overlays when velocity threshold is exceeded
- * - Data flows down from context, no DOM discovery
+ * - Video always renders (graceful degradation)
+ * - Motion blur canvas overlays when active
+ * - Export: uses onVideoFrame callback
+ * - Preview: falls back to DOM discovery + requestVideoFrameCallback
  */
 
 import React, { useRef } from 'react';
-import { MotionBlurCanvas } from '../layers/MotionBlurCanvas';
+import { MotionBlurCanvas } from './MotionBlurCanvas';
 
 export interface MotionBlurWrapperProps {
     /** Whether motion blur is enabled for this clip */
@@ -23,17 +24,15 @@ export interface MotionBlurWrapperProps {
     /** Draw dimensions */
     drawWidth: number;
     drawHeight: number;
+    /** Video frame from onVideoFrame callback (export mode) */
+    videoFrame?: CanvasImageSource | null;
     /** Children (the video element) */
     children: React.ReactNode;
 }
 
 /**
  * Wraps a video element and adds motion blur overlay when active.
- *
- * CRITICAL DESIGN:
- * - Video is NEVER hidden (no opacity manipulation)
- * - Motion blur canvas renders ON TOP of video when active
- * - If blur fails, video is always visible as fallback
+ * Video is never hidden - blur overlays on top.
  */
 export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     enabled,
@@ -41,33 +40,23 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     intensity = 1.0,
     drawWidth,
     drawHeight,
+    videoFrame,
     children,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // We pass enabled state down, but we NO LONGER unmount based on speed.
-    // The Canvas handles its own idle state (opacity 0) to prevent blinking.
-    // Mounting/unmounting causes React state reset and texture loss.
-    const isActive = enabled;
-
     return (
-        <div
-            ref={containerRef}
-            style={{
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-            }}
-        >
-            {/* Video always renders - never hidden */}
+        <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {/* Video always renders */}
             {children}
 
             {/* Motion blur canvas overlays when active */}
-            {isActive && (
+            {enabled && (
                 <MotionBlurCanvas
                     enabled={true}
                     velocity={velocity}
                     intensity={intensity}
+                    videoFrame={videoFrame}
                     containerRef={containerRef}
                     drawWidth={drawWidth}
                     drawHeight={drawHeight}
@@ -80,3 +69,4 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
 };
 
 MotionBlurWrapper.displayName = 'MotionBlurWrapper';
+

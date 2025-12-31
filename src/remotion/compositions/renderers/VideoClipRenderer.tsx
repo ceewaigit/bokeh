@@ -104,6 +104,9 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // Track video element reference for MotionBlurLayer
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
+  // Video frame for motion blur effect (populated by onVideoFrame callback)
+  const [videoFrame, setVideoFrame] = useState<CanvasImageSource | null>(null);
+
   // Find and expose video element when container mounts/updates
   useEffect(() => {
     if (!onVideoRef || !containerRef.current) return;
@@ -219,17 +222,22 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           left: 0,
           opacity: effectiveOpacity,
         }}>
+          {/* Motion blur dimensions must match video render dimensions:
+              - Export: video renders at native res, scaled via CSS -> use native dims
+              - Preview: video renders at display size -> use drawWidth/Height */}
           <MotionBlurWrapper
             enabled={motionBlur?.enabled ?? false}
             velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
             intensity={motionBlur?.intensity ?? 1.0}
-            drawWidth={motionBlur?.drawWidth ?? drawWidth}
-            drawHeight={motionBlur?.drawHeight ?? drawHeight}
+            drawWidth={useHighResSizing ? (recording?.width ?? drawWidth) : (motionBlur?.drawWidth ?? drawWidth)}
+            drawHeight={useHighResSizing ? (recording?.height ?? drawHeight) : (motionBlur?.drawHeight ?? drawHeight)}
+            videoFrame={videoFrame}
           >
             <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
               <VideoComponent
                 key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
                 src={effectiveUrl || ''}
+                crossOrigin="anonymous"
                 style={{
                   width: '100%', height: '100%',
                   objectFit: 'cover',
@@ -249,6 +257,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                 onLoadedMetadata={handleMetadataLoaded}
                 onCanPlay={handleLoaded}
                 onSeeked={isRendering ? handleVideoReady : undefined}
+                onVideoFrame={(frame: CanvasImageSource) => {
+                  // Debug: Log when onVideoFrame fires during export
+                  if (isRendering && currentFrame % 30 === 0) {
+                    console.log(`[MotionBlur] onVideoFrame fired at frame ${currentFrame}, frame type: ${frame?.constructor?.name}`);
+                  }
+                  setVideoFrame(frame);
+                }}
                 onError={(e: any) => {
                   // Self-healing: fallback to original source instead of crashing
                   if (!urlFailed) {

@@ -112,11 +112,17 @@ export class ExportEngine {
       // Export using Remotion - all chunking/optimization handled in export-handler.ts
       // Pass project folder as additional parameter
       // Note: metadata is loaded lazily via useRecordingMetadata hook, pass empty map
+      // Include camera settings (for motion blur, etc.) in export settings
+      const settingsWithCamera = {
+        ...settings,
+        cameraSettings: project.settings?.camera
+      };
+
       this.currentExportPromise = this.remotionEngine.export(
         processedTimeline.segments,
         recordingsMap,
         new Map(), // Empty - metadata loaded lazily via HTTP during export
-        settings,
+        settingsWithCamera,
         progressAdapter,
         this.abortController?.signal,
         projectFolder,
