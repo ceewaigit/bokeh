@@ -49,6 +49,35 @@ export function useCommandKeyboard({ enabled = true, onSave }: UseCommandKeyboar
   }, [getExecutor])
 
   const handleCut = useCallback(async () => {
+    // Check if an effect is selected first (like handleDelete does)
+    const effectLayer = useProjectStore.getState().selectedEffectLayer
+    if (effectLayer?.id) {
+      // Copy the effect first
+      const copyResult = await getExecutor().execute(CopyCommand)
+      if (!copyResult.success) {
+        toast.error(getErrorMessage(copyResult.error))
+        return
+      }
+
+      // Then delete it
+      const isZoom = effectLayer.type === EffectLayerType.Zoom
+      const deleteResult = isZoom
+        ? await getExecutor().execute(RemoveZoomBlockCommand, effectLayer.id)
+        : await getExecutor().execute(RemoveEffectCommand, effectLayer.id)
+
+      if (deleteResult.success) {
+        useProjectStore.getState().clearEffectSelection()
+        const name = isZoom ? 'Zoom block' :
+          effectLayer.type === EffectLayerType.Screen ? 'Screen block' :
+            effectLayer.type === EffectLayerType.Keystroke ? 'Keystroke block' : 'Effect block'
+        toast(`${name} cut`)
+      } else {
+        toast.error(getErrorMessage(deleteResult.error))
+      }
+      return
+    }
+
+    // Fall back to cutting clips
     const result = await getExecutor().execute(CutCommand)
     if (result.success) {
       toast('Clip cut')

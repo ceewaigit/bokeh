@@ -12,26 +12,7 @@ import { TimeConverter, sourceToTimeline } from '@/features/timeline/time/time-s
 import type { Clip } from '@/types/project'
 import { useTimelineContext } from './TimelineContext'
 import { KonvaEventObject } from 'konva/lib/Node'
-
-// Color schemes by type and intensity
-const COLORS = {
-  [SpeedUpType.Typing]: {
-    high: '#f59e0b',   // Orange - high speed-up (>= 2.5x)
-    medium: '#eab308', // Yellow - medium (>= 2.0x)
-    low: '#84cc16'     // Green - low
-  },
-  [SpeedUpType.Idle]: {
-    high: '#6366f1',   // Indigo - long idle (>= 2.5x)
-    medium: '#8b5cf6', // Purple - medium (>= 2.0x)
-    low: '#a1a1aa'     // Grey - short idle
-  }
-}
-
-// Hover glow colors
-const GLOW_COLORS = {
-  [SpeedUpType.Typing]: '#fbbf24',
-  [SpeedUpType.Idle]: '#818cf8'
-}
+import { useTimelineColors, withAlpha } from '@/features/timeline/utils/colors'
 
 export interface SpeedUpSuggestionsBarProps {
   typingPeriods: SpeedUpPeriod[]
@@ -77,6 +58,13 @@ const SuggestionBar: React.FC<{
 }) => {
     const [isHovered, setIsHovered] = useState(false)
     const [isPressed, setIsPressed] = useState(false)
+    const colors = useTimelineColors()
+
+    // Removed scaling to prevent layout issues
+    const offsetY = isHovered && !isPressed ? -1 : 0
+    const opacity = isPressed ? 0.85 : isHovered ? 1 : 0.92
+    const shadowBlur = isPressed ? 4 : isHovered ? 12 : 6
+    const shadowOpacity = isPressed ? 0.15 : isHovered ? 0.4 : 0.25
 
     const handleMouseEnter = useCallback((e: KonvaEventObject<MouseEvent>) => {
       setIsHovered(true)
@@ -117,19 +105,10 @@ const SuggestionBar: React.FC<{
       })
     }, [onOpenSuggestion, period, typingPeriods, idlePeriods])
 
-    // Calculate visual properties based on state
-    const scale = isPressed ? 0.97 : isHovered ? 1.02 : 1
-    const offsetY = isHovered && !isPressed ? -2 : 0
-    const opacity = isPressed ? 0.85 : isHovered ? 1 : 0.92
-    const shadowBlur = isPressed ? 4 : isHovered ? 12 : 6
-    const shadowOpacity = isPressed ? 0.15 : isHovered ? 0.4 : 0.25
-
     return (
       <Group
         x={x}
         y={y + offsetY}
-        scaleX={scale}
-        scaleY={scale}
         listening={true}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -158,7 +137,7 @@ const SuggestionBar: React.FC<{
           fill={color}
           cornerRadius={6}
           opacity={opacity}
-          stroke={isHovered ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.25)'}
+          stroke={isHovered ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary) : withAlpha(color, 0.25)}
           strokeWidth={isHovered ? 1.5 : 1}
           shadowColor={isHovered ? glowColor : 'black'}
           shadowBlur={shadowBlur}
@@ -219,6 +198,8 @@ export const SpeedUpSuggestionsBar: React.FC<SpeedUpSuggestionsBarProps> = ({
   pixelsPerMs
 }) => {
   const { onOpenSpeedUpSuggestion } = useTimelineContext()
+  const colors = useTimelineColors()
+  
   const handleOpenSuggestion = useCallback((opts: {
     x: number
     y: number
@@ -256,15 +237,10 @@ export const SpeedUpSuggestionsBar: React.FC<SpeedUpSuggestionsBarProps> = ({
 
     if (clampedWidth < 40) return null
 
-    // Get color based on type and multiplier
-    const colors = COLORS[period.type]
-    const color = period.suggestedSpeedMultiplier >= 2.5
-      ? colors.high
-      : period.suggestedSpeedMultiplier >= 2.0
-        ? colors.medium
-        : colors.low
-
-    const glowColor = GLOW_COLORS[period.type]
+    // Get color based on type
+    const periodColors = period.type === SpeedUpType.Typing ? colors.speedUpTyping : colors.speedUpIdle
+    const color = periodColors.base
+    const glowColor = periodColors.glow
 
     // Label based on type
     const isTyping = period.type === SpeedUpType.Typing

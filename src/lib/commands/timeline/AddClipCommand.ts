@@ -1,37 +1,43 @@
-import { Command, CommandResult } from '../base/Command'
+/**
+ * AddClipCommand - Add a clip to the timeline.
+ * 
+ * Uses PatchedCommand for automatic undo/redo via Immer patches.
+ */
+
+import { PatchedCommand } from '../base/PatchedCommand'
+import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 
-export class AddClipCommand extends Command<{ clipId: string }> {
-  private clip?: Clip
-  private previousSelection?: string[]
-  private actualStartTime?: number
+export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
+  private clipOrRecordingId: Clip | string
+  private startTime?: number
+  private createdClipId?: string
 
   constructor(
-    private context: CommandContext,
-    private clipOrRecordingId: Clip | string,
-    private startTime?: number
+    context: CommandContext,
+    clipOrRecordingId: Clip | string,
+    startTime?: number
   ) {
-    super({
+    super(context, {
       name: 'AddClip',
-      description: typeof clipOrRecordingId === 'string' 
+      description: typeof clipOrRecordingId === 'string'
         ? `Add clip from recording ${clipOrRecordingId}`
         : `Add clip ${clipOrRecordingId.id}`,
       category: 'timeline'
     })
+    this.clipOrRecordingId = clipOrRecordingId
+    this.startTime = startTime
   }
 
   canExecute(): boolean {
     const project = this.context.getProject()
     if (!project) return false
 
-    // If it's a recording ID, check if recording exists
     if (typeof this.clipOrRecordingId === 'string') {
-      const recording = this.context.findRecording(this.clipOrRecordingId)
-      return recording !== null
+      return this.context.findRecording(this.clipOrRecordingId) !== null
     }
-
     return true
   }
 
@@ -39,28 +45,20 @@ export class AddClipCommand extends Command<{ clipId: string }> {
     const store = this.context.getStore()
     const project = this.context.getProject()
     if (!project) {
-      return {
-        success: false,
-        error: 'No active project'
-      }
+      return { success: false, error: 'No active project' }
     }
 
-    // Store previous selection
-    this.previousSelection = [...this.context.getSelectedClips()]
+    let clip: Clip
 
-    // Create or use provided clip
     if (typeof this.clipOrRecordingId === 'object') {
-      this.clip = this.clipOrRecordingId
+      clip = this.clipOrRecordingId
     } else {
       const recording = this.context.findRecording(this.clipOrRecordingId)
       if (!recording) {
-        return {
-          success: false,
-          error: `Recording ${this.clipOrRecordingId} not found`
-        }
+        return { success: false, error: `Recording ${this.clipOrRecordingId} not found` }
       }
 
-      this.clip = {
+      clip = {
         id: `clip-${Date.now()}`,
         recordingId: this.clipOrRecordingId,
         startTime: this.startTime ?? project.timeline.duration,
@@ -72,77 +70,12 @@ export class AddClipCommand extends Command<{ clipId: string }> {
 
     const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
     if (!videoTrack) {
-      return {
-        success: false,
-        error: 'No video track found'
-      }
+      return { success: false, error: 'No video track found' }
     }
 
-    if (!this.clip) {
-      return {
-        success: false,
-        error: 'Failed to create clip'
-      }
-    }
+    store.addClip(clip, clip.startTime)
+    this.createdClipId = clip.id
 
-    // Don't auto-adjust positions - let the store handle overlap detection
-    this.actualStartTime = this.clip.startTime
-
-    // Add clip using store method
-    store.addClip(this.clip, this.clip.startTime)
-
-    return {
-      success: true,
-      data: { clipId: this.clip.id }
-    }
-  }
-
-  doUndo(): CommandResult<{ clipId: string }> {
-    if (!this.clip) {
-      return {
-        success: false,
-        error: 'No clip to undo'
-      }
-    }
-
-    const store = this.context.getStore()
-    
-    // Remove the clip
-    store.removeClip(this.clip.id)
-
-    // Restore previous selection
-    if (this.previousSelection) {
-      this.previousSelection.forEach(clipId => {
-        store.selectClip(clipId, true)
-      })
-    }
-
-    return {
-      success: true,
-      data: { clipId: this.clip.id }
-    }
-  }
-
-  doRedo(): CommandResult<{ clipId: string }> {
-    if (!this.clip) {
-      return {
-        success: false,
-        error: 'No clip to redo'
-      }
-    }
-
-    const store = this.context.getStore()
-    
-    // Re-add the clip with the previously calculated position
-    if (this.actualStartTime !== undefined) {
-      this.clip.startTime = this.actualStartTime
-    }
-    
-    store.addClip(this.clip, this.clip.startTime)
-
-    return {
-      success: true,
-      data: { clipId: this.clip.id }
-    }
+    return { success: true, data: { clipId: clip.id } }
   }
 }

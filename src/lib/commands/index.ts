@@ -1,6 +1,7 @@
 // Base infrastructure
 export { Command, CompositeCommand } from './base/Command'
 export type { CommandResult, CommandMetadata } from './base/Command'
+export { PatchedCommand, PatchStore } from './base/PatchedCommand'
 export { DefaultCommandContext } from './base/CommandContext'
 export type { CommandContext } from './base/CommandContext'
 export { CommandManager } from './base/CommandManager'

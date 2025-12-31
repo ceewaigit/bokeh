@@ -54,9 +54,13 @@ function createProjectWithAudioClip(): Project {
   }
 }
 
-function createStoreAccessor(project: Project): { getState: () => ProjectStore } {
+function createStoreAccessor(project: Project): { getState: () => ProjectStore; project: Project } {
+  // Use a wrapper object so setProject can update the reference
+  const projectRef = { current: project }
+
   const state = {
-    currentProject: project,
+    get currentProject() { return projectRef.current },
+    set currentProject(p: Project) { projectRef.current = p },
     currentTime: 0,
     selectedClips: ['clip-a1'],
     selectedEffectLayer: null,
@@ -72,21 +76,21 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore }
     zoomManuallyAdjusted: false,
 
     addClip: (clipOrRecordingId: Clip | string, startTime?: number) => {
-      if (!state.currentProject) return
-      addClipToTrack(state.currentProject, clipOrRecordingId as any, startTime)
+      if (!projectRef.current) return
+      addClipToTrack(projectRef.current, clipOrRecordingId as any, startTime)
     },
     removeClip: (clipId: string) => {
-      if (!state.currentProject) return
-      removeClipFromTrack(state.currentProject, clipId)
+      if (!projectRef.current) return
+      removeClipFromTrack(projectRef.current, clipId)
       state.selectedClips = state.selectedClips.filter(id => id !== clipId)
     },
     updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean; maintainContiguous?: boolean }) => {
-      if (!state.currentProject) return
-      updateClipInTrack(state.currentProject, clipId, updates, options)
+      if (!projectRef.current) return
+      updateClipInTrack(projectRef.current, clipId, updates, options)
     },
     restoreClip: (trackId: string, clip: Clip, index: number) => {
-      if (!state.currentProject) return
-      restoreClipToTrack(state.currentProject, trackId, clip, index)
+      if (!projectRef.current) return
+      restoreClipToTrack(projectRef.current, trackId, clip, index)
     },
     selectClip: (clipId: string | null, multi?: boolean) => {
       if (!clipId) {
@@ -104,17 +108,17 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore }
       }
     },
     splitClip: (clipId: string, splitTime: number) => {
-      if (!state.currentProject) return
-      executeSplitClip(state.currentProject, clipId, splitTime)
+      if (!projectRef.current) return
+      executeSplitClip(projectRef.current, clipId, splitTime)
     },
     trimClipStart: () => { },
     trimClipEnd: (clipId: string, newEndTime: number) => {
-      if (!state.currentProject) return
-      executeTrimClipEnd(state.currentProject, clipId, newEndTime)
+      if (!projectRef.current) return
+      executeTrimClipEnd(projectRef.current, clipId, newEndTime)
     },
     duplicateClip: (clipId: string) => {
-      if (!state.currentProject) return null
-      const newClip = duplicateClipInTrack(state.currentProject, clipId)
+      if (!projectRef.current) return null
+      const newClip = duplicateClipInTrack(projectRef.current, clipId)
       if (!newClip) return null
       state.selectedClips = [newClip.id]
       return newClip.id
@@ -132,10 +136,18 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore }
     cacheTypingPeriods: () => { },
     cacheIdlePeriods: () => { },
     restoreClipsFromUndo: () => { },
-    settings: { ...DEFAULT_STORE_SETTINGS }
+    settings: { ...DEFAULT_STORE_SETTINGS },
+    // PatchedCommand support: replace entire project state for undo/redo
+    setProject: (newProject: Project) => {
+      projectRef.current = newProject
+    }
   } as unknown as ProjectStore
 
-  return { getState: () => state }
+  return {
+    getState: () => state,
+    // Expose project ref for tests to read updated state
+    get project() { return projectRef.current }
+  }
 }
 
 describe('Undo/redo regression: duplicate + trim + undo', () => {
@@ -171,7 +183,7 @@ describe('Undo/redo regression: duplicate + trim + undo', () => {
     const newClipId = (duplicateResult.data as any)?.newClipId as string
     expect(newClipId).toBeTruthy()
 
-    const newClipResult = findClipById(project, newClipId)
+    const newClipResult = findClipById(storeAccessor.project, newClipId)
     expect(newClipResult).not.toBeNull()
 
     const newClip = newClipResult!.clip
@@ -186,8 +198,8 @@ describe('Undo/redo regression: duplicate + trim + undo', () => {
     const undoDuplicate = await manager.undo()
     expect(undoDuplicate.success).toBe(true)
 
-    const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)!
-    const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)!
+    const audioTrack = storeAccessor.project.timeline.tracks.find(t => t.type === TrackType.Audio)!
+    const videoTrack = storeAccessor.project.timeline.tracks.find(t => t.type === TrackType.Video)!
     expect(audioTrack.clips.map(c => c.id)).toEqual(['clip-a1'])
     expect(videoTrack.clips.length).toBe(0)
   })
@@ -237,19 +249,19 @@ describe('Undo/redo regression: duplicate + delete + speed-up + undo', () => {
     // Undo speed-up should NOT resurrect the deleted duplicate.
     const undoSpeed = await manager.undo()
     expect(undoSpeed.success).toBe(true)
-    expect(project.timeline.tracks.find(t => t.type === TrackType.Audio)!.clips.length).toBe(1)
-    expect(findClipById(project, duplicateId)).toBeNull()
+    expect(storeAccessor.project.timeline.tracks.find(t => t.type === TrackType.Audio)!.clips.length).toBe(1)
+    expect(findClipById(storeAccessor.project, duplicateId)).toBeNull()
 
     // Undo delete should restore the duplicate exactly once.
     const undoDelete = await manager.undo()
     expect(undoDelete.success).toBe(true)
-    expect(project.timeline.tracks.find(t => t.type === TrackType.Audio)!.clips.length).toBe(2)
-    expect(findClipById(project, duplicateId)).not.toBeNull()
+    expect(storeAccessor.project.timeline.tracks.find(t => t.type === TrackType.Audio)!.clips.length).toBe(2)
+    expect(findClipById(storeAccessor.project, duplicateId)).not.toBeNull()
 
     // Undo duplicate should remove it again (back to one clip).
     const undoDuplicate = await manager.undo()
     expect(undoDuplicate.success).toBe(true)
-    expect(project.timeline.tracks.find(t => t.type === TrackType.Audio)!.clips.map(c => c.id)).toEqual(['clip-a1'])
+    expect(storeAccessor.project.timeline.tracks.find(t => t.type === TrackType.Audio)!.clips.map(c => c.id)).toEqual(['clip-a1'])
   })
 })
 
@@ -284,12 +296,12 @@ describe('Undo/redo regression: split + undo', () => {
     const splitResult = await manager.execute(split)
     expect(splitResult.success).toBe(true)
 
-    const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)!
+    const audioTrack = storeAccessor.project.timeline.tracks.find(t => t.type === TrackType.Audio)!
     expect(audioTrack.clips.length).toBe(2)
 
     const undoSplit = await manager.undo()
     expect(undoSplit.success).toBe(true)
 
-    expect(audioTrack.clips.map(c => c.id)).toEqual(['clip-a1'])
+    expect(storeAccessor.project.timeline.tracks.find(t => t.type === TrackType.Audio)!.clips.map(c => c.id)).toEqual(['clip-a1'])
   })
 })

@@ -1,6 +1,13 @@
-import React from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
+import { motion } from 'framer-motion'
+
+import { cn } from '@/shared/utils/utils'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+
+const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const
+
+const MotionButton = motion.create(Button)
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
@@ -80,13 +87,16 @@ function TrackVisibilityDropdown() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button
+            <MotionButton
               size="sm"
               variant="ghost"
-              className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+              className="h-7 w-7 p-0"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              transition={springConfig}
             >
               <Eye className="w-3.5 h-3.5" />
-            </Button>
+            </MotionButton>
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={4}>
@@ -247,14 +257,17 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
+                  <MotionButton
                     size="sm"
                     variant="ghost"
                     onClick={onSplitSelected}
-                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                    className="h-7 w-7 p-0"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={springConfig}
                   >
                     <Scissors className="w-3.5 h-3.5" />
-                  </Button>
+                  </MotionButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={4}>
                   <span>Split at playhead (S)</span>
@@ -263,14 +276,17 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
+                  <MotionButton
                     size="sm"
                     variant="ghost"
                     onClick={onTrimStartSelected}
-                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                    className="h-7 w-7 p-0"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={springConfig}
                   >
                     <ChevronsLeft className="w-3.5 h-3.5" />
-                  </Button>
+                  </MotionButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={4}>
                   <span>Trim start to playhead (Q)</span>
@@ -279,14 +295,17 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
+                  <MotionButton
                     size="sm"
                     variant="ghost"
                     onClick={onTrimEndSelected}
-                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                    className="h-7 w-7 p-0"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={springConfig}
                   >
                     <ChevronsRight className="w-3.5 h-3.5" />
-                  </Button>
+                  </MotionButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={4}>
                   <span>Trim end to playhead (W)</span>
@@ -295,14 +314,17 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
+                  <MotionButton
                     size="sm"
                     variant="ghost"
                     onClick={onDuplicateSelected}
-                    className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                    className="h-7 w-7 p-0"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={springConfig}
                   >
                     <Layers className="w-3.5 h-3.5" />
-                  </Button>
+                  </MotionButton>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={4}>
                   <span>Duplicate (⌘D)</span>
@@ -314,15 +336,18 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
           {/* Always visible but disabled when no selection */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
+              <MotionButton
                 size="sm"
                 variant="ghost"
                 onClick={onDeleteSelected}
                 disabled={!hasSelection}
-                className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97] disabled:hover:scale-100 disabled:opacity-50"
+                className="h-7 w-7 p-0 disabled:opacity-50"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                transition={springConfig}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-              </Button>
+              </MotionButton>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={4}>
               <span>Delete selected (Del)</span>
@@ -337,14 +362,17 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
           <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
+                <MotionButton
                   size="sm"
                   variant="ghost"
                   onClick={jumpBackward1s}
-                  className="h-8 w-8 p-0 rounded-full transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                  className="h-8 w-8 p-0 rounded-full"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
                 >
                   <SkipBack className="w-4 h-4 fill-current opacity-80" />
-                </Button>
+                </MotionButton>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={4}>
                 <span>Jump back 1s</span>
@@ -353,18 +381,21 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
+                <MotionButton
                   size="sm"
                   variant="ghost"
                   onClick={playPause}
-                  className="h-8 w-8 p-0 rounded-full transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                  className="h-8 w-8 p-0 rounded-full"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
                 >
                   {isPlaying ? (
                     <Pause className="w-4 h-4 fill-current" />
                   ) : (
                     <Play className="w-4 h-4 fill-current ml-0.5" />
                   )}
-                </Button>
+                </MotionButton>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={4}>
                 <span>{isPlaying ? 'Pause' : 'Play'} (Space)</span>
@@ -373,14 +404,17 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
+                <MotionButton
                   size="sm"
                   variant="ghost"
                   onClick={jumpForward1s}
-                  className="h-8 w-8 p-0 rounded-full transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                  className="h-8 w-8 p-0 rounded-full"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
                 >
                   <SkipForward className="w-4 h-4 fill-current opacity-80" />
-                </Button>
+                </MotionButton>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={4}>
                 <span>Jump forward 1s</span>
@@ -433,16 +467,19 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
           >
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
+                <MotionButton
                   size="sm"
                   variant="ghost"
                   onClick={() => {
                     setLastChangedControl('zoom')
                   }}
-                  className="h-7 w-7 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                  className="h-7 w-7 p-0"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
                 >
                   <ZoomIn className="w-3.5 h-3.5" />
-                </Button>
+                </MotionButton>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={4}>
                 <span>Zoom (Cmd+Scroll)</span>

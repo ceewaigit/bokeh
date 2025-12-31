@@ -96,10 +96,33 @@ export function AmbientGlowPlayer({
 
     const glowSize = useMemo(() => {
         if (!timelineMetadata) return { width: 96, height: 96 };
+        
+        const aspectRatio = timelineMetadata.width / timelineMetadata.height;
         const maxDim = Math.max(timelineMetadata.width, timelineMetadata.height);
+        
+        // Scale to fit within maxSize
         const scale = Math.min(1, GLOW_CONFIG.maxSize / maxDim);
-        const width = Math.max(GLOW_CONFIG.minSize, Math.round(timelineMetadata.width * scale));
-        const height = Math.max(GLOW_CONFIG.minSize, Math.round(timelineMetadata.height * scale));
+        
+        let width = Math.round(timelineMetadata.width * scale);
+        let height = Math.round(timelineMetadata.height * scale);
+        
+        // Ensure strictly minimum 4px to avoid rendering issues, but ignore GLOW_CONFIG.minSize
+        // to prevent aspect ratio distortion on extreme aspect ratios
+        width = Math.max(4, width);
+        height = Math.max(4, height);
+
+        // Correct aspect ratio if rounding/clamping skewed it
+        if (Math.abs(width / height - aspectRatio) > 0.01) {
+             const targetHeight = Math.round(width / aspectRatio);
+             // If adjusting height keeps it above min, do it
+             if (targetHeight >= 4) {
+                 height = targetHeight;
+             } else {
+                 // Otherwise adjust width to match height
+                 width = Math.round(height * aspectRatio);
+             }
+        }
+        
         return { width, height };
     }, [timelineMetadata]);
 

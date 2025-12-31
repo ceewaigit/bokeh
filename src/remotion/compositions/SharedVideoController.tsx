@@ -29,8 +29,7 @@ import { getMaxZoomScale } from '@/remotion/hooks/media/useVideoUrl';
 import { useRenderDelay } from '@/remotion/hooks/render/useRenderDelay';
 import { useRenderableItems } from '@/remotion/hooks/render/useRenderableItems';
 import { useEffectiveClipData } from '@/remotion/hooks/clip/useEffectiveClipData';
-import { useLayoutCalculation } from '@/remotion/hooks/layout/useLayoutCalculation';
-import { useTransformCalculation } from '../hooks/transforms/useTransformCalculation';
+import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
 import { frameToMs } from './utils/time/frame-time';
 
 import { VideoClipRenderer } from './renderers/VideoClipRenderer';
@@ -206,9 +205,15 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const { markRenderReady, handleVideoReady } = useRenderDelay(isRendering);
 
   // ==========================================================================
-  // LAYOUT CALCULATION
+  // LAYOUT + TRANSFORM CALCULATION (Single Pass)
   // ==========================================================================
-  const layout = useLayoutCalculation({
+
+  // Precomputed zoom from camera path cache
+  const zoomTransform = cameraPathFrame?.zoomTransform ?? null;
+  const zoomTransformStr = cameraPathFrame?.zoomTransformStr ?? '';
+
+  // Single hook for all layout and transform calculations
+  const snapshot = useFrameSnapshot({
     compositionWidth: width,
     compositionHeight: height,
     videoWidth,
@@ -219,35 +224,21 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     recordingHeight: resolvedClipData?.recording.height,
     clipEffects: resolvedClipData?.effects ?? effects,
     currentTimeMs,
-    isEditingCrop
-  });
-
-  // ==========================================================================
-  // TRANSFORM CALCULATION
-  // ==========================================================================
-  // ==========================================================================
-  // TRANSFORM CALCULATION (SSOT from Camera Cache)
-  // ==========================================================================
-
-  // Directly read precomputed transform from cache (O(1) lookup)
-  const zoomTransform = cameraPathFrame?.zoomTransform ?? null;
-  const zoomTransformStr = cameraPathFrame?.zoomTransformStr ?? '';
-
-  // Only calculate 3D/Crop transforms (lightweight)
-  const transforms = useTransformCalculation({
-    ...layout, // Spread layout properties
-    currentTimeMs,
-    sourceTimeMs: resolvedClipData?.sourceTimeMs ?? 0,
-    clipEffects: resolvedClipData?.effects ?? effects,
-    // Pass precomputed values
-    zoomTransform,
+    zoomTransform: zoomTransform as any,
     zoomTransformStr,
-    compositionWidth: width,
-    compositionHeight: height,
     isEditingCrop
   });
 
-  const { outerTransform, cropClipPath } = transforms;
+  // Destructure for backwards compatibility with existing code
+  const layout = {
+    ...snapshot.layout,
+    // Include mockup properties for backwards compatibility
+    mockupEnabled: snapshot.mockup.enabled,
+    mockupData: snapshot.mockup.data,
+    mockupPosition: snapshot.mockup.position,
+  };
+  const outerTransform = snapshot.transforms.combined;
+  const cropClipPath = snapshot.transforms.clipPath;
 
   // ==========================================================================
   // CAMERA MOTION BLUR (WebGL-based directional blur)

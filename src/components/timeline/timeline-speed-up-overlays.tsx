@@ -11,12 +11,6 @@ import { SpeedUpType } from '@/types/speed-up'
 import { sourceToTimeline } from '@/features/timeline/time/time-space-converter'
 import { withAlpha, useTimelineColors } from '@/features/timeline/utils/colors'
 
-// Color schemes
-const COLORS = {
-    [SpeedUpType.Typing]: { base: '#f59e0b', glow: '#fbbf24' },
-    [SpeedUpType.Idle]: { base: '#6366f1', glow: '#818cf8' }
-}
-
 interface BarData {
     key: string
     clipId: string
@@ -52,8 +46,8 @@ const SuggestionBarItem = React.memo(({
     const [isPressed, setIsPressed] = useState(false)
     const colors = useTimelineColors()
 
-    const scale = isPressed ? 0.97 : isHovered ? 1.02 : 1
-    const offsetY = isHovered && !isPressed ? -2 : 0
+    // Removed scaling to prevent "jumping out of ruler"
+    const offsetY = isHovered && !isPressed ? -1 : 0
     const opacity = isPressed ? 0.85 : isHovered ? 1 : 0.92
     const shadowBlur = isPressed ? 4 : isHovered ? 12 : 6
 
@@ -61,8 +55,6 @@ const SuggestionBarItem = React.memo(({
         <Group
             x={bar.x}
             y={y + offsetY}
-            scaleX={scale}
-            scaleY={scale}
             onMouseEnter={(e) => {
                 setIsHovered(true)
                 const stage = e.target.getStage()
@@ -170,6 +162,7 @@ export const TimelineSpeedUpOverlays = React.memo(() => {
     const { onOpenSpeedUpSuggestion } = useTimelineContext()
     const videoClips = useVideoClips()
     const recordings = useRecordings()
+    const colors = useTimelineColors()
 
     // Only render if video track is visible and suggestions are enabled
     if (!visibleTracks.has(TimelineTrackType.Video) || !showTypingSuggestions) {
@@ -212,7 +205,7 @@ export const TimelineSpeedUpOverlays = React.memo(() => {
 
             if (barWidth < 40 || !Number.isFinite(barX) || !Number.isFinite(barWidth)) continue
 
-            const colors = COLORS[period.type]
+            const periodColors = period.type === SpeedUpType.Typing ? colors.speedUpTyping : colors.speedUpIdle
 
             bars.push({
                 key: `${clip.id}-${period.type}-${i}`,
@@ -220,8 +213,8 @@ export const TimelineSpeedUpOverlays = React.memo(() => {
                 x: barX,
                 width: barWidth,
                 period,
-                color: colors.base,
-                glowColor: colors.glow,
+                color: periodColors.base,
+                glowColor: periodColors.glow,
                 label: `${period.suggestedSpeedMultiplier.toFixed(1)}x`,
                 allTypingPeriods: suggestions.typing,
                 allIdlePeriods: suggestions.idle
@@ -239,7 +232,7 @@ export const TimelineSpeedUpOverlays = React.memo(() => {
                 <SuggestionBarItem
                     key={bar.key}
                     bar={bar}
-                    y={speedUpBarY + 4}
+                    y={speedUpBarY + 6} // Added slightly more padding to avoid top cutoff
                     onOpen={onOpenSpeedUpSuggestion}
                 />
             ))}

@@ -2,8 +2,11 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
+import { motion } from 'framer-motion'
 import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2, Zap } from 'lucide-react'
 import { useTimelineContext } from './TimelineContext'
+
+const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const
 
 interface TimelineContextMenuProps {
   x: number
@@ -94,8 +97,11 @@ export const TimelineContextMenu = React.memo(({
   }, [onClose])
 
   const menuContent = (
-    <div
+    <motion.div
       ref={menuRef}
+      initial={{ opacity: 0, scale: 0.95, y: 5 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={springConfig}
       className="fixed bg-popover border border-border rounded-md shadow-lg p-1 z-[9999] min-w-popover"
       style={{
         left: `${position.left}px`,
@@ -108,7 +114,9 @@ export const TimelineContextMenu = React.memo(({
       <div className="px-2 py-1 text-3xs font-medium tracking-wide text-muted-foreground/70">
         Clip
       </div>
-      <button
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onSplitClip(clipId))}
@@ -116,8 +124,10 @@ export const TimelineContextMenu = React.memo(({
         <Scissors className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Split at Playhead</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘K</span>
-      </button>
-      <button
+      </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onTrimClipStart(clipId))}
@@ -125,8 +135,10 @@ export const TimelineContextMenu = React.memo(({
         <ChevronsLeft className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Trim Start to Playhead</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">[</span>
-      </button>
-      <button
+      </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onTrimClipEnd(clipId))}
@@ -134,9 +146,11 @@ export const TimelineContextMenu = React.memo(({
         <ChevronsRight className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Trim End to Playhead</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">]</span>
-      </button>
+      </motion.button>
       <div className="h-px bg-border my-1" />
-      <button
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onCutClip(clipId))}
@@ -144,8 +158,10 @@ export const TimelineContextMenu = React.memo(({
         <span className="w-4 h-4 justify-self-center" aria-hidden />
         <span className="truncate text-left">Cut</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘X</span>
-      </button>
-      <button
+      </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onCopyClip(clipId))}
@@ -153,8 +169,10 @@ export const TimelineContextMenu = React.memo(({
         <Copy className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Copy</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘C</span>
-      </button>
-      <button
+      </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onPasteClip())}
@@ -162,9 +180,11 @@ export const TimelineContextMenu = React.memo(({
         <span className="w-4 h-4 justify-self-center" aria-hidden />
         <span className="truncate text-left">Paste</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘V</span>
-      </button>
+      </motion.button>
       <div className="h-px bg-border my-1" />
-      <button
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onDuplicateClip(clipId))}
@@ -172,8 +192,10 @@ export const TimelineContextMenu = React.memo(({
         <Layers className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Duplicate</span>
         <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘D</span>
-      </button>
-      <button
+      </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onSpeedUpClip(clipId))}
@@ -181,9 +203,11 @@ export const TimelineContextMenu = React.memo(({
         <Zap className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Speed Up (2x)</span>
         <span />
-      </button>
+      </motion.button>
       <div className="h-px bg-border my-1" />
-      <button
+      <motion.button
+        whileHover={{ scale: 1.02, x: 2 }}
+        transition={{ duration: 0.1 }}
         className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onDeleteClip(clipId))}
@@ -191,8 +215,8 @@ export const TimelineContextMenu = React.memo(({
         <Trash2 className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Delete</span>
         <span className="font-mono text-2xs tabular-nums text-destructive/70 whitespace-nowrap">⌫</span>
-      </button>
-    </div>
+      </motion.button>
+    </motion.div>
   )
 
   // Use portal to render at document body level

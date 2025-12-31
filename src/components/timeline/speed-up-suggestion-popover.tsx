@@ -5,10 +5,14 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
+import { motion } from 'framer-motion'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { Button } from '@/components/ui/button'
 import { Check, CheckCheck, Trash2, Zap, Moon } from 'lucide-react'
+
+const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const
+const MotionButton = motion.create(Button)
 
 export interface SpeedUpSuggestionPopoverProps {
   x: number
@@ -105,10 +109,13 @@ export function SpeedUpSuggestionPopover({
   }, [period])
 
   const content = (
-    <div
+    <motion.div
       ref={ref}
       role="dialog"
       aria-label={`${title} suggestion`}
+      initial={{ opacity: 0, scale: 0.95, y: 5 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={springConfig}
       className="fixed z-[9999] w-popover rounded-lg border border-border bg-popover text-popover-foreground shadow-xl backdrop-blur-sm"
       style={{ left: pos.left, top: pos.top }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -134,7 +141,7 @@ export function SpeedUpSuggestionPopover({
       {/* Actions */}
       <div className="flex items-center gap-2 px-2.5 py-2">
         {onRemove && (
-          <Button
+          <MotionButton
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
@@ -143,15 +150,18 @@ export function SpeedUpSuggestionPopover({
               onClose()
             }}
             aria-label="Remove suggestion"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            transition={springConfig}
           >
             <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          </MotionButton>
         )}
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* Apply All (unified - both types) */}
           {onApplyAll && totalAll > 1 && (
-            <Button
+            <MotionButton
               variant="secondary"
               size="sm"
               className="h-7 px-2 text-xs"
@@ -159,14 +169,17 @@ export function SpeedUpSuggestionPopover({
                 await onApplyAll()
                 onClose()
               }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={springConfig}
             >
               <CheckCheck className="mr-1 h-3.5 w-3.5" />
               All ({totalAll})
-            </Button>
+            </MotionButton>
           )}
 
           {/* Apply this period */}
-          <Button
+          <MotionButton
             ref={firstActionRef}
             size="sm"
             className="h-7 px-2 text-xs"
@@ -174,13 +187,16 @@ export function SpeedUpSuggestionPopover({
               await onApply(period)
               onClose()
             }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            transition={springConfig}
           >
             <Check className="mr-1 h-3.5 w-3.5" />
             Apply
-          </Button>
+          </MotionButton>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 
   if (typeof document !== 'undefined') {

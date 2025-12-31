@@ -121,9 +121,9 @@ export const useRecordingsLibraryData = (pageSize: number) => {
       videoPath,
       recording.path,
       {
-        width: 240,
-        height: 135,
-        quality: 0.5,
+        width: 640,
+        height: 360,
+        quality: 0.8,
         timestamp: 0.1
       }
     )

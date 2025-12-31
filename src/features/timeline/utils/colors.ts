@@ -171,6 +171,10 @@ export const getTimelineColors = () => {
     webcamCircle: 'rgba(255, 255, 255, 0.15)',
     webcamTrack: isDark ? 'rgba(34, 211, 238, 0.12)' : 'rgba(34, 211, 238, 0.09)',
     clipSelected: getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
+
+    // Speed-up suggestions
+    speedUpTyping: { base: '#f59e0b', glow: '#fbbf24' },
+    speedUpIdle: { base: '#6366f1', glow: '#818cf8' },
   }
 }
 
@@ -213,6 +217,8 @@ const getDefaultColors = () => ({
   webcamCircle: 'rgba(255, 255, 255, 0.15)',
   webcamTrack: 'rgba(34, 211, 238, 0.12)',
   clipSelected: 'hsl(263, 70%, 50%)',
+  speedUpTyping: { base: '#f59e0b', glow: '#fbbf24' },
+  speedUpIdle: { base: '#6366f1', glow: '#818cf8' },
 })
 
 // Hook for React components that updates when theme changes
