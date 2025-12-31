@@ -18,7 +18,7 @@ export function InfoTooltip({ content, className }: InfoTooltipProps) {
         <span
           className={cn(
             'inline-flex items-center justify-center rounded-sm p-0.5 text-muted-foreground/70 transition-colors hover:text-foreground',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+            'focus-visible:outline-none',
             className
           )}
           aria-label="More info"

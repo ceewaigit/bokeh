@@ -41,7 +41,7 @@ export function SegmentedControl<T extends string | number>({
                         disabled={disabled}
                         onClick={() => onChange(option.value)}
                         className={cn(
-                            "relative px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary/20",
+                            "relative px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 outline-none",
                             "border border-border/40 hover:border-border/80 hover:bg-muted/30",
                             isSelected && "text-primary-foreground border-transparent hover:bg-primary",
                             disabled && "opacity-50 cursor-not-allowed",

@@ -82,7 +82,7 @@ export function GuidesSection() {
                                     onClick={() => updatePreviewSettings('guideColor', color.value)}
                                     className={cn(
                                         "w-4 h-4 rounded-full border border-white/10 transition-all",
-                                        guideColor === color.value ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-110" : "hover:scale-105"
+                                        guideColor === color.value ? "border-2 border-primary scale-110" : "hover:scale-105"
                                     )}
                                     style={{ backgroundColor: color.value }}
                                     title={color.label}

@@ -178,7 +178,7 @@ export function PreviewAreaRemotion({
                 height: `${previewFrameBounds.height}px`,
               }}
             >
-              <div className="rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.14)] h-full w-full">
+              <div className="rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.14)] h-full w-full overflow-hidden">
 
                 <PreviewInteractions
                   project={project}

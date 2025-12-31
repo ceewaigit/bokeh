@@ -161,7 +161,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             </div>
             <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
               <div className="space-y-2">
-                <div className="relative h-20 rounded-lg border border-border/50 bg-muted/30 ring-1 ring-border/20 shadow-inner overflow-hidden">
+                <div className="relative h-20 rounded-lg border border-border/50 bg-muted/30 shadow-inner overflow-hidden">
                   <KeystrokePreviewOverlay
                     currentTimeMs={previewTimeMs}
                     keystrokeEvents={previewEvents}

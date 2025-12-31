@@ -737,7 +737,7 @@ export function ImportMediaSection() {
                             "flex items-center gap-2.5 p-2.5",
                             "border border-border/50 hover:border-border/80 border-dashed",
                             isDragOver
-                                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                ? "border-2 border-primary bg-primary/5"
                                 : "hover:bg-muted/10",
                         )}
                     >

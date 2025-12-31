@@ -104,7 +104,7 @@ export function PluginCodeEditor({ plugin, onSave, onCancel }: PluginCodeEditorP
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     spellCheck={false}
-                    className="w-full h-full bg-zinc-900 text-zinc-100 font-mono text-xs leading-relaxed p-4 rounded-lg border border-border resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="w-full h-full bg-zinc-900 text-zinc-100 font-mono text-xs leading-relaxed p-4 rounded-lg border border-border resize-none focus:outline-none"
                     style={{
                         tabSize: 2,
                     }}

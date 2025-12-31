@@ -381,7 +381,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         style={previewTrailStyle}
                       />
                       <div
-                        className="absolute left-0 top-0 rounded-full bg-primary ring-2 ring-primary/40"
+                        className="absolute left-0 top-0 rounded-full bg-primary"
                         key={`dot-${previewKey}`}
                         style={previewDotStyle}
                       />

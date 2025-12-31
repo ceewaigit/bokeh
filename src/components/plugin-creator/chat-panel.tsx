@@ -68,7 +68,7 @@ export function ChatPanel({
             {/* Input */}
             <div className="p-5 pt-2 bg-background">
                 <div className="relative group">
-                    <form onSubmit={handleSubmit} className="relative !outline-none !ring-0 !border-0 focus:!ring-0 focus-within:!ring-0 focus-within:!outline-none bg-background/80 rounded-xl border border-border/70 overflow-hidden transition-all">
+                    <form onSubmit={handleSubmit} className="relative !outline-none !border-0 bg-background/80 rounded-xl border border-border/70 overflow-hidden transition-all">
                         <textarea
                             ref={inputRef}
                             value={input}
@@ -76,7 +76,7 @@ export function ChatPanel({
                             onKeyDown={handleKeyDown}
                             placeholder="Describe the effect you want to create..."
                             rows={1}
-                            className="w-full bg-transparent border-none px-4 py-4 pr-14 text-sm resize-none !outline-none !ring-0 focus:!ring-0 placeholder-muted-foreground text-foreground min-h-14 max-h-32 leading-relaxed"
+                            className="w-full bg-transparent border-none px-4 py-4 pr-14 text-sm resize-none !outline-none placeholder-muted-foreground text-foreground min-h-14 max-h-32 leading-relaxed"
                             style={{ height: 'auto' }}
                         />
                         <button

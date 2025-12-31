@@ -130,7 +130,7 @@ export const PlayerContainer: React.FC<PlayerContainerProps> = ({
                 </div>
             )}
 
-            <div ref={playerContainerRef} className="w-full h-full rounded-lg overflow-hidden relative z-0">
+            <div ref={playerContainerRef} className="w-full h-full rounded-2xl overflow-hidden relative z-0">
                 <Player
                     ref={playerRef}
                     key={playerKey}

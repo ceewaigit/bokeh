@@ -475,7 +475,7 @@ export function RecordButtonDock() {
                 "bg-white/[0.06] border-none",
                 "text-white/90 text-xs placeholder:text-white/25",
                 "font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Text',sans-serif]",
-                "focus:outline-none focus:ring-1 focus:ring-white/[0.15]",
+                "focus:outline-none",
                 "transition-all duration-100"
               )}
             />

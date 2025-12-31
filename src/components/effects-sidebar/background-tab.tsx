@@ -437,8 +437,8 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       }}
                       disabled={isLoading}
                       className={cn(
-                        "aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group disabled:opacity-50 disabled:cursor-wait",
-                        isDefault && "ring-2 ring-primary/30"
+                        "aspect-video rounded-md overflow-hidden hover:scale-105 relative group disabled:opacity-50 disabled:cursor-wait",
+                        isDefault && "border-2 border-primary/30"
                       )}
                       title={wallpaper.name + (isDefault ? ' (Default)' : '')}
                     >
@@ -497,7 +497,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             </div>
             <div
               ref={parallaxPreviewRef}
-              className="relative aspect-video rounded-lg overflow-hidden ring-1 ring-border/20 bg-gradient-to-b from-sky-400 to-sky-600"
+              className="relative aspect-video rounded-lg overflow-hidden border border-border/20 bg-gradient-to-b from-sky-400 to-sky-600"
               onMouseEnter={() => setParallaxPreviewMouse(m => ({ ...m, active: true }))}
               onMouseLeave={() => {
                 if (parallaxPreviewRafRef.current !== null) {
@@ -626,7 +626,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       }
                     })
                   }}
-                  className="aspect-square rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105"
+                  className="aspect-square rounded-md overflow-hidden border border-border/20 hover:border-primary/50 transition-all transform hover:scale-105"
                   style={{
                     background: `linear-gradient(135deg, ${wallpaper.colors[0]}, ${wallpaper.colors[1]})`
                   }}
@@ -697,8 +697,8 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   className={cn(
                     "aspect-square rounded-md transition-all hover:scale-110",
                     bgData?.type === BackgroundType.Color && bgData?.color?.toUpperCase() === color.toUpperCase()
-                      ? "ring-2 ring-primary shadow-lg"
-                      : "ring-1 ring-border/30 hover:ring-border/50"
+                      ? "border-2 border-primary shadow-lg"
+                      : "border border-border/30 hover:border-border/50"
                   )}
                   style={{ backgroundColor: color }}
                   title={color}
@@ -732,7 +732,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               Choose Photo...
             </button>
             {bgData?.image && (
-              <div className="relative aspect-video rounded-md overflow-hidden ring-1 ring-border/20">
+              <div className="relative aspect-video rounded-md overflow-hidden border border-border/20">
                 <Image
                   unoptimized
                   src={bgData.image}

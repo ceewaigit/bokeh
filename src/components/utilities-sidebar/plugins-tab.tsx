@@ -252,22 +252,22 @@ export function PluginsTab() {
         if (!pluginDef) return null
 
         return (
-        <div className="space-y-3 pt-1.5">
-            <div className="flex items-center justify-between px-1">
-                <button
-                    onClick={() => clearEffectSelection()}
-                    className="text-2xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    ← Back
-                </button>
-                <span className="text-2xs font-semibold text-foreground">
-                    Edit {pluginDef.name}
-                </span>
-            </div>
+            <div className="space-y-3 pt-1.5">
+                <div className="flex items-center justify-between px-1">
+                    <button
+                        onClick={() => clearEffectSelection()}
+                        className="text-2xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                        ← Back
+                    </button>
+                    <span className="text-2xs font-semibold text-foreground">
+                        Edit {pluginDef.name}
+                    </span>
+                </div>
 
-            <div className="space-y-3 rounded-md border border-border/50 bg-background/60 p-2.5">
-                {Object.entries(pluginDef.params).map(([key, param]) => (
-                    <PluginParamControl
+                <div className="space-y-3 rounded-md border border-border/50 bg-background/60 p-2.5">
+                    {Object.entries(pluginDef.params).map(([key, param]) => (
+                        <PluginParamControl
                             key={key}
                             param={param}
                             value={pluginData.params[key] ?? param.default}
@@ -289,32 +289,32 @@ export function PluginsTab() {
         }
 
         return (
-        <div className="space-y-3 pt-1.5">
-            <div className="flex items-center justify-between px-1">
-                <button
-                    onClick={() => setHideGeneratedClipEditor(true)}
-                    className="text-2xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                    ← Back
-                </button>
-                <span className="text-2xs font-semibold text-foreground">
-                    Edit {pluginDef.name}
-                </span>
-            </div>
+            <div className="space-y-3 pt-1.5">
+                <div className="flex items-center justify-between px-1">
+                    <button
+                        onClick={() => setHideGeneratedClipEditor(true)}
+                        className="text-2xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                        ← Back
+                    </button>
+                    <span className="text-2xs font-semibold text-foreground">
+                        Edit {pluginDef.name}
+                    </span>
+                </div>
 
-            <div className="text-2xs text-muted-foreground/80 px-1">
-                Editing the selected generated clip.
-            </div>
+                <div className="text-2xs text-muted-foreground/80 px-1">
+                    Editing the selected generated clip.
+                </div>
 
-            <div className="space-y-3 rounded-md border border-border/50 bg-background/60 p-2.5">
-                {/* Duration Control */}
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <Label className="text-2xs text-foreground">Duration</Label>
-                        <span className="text-2xs font-mono text-muted-foreground/70 tabular-nums">
-                            {durationSeconds.toFixed(1)}s
-                        </span>
-                    </div>
+                <div className="space-y-3 rounded-md border border-border/50 bg-background/60 p-2.5">
+                    {/* Duration Control */}
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-2xs text-foreground">Duration</Label>
+                            <span className="text-2xs font-mono text-muted-foreground/70 tabular-nums">
+                                {durationSeconds.toFixed(1)}s
+                            </span>
+                        </div>
                         <Slider
                             value={[durationSeconds]}
                             onValueChange={([v]) => handleDurationChange(v)}
@@ -382,7 +382,7 @@ export function PluginsTab() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search plugins…"
-                                className="w-full h-7 bg-background/60 border border-border/50 rounded-md pl-8 pr-2.5 text-2xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20"
+                                className="w-full h-7 bg-background/60 border border-border/50 rounded-md pl-8 pr-2.5 text-2xs text-foreground placeholder:text-muted-foreground focus:outline-none"
                             />
                         </div>
                         <Tooltip>
@@ -546,7 +546,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
                         type="number"
                         value={displayValue}
                         onChange={(e) => onChange(Number(e.target.value))}
-                        className="w-full h-7 px-2.5 text-2xs bg-background/70 rounded-md border border-border/50 focus:ring-1 focus:ring-foreground/20"
+                        className="w-full h-7 px-2.5 text-2xs bg-background/70 rounded-md border border-border/50"
                     />
                 )}
             </div>
@@ -578,7 +578,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={stringParam.placeholder}
                     maxLength={stringParam.maxLength}
-                    className="w-full h-8 px-2.5 text-2xs bg-background/60 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    className="w-full h-8 px-2.5 text-2xs bg-background/60 border border-border/60 rounded-md focus:outline-none"
                 />
             </div>
         )

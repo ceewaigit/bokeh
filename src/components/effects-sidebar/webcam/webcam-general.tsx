@@ -118,8 +118,8 @@ export function WebcamGeneral({
                             className={cn(
                                 "h-8 w-8 rounded-full transition-all duration-150",
                                 position === anchor // Note: Changed from position.anchor to position since caller passes anchor string here, wait need to verify what is passed
-                                    ? "bg-primary/20 ring-2 ring-primary/50"
-                                    : "bg-muted/30 hover:bg-muted/50 hover:ring-1 hover:ring-border/60"
+                                    ? "bg-primary/20 border-2 border-primary/50"
+                                    : "bg-muted/30 hover:bg-muted/50 hover:border hover:border-border/60"
                             )}
                             title={anchor}
                         />

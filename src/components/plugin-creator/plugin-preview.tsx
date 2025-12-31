@@ -180,7 +180,7 @@ export function PluginPreview({
 
             {/* Canvas Container */}
             <div
-                className="relative shadow-2xl shadow-black/70 overflow-hidden bg-black transition-transform duration-300 ease-out will-change-transform ring-1 ring-border/60"
+                className="relative shadow-2xl shadow-black/70 overflow-hidden bg-black transition-transform duration-300 ease-out will-change-transform border border-border/60"
                 style={{
                     width: width,
                     height: height,

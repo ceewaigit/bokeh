@@ -17,7 +17,7 @@ export const LibraryEmptyState = ({ onNewRecording }: LibraryEmptyStateProps) =>
             Library
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-3xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full ring-1 ring-border/20">
+        <div className="flex items-center gap-1.5 text-3xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full border border-border/20">
           <Layers className="w-3 h-3" />
           <span className="font-mono">0</span>
         </div>

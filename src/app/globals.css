@@ -171,7 +171,7 @@
   }
 
   body {
-    @apply text-foreground;
+    @apply text-foreground select-none;
     background: transparent;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
@@ -188,6 +188,14 @@
   h4 {
     font-family: var(--font-display), var(--font-ui), system-ui, sans-serif;
     letter-spacing: -0.01em;
+  }
+
+  /* Allow selection in inputs and textareas */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
   }
 
   #__next {
@@ -630,10 +638,11 @@
     -ms-user-select: none !important;
   }
 
-  /* Remove focus outlines on timeline elements */
-  .timeline-container *:focus,
-  .timeline-container *:focus-visible {
+  /* Remove focus outlines and rings globally */
+  *:focus,
+  *:focus-visible {
     outline: none !important;
     box-shadow: none !important;
+    ring: none !important;
   }
 }

@@ -57,7 +57,7 @@ export const RecordingsGrid = ({
                       ? 'text-muted-foreground/70 hover:text-foreground hover:bg-muted/30'
                       : 'bg-black/35 border border-white/10 text-white/80 backdrop-blur-md hover:bg-black/50 hover:text-white',
                     'transition-colors',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+                    'focus-visible:outline-none'
                   )}
                   aria-label="Recording details"
                   onClick={(e) => e.stopPropagation()}

@@ -118,7 +118,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                             placeholder="Search plugins..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-background/80 border border-border/60 rounded-lg py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 focus:border-foreground/20 transition-all"
+                            className="w-full bg-background/80 border border-border/60 rounded-lg py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all"
                             autoFocus
                         />
                     </div>

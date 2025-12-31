@@ -142,7 +142,7 @@ export function AppearanceToggle({
                                         size="sm"
                                         className={cn(
                                             "h-6 text-3xs",
-                                            (isGlass ? isGlassPresetActive("light") : isClearPresetActive("light")) && "ring-1 ring-primary bg-primary/10"
+                                            (isGlass ? isGlassPresetActive("light") : isClearPresetActive("light")) && "border border-primary bg-primary/10"
                                         )}
                                         onClick={() => applyPreset(isGlass ? "glass-light" : "clear-light")}
                                     >
@@ -153,7 +153,7 @@ export function AppearanceToggle({
                                         size="sm"
                                         className={cn(
                                             "h-6 text-3xs",
-                                            (isGlass ? isGlassPresetActive("medium") : isClearPresetActive("medium")) && "ring-1 ring-primary bg-primary/10"
+                                            (isGlass ? isGlassPresetActive("medium") : isClearPresetActive("medium")) && "border border-primary bg-primary/10"
                                         )}
                                         onClick={() => applyPreset(isGlass ? "glass" : "clear")}
                                     >
@@ -164,7 +164,7 @@ export function AppearanceToggle({
                                         size="sm"
                                         className={cn(
                                             "h-6 text-3xs",
-                                            (isGlass ? isGlassPresetActive("strong") : isClearPresetActive("strong")) && "ring-1 ring-primary bg-primary/10"
+                                            (isGlass ? isGlassPresetActive("strong") : isClearPresetActive("strong")) && "border border-primary bg-primary/10"
                                         )}
                                         onClick={() => applyPreset(isGlass ? "glass-strong" : "clear-strong")}
                                     >
