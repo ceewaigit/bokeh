@@ -76,7 +76,12 @@ void main() {
     // RAW PASSTHROUGH: When blur is minimal, skip ALL processing
     // Threshold lowered to 0.0005 to ensure even subtle motion blur is rendered
     if (blurMagnitude < 0.0005) {
-        outColor = texture(u_image, v_texCoord);
+        vec4 raw = texture(u_image, v_texCoord);
+        // Even in passthrough, we need to respect the final encoding 
+        // if we are doing any post-processing.
+        // However, if we want "exact" match for raw clips, 
+        // and sampling is linear, we still need to encode back to sRGB.
+        outColor = vec4(linearToSRGB(raw.rgb), raw.a);
         return;
     }
 
@@ -102,8 +107,8 @@ void main() {
 
         vec4 sampleColor = texture(u_image, sampleCoord);
 
-        // Linear blending
-        vec3 linearColor = sRGBToLinear(sampleColor.rgb);
+        // Linear blending (Hardware now decodes to linear automatically)
+        vec3 linearColor = sampleColor.rgb;
 
         color += vec4(linearColor, sampleColor.a) * weight;
         totalWeight += weight;
@@ -112,7 +117,7 @@ void main() {
     vec4 baseSample = texture(u_image, v_texCoord);
     vec4 blurred = color / totalWeight;
 
-    vec3 baseLinear = sRGBToLinear(baseSample.rgb);
+    vec3 baseLinear = baseSample.rgb;
     vec3 corrected = mix(baseLinear, blurred.rgb, u_mix);
 
     if (u_blackLevel != 0.0) {
