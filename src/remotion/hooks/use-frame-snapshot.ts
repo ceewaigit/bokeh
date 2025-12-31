@@ -7,96 +7,181 @@
  * eliminating the "hook tax" of calling multiple hooks.
  * 
  * Uses the pure layout-engine service for calculations.
+ * 
+ * ZERO-PROP PATTERN:
+ * This hook is self-contained and pulls all necessary data from stores/contexts.
+ * This allows components (renderers, cursors) to subscribe only to the
+ * derived frame snapshot, avoiding prop drilling and unnecessary re-renders.
  */
 
 import { useRef, useEffect, useMemo } from 'react'
 import { calculateFrameSnapshot, type FrameSnapshot } from '@/features/timeline/logic/layout-engine'
-import type { Effect, Recording } from '@/types/project'
 import type { ActiveClipDataAtFrame } from '@/types/remotion'
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
+import { getBoundaryOverlapState, findActiveFrameLayoutItems } from '@/features/timeline/utils/frame-layout'
+import { useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion'
+import { useTimelineContext } from '@/remotion/context/TimelineContext'
+import { useProjectStore } from '@/stores/project-store'
+import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext'
+import { useCameraPath } from '@/remotion/hooks/camera/useCameraPath'
+import { calculateFullCameraPath } from '@/features/effects/utils/camera-path-calculator'
+import { frameToMs } from '@/remotion/compositions/utils/time/frame-time'
+import { useLayoutNavigation } from '@/remotion/context/video-data-context'
 
 // Re-export FrameSnapshot type for consumers
 export type { FrameSnapshot } from '@/features/timeline/logic/layout-engine'
 
-export interface UseFrameSnapshotOptions {
-    // Time & Dimensions
-    currentTimeMs: number
-    currentFrame: number
-    fps: number
-    compositionWidth: number
-    compositionHeight: number
-
-    // Video dimensions (fallbacks)
-    videoWidth: number
-    videoHeight: number
-    sourceVideoWidth?: number
-    sourceVideoHeight?: number
-
-    // Recording dimensions  
-    recordingWidth?: number
-    recordingHeight?: number
-
-    // Data Sources
-    frameLayout: FrameLayoutItem[]
-    recordingsMap: Map<string, Recording>
-    activeClipData: ActiveClipDataAtFrame | null
-    clipEffects: Effect[]
-    
-    // Services
-    getRecording: (id: string) => Recording | null | undefined
-
-    // Precomputed zoom (from camera path)
-    zoomTransform?: Record<string, unknown> | null
-    zoomTransformStr?: string
-    
-    // Boundary/Stability State
-    boundaryState?: {
-        isNearBoundaryStart: boolean;
-        isNearBoundaryEnd: boolean;
-        activeLayoutItem: FrameLayoutItem | null;
-        prevLayoutItem: FrameLayoutItem | null;
-        nextLayoutItem: FrameLayoutItem | null;
-        shouldHoldPrevFrame: boolean;
-    }
-
-    // Editing state
-    isEditingCrop: boolean
-    isRendering: boolean
-}
-
 /**
  * Consolidated hook for layout + transform + clip calculations.
- * Replaces useLayoutCalculation + useTransformCalculation + useEffectiveClipData + useRenderableItems.
+ * Pulls all dependencies internally (Zero-Prop).
  */
-export function useFrameSnapshot(options: UseFrameSnapshotOptions): FrameSnapshot {
+export function useFrameSnapshot(): FrameSnapshot {
+    // 1. Remotion & Environment
+    const currentFrame = useCurrentFrame();
+    const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
+    const { isRendering } = getRemotionEnvironment();
+
+    // 2. Timeline Context (SSOT)
     const {
-        currentTimeMs,
-        currentFrame,
         fps,
-        compositionWidth,
-        compositionHeight,
         videoWidth,
         videoHeight,
         sourceVideoWidth,
         sourceVideoHeight,
-        recordingWidth,
-        recordingHeight,
         frameLayout,
         recordingsMap,
-        activeClipData,
-        clipEffects,
+        effects: clipEffects,
+        getActiveClipData,
         getRecording,
-        zoomTransform = null,
-        zoomTransformStr = '',
-        boundaryState,
-        isEditingCrop,
-        isRendering
-    } = options
+    } = useTimelineContext();
 
+    const currentTimeMs = frameToMs(currentFrame, fps);
+
+    // 3. Settings & Store
+    const isScrubbing = useProjectStore((s) => s.isScrubbing);
+    const cameraPathCache = useProjectStore((s) => s.cameraPathCache);
+    const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera);
+    
+    // Playback Settings (Render Settings)
+    const { renderSettings } = usePlaybackSettings();
+    const isEditingCrop = renderSettings.isEditingCrop;
+
+    // 4. Derived Data (Active Clip)
+    // Note: useActiveClipData is just a wrapper around getActiveClipData(currentFrame)
+    const activeClipData = useMemo(() => getActiveClipData(currentFrame), [getActiveClipData, currentFrame]);
+
+    // 5. Layout Navigation & Boundary State
+    // We use the helper hook from video-data-context for standard navigation
+    const layoutNav = useLayoutNavigation(currentFrame);
+    const { activeItem: activeLayoutItem, prevItem: prevLayoutItem, nextItem: nextLayoutItem } = layoutNav;
+
+    // Visual Layout Navigation (logic moved from SharedVideoController)
+    // Prefers visual items (video/image) for boundary calculations
+    const visualLayoutNav = useMemo(() => {
+        const isVisualItem = (item: FrameLayoutItem | null) => {
+            if (!item) return false;
+            const recording = recordingsMap.get(item.clip.recordingId);
+            return recording?.sourceType === 'video' || recording?.sourceType === 'image';
+        };
+
+        const activeItems = findActiveFrameLayoutItems(frameLayout, currentFrame);
+        let activeVisualItem: FrameLayoutItem | null = null;
+        for (const item of activeItems) {
+            if (isVisualItem(item) && (!activeVisualItem || item.startFrame > activeVisualItem.startFrame)) {
+                activeVisualItem = item;
+            }
+        }
+
+        const activeVisualIndex = activeVisualItem
+            ? frameLayout.findIndex((item) => item.clip.id === activeVisualItem?.clip.id)
+            : -1;
+
+        let prevVisualItem: FrameLayoutItem | null = null;
+        for (let i = activeVisualIndex - 1; i >= 0; i -= 1) {
+            const candidate = frameLayout[i];
+            if (isVisualItem(candidate)) {
+                prevVisualItem = candidate;
+                break;
+            }
+        }
+
+        let nextVisualItem: FrameLayoutItem | null = null;
+        for (let i = activeVisualIndex + 1; i < frameLayout.length; i += 1) {
+            const candidate = frameLayout[i];
+            if (isVisualItem(candidate)) {
+                nextVisualItem = candidate;
+                break;
+            }
+        }
+
+        return {
+            activeVisualItem,
+            prevVisualItem,
+            nextVisualItem,
+        };
+    }, [frameLayout, recordingsMap, currentFrame]);
+
+    const renderActiveLayoutItem = visualLayoutNav.activeVisualItem ?? activeLayoutItem;
+    const renderPrevLayoutItem = visualLayoutNav.prevVisualItem ?? prevLayoutItem;
+    const renderNextLayoutItem = visualLayoutNav.nextVisualItem ?? nextLayoutItem;
+
+    // Calculate Boundary State
+    const boundaryState = useMemo(() => {
+        return getBoundaryOverlapState({
+            currentFrame,
+            fps,
+            isRendering,
+            activeLayoutItem: renderActiveLayoutItem,
+            prevLayoutItem: renderPrevLayoutItem,
+            nextLayoutItem: renderNextLayoutItem,
+            sourceWidth: sourceVideoWidth, 
+            sourceHeight: sourceVideoHeight,
+        });
+    }, [
+        currentFrame,
+        fps,
+        isRendering,
+        renderActiveLayoutItem,
+        renderPrevLayoutItem,
+        renderNextLayoutItem,
+        sourceVideoWidth,
+        sourceVideoHeight,
+    ]);
+
+    // 6. Camera Path & Zoom
+    // Logic from TimelineComposition/SharedVideoController
+    const cameraPath = useMemo(() => {
+        if (cameraPathCache) return cameraPathCache;
+
+        // Fallback to calculation (e.g. for export if cache missing)
+        return calculateFullCameraPath({
+            frameLayout,
+            fps,
+            videoWidth,
+            videoHeight,
+            sourceVideoWidth,
+            sourceVideoHeight,
+            effects: clipEffects,
+            getRecording,
+            loadedMetadata: undefined,
+            cameraSettings
+        });
+    }, [cameraPathCache, frameLayout, fps, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight, clipEffects, getRecording, cameraSettings]);
+
+    const cameraPathFrame = useCameraPath({
+        enabled: true,
+        currentFrame,
+        cachedPath: cameraPath
+    });
+
+    const zoomTransform = cameraPathFrame?.zoomTransform ?? null;
+    const zoomTransformStr = cameraPathFrame?.zoomTransformStr ?? '';
+
+    // 7. Calculate Snapshot
     // Frozen layout ref - persists layout during crop editing
     const frozenLayoutRef = useRef<FrameSnapshot | null>(null)
     
-    // Stability/Persistence refs (moved from individual hooks)
+    // Stability/Persistence refs
     const lastValidClipDataRef = useRef<ActiveClipDataAtFrame | null>(null);
     const prevRenderableItemsRef = useRef<FrameLayoutItem[]>([]);
 
@@ -123,21 +208,37 @@ export function useFrameSnapshot(options: UseFrameSnapshotOptions): FrameSnapsho
             videoHeight,
             sourceVideoWidth,
             sourceVideoHeight,
-            recordingWidth,
-            recordingHeight,
+            // Recording dimensions (optional, fallbacks)
+            recordingWidth: undefined,
+            recordingHeight: undefined,
+            
             frameLayout,
             recordingsMap,
             activeClipData,
             clipEffects,
             getRecording,
-            zoomTransform,
+            zoomTransform: zoomTransform as any,
             zoomTransformStr,
-            boundaryState,
+            boundaryState: {
+                ...boundaryState,
+                activeLayoutItem: renderActiveLayoutItem,
+                prevLayoutItem: renderPrevLayoutItem,
+                nextLayoutItem: renderNextLayoutItem,
+            },
             lastValidClipData: lastValidClipDataRef.current,
             prevRenderableItems: prevRenderableItemsRef.current,
             isRendering,
             isEditingCrop,
         })
+
+        // Populate camera velocity (scaled to pixels)
+        if (cameraPathFrame?.velocity) {
+            const scale = (zoomTransform as any)?.scale ?? 1;
+            snapshot.camera.velocity = {
+                x: cameraPathFrame.velocity.x * snapshot.layout.drawWidth * scale,
+                y: cameraPathFrame.velocity.y * snapshot.layout.drawHeight * scale
+            };
+        }
 
         // Update stability refs
         if (snapshot.effectiveClipData) {
@@ -161,8 +262,6 @@ export function useFrameSnapshot(options: UseFrameSnapshotOptions): FrameSnapsho
         videoHeight,
         sourceVideoWidth,
         sourceVideoHeight,
-        recordingWidth,
-        recordingHeight,
         frameLayout,
         recordingsMap,
         activeClipData,
@@ -171,7 +270,11 @@ export function useFrameSnapshot(options: UseFrameSnapshotOptions): FrameSnapsho
         zoomTransform,
         zoomTransformStr,
         boundaryState,
+        renderActiveLayoutItem,
+        renderPrevLayoutItem,
+        renderNextLayoutItem,
         isEditingCrop,
-        isRendering
+        isRendering,
+        cameraPathFrame // Add dependency
     ])
 }

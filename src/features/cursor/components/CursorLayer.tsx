@@ -13,12 +13,12 @@ import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects';
 
 import { useProjectStore } from '@/stores/project-store';
 import { normalizeClickEvents, normalizeMouseEvents } from '@/remotion/compositions/utils/events/event-normalizer';
-import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
 import { useTimelineContext } from '@/remotion/context/TimelineContext';
 import { getCursorEffect } from '@/features/effects/effect-filters';
 import { applyCssTransformToPoint } from '@/remotion/compositions/utils/transforms/transform-point';
 
 import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadata';
+import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -91,13 +91,17 @@ export const CursorLayer = React.memo(() => {
   const { videoWidth, videoHeight, resources } = useTimelineContext();
   const metadataUrls = resources.metadataUrls;
 
-  // Get ACTUAL video position and clip data from SharedVideoController (SSOT)
-  const videoPositionContext = useVideoPosition();
+  // Pull Frame Snapshot (Zero-Prop Pattern)
+  const snapshot = useFrameSnapshot();
+  const {
+    layout,
+    transforms,
+    mockup,
+    effectiveClipData: activeClipData, // Use effective/resolved clip data
+    camera
+  } = snapshot;
 
-  // USE SHARED DATA FROM CONTEXT (SSOT from SharedVideoController)
-  // This eliminates duplicate recordingsMap construction and frameLayout/clipData calculation
-  const activeClipData = videoPositionContext.activeClipData ?? null;
-
+  // USE SHARED DATA FROM SNAPSHOT (SSOT)
   const recording: Recording | null = activeClipData?.recording ?? null;
   const isGeneratedRecording = recording?.sourceType === 'generated';
   const isImageRecording = recording?.sourceType === 'image';
@@ -263,30 +267,30 @@ export const CursorLayer = React.memo(() => {
   const cursorTiltY = Math.round((cursorState.tiltY ?? 0) * 10) / 10;
   const cursorPerspective = 700;
 
-  // Use SHARED video offset from SharedVideoController (fixes coordinate mismatch!)
+  // Use SHARED video offset from Snapshot
   // This ensures cursor uses the EXACT SAME position as the video element
   const videoOffset = useMemo(() => {
     return {
-      x: videoPositionContext.offsetX,
-      y: videoPositionContext.offsetY,
-      width: videoPositionContext.drawWidth,
-      height: videoPositionContext.drawHeight,
+      x: layout.offsetX,
+      y: layout.offsetY,
+      width: layout.drawWidth,
+      height: layout.drawHeight,
     };
-  }, [videoPositionContext.offsetX, videoPositionContext.offsetY, videoPositionContext.drawWidth, videoPositionContext.drawHeight]);
+  }, [layout.offsetX, layout.offsetY, layout.drawWidth, layout.drawHeight]);
 
-  const isMockup = Boolean(videoPositionContext.mockupEnabled && videoPositionContext.mockupPosition);
+  const isMockup = Boolean(mockup.enabled && mockup.position);
 
   // Get capture dimensions from first event - this is the SSOT for cursor coordinates
   // The cursor coordinates were recorded relative to these dimensions, so we MUST use them
   const firstEvent = cursorEvents[0];
-  const captureWidth = firstEvent?.captureWidth ?? videoPositionContext.videoWidth;
-  const captureHeight = firstEvent?.captureHeight ?? videoPositionContext.videoHeight;
+  const captureWidth = firstEvent?.captureWidth ?? videoWidth;
+  const captureHeight = firstEvent?.captureHeight ?? videoHeight;
 
   // Normalize cursor position (0-1 range within the capture area).
   // For mockups, clamp to keep the cursor inside the device screen.
   const rawNormalizedX = cursorPosition ? (cursorPosition.x / captureWidth) : 0;
   const rawNormalizedY = cursorPosition ? (cursorPosition.y / captureHeight) : 0;
-  const shouldClampToScreen = Boolean(videoPositionContext.mockupEnabled);
+  const shouldClampToScreen = Boolean(mockup.enabled);
   const normalizedX = shouldClampToScreen ? Math.max(0, Math.min(1, rawNormalizedX)) : rawNormalizedX;
   const normalizedY = shouldClampToScreen ? Math.max(0, Math.min(1, rawNormalizedY)) : rawNormalizedY;
   const debugNormalizedX = shouldClampToScreen
@@ -298,11 +302,11 @@ export const CursorLayer = React.memo(() => {
 
   // Calculate the cursor position within the video content area (before zoom)
   // Simply map the normalized position to the video display area
-  const screenOffsetX = isMockup && videoPositionContext.mockupPosition
-    ? videoPositionContext.mockupPosition.screenX
+  const screenOffsetX = isMockup && mockup.position
+    ? mockup.position.screenX
     : 0;
-  const screenOffsetY = isMockup && videoPositionContext.mockupPosition
-    ? videoPositionContext.mockupPosition.screenY
+  const screenOffsetY = isMockup && mockup.position
+    ? mockup.position.screenY
     : 0;
   const cursorAreaWidth = videoOffset.width;
   const cursorAreaHeight = videoOffset.height;
@@ -346,8 +350,8 @@ export const CursorLayer = React.memo(() => {
   // videoOffset.width changes when the video is zoomed, which would make the cursor shrink/grow with zoom.
   // The cursor should maintain a consistent visual size on screen regardless of zoom level.
   // For mockups, use the screen area width at its natural (unzoomed) size.
-  const cursorScaleBaseWidth = isMockup && videoPositionContext.mockupPosition
-    ? videoPositionContext.mockupPosition.screenWidth
+  const cursorScaleBaseWidth = isMockup && mockup.position
+    ? mockup.position.screenWidth
     : videoWidth; // Use composition width, NOT videoOffset.width
   const videoDisplayScale = useMemo(() => {
     // Use composition width divided by fixed reference
@@ -355,7 +359,7 @@ export const CursorLayer = React.memo(() => {
     return cursorScaleBaseWidth / REFERENCE_WIDTH;
   }, [cursorScaleBaseWidth]);
 
-  const useContainerTransform = Boolean(isMockup && videoPositionContext.contentTransform);
+  const useContainerTransform = Boolean(isMockup && transforms.combined);
   const debugEnabled = typeof window !== 'undefined' && Boolean((window as any).__ssDebugMockup);
 
   const clickEffects = useMemo(() => {
@@ -370,15 +374,15 @@ export const CursorLayer = React.memo(() => {
       let clickX = cursorBaseOffsetX + clickInVideoX;
       let clickY = cursorBaseOffsetY + clickInVideoY;
 
-      if (videoPositionContext.contentTransform && !useContainerTransform) {
-        const originX = videoPositionContext.mockupEnabled ? videoWidth / 2 : (videoOffset.x + videoOffset.width / 2);
-        const originY = videoPositionContext.mockupEnabled ? videoHeight / 2 : (videoOffset.y + videoOffset.height / 2);
+      if (transforms.combined && !useContainerTransform) {
+        const originX = mockup.enabled ? videoWidth / 2 : (videoOffset.x + videoOffset.width / 2);
+        const originY = mockup.enabled ? videoHeight / 2 : (videoOffset.y + videoOffset.height / 2);
         const transformed = applyCssTransformToPoint(
           clickX,
           clickY,
           originX,
           originY,
-          videoPositionContext.contentTransform
+          transforms.combined
         );
         clickX = transformed.x;
         clickY = transformed.y;
@@ -449,8 +453,8 @@ export const CursorLayer = React.memo(() => {
     videoOffset.width,
     videoOffset.x,
     videoOffset.y,
-    videoPositionContext.contentTransform,
-    videoPositionContext.mockupEnabled,
+    transforms.combined,
+    mockup.enabled,
     videoWidth,
     videoHeight,
     useContainerTransform,
@@ -480,15 +484,15 @@ export const CursorLayer = React.memo(() => {
 
   // Apply the EXACT same CSS transform string as the video element.
   // This keeps ordering correct under combinations of zoom + 3D (perspective/tilt/skew).
-  if (videoPositionContext.contentTransform && !useContainerTransform) {
-    const originX = videoPositionContext.mockupEnabled ? videoWidth / 2 : (videoOffset.x + videoOffset.width / 2);
-    const originY = videoPositionContext.mockupEnabled ? videoHeight / 2 : (videoOffset.y + videoOffset.height / 2);
+  if (transforms.combined && !useContainerTransform) {
+    const originX = mockup.enabled ? videoWidth / 2 : (videoOffset.x + videoOffset.width / 2);
+    const originY = mockup.enabled ? videoHeight / 2 : (videoOffset.y + videoOffset.height / 2);
     const transformed = applyCssTransformToPoint(
       cursorX,
       cursorY,
       originX,
       originY,
-      videoPositionContext.contentTransform
+      transforms.combined
     );
     cursorX = transformed.x;
     cursorY = transformed.y;
@@ -499,7 +503,7 @@ export const CursorLayer = React.memo(() => {
         previousTipY,
         originX,
         originY,
-        videoPositionContext.contentTransform
+        transforms.combined
       );
       previousTipX = previousTransformed.x;
       previousTipY = previousTransformed.y;
@@ -617,12 +621,17 @@ export const CursorLayer = React.memo(() => {
   const shouldShowCursor = (!isGeneratedRecording || isImageRecording || hasSyntheticEvents) && cursorEffect?.enabled !== false && cursorData && cursorPosition;
 
   // Calculate refocus blur from zoom transform (camera-like focus pull during zoom)
-  const refocusBlurPx = videoPositionContext.refocusBlurPx
-    ?? (videoPositionContext.zoomTransform?.refocusBlur ?? 0) * 12;
+  const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera);
+  const refocusEnabled = cameraSettings?.refocusBlurEnabled !== false;
+  const refocusIntensity = refocusEnabled
+    ? Math.max(0, Math.min(1, (cameraSettings?.refocusBlurIntensity ?? 50) / 100))
+    : 0;
+  const refocusBlurPx = ((camera.zoomTransform as any)?.refocusBlur ?? 0) * 12 * refocusIntensity;
+
   const hasRefocusBlur = refocusBlurPx > 0.01;
   const mockupClip = useMemo(() => {
-    const mockupPosition = videoPositionContext.mockupPosition;
-    if (!videoPositionContext.mockupEnabled || !mockupPosition) return null;
+    const mockupPosition = mockup.position;
+    if (!mockup.enabled || !mockupPosition) return null;
     const left = mockupPosition.screenX;
     const top = mockupPosition.screenY;
     const right = Math.max(0, videoWidth - (mockupPosition.screenX + mockupPosition.screenWidth));
@@ -634,7 +643,7 @@ export const CursorLayer = React.memo(() => {
       bottom,
       radius: mockupPosition.screenCornerRadius,
     };
-  }, [videoHeight, videoPositionContext.mockupEnabled, videoPositionContext.mockupPosition, videoWidth]);
+  }, [videoHeight, mockup.enabled, mockup.position, videoWidth]);
 
   if (!shouldShowCursor && !debugEnabled) {
     return <AbsoluteFill style={{ opacity: 0, pointerEvents: 'none', zIndex: 200 }} />;
@@ -654,15 +663,15 @@ export const CursorLayer = React.memo(() => {
       <div
         style={{
           position: 'absolute',
-          left: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenX : 0,
-          top: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenY : 0,
-          width: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenWidth : '100%',
-          height: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenHeight : '100%',
-          transform: useContainerTransform ? videoPositionContext.contentTransform : undefined,
+          left: isMockup && mockup.position ? mockup.position.screenX : 0,
+          top: isMockup && mockup.position ? mockup.position.screenY : 0,
+          width: isMockup && mockup.position ? mockup.position.screenWidth : '100%',
+          height: isMockup && mockup.position ? mockup.position.screenHeight : '100%',
+          transform: useContainerTransform ? transforms.combined : undefined,
           transformOrigin: '50% 50%',
           overflow: isMockup ? 'hidden' : undefined,
-          borderRadius: isMockup && videoPositionContext.mockupPosition
-            ? videoPositionContext.mockupPosition.screenCornerRadius
+          borderRadius: isMockup && mockup.position
+            ? mockup.position.screenCornerRadius
             : undefined,
           pointerEvents: 'none',
         }}

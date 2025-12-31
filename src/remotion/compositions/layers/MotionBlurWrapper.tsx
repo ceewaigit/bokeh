@@ -18,6 +18,8 @@ export interface MotionBlurWrapperProps {
     enabled: boolean;
     /** Camera velocity in pixels per frame */
     velocity: { x: number; y: number };
+    /** Intensity multiplier (0-1) */
+    intensity?: number;
     /** Draw dimensions */
     drawWidth: number;
     drawHeight: number;
@@ -36,6 +38,7 @@ export interface MotionBlurWrapperProps {
 export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     enabled,
     velocity,
+    intensity = 1.0,
     drawWidth,
     drawHeight,
     children,
@@ -64,6 +67,7 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                 <MotionBlurCanvas
                     enabled={true}
                     velocity={velocity}
+                    intensity={intensity}
                     containerRef={containerRef}
                     drawWidth={drawWidth}
                     drawHeight={drawHeight}

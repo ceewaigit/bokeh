@@ -378,7 +378,7 @@ export function RecordButtonDock() {
     "transition-[color,background] duration-80 ease-standard",
     "active:opacity-70",
     isActive
-      ? "text-foreground/80"
+      ? "text-accent-foreground"
       : "text-muted-foreground/60 hover:text-muted-foreground"
   )
 
@@ -717,7 +717,7 @@ export function RecordButtonDock() {
         <div className="w-px h-6 bg-border/50 mx-1" />
 
         {/* Options */}
-        <div className="flex items-center">
+        <div className="flex items-center gap-1.5">
           {/* System Audio */}
           <motion.button
             type="button"
@@ -732,7 +732,7 @@ export function RecordButtonDock() {
             <AnimatePresence>
               {audioEnabled && (
                 <motion.div
-                  className="absolute inset-0 rounded-md bg-accent/20"
+                  className="absolute inset-0 rounded-md bg-accent"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -762,7 +762,7 @@ export function RecordButtonDock() {
               <AnimatePresence>
                 {deviceSettings.webcam.enabled && (
                   <motion.div
-                    className="absolute inset-0 rounded-l-md rounded-r-none bg-accent/20"
+                    className="absolute inset-0 rounded-l-md rounded-r-none bg-accent"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -788,7 +788,7 @@ export function RecordButtonDock() {
                 whileTap={{ scale: 0.95 }}
                 transition={springConfig}
               >
-                <div className="absolute inset-0 rounded-r-md rounded-l-none bg-accent/20 -z-10" />
+                <div className="absolute inset-0 rounded-r-md rounded-l-none bg-accent -z-10" />
                 <ChevronDown className={cn(
                   "w-2.5 h-2.5 text-muted-foreground/60 transition-transform duration-100",
                   showDevicePicker && "rotate-180"
@@ -815,7 +815,7 @@ export function RecordButtonDock() {
               <AnimatePresence>
                 {deviceSettings.microphone.enabled && (
                   <motion.div
-                    className="absolute inset-0 rounded-l-md rounded-r-none bg-accent/20"
+                    className="absolute inset-0 rounded-l-md rounded-r-none bg-accent"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -841,7 +841,7 @@ export function RecordButtonDock() {
                 whileTap={{ scale: 0.95 }}
                 transition={springConfig}
               >
-                <div className="absolute inset-0 rounded-r-md rounded-l-none bg-accent/20 -z-10" />
+                <div className="absolute inset-0 rounded-r-md rounded-l-none bg-accent -z-10" />
                 <ChevronDown className={cn(
                   "w-2.5 h-2.5 text-muted-foreground/60 transition-transform duration-100",
                   showDevicePicker && "rotate-180"
@@ -864,7 +864,7 @@ export function RecordButtonDock() {
             <AnimatePresence>
               {hideDesktopIcons && (
                 <motion.div
-                  className="absolute inset-0 rounded-md bg-accent/20"
+                  className="absolute inset-0 rounded-md bg-accent"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}

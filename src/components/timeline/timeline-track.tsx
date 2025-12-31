@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Group, Rect, Text } from 'react-konva'
+import { Group, Rect } from 'react-konva'
 import Konva from 'konva'
 import { TimelineConfig } from '@/features/timeline/config'
 import { useTimelineColors } from '@/features/timeline/utils/colors'
@@ -147,103 +147,9 @@ const AnimatedSeparator = ({ width, height, fill, opacity }: { width: number; he
   )
 }
 
-// Animated Label Background and Separator
-const AnimatedLabelArea = ({ height, width, separatorX }: { height: number; width: number; separatorX: number }) => {
-  const bgRef = useRef<Konva.Rect>(null)
-  const sepRef = useRef<Konva.Rect>(null)
-  const hasMountedRef = useRef(false)
 
-  useEffect(() => {
-    if (!hasMountedRef.current) {
-      if (bgRef.current) bgRef.current.height(height)
-      if (sepRef.current) sepRef.current.height(height)
-      hasMountedRef.current = true
-      return
-    }
 
-    if (bgRef.current) {
-      bgRef.current.to({
-        height,
-        duration: TRACK_ANIMATION_DURATION,
-        easing: TRACK_ANIMATION_EASING
-      })
-    }
-    if (sepRef.current) {
-      sepRef.current.to({
-        height,
-        duration: TRACK_ANIMATION_DURATION,
-        easing: TRACK_ANIMATION_EASING
-      })
-    }
-  }, [height])
 
-  return (
-    <>
-      <Rect
-        ref={bgRef}
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-        opacity={0.12}
-      />
-      <Rect
-        ref={sepRef}
-        x={separatorX}
-        y={0}
-        width={1}
-        height={height}
-        opacity={0.1}
-      />
-    </>
-  )
-}
-
-// Animated Group for Centered Label
-const AnimatedLabelContent = ({
-  x,
-  y,
-  children,
-  onClick,
-}: {
-  x: number
-  y: number
-  children: React.ReactNode
-  onClick?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void
-}) => {
-  const groupRef = useRef<Konva.Group>(null)
-  const hasMountedRef = useRef(false)
-
-  useEffect(() => {
-    const node = groupRef.current
-    if (!node) return
-    if (!hasMountedRef.current) {
-      node.y(y)
-      hasMountedRef.current = true
-      return
-    }
-    node.to({
-      y: y,
-      duration: TRACK_ANIMATION_DURATION,
-      easing: TRACK_ANIMATION_EASING
-    })
-  }, [y])
-
-  useEffect(() => {
-    if (groupRef.current) groupRef.current.y(y)
-  }, [y])
-
-  return (
-    <Group
-      x={x}
-      ref={groupRef}
-      onClick={onClick}
-      onTap={onClick}
-    >
-      {children}
-    </Group>
-  )
-}
 
 
 export const TimelineTrack = React.memo(({
@@ -255,11 +161,6 @@ export const TimelineTrack = React.memo(({
   onLabelClick
 }: TimelineTrackProps) => {
   const colors = useTimelineColors()
-
-  // Sub-tracks (Audio, Webcam) get indented visual treatment
-  const isSubTrack = type === TimelineTrackType.Audio || type === TimelineTrackType.Webcam
-  const indentSize = isSubTrack ? 8 : 0 // Left indent for hierarchy
-  const fontSize = 10
 
   const getTrackStyle = () => {
     switch (type) {
@@ -330,9 +231,7 @@ export const TimelineTrack = React.memo(({
   }
 
   const style = getTrackStyle()
-  const labelTextColor = isSubTrack
-    ? (muted ? colors.mutedForeground : colors.foreground)
-    : (muted ? colors.mutedForeground : style.labelColor)
+  const labelTextColor = muted ? colors.mutedForeground : style.labelColor
 
 
   return (
@@ -345,17 +244,7 @@ export const TimelineTrack = React.memo(({
         opacity={muted ? 0.04 : style.bgOpacity}
       />
 
-      {/* Sub-track connecting line (left edge) */}
-      {isSubTrack && (
-        <Rect
-          x={indentSize - 1}
-          y={0}
-          width={1}
-          height={height}
-          fill={colors.border}
-          opacity={0.15}
-        />
-      )}
+
 
       {/* Divider line at bottom */}
       <AnimatedSeparator
@@ -364,67 +253,6 @@ export const TimelineTrack = React.memo(({
         fill={colors.border}
         opacity={0.04}
       />
-
-      {/* Track label background & separator */}
-      <AnimatedLabelArea
-        height={height}
-        width={TimelineConfig.TRACK_LABEL_WIDTH}
-        separatorX={TimelineConfig.TRACK_LABEL_WIDTH - 1}
-      />
-
-      {onLabelClick && (
-        <Rect
-          x={0}
-          y={0}
-          width={TimelineConfig.TRACK_LABEL_WIDTH}
-          height={height}
-          fill="black"
-          opacity={0}
-          onMouseDown={(e) => {
-            e.cancelBubble = true
-          }}
-          onTouchStart={(e) => {
-            e.cancelBubble = true
-          }}
-          onClick={(e) => {
-            e.cancelBubble = true
-            onLabelClick()
-          }}
-          onTap={(e) => {
-            e.cancelBubble = true
-            onLabelClick()
-          }}
-        />
-      )}
-
-      {/* Track Label - Clean word label */}
-      <AnimatedLabelContent
-        x={TimelineConfig.TRACK_LABEL_WIDTH / 2}
-        y={height / 2}
-        onClick={(e) => {
-          if (!onLabelClick) return
-          e.cancelBubble = true
-          onLabelClick()
-        }}
-      >
-        <Text
-          text={style.labelText.toUpperCase()}
-          fontSize={fontSize}
-          fill={labelTextColor}
-          fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-          fontStyle="600"
-          letterSpacing={0.8}
-          align="center"
-          verticalAlign="middle"
-          x={0}
-          y={0}
-          width={TimelineConfig.TRACK_LABEL_WIDTH - 8}
-          height={20}
-          offsetX={(TimelineConfig.TRACK_LABEL_WIDTH - 8) / 2}
-          offsetY={10}
-          opacity={muted ? 0.5 : 0.9}
-        />
-      </AnimatedLabelContent>
     </AnimatedGroup>
   )
 })

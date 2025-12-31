@@ -172,9 +172,15 @@ export const getTimelineColors = () => {
     webcamTrack: isDark ? 'rgba(34, 211, 238, 0.12)' : 'rgba(34, 211, 238, 0.09)',
     clipSelected: getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
 
-    // Speed-up suggestions
-    speedUpTyping: { base: '#f59e0b', glow: '#fbbf24' },
-    speedUpIdle: { base: '#6366f1', glow: '#818cf8' },
+    // Speed-up suggestions - derived from theme tokens
+    speedUpTyping: {
+      base: getCSSVar('--warning') || '#f59e0b',
+      glow: isDark ? 'hsl(38, 92%, 60%)' : '#fbbf24'
+    },
+    speedUpIdle: {
+      base: getCSSVar('--info') || '#6366f1',
+      glow: isDark ? 'hsl(217, 91%, 70%)' : '#818cf8'
+    },
   }
 }
 
@@ -197,6 +203,8 @@ const getDefaultColors = () => ({
   accentForeground: 'hsl(0, 0%, 98%)',
   destructive: 'hsl(0, 62.8%, 30.6%)',
   destructiveForeground: 'hsl(0, 0%, 98%)',
+  warning: 'hsl(38, 92%, 50%)',
+  info: 'hsl(217, 91%, 60%)',
   // Glass-safe colors
   glassSafeBackground: 'rgba(20, 20, 25, 0.85)',
   glassForeground: 'hsl(0, 0%, 100%)',
@@ -204,8 +212,6 @@ const getDefaultColors = () => ({
   effectLabelColor: 'hsl(0, 0%, 95%)',
   effectLabelShadow: 'rgba(0,0,0,0.8)',
   success: 'hsl(0, 0%, 80%)',
-  warning: 'hsl(38, 92%, 50%)',
-  info: 'hsl(267, 100%, 61%)',
   ruler: 'rgba(25, 25, 30, 0.9)',
   trackBackground: 'rgba(35, 35, 40, 0.6)',
   playhead: 'hsl(263, 70%, 60%)',
@@ -217,8 +223,8 @@ const getDefaultColors = () => ({
   webcamCircle: 'rgba(255, 255, 255, 0.15)',
   webcamTrack: 'rgba(34, 211, 238, 0.12)',
   clipSelected: 'hsl(263, 70%, 50%)',
-  speedUpTyping: { base: '#f59e0b', glow: '#fbbf24' },
-  speedUpIdle: { base: '#6366f1', glow: '#818cf8' },
+  speedUpTyping: { base: 'hsl(38, 92%, 50%)', glow: 'hsl(38, 92%, 60%)' },
+  speedUpIdle: { base: 'hsl(217, 91%, 60%)', glow: 'hsl(217, 91%, 70%)' },
 })
 
 // Hook for React components that updates when theme changes

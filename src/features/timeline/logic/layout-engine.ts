@@ -24,10 +24,12 @@ import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/constants/layout'
 
 // Logic imports
 import type { ActiveClipDataAtFrame } from '@/types/remotion'
-import type { FrameLayoutItem, PersistedVideoState } from '@/features/timeline/utils/frame-layout'
+import type { FrameLayoutItem, PersistedVideoState, BoundaryOverlapState } from '@/features/timeline/utils/frame-layout'
 import { getVisibleFrameLayout } from '@/features/timeline/utils/frame-layout'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import { applyInheritance } from '@/features/effects/effect-inheritance'
+
+import { getMaxZoomScale } from '@/remotion/hooks/media/useVideoUrl'
 
 // =============================================================================
 // TYPES
@@ -112,11 +114,24 @@ export interface FrameSnapshot {
         zoomTransform: Record<string, unknown> | null
         velocity: { x: number; y: number }
     }
+    
+    // Zoom limits
+    maxZoomScale: number
 
     // Clip Data & Renderable Items (New)
     effectiveClipData: ActiveClipDataAtFrame | null
     persistedVideoState: ResolvedVideoState | null
     renderableItems: FrameLayoutItem[]
+    
+    // Boundary State (Pass-through for renderers)
+    boundaryState: BoundaryOverlapState | undefined
+    
+    // Layout Items (Resolved visual items)
+    layoutItems: {
+        active: FrameLayoutItem | null
+        prev: FrameLayoutItem | null
+        next: FrameLayoutItem | null
+    }
 }
 
 /**
@@ -159,6 +174,7 @@ export interface FrameSnapshotOptions {
         prevLayoutItem: FrameLayoutItem | null;
         nextLayoutItem: FrameLayoutItem | null;
         shouldHoldPrevFrame: boolean;
+        overlapFrames?: number;
     }
     
     // Persistence/Fallback (for stability across frames)
@@ -574,6 +590,9 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
 
     const highResScaleX = activeSourceWidth > 0 ? drawWidth / activeSourceWidth : 1
     const highResScaleY = activeSourceHeight > 0 ? drawHeight / activeSourceHeight : 1
+    
+    // Calculate max zoom scale from effects
+    const maxZoomScale = getMaxZoomScale(clipEffects);
 
     // ==========================================================================
     // RETURN FRAME SNAPSHOT
@@ -618,9 +637,23 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
             velocity: { x: 0, y: 0 }, // Caller should update from camera path
         },
         
+        maxZoomScale,
+
         effectiveClipData,
         persistedVideoState,
-        renderableItems
+        renderableItems,
+        boundaryState: boundaryState ? {
+            isNearBoundaryStart: boundaryState.isNearBoundaryStart,
+            isNearBoundaryEnd: boundaryState.isNearBoundaryEnd,
+            shouldHoldPrevFrame: boundaryState.shouldHoldPrevFrame,
+            overlapFrames: boundaryState.overlapFrames || 0
+        } : undefined,
+        
+        layoutItems: {
+            active: boundaryState?.activeLayoutItem ?? null,
+            prev: boundaryState?.prevLayoutItem ?? null,
+            next: boundaryState?.nextLayoutItem ?? null
+        }
     }
 }
 

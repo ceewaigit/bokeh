@@ -14,14 +14,11 @@ import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, g
 import {
   useVideoData,
   useActiveClipData,
-  useLayoutNavigation
 } from '../context/video-data-context';
 import { useComposition } from '../context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
 import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
 import type { SharedVideoControllerProps } from '@/types';
-import { type FrameLayoutItem, findActiveFrameLayoutItems, getBoundaryOverlapState } from '@/features/timeline/utils/frame-layout';
-import { useCameraPath } from '@/remotion/hooks/camera/useCameraPath';
 import { getMaxZoomScale } from '@/remotion/hooks/media/useVideoUrl';
 import { useRenderDelay } from '@/remotion/hooks/render/useRenderDelay';
 import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
@@ -59,19 +56,54 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const { isRendering } = getRemotionEnvironment();
   const isPreview = !isRendering;
 
-  // Consume computed video data from context
-  const { frameLayout, getRecording, recordingsMap, effects, getActiveClipData } = useVideoData();
+  // Consume computed video data from context (for rendering loop)
+  const { recordingsMap, effects, getActiveClipData, getRecording, frameLayout } = useVideoData();
 
-  const { isEditingCrop, preferOffthreadVideo } = renderSettings;
+  const { preferOffthreadVideo } = renderSettings;
   const useOffthreadVideo = isRendering && preferOffthreadVideo;
 
-  const currentTimeMs = frameToMs(currentFrame, fps);
-  // cameraPathCache is now passed via props as `cameraPath` (SSOT)
-  // const cameraPathCache = useProjectStore((s) => s.cameraPathCache); // Removed
   const isScrubbing = useProjectStore((s) => s.isScrubbing);
 
   // ==========================================================================
-  // ACTIVE CLIP DATA (from Context)
+  // SNAPSHOT (Zero-Prop)
+  // ==========================================================================
+
+  // Single hook for all layout, transform, and clip resolution calculations
+  const snapshot = useFrameSnapshot();
+
+  const {
+    effectiveClipData: resolvedClipData,
+    renderableItems,
+    boundaryState,
+    layout: snapshotLayout,
+    mockup: snapshotMockup,
+    transforms: snapshotTransforms,
+    camera: snapshotCamera,
+    layoutItems
+  } = snapshot;
+
+  // Extract boundary state
+  const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false;
+  const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false;
+  const overlapFrames = boundaryState?.overlapFrames ?? 0;
+
+  // Extract layout items
+  const { active: activeLayoutItem, prev: prevLayoutItem, next: nextLayoutItem } = layoutItems;
+
+  // Destructure for backwards compatibility with existing code
+  const layout = {
+    ...snapshotLayout,
+    // Include mockup properties for backwards compatibility
+    mockupEnabled: snapshotMockup.enabled,
+    mockupData: snapshotMockup.data,
+    mockupPosition: snapshotMockup.position,
+  };
+  const outerTransform = snapshotTransforms.combined;
+  const cropClipPath = snapshotTransforms.clipPath;
+  const zoomTransform = snapshotCamera.zoomTransform;
+
+  // ==========================================================================
+  // ACTIVE CLIP DATA (Legacy/Context)
   // ==========================================================================
   const activeClipData = useActiveClipData(currentFrame);
 
@@ -81,150 +113,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     [currentFrame, getActiveClipData]
   );
 
-  // Layout navigation
-  const layoutNav = useLayoutNavigation(currentFrame);
-  const { activeItem: activeLayoutItem, prevItem: prevLayoutItem, nextItem: nextLayoutItem } = layoutNav;
-
-  const visualLayoutNav = useMemo(() => {
-    const isVisualItem = (item: FrameLayoutItem | null) => {
-      if (!item) return false;
-      const recording = recordingsMap.get(item.clip.recordingId);
-      return recording?.sourceType === 'video' || recording?.sourceType === 'image';
-    };
-
-    const activeItems = findActiveFrameLayoutItems(frameLayout, currentFrame);
-    let activeVisualItem: FrameLayoutItem | null = null;
-    for (const item of activeItems) {
-      if (isVisualItem(item) && (!activeVisualItem || item.startFrame > activeVisualItem.startFrame)) {
-        activeVisualItem = item;
-      }
-    }
-
-    const activeVisualIndex = activeVisualItem
-      ? frameLayout.findIndex((item) => item.clip.id === activeVisualItem?.clip.id)
-      : -1;
-
-    let prevVisualItem: FrameLayoutItem | null = null;
-    for (let i = activeVisualIndex - 1; i >= 0; i -= 1) {
-      const candidate = frameLayout[i];
-      if (isVisualItem(candidate)) {
-        prevVisualItem = candidate;
-        break;
-      }
-    }
-
-    let nextVisualItem: FrameLayoutItem | null = null;
-    for (let i = activeVisualIndex + 1; i < frameLayout.length; i += 1) {
-      const candidate = frameLayout[i];
-      if (isVisualItem(candidate)) {
-        nextVisualItem = candidate;
-        break;
-      }
-    }
-
-    return {
-      activeVisualItem,
-      prevVisualItem,
-      nextVisualItem,
-    };
-  }, [frameLayout, recordingsMap, currentFrame]);
-
-  const renderActiveLayoutItem = visualLayoutNav.activeVisualItem ?? activeLayoutItem;
-  const renderPrevLayoutItem = visualLayoutNav.prevVisualItem ?? prevLayoutItem;
-  const renderNextLayoutItem = visualLayoutNav.nextVisualItem ?? nextLayoutItem;
-
-  // ==========================================================================
-  // BOUNDARY STATE
-  // ==========================================================================
-  const boundaryState = useMemo(() => {
-    return getBoundaryOverlapState({
-      currentFrame,
-      fps,
-      isRendering,
-      activeLayoutItem: renderActiveLayoutItem,
-      prevLayoutItem: renderPrevLayoutItem,
-      nextLayoutItem: renderNextLayoutItem,
-      sourceWidth: sourceVideoWidth, sourceHeight: sourceVideoHeight,
-    });
-  }, [
-    currentFrame,
-    fps,
-    isRendering,
-    renderActiveLayoutItem,
-    renderPrevLayoutItem,
-    renderNextLayoutItem,
-    sourceVideoWidth,
-    sourceVideoHeight,
-  ]);
-
-  const { shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames } = boundaryState;
-
-  // ==========================================================================
-  // CLIP DATA RESOLUTION & CAMERA
-  // ==========================================================================
-
-  // Pre-compute camera path
-  const cameraPathFrame = useCameraPath({
-    enabled: true,
-    currentFrame,
-    cachedPath: cameraPath
-  });
-
   // ==========================================================================
   // RENDER DELAY
   // ==========================================================================
   const { markRenderReady, handleVideoReady } = useRenderDelay(isRendering);
-
-  // ==========================================================================
-  // LAYOUT + TRANSFORM CALCULATION (Single Pass)
-  // ==========================================================================
-
-  // Precomputed zoom from camera path cache
-  const zoomTransform = cameraPathFrame?.zoomTransform ?? null;
-  const zoomTransformStr = cameraPathFrame?.zoomTransformStr ?? '';
-
-  // Single hook for all layout and transform calculations
-  const snapshot = useFrameSnapshot({
-    compositionWidth: width,
-    compositionHeight: height,
-    videoWidth,
-    videoHeight,
-    sourceVideoWidth,
-    sourceVideoHeight,
-    // Clip resolution props
-    currentFrame,
-    currentTimeMs,
-    fps,
-    frameLayout,
-    recordingsMap,
-    activeClipData,
-    clipEffects: effects,
-    getRecording: (id) => getRecording(id) ?? null,
-    isRendering,
-    boundaryState: {
-      ...boundaryState,
-      activeLayoutItem: renderActiveLayoutItem,
-      prevLayoutItem: renderPrevLayoutItem,
-      nextLayoutItem: renderNextLayoutItem,
-    },
-    // Transform props
-    zoomTransform: zoomTransform as any,
-    zoomTransformStr,
-    isEditingCrop
-  });
-
-  const { effectiveClipData: resolvedClipData, renderableItems } = snapshot;
-
-  // Destructure for backwards compatibility with existing code
-  const layout = {
-    ...snapshot.layout,
-    // Include mockup properties for backwards compatibility
-    mockupEnabled: snapshot.mockup.enabled,
-    mockupData: snapshot.mockup.data,
-    mockupPosition: snapshot.mockup.position,
-  };
-  const outerTransform = snapshot.transforms.combined;
-  const cropClipPath = snapshot.transforms.clipPath;
 
   // ==========================================================================
   // CAMERA MOTION BLUR (WebGL-based directional blur)
@@ -248,31 +140,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const isMainVideo = layout.drawWidth >= MOTION_BLUR_MIN_WIDTH;
   const isMotionBlurActive = motionBlurEnabled && isMainVideo;
 
-  // Read precomputed velocity directly from cache (already smoothed in calculator)
-  const cameraVelocity = useMemo(() => {
-    if (!isMotionBlurActive || !cameraPathFrame?.velocity) return { x: 0, y: 0 };
-
-    // Scale normalized velocity to pixels
-    const scale = zoomTransform?.scale ?? 1;
-
-    // Calculate final pixel velocity
-    // NOTE: Precomputed velocity is already normalized delta-per-frame (0-1)
-    // We just need to scale it to current dimensions
-    const pxVelocityX = cameraPathFrame.velocity.x * layout.drawWidth * scale;
-    const pxVelocityY = cameraPathFrame.velocity.y * layout.drawHeight * scale;
-
-    return {
-      x: Number.isFinite(pxVelocityX) ? pxVelocityX : 0,
-      y: Number.isFinite(pxVelocityY) ? pxVelocityY : 0,
-    };
-  }, [
-    isMotionBlurActive,
-    cameraPathFrame?.velocity,
-    zoomTransform?.scale,
-    layout.drawWidth,
-    layout.drawHeight
-  ]);
-
   // ============================================================================
   // REFOCUS BLUR (Zoom transitions only - motion blur handled by WebGL)
   // ============================================================================
@@ -282,7 +149,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     : 0;
 
   // Refocus blur during zoom transitions (intro/outro phases)
-  const refocusBlurRaw = (zoomTransform?.refocusBlur ?? 0) * 12 * refocusIntensity;
+  const refocusBlurRaw = ((zoomTransform as any)?.refocusBlur ?? 0) * 12 * refocusIntensity;
   // Allow fractional blur for smooth transitions (prevents 0->1px snap blink)
   const effectiveBlurPx = refocusBlurRaw < 0.1 ? 0 : Number(refocusBlurRaw.toFixed(2));
 
@@ -352,9 +219,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             drawHeight={layout.drawHeight}
             compositionWidth={width}
             compositionHeight={height}
-            activeLayoutItem={renderActiveLayoutItem}
-            prevLayoutItem={renderPrevLayoutItem}
-            nextLayoutItem={renderNextLayoutItem}
+            activeLayoutItem={activeLayoutItem}
+            prevLayoutItem={prevLayoutItem}
+            nextLayoutItem={nextLayoutItem}
             shouldHoldPrevFrame={shouldHoldPrevFrame}
             isNearBoundaryEnd={isNearBoundaryEnd}
             overlapFrames={overlapFrames}
@@ -392,7 +259,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     renderableItems, recordingsMap, width, height,
     currentFrame, fps, isRendering, layout,
     activeLayoutItem, prevLayoutItem, nextLayoutItem,
-    renderActiveLayoutItem, renderPrevLayoutItem, renderNextLayoutItem,
     shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
     markRenderReady, handleVideoReady, useOffthreadVideo,
     isScrubbing
@@ -405,13 +271,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // Prepare context value
   const videoPositionContextValue = {
     ...layout,
-    zoomTransform: zoomTransform ?? null,
+    zoomTransform: (zoomTransform as any) ?? null,
     contentTransform: outerTransform,
     refocusBlurPx: effectiveBlurPx,
     // NEW: Motion blur state for IoC pattern (VideoClipRenderer consumes this)
     motionBlur: {
-      enabled: motionBlurEnabled && isMainVideo,
-      velocity: cameraVelocity,
+      enabled: isMotionBlurActive,
+      velocity: snapshotCamera.velocity,
       intensity: motionBlurIntensity / 100,
       drawWidth: layout.drawWidth,
       drawHeight: layout.drawHeight,

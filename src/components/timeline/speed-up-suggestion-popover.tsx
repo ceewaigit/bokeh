@@ -44,7 +44,7 @@ export function SpeedUpSuggestionPopover({
   const isTyping = period.type === SpeedUpType.Typing
   const Icon = isTyping ? Zap : Moon
   const title = isTyping ? 'Typing speed-up' : 'Idle speed-up'
-  const iconColor = isTyping ? 'text-amber-500' : 'text-indigo-500'
+  const iconColor = isTyping ? 'text-warning' : 'text-info'
 
   const totalAll = allTypingPeriods.length + allIdlePeriods.length
 

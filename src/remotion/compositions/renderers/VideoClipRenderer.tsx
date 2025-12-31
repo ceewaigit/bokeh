@@ -5,8 +5,8 @@
  * Uses Remotion's Sequence and Video components for frame-accurate timing.
  * Works for both preview and export modes.
  *
- * REFACTORED: Now uses VideoPositionContext (Zero Prop Pattern)
- * Layout, transform, and boundary state are sourced from context.
+ * REFACTORED: Now uses useFrameSnapshot (Zero Prop Pattern)
+ * Layout, transform, and boundary state are sourced directly from the hook.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
@@ -19,11 +19,12 @@ import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { devAssert } from '@/shared/utils/invariant';
 import { useComposition } from '@/remotion/context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
-import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
+import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
 import type { Clip, Recording } from '@/types/project';
 import type { SyntheticEvent } from 'react';
 import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 import { MotionBlurWrapper } from '../layers/MotionBlurWrapper';
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
 
 interface VideoClipRendererProps {
   // Identity and Source (Minimal Props)
@@ -60,27 +61,34 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const { fps } = useComposition();
   const setPreviewReady = useProjectStore((s) => s.setPreviewReady);
 
-  // Consume Shared Context (SSOT)
+  // Consume Frame Snapshot (Zero-Prop Pattern)
+  const snapshot = useFrameSnapshot();
+
   const {
-    drawWidth,
-    drawHeight,
-    cornerRadius,
-    zoomTransform,
-    maxZoomScale,
-    activeLayoutItem,
-    prevLayoutItem,
-    nextLayoutItem,
+    layout,
     boundaryState,
-    motionBlur
-  } = useVideoPosition();
+    maxZoomScale,
+    camera,
+    layoutItems
+  } = snapshot;
+
+  const { drawWidth, drawHeight, cornerRadius } = layout;
+  const zoomTransform = camera.zoomTransform;
 
   // Extract boundary state
   const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false;
   const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false;
   const overlapFrames = boundaryState?.overlapFrames ?? 0;
 
+  // Extract layout items
+  const { active: activeLayoutItem, prev: prevLayoutItem, next: nextLayoutItem } = layoutItems;
+
+  // Motion Blur - Consumed from context (IoC) to ensure it works in export
+  // SharedVideoController handles the calculation and passes it down
+  const { motionBlur } = useVideoPosition();
+
   // Derive current zoom scale from transform
-  const currentZoomScale = zoomTransform?.scale ?? 1;
+  const currentZoomScale = (zoomTransform as any)?.scale ?? 1;
 
   // Get settings from context
   const { playback, renderSettings, resources } = usePlaybackSettings();
@@ -210,9 +218,6 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const endAtFrames = Math.max(startFromFrames, startFromFrames + Math.max(1, groupDuration) - 1);
 
   // Opacity: purely based on render state (intro/outro/glow).
-  // REMOVED: shouldHideForGeneratedActive optimization. It was causing false positives
-  // where split clips or overlayed clips would disappear unexpectedly.
-  // Performance impact is negligible compared to robustness of video visibility.
   const effectiveOpacity = renderState.effectiveOpacity;
   const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1));
   const shouldMuteAudio = previewMuted || effectiveVolume <= 0 || !recording?.hasAudio || renderState.isPreloading;
@@ -236,6 +241,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           <MotionBlurWrapper
             enabled={motionBlur?.enabled ?? false}
             velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
+            intensity={motionBlur?.intensity ?? 1.0}
             drawWidth={motionBlur?.drawWidth ?? drawWidth}
             drawHeight={motionBlur?.drawHeight ?? drawHeight}
           >

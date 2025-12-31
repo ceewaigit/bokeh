@@ -473,7 +473,7 @@ export function calculateAdaptiveZoomLimits(
   minBlockWidthPx: number = 24
 ): { min: number; max: number } {
   const basePixelsPerMs = 0.1
-  const trackLabelWidth = 42 // TimelineConfig.TRACK_LABEL_WIDTH
+  const trackLabelWidth = 0 // TimelineConfig.TRACK_LABEL_WIDTH
   const effectiveViewportWidth = viewportWidth - trackLabelWidth
 
   // Default limits
