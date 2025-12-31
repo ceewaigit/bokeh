@@ -259,7 +259,6 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         let nextY = basePosition.y
         let nextWidth = safeWidth
         let nextHeight = safeHeight
-        let scaleFactor = 1
 
         if (type === AnnotationType.Highlight) {
           switch (dragType) {

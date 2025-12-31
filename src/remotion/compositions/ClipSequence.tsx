@@ -13,7 +13,7 @@
 import React from 'react';
 import { Sequence } from 'remotion';
 import type { ClipSequenceProps } from '@/types';
-import { ClipProvider, useClipContext } from '../context/timeline/ClipContext';
+import { ClipProvider } from '../context/timeline/ClipContext';
 import { BackgroundLayer } from './layers/BackgroundLayer';
 import { KeystrokeLayer } from './layers/KeystrokeLayer';
 
@@ -21,38 +21,22 @@ import { KeystrokeLayer } from './layers/KeystrokeLayer';
  * Inner component that renders layers - must be inside ClipProvider
  */
 const ClipLayers: React.FC<{
-  videoWidth: number;
-  videoHeight: number;
   includeBackground?: boolean;
   includeKeystrokes?: boolean;
-}> = ({ videoWidth, videoHeight, includeBackground = false, includeKeystrokes = true }) => {
-  const { effects } = useClipContext();
-
-  // Extract effect data for layers
-  const backgroundEffect = React.useMemo(() => {
-    return effects.find((e) => e.type === 'background');
-  }, [effects]);
-
-  // Get ALL keystroke effects (per-typing-period architecture)
-  const keystrokeEffects = React.useMemo(() => {
-    return effects.filter((e) => e.type === 'keystroke');
-  }, [effects]);
+}> = ({ includeBackground = false, includeKeystrokes = true }) => {
+  // Effects are now pulled directly from context in child layers
 
   return (
     <>
       {includeBackground && (
-        <BackgroundLayer
-          backgroundEffect={backgroundEffect}
-          videoWidth={videoWidth}
-          videoHeight={videoHeight}
-        />
+        <BackgroundLayer />
       )}
 
       {/* Video layer is rendered by SharedVideoController at TimelineComposition level */}
 
       {/* Keystrokes (above video) */}
       {includeKeystrokes && (
-        <KeystrokeLayer keystrokeEffects={keystrokeEffects} videoWidth={videoWidth} videoHeight={videoHeight} />
+        <KeystrokeLayer />
       )}
     </>
   );
@@ -64,34 +48,23 @@ const ClipLayers: React.FC<{
  * Clean pattern: Sequence wraps context and layers
  * Resources are now accessed via TimeContext (SSOT) instead of props
  */
+
 export const ClipSequence: React.FC<ClipSequenceProps> = ({
   clip,
-  effects,
-  videoWidth,
-  videoHeight,
   startFrame,
   durationFrames,
-  renderSettings,
 
   includeBackground,
   includeKeystrokes,
 }) => {
-  const { preferOffthreadVideo } = renderSettings || {};
-
   return (
     <Sequence
       from={startFrame}
       durationInFrames={durationFrames}
       name={`Clip ${clip.id}`}
     >
-      <ClipProvider
-        clip={clip}
-        effects={effects}
-        preferOffthreadVideo={preferOffthreadVideo}
-      >
+      <ClipProvider clip={clip}>
         <ClipLayers
-          videoWidth={videoWidth}
-          videoHeight={videoHeight}
           includeBackground={includeBackground}
           includeKeystrokes={includeKeystrokes}
         />

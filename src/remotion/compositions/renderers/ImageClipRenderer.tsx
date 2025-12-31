@@ -9,7 +9,7 @@ import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { useVideoUrl } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
 import type { Clip, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
 
 interface ImageClipRendererProps {
   clipForVideo: Clip;
@@ -21,31 +21,22 @@ interface ImageClipRendererProps {
   currentFrame: number;
   fps: number;
   isRendering: boolean;
-  cornerRadius: number;
-  drawWidth: number;
-  drawHeight: number;
   compositionWidth: number;
   compositionHeight: number;
-  activeLayoutItem: FrameLayoutItem | null;
-  prevLayoutItem: FrameLayoutItem | null;
-  nextLayoutItem: FrameLayoutItem | null;
-  shouldHoldPrevFrame: boolean;
-  isNearBoundaryEnd: boolean;
-  overlapFrames: number;
 }
 
 export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
   clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
-  currentFrame, fps, isRendering, cornerRadius, drawWidth, drawHeight,
+  currentFrame, fps, isRendering,
   compositionWidth, compositionHeight,
-  activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
 }) => {
   // Shared render state
   const renderState = useClipRenderState({
     clip: clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
-    currentFrame, fps, isRendering, drawWidth, drawHeight,
-    activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+    currentFrame, fps, isRendering
   });
+
+  const { cornerRadius = 0, drawWidth, drawHeight } = useVideoPosition();
 
   // Get settings from context for URL resolution
   const { resources } = usePlaybackSettings();

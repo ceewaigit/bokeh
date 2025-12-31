@@ -20,7 +20,7 @@ export class AnnotationEffectStrategy implements IEffectStrategy {
     const data = effect.data as AnnotationData
     if (!data) return
 
-    const { ctx, timestamp, width, height } = context
+    const { ctx, width, height } = context
 
     // Force opacity to 1 for now to debugging visibility issues
     const opacity = 1

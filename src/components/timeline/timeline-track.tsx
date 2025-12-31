@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Group, Rect } from 'react-konva'
 import Konva from 'konva'
-import { TimelineConfig } from '@/features/timeline/config'
 import { useTimelineColors } from '@/features/timeline/utils/colors'
 import { TimelineTrackType } from '@/types/project'
 
@@ -158,7 +157,7 @@ export const TimelineTrack = React.memo(({
   width,
   height,
   muted = false,
-  onLabelClick
+  onLabelClick: _onLabelClick
 }: TimelineTrackProps) => {
   const colors = useTimelineColors()
 
@@ -231,8 +230,6 @@ export const TimelineTrack = React.memo(({
   }
 
   const style = getTrackStyle()
-  const labelTextColor = muted ? colors.mutedForeground : style.labelColor
-
 
   return (
     <AnimatedGroup y={y}>

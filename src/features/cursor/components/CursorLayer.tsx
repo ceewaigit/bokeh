@@ -18,7 +18,7 @@ import { getCursorEffect } from '@/features/effects/effect-filters';
 import { applyCssTransformToPoint } from '@/remotion/compositions/utils/transforms/transform-point';
 
 import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadata';
-import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -91,15 +91,48 @@ export const CursorLayer = React.memo(() => {
   const { videoWidth, videoHeight, resources } = useTimelineContext();
   const metadataUrls = resources.metadataUrls;
 
-  // Pull Frame Snapshot (Zero-Prop Pattern)
-  const snapshot = useFrameSnapshot();
+  // Pull Context Data (SSOT)
+  const videoPosition = useVideoPosition();
   const {
-    layout,
-    transforms,
-    mockup,
-    effectiveClipData: activeClipData, // Use effective/resolved clip data
-    camera
-  } = snapshot;
+    // Layout
+    offsetX,
+    offsetY,
+    drawWidth,
+    drawHeight,
+    // Mockup
+    mockupEnabled,
+    mockupPosition,
+    // Clip Data
+    effectiveClipData: activeClipData,
+    // Transforms
+    contentTransform,
+    // Effects
+    refocusBlurPx,
+    mockupData
+  } = videoPosition;
+
+  // Reconstruct layout object to match existing usage if needed, or just use variables
+  const layout = useMemo(() => ({
+    offsetX,
+    offsetY,
+    drawWidth,
+    drawHeight,
+  }), [offsetX, offsetY, drawWidth, drawHeight]);
+
+  // Reconstruct mockup object to match existing usage
+  const mockup = useMemo(() => ({
+    enabled: mockupEnabled ?? false,
+    position: mockupPosition ?? null,
+    data: mockupData ?? null
+  }), [mockupEnabled, mockupPosition, mockupData]);
+
+  // Reconstruct transforms object
+  const transforms = useMemo(() => ({
+    combined: contentTransform,
+  }), [contentTransform]);
+
+  // Camera settings
+  // zoomTransform is used elsewhere if needed, but not here via this variable
 
   // USE SHARED DATA FROM SNAPSHOT (SSOT)
   const recording: Recording | null = activeClipData?.recording ?? null;
@@ -620,15 +653,11 @@ export const CursorLayer = React.memo(() => {
   // Don't show cursor for: plain generated clips
   const shouldShowCursor = (!isGeneratedRecording || isImageRecording || hasSyntheticEvents) && cursorEffect?.enabled !== false && cursorData && cursorPosition;
 
-  // Calculate refocus blur from zoom transform (camera-like focus pull during zoom)
-  const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera);
-  const refocusEnabled = cameraSettings?.refocusBlurEnabled !== false;
-  const refocusIntensity = refocusEnabled
-    ? Math.max(0, Math.min(1, (cameraSettings?.refocusBlurIntensity ?? 50) / 100))
-    : 0;
-  const refocusBlurPx = ((camera.zoomTransform as any)?.refocusBlur ?? 0) * 12 * refocusIntensity;
+  // Refocus blur is now provided by VideoPositionContext (SSOT)
+  const effectiveRefocusBlurPx = refocusBlurPx ?? 0;
 
-  const hasRefocusBlur = refocusBlurPx > 0.01;
+
+  const hasRefocusBlur = effectiveRefocusBlurPx > 0.01;
   const mockupClip = useMemo(() => {
     const mockupPosition = mockup.position;
     if (!mockup.enabled || !mockupPosition) return null;
@@ -654,7 +683,7 @@ export const CursorLayer = React.memo(() => {
       pointerEvents: 'none',
       zIndex: 200,
       // Apply refocus blur to entire cursor layer (cursor + click effects)
-      filter: hasRefocusBlur ? `blur(${refocusBlurPx}px)` : undefined,
+      filter: hasRefocusBlur ? `blur(${effectiveRefocusBlurPx}px)` : undefined,
       clipPath: !debugEnabled && !isMockup && !useContainerTransform && mockupClip
         ? `inset(${mockupClip.top}px ${mockupClip.right}px ${mockupClip.bottom}px ${mockupClip.left}px round ${mockupClip.radius}px)`
         : undefined,

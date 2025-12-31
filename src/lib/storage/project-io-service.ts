@@ -8,7 +8,6 @@ import { precomputeCursorSmoothingCache } from '@/features/cursor/logic/cursor-l
 
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { EffectStore } from '@/lib/core/effects'
-import { getSourceDimensionsStatic } from '@/lib/core/coordinates'
 import { InvalidPathError, MissingVideoError } from '@/lib/errors'
 
 /**

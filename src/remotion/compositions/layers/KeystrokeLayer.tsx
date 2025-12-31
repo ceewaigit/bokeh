@@ -2,20 +2,24 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { AbsoluteFill, useVideoConfig, useCurrentFrame } from 'remotion';
 import { KeystrokeRenderer, type KeystrokeDrawRect } from '@/features/effects/keystroke-renderer';
 import type { KeystrokeEffectData } from '@/types/project';
-import type { KeystrokeLayerProps } from '@/types';
+
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
 import { useComposition } from '../../context/CompositionContext';
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects';
 
-export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
-  keystrokeEffects,
-}) => {
+
+
+export const KeystrokeLayer: React.FC = () => {
   const sourceTimeMs = useSourceTime();
-  const { keystrokeEvents, clip } = useClipContext();
+  const { keystrokeEvents, clip, effects } = useClipContext();
   const { width, height } = useVideoConfig();
   const { fps } = useComposition();
   const frame = useCurrentFrame();
+
+  const keystrokeEffects = useMemo(() => {
+    return effects.filter(e => e.type === 'keystroke');
+  }, [effects]);
 
   const frameDurationMs = useMemo(() => 1000 / fps, [fps]);
 

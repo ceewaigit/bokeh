@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AbsoluteFill } from 'remotion';
 import type { BackgroundEffectData } from '@/types/project';
-import type { BackgroundLayerProps } from '@/types';
+
 import { BackgroundType } from '@/types/project';
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
@@ -77,9 +77,9 @@ const ParallaxBackgroundWrapper: React.FC<{
  * Main BackgroundLayer component - delegates to optimized sub-components.
  * Static backgrounds don't re-render on frame changes (major battery savings).
  */
-export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
-  backgroundEffect,
-}) => {
+export const BackgroundLayer: React.FC = () => {
+  const { effects } = useClipContext();
+  const backgroundEffect = useMemo(() => effects.find(e => e.type === 'background'), [effects]);
   const backgroundData = backgroundEffect?.data as BackgroundEffectData | undefined;
 
   if (!backgroundData?.type) {

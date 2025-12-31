@@ -58,7 +58,6 @@ export function useFrameSnapshot(): FrameSnapshot {
     const currentTimeMs = frameToMs(currentFrame, fps);
 
     // 3. Settings & Store
-    const isScrubbing = useProjectStore((s) => s.isScrubbing);
     const cameraPathCache = useProjectStore((s) => s.cameraPathCache);
     const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera);
     

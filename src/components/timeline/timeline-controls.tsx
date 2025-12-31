@@ -1,7 +1,6 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React from 'react'
 import { motion } from 'framer-motion'
 
-import { cn } from '@/shared/utils/utils'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 
@@ -44,7 +43,6 @@ import {
   VolumeX,
   ZoomIn,
 } from 'lucide-react'
-import { useTimelineColors, withAlpha } from '@/features/timeline/utils/colors'
 
 // Track labels for dropdown display
 const TRACK_LABELS: Record<TimelineTrackType, string> = {
@@ -189,8 +187,6 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   // Ensure zoom limits are valid
   const effectiveMinZoom = Math.max(0.01, minZoom)
   const effectiveMaxZoom = Math.min(10, maxZoom)
-
-  const colors = useTimelineColors()
 
   return (
     <TooltipProvider delayDuration={300}>

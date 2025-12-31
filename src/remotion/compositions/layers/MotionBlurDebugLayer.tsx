@@ -1,9 +1,9 @@
 import React, { CSSProperties } from 'react';
 
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
+
 interface MotionBlurDebugLayerProps {
     enabled: boolean;
-    drawWidth: number;
-    drawHeight: number;
 }
 
 /**
@@ -29,9 +29,8 @@ interface MotionBlurDebugLayerProps {
  */
 export const MotionBlurDebugLayer: React.FC<MotionBlurDebugLayerProps> = ({
     enabled,
-    drawWidth,
-    drawHeight,
 }) => {
+    const { drawWidth, drawHeight } = useVideoPosition();
     if (!enabled) return null;
 
     const style: CSSProperties = {

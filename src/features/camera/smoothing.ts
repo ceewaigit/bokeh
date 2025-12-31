@@ -10,9 +10,7 @@ import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpo
 import { CAMERA_CONFIG } from '@/features/effects/config/physics-config'
 
 const {
-    velocityThreshold: VELOCITY_THRESHOLD,
     dwellTriggerMs: DWELL_TRIGGER_MS,
-    releaseThreshold: RELEASE_THRESHOLD,
 } = CAMERA_CONFIG
 
 /**
@@ -23,16 +21,16 @@ const {
  * 
  * @param mouseEvents - Full history of mouse events
  * @param timeMs - Current playback time
- * @param videoWidth - Video dimensions (for normalization if needed)
- * @param videoHeight - Video dimensions
- * @param smoothingAmount - 0-100 UI value
+ * @param _videoWidth - Video dimensions (for normalization if needed)
+ * @param _videoHeight - Video dimensions
+ * @param _smoothingAmount - 0-100 UI value
  */
 export function calculateAttractor(
     mouseEvents: MouseEvent[],
     timeMs: number,
-    videoWidth: number,
-    videoHeight: number,
-    smoothingAmount: number
+    _videoWidth: number,
+    _videoHeight: number,
+    _smoothingAmount: number
 ): { x: number; y: number; velocity: number; isDwelling: boolean } | null {
     if (mouseEvents.length === 0) return null
 

@@ -6,13 +6,11 @@ import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext
 import { useProjectStore } from '@/stores/project-store';
 import type { Effect } from '@/types/project';
 import { EffectType } from '@/types/project';
-import { z } from 'zod';
 
-interface AnnotationLayerProps {
-  effects: Effect[];
-}
+import { useTimelineContext } from '@/remotion/context/TimelineContext';
 
-export const AnnotationLayer: React.FC<AnnotationLayerProps> = ({ effects }) => {
+export const AnnotationLayer: React.FC = () => {
+  const { effects } = useTimelineContext();
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const videoPosition = useVideoPosition();

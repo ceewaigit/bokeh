@@ -37,7 +37,6 @@ import type { WebcamEffectData } from '@/types/project';
 import { TimelineProvider } from '../context/TimelineContext';
 import { useProjectStore } from '@/stores/project-store';
 import { calculateFullCameraPath } from '@/features/effects/utils/camera-path-calculator';
-import { TimeConverter } from '@/features/timeline/time/time-space-converter';
 
 /**
  * Get audio URL for a recording
@@ -211,9 +210,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     prevVisibleIdsRef.current = currentIds;
     prevVisibleLayoutRef.current = items;
     return items;
-    prevVisibleIdsRef.current = currentIds;
-    prevVisibleLayoutRef.current = items;
-    return items;
   }, [frameLayout, fps, frame, getActiveLayoutItems]);
 
   // ROBUST CAMERA PATH RESOLUTION:
@@ -259,10 +255,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
             <ClipSequence
               key={`bg-${clip.id}`}
               clip={clip}
-              effects={effects}
-              videoWidth={videoWidth}
-              videoHeight={videoHeight}
-              renderSettings={renderSettings}
               startFrame={startFrame}
               durationFrames={durationFrames}
               includeBackground={true}
@@ -289,10 +281,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
             <ClipSequence
               key={clip.id}
               clip={clip}
-              effects={effects}
-              videoWidth={videoWidth}
-              videoHeight={videoHeight}
-              renderSettings={renderSettings}
               startFrame={startFrame}
               durationFrames={durationFrames}
               includeBackground={false}
@@ -311,14 +299,14 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
 
         {/* Glue player is an ambient blur; skip extra overlays to keep preview smooth. */}
         {!renderSettings.isGlowMode && (
-          <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="below-cursor" />
+          <PluginLayer layer="below-cursor" />
         )}
 
         {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
         {!renderSettings.isGlowMode && <CursorLayer />}
 
         {/* Annotation overlay rendered on the same video coordinates */}
-        {!renderSettings.isGlowMode && <AnnotationLayer effects={effects} />}
+        {!renderSettings.isGlowMode && <AnnotationLayer />}
 
         {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
         {useVideoConfig().width > 300 && (
@@ -335,12 +323,11 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         {useVideoConfig().width > 300 && !renderSettings.isEditingCrop && (
           <OverlayEditor effects={effects} enabled={!renderSettings.isGlowMode} />
         )}
-
       </SharedVideoController>
 
       {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
       {!renderSettings.isGlowMode && (
-        <PluginLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} layer="above-cursor" />
+        <PluginLayer layer="above-cursor" />
       )}
 
       {/* Audio track layer - renders standalone audio clips (imported MP3, WAV, etc.) */}

@@ -5,7 +5,6 @@
  */
 
 import { PatchedCommand } from '../base/PatchedCommand'
-import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { timelineToClipRelative } from '@/features/timeline/time/time-space-converter'
 import type { WritableDraft } from 'immer'

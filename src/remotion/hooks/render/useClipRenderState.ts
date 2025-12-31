@@ -13,9 +13,9 @@
 
 import { useMemo } from 'react';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
 import { calculateClipFadeDurations, calculateClipFadeOpacity, calculateGlowCrossfadeOpacity } from '../../compositions/utils/effects/clip-fade';
 import type { Clip, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 
 // ============================================================================
 // TYPES
@@ -31,14 +31,6 @@ export interface ClipRenderStateOptions {
     currentFrame: number;
     fps: number;
     isRendering: boolean;
-    drawWidth: number;
-    drawHeight: number;
-    activeLayoutItem: FrameLayoutItem | null;
-    prevLayoutItem: FrameLayoutItem | null;
-    nextLayoutItem: FrameLayoutItem | null;
-    shouldHoldPrevFrame: boolean;
-    isNearBoundaryEnd: boolean;
-    overlapFrames: number;
 }
 
 export interface ClipRenderState {
@@ -72,12 +64,25 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
     const { renderSettings } = usePlaybackSettings();
     const { isGlowMode } = renderSettings;
 
+    // Pull layout and boundary state from context (Zero-Prop)
+    // accessible because Renderers are children of VideoPositionProvider
+    const {
+        drawWidth,
+        drawHeight,
+        activeLayoutItem = null,
+        prevLayoutItem = null,
+        nextLayoutItem = null,
+        boundaryState
+    } = useVideoPosition();
+
+    const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false;
+    const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false;
+    const overlapFrames = boundaryState?.overlapFrames ?? 0;
+
     return useMemo(() => {
         const {
             clip, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
-            currentFrame, fps, isRendering, drawWidth, drawHeight,
-            activeLayoutItem, prevLayoutItem, nextLayoutItem,
-            shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+            currentFrame, fps, isRendering,
         } = options;
 
         // ==========================================================================
@@ -156,5 +161,10 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
             introFadeDuration,
             outroFadeDuration,
         };
-    }, [options, isGlowMode]);
+    }, [
+        options, isGlowMode,
+        drawWidth, drawHeight,
+        activeLayoutItem, prevLayoutItem, nextLayoutItem,
+        boundaryState, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames
+    ]);
 }

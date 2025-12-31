@@ -9,26 +9,37 @@
  * - overlay: 50-79 (text, shapes, callouts)
  * - underlay: 10-29 (behind cursor effects)
  * - background: -10 to 0 (custom backgrounds)
+ *
+ * Zero-Prop Refactor:
+ * - Consumes effects from useTimelineContext
+ * - Consumes frame/layout from useFrameSnapshot
  */
 
 import React, { useMemo } from 'react'
-import { useCurrentFrame, useVideoConfig, AbsoluteFill } from 'remotion'
+import { AbsoluteFill, useCurrentFrame } from 'remotion'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { getAllPluginEffects } from '@/features/effects/effect-filters'
 import { frameToMs } from '../utils/time/frame-time'
 import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
-import type { PluginLayerProps } from '@/types'
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk'
 import { assertDefined } from '@/lib/errors'
+import { useTimelineContext } from '@/remotion/context/TimelineContext'
+
+interface PluginLayerProps {
+  layer?: 'below-cursor' | 'above-cursor'
+}
 
 export const PluginLayer: React.FC<PluginLayerProps> = ({
-  effects,
   layer = 'below-cursor'
 }) => {
-  const frame = useCurrentFrame()
-  const { fps, width, height } = useVideoConfig()
-  const currentTimeMs = frameToMs(frame, fps)
+  // Pull core state from contexts
+  const { effects, fps, videoWidth, videoHeight } = useTimelineContext()
+  const currentFrame = useCurrentFrame()
+
+  const width = videoWidth
+  const height = videoHeight
+  const currentTimeMs = frameToMs(currentFrame, fps)
 
   // Effects list is typically stable while playing; avoid re-filtering/sorting every frame.
   const allPluginEffects = useMemo(() => getAllPluginEffects(effects), [effects])
@@ -71,7 +82,7 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
         <PluginEffectRenderer
           key={effect.id}
           effect={effect}
-          frame={frame}
+          frame={currentFrame}
           fps={fps}
           currentTimeMs={currentTimeMs}
           width={width}

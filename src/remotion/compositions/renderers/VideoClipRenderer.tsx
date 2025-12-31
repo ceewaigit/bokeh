@@ -19,7 +19,7 @@ import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { devAssert } from '@/shared/utils/invariant';
 import { useComposition } from '@/remotion/context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
-import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
+// import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot'; // Removed
 import type { Clip, Recording } from '@/types/project';
 import type { SyntheticEvent } from 'react';
 import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
@@ -61,31 +61,16 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const { fps } = useComposition();
   const setPreviewReady = useProjectStore((s) => s.setPreviewReady);
 
-  // Consume Frame Snapshot (Zero-Prop Pattern)
-  const snapshot = useFrameSnapshot();
-
+  // Consume VideoPositionContext (Zero-Prop Pattern)
+  const videoPosition = useVideoPosition();
   const {
-    layout,
-    boundaryState,
+    drawWidth,
+    drawHeight,
+    cornerRadius,
+    zoomTransform,
+    motionBlur,
     maxZoomScale,
-    camera,
-    layoutItems
-  } = snapshot;
-
-  const { drawWidth, drawHeight, cornerRadius } = layout;
-  const zoomTransform = camera.zoomTransform;
-
-  // Extract boundary state
-  const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false;
-  const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false;
-  const overlapFrames = boundaryState?.overlapFrames ?? 0;
-
-  // Extract layout items
-  const { active: activeLayoutItem, prev: prevLayoutItem, next: nextLayoutItem } = layoutItems;
-
-  // Motion Blur - Consumed from context (IoC) to ensure it works in export
-  // SharedVideoController handles the calculation and passes it down
-  const { motionBlur } = useVideoPosition();
+  } = videoPosition;
 
   // Derive current zoom scale from transform
   const currentZoomScale = (zoomTransform as any)?.scale ?? 1;
@@ -192,11 +177,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // Shared render state
   const renderState = useClipRenderState({
     clip: clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
-    currentFrame, fps, isRendering, drawWidth, drawHeight,
-    activeLayoutItem: activeLayoutItem ?? null,
-    prevLayoutItem: prevLayoutItem ?? null,
-    nextLayoutItem: nextLayoutItem ?? null,
-    shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+    currentFrame, fps, isRendering
   });
 
   // Early return for invalid recordings

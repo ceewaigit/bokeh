@@ -10,7 +10,6 @@ import { useClipRenderState } from '@/remotion/hooks/render/useClipRenderState';
 import { PluginRegistry } from '@/features/effects/config/plugin-registry';
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk';
 import type { Clip, Recording } from '@/types/project';
-import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 import { assertDefined } from '@/lib/errors';
 
 interface GeneratedClipRendererProps {
@@ -23,28 +22,18 @@ interface GeneratedClipRendererProps {
   currentFrame: number;
   fps: number;
   isRendering: boolean;
-  drawWidth: number;
-  drawHeight: number;
   compositionWidth: number;
   compositionHeight: number;
-  activeLayoutItem: FrameLayoutItem | null;
-  prevLayoutItem: FrameLayoutItem | null;
-  nextLayoutItem: FrameLayoutItem | null;
-  shouldHoldPrevFrame: boolean;
-  isNearBoundaryEnd: boolean;
-  overlapFrames: number;
 }
 
 export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
   clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
-  currentFrame, fps, isRendering, drawWidth, drawHeight, compositionWidth, compositionHeight,
-  activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+  currentFrame, fps, isRendering, compositionWidth, compositionHeight,
 }) => {
   // Shared render state (timing, fades, opacity, scaling)
   const renderState = useClipRenderState({
     clip: clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
-    currentFrame, fps, isRendering, drawWidth, drawHeight,
-    activeLayoutItem, prevLayoutItem, nextLayoutItem, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+    currentFrame, fps, isRendering
   });
 
   // Plugin lookup

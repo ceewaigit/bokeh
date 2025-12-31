@@ -1,5 +1,6 @@
 import React from 'react'
 import { usePreviewSettingsStore } from '@/stores/preview-settings-store'
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext'
 
 interface PreviewGuidesProps {
     rect?: {
@@ -10,7 +11,16 @@ interface PreviewGuidesProps {
     }
 }
 
-export function PreviewGuides({ rect }: PreviewGuidesProps) {
+export function PreviewGuides({ rect: explicitRect }: PreviewGuidesProps) {
+    const { offsetX, offsetY, drawWidth, drawHeight } = useVideoPosition();
+
+    const rect = explicitRect || {
+        x: offsetX,
+        y: offsetY,
+        width: drawWidth,
+        height: drawHeight
+    }
+
     const showRuleOfThirds = usePreviewSettingsStore((s) => s.showRuleOfThirds)
     const showCenterGuides = usePreviewSettingsStore((s) => s.showCenterGuides)
     const showSafeZones = usePreviewSettingsStore((s) => s.showSafeZones)
@@ -20,17 +30,12 @@ export function PreviewGuides({ rect }: PreviewGuidesProps) {
 
     if (!showRuleOfThirds && !showCenterGuides && !showSafeZones) return null
 
-    const style: React.CSSProperties = rect ? {
+    const style: React.CSSProperties = {
         position: 'absolute',
         left: rect.x,
         top: rect.y,
         width: rect.width,
         height: rect.height,
-        pointerEvents: 'none',
-        zIndex: 2000
-    } : {
-        position: 'absolute',
-        inset: 0,
         pointerEvents: 'none',
         zIndex: 2000
     }

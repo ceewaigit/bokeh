@@ -1,6 +1,4 @@
-import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 import type { CameraPathFrame } from '@/types'
-import type { Effect, Recording, RecordingMetadata } from '@/types/project'
 import { useMemo } from 'react'
 
 // Import DEFAULT_RESULT from calculator or define locally if not exported

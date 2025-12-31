@@ -5,12 +5,11 @@
  */
 
 import { PatchedCommand } from '../base/PatchedCommand'
-import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/stores/project-store'
 import { computeEffectiveDuration } from '@/features/timeline/time/time-space-converter'
-import { findClipById, updateClipInTrack, calculateTimelineDuration } from '@/features/timeline/timeline-operations'
+import { findClipById, updateClipInTrack } from '@/features/timeline/timeline-operations'
 import { EffectsFactory } from '@/features/effects/effects-factory'
 import { PlayheadService } from '@/features/timeline/playback/playhead-service'
 import { playbackService } from '@/features/timeline/playback/playback-service'

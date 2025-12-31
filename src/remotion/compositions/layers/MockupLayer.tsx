@@ -13,15 +13,10 @@
 
 import React, { useMemo } from 'react'
 import { Img, staticFile } from 'remotion'
-import type { DeviceMockupData } from '@/types/project'
-import type { MockupPositionResult } from '@/features/timeline/logic/layout-engine'
 import { resolveMockupMetadata } from '@/lib/mockups/mockup-metadata'
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext'
 
 export interface MockupLayerProps {
-  /** Device mockup configuration */
-  mockupData: DeviceMockupData
-  /** Calculated mockup position and dimensions */
-  mockupPosition: MockupPositionResult
   /** Fill color for letterbox/pillarbox areas */
   screenFillColor?: string
   /** Children to render within the screen region (video content) */
@@ -36,24 +31,25 @@ export interface MockupLayerProps {
  * by the parent component (SharedVideoController), so the entire mockup zooms as a unit.
  */
 export const MockupLayer = React.memo(({
-  mockupData,
-  mockupPosition,
   screenFillColor = '#000000',
   children
 }: MockupLayerProps) => {
+  const { mockupData, mockupPosition } = useVideoPosition()
+
   // Get device metadata
   const deviceMetadata = useMemo(() => {
+    if (!mockupData) return null
     return resolveMockupMetadata(mockupData)
   }, [mockupData])
 
   // Shadow style based on intensity
   // Rotation transform
   const rotationTransform = useMemo(() => {
-    if (!mockupData.rotation || mockupData.rotation === 0) return ''
+    if (!mockupData?.rotation || mockupData.rotation === 0) return ''
     return `rotate(${mockupData.rotation}deg)`
-  }, [mockupData.rotation])
+  }, [mockupData?.rotation])
 
-  if (!deviceMetadata) {
+  if (!deviceMetadata || !mockupPosition || !mockupData) {
     // Fallback: render children without mockup if device not found
     return <>{children}</>
   }

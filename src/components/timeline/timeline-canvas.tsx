@@ -498,7 +498,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
-  const backgroundOpacity = 1
 
   return (
     <TimelineContextProvider value={timelineContextValue}>

@@ -5,7 +5,6 @@
  */
 
 import { PatchedCommand } from '../base/PatchedCommand'
-import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/stores/project-store'

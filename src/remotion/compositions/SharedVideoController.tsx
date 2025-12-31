@@ -22,7 +22,6 @@ import type { SharedVideoControllerProps } from '@/types';
 import { getMaxZoomScale } from '@/remotion/hooks/media/useVideoUrl';
 import { useRenderDelay } from '@/remotion/hooks/render/useRenderDelay';
 import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
-import { frameToMs } from './utils/time/frame-time';
 
 import { VideoClipRenderer } from './renderers/VideoClipRenderer';
 import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
@@ -40,12 +39,12 @@ import { getMotionBlurConfig } from './utils/transforms/zoom-transform';
 export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   videoWidth,
   videoHeight,
-  sourceVideoWidth,
-  sourceVideoHeight,
+  sourceVideoWidth: _sourceVideoWidth,
+  sourceVideoHeight: _sourceVideoHeight,
   children,
   cameraSettings,
   renderSettings,
-  cameraPath,
+  cameraPath: _cameraPath,
 }) => {
   // ==========================================================================
   // REMOTION HOOKS & CONTEXT
@@ -57,7 +56,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const isPreview = !isRendering;
 
   // Consume computed video data from context (for rendering loop)
-  const { recordingsMap, effects, getActiveClipData, getRecording, frameLayout } = useVideoData();
+  const { recordingsMap, effects, getActiveClipData, frameLayout } = useVideoData();
 
   const { preferOffthreadVideo } = renderSettings;
   const useOffthreadVideo = isRendering && preferOffthreadVideo;
@@ -214,17 +213,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             currentFrame={currentFrame}
             fps={fps}
             isRendering={isRendering}
-            cornerRadius={layout.cornerRadius}
-            drawWidth={layout.drawWidth}
-            drawHeight={layout.drawHeight}
             compositionWidth={width}
             compositionHeight={height}
-            activeLayoutItem={activeLayoutItem}
-            prevLayoutItem={prevLayoutItem}
-            nextLayoutItem={nextLayoutItem}
-            shouldHoldPrevFrame={shouldHoldPrevFrame}
-            isNearBoundaryEnd={isNearBoundaryEnd}
-            overlapFrames={overlapFrames}
           />
         );
       } else if (recording.sourceType === 'generated') {
@@ -240,16 +230,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             currentFrame={currentFrame}
             fps={fps}
             isRendering={isRendering}
-            drawWidth={layout.drawWidth}
-            drawHeight={layout.drawHeight}
             compositionWidth={width}
             compositionHeight={height}
-            activeLayoutItem={activeLayoutItem}
-            prevLayoutItem={prevLayoutItem}
-            nextLayoutItem={nextLayoutItem}
-            shouldHoldPrevFrame={shouldHoldPrevFrame}
-            isNearBoundaryEnd={isNearBoundaryEnd}
-            overlapFrames={overlapFrames}
           />
         );
       }
@@ -331,10 +313,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             {/* Video content container - also used by MotionBlurLayer to find active video */}
             <div ref={videoContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
               {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
-                <MockupLayer
-                  mockupData={layout.mockupData}
-                  mockupPosition={layout.mockupPosition}
-                >
+                <MockupLayer>
                   {renderedContent}
                 </MockupLayer>
               ) : (
@@ -346,22 +325,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             {false && (
               <MotionBlurDebugLayer
                 enabled={true}
-                drawWidth={layout.drawWidth}
-                drawHeight={layout.drawHeight}
               />
             )}
           </div>
 
           {/* Preview Guides */}
           {isPreview && (
-            <PreviewGuides
-              rect={{
-                x: layout.offsetX,
-                y: layout.offsetY,
-                width: layout.drawWidth,
-                height: layout.drawHeight
-              }}
-            />
+            <PreviewGuides />
           )}
         </AbsoluteFill>
 

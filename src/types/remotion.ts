@@ -12,6 +12,7 @@ import type {
   KeyboardEvent,
   CropEffectData,
   ZoomEffectData,
+  DeviceMockupData,
 } from './project';
 import type { MockupPositionResult } from '@/features/timeline/logic/layout-engine';
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
@@ -182,7 +183,7 @@ export interface VideoPositionContextValue {
   mockupEnabled?: boolean;
   /** Device mockup position and dimensions (when enabled) */
   mockupPosition?: MockupPositionResult | null;
-  mockupData?: unknown;
+  mockupData?: DeviceMockupData | null;
 
   // Frame layout and clip data (SSOT from SharedVideoController)
   /** Active clip data for current frame */
@@ -285,12 +286,6 @@ export interface AudioEnhancerWrapperProps {
   enabled?: boolean;
 }
 
-export interface BackgroundLayerProps {
-  backgroundEffect?: Effect;
-  videoWidth: number;
-  videoHeight: number;
-}
-
 export interface ParallaxBackgroundLayerProps {
   layers: ParallaxLayer[];
   mouseX: number;
@@ -298,24 +293,10 @@ export interface ParallaxBackgroundLayerProps {
   intensity: number;
 }
 
-export interface KeystrokeLayerProps {
-  keystrokeEffects: Effect[];
-  videoWidth: number;
-  videoHeight: number;
-}
-
-
-
 export interface ClipSequenceProps {
   clip: Clip;
-  effects: Effect[];
-  videoWidth: number;
-  videoHeight: number;
   startFrame: number;
   durationFrames: number;
-
-  // Config objects - resources accessed via TimeContext (SSOT)
-  renderSettings: RenderSettings;
 
   includeBackground?: boolean;
   includeKeystrokes?: boolean;
@@ -360,12 +341,7 @@ export interface SharedVideoControllerProps {
   cropSettings: CropSettings;
 }
 
-export interface PluginLayerProps {
-  effects: Effect[];
-  videoWidth: number;
-  videoHeight: number;
-  layer?: 'below-cursor' | 'above-cursor';
-}
+
 
 export interface VideoClipRendererProps {
   clipForVideo: Clip;

@@ -24,15 +24,17 @@ import type { ClipContextValue } from '@/types';
 
 const ClipContext = createContext<ClipContextValue | null>(null);
 
+import { useRenderSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
+import { useTimelineContext } from '@/remotion/context/TimelineContext';
+
 interface ClipProviderProps {
   clip: Clip;
-  effects: Effect[];
-  preferOffthreadVideo?: boolean;
   children: React.ReactNode;
 }
 
-export function ClipProvider({ clip, effects, preferOffthreadVideo, children }: ClipProviderProps) {
-  const { getRecording, resources } = useComposition();
+export function ClipProvider({ clip, children }: ClipProviderProps) {
+  const { getRecording, resources, effects } = useTimelineContext();
+  const { preferOffthreadVideo } = useRenderSettings();
   const hasLoggedRef = useRef(false);
 
   // Get recording first (needed for metadata hook)
