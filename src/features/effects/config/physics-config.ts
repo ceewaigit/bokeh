@@ -24,11 +24,13 @@ export const CAMERA_CONFIG = {
     cinematicSamples: 8,
     /** Time delta threshold in ms to consider a seek (skip vs normal playback) */
     seekThresholdMs: 100,
-    /** Spring tension - lower = smoother but less responsive (was 120) */
-    springTension: 70,
-    /** Spring friction - higher = less oscillation/jitter (was 25) */
-    springFriction: 35,
+    /** Spring tension - higher = more responsive */
+    springTension: 100,
+    /** Spring friction - balanced for smooth catch-up without floatiness */
+    springFriction: 22,
 } as const
+
+
 
 // =============================================================================
 // CURSOR STOP DETECTION (prevents camera halt-shake)

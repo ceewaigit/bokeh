@@ -56,9 +56,11 @@ export function AudioLevelMeter({
           {/* Animated level indicator */}
           {isMonitoring && (
             <div
-              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all"
+              className={cn(
+                "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all",
+                level > 0.8 ? "bg-red-500" : level > 0.5 ? "bg-yellow-500" : "bg-green-500"
+              )}
               style={{
-                backgroundColor: level > 0.8 ? '#ef4444' : level > 0.5 ? '#eab308' : '#22c55e',
                 opacity: 0.3 + level * 0.7,
                 transform: `scale(${0.5 + level * 0.5})`
               }}
@@ -69,10 +71,12 @@ export function AudioLevelMeter({
         {/* Simple bar */}
         <div className="flex-1 h-1.5 bg-muted/30 rounded-full overflow-hidden min-w-[40px]">
           <div
-            className="h-full rounded-full transition-all duration-75"
+            className={cn(
+              "h-full rounded-full transition-all duration-75",
+              level > 0.8 ? "bg-red-500" : level > 0.5 ? "bg-yellow-500" : "bg-green-500"
+            )}
             style={{
               width: `${level * 100}%`,
-              backgroundColor: level > 0.8 ? '#ef4444' : level > 0.5 ? '#eab308' : '#22c55e'
             }}
           />
         </div>

@@ -55,11 +55,12 @@ export function calculateAttractor(
     const velocity = dist / windowMs
 
     // 2. Determine State: Locked vs Free
-    // Use a localized threshold for "stickiness" - 1.5px/ms makes it eager to lock
-    const STICKY_VELOCITY_THRESHOLD = 1.5
+    // Higher threshold = more sticky. Camera stays put for small/slow movements.
+    // This creates the "polished" feel where only deliberate movements trigger panning.
+    const STICKY_VELOCITY_THRESHOLD = 2.5
 
     if (velocity < STICKY_VELOCITY_THRESHOLD) {
-        // DWELLING: Return the average position
+        // DWELLING: Return the average position to lock on to the dwell point
         const avg = getAveragePosition(mouseEvents, timeMs, DWELL_TRIGGER_MS)
         return {
             x: avg.x,
@@ -69,19 +70,9 @@ export function calculateAttractor(
         }
     }
 
-    // MOVING: Apply standard cinematic smoothing if enabled
-    if (smoothingAmount > 0) {
-        const smoothWindow = smoothingAmount * 10
-        const smoothedParams = getAveragePosition(mouseEvents, timeMs, smoothWindow)
-        return {
-            x: smoothedParams.x,
-            y: smoothedParams.y,
-            velocity,
-            isDwelling: false
-        }
-    }
 
-    // RAW: Just follow the mouse
+    // MOVING: Return raw position - let spring physics handle all smoothing
+    // Removing averaging here eliminates "double-smoothing" lag
     return {
         x: currentPos.x,
         y: currentPos.y,
@@ -89,6 +80,7 @@ export function calculateAttractor(
         isDwelling: false
     }
 }
+
 
 /**
  * Calculates the average position over a time window.

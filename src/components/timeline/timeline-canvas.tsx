@@ -502,7 +502,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 
   return (
     <TimelineContextProvider value={timelineContextValue}>
-      <div className={cn("flex flex-col h-full w-full p-[16px]", className)}>
+      <div className={cn("flex flex-col h-full w-full", className)}>
         <div className="flex flex-col flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
           <TimelineControls
             minZoom={adaptiveZoomLimits.min}

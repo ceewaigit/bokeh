@@ -441,7 +441,7 @@ export function WorkspaceManager() {
                 {/* Left Sidebar - Utilities (closed by default) */}
                 {isUtilitiesOpen && (
                   <div
-                    className="flex flex-col flex-shrink-0 h-full pt-[16px] pb-[4px] pl-[16px]"
+                    className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pl-4"
                     style={{
                       width: `${Math.min(
                         dragUtilitiesWidth ?? utilitiesPanelWidth,
@@ -500,7 +500,7 @@ export function WorkspaceManager() {
                       <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
                     </div>
                     <div
-                      className="flex flex-col flex-shrink-0 h-full pt-[16px] pb-[4px] pr-[16px]"
+                      className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pr-4"
                       style={{
                         width: `${Math.min(
                           dragPropertiesWidth ?? propertiesPanelWidth,
@@ -543,7 +543,7 @@ export function WorkspaceManager() {
                 style={{ height: `${timelineHeight}px`, minHeight: '20vh', width: '100vw' }}
               >
                 <TimelineCanvas
-                  className="h-full w-full pt-[4px] px-[16px] pb-[16px]"
+                  className="h-full w-full pt-1 px-4 pb-3"
                   currentProject={currentProject}
                   zoom={zoom}
                   onPlay={handlePlay}

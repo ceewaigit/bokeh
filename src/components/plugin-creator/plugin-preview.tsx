@@ -197,12 +197,12 @@ export function PluginPreview({
                     <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/30 to-muted/60" />
 
                     {/* Mock Window */}
-                    <div className="w-[80%] h-[70%] bg-background/90 rounded-2xl shadow-2xl border border-border/70 flex flex-col overflow-hidden transform transition-transform duration-700 hover:scale-[1.005] group-hover:shadow-foreground/10">
+                    <div className="w-4/5 h-[70%] bg-background/90 rounded-2xl shadow-2xl border border-border/70 flex flex-col overflow-hidden transform transition-transform duration-700 hover:scale-[1.005] group-hover:shadow-foreground/10">
                         <div className="h-10 bg-muted/60 border-b border-border/60 flex items-center px-4 gap-2">
                             <div className="flex gap-2">
-                                <div className="w-3 h-3 rounded-full bg-[#ff5f56] shadow-sm" />
-                                <div className="w-3 h-3 rounded-full bg-[#ffbd2e] shadow-sm" />
-                                <div className="w-3 h-3 rounded-full bg-[#27c93f] shadow-sm" />
+                                <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm" />
+                                <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-sm" />
+                                <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm" />
                             </div>
                         </div>
                         <div className="flex-1 p-8 space-y-6 bg-gradient-to-b from-background/60 to-background">

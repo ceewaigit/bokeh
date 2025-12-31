@@ -4,8 +4,8 @@
  * Camera follow logic with adaptive dead-zone behavior.
  */
 
-import { clamp01, smootherStep } from '@/lib/core/math'
 import { CAMERA_CONFIG } from '@/features/effects/config/physics-config'
+
 
 export interface OutputOverscan {
     /** Allowed normalized overscan beyond left edge (relative to draw size). */
@@ -94,33 +94,23 @@ export function calculateFollowTargetNormalized(
     const dx = cursorNorm.x - currentCenterNorm.x
     const dy = cursorNorm.y - currentCenterNorm.y
 
-    // Soft inner dead-zone
-    const innerDeadZoneHalfX = deadZoneHalfX * 0.6
-    const innerDeadZoneHalfY = deadZoneHalfY * 0.6
-
+    // Simple dead-zone: no movement inside zone, linear response outside
+    // Spring physics will handle all the easing - no double-easing
     const nextCenterX = (() => {
         const absDx = Math.abs(dx)
-        if (absDx <= innerDeadZoneHalfX) return currentCenterNorm.x
+        if (absDx <= deadZoneHalfX) return currentCenterNorm.x
+        // Move center so cursor sits at dead zone edge
         const sign = dx < 0 ? -1 : 1
-        const desired = cursorNorm.x - sign * deadZoneHalfX
-        const t = deadZoneHalfX > innerDeadZoneHalfX
-            ? clamp01((absDx - innerDeadZoneHalfX) / (deadZoneHalfX - innerDeadZoneHalfX))
-            : 1
-        const eased = smootherStep(t)
-        return currentCenterNorm.x + (desired - currentCenterNorm.x) * eased
+        return cursorNorm.x - sign * deadZoneHalfX
     })()
 
     const nextCenterY = (() => {
         const absDy = Math.abs(dy)
-        if (absDy <= innerDeadZoneHalfY) return currentCenterNorm.y
+        if (absDy <= deadZoneHalfY) return currentCenterNorm.y
         const sign = dy < 0 ? -1 : 1
-        const desired = cursorNorm.y - sign * deadZoneHalfY
-        const t = deadZoneHalfY > innerDeadZoneHalfY
-            ? clamp01((absDy - innerDeadZoneHalfY) / (deadZoneHalfY - innerDeadZoneHalfY))
-            : 1
-        const eased = smootherStep(t)
-        return currentCenterNorm.y + (desired - currentCenterNorm.y) * eased
+        return cursorNorm.y - sign * deadZoneHalfY
     })()
 
     return { x: clampX(nextCenterX), y: clampY(nextCenterY) }
 }
+

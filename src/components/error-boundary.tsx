@@ -107,7 +107,7 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
                 {copied ? 'Copied' : 'Copy Log'}
               </button>
             </div>
-            <div className="p-4 max-h-[120px] overflow-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+            <div className="p-4 max-h-32 overflow-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
               <pre className="text-3xs leading-relaxed font-mono text-muted-foreground whitespace-pre-wrap break-all">
                 {error.message}
                 {error.stack && `\n\n${error.stack}`}

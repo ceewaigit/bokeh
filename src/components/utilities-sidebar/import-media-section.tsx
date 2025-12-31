@@ -668,7 +668,7 @@ export function ImportMediaSection() {
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto px-5 py-4 min-h-[320px] max-h-[65vh]">
+                    <div className="flex-1 overflow-y-auto px-5 py-4 min-h-80 max-h-[65vh]">
                         {libraryLoading ? (
                             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -782,7 +782,7 @@ export function ImportMediaSection() {
                     <div className="px-2.5 pb-2 space-y-1 shrink-0">
                         {ingestQueue.map(item => (
                             <div key={item.id} className="flex items-center justify-between rounded bg-muted/20 px-2 py-1 text-2xs">
-                                <span className="truncate max-w-[150px]">{item.file.name}</span>
+                                <span className="truncate max-w-36">{item.file.name}</span>
                                 {item.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
                                 {item.status === 'success' && <Check className="w-3 h-3 text-green-500" />}
                                 {item.status === 'error' && <X className="w-3 h-3 text-red-500" />}

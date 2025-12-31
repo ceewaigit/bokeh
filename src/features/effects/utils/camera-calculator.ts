@@ -199,79 +199,20 @@ export function computeCameraState({
   const activeAttractor = calculateAttractor(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount)
 
   let cursorNormX = 0.5, cursorNormY = 0.5
-  let attractorTargetX = 0.5, attractorTargetY = 0.5
-  let isLockedToAttractor = false
 
   if (activeAttractor) {
-    // 1. Resolve potential lock target (normalized)
-    const currentAttractorNormX = activeAttractor.x / sourceWidth
-    const currentAttractorNormY = activeAttractor.y / sourceHeight
+    // Normalize attractor position
+    const attractorNormX = activeAttractor.x / sourceWidth
+    const attractorNormY = activeAttractor.y / sourceHeight
 
-    // 2. Spatial Hysteresis Logic
-    if (isDeterministic) {
-      // No state in deterministic mode - just use the current calculation
-      attractorTargetX = currentAttractorNormX
-      attractorTargetY = currentAttractorNormY
-    } else {
-      // Check if we should release an existing lock
-      // Check if we have an active lock state
-      if (physics.attractorLock) {
-        let lockX = physics.attractorLock.x
-        let lockY = physics.attractorLock.y
-
-        // Calculate distance from Virtual Anchor (Lock) to Mouse
-        const dxPx = (currentAttractorNormX - lockX) * sourceWidth
-        const dyPx = (currentAttractorNormY - lockY) * sourceHeight
-        const distPx = Math.sqrt(dxPx * dxPx + dyPx * dyPx)
-
-        // Dynamic radius based on resolution (25% of smallest dimension)
-        // Consrained by 70% of the current viewport half-size to ensures cursor never leaves the visible area.
-        const LOCK_RADIUS_FRACTION = 0.20
-        const viewportRadiusPx = Math.min(halfWindowX * sourceWidth, halfWindowY * sourceHeight)
-        const lockRadiusPx = Math.min(
-          Math.min(sourceWidth, sourceHeight) * LOCK_RADIUS_FRACTION,
-          viewportRadiusPx * 0.6
-        )
-
-        // 1. DRAG: If mouse moves beyond radius, pull the anchor with it
-        if (distPx > lockRadiusPx) {
-          const scale = lockRadiusPx / distPx
-          // Ideally: NewDist = Radius. We move Lock towards Mouse by (Dist - Radius)
-          // Interpolate Lock towards Mouse by factor (1 - scale)
-          lockX = currentAttractorNormX - (dxPx / sourceWidth) * scale
-          lockY = currentAttractorNormY - (dyPx / sourceHeight) * scale
-        }
-
-        // 2. DRIFT: Slowly centre the anchor on the mouse (Cinematic settling)
-        // Rate of ~1-2% per frame gives a smooth "magnetic" re-centering
-        const drift = 0
-        lockX = lerp(lockX, currentAttractorNormX, drift)
-        lockY = lerp(lockY, currentAttractorNormY, drift)
-
-        // Update State
-        physics.attractorLock = { x: lockX, y: lockY }
-        attractorTargetX = lockX
-        attractorTargetY = lockY
-        isLockedToAttractor = true
-      } else {
-        // Not locked yet - check if we should enter lock
-        if (activeAttractor.isDwelling) {
-          // LOCK
-          physics.attractorLock = { x: currentAttractorNormX, y: currentAttractorNormY }
-          attractorTargetX = currentAttractorNormX
-          attractorTargetY = currentAttractorNormY
-          isLockedToAttractor = true
-        } else {
-          // FREE MOVE
-          attractorTargetX = currentAttractorNormX
-          attractorTargetY = currentAttractorNormY
-        }
-      }
-    }
-
-    cursorNormX = attractorTargetX
-    cursorNormY = attractorTargetY
+    // SIMPLIFIED: Just use the attractor position directly
+    // - When dwelling: calculateAttractor returns averaged dwell position
+    // - When moving: calculateAttractor returns raw cursor position
+    // Spring physics will handle all the smoothing/easing
+    cursorNormX = attractorNormX
+    cursorNormY = attractorNormY
   }
+
 
   if (mockupScreenPosition && outputWidth && outputHeight) {
     const screenX = Math.max(0, Math.min(1, mockupScreenPosition.x / outputWidth))

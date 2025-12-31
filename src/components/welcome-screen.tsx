@@ -139,8 +139,8 @@ export function WelcomeScreen({
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden">
       {/* Subtle gradient background */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full bg-primary/[0.04] blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] rounded-full bg-accent/[0.03] blur-[100px]" />
+        <div className="absolute top-0 left-1/4 w-[37.5rem] h-[37.5rem] rounded-full bg-primary/[0.04] blur-[120px]" />
+        <div className="absolute bottom-0 right-1/4 w-[31.25rem] h-[31.25rem] rounded-full bg-accent/[0.03] blur-[100px]" />
       </div>
 
       <motion.div
