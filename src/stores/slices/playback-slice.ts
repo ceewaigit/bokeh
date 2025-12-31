@@ -31,7 +31,8 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
       () => {
         set((s) => {
           s.currentTime = 0
-          // playhead state computed via hook
+          // Notify observer of reset
+          playbackService.seek(0, state.currentProject?.timeline?.duration || 0)
         })
       }
     )
@@ -49,15 +50,16 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
     set((state) => {
       const duration = state.currentProject?.timeline?.duration || 0
       state.currentTime = playbackService.seek(time, duration)
-      // playhead state computed via hook
     })
   },
 
   seekFromPlayer: (time) => {
     set((state) => {
       const duration = state.currentProject?.timeline?.duration || 0
+      // During playback, we update the store but don't need to push back to observer
+      // because the observer (via RAF) is the one calling this.
+      // However, calling playbackService.seek is safe as pushTime has a guard.
       state.currentTime = playbackService.seek(time, duration)
-      // playhead state computed via hook
     })
   },
 

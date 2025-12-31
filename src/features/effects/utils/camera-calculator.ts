@@ -80,8 +80,6 @@ export interface CameraComputeInput {
 
 export interface CameraComputeOutput {
   activeZoomBlock?: ReturnType<typeof getZoomBlockAtTime>
-  // NOTE: zoomScale removed - zoom scale is now computed solely by zoom-transform.ts
-  // This eliminates double-smoothing and ensures single source of truth for scale
   zoomCenter: { x: number; y: number }
   physics: CameraPhysicsState
 }

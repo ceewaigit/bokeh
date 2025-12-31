@@ -162,7 +162,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
         // Ignore if CommandManager not initialized
       }
       state.currentProject = null
-      state.currentTime = 0
+      state.currentTime = playbackService.seek(0, 0)
       state.isPlaying = false
       state.selectedClips = []
       state.selectedEffectLayer = null

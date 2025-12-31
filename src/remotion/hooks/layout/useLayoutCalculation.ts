@@ -70,8 +70,7 @@ interface UseLayoutCalculationOptions {
 // CONSTANTS
 // ============================================================================
 
-const REFERENCE_WIDTH = 1920;
-const REFERENCE_HEIGHT = 1080;
+import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/constants/layout';
 
 // ============================================================================
 // HOOK

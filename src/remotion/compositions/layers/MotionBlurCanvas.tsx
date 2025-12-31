@@ -7,7 +7,7 @@
  * Key features:
  * - Raw WebGL 2.0 context
  * - Manual texture management with UNPACK_COLORSPACE_CONVERSION_WEBGL: NONE
- * - Custom shader for directional blur with cinematic shutter weighting
+ * * Custom shader for directional blur with cinematic shutter weighting
  * - Optional velocity smoothing for stable motion trails
  */
 
@@ -18,7 +18,7 @@ import { useProjectStore } from '@/stores/project-store';
 import { getMotionBlurConfig } from '../utils/transforms/zoom-transform';
 import { MOTION_BLUR_FRAGMENT_SHADER, MOTION_BLUR_VERTEX_SHADER } from './shaders/motion-blur';
 
-export interface MotionBlurLayerProps {
+export interface MotionBlurCanvasProps {
     /** Whether motion blur feature is enabled (layout check) */
     enabled?: boolean;
     /** Velocity vector in pixels per frame */
@@ -40,7 +40,7 @@ export interface MotionBlurLayerProps {
     offsetY: number;
 }
 
-export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
+export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     enabled: enabledProp = true, // Default to true if not passed
     velocity,
     videoElement: propsVideoElement,
@@ -72,7 +72,7 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
     // Developer flags
     const debugSplit = cs?.motionBlurDebugSplit ?? false;
     const colorSpace = cs?.motionBlurColorSpace ?? 'display-p3';
-    const unpackColorspaceConversion = 'none';
+    const unpackColorspaceConversion = 'browser-default'; // WAS: 'none' - caused brightness mismatch
     const useSRGBBuffer = false;
     const samplesProp = cs?.motionBlurSamples;
     const samples = (samplesProp ?? 0) === 0 ? undefined : samplesProp;
@@ -132,17 +132,6 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
     //    - In Export: Uses Source/High-Res (quality)
     // This gives us "WYSIWYG" preview performance and perfect export quality without extra logic here.
     const videoElement = containerRef ? discoveredVideoElement : propsVideoElement;
-
-    // RESTORE VIDEO VISIBILITY ON UNMOUNT (CRITICAL FIX)
-    // When this layer unmounts (e.g. speed drops to 0), we MUST ensure
-    // the underlying video is visible again.
-    useEffect(() => {
-        return () => {
-            if (videoElement) {
-                videoElement.style.opacity = '1';
-            }
-        };
-    }, [videoElement]);
 
     // 1. Initialization
     useEffect(() => {
@@ -294,25 +283,58 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
             rampFactor = 1.0;
         }
 
-        // HYBRID MODE: "One Video" Philosophy
-        // If speed is minimal, show Video Element (Hardware Decode) and Hide Canvas.
-        // This saves GPU/RAM and prevents "Double Rendering" sensation.
-        // If speed is active, show Canvas (WebGL) and Hide Video.
+        // IoC DESIGN: Canvas overlays video, never hides it
+        // If speed is minimal, skip WebGL rendering entirely (optimization)
+        // Video remains visible underneath as fallback
 
+        // MOVED CALCULATION UP FOR OPACITY LOGIC
+        // VELOCITY-PROPORTIONAL CINEMATIC BLUR
+        // slow movements = subtle blur, fast movements = dramatic blur
+        // This creates a natural camera pan feel instead of binary on/off blur
+        const maxRadius = clamp > 0 ? clamp : maxBlurRadius;
+
+        let effectiveRadius: number;
+        if (force) {
+            effectiveRadius = 600 * rampFactor;
+        } else {
+            // Velocity-proportional scaling with natural cinematic falloff
+            // We want a response that feels like a 180-degree shutter but handles low-speed noise gracefully.
+
+            // 1. Normalize excess velocity (how much are we moving?)
+            // We use a broader range to prevent early clapping.
+            const velocityRange = maxRadius * 2.0;
+            const velocityRatio = clamp01(excess / Math.max(1, velocityRange));
+
+            // 2. Cinematic Response
+            // Instead of a steep bell curve that kills low-speed blur, we use a gentle power curve.
+            // Power of 1.2 gives a slightly "eased" linear feel (soft start) without being unresponsive.
+            const cinematicCurve = Math.pow(velocityRatio, 1.1);
+
+            // 3. Target Radius
+            // Scale blur radius proportionally. 
+            const targetRadius = cinematicCurve * validIntensity * maxRadius;
+
+            // 4. Smooth limit
+            effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
+        }
         const rawSpeed = Math.hypot(velocity?.x ?? 0, velocity?.y ?? 0);
-        const isIdle = !force && rawSpeed < 0.2; // Threshold for switching (matches shader passthrough approx)
+        // OPACITY MODULATION (Fix for Blinking)
+        // Instead of binary On/Off, we modulate opacity based on blur intensity.
+        // This ensures a smooth transition between the DOM video (perfect) and
+        // the WebGL overlay (blurred). This hides any minor color/brightness shifts.
+        const opacityRamp = clamp01(effectiveRadius / 2.0); // 2px blur = full opacity
+
+        if (canvasRef.current) {
+            canvasRef.current.style.opacity = opacityRamp.toFixed(3);
+        }
+
+        const isIdle = !force && rawSpeed < 0.1 && opacityRamp < 0.01;
 
         if (isIdle) {
-            if (videoElement.style.opacity !== '1') videoElement.style.opacity = '1';
-            if (canvasRef.current && canvasRef.current.style.opacity !== '0') canvasRef.current.style.opacity = '0';
-
-            // Optimization: Skip WebGL rendering when idle
+            // Skip WebGL rendering when idle to save GPU
             return (() => {
                 if (handle && 'cancelVideoFrameCallback' in videoElement) (videoElement as any).cancelVideoFrameCallback(handle);
             }) as any;
-        } else {
-            if (videoElement.style.opacity !== '0') videoElement.style.opacity = '0';
-            if (canvasRef.current && canvasRef.current.style.opacity !== '1') canvasRef.current.style.opacity = '1';
         }
 
         gl.useProgram(programRef.current);
@@ -344,11 +366,8 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
         gl.vertexAttribPointer(locationsRef.current.a_texCoord, 2, gl.FLOAT, false, 0, 0);
 
         // TEXTURE UPDATE
-        if (unpackColorspaceConversion === 'none') {
-            gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-        } else {
-            gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
-        }
+        // Always use browser default to match video element brightness/color handling
+        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, unpackPremultiplyAlpha);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
@@ -374,35 +393,7 @@ export const MotionBlurLayer: React.FC<MotionBlurLayerProps> = ({
 
         gl.uniform1i(locationsRef.current.u_image, 0);
 
-        // VELOCITY-PROPORTIONAL CINEMATIC BLUR
-        // slow movements = subtle blur, fast movements = dramatic blur
-        // This creates a natural camera pan feel instead of binary on/off blur
-        const maxRadius = clamp > 0 ? clamp : maxBlurRadius;
 
-        let effectiveRadius: number;
-        if (force) {
-            effectiveRadius = 600 * rampFactor;
-        } else {
-            // Velocity-proportional scaling with natural cinematic falloff
-            // We want a response that feels like a 180-degree shutter but handles low-speed noise gracefully.
-
-            // 1. Normalize excess velocity (how much are we moving?)
-            // We use a broader range to prevent early clapping.
-            const velocityRange = maxRadius * 2.0;
-            const velocityRatio = clamp01(excess / Math.max(1, velocityRange));
-
-            // 2. Cinematic Response
-            // Instead of a steep bell curve that kills low-speed blur, we use a gentle power curve.
-            // Power of 1.2 gives a slightly "eased" linear feel (soft start) without being unresponsive.
-            const cinematicCurve = Math.pow(velocityRatio, 1.1);
-
-            // 3. Target Radius
-            // Scale blur radius proportionally. 
-            const targetRadius = cinematicCurve * validIntensity * maxRadius;
-
-            // 4. Smooth limit
-            effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
-        }
 
         // Blur amount controlled entirely by effectiveRadius in shader uniforms.
         // No opacity swapping needed.

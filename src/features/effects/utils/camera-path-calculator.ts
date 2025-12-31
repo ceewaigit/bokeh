@@ -1,5 +1,5 @@
 
-import { computeCameraState, ParsedZoomBlock, type CameraPhysicsState } from '@/features/effects/utils/camera-calculator'
+import { computeCameraState, type CameraPhysicsState } from '@/features/effects/utils/camera-calculator'
 import { calculateVideoPosition } from '@/remotion/compositions/utils/layout/video-position'
 import { EffectType } from '@/types/project'
 import type { BackgroundEffect, Effect, Recording, RecordingMetadata } from '@/types/project'
@@ -8,6 +8,9 @@ import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 import { calculateMockupPosition } from '@/lib/mockups/mockup-transform'
 import { getActiveBackgroundEffect } from '@/features/effects/effect-filters'
+import { calculateZoomTransform, getZoomTransformString } from '@/remotion/compositions/utils/transforms/zoom-transform'
+import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
+import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/constants/layout'
 
 // Re-using types from hook or defining shared types locally if needed
 type CameraVideoArea = {
@@ -195,7 +198,13 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
     // OPTIMIZATION: If no camera tracking, skip heavy camera path computation
     // Just return default center coordinates for all frames
     if (!hasCameraTracking) {
-        const defaultResult = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, velocity: { x: 0, y: 0 } }
+        const defaultResult = {
+            activeZoomBlock: undefined,
+            zoomCenter: { x: 0.5, y: 0.5 },
+            velocity: { x: 0, y: 0 },
+            zoomTransform: { scale: 1, panX: 0, panY: 0, scaleCompensationX: 0, scaleCompensationY: 0, refocusBlur: 0 },
+            zoomTransformStr: 'translate3d(0px, 0px, 0) scale3d(1, 1, 1)'
+        }
         const out = new Array(totalFrames).fill(defaultResult)
         return out
     }
@@ -211,13 +220,19 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
         lastSourceTimeMs: 0,
     }
 
-    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number }; velocity: { x: number; y: number } }[] = new Array(totalFrames)
+    const out: (CameraPathFrame & { path?: CameraPathFrame[] })[] = new Array(totalFrames)
 
     for (let f = 0; f < totalFrames; f++) {
         const tMs = (f / fps) * 1000
         const clipData = getActiveClipDataAtFrame({ frame: f, frameLayout, fps, effects, getRecording })
         if (!clipData) {
-            out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, velocity: { x: 0, y: 0 } }
+            out[f] = {
+                activeZoomBlock: undefined,
+                zoomCenter: { x: 0.5, y: 0.5 },
+                velocity: { x: 0, y: 0 },
+                zoomTransform: { scale: 1, panX: 0, panY: 0, scaleCompensationX: 0, scaleCompensationY: 0, refocusBlur: 0 },
+                zoomTransformStr: 'translate3d(0px, 0px, 0) scale3d(1, 1, 1)'
+            }
             continue
         }
 
@@ -230,10 +245,17 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             e.endTime >= sourceTimeMs
         ) as BackgroundEffect | undefined
         const backgroundData = backgroundEffect?.data ?? null
-        const padding = backgroundData?.padding || 0
+
+        // SCALING LOGIC (REFERENCE RESOLUTION)
+        // Must match useLayoutCalculation.ts exactly to prevent drift
+        const scaleFactor = Math.min(
+            videoWidth / REFERENCE_WIDTH,
+            videoHeight / REFERENCE_HEIGHT
+        )
+        const rawPadding = backgroundData?.padding ?? DEFAULT_BACKGROUND_DATA.padding ?? 0
+        const paddingScaled = rawPadding * scaleFactor
 
         // Use stable videoWidth/videoHeight for camera calculation
-        // This ensures preview and export compute identical camera positions
         const activeSourceWidth = recording?.width || sourceVideoWidth || videoWidth
         const activeSourceHeight = recording?.height || sourceVideoHeight || videoHeight
         const mockupData = backgroundData?.mockup
@@ -245,7 +267,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
                 mockupData,
                 activeSourceWidth,
                 activeSourceHeight,
-                padding
+                paddingScaled
             )
             : null
 
@@ -262,7 +284,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
                     videoHeight,
                     activeSourceWidth,
                     activeSourceHeight,
-                    padding
+                    paddingScaled
                 )
                 return {
                     drawWidth: position.drawWidth,
@@ -313,7 +335,51 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             x: computed.zoomCenter.x - prevCenter.x,
             y: computed.zoomCenter.y - prevCenter.y,
         }
-        out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter, velocity }
+
+        // PRECOMPUTE TRANSFORMS (SSOT)
+        // This eliminates redundant calculation in SharedVideoController
+        const fillScale = videoArea.drawWidth > 0 && videoArea.drawHeight > 0
+            ? Math.max(videoWidth / videoArea.drawWidth, videoHeight / videoArea.drawHeight)
+            : 1
+        const zoomOverrideScale = computed.activeZoomBlock?.autoScale === 'fill' ? fillScale : undefined
+
+        // Adjust zoom center for mockup coordinate space if needed
+        const zoomCenter = mockupEnabled && mockupPosition
+            ? {
+                x: (mockupPosition.videoX + computed.zoomCenter.x * mockupPosition.videoWidth - mockupPosition.mockupX) / mockupPosition.mockupWidth,
+                y: (mockupPosition.videoY + computed.zoomCenter.y * mockupPosition.videoHeight - mockupPosition.mockupY) / mockupPosition.mockupHeight,
+            }
+            : computed.zoomCenter
+
+        // Target dimensions
+        // MATCH LEGACY BEHAVIOR: Always use the video draw area for zoom calculations.
+        // Using mockupWidth/Height here was incorrect and caused camera drift because
+        // the pan calculations became relative to the device size, not the video content.
+        const zoomDrawWidth = videoArea.drawWidth
+        const zoomDrawHeight = videoArea.drawHeight
+
+        const zoomTransform = calculateZoomTransform(
+            computed.activeZoomBlock,
+            tMs,
+            zoomDrawWidth,
+            zoomDrawHeight,
+            zoomCenter,
+            zoomOverrideScale,
+            paddingScaled,
+            computed.activeZoomBlock?.autoScale === 'fill',
+            Boolean(mockupEnabled),
+            computed.physics.scale // Explicitly use physics scale as source of truth
+        )
+
+        const zoomTransformStr = getZoomTransformString(zoomTransform)
+
+        out[f] = {
+            activeZoomBlock: computed.activeZoomBlock,
+            zoomCenter: computed.zoomCenter,
+            velocity,
+            zoomTransform,
+            zoomTransformStr
+        }
     }
 
     return out

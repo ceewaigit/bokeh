@@ -30,6 +30,7 @@ import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
 import { EffectsFactory } from '@/features/effects/effects-factory'
 import { SpeedUpApplicationService } from '@/features/timeline/speed-up-application'
 import { PlayheadService } from '@/features/timeline/playback/playhead-service'
+import { playbackService } from '@/features/timeline/playback/playback-service'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
 import { CursorReturnService } from '@/lib/cursor/cursor-return-service'
@@ -344,12 +345,12 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                     updatedResult.clip
                 )
                 if (newTime !== null) {
-                    state.currentTime = newTime
+                    state.currentTime = playbackService.seek(newTime, state.currentProject.timeline.duration)
                 }
             }
 
             // Clamp current time inside new timeline bounds
-            state.currentTime = PlayheadService.clampToTimelineBounds(
+            state.currentTime = playbackService.seek(
                 state.currentTime,
                 state.currentProject.timeline.duration
             )
@@ -396,7 +397,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Move playhead to just before the split point
             if (state.currentTime >= splitTime) {
-                state.currentTime = splitTime - 1
+                state.currentTime = playbackService.seek(splitTime - 1, state.currentProject.timeline.duration)
             }
 
             // Clear render caches to prevent stale data after split
@@ -611,7 +612,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Ensure playhead is within valid range after timeline changes
             const newTimelineDuration = calculateTimelineDuration(state.currentProject)
             if (state.currentTime >= newTimelineDuration) {
-                state.currentTime = Math.max(0, newTimelineDuration - 1)
+                state.currentTime = playbackService.seek(Math.max(0, newTimelineDuration - 1), newTimelineDuration)
             }
         })
 

@@ -115,9 +115,12 @@ export interface UseRenderDelayResult {
 export type CameraPathFrame = {
   activeZoomBlock: ParsedZoomBlock | undefined;
   zoomCenter: { x: number; y: number };
-  // NOTE: zoomScale removed - now computed by zoom-transform.ts only (single source of truth)
   /** Precomputed velocity for motion blur (normalized 0-1 delta per frame) */
   velocity?: { x: number; y: number };
+  /** Precomputed zoom transform (SSOT - no render-time calculation needed) */
+  zoomTransform: ZoomTransform;
+  /** Precomputed CSS transform string for GPU-accelerated rendering */
+  zoomTransformStr: string;
 };
 
 export interface ZoomTransform {
@@ -158,13 +161,21 @@ export interface VideoPositionContextValue {
   activeSourceHeight?: number;
 
   // Effects
-  cameraMotionBlur?: {
-    enabled: boolean;
-    angle: number;
-    filterId: string;
-  };
   /** Refocus blur strength in pixels for zoom transitions */
   refocusBlurPx?: number;
+
+  /** Motion blur state (IoC pattern - data flows down, not discovered via DOM) */
+  motionBlur?: {
+    /** Whether motion blur is enabled globally */
+    enabled: boolean;
+    /** Camera velocity in pixels per frame (precomputed from camera path) */
+    velocity: { x: number; y: number };
+    /** Intensity multiplier 0-1 (from camera settings) */
+    intensity: number;
+    /** Draw dimensions for the blur effect */
+    drawWidth: number;
+    drawHeight: number;
+  };
 
   // Mockup
   /** Whether a device mockup is enabled */

@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
+import { REFERENCE_WIDTH } from '@/lib/constants/layout';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
 import {
   CursorType,
@@ -339,7 +340,6 @@ export const CursorLayer = React.memo(() => {
   //
   // This ensures the cursor appears the same visual size whether the source video
   // is 720p, 1080p, 4K, 8K, or any resolution - only the preview/export dimensions matter.
-  const REFERENCE_WIDTH = 1920;
 
   // ZOOM-AGNOSTIC CURSOR SIZING:
   // Use the COMPOSITION width (videoWidth) as the base for cursor scale, NOT the video offset width.
@@ -615,8 +615,6 @@ export const CursorLayer = React.memo(() => {
   // Show cursor for: video clips, image clips, and generated clips WITH synthetic events
   // Don't show cursor for: plain generated clips
   const shouldShowCursor = (!isGeneratedRecording || isImageRecording || hasSyntheticEvents) && cursorEffect?.enabled !== false && cursorData && cursorPosition;
-  const cameraMotionBlur = videoPositionContext.cameraMotionBlur;
-  const hasCameraMotionBlur = cameraMotionBlur?.enabled;
 
   // Calculate refocus blur from zoom transform (camera-like focus pull during zoom)
   const refocusBlurPx = videoPositionContext.refocusBlurPx
@@ -656,76 +654,55 @@ export const CursorLayer = React.memo(() => {
       <div
         style={{
           position: 'absolute',
-          inset: 0,
-          filter: hasCameraMotionBlur ? `url(#${cameraMotionBlur?.filterId})` : undefined,
-          transform: hasCameraMotionBlur ? `rotate(${cameraMotionBlur?.angle}deg)` : undefined,
+          left: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenX : 0,
+          top: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenY : 0,
+          width: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenWidth : '100%',
+          height: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenHeight : '100%',
+          transform: useContainerTransform ? videoPositionContext.contentTransform : undefined,
           transformOrigin: '50% 50%',
+          overflow: isMockup ? 'hidden' : undefined,
+          borderRadius: isMockup && videoPositionContext.mockupPosition
+            ? videoPositionContext.mockupPosition.screenCornerRadius
+            : undefined,
           pointerEvents: 'none',
         }}
       >
+        {/* Motion blur trail */}
+        {motionBlurTrail}
+
+        {/* Click effects */}
+        {clickEffects}
+
+        {/* Main cursor */}
         <div
+          data-cursor-layer="true"
           style={{
             position: 'absolute',
-            inset: 0,
-            transform: hasCameraMotionBlur ? `rotate(${-cameraMotionBlur?.angle}deg)` : undefined,
-            transformOrigin: '50% 50%',
+            left: 0,
+            top: 0,
+            transform: `translate3d(${stableCursorX}px, ${stableCursorY}px, 0)`,
+            opacity: cursorState.opacity,
+            zIndex: 100,
             pointerEvents: 'none',
+            filter: cursorShadow,
+            willChange: 'transform, opacity',
           }}
         >
-          <div
+          <Img
+            src={getCursorImagePath(cursorType)}
             style={{
-              position: 'absolute',
-              left: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenX : 0,
-              top: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenY : 0,
-              width: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenWidth : '100%',
-              height: isMockup && videoPositionContext.mockupPosition ? videoPositionContext.mockupPosition.screenHeight : '100%',
-              transform: useContainerTransform ? videoPositionContext.contentTransform : undefined,
-              transformOrigin: '50% 50%',
-              overflow: isMockup ? 'hidden' : undefined,
-              borderRadius: isMockup && videoPositionContext.mockupPosition
-                ? videoPositionContext.mockupPosition.screenCornerRadius
-                : undefined,
-              pointerEvents: 'none',
+              width: renderedWidth,
+              height: renderedHeight,
+              transform: `perspective(${cursorPerspective}px) rotateX(${cursorTiltX}deg) rotateY(${cursorTiltY}deg) rotateZ(${cursorRotation}deg) scale(${clickScale})`,
+              transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
+              imageRendering: 'auto',
+              willChange: 'transform',
+              transformStyle: 'preserve-3d',
+              backfaceVisibility: 'hidden',
+              filter: cursorMotionBlurPx > 0 ? `blur(${cursorMotionBlurPx}px)` : undefined,
+              transition: 'none' // Disable CSS transitions for smoother frame-by-frame animation
             }}
-          >
-            {/* Motion blur trail */}
-            {motionBlurTrail}
-
-            {/* Click effects */}
-            {clickEffects}
-
-            {/* Main cursor */}
-            <div
-              data-cursor-layer="true"
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                transform: `translate3d(${stableCursorX}px, ${stableCursorY}px, 0)`,
-                opacity: cursorState.opacity,
-                zIndex: 100,
-                pointerEvents: 'none',
-                filter: cursorShadow,
-                willChange: 'transform, opacity',
-              }}
-            >
-              <Img
-                src={getCursorImagePath(cursorType)}
-                style={{
-                  width: renderedWidth,
-                  height: renderedHeight,
-                  transform: `perspective(${cursorPerspective}px) rotateX(${cursorTiltX}deg) rotateY(${cursorTiltY}deg) rotateZ(${cursorRotation}deg) scale(${clickScale})`,
-                  transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
-                  imageRendering: 'auto',
-                  willChange: 'transform',
-                  transformStyle: 'preserve-3d',
-                  backfaceVisibility: 'hidden',
-                  filter: cursorMotionBlurPx > 0 ? `blur(${cursorMotionBlurPx}px)` : undefined,
-                  transition: 'none' // Disable CSS transitions for smoother frame-by-frame animation
-                }}
-              />
-            </div>
-          </div>
+          />
         </div>
       </div>
       {debugEnabled && (

@@ -37,7 +37,7 @@ import { VideoClipRenderer } from './renderers/VideoClipRenderer';
 import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
 import { ImageClipRenderer } from './renderers/ImageClipRenderer';
 import { MockupLayer } from './layers/MockupLayer';
-import { MotionBlurLayer } from './layers/MotionBlurLayer';
+
 import { MotionBlurDebugLayer } from './layers/MotionBlurDebugLayer';
 import { PreviewGuides } from '@/components/preview-guides';
 import { getMotionBlurConfig } from './utils/transforms/zoom-transform';
@@ -225,20 +225,29 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   // TRANSFORM CALCULATION
   // ==========================================================================
+  // ==========================================================================
+  // TRANSFORM CALCULATION (SSOT from Camera Cache)
+  // ==========================================================================
+
+  // Directly read precomputed transform from cache (O(1) lookup)
+  const zoomTransform = cameraPathFrame?.zoomTransform ?? null;
+  const zoomTransformStr = cameraPathFrame?.zoomTransformStr ?? '';
+
+  // Only calculate 3D/Crop transforms (lightweight)
   const transforms = useTransformCalculation({
     ...layout, // Spread layout properties
     currentTimeMs,
     sourceTimeMs: resolvedClipData?.sourceTimeMs ?? 0,
     clipEffects: resolvedClipData?.effects ?? effects,
-    calculatedZoomBlock: cameraPathFrame?.activeZoomBlock,
-    calculatedZoomCenter: cameraPathFrame?.zoomCenter ?? { x: 0.5, y: 0.5 },
-    // NOTE: calculatedZoomScale removed - zoom scale now computed by calculateZoomTransform directly
+    // Pass precomputed values
+    zoomTransform,
+    zoomTransformStr,
     compositionWidth: width,
     compositionHeight: height,
     isEditingCrop
   });
 
-  const { zoomTransform, outerTransform, cropClipPath } = transforms;
+  const { outerTransform, cropClipPath } = transforms;
 
   // ==========================================================================
   // CAMERA MOTION BLUR (WebGL-based directional blur)
@@ -258,90 +267,30 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const setPreviewReady = useProjectStore((s) => s.setPreviewReady);
 
   // Convert precomputed velocity to pixels for WebGL directional blur (DETERMINISTIC)
-  // Uses camera-path-calculator.ts precomputed velocity for consistency
   const MOTION_BLUR_MIN_WIDTH = 200;  // Only apply to main video, not webcam
   const isMainVideo = layout.drawWidth >= MOTION_BLUR_MIN_WIDTH;
   const isMotionBlurActive = motionBlurEnabled && isMainVideo;
 
-  // Calculate camera velocity in pixels using existing utility logic
-  // DETERMINISTIC MOTION BLUR SMOOTHING
-  // We calculate smoothed velocity by looking back at the cached path.
-  // This ensures that Frame X always has the same blur, regardless of render order/threading.
+  // Read precomputed velocity directly from cache (already smoothed in calculator)
   const cameraVelocity = useMemo(() => {
-    if (!isMotionBlurActive) return { x: 0, y: 0 };
-    if (!cameraPathCache) return { x: 0, y: 0 };
+    if (!isMotionBlurActive || !cameraPathFrame?.velocity) return { x: 0, y: 0 };
 
-    // Increased to 12 frames for smoother velocity ramp (prevents 1-frame pop)
-    const smoothWindow = Math.max(1, cameraSettings?.motionBlurSmoothWindow ?? 12);
-    let sumVx = 0;
-    let sumVy = 0;
-    let totalWeight = 0;
-
-    // OFFSET TRAILING WINDOW: Motion blur uses velocity from PREVIOUS frames.
-    // The velocity at frame N represents motion that happened from N-1 to N.
-    // But the visual render at frame N shows the RESULT of that motion.
-    // So blur at frame N should use velocity from frames N-1 and earlier,
-    // not including frame N's velocity which represents "motion just completed".
-    // This prevents the "blur one frame before movement" artifact.
-    // Window: [currentFrame - smoothWindow, currentFrame - 1] (offset by -1)
-    for (let offset = -smoothWindow; offset <= -1; offset++) {
-      const targetFrame = currentFrame + offset;
-      if (targetFrame < 0 || targetFrame >= cameraPathCache.length) continue;
-      const frameData = cameraPathCache[targetFrame];
-      if (!frameData?.velocity) continue;
-
-      // Gaussian-like weighting: smoother falloff for more natural blur ramp
-      // Maps offset [-smoothWindow, -1] to normalized [0, 1]
-      const normalized = (offset + smoothWindow) / (smoothWindow - 1);
-      // Gaussian curve centered at 1 (most recent frame)
-      const weight = Math.exp(-2 * Math.pow(1 - normalized, 2));
-      sumVx += frameData.velocity.x * weight;
-      sumVy += frameData.velocity.y * weight;
-      totalWeight += weight;
-    }
-
-    if (totalWeight === 0) return { x: 0, y: 0 };
-
-    // Average and Scale to Pixels
-    const avgVx = sumVx / totalWeight;
-    const avgVy = sumVy / totalWeight;
+    // Scale normalized velocity to pixels
     const scale = zoomTransform?.scale ?? 1;
 
-    // SOFT THRESHOLD FOR MID-FLIGHT BLUR:
-    // The problem: Physics calculates velocity before visual pan occurs.
-    // During zoom-in intro, visual pan is scaled by (scale-1)/(targetScale-1).
-    // So at the START of zoom (scale ≈ 1), visual pan ≈ 0, but velocity is non-zero.
-    // 
-    // Solution: Suppress blur during early intro phase (first ~25% of zoom-in).
-    // Once zoom is established, full blur applies.
-    // During hold phase (scale = targetScale), blur is at full strength.
-    // During outro, blur naturally fades as velocity decreases.
-    const activeZoomBlock = cameraPathCache[currentFrame]?.activeZoomBlock;
-    const targetScale = activeZoomBlock?.scale ?? scale;
+    // Calculate final pixel velocity
+    // NOTE: Precomputed velocity is already normalized delta-per-frame (0-1)
+    // We just need to scale it to current dimensions
+    const pxVelocityX = cameraPathFrame.velocity.x * layout.drawWidth * scale;
+    const pxVelocityY = cameraPathFrame.velocity.y * layout.drawHeight * scale;
 
-    // scaleProgress: 0 = start of zoom, 1 = fully zoomed in
-    // Default to 1 (full blur) when no zoom is active for cursor-following motion
-    const scaleProgress = targetScale > 1 ? Math.max(0, Math.min(1, (scale - 1) / (targetScale - 1))) : 1;
-
-    // Soft ramp: 0 at start, ramps to 1 by 25% progress, stays at 1 thereafter
-    // Using smoothstep for gradual transition
-    const INTRO_THRESHOLD = 0.25;
-    const t = Math.min(1, scaleProgress / INTRO_THRESHOLD);
-    const introRamp = t * t * (3 - 2 * t); // smoothstep formula
-
-    const rawX = avgVx * layout.drawWidth * scale * introRamp;
-    const rawY = avgVy * layout.drawHeight * scale * introRamp;
-
-    // Sanitize to prevent NaN
     return {
-      x: Number.isFinite(rawX) ? rawX : 0,
-      y: Number.isFinite(rawY) ? rawY : 0,
+      x: Number.isFinite(pxVelocityX) ? pxVelocityX : 0,
+      y: Number.isFinite(pxVelocityY) ? pxVelocityY : 0,
     };
   }, [
     isMotionBlurActive,
-    cameraPathCache, // SSOT for path
-    currentFrame,
-    cameraSettings?.motionBlurSmoothWindow,
+    cameraPathFrame?.velocity,
     zoomTransform?.scale,
     layout.drawWidth,
     layout.drawHeight
@@ -357,7 +306,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   // Refocus blur during zoom transitions (intro/outro phases)
   const refocusBlurRaw = (zoomTransform?.refocusBlur ?? 0) * 12 * refocusIntensity;
-  const effectiveBlurPx = refocusBlurRaw < 0.5 ? 0 : Math.round(refocusBlurRaw);
+  // Allow fractional blur for smooth transitions (prevents 0->1px snap blink)
+  const effectiveBlurPx = refocusBlurRaw < 0.1 ? 0 : Number(refocusBlurRaw.toFixed(2));
 
   useEffect(() => {
     // Preview ready when no motion blur (which handles its own readiness)
@@ -492,7 +442,14 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     zoomTransform: zoomTransform ?? null,
     contentTransform: outerTransform,
     refocusBlurPx: effectiveBlurPx,
-    cameraMotionBlur: { enabled: false, angle: 0, filterId: '' },
+    // NEW: Motion blur state for IoC pattern (VideoClipRenderer consumes this)
+    motionBlur: {
+      enabled: motionBlurEnabled && isMainVideo,
+      velocity: cameraVelocity,
+      intensity: motionBlurIntensity / 100,
+      drawWidth: layout.drawWidth,
+      drawHeight: layout.drawHeight,
+    },
     activeClipData,
     effectiveClipData: resolvedClipData,
     prevFrameClipData,
@@ -552,25 +509,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 renderedContent
               )}
             </div>
-
-            {/* WebGL Motion Blur - Conditionally mounted to SAVE RAM on idle.
-                Only mount when moving > 0.1px/frame. 
-                This prevents allocating 4K canvases when stationary. */}
-            {(motionBlurEnabled && isMainVideo) && (() => {
-              const speed = Math.hypot(cameraVelocity.x, cameraVelocity.y);
-              const shouldMount = speed > 0.1;
-              return shouldMount ? (
-                <MotionBlurLayer
-                  enabled={true}
-                  velocity={cameraVelocity}
-                  containerRef={videoContainerRef}
-                  drawWidth={layout.drawWidth}
-                  drawHeight={layout.drawHeight}
-                  offsetX={0}
-                  offsetY={0}
-                />
-              ) : null;
-            })()}
 
             {/* Debug Overlay - Independent visual guide if needed */}
             {false && (

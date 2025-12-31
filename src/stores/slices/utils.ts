@@ -7,6 +7,7 @@
 
 import type { ProjectStore } from './types'
 import { DEFAULT_STORE_SETTINGS } from '@/lib/settings/defaults'
+import { playbackService } from '@/features/timeline/playback/playback-service'
 
 /**
  * Reset selection and zoom state when switching projects.
@@ -16,7 +17,7 @@ export function resetSelectionState(state: ProjectStore): void {
   state.selectedClips = []
   state.selectedEffectLayer = null
   state.zoomManuallyAdjusted = false
-  state.currentTime = 0
+  state.currentTime = playbackService.seek(0, 0)
   // Note: playhead state is now computed via usePlayheadState() hook - no need to update here
 }
 

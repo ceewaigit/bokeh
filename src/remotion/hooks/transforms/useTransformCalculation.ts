@@ -8,10 +8,7 @@
  */
 
 import { useMemo } from 'react';
-import {
-    calculateZoomTransform,
-    getZoomTransformString,
-} from '../../compositions/utils/transforms/zoom-transform';
+
 import {
     calculateCropTransform,
     getCropTransformString,
@@ -54,9 +51,10 @@ interface UseTransformCalculationOptions {
     // Effects
     clipEffects: Effect[];
 
-    // Zoom configuration (from camera path)
-    calculatedZoomBlock: ParsedZoomBlock | undefined;
-    calculatedZoomCenter: { x: number; y: number };
+    // Zoom configuration (from camera path - reduced to precomputed values)
+    calculatedZoomBlock?: ParsedZoomBlock | undefined; // Optional, only needed if logic depends on block properties
+    zoomTransform: ZoomTransform | null;
+    zoomTransformStr: string;
 
     // Layout (from useLayoutCalculation)
     compositionWidth: number;
@@ -79,8 +77,8 @@ interface UseTransformCalculationOptions {
 export function useTransformCalculation({
     currentTimeMs,
     clipEffects,
-    calculatedZoomBlock,
-    calculatedZoomCenter,
+    zoomTransform,
+    zoomTransformStr,
     compositionWidth,
     compositionHeight,
     drawWidth,
@@ -93,46 +91,11 @@ export function useTransformCalculation({
 }: UseTransformCalculationOptions): TransformResult {
     return useMemo(() => {
         // ==========================================================================
-        // ZOOM TRANSFORM
+        // ZOOM TRANSFORM (Precomputed SSOT)
         // ==========================================================================
 
-        // Target dimensions (mockup container or video)
-        const zoomDrawWidth = mockupEnabled && mockupPosition
-            ? mockupPosition.mockupWidth
-            : drawWidth;
-        const zoomDrawHeight = mockupEnabled && mockupPosition
-            ? mockupPosition.mockupHeight
-            : drawHeight;
-
-        // Adjust zoom center for mockup coordinate space
-        const zoomCenter = mockupEnabled && mockupPosition
-            ? {
-                x: (mockupPosition.videoX + calculatedZoomCenter.x * mockupPosition.videoWidth - mockupPosition.mockupX) / mockupPosition.mockupWidth,
-                y: (mockupPosition.videoY + calculatedZoomCenter.y * mockupPosition.videoHeight - mockupPosition.mockupY) / mockupPosition.mockupHeight,
-            }
-            : calculatedZoomCenter;
-
-        // Calculate fill scale for auto-scale mode
-        const fillScale = zoomDrawWidth > 0 && zoomDrawHeight > 0
-            ? Math.max(compositionWidth / zoomDrawWidth, compositionHeight / zoomDrawHeight)
-            : 1;
-        const zoomOverrideScale = calculatedZoomBlock?.autoScale === 'fill'
-            ? fillScale
-            : undefined;
-
-        const zoomTransform = calculateZoomTransform(
-            calculatedZoomBlock,
-            currentTimeMs,
-            zoomDrawWidth,
-            zoomDrawHeight,
-            zoomCenter,
-            zoomOverrideScale,
-            paddingScaled,
-            calculatedZoomBlock?.autoScale === 'fill',
-            Boolean(mockupEnabled)
-            // NOTE: currentScaleOverride removed - scale computed internally by calculateZoomTransform
-        );
-        const zoomTransformStr = getZoomTransformString(zoomTransform);
+        // We use the precomputed values directly. 
+        // No more expensive calculation here!
 
         // ==========================================================================
         // CROP TRANSFORM
@@ -191,11 +154,12 @@ export function useTransformCalculation({
             extra3DTransform: isEditingCrop ? '' : extra3DTransform,
             outerTransform: isEditingCrop ? '' : combinedTransform,
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         currentTimeMs,
         clipEffects,
-        calculatedZoomBlock,
-        calculatedZoomCenter,
+        zoomTransformStr, // Stable string reference
+        // zoomTransform omitted intentionally - deep object equality effectively handled by string above
         compositionWidth,
         compositionHeight,
         drawWidth,

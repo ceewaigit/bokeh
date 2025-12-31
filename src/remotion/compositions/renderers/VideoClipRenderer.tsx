@@ -23,6 +23,7 @@ import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext
 import type { Clip, Recording } from '@/types/project';
 import type { SyntheticEvent } from 'react';
 import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
+import { MotionBlurWrapper } from '../layers/MotionBlurWrapper';
 
 interface VideoClipRendererProps {
   // Identity and Source (Minimal Props)
@@ -69,7 +70,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     activeLayoutItem,
     prevLayoutItem,
     nextLayoutItem,
-    boundaryState
+    boundaryState,
+    motionBlur
   } = useVideoPosition();
 
   // Extract boundary state
@@ -207,13 +209,11 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const startFromFrames = msToFrame(groupStartSourceIn ?? 0, fps);
   const endAtFrames = Math.max(startFromFrames, startFromFrames + Math.max(1, groupDuration) - 1);
 
-  // Opacity adjustment for generated active clip
-  const isActiveClipGenerated = activeLayoutItem?.clip.recordingId?.startsWith('generated-');
-  const isThisClipActive = activeLayoutItem?.clip.id === clipForVideo.id;
-  const shouldHideForGeneratedActive = isActiveClipGenerated && !isThisClipActive;
-
-  // Opacity: hide if this clip should be hidden for generated overlay
-  const effectiveOpacity = shouldHideForGeneratedActive ? 0 : renderState.effectiveOpacity;
+  // Opacity: purely based on render state (intro/outro/glow).
+  // REMOVED: shouldHideForGeneratedActive optimization. It was causing false positives
+  // where split clips or overlayed clips would disappear unexpectedly.
+  // Performance impact is negligible compared to robustness of video visibility.
+  const effectiveOpacity = renderState.effectiveOpacity;
   const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1));
   const shouldMuteAudio = previewMuted || effectiveVolume <= 0 || !recording?.hasAudio || renderState.isPreloading;
 
@@ -234,39 +234,46 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           opacity: effectiveOpacity,
         }}>
           <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
-            <VideoComponent
-              key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
-              src={effectiveUrl || ''}
-              style={{
-                width: '100%', height: '100%',
-                objectFit: 'cover',
-                position: 'absolute', top: 0, left: 0,
-                borderRadius: `${cornerRadius}px`,
-                pointerEvents: 'none',
-              }}
-              volume={effectiveVolume}
-              muted={shouldMuteAudio}
-              preload={preload}
-              playsInline={true}
-              pauseWhenBuffering={false}
-              startFrom={startFromFrames}
-              endAt={endAtFrames}
-              playbackRate={playbackRate}
-              onLoadedData={handleLoaded}
-              onLoadedMetadata={handleMetadataLoaded}
-              onCanPlay={handleLoaded}
-              onSeeked={isRendering ? handleVideoReady : undefined}
-              onError={(e: any) => {
-                // Self-healing: fallback to original source instead of crashing
-                if (!urlFailed) {
-                  console.warn(`[VideoClipRenderer] Video error, falling back to source: ${recording.id}`, e?.target?.error);
-                  setUrlFailed(true);
-                } else {
-                  // Both proxy and source failed - log error but don't crash
-                  console.error(`[VideoClipRenderer] Both proxy and source failed for ${recording.id}:`, e?.target?.error);
-                }
-              }}
-            />
+            <MotionBlurWrapper
+              enabled={motionBlur?.enabled ?? false}
+              velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
+              drawWidth={motionBlur?.drawWidth ?? drawWidth}
+              drawHeight={motionBlur?.drawHeight ?? drawHeight}
+            >
+              <VideoComponent
+                key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
+                src={effectiveUrl || ''}
+                style={{
+                  width: '100%', height: '100%',
+                  objectFit: 'cover',
+                  position: 'absolute', top: 0, left: 0,
+                  borderRadius: `${cornerRadius}px`,
+                  pointerEvents: 'none',
+                }}
+                volume={effectiveVolume}
+                muted={shouldMuteAudio}
+                preload={preload}
+                playsInline={true}
+                pauseWhenBuffering={false}
+                startFrom={startFromFrames}
+                endAt={endAtFrames}
+                playbackRate={playbackRate}
+                onLoadedData={handleLoaded}
+                onLoadedMetadata={handleMetadataLoaded}
+                onCanPlay={handleLoaded}
+                onSeeked={isRendering ? handleVideoReady : undefined}
+                onError={(e: any) => {
+                  // Self-healing: fallback to original source instead of crashing
+                  if (!urlFailed) {
+                    console.warn(`[VideoClipRenderer] Video error, falling back to source: ${recording.id}`, e?.target?.error);
+                    setUrlFailed(true);
+                  } else {
+                    // Both proxy and source failed - log error but don't crash
+                    console.error(`[VideoClipRenderer] Both proxy and source failed for ${recording.id}:`, e?.target?.error);
+                  }
+                }}
+              />
+            </MotionBlurWrapper>
           </AudioEnhancerWrapper>
         </div>
       </Sequence>

@@ -6,6 +6,8 @@
  * This service now only manages play/pause state and time clamping.
  */
 
+import { timeObserver } from '../time/time-observer'
+
 export class PlaybackService {
   private isPlaying = false
 
@@ -37,9 +39,12 @@ export class PlaybackService {
 
   /**
    * Seek to a specific time (clamped to valid range)
+   * Automatically notifies timeObserver for UI sync.
    */
   seek(time: number, duration: number): number {
-    return Math.max(0, Math.min(duration, time))
+    const clamped = Math.max(0, Math.min(duration, time))
+    timeObserver.pushTime(clamped)
+    return clamped
   }
 
   /**

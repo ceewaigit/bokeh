@@ -22,7 +22,9 @@ type UseCameraPathArgs = {
 const DEFAULT_RESULT: CameraPathFrame & { path?: CameraPathFrame[] } = {
     activeZoomBlock: undefined,
     zoomCenter: { x: 0.5, y: 0.5 },
-    velocity: { x: 0, y: 0 }
+    velocity: { x: 0, y: 0 },
+    zoomTransform: { scale: 1, panX: 0, panY: 0, scaleCompensationX: 0, scaleCompensationY: 0, refocusBlur: 0 },
+    zoomTransformStr: 'translate3d(0px, 0px, 0) scale3d(1, 1, 1)'
 }
 
 /**
