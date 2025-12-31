@@ -115,7 +115,7 @@ export interface UseRenderDelayResult {
 export type CameraPathFrame = {
   activeZoomBlock: ParsedZoomBlock | undefined;
   zoomCenter: { x: number; y: number };
-  zoomScale?: number;
+  // NOTE: zoomScale removed - now computed by zoom-transform.ts only (single source of truth)
   /** Precomputed velocity for motion blur (normalized 0-1 delta per frame) */
   velocity?: { x: number; y: number };
 };

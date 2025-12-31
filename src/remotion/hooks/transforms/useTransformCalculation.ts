@@ -57,7 +57,6 @@ interface UseTransformCalculationOptions {
     // Zoom configuration (from camera path)
     calculatedZoomBlock: ParsedZoomBlock | undefined;
     calculatedZoomCenter: { x: number; y: number };
-    calculatedZoomScale?: number;
 
     // Layout (from useLayoutCalculation)
     compositionWidth: number;
@@ -82,7 +81,6 @@ export function useTransformCalculation({
     clipEffects,
     calculatedZoomBlock,
     calculatedZoomCenter,
-    calculatedZoomScale,
     compositionWidth,
     compositionHeight,
     drawWidth,
@@ -131,8 +129,8 @@ export function useTransformCalculation({
             zoomOverrideScale,
             paddingScaled,
             calculatedZoomBlock?.autoScale === 'fill',
-            Boolean(mockupEnabled),
-            calculatedZoomScale // currentScaleOverride
+            Boolean(mockupEnabled)
+            // NOTE: currentScaleOverride removed - scale computed internally by calculateZoomTransform
         );
         const zoomTransformStr = getZoomTransformString(zoomTransform);
 
@@ -198,7 +196,6 @@ export function useTransformCalculation({
         clipEffects,
         calculatedZoomBlock,
         calculatedZoomCenter,
-        calculatedZoomScale,
         compositionWidth,
         compositionHeight,
         drawWidth,

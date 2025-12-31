@@ -319,16 +319,6 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     annotation: effectTrackPositions[EffectType.Annotation] ?? 0
   }), [fixedTrackPositions, effectTrackPositions])
 
-  // Calculate total content height
-  const contentHeight = useMemo(() => {
-    let total = fixedTrackHeights.ruler + fixedTrackHeights.speedUpBarSpace +
-      fixedTrackHeights.video + fixedTrackHeights.audio + fixedTrackHeights.webcam
-    for (const type of EFFECT_TRACK_TYPES) {
-      total += effectTrackHeights[type] ?? 0
-    }
-    return total
-  }, [fixedTrackHeights, effectTrackHeights])
-
   // Centralized track bounds lookup - previously duplicated in timeline-canvas.tsx
   const getTrackBounds = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam): TrackBounds => {
     const padding = TimelineConfig.TRACK_PADDING
@@ -383,8 +373,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   }, [])
 
   const value = useMemo<TimelineLayoutContextValue>(() => ({
-    stageWidth: Math.max(timelineWidth + containerSize.width, containerSize.width),
-    stageHeight: Math.max(containerSize.height, contentHeight),
+    stageWidth: containerSize.width,
+    stageHeight: containerSize.height,
     containerHeight: containerSize.height,
     containerWidth: containerSize.width,
     timelineWidth,
@@ -421,7 +411,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     isVideoTrackExpanded,
     getTrackBounds
   }), [
-    timelineWidth, containerSize, contentHeight, duration, zoom, pixelsPerMs,
+    timelineWidth, containerSize, duration, zoom, pixelsPerMs,
     fixedTrackHeights, fixedTrackPositions, effectTrackHeights, effectTrackPositions,
     effectTrackExistence, trackHeights, trackPositions, mediaTrackExistence,
     isScreenGroupCollapsed, hasSpeedUpSuggestions, showTypingSuggestions,

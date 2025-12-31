@@ -211,13 +211,13 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
         lastSourceTimeMs: 0,
     }
 
-    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number }; zoomScale: number; velocity: { x: number; y: number } }[] = new Array(totalFrames)
+    const out: { activeZoomBlock: ParsedZoomBlock | undefined; zoomCenter: { x: number; y: number }; velocity: { x: number; y: number } }[] = new Array(totalFrames)
 
     for (let f = 0; f < totalFrames; f++) {
         const tMs = (f / fps) * 1000
         const clipData = getActiveClipDataAtFrame({ frame: f, frameLayout, fps, effects, getRecording })
         if (!clipData) {
-            out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, zoomScale: 1, velocity: { x: 0, y: 0 } }
+            out[f] = { activeZoomBlock: undefined, zoomCenter: { x: 0.5, y: 0.5 }, velocity: { x: 0, y: 0 } }
             continue
         }
 
@@ -313,7 +313,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             x: computed.zoomCenter.x - prevCenter.x,
             y: computed.zoomCenter.y - prevCenter.y,
         }
-        out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter, zoomScale: computed.zoomScale, velocity }
+        out[f] = { activeZoomBlock: computed.activeZoomBlock, zoomCenter: computed.zoomCenter, velocity }
     }
 
     return out

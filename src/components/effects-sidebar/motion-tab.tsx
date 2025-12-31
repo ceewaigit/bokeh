@@ -21,9 +21,9 @@ export function MotionTab() {
   const setIsAdvancedOpen = useWorkspaceStore((s) => s.setMotionTabAdvancedOpen)
 
   const motionBlurPresets = React.useMemo(() => ([
-    { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: -0.13, saturation: 1.0 } },
-    { id: 'balanced', label: 'Balanced', values: { intensity: 100, threshold: 70, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60, black: -0.11, saturation: 1.1 } },
-    { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100, black: -0.13, saturation: 1.0 } },
+    { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: -0.02, saturation: 1.0, samples: 16 } },
+    { id: 'balanced', label: 'Balanced', values: { intensity: 100, threshold: 70, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60, black: -0.02, saturation: 1.1, samples: 32 } },
+    { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100, black: -0.02, saturation: 1.0, samples: 48 } },
     { id: 'custom', label: 'Custom', values: null },
   ] as const), [])
 
@@ -50,8 +50,9 @@ export function MotionTab() {
       motionBlurSmoothWindow: values.smooth,
       motionBlurRampRange: values.ramp,
       motionBlurClamp: values.clamp,
-      motionBlurBlackLevel: values.black ?? -0.13,
+      motionBlurBlackLevel: values.black ?? 0,
       motionBlurSaturation: values.saturation ?? 1.0,
+      motionBlurSamples: values.samples,
       motionBlurEnabled: true
     })
   }
@@ -108,7 +109,6 @@ export function MotionTab() {
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={springConfig}
-                layout
                 className="overflow-hidden"
               >
                 <div className="space-y-4 pb-2 pl-1 border-l-2 border-border/30 ml-1.5 pr-1">
@@ -152,7 +152,7 @@ export function MotionTab() {
 
                   <CompactSlider
                     label="Black Level"
-                    value={camera.motionBlurBlackLevel ?? -0.13}
+                    value={camera.motionBlurBlackLevel ?? 0}
                     min={-0.2}
                     max={0.2}
                     step={0.01}

@@ -1,4 +1,4 @@
-import { calculateCursorState } from '@/features/effects/utils/cursor-calculator'
+import { calculateCursorState } from '@/features/cursor/logic/cursor-logic'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 
 describe('cursor smoothing stability', () => {

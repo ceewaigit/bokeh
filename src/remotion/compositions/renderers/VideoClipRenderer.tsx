@@ -8,7 +8,7 @@
  * REFACTORED: Now uses VideoPositionContext (Zero Prop Pattern)
  * Layout, transform, and boundary state are sourced from context.
  */
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import { useVideoUrl, isProxySufficientForTarget } from '@/remotion/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSettingsContext';
@@ -22,6 +22,7 @@ import { useProjectStore } from '@/stores/project-store';
 import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
 import type { Clip, Recording } from '@/types/project';
 import type { SyntheticEvent } from 'react';
+import { createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 
 interface VideoClipRendererProps {
   // Identity and Source (Minimal Props)
@@ -93,6 +94,15 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     isScrubbing
   });
 
+  // Self-healing: track if current URL failed, fallback to original source
+  const [urlFailed, setUrlFailed] = useState(false);
+
+  const effectiveUrl = useMemo(() => {
+    if (!urlFailed || !recording?.filePath) return videoUrl;
+    // Fallback to original source file when proxy fails
+    return createVideoStreamUrl(recording.filePath);
+  }, [urlFailed, videoUrl, recording?.filePath]);
+
   // VTDecoder cleanup
   const containerRef = useVideoContainerCleanup(videoUrl);
 
@@ -130,16 +140,36 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     };
   }, [onVideoRef, containerRef]);
 
-  // Handle video loaded event
+  // Handle video loaded event (for preview readiness)
   const handleLoaded = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+
     if (isRendering) {
       handleVideoReady(e);
       return;
     }
-    if (e.currentTarget.readyState >= 2) {
+    if (video.readyState >= 2) {
       setPreviewReady(true);
     }
   }, [isRendering, handleVideoReady, setPreviewReady]);
+
+  // Handle metadata loaded - check for zombie proxy here (dimensions guaranteed)
+  const handleMetadataLoaded = useCallback((_e: SyntheticEvent<HTMLVideoElement>) => {
+    // RELAXED CHECK: Only fail if we have enough data to play but still no dimensions.
+    // Some browsers/codecs might fire metadata before dimensions are fully parsed (rare but possible).
+    // UPDATE: Even H.264 proxies can briefly report 0x0 on load. We will disable this check
+    // for now because the "Zombie" issue was specific to the broken HEVC files.
+    // If a video is truly 0x0, it just won't render, which is better than crashing RAM by forcing 6K source.
+    /*
+    if ((video.videoWidth === 0 || video.videoHeight === 0) && video.readyState >= 2) {
+      // Double-check we're not already using fallback to prevent loops
+      if (!urlFailed) {
+        console.warn(`[VideoClipRenderer] Zombie proxy detected (0×0): ${recording?.id}, falling back to source`);
+        setUrlFailed(true);
+      }
+    }
+    */
+  }, []);
 
   useEffect(() => {
     if (isRendering) return;
@@ -205,8 +235,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
         }}>
           <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
             <VideoComponent
-              key={recording.id}
-              src={videoUrl || ''}
+              key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
+              src={effectiveUrl || ''}
               style={{
                 width: '100%', height: '100%',
                 objectFit: 'cover',
@@ -223,10 +253,18 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
               endAt={endAtFrames}
               playbackRate={playbackRate}
               onLoadedData={handleLoaded}
+              onLoadedMetadata={handleMetadataLoaded}
               onCanPlay={handleLoaded}
               onSeeked={isRendering ? handleVideoReady : undefined}
               onError={(e: any) => {
-                throw new Error(`[VideoClipRenderer] Video error for ${recording.id}: ${e?.target?.error ?? e}`);
+                // Self-healing: fallback to original source instead of crashing
+                if (!urlFailed) {
+                  console.warn(`[VideoClipRenderer] Video error, falling back to source: ${recording.id}`, e?.target?.error);
+                  setUrlFailed(true);
+                } else {
+                  // Both proxy and source failed - log error but don't crash
+                  console.error(`[VideoClipRenderer] Both proxy and source failed for ${recording.id}:`, e?.target?.error);
+                }
               }}
             />
           </AudioEnhancerWrapper>

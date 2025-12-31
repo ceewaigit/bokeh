@@ -80,7 +80,8 @@ export interface CameraComputeInput {
 
 export interface CameraComputeOutput {
   activeZoomBlock?: ReturnType<typeof getZoomBlockAtTime>
-  zoomScale: number
+  // NOTE: zoomScale removed - zoom scale is now computed solely by zoom-transform.ts
+  // This eliminates double-smoothing and ensures single source of truth for scale
   zoomCenter: { x: number; y: number }
   physics: CameraPhysicsState
 }
@@ -337,7 +338,6 @@ export function computeCameraState({
     let currentY = physics.y
     let currentVX = physics.vx
     let currentVY = physics.vy
-    let currentVScale = physics.vScale ?? 0
 
     // Simulation steps for stability if dt is large
     const MAX_STEP = 0.016 // ~60fps
@@ -349,8 +349,6 @@ export function computeCameraState({
       currentY = targetCenter.y
       currentVX = 0
       currentVY = 0
-      currentScale = commandedScale
-      currentVScale = 0
       remainingDt = 0
     }
 
@@ -359,7 +357,7 @@ export function computeCameraState({
     while (remainingDt > 0) {
       const dt = Math.min(remainingDt, MAX_STEP)
 
-      // Position Physics
+      // Position Physics - apply spring simulation for smooth camera pan
       if (snapToCenter) {
         // Hard lock to center (instantaneous, no physics)
         currentX = 0.5
@@ -377,12 +375,10 @@ export function computeCameraState({
         currentY += currentVY * dt
       }
 
-      // Scale Physics (Targeting commandedScale)
-      // Use same stiffness/damping for consistent feel
-      const fScale = -stiffness * (currentScale - commandedScale) - damping * currentVScale
-      const aScale = fScale / mass
-      currentVScale += aScale * dt
-      currentScale += currentVScale * dt
+      // NO PHYSICS FOR SCALE - use deterministic eased value directly.
+      // Scale uses mathematical easing (smootherStep) which already provides smooth transitions.
+      // Adding physics on top creates "double-smoothing" and causes mid-transition jank.
+      // The commandedScale from calculateZoomScale() is our source of truth.
 
       remainingDt -= dt
     }
@@ -390,7 +386,6 @@ export function computeCameraState({
     // Snap to zero velocity if very small to prevent micro-jitter
     if (Math.abs(currentVX) < 0.0001) currentVX = 0
     if (Math.abs(currentVY) < 0.0001) currentVY = 0
-    if (Math.abs(currentVScale) < 0.0001) currentVScale = 0
 
     // Snap position if very close
     const dist = Math.sqrt(Math.pow(currentX - targetCenter.x, 2) + Math.pow(currentY - targetCenter.y, 2))
@@ -401,11 +396,8 @@ export function computeCameraState({
       currentVY = 0
     }
 
-    // Snap scale
-    if (Math.abs(currentScale - commandedScale) < 0.001 && Math.abs(currentVScale) < 0.001) {
-      currentScale = commandedScale
-      currentVScale = 0
-    }
+    // Use commandedScale directly (deterministic, no physics simulation)
+    currentScale = commandedScale
 
     nextPhysics = {
       x: currentX,
@@ -413,7 +405,7 @@ export function computeCameraState({
       vx: currentVX,
       vy: currentVY,
       scale: currentScale,
-      vScale: currentVScale,
+      vScale: 0, // No velocity tracking for scale anymore
       lastTimeMs: timelineMs,
       lastSourceTimeMs: sourceTimeMs
     }
@@ -488,7 +480,7 @@ export function computeCameraState({
   nextPhysics.x = finalCenter.x
   nextPhysics.y = finalCenter.y
 
-  return { activeZoomBlock, zoomScale: currentScale, zoomCenter: finalCenter, physics: nextPhysics }
+  return { activeZoomBlock, zoomCenter: finalCenter, physics: nextPhysics }
 }
 
 /**

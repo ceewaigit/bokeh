@@ -13,7 +13,6 @@ import { EffectType } from '@/types'
 import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { InfoTooltip } from '@/components/effects-sidebar/info-tooltip'
 import { useProjectStore } from '@/stores/project-store'
-import { clamp } from '@/lib/core/math'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 
 interface CursorTabProps {

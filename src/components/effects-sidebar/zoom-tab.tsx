@@ -279,7 +279,6 @@ export function ZoomTab({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={springConfig}
-              layout
               className="pt-1 space-y-4"
             >
               <CompactSlider
@@ -345,7 +344,6 @@ export function ZoomTab({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={springConfig}
-              layout
               className="pt-1"
             >
               <CompactSlider

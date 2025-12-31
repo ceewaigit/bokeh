@@ -1,5 +1,6 @@
-import type { Project, Track, Clip } from '@/types/project'
+import type { Project, Track, Clip, Effect } from '@/types/project'
 import { reflowClips, calculateTimelineDuration } from './timeline-operations'
+import { EffectStore } from '@/lib/core/effects'
 
 /**
  * Service for applying speed-up suggestions to clips by splitting them
@@ -42,11 +43,15 @@ export class SpeedUpApplicationService {
 
         if (!sourceClip || !track) {
             console.error('applySpeedUpToClip: Clip not found:', clipId)
-            return { affectedClips: [], originalClips: [] }
+            return { affectedClips: [], originalClips }
         }
 
         // Save original clip state for undo
         originalClips.push({ ...sourceClip })
+
+        // 1. Capture existing clip-bound effects (e.g. Crop) BEFORE we remove the clip
+        const allEffects = EffectStore.getAll(project)
+        const clipBoundEffects = allEffects.filter(e => e.clipId === clipId)
 
         // Get clip's source range and base playback rate
         const sourceIn = sourceClip.sourceIn || 0
@@ -167,6 +172,7 @@ export class SpeedUpApplicationService {
         // 3. Create new clips from merged segments
         let timelinePosition = sourceClip.startTime
         const newClips: Clip[] = []
+        const effectsToAdd: Effect[] = []
 
         for (let i = 0; i < mergedSegments.length; i++) {
             const segment = mergedSegments[i]
@@ -205,6 +211,21 @@ export class SpeedUpApplicationService {
 
             newClips.push(newClip)
             affectedClips.push(newClip.id)
+
+            // Re-apply original clip-bound effects to this new clip segment
+            for (const originalEffect of clipBoundEffects) {
+                const clonedEffect = {
+                    ...originalEffect,
+                    id: crypto.randomUUID(), // New unique ID
+                    clipId: newClip.id,      // Bind to new clip
+                    startTime: timelinePosition,
+                    endTime: timelinePosition + clipDuration,
+                    // Note: We copy 'data' and other props directly.
+                    // For Crop, Screen, etc., the data is spatial and applies to the whole clip.
+                }
+                effectsToAdd.push(clonedEffect)
+            }
+
             timelinePosition += clipDuration
         }
 
@@ -213,6 +234,16 @@ export class SpeedUpApplicationService {
 
         // NO SORTING - array order IS the source of truth
         // New clips are already at the correct array index via splice()
+
+        // 4. Update Project Effects
+        // Remove old effects bound to the deleted clip
+        for (const effect of clipBoundEffects) {
+            EffectStore.remove(project, effect.id)
+        }
+        // Add new migrated effects
+        if (effectsToAdd.length > 0) {
+            EffectStore.addMany(project, effectsToAdd)
+        }
 
         // Reflow to ensure all clips are contiguous
         reflowClips(track, 0)
@@ -224,3 +255,4 @@ export class SpeedUpApplicationService {
         return { affectedClips, originalClips }
     }
 }
+

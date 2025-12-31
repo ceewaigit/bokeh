@@ -125,7 +125,8 @@ function getProxiesDirectory(proxyType: 'preview' | 'export' | 'glow' | 'scrub')
  * Generate a unique cache key for a proxy
  */
 function getProxyCacheKey(inputPath: string, options: ProxyOptions): string {
-    const key = `${inputPath}|${options.targetWidth}x${options.targetHeight}|${options.proxyType || 'generic'}|${options.fps || 'auto'}|v13`
+    // Bumped to v18 to force Robust Fallback Pipeline (Safe HW/SW)
+    const key = `${inputPath}|${options.targetWidth}x${options.targetHeight}|${options.proxyType || 'generic'}|${options.fps || 'auto'}|v18`
     return crypto.createHash('sha1').update(key).digest('hex').slice(0, 16)
 }
 
@@ -289,6 +290,14 @@ export async function getVideoDimensions(videoPath: string): Promise<{ width: nu
  * Generate a proxy file with the given options
  * This is the core function that handles the actual transcoding
  */
+/**
+ * Generate a proxy file with the given options
+ * This is the core function that handles the actual transcoding
+ */
+/**
+ * Generate a proxy file with the given options
+ * This is the core function that handles the actual transcoding
+ */
 async function generateProxyInternal(
     inputPath: string,
     options: ProxyOptions,
@@ -316,84 +325,123 @@ async function generateProxyInternal(
 
     onProgress?.(0)
 
-    // Build scale filter
-    let vf: string
-    if (maintainAspectRatio) {
-        vf = `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2`
-    } else {
-        vf = `scale=${targetWidth}:${targetHeight}`
-    }
-
-    // Platform-specific hardware acceleration for decode
-    const hwAccelArgs = process.platform === 'darwin'
-        ? ['-hwaccel', 'videotoolbox'] // macOS: VideoToolbox HW decode
-        : [] // Other platforms: software decode (could add NVDEC/VAAPI later)
-
-    const baseArgs = [
-        '-hide_banner',
-        '-loglevel', 'error',
-        '-y',
-        ...hwAccelArgs,
-        '-i', inputPath,
-        // Force CFR if requested (Must be AFTER -i to resample output, preserving sync)
-        ...(fps ? ['-r', String(fps)] : []),
-        '-vf', vf,
-        '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart',
-        // FORCE KEYFRAMES: Improve seek speed for Remotion export workers
-        // SEEK FIX: Use All-Intra (GOP=1) for EXPORT proxies to ensure instant random access.
-        // Prevents "stuck frames" caused by decoder seek lag on P-frames.
-        // For preview, we can be more relaxed (GOP=30) to save space.
-        // For scrubbing, we want snappy seeking, so GOP 15 (~0.5-1s) is a good balance.
-        '-g', proxyType === 'export' ? '1' : (proxyType === 'scrub' ? '15' : '30'),
-        // STRICT GOP: Disable scene change detection to force strictly periodic keyframes
-        '-sc_threshold', '0',
-        // OPTIMIZE SEEKING: Optimize for fast decode/random access
-        '-tune', 'zerolatency',
-    ]
+    // Common audio arguments
     const audioArgs = ['-c:a', 'aac', '-b:a', audioBitrate]
 
-    // Try hardware encoding first on macOS
+    // Common output arguments
+    const commonOutputArgs = [
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        '-g', proxyType === 'export' ? '1' : (proxyType === 'scrub' ? '15' : '30'),
+        '-sc_threshold', '0',
+        '-tune', 'zerolatency',
+    ]
+
+    // Helper: Build standard SW Scale Filter
+    let swVf: string
+    if (maintainAspectRatio) {
+        swVf = `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2`
+    } else {
+        swVf = `scale=${targetWidth}:${targetHeight}`
+    }
+
+    // ========================================================================
+    // STRATEGY 1: Full Hardware (HW Decode -> Download -> SW Scale -> HW Encode)
+    // ========================================================================
+    // Note: VideoToolbox 'scale_videotoolbox' is often missing.
+    // We use 'hwdownload' to explicitly fetch frames for the SW scaler.
+    // This fixes the "Audio Only" bug where implicit download fails.
     if (process.platform === 'darwin') {
         try {
-            await runFfmpeg(ffmpegPath, [
-                ...baseArgs,
-                // HEVC (H.265) is much more reliable for 4K/6K on Apple Silicon than H.264
-                // It avoids profile limit errors that cause h264_videotoolbox to fail.
-                '-c:v', 'hevc_videotoolbox',
-                // Allow hardware encoding to fail gracefully if not supported (though rare on Macs)
-                '-allow_sw', '0',
-                '-b:v', videoBitrate,
-                ...audioArgs,
+            const hwArgs = [
+                '-hide_banner', '-loglevel', 'error', '-y',
+                // HW DECODE
+                '-hwaccel', 'videotoolbox',
+                '-i', inputPath,
+                ...(fps ? ['-r', String(fps)] : []),
+                // DOWNLOAD + SCALE (Fixes Audio-Only issue)
+                '-vf', `hwdownload,format=nv12,${swVf}`,
+                // HW ENCODE
+                '-c:v', 'h264_videotoolbox',
+                '-allow_sw', '0', '-profile:v', 'high', '-b:v', videoBitrate,
+                ...audioArgs, ...commonOutputArgs,
                 proxyPath
-            ], onProgress)
+            ]
 
+            // console.log(`[ProxyService] Attempting Strategy 1: HW Decode -> Download -> SW Scale -> HW Encode`)
+            await runFfmpeg(ffmpegPath, hwArgs, onProgress)
+
+            // Success
             const cacheKey = `${inputPath}|${proxyType}|${targetWidth}x${targetHeight}|${fps || 'auto'}`
             proxyPathCache.set(cacheKey, proxyPath)
-            console.log(`[ProxyService] Proxy generated (VideoToolbox): ${path.basename(proxyPath)}`)
+            console.log(`[ProxyService] Proxy generated (Strategy 1 - HW/HW): ${path.basename(proxyPath)}`)
             return { success: true, proxyPath }
-        } catch {
-            console.log('[ProxyService] VideoToolbox failed, falling back to libx264')
+        } catch (err) {
+            // Silently fall through to Strategy 2
+            // console.warn('[ProxyService] Strategy 1 failed (HW Decode/Encode):', err)
         }
     }
 
-    // Fallback to software encoding
+    // ========================================================================
+    // STRATEGY 2: Output Hardware (SW Decode -> SW Scale -> HW Encode)
+    // ========================================================================
+    // Use this if HW Decode fails (e.g. incompatible source) but we still want fast enc.
+    if (process.platform === 'darwin') {
+        try {
+            const mixedArgs = [
+                '-hide_banner', '-loglevel', 'error', '-y',
+                // SW DECODE (Standard -i)
+                '-i', inputPath,
+                ...(fps ? ['-r', String(fps)] : []),
+                // SW SCALE
+                '-vf', swVf,
+                // HW ENCODE
+                '-c:v', 'h264_videotoolbox',
+                '-allow_sw', '0', '-profile:v', 'high', '-b:v', videoBitrate,
+                ...audioArgs, ...commonOutputArgs,
+                proxyPath
+            ]
+
+            // console.log(`[ProxyService] Attempting Strategy 2: SW Decode -> SW Scale -> HW Encode`)
+            await runFfmpeg(ffmpegPath, mixedArgs, onProgress)
+
+            // Success
+            const cacheKey = `${inputPath}|${proxyType}|${targetWidth}x${targetHeight}|${fps || 'auto'}`
+            proxyPathCache.set(cacheKey, proxyPath)
+            console.log(`[ProxyService] Proxy generated (Strategy 2 - SW/HW): ${path.basename(proxyPath)}`)
+            return { success: true, proxyPath }
+        } catch (err) {
+            // Silently fall through to Strategy 3
+            // console.warn('[ProxyService] Strategy 2 failed (HW Encode):', err)
+        }
+    }
+
+    // ========================================================================
+    // STRATEGY 3: Software Fallback (SW Decode -> SW Scale -> SW Encode)
+    // ========================================================================
+    const swArgs = [
+        '-hide_banner', '-loglevel', 'error', '-y',
+        '-i', inputPath,
+        ...(fps ? ['-r', String(fps)] : []),
+        '-vf', swVf,
+        '-c:v', 'libx264',
+        '-preset', preset,
+        '-crf', String(crf),
+        ...audioArgs,
+        ...commonOutputArgs,
+        proxyPath
+    ]
+
     try {
-        await runFfmpeg(ffmpegPath, [
-            ...baseArgs,
-            '-c:v', 'libx264',
-            '-preset', preset,
-            '-crf', String(crf),
-            ...audioArgs,
-            proxyPath
-        ], onProgress)
+        // console.log(`[ProxyService] Attempting Strategy 3: Pure Software (libx264)`)
+        await runFfmpeg(ffmpegPath, swArgs, onProgress)
 
         const cacheKey = `${inputPath}|${proxyType}|${targetWidth}x${targetHeight}|${fps || 'auto'}`
         proxyPathCache.set(cacheKey, proxyPath)
-        console.log(`[ProxyService] Proxy generated (libx264): ${path.basename(proxyPath)}`)
+        console.log(`[ProxyService] Proxy generated (Strategy 3 - Pure SW): ${path.basename(proxyPath)}`)
         return { success: true, proxyPath }
     } catch (error) {
-        console.error('[ProxyService] Proxy generation failed:', error)
+        console.error('[ProxyService] All strategies failed:', error)
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error',

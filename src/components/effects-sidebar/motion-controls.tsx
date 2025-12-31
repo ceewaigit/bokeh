@@ -1,5 +1,5 @@
 import React from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 
@@ -46,6 +46,9 @@ export function SegmentedControl({
   wrap?: boolean
   columns?: 2 | 3
 }) {
+  // Use unique ID per instance to prevent layoutId conflicts across components
+  const instanceId = React.useId()
+
   return (
     <div
       className={cn(
@@ -70,13 +73,19 @@ export function SegmentedControl({
               isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground/80"
             )}
           >
-            {isActive && (
-              <motion.div
-                layoutId={`seg-${namespace}`}
-                transition={springConfig}
-                className="absolute inset-0 bg-background shadow-sm rounded-md border border-border/20"
-              />
-            )}
+            <AnimatePresence mode="wait">
+              {isActive && (
+                <motion.div
+                  key={`seg-${namespace}-${instanceId}-active`}
+                  layoutId={`seg-${namespace}-${instanceId}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={springConfig}
+                  className="absolute inset-0 bg-background shadow-sm rounded-md border border-border/20"
+                />
+              )}
+            </AnimatePresence>
             <span className="relative z-10">{option.label}</span>
           </button>
         )
