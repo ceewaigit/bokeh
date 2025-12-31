@@ -34,7 +34,7 @@ export function usePreviewVisibility(storeIsPlaying: boolean, storePause: () => 
 /**
  * Manages the resize observer for the preview viewport.
  */
-export function usePreviewResize(ref: React.RefObject<HTMLDivElement>) {
+export function usePreviewResize(ref: React.RefObject<HTMLDivElement | null>) {
     const [size, setSize] = useState({ width: 0, height: 0 });
 
     useEffect(() => {

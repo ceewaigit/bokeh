@@ -102,7 +102,7 @@ export const TimelineEffectBlock = React.memo(({
 
   // Use glass-safe colors for maximum contrast on any background
   const labelFill = isEnabled
-    ? colors.effectLabelColor // High-contrast text from glass-safe tokens
+    ? colors.foreground
     : colors.glassSecondaryForeground
 
   const curveStroke = withAlpha(colors.foreground, isEnabled ? (isDarkMode ? 0.9 : 0.7) : 0.35)
@@ -362,64 +362,19 @@ export const TimelineEffectBlock = React.memo(({
           y={0}
           width={safeWidth}
           height={safeHeight}
-          fill={withAlpha(blockFill, isExpanded ? 0.85 : 0.75)}
-          // Enhanced border - slightly thicker and more prominent when expanded
+          fill={withAlpha(blockFill, isExpanded ? 0.15 : 0.1)}
+          // Enhanced border - slightly thicker and more prominent for outline look
           stroke={isSelected
             ? (isDarkMode ? 'rgba(255,255,255,0.95)' : colors.primary)
-            : withAlpha(blockFill, isExpanded ? 0.7 : 0.6)
+            : withAlpha(blockFill, isDarkMode ? 0.8 : 0.7)
           }
-          strokeWidth={isSelected ? (isExpanded ? 2 : 1.5) : (isExpanded ? 1.5 : 1)}
+          strokeWidth={isSelected ? 2 : 1.5}
           // Refined corner radius
           cornerRadius={isExpanded ? 10 : 8}
           opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
-          // Enhanced shadow system for depth
-          shadowColor={isDarkMode ? 'black' : 'rgba(0,0,0,0.7)'}
-          shadowBlur={shadowConfig.blur}
-          shadowOpacity={shadowConfig.opacity}
-          shadowOffsetY={shadowConfig.offsetY}
           listening={true}
         />
 
-        {/* Dark gradient overlay at top for cinematic depth */}
-        <Rect
-          x={0}
-          y={0}
-          width={safeWidth}
-          // Full height smooth fade
-          height={safeHeight}
-          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: 0, y: safeHeight }}
-          fillLinearGradientColorStops={[
-            0, 'rgba(0,0,0,0.15)', // Very subtle top shadow
-            1, 'rgba(0,0,0,0)'
-          ]}
-          cornerRadius={[isExpanded ? 10 : 8, isExpanded ? 10 : 8, 0, 0]}
-          listening={false}
-        />
-
-        {/* Glass highlight - Enhanced with stronger texture for expanded state */}
-        <Rect
-          x={1}
-          y={1}
-          width={Math.max(1, safeWidth - 2)}
-          height={Math.max(1, (safeHeight - 2) * (isExpanded ? 0.4 : 0.5))}
-          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: 0, y: (safeHeight - 2) * (isExpanded ? 0.4 : 0.5) }}
-          fillLinearGradientColorStops={
-            isExpanded
-              ? [
-                0, withAlpha(colors.foreground, 0.18), // Slightly brighter highlight
-                0.5, withAlpha(colors.foreground, 0.08),
-                1, withAlpha(colors.foreground, 0)
-              ]
-              : [
-                0, withAlpha(colors.foreground, 0.12),
-                1, withAlpha(colors.foreground, 0)
-              ]
-          }
-          cornerRadius={[isExpanded ? 9 : 7, isExpanded ? 9 : 7, 0, 0]}
-          listening={false}
-        />
 
         {/* Resize handles - Modern Pill Shape with enhanced styling */}
         {(isHovering || isSelected) && (

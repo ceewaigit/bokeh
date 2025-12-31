@@ -8,7 +8,7 @@ import { assertDefined } from '@/lib/errors';
 import type { TimelineMetadata } from '@/hooks/timeline/use-timeline-metadata';
 
 interface UsePlayerSyncProps {
-    playerRef: React.RefObject<PlayerRef>;
+    playerRef: React.RefObject<PlayerRef | null>;
     timelineMetadata: TimelineMetadata;
     isPlaying: boolean;
     isScrubbing: boolean;

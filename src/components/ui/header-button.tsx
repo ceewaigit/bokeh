@@ -30,12 +30,12 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                 className={cn(
                     buttonVariants({ variant, size: "sm" }),
                     "btn-bubble-none",
-                    "h-7 px-3 text-2xs font-medium",
+                    "h-8 px-3 text-2xs font-medium",
                     "transition-all duration-150 ease-out",
                     "hover:bg-accent/80 hover:text-accent-foreground active:scale-[0.97]",
                     active && "bg-accent text-accent-foreground",
                     // When purely an icon button (no children), ensure square aspect ratio and centering
-                    !children && "w-7 px-0",
+                    !children && "w-8 px-0",
                     className
                 )}
                 whileHover={{ scale: 1.03 }}

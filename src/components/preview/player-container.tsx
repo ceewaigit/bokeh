@@ -9,8 +9,8 @@ import type { PlayerConfiguration, CropEffectData } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
 
 interface PlayerContainerProps {
-    playerRef: React.RefObject<PlayerRef>;
-    playerContainerRef: React.RefObject<HTMLDivElement>;
+    playerRef: React.RefObject<PlayerRef | null>;
+    playerContainerRef: React.RefObject<HTMLDivElement | null>;
     timelineMetadata: TimelineMetadata;
     playerConfig: PlayerConfiguration;
     playerKey: string;
@@ -116,7 +116,7 @@ export const PlayerContainer: React.FC<PlayerContainerProps> = ({
     return (
         <>
             {isGlowEnabled && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[105%] h-[105%] -z-10 blur-2xl opacity-50 pointer-events-none">
+                <div className="absolute inset-0 -z-10 pointer-events-none">
                     <AmbientGlowPlayer
                         mainPlayerRef={playerRef}
                         timelineMetadata={timelineMetadata}

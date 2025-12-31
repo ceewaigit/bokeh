@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { Activity, Video, Play } from 'lucide-react'
+import { Activity, Video, Play, Palette } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -16,13 +16,15 @@ import {
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useProjectStore } from '@/stores/project-store'
 import { usePreviewSettingsStore } from '@/stores/preview-settings-store'
+import { useTheme, type ColorPreset } from '@/shared/contexts/theme-context'
 import { cn } from '@/shared/utils/utils'
 
-type SettingsTab = 'recording' | 'playback' | 'diagnostics'
+type SettingsTab = 'recording' | 'playback' | 'appearance' | 'diagnostics'
 
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'recording', label: 'Recording', icon: Video },
   { id: 'playback', label: 'Playback', icon: Play },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity },
 ]
 
@@ -59,6 +61,8 @@ export function SettingsDialog() {
 
   const recordingSettings = useProjectStore((s) => s.settings.recording)
   const setRecordingSettings = useProjectStore((s) => s.setRecordingSettings)
+
+  const { colorPreset, setColorPreset } = useTheme()
 
   const [processSnapshot, setProcessSnapshot] = useState<BokehProcessSnapshot | null>(null)
   const [processError, setProcessError] = useState<string | null>(null)
@@ -182,6 +186,46 @@ export function SettingsDialog() {
                 </div>
               )}
 
+              {activeTab === 'appearance' && (
+                <div className="space-y-6">
+                  <div>
+                    <Label className="text-xs mb-3 block">Theme Preset</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'default', label: 'Default', colors: 'bg-[#6d28d9]' },
+                        { id: 'sand', label: 'Sand', colors: 'bg-[#ea580c]' },
+                        { id: 'industrial', label: 'Industrial', colors: 'bg-[#dc2626]' },
+                        { id: 'forest', label: 'Forest', colors: 'bg-[#16a34a]' },
+                        { id: 'nordic', label: 'Nordic', colors: 'bg-[#2563eb]' },
+                        { id: 'midnight', label: 'Midnight', colors: 'bg-[#e11d48]' },
+                        { id: 'space', label: 'Space', colors: 'bg-[#94a3b8]' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.id}
+                          onClick={() => setColorPreset(preset.id as ColorPreset)}
+                          className={cn(
+                            "flex items-center gap-2 p-2 rounded-md border transition-all text-left",
+                            colorPreset === preset.id
+                              ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                              : "border-border/30 hover:border-border/60 hover:bg-muted/30"
+                          )}
+                        >
+                          <div className={cn("w-3 h-3 rounded-full", preset.colors)} />
+                          <span className="text-xs font-medium capitalize">{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-border/20">
+                    <p className="text-3xs text-muted-foreground leading-relaxed">
+                      Presets adjust the overall color palette and accent colors across the application.
+                      Some presets may look different in light and dark modes.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'diagnostics' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -223,7 +267,7 @@ export function SettingsDialog() {
           </div>
         </TooltipProvider>
       </DialogContent>
-    </Dialog>
+    </Dialog >
   )
 }
 

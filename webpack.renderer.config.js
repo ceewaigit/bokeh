@@ -103,4 +103,7 @@ module.exports = {
     liveReload: false, // Disable live reload
     port: 3001,
   },
+  optimization: {
+    sideEffects: false,
+  },
 };

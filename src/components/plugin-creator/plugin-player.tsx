@@ -15,7 +15,7 @@ export function PluginPlayer({ plugin, onError }: PluginPlayerProps) {
     const [isScrubbing, setIsScrubbing] = useState(false)
 
     const progressRef = useRef(progress)
-    const animationRef = useRef<number>()
+    const animationRef = useRef<number | null>(null)
     const wasPlayingRef = useRef(false)
     const lastTimeRef = useRef<number>(0)
 
@@ -31,7 +31,7 @@ export function PluginPlayer({ plugin, onError }: PluginPlayerProps) {
         if (!isPlaying || isScrubbing) {
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current)
-                animationRef.current = undefined
+                animationRef.current = null
             }
             return
         }

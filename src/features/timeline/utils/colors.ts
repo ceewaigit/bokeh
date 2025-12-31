@@ -161,7 +161,7 @@ export const getTimelineColors = () => {
       ? (isDark ? 'rgba(50, 50, 60, 0.3)' : 'rgba(255, 255, 255, 0.18)')
       : (isDark ? 'rgba(35, 35, 40, 0.6)' : 'rgba(240, 240, 245, 0.7)'),
     playhead: getCSSVar('--destructive') || 'hsl(263, 70%, 60%)',
-    zoomBlock: getCSSVar('--primary') || 'hsl(263, 70%, 50%)',
+    zoomBlock: getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
     screenBlock: getCSSVar('--info') || (isDark ? 'hsl(152, 55%, 45%)' : 'hsl(152, 55%, 35%)'),
     keystrokeBlock: isDark ? 'hsl(83, 65%, 50%)' : 'hsl(83, 65%, 40%)', // Green for keystrokes
     annotationBlock: isDark ? 'hsl(45, 90%, 55%)' : 'hsl(45, 90%, 45%)', // Amber/yellow for annotations
@@ -170,7 +170,7 @@ export const getTimelineColors = () => {
     webcamClip: 'hsl(196, 82%, 52%)',
     webcamCircle: 'rgba(255, 255, 255, 0.15)',
     webcamTrack: isDark ? 'rgba(34, 211, 238, 0.12)' : 'rgba(34, 211, 238, 0.09)',
-    clipSelected: getCSSVar('--primary') || 'hsl(263, 70%, 50%)',
+    clipSelected: getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
   }
 }
 

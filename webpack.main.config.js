@@ -2,6 +2,7 @@ const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
+  mode: 'development',
   entry: {
     index: './electron/main/index.ts',
     'export-worker': './electron/main/export-worker.ts'
@@ -46,7 +47,16 @@ module.exports = {
     }),
   ],
   externals: [
-    'uiohook-napi'
+    'uiohook-napi',
+    // Externalize @remotion packages to fix "Self-reference dependency has unused export name" errors
+    /^@remotion\/.*/,
+    // Externalize other Node.js packages that cause bundling issues
+    'source-map-support',
+    'zod',
+    'esbuild',
+    'ffmpeg-static',
+    '@ffmpeg-installer/ffmpeg',
+    '@ffprobe-installer/ffprobe',
   ],
   target: 'electron-main',
   node: {
@@ -56,5 +66,8 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, '.webpack/main'),
     filename: '[name].js',
+  },
+  optimization: {
+    sideEffects: false,
   },
 };

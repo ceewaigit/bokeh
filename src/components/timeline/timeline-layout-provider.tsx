@@ -84,7 +84,7 @@ export interface TimelineLayoutContextValue {
   hasSpeedUpSuggestions: { typing: boolean; idle: boolean }
   showTypingSuggestions: boolean
   toggleScreenGroupCollapsed: () => void
-  containerRef: RefObject<HTMLDivElement>
+  containerRef: RefObject<HTMLDivElement | null>
   // Track visibility & active state
   visibleTracks: Set<TrackId>
   activeTrack: TrackId | null
@@ -197,12 +197,12 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   )
 
   const pixelsPerMs = useMemo(
-    () => TimeConverter.calculatePixelsPerMs(containerSize.width, zoom),
+    () => TimeConverter.calculatePixelsPerMs(containerSize.width - TimelineConfig.LAYOUT_PADDING * 2, zoom),
     [zoom, containerSize.width]
   )
 
   const timelineWidth = useMemo(
-    () => TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, containerSize.width),
+    () => TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, containerSize.width - TimelineConfig.LAYOUT_PADDING * 2),
     [duration, pixelsPerMs, containerSize.width]
   )
 
@@ -227,7 +227,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     const webcamHeight = webcamVisible ? TRACK_HEIGHT_COLLAPSED : 0
 
     const fixedHeight = rulerHeight + speedUpBarSpace + webcamHeight + effectTotalHeight
-    const remainingHeight = Math.max(0, containerSize.height - fixedHeight)
+    const remainingHeight = Math.max(0, containerSize.height - fixedHeight - TimelineConfig.LAYOUT_PADDING * 2)
 
     const videoWeight = videoVisible ? 2 : 0
     const audioWeight = audioVisible ? 1 : 0
@@ -373,8 +373,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   }, [])
 
   const value = useMemo<TimelineLayoutContextValue>(() => ({
-    stageWidth: containerSize.width,
-    stageHeight: containerSize.height,
+    stageWidth: containerSize.width - TimelineConfig.LAYOUT_PADDING * 2,
+    stageHeight: containerSize.height - TimelineConfig.LAYOUT_PADDING * 2,
     containerHeight: containerSize.height,
     containerWidth: containerSize.width,
     timelineWidth,

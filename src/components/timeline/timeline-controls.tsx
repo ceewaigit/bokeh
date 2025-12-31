@@ -185,8 +185,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className="timeline-controls grid grid-cols-3 items-center px-3 py-1.5"
-        style={{ backgroundColor: withAlpha(colors.background, 0.08) }}
+        className="timeline-controls grid grid-cols-3 items-center px-4 py-1 border-b border-border/10 bg-muted/20"
       >
 
         {/* LEFT: Tracks, Volume, Edit Actions */}
@@ -342,7 +341,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                   size="sm"
                   variant="ghost"
                   onClick={jumpBackward1s}
-                  className="h-8 w-8 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                  className="h-8 w-8 p-0 rounded-full transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                 >
                   <SkipBack className="w-4 h-4 fill-current opacity-80" />
                 </Button>
@@ -358,7 +357,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                   size="sm"
                   variant="ghost"
                   onClick={playPause}
-                  className="h-8 w-8 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                  className="h-8 w-8 p-0 rounded-full transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                 >
                   {isPlaying ? (
                     <Pause className="w-4 h-4 fill-current" />
@@ -378,7 +377,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                   size="sm"
                   variant="ghost"
                   onClick={jumpForward1s}
-                  className="h-8 w-8 p-0 transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
+                  className="h-8 w-8 p-0 rounded-full transition-all duration-150 ease-out hover:scale-[1.03] active:scale-[0.97]"
                 >
                   <SkipForward className="w-4 h-4 fill-current opacity-80" />
                 </Button>

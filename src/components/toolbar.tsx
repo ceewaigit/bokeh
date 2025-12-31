@@ -77,9 +77,9 @@ export function Toolbar({
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo/Brand */}
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/8 rounded-lg">
+        <div className="flex items-center gap-1.5 px-2.5 h-8 bg-primary/8 rounded-lg">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-          <span className="font-semibold text-3xs text-primary uppercase tracking-wide whitespace-nowrap">
+          <span className="font-semibold text-[10px] text-primary uppercase tracking-wide whitespace-nowrap">
             Studio
           </span>
         </div>
@@ -91,7 +91,7 @@ export function Toolbar({
           variant="ghost"
           size="icon"
           onClick={toggleUtilities}
-          className="h-7 w-7 hover:bg-muted/30"
+          className="h-8 w-8 hover:bg-muted/30"
         >
           {isUtilitiesOpen ?
             <PanelLeftClose className="w-3.5 h-3.5" /> :
@@ -177,10 +177,10 @@ export function Toolbar({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
+                  className="flex items-center gap-1.5 px-2.5 h-8 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
                   style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 >
-                  <span className="text-2xs font-medium text-foreground/90">{project.name}</span>
+                  <span className="text-[10px] font-medium text-foreground/90">{project.name}</span>
                   <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
                 </div>
               </TooltipTrigger>

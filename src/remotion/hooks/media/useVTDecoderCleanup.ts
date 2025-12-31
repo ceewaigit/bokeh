@@ -103,11 +103,11 @@ interface NativeVideoCleanupOptions {
   videoUrl: string | undefined;
   visible?: boolean;
   onPlay?: () => void;
-  videoRef?: React.RefObject<HTMLVideoElement>;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
 }
 
 interface NativeVideoCleanupResult {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
   isVideoReady: boolean;
   setIsVideoReady: (ready: boolean) => void;
 }

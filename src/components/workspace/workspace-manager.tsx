@@ -190,7 +190,7 @@ export function WorkspaceManager() {
   const isManualZoom = selectedZoomData?.followStrategy === ZoomFollowStrategy.Manual
 
   // Playback control ref
-  const playbackIntervalRef = useRef<NodeJS.Timeout>()
+  const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Track unsaved changes by comparing saved timestamp with current
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
@@ -441,7 +441,7 @@ export function WorkspaceManager() {
                 {/* Left Sidebar - Utilities (closed by default) */}
                 {isUtilitiesOpen && (
                   <div
-                    className="bg-transparent overflow-hidden flex-shrink-0"
+                    className="flex flex-col flex-shrink-0 h-full pt-[16px] pb-[4px] pl-[16px]"
                     style={{
                       width: `${Math.min(
                         dragUtilitiesWidth ?? utilitiesPanelWidth,
@@ -449,15 +449,17 @@ export function WorkspaceManager() {
                       )}px`
                     }}
                   >
-                    <UtilitiesSidebar className="h-full w-full" />
+                    <div className="flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
+                      <UtilitiesSidebar className="h-full w-full" />
+                    </div>
                   </div>
                 )}
                 {isUtilitiesOpen && (
                   <div
-                    className="w-3 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10"
+                    className="w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10 mx-1"
                     onMouseDown={startResizingUtilities}
                   >
-                    <div className="h-12 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/50 transition-all duration-300 ease-out" />
+                    <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
                   </div>
                 )}
 
@@ -492,13 +494,13 @@ export function WorkspaceManager() {
                 {isPropertiesOpen && (
                   <>
                     <div
-                      className="w-3 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10"
+                      className="w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10 mx-1"
                       onMouseDown={startResizingProperties}
                     >
-                      <div className="h-12 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/50 transition-all duration-300 ease-out" />
+                      <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
                     </div>
                     <div
-                      className="bg-transparent overflow-hidden flex-shrink-0"
+                      className="flex flex-col flex-shrink-0 h-full pt-[16px] pb-[4px] pr-[16px]"
                       style={{
                         width: `${Math.min(
                           dragPropertiesWidth ?? propertiesPanelWidth,
@@ -506,19 +508,21 @@ export function WorkspaceManager() {
                         )}px`
                       }}
                     >
-                      <EffectsSidebarProvider
-                        value={{
-                          onEffectChange: handleEffectChange,
-                          onZoomBlockUpdate: handleZoomBlockUpdate,
-                          onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
-                          onAddCrop: handleAddCrop,
-                          onRemoveCrop: handleRemoveCrop,
-                          onUpdateCrop: handleUpdateCrop,
-                          onStartEditCrop: handleStartEditCrop
-                        }}
-                      >
-                        <EffectsSidebar className="h-full w-full" />
-                      </EffectsSidebarProvider>
+                      <div className="flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
+                        <EffectsSidebarProvider
+                          value={{
+                            onEffectChange: handleEffectChange,
+                            onZoomBlockUpdate: handleZoomBlockUpdate,
+                            onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
+                            onAddCrop: handleAddCrop,
+                            onRemoveCrop: handleRemoveCrop,
+                            onUpdateCrop: handleUpdateCrop,
+                            onStartEditCrop: handleStartEditCrop
+                          }}
+                        >
+                          <EffectsSidebar className="h-full w-full" />
+                        </EffectsSidebarProvider>
+                      </div>
                     </div>
                   </>
                 )}
@@ -526,11 +530,11 @@ export function WorkspaceManager() {
 
               {/* Timeline Resize Divider */}
               <div
-                className="h-2 cursor-row-resize bg-transparent hover:bg-border/30 transition-all duration-150 flex-shrink-0 flex items-center justify-center group"
+                className="h-1 cursor-row-resize bg-transparent hover:bg-border/30 transition-all duration-150 flex-shrink-0 flex items-center justify-center group"
                 onMouseDown={startResizingTimeline}
               >
                 {/* Subtle resize handle indicator */}
-                <div className="w-8 h-1 rounded-full bg-border/40 group-hover:bg-border/60 transition-colors" />
+                <div className="w-12 h-1 rounded-full bg-border/20 group-hover:bg-border/60 transition-colors" />
               </div>
 
               {/* Timeline Section - Full width at bottom */}
@@ -539,7 +543,7 @@ export function WorkspaceManager() {
                 style={{ height: `${timelineHeight}px`, minHeight: '20vh', width: '100vw' }}
               >
                 <TimelineCanvas
-                  className="h-full w-full"
+                  className="h-full w-full pt-[4px] px-[16px] pb-[16px]"
                   currentProject={currentProject}
                   zoom={zoom}
                   onPlay={handlePlay}

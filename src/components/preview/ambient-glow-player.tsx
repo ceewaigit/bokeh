@@ -19,35 +19,32 @@ const GLOW_CONFIG = {
     // Ultra low-res player for memory efficiency
     maxSize: 96,
     minSize: 32,
-    // Glow extends beyond video for elegant spread
-    spread: 36,
+    // Glow extends significantly beyond video for maximum presence
+    spread: 120,
 };
 
 const GLOW_VISUALS = {
     dark: {
-        // Softer blur for smooth edges
-        blur: 52,
-        // Subtle lift for dark UI
-        opacity: 0.21,
-        // Gentle brightness
-        brightness: 0.54,
-        // Modest saturation for clean glow
-        saturation: 1.22,
+        // Larger blur for deep spread
+        blur: 74,
+        // High opacity for "obvious" presence
+        opacity: 0.85,
+        // Boosted brightness to make colors pop
+        brightness: 1.15,
+        // Heavy saturation for vibrant atmospheric glow
+        saturation: 1.75,
     },
     light: {
-        // Slightly larger blur for airy glow on light surfaces
-        blur: 88,
-        // Lower opacity to avoid muddy halos
-        opacity: 0.22,
-        // Gentle brightness so glow stays subtle on white
-        brightness: 1.12,
-        // Soft saturation for a cleaner, more neutral glow
-        saturation: 1.08,
+        // Same as dark for consistency
+        blur: 74,
+        opacity: 0.85,
+        brightness: 1.15,
+        saturation: 1.75,
     }
 };
 
 interface AmbientGlowPlayerProps {
-    mainPlayerRef: React.RefObject<PlayerRef>;
+    mainPlayerRef: React.RefObject<PlayerRef | null>;
     timelineMetadata: TimelineMetadata | null;
     playerConfig: PlayerConfig | null;
     isPlaying: boolean;
@@ -212,10 +209,8 @@ export function AmbientGlowPlayer({
                 borderRadius: 32,
                 overflow: 'hidden',
                 pointerEvents: 'none',
-                mixBlendMode: resolvedTheme === 'light' ? 'soft-light' : 'normal',
-                backgroundImage: resolvedTheme === 'light'
-                    ? 'radial-gradient(64% 64% at 50% 50%, rgba(255,255,255,0.35), rgba(255,255,255,0) 72%)'
-                    : 'radial-gradient(70% 70% at 50% 50%, rgba(255,255,255,0.2), rgba(255,255,255,0) 78%)',
+                mixBlendMode: 'normal',
+                backgroundImage: 'radial-gradient(70% 70% at 50% 50%, rgba(255,255,255,0.2), rgba(255,255,255,0) 78%)',
             }}
         >
             <Player

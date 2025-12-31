@@ -498,226 +498,228 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
-  const backgroundOpacity = windowSurfaceMode === 'solid' ? 1 : 0
+  const backgroundOpacity = 1
 
   return (
     <TimelineContextProvider value={timelineContextValue}>
-      <div className={cn("flex flex-col h-full w-full", className)}>
-        <TimelineControls
-          minZoom={adaptiveZoomLimits.min}
-          maxZoom={adaptiveZoomLimits.max}
-        />
+      <div className={cn("flex flex-col h-full w-full p-[16px]", className)}>
+        <div className="flex flex-col flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
+          <TimelineControls
+            minZoom={adaptiveZoomLimits.min}
+            maxZoom={adaptiveZoomLimits.max}
+          />
 
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
-          tabIndex={0}
-          onScroll={onScroll}
-          onMouseLeave={() => scheduleHoverUpdate(null)}
-          onMouseDown={() => scrollContainerRef.current?.focus()}
-          onDragOver={assetDragDrop.handlers.onDragOver}
-          onDragLeave={assetDragDrop.handlers.onDragLeave}
-          onDrop={assetDragDrop.handlers.onDrop}
-          style={{
-            userSelect: 'none',
-            WebkitUserSelect: 'none',
-            MozUserSelect: 'none',
-            msUserSelect: 'none',
-            outline: 'none'
-          }}
-        >
-          <Stage
-            key={themeKey}
-            width={stageWidth}
-            height={stageHeight}
-            onMouseDown={handleStageScrubStart}
-            onTouchStart={handleStageScrubStart}
-            onMouseUp={handleScrubEnd}
-            onTouchEnd={handleScrubEnd}
-            onMouseMove={(e) => {
-              if (handleScrubMove(e)) return
-              const stage = e.target.getStage()
-              const pointerPos = stage?.getPointerPosition()
-              if (!pointerPos) return
-              const time = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
-              scheduleHoverUpdate(time)
-            }}
-            onTouchMove={(e) => handleScrubMove(e)}
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
+            tabIndex={0}
+            onScroll={onScroll}
+            onMouseLeave={() => scheduleHoverUpdate(null)}
+            onMouseDown={() => scrollContainerRef.current?.focus()}
+            onDragOver={assetDragDrop.handlers.onDragOver}
+            onDragLeave={assetDragDrop.handlers.onDragLeave}
+            onDrop={assetDragDrop.handlers.onDrop}
             style={{
               userSelect: 'none',
               WebkitUserSelect: 'none',
               MozUserSelect: 'none',
-              msUserSelect: 'none'
+              msUserSelect: 'none',
+              outline: 'none'
             }}
           >
-            {/* Background Layer */}
-            <Layer>
-              <Rect
-                x={0}
-                y={0}
-                width={stageWidth}
-                height={stageHeight}
-                fill={colors.background}
-                opacity={backgroundOpacity}
-                name="timeline-background"
+            <Stage
+              key={themeKey}
+              width={stageWidth}
+              height={stageHeight}
+              onMouseDown={handleStageScrubStart}
+              onTouchStart={handleStageScrubStart}
+              onMouseUp={handleScrubEnd}
+              onTouchEnd={handleScrubEnd}
+              onMouseMove={(e) => {
+                if (handleScrubMove(e)) return
+                const stage = e.target.getStage()
+                const pointerPos = stage?.getPointerPosition()
+                if (!pointerPos) return
+                const time = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
+                scheduleHoverUpdate(time)
+              }}
+              onTouchMove={(e) => handleScrubMove(e)}
+              style={{
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                MozUserSelect: 'none',
+                msUserSelect: 'none'
+              }}
+            >
+              {/* Background Layer */}
+              <Layer>
+                <Rect
+                  x={0}
+                  y={0}
+                  width={stageWidth}
+                  height={stageHeight}
+                  fill={colors.background}
+                  opacity={0} // Using container bg instead
+                  name="timeline-background"
+                />
+
+                {/* Ruler background removed to match main bg */}
+
+                <TimelineTrack
+                  type={TimelineTrackType.Video}
+                  y={trackPositions.video}
+                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                  height={trackHeights.video}
+                  onLabelClick={toggleVideoTrackExpanded}
+                />
+
+                {trackHeights.audio > 0 && (
+                  <TimelineTrack
+                    type={TimelineTrackType.Audio}
+                    y={trackPositions.audio}
+                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                    height={trackHeights.audio}
+                  />
+                )}
+
+                {trackHeights.webcam > 0 && (
+                  <TimelineTrack
+                    type={TimelineTrackType.Webcam}
+                    y={trackPositions.webcam}
+                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                    height={trackHeights.webcam}
+                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Webcam)}
+                  />
+                )}
+
+                {hasZoomTrack && (
+                  <TimelineTrack
+                    type={TimelineTrackType.Zoom}
+                    y={trackPositions.zoom}
+                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                    height={trackHeights.zoom}
+                    muted={!allZoomEffects.some(e => e.enabled)}
+                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Zoom)}
+                  />
+                )}
+
+                {hasScreenTrack && (
+                  <TimelineTrack
+                    type={TimelineTrackType.Screen}
+                    y={trackPositions.screen}
+                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                    height={trackHeights.screen}
+                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Screen)}
+                  />
+                )}
+
+                {hasKeystrokeTrack && (
+                  <TimelineTrack
+                    type={TimelineTrackType.Keystroke}
+                    y={trackPositions.keystroke}
+                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                    height={trackHeights.keystroke}
+                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Keystroke)}
+                  />
+                )}
+
+                {hasPluginTrack && (
+                  <TimelineTrack
+                    type={TimelineTrackType.Plugin}
+                    y={trackPositions.plugin}
+                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                    height={trackHeights.plugin}
+                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
+                  />
+                )}
+              </Layer>
+
+              {/* Clips Layer */}
+              <Layer>
+                {videoClips.map((clip) => (
+                  <TimelineClip
+                    key={clip.id}
+                    clip={clip}
+                    trackType={TrackType.Video}
+                    trackY={trackPositions.video}
+                    trackHeight={trackHeights.video}
+                    isSelected={selectedClips.includes(clip.id)}
+                  />
+                ))}
+
+                <TimelineEffectTracks />
+                <TimelineWebcamTrack />
+
+                {audioClips.map((clip) => (
+                  <TimelineClip
+                    key={clip.id}
+                    clip={clip}
+                    trackType={TrackType.Audio}
+                    trackY={trackPositions.audio}
+                    trackHeight={trackHeights.audio}
+                    isSelected={selectedClips.includes(clip.id)}
+                  />
+                ))}
+              </Layer>
+
+              {/* Ruler Layer */}
+              <Layer>
+                <TimelineRuler />
+              </Layer>
+
+              {/* Speed-up Overlay Layer */}
+              <Layer>
+                <TimelineSpeedUpOverlays />
+              </Layer>
+
+              {/* Playhead Layer */}
+              <Layer>
+                <TimelineGhostPlayhead />
+                <TimelinePlayhead />
+              </Layer>
+            </Stage>
+
+            {/* Context Menu */}
+            {contextMenu && (
+              <TimelineContextMenu
+                x={contextMenu.x}
+                y={contextMenu.y}
+                clipId={contextMenu.clipId}
+                onClose={() => setContextMenu(null)}
               />
+            )}
 
-              {/* Ruler background removed to match main bg */}
+            {/* Asset drop target highlight */}
+            <TimelineDropTarget
+              visible={!!draggingAsset && !!(assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview.trackType : null))}
+              trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
+              getTrackBounds={safeGetTrackBounds}
+              timelineWidth={timelineWidth}
+            />
 
-              <TimelineTrack
-                type={TimelineTrackType.Video}
-                y={trackPositions.video}
-                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                height={trackHeights.video}
-                onLabelClick={toggleVideoTrackExpanded}
+            {/* Drag Preview Overlay (Ghost Clip) */}
+            <TimelineAssetGhost
+              draggingAsset={draggingAsset}
+              dragTime={assetDragDrop.dragTime}
+              trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
+              getTrackBounds={safeGetTrackBounds}
+              pixelsPerMs={pixelsPerMs}
+            />
+
+            {/* Speed-up suggestion popover */}
+            {speedUpPopover && (
+              <SpeedUpSuggestionPopover
+                x={speedUpPopover.x}
+                y={speedUpPopover.y}
+                period={speedUpPopover.period}
+                allTypingPeriods={speedUpPopover.allTypingPeriods}
+                allIdlePeriods={speedUpPopover.allIdlePeriods}
+                onApply={(p) => handleApplySpeedUp(p, speedUpPopover.clipId)}
+                onApplyAll={handleApplyAllSpeedUps}
+                onClose={() => setSpeedUpPopover(null)}
               />
-
-              {trackHeights.audio > 0 && (
-                <TimelineTrack
-                  type={TimelineTrackType.Audio}
-                  y={trackPositions.audio}
-                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                  height={trackHeights.audio}
-                />
-              )}
-
-              {trackHeights.webcam > 0 && (
-                <TimelineTrack
-                  type={TimelineTrackType.Webcam}
-                  y={trackPositions.webcam}
-                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                  height={trackHeights.webcam}
-                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Webcam)}
-                />
-              )}
-
-              {hasZoomTrack && (
-                <TimelineTrack
-                  type={TimelineTrackType.Zoom}
-                  y={trackPositions.zoom}
-                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                  height={trackHeights.zoom}
-                  muted={!allZoomEffects.some(e => e.enabled)}
-                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Zoom)}
-                />
-              )}
-
-              {hasScreenTrack && (
-                <TimelineTrack
-                  type={TimelineTrackType.Screen}
-                  y={trackPositions.screen}
-                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                  height={trackHeights.screen}
-                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Screen)}
-                />
-              )}
-
-              {hasKeystrokeTrack && (
-                <TimelineTrack
-                  type={TimelineTrackType.Keystroke}
-                  y={trackPositions.keystroke}
-                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                  height={trackHeights.keystroke}
-                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Keystroke)}
-                />
-              )}
-
-              {hasPluginTrack && (
-                <TimelineTrack
-                  type={TimelineTrackType.Plugin}
-                  y={trackPositions.plugin}
-                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                  height={trackHeights.plugin}
-                  onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
-                />
-              )}
-            </Layer>
-
-            {/* Clips Layer */}
-            <Layer>
-              {videoClips.map((clip) => (
-                <TimelineClip
-                  key={clip.id}
-                  clip={clip}
-                  trackType={TrackType.Video}
-                  trackY={trackPositions.video}
-                  trackHeight={trackHeights.video}
-                  isSelected={selectedClips.includes(clip.id)}
-                />
-              ))}
-
-              <TimelineEffectTracks />
-              <TimelineWebcamTrack />
-
-              {audioClips.map((clip) => (
-                <TimelineClip
-                  key={clip.id}
-                  clip={clip}
-                  trackType={TrackType.Audio}
-                  trackY={trackPositions.audio}
-                  trackHeight={trackHeights.audio}
-                  isSelected={selectedClips.includes(clip.id)}
-                />
-              ))}
-            </Layer>
-
-            {/* Ruler Layer */}
-            <Layer>
-              <TimelineRuler />
-            </Layer>
-
-            {/* Speed-up Overlay Layer */}
-            <Layer>
-              <TimelineSpeedUpOverlays />
-            </Layer>
-
-            {/* Playhead Layer */}
-            <Layer>
-              <TimelineGhostPlayhead />
-              <TimelinePlayhead />
-            </Layer>
-          </Stage>
-
-          {/* Context Menu */}
-          {contextMenu && (
-            <TimelineContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              clipId={contextMenu.clipId}
-              onClose={() => setContextMenu(null)}
-            />
-          )}
-
-          {/* Asset drop target highlight */}
-          <TimelineDropTarget
-            visible={!!draggingAsset && !!(assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview.trackType : null))}
-            trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
-            getTrackBounds={safeGetTrackBounds}
-            timelineWidth={timelineWidth}
-          />
-
-          {/* Drag Preview Overlay (Ghost Clip) */}
-          <TimelineAssetGhost
-            draggingAsset={draggingAsset}
-            dragTime={assetDragDrop.dragTime}
-            trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
-            getTrackBounds={safeGetTrackBounds}
-            pixelsPerMs={pixelsPerMs}
-          />
-
-          {/* Speed-up suggestion popover */}
-          {speedUpPopover && (
-            <SpeedUpSuggestionPopover
-              x={speedUpPopover.x}
-              y={speedUpPopover.y}
-              period={speedUpPopover.period}
-              allTypingPeriods={speedUpPopover.allTypingPeriods}
-              allIdlePeriods={speedUpPopover.allIdlePeriods}
-              onApply={(p) => handleApplySpeedUp(p, speedUpPopover.clipId)}
-              onApplyAll={handleApplyAllSpeedUps}
-              onClose={() => setSpeedUpPopover(null)}
-            />
-          )}
+            )}
+          </div>
         </div>
       </div>
     </TimelineContextProvider>

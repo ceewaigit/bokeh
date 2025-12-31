@@ -30,7 +30,7 @@ export interface MotionBlurCanvasProps {
     /** Video element to use as texture source (legacy - prefer containerRef) */
     videoElement?: HTMLVideoElement | null;
     /** Container ref to search for video element */
-    containerRef?: React.RefObject<HTMLElement>;
+    containerRef?: React.RefObject<HTMLElement | null>;
 
     /** Dimensions of the rendered video */
     drawWidth: number;

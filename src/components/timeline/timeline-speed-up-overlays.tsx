@@ -9,6 +9,7 @@ import { useTimelineContext } from './TimelineContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { sourceToTimeline } from '@/features/timeline/time/time-space-converter'
+import { withAlpha, useTimelineColors } from '@/features/timeline/utils/colors'
 
 // Color schemes
 const COLORS = {
@@ -49,6 +50,7 @@ const SuggestionBarItem = React.memo(({
 }) => {
     const [isHovered, setIsHovered] = useState(false)
     const [isPressed, setIsPressed] = useState(false)
+    const colors = useTimelineColors()
 
     const scale = isPressed ? 0.97 : isHovered ? 1.02 : 1
     const offsetY = isHovered && !isPressed ? -2 : 0
@@ -88,33 +90,20 @@ const SuggestionBarItem = React.memo(({
                 })
             }}
         >
-            {/* Glow effect on hover */}
-            {isHovered && (
-                <Rect
-                    x={-4}
-                    y={-4}
-                    width={bar.width + 8}
-                    height={32}
-                    fill={bar.glowColor}
-                    cornerRadius={10}
-                    opacity={0.15}
-                    listening={false}
-                />
-            )}
 
             {/* Main bar */}
             <Rect
                 width={bar.width}
                 height={24}
-                fill={bar.color}
-                cornerRadius={6}
+                fill={withAlpha(bar.color, 0.15)}
+                cornerRadius={8}
                 opacity={opacity}
-                stroke={isHovered ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.25)'}
-                strokeWidth={isHovered ? 1.5 : 1}
+                stroke={isHovered ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary) : withAlpha(bar.color, 0.8)}
+                strokeWidth={isHovered ? 2 : 1.5}
                 shadowColor={isHovered ? bar.glowColor : 'black'}
-                shadowBlur={shadowBlur}
-                shadowOpacity={isPressed ? 0.15 : isHovered ? 0.4 : 0.25}
-                shadowOffsetY={isPressed ? 0 : 2}
+                shadowBlur={shadowBlur / 2}
+                shadowOpacity={isPressed ? 0.1 : isHovered ? 0.3 : 0.15}
+                shadowOffsetY={isPressed ? 0 : 1}
                 hitStrokeWidth={10}
             />
 
@@ -124,7 +113,7 @@ const SuggestionBarItem = React.memo(({
                 y={4}
                 text={bar.label}
                 fontSize={10}
-                fill="#0b0e11"
+                fill={bar.color}
                 fontFamily="system-ui"
                 fontStyle="bold"
                 listening={false}
@@ -139,7 +128,8 @@ const SuggestionBarItem = React.memo(({
                         (bar.period.metadata?.averageWpm ? `${Math.round(bar.period.metadata.averageWpm)} WPM` : '') :
                         'Idle'}
                     fontSize={9}
-                    fill="rgba(11,14,17,0.8)"
+                    fill={colors.foreground}
+                    opacity={0.8}
                     fontFamily="system-ui"
                     listening={false}
                 />

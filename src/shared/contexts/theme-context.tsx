@@ -2,12 +2,15 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
-type Theme = 'dark' | 'light' | 'system'
+export type Theme = 'dark' | 'light' | 'system'
+export type ColorPreset = 'default' | 'sand' | 'industrial' | 'forest' | 'nordic' | 'midnight' | 'space'
 
 interface ThemeContextType {
   theme: Theme
-  setTheme: (theme: Theme) => void
   resolvedTheme: 'dark' | 'light'
+  colorPreset: ColorPreset
+  setTheme: (theme: Theme) => void
+  setColorPreset: (preset: ColorPreset) => void
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -15,16 +18,24 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark')
+  const [colorPreset, setColorPreset] = useState<ColorPreset>('default')
 
   useEffect(() => {
-    // Load saved theme from localStorage, default to dark
+    // Load saved settings from localStorage
     const savedTheme = localStorage.getItem('theme') as Theme | null
     if (savedTheme) {
       setTheme(savedTheme)
     } else {
-      // Set dark as default and save it
       setTheme('dark')
       localStorage.setItem('theme', 'dark')
+    }
+
+    const savedPreset = localStorage.getItem('color-preset') as ColorPreset | null
+    if (savedPreset) {
+      setColorPreset(savedPreset)
+    } else {
+      setColorPreset('sand') // New default as requested
+      localStorage.setItem('color-preset', 'sand')
     }
   }, [])
 
@@ -41,7 +52,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     updateResolvedTheme()
 
-    // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const handleChange = () => updateResolvedTheme()
     mediaQuery.addEventListener('change', handleChange)
@@ -50,17 +60,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme])
 
   useEffect(() => {
-    // Apply theme to document
+    // Apply theme and preset to document
     const root = document.documentElement
     root.classList.remove('light', 'dark')
     root.classList.add(resolvedTheme)
-    
+
+    // Apply color preset
+    root.setAttribute('data-color-preset', colorPreset)
+
     // Save to localStorage
     localStorage.setItem('theme', theme)
-  }, [theme, resolvedTheme])
+    localStorage.setItem('color-preset', colorPreset)
+  }, [theme, resolvedTheme, colorPreset])
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme, colorPreset, setColorPreset }}>
       {children}
     </ThemeContext.Provider>
   )

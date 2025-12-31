@@ -513,8 +513,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                           className={cn(
                             "rounded-md px-2 py-0.5 text-2xs font-medium ring-1",
                             exportSpeed.tone === 'ok'
-                              ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-300 ring-amber-500/20"
+                              ? "bg-accent/15 text-accent ring-accent/20"
+                              : "bg-muted text-muted-foreground ring-border/50"
                           )}
                           title={machineProfile
                             ? `Estimated speed for this machine (${machineProfile.cpuCores} cores, ${machineProfile.totalMemoryGB.toFixed(1)}GB)`
@@ -608,8 +608,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
             {lastExport && progress?.progressStage === 'complete' && (
               <div className="py-4 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <Check className="w-4.5 h-4.5 text-emerald-500" strokeWidth={2} />
+                  <div className="w-9 h-9 rounded-lg bg-accent/15 flex items-center justify-center">
+                    <Check className="w-4.5 h-4.5 text-accent" strokeWidth={2} />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">Export Complete</p>

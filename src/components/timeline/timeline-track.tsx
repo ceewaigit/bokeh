@@ -185,7 +185,7 @@ const AnimatedLabelArea = ({ height, width, separatorX }: { height: number; widt
         y={0}
         width={width}
         height={height}
-        opacity={0.4}
+        opacity={0.12}
       />
       <Rect
         ref={sepRef}

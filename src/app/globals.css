@@ -67,97 +67,330 @@
   /* Light mode glass: Pure white for clean frosted/snow effect */
   --window-surface-color: 0 0% 100%;
 
-  /* Light theme colors */
+  /* Default Theme: Bokeh (Purple) */
   --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --foreground: 224 71.4% 4.1%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 224 71.4% 4.1%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 263 70% 65%;
-  /* Purple accent like Bokeh */
-  --primary-foreground: 0 0% 100%;
-  /* Pure white on purple */
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 84% 4.9%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 263 70% 65%;
-  /* Purple accent matching primary */
-  --accent-foreground: 0 0% 100%;
-  /* White on accent */
+  --popover-foreground: 224 71.4% 4.1%;
+  --primary: 262 80% 50%;
+  --primary-foreground: 210 20% 98%;
+  --secondary: 220 14.3% 95.9%;
+  --secondary-foreground: 220.9 39.3% 11%;
+  --muted: 220 14.3% 95.9%;
+  --muted-foreground: 220 8.9% 46.1%;
+  --accent: 262 80% 50%;
+  --accent-foreground: 210 20% 98%;
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --destructive-foreground: 210 20% 98%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 262 80% 50%;
 
-  /* App specific colors - neutral grays for clean appearance */
-  --timeline-bg: 0 0% 97%;
-  --timeline-track: 0 0% 94%;
-  --timeline-ruler: 0 0% 94%;
-  --timeline-playhead: 263 70% 55%;
+  /* App specific colors (Bokeh) */
+  --timeline-bg: 220 14.3% 98%;
+  --timeline-track: 220 13% 94%;
+  --timeline-ruler: 220 13% 94%;
+  --timeline-playhead: 262 80% 50%;
   --recording-active: 0 84.2% 60.2%;
-  --recording-inactive: 0 0% 50%;
+  --recording-inactive: 220 8.9% 46.1%;
 }
 
-.dark {
-  /* Dark Theme - Pure black with purple accents */
-  --background: 0 0% 0%;
-  /* Pure black background */
-  --foreground: 0 0% 95%;
-  /* Almost white text */
-  --card: 0 0% 8%;
-  /* Very dark gray cards */
-  --card-foreground: 0 0% 95%;
-  /* White text on cards */
-  --popover: 0 0% 12%;
-  /* Slightly lighter gray for popovers */
-  --popover-foreground: 0 0% 95%;
-  /* White text */
-  --primary: 263 70% 65%;
-  /* Purple accent */
-  --primary-foreground: 0 0% 100%;
-  /* Pure white on purple */
-  --secondary: 0 0% 15%;
-  /* Dark gray secondary */
-  --secondary-foreground: 0 0% 90%;
-  /* Light gray text */
-  --muted: 0 0% 20%;
-  /* Muted dark gray */
-  --muted-foreground: 0 0% 60%;
-  /* Medium gray text */
-  --accent: 263 70% 65%;
-  /* Purple accent matching primary */
+/* --- THEME PRESETS --- */
+
+/* Theme Preset: Sand (Warm, Orange) */
+[data-color-preset="sand"] {
+  --background: 35 40% 98%;
+  --foreground: 25 20% 12%;
+  --card: 35 30% 99%;
+  --card-foreground: 25 20% 12%;
+  --primary: 25 10% 20%;
+  --primary-foreground: 35 40% 98%;
+  --secondary: 35 20% 94%;
+  --secondary-foreground: 25 20% 12%;
+  --muted: 35 20% 94%;
+  --muted-foreground: 25 10% 45%;
+  --accent: 25 100% 60%;
   --accent-foreground: 0 0% 100%;
-  /* White on accent */
-  --destructive: 0 84% 60%;
-  /* Red for errors/recording */
-  --destructive-foreground: 0 0% 98%;
-  /* White on red */
-  --border: 0 0% 18%;
-  /* Subtle borders */
-  --input: 0 0% 12%;
-  /* Dark input backgrounds */
-  --ring: 263 70% 65%;
-  /* Purple focus ring */
+  --border: 35 20% 88%;
+  --input: 35 20% 88%;
+  --ring: 25 100% 60%;
 
-  /* Dark theme timeline - matching Bokeh */
-  --timeline-bg: 0 0% 5%;
-  /* Nearly black timeline area */
+  /* App specific colors (Sand) */
+  --timeline-bg: 35 25% 96%;
+  --timeline-track: 35 20% 92%;
+  --timeline-ruler: 35 20% 92%;
+  --timeline-playhead: 25 100% 60%;
+}
+
+.dark[data-color-preset="sand"] {
+  --background: 25 15% 6%;
+  --foreground: 35 40% 95%;
+  --card: 25 15% 10%;
+  --card-foreground: 35 40% 95%;
+  --primary: 35 20% 90%;
+  --primary-foreground: 25 15% 6%;
+  --secondary: 25 10% 18%;
+  --secondary-foreground: 35 40% 90%;
+  --muted: 25 10% 18%;
+  --muted-foreground: 35 15% 60%;
+  --accent: 25 100% 65%;
+  --accent-foreground: 0 0% 100%;
+  --border: 25 10% 14%;
+  --input: 25 10% 12%;
+  --ring: 25 100% 65%;
+
+  --timeline-bg: 25 15% 8%;
+  --timeline-track: 25 10% 12%;
+  --timeline-ruler: 25 10% 12%;
+  --timeline-playhead: 25 100% 65%;
+  --window-surface-color: 25 15% 6%;
+}
+
+/* Theme Preset: Industrial (Rams-inspired, Slate/Red) */
+[data-color-preset="industrial"] {
+  --background: 210 20% 98%;
+  --foreground: 210 20% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 20% 12%;
+  --primary: 210 20% 20%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 10% 92%;
+  --secondary-foreground: 210 20% 12%;
+  --muted: 210 10% 92%;
+  --muted-foreground: 210 10% 45%;
+  --accent: 0 85% 55%;
+  /* Signal Red */
+  --accent-foreground: 0 0% 100%;
+  --border: 210 10% 88%;
+  --input: 210 10% 88%;
+  --ring: 0 85% 55%;
+
+  --timeline-bg: 210 10% 96%;
+  --timeline-track: 210 10% 92%;
+  --timeline-ruler: 210 10% 92%;
+  --timeline-playhead: 0 85% 55%;
+}
+
+.dark[data-color-preset="industrial"] {
+  --background: 210 15% 10%;
+  --foreground: 210 20% 95%;
+  --card: 210 15% 12%;
+  --card-foreground: 210 20% 95%;
+  --primary: 0 0% 95%;
+  --primary-foreground: 210 15% 10%;
+  --secondary: 210 10% 18%;
+  --secondary-foreground: 0 0% 95%;
+  --muted: 210 10% 18%;
+  --muted-foreground: 210 10% 60%;
+  --accent: 0 85% 65%;
+  --accent-foreground: 0 0% 100%;
+  --border: 210 10% 16%;
+  --input: 210 10% 16%;
+  --ring: 0 85% 65%;
+
+  --timeline-bg: 210 15% 12%;
+  --timeline-track: 210 15% 15%;
+  --timeline-ruler: 210 15% 15%;
+  --timeline-playhead: 0 85% 65%;
+  --window-surface-color: 210 15% 10%;
+}
+
+/* Theme Preset: Forest (Organic, Sage/Clay) */
+[data-color-preset="forest"] {
+  --background: 35 25% 98%;
+  --foreground: 150 20% 12%;
+  --card: 35 20% 99%;
+  --card-foreground: 150 20% 12%;
+  --primary: 150 15% 25%;
+  --primary-foreground: 35 25% 98%;
+  --secondary: 150 15% 94%;
+  --secondary-foreground: 150 20% 12%;
+  --muted: 150 15% 94%;
+  --muted-foreground: 150 10% 45%;
+  --accent: 142 40% 45%;
+  /* Sage Green */
+  --accent-foreground: 0 0% 100%;
+  --border: 150 10% 88%;
+  --input: 150 10% 88%;
+  --ring: 142 40% 45%;
+
+  --timeline-bg: 150 10% 97%;
+  --timeline-track: 150 10% 94%;
+  --timeline-ruler: 150 10% 94%;
+  --timeline-playhead: 142 40% 45%;
+}
+
+.dark[data-color-preset="forest"] {
+  --background: 150 20% 8%;
+  --foreground: 35 20% 95%;
+  --card: 150 20% 10%;
+  --card-foreground: 35 20% 95%;
+  --primary: 35 15% 90%;
+  --primary-foreground: 150 20% 8%;
+  --secondary: 150 10% 18%;
+  --secondary-foreground: 35 15% 90%;
+  --muted: 150 10% 18%;
+  --muted-foreground: 150 10% 60%;
+  --accent: 142 45% 55%;
+  --accent-foreground: 0 0% 100%;
+  --border: 150 10% 14%;
+  --input: 150 10% 12%;
+  --ring: 142 45% 55%;
+
+  --timeline-bg: 150 20% 10%;
+  --timeline-track: 150 15% 14%;
+  --timeline-ruler: 150 15% 14%;
+  --timeline-playhead: 142 45% 55%;
+  --window-surface-color: 150 20% 8%;
+}
+
+/* Theme Preset: Nordic (Cold, Blue/Ice) */
+[data-color-preset="nordic"] {
+  --background: 210 40% 98%;
+  --foreground: 210 40% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 40% 12%;
+  --primary: 210 30% 25%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 20% 94%;
+  --secondary-foreground: 210 40% 12%;
+  --muted: 210 20% 94%;
+  --muted-foreground: 210 20% 45%;
+  --accent: 210 100% 50%;
+  /* Pure Blue */
+  --accent-foreground: 0 0% 100%;
+  --border: 210 20% 88%;
+  --input: 210 20% 88%;
+  --ring: 210 100% 50%;
+
+  --timeline-bg: 210 20% 97%;
+  --timeline-track: 210 20% 94%;
+  --timeline-ruler: 210 20% 94%;
+  --timeline-playhead: 210 100% 50%;
+}
+
+.dark[data-color-preset="nordic"] {
+  --background: 210 30% 8%;
+  --foreground: 210 20% 98%;
+  --card: 210 30% 10%;
+  --card-foreground: 210 20% 98%;
+  --primary: 210 20% 95%;
+  --primary-foreground: 210 30% 8%;
+  --secondary: 210 15% 18%;
+  --secondary-foreground: 210 20% 95%;
+  --muted: 210 15% 18%;
+  --muted-foreground: 210 15% 60%;
+  --accent: 210 100% 65%;
+  --accent-foreground: 0 0% 100%;
+  --border: 210 15% 15%;
+  --input: 210 15% 14%;
+  --ring: 210 100% 65%;
+
+  --timeline-bg: 210 30% 10%;
+  --timeline-track: 210 25% 14%;
+  --timeline-ruler: 210 25% 14%;
+  --timeline-playhead: 210 100% 65%;
+  --window-surface-color: 210 30% 8%;
+}
+
+/* Theme Preset: Midnight (Premium, Ruby/Black) */
+[data-color-preset="midnight"] {
+  --background: 0 0% 98%;
+  --foreground: 0 0% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 10%;
+  --primary: 0 0% 20%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 92%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 345 100% 50%;
+  /* Ruby Red */
+  --accent-foreground: 0 0% 100%;
+  --border: 0 0% 88%;
+  --input: 0 0% 88%;
+  --ring: 345 100% 50%;
+
+  --timeline-bg: 0 0% 96%;
+  --timeline-track: 0 0% 92%;
+  --timeline-ruler: 0 0% 92%;
+  --timeline-playhead: 345 100% 50%;
+}
+
+.dark[data-color-preset="midnight"] {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 95%;
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 95%;
+  --primary: 0 0% 90%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 90%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 345 100% 60%;
+  --accent-foreground: 0 0% 100%;
+  --border: 0 0% 10%;
+  --input: 0 0% 8%;
+  --ring: 345 100% 60%;
+
+  --timeline-bg: 0 0% 6%;
   --timeline-track: 0 0% 10%;
-  /* Very dark track */
   --timeline-ruler: 0 0% 10%;
-  /* Match track background */
-  --timeline-playhead: 263 70% 65%;
-  /* Purple playhead */
-  --recording-active: 0 84% 60%;
-  /* Red recording */
-  --recording-inactive: 0 0% 40%;
-  /* Gray when not recording */
+  --timeline-playhead: 345 100% 60%;
+  --window-surface-color: 0 0% 4%;
+}
 
-  /* Dark mode glass - pure neutral dark for clean look */
-  --window-surface-color: 0 0% 0%;
+/* Theme Preset: Space (Cosmic, Navy/Cyan) */
+[data-color-preset="space"] {
+  --background: 222 47% 98%;
+  --foreground: 222 47% 12%;
+  --card: 222 47% 99%;
+  --card-foreground: 222 47% 12%;
+  --primary: 222 47% 25%;
+  --primary-foreground: 222 47% 98%;
+  --secondary: 222 30% 94%;
+  --secondary-foreground: 222 47% 12%;
+  --muted: 222 30% 94%;
+  --muted-foreground: 222 30% 45%;
+  --accent: 190 100% 45%;
+  /* Cyan */
+  --accent-foreground: 0 0% 100%;
+  --border: 222 30% 88%;
+  --input: 222 30% 88%;
+  --ring: 190 100% 45%;
+
+  --timeline-bg: 222 30% 97%;
+  --timeline-track: 222 30% 94%;
+  --timeline-ruler: 222 30% 94%;
+  --timeline-playhead: 190 100% 45%;
+}
+
+.dark[data-color-preset="space"] {
+  --background: 222 47% 6%;
+  --foreground: 190 10% 95%;
+  --card: 222 47% 8%;
+  --card-foreground: 190 10% 95%;
+  --primary: 190 100% 95%;
+  --primary-foreground: 222 47% 6%;
+  --secondary: 222 30% 14%;
+  --secondary-foreground: 190 100% 90%;
+  --muted: 222 30% 14%;
+  --muted-foreground: 222 20% 60%;
+  --accent: 190 100% 50%;
+  --accent-foreground: 0 0% 100%;
+  --border: 222 30% 12%;
+  --input: 222 30% 10%;
+  --ring: 190 100% 50%;
+
+  --timeline-bg: 222 47% 8%;
+  --timeline-track: 222 40% 12%;
+  --timeline-ruler: 222 40% 12%;
+  --timeline-playhead: 190 100% 50%;
+  --window-surface-color: 222 47% 6%;
 }
 
 @layer base {

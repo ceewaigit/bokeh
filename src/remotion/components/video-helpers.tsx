@@ -18,7 +18,7 @@ export const AudioEnhancerWrapper: React.FC<AudioEnhancerWrapperProps> = ({
 
   useAudioEnhancement(videoElement, enabled);
 
-  return React.cloneElement(children, {
+  return React.cloneElement(children as any, {
     ref: (node: HTMLVideoElement) => {
       if (node !== videoElement) {
         setVideoElement(node);
@@ -26,8 +26,8 @@ export const AudioEnhancerWrapper: React.FC<AudioEnhancerWrapperProps> = ({
       const { ref } = children as any;
       if (typeof ref === 'function') {
         ref(node);
-      } else if (ref) {
-        ref.current = node;
+      } else if (ref && 'current' in ref) {
+        (ref as any).current = node;
       }
     },
   });

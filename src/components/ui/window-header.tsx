@@ -14,7 +14,7 @@ export const WindowHeader = forwardRef<HTMLDivElement, WindowHeaderProps>(
       <div
         ref={ref}
         className={cn(
-          "h-12 pl-20 pr-4 flex items-center",
+          "h-11 pl-24 pr-4 flex items-center justify-start",
           "bg-transparent border-b border-border/40",
           className
         )}

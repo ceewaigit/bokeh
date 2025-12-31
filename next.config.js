@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
+  turbopack: {},
   trailingSlash: true,
   images: {
     unoptimized: true
@@ -8,20 +9,20 @@ const nextConfig = {
   webpack: (config, { webpack }) => {
     // External dependencies that should not be bundled
     config.externals = [...(config.externals || []), 'electron'];
-    
+
     // Ignore canvas module (not used)
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /^canvas$/
       })
     );
-    
+
     // Ignore critical dependency warnings from @ffmpeg/ffmpeg
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
       /Critical dependency: the request of a dependency is an expression/,
     ];
-    
+
     // Handle Node.js modules for Electron
     config.resolve.fallback = {
       ...config.resolve.fallback,
@@ -32,7 +33,7 @@ const nextConfig = {
       buffer: false,
       util: false
     };
-    
+
     return config;
   },
   transpilePackages: ['remotion', '@remotion/player']

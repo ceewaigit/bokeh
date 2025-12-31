@@ -7,7 +7,7 @@ export interface TimelineUIContextValue {
     scrollTop: number
     setScrollPos: (left: number, top: number) => void
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void
-    scrollContainerRef: React.RefObject<HTMLDivElement>
+    scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
 const TimelineUIContext = createContext<TimelineUIContextValue | null>(null)

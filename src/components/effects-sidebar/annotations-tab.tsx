@@ -157,7 +157,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
   return (
     <div className="space-y-2.5">
       {/* Header */}
-      <div className="rounded-2xl bg-background/40 p-2.5 overflow-hidden">
+      <div className="rounded-2xl bg-background/40 p-4 overflow-hidden">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="text-xs font-semibold leading-none tracking-[-0.01em]">

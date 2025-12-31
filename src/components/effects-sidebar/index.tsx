@@ -360,7 +360,7 @@ export function EffectsSidebar({
 
   return (
     <TooltipProvider>
-      <div ref={tooltipRef} className={cn("flex h-full bg-transparent border-l border-border/30", className)}>
+      <div ref={tooltipRef} className={cn("flex h-full", className)}>
         {/* Left sidebar with section tabs */}
         <div className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent relative z-50">
           <div className="flex flex-col gap-1.5 w-full px-1.5">

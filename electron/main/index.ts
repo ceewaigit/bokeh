@@ -7,6 +7,7 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.bokeh.app')
 }
 import * as path from 'path'
+import * as os from 'os'
 import { isDev, getRecordingsDirectory } from './config'
 import { makeVideoSrc } from './utils/video-url-factory'
 import { createRecordButton, setupRecordButton } from './windows/record-button'
@@ -171,7 +172,20 @@ if (process.platform !== 'darwin') {
   app.commandLine.appendSwitch('use-angle', 'metal')
 }
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas')
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192')
+
+// Dynamic memory scaling for renderer processes
+const totalMemGB = os.totalmem() / (1024 * 1024 * 1024)
+const rendererLimitMB = Math.min(16384, Math.max(4096, Math.floor(totalMemGB * 0.5 * 1024)))
+
+// Apply dynamic heap limit and aggressive memory reduction flags
+app.commandLine.appendSwitch('js-flags', `--max-old-space-size=${rendererLimitMB} --memory-reducer --expose-gc`)
+
+if (isDev) {
+  console.log(`[Memory] Dynamic scaling active:
+  - Main Process: 2048MB (Static via NODE_OPTIONS)
+  - Renderer Processes: ${rendererLimitMB}MB (Dynamic base on ${totalMemGB.toFixed(1)}GB RAM)
+  - V8 Reducer: Enabled`)
+}
 
 app.on('window-all-closed', () => {
   cleanupMouseTracking()

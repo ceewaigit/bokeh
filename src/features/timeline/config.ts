@@ -5,10 +5,12 @@ export const TimelineConfig = {
   // Layout dimensions
   RULER_HEIGHT: 24,
   SPEED_UP_BAR_SPACE: 40, // Extra space for speed-up suggestion bars (increased to 40 to clear ruler + shadows)
-  TRACK_LABEL_WIDTH: 0, // Labels now shown inside blocks
+  TRACK_LABEL_WIDTH: 84, // Restore labels inside blocks
   TRACK_PADDING: 4,
   MIN_CLIP_WIDTH: 1,
   MAX_TRACK_HEIGHT: 120,
+  LAYOUT_PADDING: 16,
+  CANVAS_CORNER_RADIUS: 12,
 
   // Fixed track heights (enables scrolling when content exceeds viewport)
   MIN_VIDEO_TRACK_HEIGHT: 120,

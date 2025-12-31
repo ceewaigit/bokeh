@@ -45,7 +45,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
 
     return (
         <TooltipProvider>
-            <div className={cn("flex h-full border-r border-border/30 bg-transparent", className)}>
+            <div className={cn("flex h-full", className)}>
                 {/* Left icon strip */}
                 <div className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent">
                     <div className="flex flex-col gap-1.5 w-full px-1.5">

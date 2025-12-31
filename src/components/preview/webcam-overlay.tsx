@@ -21,7 +21,7 @@ interface WebcamOverlayProps {
   onSelect?: () => void
   className?: string
   /** Ref to player container for DOM-based positioning */
-  playerContainerRef?: React.RefObject<HTMLDivElement>
+  playerContainerRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export function WebcamOverlay({
@@ -39,7 +39,7 @@ export function WebcamOverlay({
   // we can query the DOM for the webcam element position
   const webcamBounds = useMemo(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    const _ = [containerWidth, containerHeight]; 
+    const _ = [containerWidth, containerHeight];
     if (!playerContainerRef?.current) return null;
     const webcamEl = playerContainerRef.current.querySelector('[data-webcam-overlay="true"]');
     if (!webcamEl) return null;

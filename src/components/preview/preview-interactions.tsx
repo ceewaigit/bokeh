@@ -61,8 +61,8 @@ interface UsePreviewHoverOptions {
     canSelectBackground: boolean;
     canSelectCursor: boolean;
     canSelectWebcam: boolean;
-    aspectContainerRef: React.RefObject<HTMLDivElement>;
-    playerContainerRef: React.RefObject<HTMLDivElement>;
+    aspectContainerRef: React.RefObject<HTMLDivElement | null>;
+    playerContainerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 function usePreviewHover({
@@ -200,8 +200,8 @@ interface PreviewInteractionsProps {
     isEditingCrop: boolean;
     zoomSettings?: ZoomSettings;
     previewFrameBounds: { width: number; height: number; };
-    aspectContainerRef: React.RefObject<HTMLDivElement>;
-    playerContainerRef: React.RefObject<HTMLDivElement>;
+    aspectContainerRef: React.RefObject<HTMLDivElement | null>;
+    playerContainerRef: React.RefObject<HTMLDivElement | null>;
     children: React.ReactNode;
 }
 

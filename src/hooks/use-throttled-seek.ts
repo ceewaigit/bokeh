@@ -7,7 +7,7 @@ const SCRUB_THROTTLE_MS = 125;
  * Hook to throttle seek operations on a Remotion Player.
  * Reduces video decoder pressure during rapid scrubbing or frequent updates.
  */
-export function useThrottledSeek(playerRef: React.RefObject<PlayerRef>) {
+export function useThrottledSeek(playerRef: React.RefObject<PlayerRef | null>) {
   const lastSeekTimeRef = useRef<number>(0);
   const pendingSeekRef = useRef<number | null>(null);
   const scrubTimeoutRef = useRef<NodeJS.Timeout | null>(null);

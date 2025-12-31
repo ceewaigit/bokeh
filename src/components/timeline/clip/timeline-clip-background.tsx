@@ -31,10 +31,10 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
     hasThumbnails,
     colors,
 }) => {
-    // Better clip colors - darker, richer amber/gold with more saturation
-    // Better clip colors - vibrant amber/gold with glass feel
-    const clipBaseColor = colors.isDark ? 'hsl(42, 95%, 45%)' : 'hsl(42, 95%, 45%)';
-    const clipFillColor = showMissingThumb ? clipBaseColor : 'rgba(127,127,127,0.15)';
+    const clipBaseColor = colors.isDark ? 'hsl(42, 95%, 55%)' : 'hsl(42, 95%, 45%)';
+    const clipFillColor = showMissingThumb
+        ? withAlpha(clipBaseColor, colors.isDark ? 0.12 : 0.08)
+        : 'rgba(127,127,127,0.1)';
 
     return (
         <>
@@ -59,36 +59,16 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                     isDragging && !isValidPosition
                         ? colors.destructive
                         : isSelected
-                            ? (colors.isDark ? 'rgba(255,255,255,0.9)' : colors.primary)
+                            ? (colors.isDark ? 'rgba(255,255,255,0.95)' : colors.primary)
                             : showMissingThumb
-                                ? withAlpha(clipBaseColor, 1)
+                                ? withAlpha(clipBaseColor, colors.isDark ? 0.8 : 0.7)
                                 : 'transparent'
                 }
-                strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 1.5 : showMissingThumb ? 1 : 0}
-                cornerRadius={8}
+                strokeWidth={isDragging && !isValidPosition ? 1.5 : isSelected ? 2 : showMissingThumb ? 1.5 : 0}
+                cornerRadius={10}
                 opacity={1}
-                // Updated Shadow: Subtle and clean
-                shadowColor={isSelected ? (colors.primary) : 'black'}
-                shadowBlur={isSelected ? 6 : 2}
-                shadowOpacity={isSelected ? 0.25 : 0.15}
-                shadowOffsetY={1}
             />
 
-            {/* Subtle top highlight for glass feel (premium look) */}
-            {showMissingThumb && trackType === 'video' && !hasThumbnails && (
-                <Rect
-                    width={width}
-                    height={height}
-                    fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-                    fillLinearGradientEndPoint={{ x: 0, y: height }}
-                    fillLinearGradientColorStops={[
-                        0, 'rgba(255,255,255,0.12)', // Subtle top glass highlight
-                        1, 'rgba(255,255,255,0)'
-                    ]}
-                    cornerRadius={8}
-                    listening={false}
-                />
-            )}
 
             {isGeneratedClip && !hasThumbnails && (
                 <Group
