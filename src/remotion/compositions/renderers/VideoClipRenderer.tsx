@@ -233,13 +233,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           left: 0,
           opacity: effectiveOpacity,
         }}>
-          <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
-            <MotionBlurWrapper
-              enabled={motionBlur?.enabled ?? false}
-              velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
-              drawWidth={motionBlur?.drawWidth ?? drawWidth}
-              drawHeight={motionBlur?.drawHeight ?? drawHeight}
-            >
+          <MotionBlurWrapper
+            enabled={motionBlur?.enabled ?? false}
+            velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
+            drawWidth={motionBlur?.drawWidth ?? drawWidth}
+            drawHeight={motionBlur?.drawHeight ?? drawHeight}
+          >
+            <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
               <VideoComponent
                 key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
                 src={effectiveUrl || ''}
@@ -273,8 +273,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                   }
                 }}
               />
-            </MotionBlurWrapper>
-          </AudioEnhancerWrapper>
+            </AudioEnhancerWrapper>
+          </MotionBlurWrapper>
         </div>
       </Sequence>
     </div>
