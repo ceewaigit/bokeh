@@ -7,7 +7,7 @@ import { useTheme } from '@/shared/contexts/theme-context';
 import { useProjectStore } from '@/stores/project-store';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { buildTimelineCompositionInput } from '@/remotion/utils/composition-input';
-import type { useTimelineMetadata } from '@/hooks/use-timeline-metadata';
+import type { useTimelineMetadata } from '@/hooks/timeline/use-timeline-metadata';
 import type { usePlayerConfiguration } from '@/hooks/use-player-configuration';
 import { useThrottledSeek } from '@/hooks/use-throttled-seek';
 

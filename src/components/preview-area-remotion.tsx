@@ -14,7 +14,7 @@ import { PlayerRef } from '@remotion/player';
 import { useProjectStore } from '@/stores/project-store';
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults';
 import { usePreviewSettingsStore } from '@/stores/preview-settings-store';
-import { useTimelineMetadata } from '@/hooks/use-timeline-metadata';
+import { useTimelineMetadata } from '@/hooks/timeline/use-timeline-metadata';
 import { usePlayerConfiguration } from '@/hooks/use-player-configuration';
 import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
 import type { CropEffectData } from '@/types/project';
@@ -103,10 +103,10 @@ export function PreviewAreaRemotion({
   const playerKey = useMemo(() => {
     if (!project || !timelineMetadata) return "player-empty";
     const recordingIds = project?.recordings
-                  ? project.recordings.map((recording) => recording.id).sort().join(",")
-                  : "";
-              return `player-${timelineMetadata.durationInFrames}-${timelineMetadata.fps}-${timelineMetadata.width}-${timelineMetadata.height}-${recordingIds}`;
-          }, [project, timelineMetadata]);
+      ? project.recordings.map((recording) => recording.id).sort().join(",")
+      : "";
+    return `player-${timelineMetadata.durationInFrames}-${timelineMetadata.fps}-${timelineMetadata.width}-${timelineMetadata.height}-${recordingIds}`;
+  }, [project, timelineMetadata]);
   // Sync hook
   const { lastIsPlayingRef } = usePlayerSync({
     playerRef,

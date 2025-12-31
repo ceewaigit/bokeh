@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { cn } from '@/shared/utils/utils'
-import { useAudioLevel } from '@/hooks/use-audio-level'
+import { useAudioLevel } from '@/hooks/audio/use-audio-level'
 import { Mic, MicOff } from 'lucide-react'
 
 interface AudioLevelMeterProps {

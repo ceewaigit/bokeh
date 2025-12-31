@@ -209,6 +209,7 @@ export function calculateZoomTransform(
   const scaleProgress = targetScale > 1 ? clamp01((scale - 1) / (targetScale - 1)) : 0;
   const panBlend = allowPanWithoutZoom && targetScale <= 1 ? 1 : scaleProgress;
 
+  // Revert to center-origin math as SharedVideoController uses transformOrigin: 'center center'
   const rawPanX = (0.5 - blendedCenter.x) * videoWidth * scale;
   const rawPanY = (0.5 - blendedCenter.y) * videoHeight * scale;
   const panX = rawPanX * panBlend;

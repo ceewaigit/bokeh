@@ -15,18 +15,44 @@ export function clampCenterToContentBounds(
     halfWindowY: number,
     overscan: OutputOverscan,
     /** When true, allow full 0-1 range for output-space calculations */
-    allowFullRange: boolean = false
+    allowFullRange: boolean = false,
+    /** When true, ignore overscan and clamp strictly to content bounds */
+    ignoreOverscan: boolean = false,
+    /** Optional explicit content bounds (normalized 0-1) to clamp within. Defaults to 0,0,1,1 */
+    contentBounds?: { minX: number; maxX: number; minY: number; maxY: number }
 ): { x: number; y: number } {
+    const minX = contentBounds?.minX ?? 0
+    const maxX = contentBounds?.maxX ?? 1
+    const minY = contentBounds?.minY ?? 0
+    const maxY = contentBounds?.maxY ?? 1
+
     if (allowFullRange) {
         // In output space, allow camera center to span full 0-1 range
         return {
-            x: Math.max(halfWindowX, Math.min(1 - halfWindowX, centerNorm.x)),
-            y: Math.max(halfWindowY, Math.min(1 - halfWindowY, centerNorm.y)),
+            x: Math.max(halfWindowX + minX, Math.min(maxX - halfWindowX, centerNorm.x)),
+            y: Math.max(halfWindowY + minY, Math.min(maxY - halfWindowY, centerNorm.y)),
         }
     }
+
+    const leftBound = ignoreOverscan ? 0 : -overscan.left
+    const rightBound = ignoreOverscan ? 0 : overscan.right
+    const topBound = ignoreOverscan ? 0 : -overscan.top
+    const bottomBound = ignoreOverscan ? 0 : overscan.bottom
+
+    const applyAxis = (c: number, hw: number, minV: number, maxV: number, lb: number, rb: number, allowFull: boolean) => {
+        // Effective constraints
+        const minCenter = allowFull ? hw + minV : hw + lb + minV
+        const maxCenter = allowFull ? maxV - hw : maxV - hw + rb
+
+        if (minCenter > maxCenter) {
+            return (minCenter + maxCenter) / 2
+        }
+        return Math.max(minCenter, Math.min(maxCenter, c))
+    }
+
     return {
-        x: Math.max(halfWindowX - overscan.left, Math.min(1 - halfWindowX + overscan.right, centerNorm.x)),
-        y: Math.max(halfWindowY - overscan.top, Math.min(1 - halfWindowY + overscan.bottom, centerNorm.y)),
+        x: applyAxis(centerNorm.x, halfWindowX, minX, maxX, leftBound, rightBound, allowFullRange),
+        y: applyAxis(centerNorm.y, halfWindowY, minY, maxY, topBound, bottomBound, allowFullRange),
     }
 }
 

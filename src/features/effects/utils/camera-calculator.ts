@@ -9,6 +9,7 @@
 
 import type { CursorEffectData, Effect, MouseEvent, Recording, RecordingMetadata, CameraDynamics } from '@/types/project'
 import { EffectType } from '@/types/project'
+import { getActiveCropEffect, getCropData } from '../effect-filters'
 import { interpolateMousePosition } from './mouse-interpolation'
 import { calculateZoomScale } from '@/remotion/compositions/utils/transforms/zoom-transform'
 import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/features/cursor/store/cursor-types'
@@ -29,14 +30,14 @@ import {
   getExponentiallySmoothedCursorNorm,
   normalizeSmoothingAmount,
   calculateAttractor,
-  getMotionClusters,
+
 } from '@/features/camera'
 
 // Re-export types for backwards compatibility
 export type { ParsedZoomBlock, OutputOverscan } from '@/features/camera'
 
 // Re-export functions that consumers may use directly
-export { parseZoomBlocks, getZoomBlockAtTime, getMotionClusters }
+export { parseZoomBlocks, getZoomBlockAtTime }
 
 const { seekThresholdMs: SEEK_THRESHOLD_MS } = CAMERA_CONFIG
 const {
@@ -57,6 +58,10 @@ export interface CameraPhysicsState {
   frozenTargetY?: number
   scale?: number
   vScale?: number
+  attractorLock?: {
+    x: number
+    y: number
+  }
 }
 
 export interface CameraComputeInput {
@@ -191,18 +196,93 @@ export function computeCameraState({
   // const playbackRateEstimate = dtTimelineFromState > 1 ? dtSource / dtTimelineFromState : 1
   // const rate = Math.max(0.5, Math.min(3, playbackRateEstimate || 1))
 
-  const attractor = calculateAttractor(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount)
+  const activeAttractor = calculateAttractor(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount)
 
   let cursorNormX = 0.5, cursorNormY = 0.5
-  if (attractor) { cursorNormX = attractor.x / sourceWidth; cursorNormY = attractor.y / sourceHeight }
+  let attractorTargetX = 0.5, attractorTargetY = 0.5
+  let isLockedToAttractor = false
+
+  if (activeAttractor) {
+    // 1. Resolve potential lock target (normalized)
+    const currentAttractorNormX = activeAttractor.x / sourceWidth
+    const currentAttractorNormY = activeAttractor.y / sourceHeight
+
+    // 2. Spatial Hysteresis Logic
+    if (isDeterministic) {
+      // No state in deterministic mode - just use the current calculation
+      attractorTargetX = currentAttractorNormX
+      attractorTargetY = currentAttractorNormY
+    } else {
+      // Check if we should release an existing lock
+      // Check if we have an active lock state
+      if (physics.attractorLock) {
+        let lockX = physics.attractorLock.x
+        let lockY = physics.attractorLock.y
+
+        // Calculate distance from Virtual Anchor (Lock) to Mouse
+        const dxPx = (currentAttractorNormX - lockX) * sourceWidth
+        const dyPx = (currentAttractorNormY - lockY) * sourceHeight
+        const distPx = Math.sqrt(dxPx * dxPx + dyPx * dyPx)
+
+        // Dynamic radius based on resolution (25% of smallest dimension)
+        // Consrained by 70% of the current viewport half-size to ensures cursor never leaves the visible area.
+        const LOCK_RADIUS_FRACTION = 0.20
+        const viewportRadiusPx = Math.min(halfWindowX * sourceWidth, halfWindowY * sourceHeight)
+        const lockRadiusPx = Math.min(
+          Math.min(sourceWidth, sourceHeight) * LOCK_RADIUS_FRACTION,
+          viewportRadiusPx * 0.6
+        )
+
+        // 1. DRAG: If mouse moves beyond radius, pull the anchor with it
+        if (distPx > lockRadiusPx) {
+          const scale = lockRadiusPx / distPx
+          // Ideally: NewDist = Radius. We move Lock towards Mouse by (Dist - Radius)
+          // Interpolate Lock towards Mouse by factor (1 - scale)
+          lockX = currentAttractorNormX - (dxPx / sourceWidth) * scale
+          lockY = currentAttractorNormY - (dyPx / sourceHeight) * scale
+        }
+
+        // 2. DRIFT: Slowly centre the anchor on the mouse (Cinematic settling)
+        // Rate of ~1-2% per frame gives a smooth "magnetic" re-centering
+        const drift = 0
+        lockX = lerp(lockX, currentAttractorNormX, drift)
+        lockY = lerp(lockY, currentAttractorNormY, drift)
+
+        // Update State
+        physics.attractorLock = { x: lockX, y: lockY }
+        attractorTargetX = lockX
+        attractorTargetY = lockY
+        isLockedToAttractor = true
+      } else {
+        // Not locked yet - check if we should enter lock
+        if (activeAttractor.isDwelling) {
+          // LOCK
+          physics.attractorLock = { x: currentAttractorNormX, y: currentAttractorNormY }
+          attractorTargetX = currentAttractorNormX
+          attractorTargetY = currentAttractorNormY
+          isLockedToAttractor = true
+        } else {
+          // FREE MOVE
+          attractorTargetX = currentAttractorNormX
+          attractorTargetY = currentAttractorNormY
+        }
+      }
+    }
+
+    cursorNormX = attractorTargetX
+    cursorNormY = attractorTargetY
+  }
+
   if (mockupScreenPosition && outputWidth && outputHeight) {
     const screenX = Math.max(0, Math.min(1, mockupScreenPosition.x / outputWidth))
     const screenY = Math.max(0, Math.min(1, mockupScreenPosition.y / outputHeight))
     const screenW = Math.max(0, Math.min(1, mockupScreenPosition.width / outputWidth))
     const screenH = Math.max(0, Math.min(1, mockupScreenPosition.height / outputHeight))
+    // Remap the normalized cursor/attractor from video space to screen space
     cursorNormX = screenX + cursorNormX * screenW
     cursorNormY = screenY + cursorNormY * screenH
   }
+
   cursorNormX = clampCursorX(cursorNormX)
   cursorNormY = clampCursorY(cursorNormY)
 
@@ -451,28 +531,59 @@ export function computeCameraState({
   })()
 
   const shouldSkipVisibilityProjection = Boolean(forceFollowCursor)
-  if (shouldSkipVisibilityProjection) finalCenter = followCursor
+  if (shouldSkipVisibilityProjection) {
+    nextPhysics.x = followCursor.x
+    nextPhysics.y = followCursor.y
+    return { activeZoomBlock, zoomCenter: followCursor, physics: nextPhysics }
+  }
 
-  if (shouldFollowMouse && !cursorIsFrozen && !shouldSkipVisibilityProjection) {
+  // Define the base center before visibility adjustments to track anchor slides 
+  const centerBeforeAdjustments = { x: finalCenter.x, y: finalCenter.y }
+
+  // 1. Resolve Content Constraints (Wallpaper fix/Clamping)
+  const activeCrop = getActiveCropEffect(effects, timelineMs)
+  const activeCropData = activeCrop ? getCropData(activeCrop) : null
+  const contentBounds = activeCropData ? {
+    minX: activeCropData.x, maxX: activeCropData.x + activeCropData.width,
+    minY: activeCropData.y, maxY: activeCropData.y + activeCropData.height
+  } : undefined
+  const ignoreOverscan = currentScale > 1.01
+
+  // Apply clamping
+  if (hasOverscan) {
+    const halfWindowOutX = halfWindowX / denomX, halfWindowOutY = halfWindowY / denomY
+    const finalOut = { x: (safeOverscan.left + finalCenter.x) / denomX, y: (safeOverscan.top + finalCenter.y) / denomY }
+    const clampedOut = clampCenterToContentBounds(finalOut, halfWindowOutX, halfWindowOutY, { left: 0, right: 0, top: 0, bottom: 0 }, true, ignoreOverscan, contentBounds)
+    finalCenter = { x: clampedOut.x * denomX - safeOverscan.left, y: clampedOut.y * denomY - safeOverscan.top }
+  } else {
+    finalCenter = clampCenterToContentBounds(finalCenter, halfWindowX, halfWindowY, safeOverscan, false, ignoreOverscan, contentBounds)
+  }
+
+  // 2. Resolve Visibility (Screen Studio fix / "Push" logic)
+  // This OVERRIDES clamping because seeing the cursor is more important than black bars.
+  if (shouldFollowMouse) {
     if (hasOverscan) {
       const finalOut = { x: (safeOverscan.left + finalCenter.x) / denomX, y: (safeOverscan.top + finalCenter.y) / denomY }
       const cursorOut = { x: (safeOverscan.left + mappedRawCursorNorm.x) / denomX, y: (safeOverscan.top + mappedRawCursorNorm.y) / denomY }
       const cursorMarginsOut = cursorMarginsNorm ? { left: cursorMarginsNorm.left / denomX, right: cursorMarginsNorm.right / denomX, top: cursorMarginsNorm.top / denomY, bottom: cursorMarginsNorm.bottom / denomY } : undefined
       const halfWindowOutX = halfWindowX / denomX, halfWindowOutY = halfWindowY / denomY
+
       const projectedOut = projectCenterToKeepCursorVisible(finalOut, cursorOut, halfWindowOutX, halfWindowOutY, { left: 0, right: 0, top: 0, bottom: 0 }, cursorMarginsOut, true)
       finalCenter = { x: projectedOut.x * denomX - safeOverscan.left, y: projectedOut.y * denomY - safeOverscan.top }
     } else {
       finalCenter = projectCenterToKeepCursorVisible(finalCenter, { x: mappedRawCursorNorm.x, y: mappedRawCursorNorm.y }, halfWindowX, halfWindowY, safeOverscan, cursorMarginsNorm ?? undefined)
     }
-  }
 
-  if (shouldFollowMouse && hasOverscan && !shouldSkipVisibilityProjection) {
-    const halfWindowOutX = halfWindowX / denomX, halfWindowOutY = halfWindowY / denomY
-    const finalOut = { x: (safeOverscan.left + finalCenter.x) / denomX, y: (safeOverscan.top + finalCenter.y) / denomY }
-    const clampedOut = clampCenterToContentBounds(finalOut, halfWindowOutX, halfWindowOutY, { left: 0, right: 0, top: 0, bottom: 0 }, true)
-    finalCenter = { x: clampedOut.x * denomX - safeOverscan.left, y: clampedOut.y * denomY - safeOverscan.top }
-  } else if (!shouldSkipVisibilityProjection) {
-    finalCenter = clampCenterToContentBounds(finalCenter, halfWindowX, halfWindowY, safeOverscan)
+    // 3. Anchor Sliding (Physics update)
+    // If visibility push moved the camera, we must update the frozen anchor path.
+    if (cursorIsFrozen) {
+      const dx = finalCenter.x - centerBeforeAdjustments.x
+      const dy = finalCenter.y - centerBeforeAdjustments.y
+      if (Math.abs(dx) > 0.000001 || Math.abs(dy) > 0.000001) {
+        if (nextPhysics.frozenTargetX !== undefined) nextPhysics.frozenTargetX = finalCenter.x
+        if (nextPhysics.frozenTargetY !== undefined) nextPhysics.frozenTargetY = finalCenter.y
+      }
+    }
   }
 
   nextPhysics.x = finalCenter.x
@@ -484,14 +595,5 @@ export function computeCameraState({
 /**
  * Pre-warm camera caches during project load to eliminate first-frame lag.
  */
-export function precomputeCameraCaches(
-  mouseEvents: MouseEvent[],
-  effects: Effect[],
-  videoWidth: number,
-  videoHeight: number
-): void {
-  parseZoomBlocks(effects)
-  if (mouseEvents && mouseEvents.length > 0 && videoWidth > 0 && videoHeight > 0) {
-    getMotionClusters(mouseEvents, videoWidth, videoHeight)
-  }
-}
+//   parseZoomBlocks(effects)
+// }

@@ -31,10 +31,8 @@ export {
 export type { CursorVelocityResult } from './cursor-velocity'
 
 // Smoothing
+// Smoothing
 export {
-    getMotionClusters,
-    getCinematicMousePosition,
     normalizeSmoothingAmount,
     calculateAttractor,
 } from './smoothing'
-export type { Cluster } from './smoothing'

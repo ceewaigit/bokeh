@@ -5,7 +5,7 @@ import { timeObserver } from '@/features/timeline/time/time-observer';
 import { useThrottledSeek } from '@/hooks/use-throttled-seek';
 import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
 import { assertDefined } from '@/lib/errors';
-import type { TimelineMetadata } from '@/hooks/use-timeline-metadata';
+import type { TimelineMetadata } from '@/hooks/timeline/use-timeline-metadata';
 
 interface UsePlayerSyncProps {
     playerRef: React.RefObject<PlayerRef>;

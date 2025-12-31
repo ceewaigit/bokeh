@@ -49,13 +49,13 @@ import { useTimelineEffects } from '@/stores/selectors/timeline-selectors'
 import { TimelineConfig } from '@/features/timeline/config'
 import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
-import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
+import { useTimelinePlayback } from '@/hooks/timeline/use-timeline-playback'
 import { useTimelineColors } from '@/features/timeline/utils/colors'
-import { useTimelineScrub } from '@/hooks/use-timeline-scrub'
+import { useTimelineScrub } from '@/hooks/timeline/use-timeline-scrub'
 import { getTimelineTimeFromX } from '@/features/timeline/playback/seek-utils'
 
 // Hooks
-import { useTimelineClipOperations } from '@/hooks/use-timeline-clip-operations'
+import { useTimelineClipOperations } from '@/hooks/timeline/use-timeline-clip-operations'
 import { useDragPreview } from '@/hooks/use-drag-preview'
 import { useAssetDragDrop } from '@/hooks/use-asset-drag-drop'
 

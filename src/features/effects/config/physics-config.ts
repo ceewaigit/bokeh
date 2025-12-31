@@ -8,15 +8,18 @@
 // =============================================================================
 // CAMERA BEHAVIOR (zoom/pan camera following)
 // =============================================================================
+// =============================================================================
+// CAMERA BEHAVIOR (zoom/pan camera following)
+// =============================================================================
 export const CAMERA_CONFIG = {
     /** Dead-zone size as ratio of visible window (0-1). Cursor can move within this without panning. */
     deadZoneRatio: 0.4,
-    /** Maximum cluster radius as ratio of screen diagonal */
-    clusterRadiusRatio: 0.15,
-    /** Minimum duration in ms for a dwell to be considered a valid cluster */
-    minClusterDurationMs: 400,
-    /** Buffer time in ms after cluster ends before transitioning out */
-    clusterHoldBufferMs: 0,
+    /** Velocity threshold (px/ms) below which we consider the mouse "stationary" */
+    velocityThreshold: 0.15,
+    /** Time in ms the mouse must be stationary to trigger a "dwell" lock */
+    dwellTriggerMs: 150,
+    /** Velocity threshold (px/ms) to release the dwell lock (hysteresis) */
+    releaseThreshold: 0.8,
     /** Number of samples to take within the averaging window for smooth camera follow */
     cinematicSamples: 8,
     /** Time delta threshold in ms to consider a seek (skip vs normal playback) */

@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { useAudioEnhancement } from '@/hooks/use-audio-enhancement';
+import { useAudioEnhancement } from '@/hooks/audio/use-audio-enhancement';
 import type { AudioEnhancerWrapperProps } from '@/types';
 
 /**

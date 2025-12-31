@@ -5,7 +5,7 @@ import { migrationRunner } from '@/lib/migrations'
 import { getVideoMetadata } from '@/shared/utils/video-metadata'
 import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE, buildProjectFilePath } from '@/lib/storage/recording-storage'
 import { precomputeCursorSmoothingCache } from '@/features/cursor/logic/cursor-logic'
-import { precomputeCameraCaches } from '@/features/effects/utils/camera-calculator'
+
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { EffectStore } from '@/lib/core/effects'
 import { getSourceDimensionsStatic } from '@/lib/core/coordinates'
@@ -596,9 +596,9 @@ export class ProjectIOService {
           // Pre-compute cursor smoothing cache (first 5 seconds at 30fps)
           precomputeCursorSmoothingCache(mouseEvents, cursorData, 5000, 30)
 
-          // Pre-compute camera motion clusters
-          const { width: sourceWidth, height: sourceHeight } = getSourceDimensionsStatic(recording, recording.metadata)
-          precomputeCameraCaches(mouseEvents, timelineEffects, sourceWidth, sourceHeight)
+          // Pre-compute camera caches not needed for velocity-based system
+          // const { width: sourceWidth, height: sourceHeight } = getSourceDimensionsStatic(recording, recording.metadata)
+          // precomputeCameraCaches(mouseEvents, timelineEffects, sourceWidth, sourceHeight)
         }
       }
     }

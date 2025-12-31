@@ -17,10 +17,10 @@ import { TimelineTrackType } from '@/types/project'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults'
-import { useTimelineMetadata } from '@/hooks/use-timeline-metadata'
+import { useTimelineMetadata } from '@/hooks/timeline/use-timeline-metadata'
 import { useSelectedClipIds } from '@/stores/selectors/clip-selectors'
 import { timeObserver } from '@/features/timeline/time/time-observer'
-import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
+import { useTimelinePlayback } from '@/hooks/timeline/use-timeline-playback'
 import {
   Scissors,
   Play,
