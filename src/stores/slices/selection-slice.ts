@@ -23,6 +23,9 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
   isEditingOverlay: false,
   editingOverlayId: null,
 
+  // Transient Effect State
+  transientEffectState: null,
+
   // Actions
   selectClip: (clipId, multi = false) => {
     set((state) => {
@@ -127,6 +130,16 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
     set((state) => {
       state.isEditingOverlay = false
       state.editingOverlayId = null
+    })
+  },
+
+  setTransientEffectState: (id, data) => {
+    set((state) => {
+      if (!id || !data) {
+        state.transientEffectState = null
+      } else {
+        state.transientEffectState = { id, data }
+      }
     })
   }
 })

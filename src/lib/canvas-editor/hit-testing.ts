@@ -56,7 +56,7 @@ function getTextMeasureContext(): CanvasRenderingContext2D | null {
 
 function resolvePadding(padding?: AnnotationStyle['padding']): number {
   if (typeof padding === 'number') return padding
-  if (!padding || typeof padding !== 'object') return 8
+  if (!padding || typeof padding !== 'object') return 12
   const { top, right, bottom, left } = padding as { top: number; right: number; bottom: number; left: number }
   return (top + right + bottom + left) / 4
 }
@@ -370,9 +370,8 @@ export function isResizableEffect(effect: Effect): boolean {
       return plugin?.positioning?.resizable === true
     }
     case EffectType.Annotation: {
-      const annotationData = effect.data as AnnotationData
-      // Highlight type is resizable
-      return annotationData.type === 'highlight'
+      // All annotation types are resizable (Text/Keyboard scales font, Highlight scales box)
+      return true
     }
     // Note: Webcam is handled separately via WebcamLayer, not OverlayEditor
     default:

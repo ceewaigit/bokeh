@@ -45,7 +45,7 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
 }, ref) => (
   <WindowHeader ref={ref} customDragRegions className="sticky top-0 z-30 relative">
     <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-      <div className="flex items-center gap-2 px-2.5 h-8 bg-accent/15 rounded-xl">
+      <div className="flex items-center gap-2 px-2.5 h-6 bg-accent/15 rounded-xl">
         <Film className="w-3.5 h-3.5 text-accent flex-shrink-0" />
         <span className="font-bold text-xs text-accent uppercase tracking-[0.1em] whitespace-nowrap">
           Library

@@ -1,12 +1,11 @@
 
 import { computeCameraState, type CameraPhysicsState } from '@/features/effects/utils/camera-calculator'
-import { calculateVideoPosition } from '@/remotion/compositions/utils/layout/video-position'
+import { calculateVideoPosition, calculateMockupPosition } from '@/features/timeline/logic/layout-engine'
 import { EffectType } from '@/types/project'
 import type { BackgroundEffect, Effect, Recording, RecordingMetadata } from '@/types/project'
 import type { CameraPathFrame } from '@/types'
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
-import { calculateMockupPosition } from '@/lib/mockups/mockup-transform'
 import { getActiveBackgroundEffect } from '@/features/effects/effect-filters'
 import { calculateZoomTransform, getZoomTransformString } from '@/remotion/compositions/utils/transforms/zoom-transform'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'

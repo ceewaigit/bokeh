@@ -30,7 +30,7 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                 className={cn(
                     buttonVariants({ variant, size: "sm" }),
                     "btn-bubble-none",
-                    "h-8 px-3 text-2xs font-medium",
+                    "h-6 px-3 text-2xs font-medium",
                     "transition-all duration-150 ease-out",
                     "hover:bg-accent/80 hover:text-accent-foreground active:scale-[0.97]",
                     active && "bg-accent text-accent-foreground",

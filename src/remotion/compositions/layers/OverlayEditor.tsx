@@ -51,6 +51,7 @@ type AnnotationDragState = {
     endPosition?: { x: number; y: number }
     width?: number
     height?: number
+    style?: any
   }
 }
 
@@ -104,6 +105,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay)
   const stopEditingOverlay = useProjectStore((s) => s.stopEditingOverlay)
   const updateEffect = useProjectStore((s) => s.updateEffect)
+  const setTransientEffectState = useProjectStore((s) => s.setTransientEffectState)
 
   const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
   const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
@@ -113,6 +115,9 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
   // Local drag preview state - prevents store updates during drag which cause remount/flicker
   const [dragPreviewBounds, setDragPreviewBounds] = useState<EffectBounds | null>(null)
   const pendingUpdateRef = useRef<{ id: string; data: unknown } | null>(null)
+
+  // Ref to track if we should stop click propagation (touched an element or dragged)
+  const shouldStopClickRef = useRef(false)
 
   // Get the video rect from VideoPositionContext
   const videoRect: VideoRect = useMemo(() => ({
@@ -248,60 +253,125 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
           }
         }
 
-        // Resize logic for highlight only
-        if (type !== AnnotationType.Highlight) return null
-
+        // Resize logic
+        const initialFontSize = initial.data.style?.fontSize ?? 18
         let nextX = basePosition.x
         let nextY = basePosition.y
         let nextWidth = safeWidth
         let nextHeight = safeHeight
+        let scaleFactor = 1
 
-        switch (dragType) {
-          case 'bottom-right':
-            nextWidth = safeWidth + percentDelta.x
-            nextHeight = safeHeight + percentDelta.y
-            break
-          case 'bottom-left':
-            nextX = basePosition.x + percentDelta.x
-            nextWidth = safeWidth - percentDelta.x
-            nextHeight = safeHeight + percentDelta.y
-            break
-          case 'top-right':
-            nextY = basePosition.y + percentDelta.y
-            nextWidth = safeWidth + percentDelta.x
-            nextHeight = safeHeight - percentDelta.y
-            break
-          case 'top-left':
-            nextX = basePosition.x + percentDelta.x
-            nextY = basePosition.y + percentDelta.y
-            nextWidth = safeWidth - percentDelta.x
-            nextHeight = safeHeight - percentDelta.y
-            break
-          case 'right':
-            nextWidth = safeWidth + percentDelta.x
-            break
-          case 'left':
-            nextX = basePosition.x + percentDelta.x
-            nextWidth = safeWidth - percentDelta.x
-            break
-          case 'bottom':
-            nextHeight = safeHeight + percentDelta.y
-            break
-          case 'top':
-            nextY = basePosition.y + percentDelta.y
-            nextHeight = safeHeight - percentDelta.y
-            break
-        }
+        if (type === AnnotationType.Highlight) {
+          switch (dragType) {
+            case 'bottom-right':
+              nextWidth = safeWidth + percentDelta.x
+              nextHeight = safeHeight + percentDelta.y
+              break
+            case 'bottom-left':
+              nextX = basePosition.x + percentDelta.x
+              nextWidth = safeWidth - percentDelta.x
+              nextHeight = safeHeight + percentDelta.y
+              break
+            case 'top-right':
+              nextY = basePosition.y + percentDelta.y
+              nextWidth = safeWidth + percentDelta.x
+              nextHeight = safeHeight - percentDelta.y
+              break
+            case 'top-left':
+              nextX = basePosition.x + percentDelta.x
+              nextY = basePosition.y + percentDelta.y
+              nextWidth = safeWidth - percentDelta.x
+              nextHeight = safeHeight - percentDelta.y
+              break
+            case 'right':
+              nextWidth = safeWidth + percentDelta.x
+              break
+            case 'left':
+              nextX = basePosition.x + percentDelta.x
+              nextWidth = safeWidth - percentDelta.x
+              break
+            case 'bottom':
+              nextHeight = safeHeight + percentDelta.y
+              break
+            case 'top':
+              nextY = basePosition.y + percentDelta.y
+              nextHeight = safeHeight - percentDelta.y
+              break
+          }
 
-        const clamped = clampHighlightBox({ x: nextX, y: nextY }, nextWidth, nextHeight)
-        return {
-          data: { position: { x: clamped.x, y: clamped.y }, width: clamped.width, height: clamped.height },
-          bounds: {
-            x: videoRect.x + (clamped.x / 100) * videoRect.width,
-            y: videoRect.y + (clamped.y / 100) * videoRect.height,
-            width: (clamped.width / 100) * videoRect.width,
-            height: (clamped.height / 100) * videoRect.height,
-          },
+          const clamped = clampHighlightBox({ x: nextX, y: nextY }, nextWidth, nextHeight)
+          return {
+            data: { position: { x: clamped.x, y: clamped.y }, width: clamped.width, height: clamped.height },
+            bounds: {
+              x: videoRect.x + (clamped.x / 100) * videoRect.width,
+              y: videoRect.y + (clamped.y / 100) * videoRect.height,
+              width: (clamped.width / 100) * videoRect.width,
+              height: (clamped.height / 100) * videoRect.height,
+            },
+          }
+        } else {
+          // Text / Keyboard resizing - Scale Font Size
+          // We use vertical resize delta to determine font scaling as it's more stable for text
+          let deltaH = 0
+
+          // For corner resizing, we can use the max delta
+          switch (dragType) {
+            case 'bottom-right':
+            case 'bottom':
+              deltaH = percentDelta.y
+              break
+            case 'top-right':
+            case 'top':
+              deltaH = -percentDelta.y
+              nextY = basePosition.y + percentDelta.y // Move anchor visually
+              break
+            case 'bottom-left':
+              deltaH = percentDelta.y
+              nextX = basePosition.x + percentDelta.x
+              break
+            case 'top-left':
+              deltaH = -percentDelta.y
+              nextX = basePosition.x + percentDelta.x
+              nextY = basePosition.y + percentDelta.y
+              break
+            // Horizontal-only resizing is awkward for text scaling, assume scaling based on width ratio?
+            // Let's stick to height-based scaling or proportional scaling
+            case 'right':
+              deltaH = percentDelta.x * (safeHeight / safeWidth) // Proportional approx
+              break
+            case 'left':
+              deltaH = -percentDelta.x * (safeHeight / safeWidth)
+              nextX = basePosition.x + percentDelta.x
+              break
+          }
+
+          // Convert percent delta to pixel delta for font calculation
+          const pixelHeight = (safeHeight / 100) * videoRect.height
+          const pixelDelta = (deltaH / 100) * videoRect.height
+
+          // Calculate new font size
+          const ratio = (pixelHeight + pixelDelta) / pixelHeight
+          const newFontSize = Math.max(8, Math.min(200, initialFontSize * ratio))
+
+          // We don't change width/height directly in data for text, derived from font.
+          // But we update position.
+
+          // Estimate new bounds based on ratio
+          const estimatedWidth = safeWidth * ratio
+          const estimatedHeight = safeHeight * ratio
+
+          return {
+            data: {
+              position: { x: nextX, y: nextY },
+              style: { ...initial.data.style, fontSize: newFontSize }
+            },
+            bounds: {
+              x: videoRect.x + (nextX / 100) * videoRect.width,
+              y: videoRect.y + (nextY / 100) * videoRect.height,
+              width: (estimatedWidth / 100) * videoRect.width,
+              height: (estimatedHeight / 100) * videoRect.height,
+            }
+          }
         }
       }
 
@@ -386,13 +456,15 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
       const result = computeDragResult(delta, dragType, initial)
       if (!result) return
 
-      // Update local preview bounds for smooth visual feedback
       setDragPreviewBounds(result.bounds)
       // Store pending update to commit on drag end
       pendingUpdateRef.current = { id: editingOverlayId, data: result.data }
 
+      // Update transient state for real-time visual feedback of element contents
+      setTransientEffectState(editingOverlayId, result.data as Record<string, any>)
+
     },
-    [editingOverlayId, computeDragResult]
+    [editingOverlayId, computeDragResult, setTransientEffectState]
   )
 
   // Commit to store only on drag end
@@ -403,12 +475,26 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
       pendingUpdateRef.current = null
     }
     setDragPreviewBounds(null)
-  }, [updateEffect])
+    // Drag interaction happened, prevent background selection
+    shouldStopClickRef.current = true
+
+    // Clear transient state
+    setTransientEffectState(null)
+  }, [updateEffect, setTransientEffectState])
 
   const { isDragging, startDrag } = useCanvasDrag<EditorDragState>({
     onDrag: handleDrag,
     onDragEnd: handleDragEnd,
   })
+
+  // Prevent click events from bubbling to PreviewInteractions ONLY if we interacted with overlay
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (shouldStopClickRef.current) {
+      e.stopPropagation()
+    }
+    // Reset flag for next interaction
+    shouldStopClickRef.current = false
+  }, [])
 
   // Keyboard shortcuts (unchanged)
   useEffect(() => {
@@ -546,6 +632,9 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
       // Only handle left mouse button
       if (e.button !== 0) return
 
+      // Note: We do NOT stop propagation here immediately.
+      // We decide whether to stop CLICK propagation based on hit test.
+
       const rect = overlayRef.current?.getBoundingClientRect()
       if (!rect) return
 
@@ -561,6 +650,9 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
       )
 
       if (hit) {
+        // We hit an effect -> Stop click propagation to avoid selecting background
+        shouldStopClickRef.current = true
+
         const effect = effects.find((eff) => eff.id === hit.effectId)
         if (!effect) return
 
@@ -590,6 +682,7 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
                   endPosition: data.endPosition,
                   width: data.width ?? fallback.width,
                   height: data.height ?? fallback.height,
+                  style: data.style, // Pass style for resizing
                 }
               }
             }
@@ -617,6 +710,9 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
         }
       } else {
         // Click on empty area - deselect
+        // We allow click propagation so background can be selected
+        shouldStopClickRef.current = false
+
         clearEffectSelection()
         stopEditingOverlay()
       }
@@ -637,6 +733,9 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
 
   // Handle mouse down on selection box or handles
   const handleMouseDown = (e: React.MouseEvent, type: DragType) => {
+    // Interacting with handle -> Stop click propagation
+    shouldStopClickRef.current = true
+
     if (!selectedEffect) return
 
     let initialData: EditorDragState | undefined
@@ -755,10 +854,13 @@ export const OverlayEditor: React.FC<OverlayEditorProps> = ({
     return null
   }
 
+
+
   return (
     <AbsoluteFill
       ref={overlayRef}
       onMouseDown={handleCanvasMouseDown}
+      onClick={handleClick}
       style={{
         zIndex: 999,
         pointerEvents: 'auto',

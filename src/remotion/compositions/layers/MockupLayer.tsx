@@ -14,7 +14,7 @@
 import React, { useMemo } from 'react'
 import { Img, staticFile } from 'remotion'
 import type { DeviceMockupData } from '@/types/project'
-import type { MockupPositionResult } from '@/lib/mockups/mockup-transform'
+import type { MockupPositionResult } from '@/features/timeline/logic/layout-engine'
 import { resolveMockupMetadata } from '@/lib/mockups/mockup-metadata'
 
 export interface MockupLayerProps {

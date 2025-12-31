@@ -9,6 +9,9 @@ import { TrackType, type Project, type Clip } from '@/types/project'
 import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
 import { DEFAULT_STORE_SETTINGS } from '@/lib/settings/defaults'
 import type { ProjectStore } from '@/stores/slices/types'
+import { produceWithPatches, enablePatches } from 'immer'
+
+enablePatches()
 
 function createProjectWithAudioClip(): Project {
   const createdAt = new Date(0).toISOString()
@@ -16,9 +19,9 @@ function createProjectWithAudioClip(): Project {
     id: 'clip-a1',
     recordingId: 'rec-1',
     startTime: 0,
-    duration: 1000,
+    duration: 2000,
     sourceIn: 0,
-    sourceOut: 1000,
+    sourceOut: 2000,
     playbackRate: 1
   }
 
@@ -34,7 +37,7 @@ function createProjectWithAudioClip(): Project {
         id: 'rec-1',
         sourceType: 'video',
         filePath: '/tmp/rec.mp4',
-        duration: 1000,
+        duration: 2000,
         width: 1920,
         height: 1080,
         frameRate: 60,
@@ -42,7 +45,7 @@ function createProjectWithAudioClip(): Project {
       }
     ],
     timeline: {
-      duration: 1000,
+      duration: 2000,
       tracks: [
         { id: 't-video', name: 'Video', type: TrackType.Video, clips: [], muted: false, locked: false },
         { id: 't-audio', name: 'Audio', type: TrackType.Audio, clips: [clip], muted: false, locked: false }
@@ -74,6 +77,27 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore; 
     hoverTime: null,
     zoom: 1,
     zoomManuallyAdjusted: false,
+
+    transaction: (recipe: any) => {
+        // Mock state that includes the currentProject
+        const mockState = {
+            currentProject: projectRef.current,
+            settings: state.settings,
+            selectedClips: state.selectedClips,
+            currentTime: state.currentTime
+        }
+        
+        const [nextState, patches, inversePatches] = produceWithPatches(mockState, recipe)
+        
+        // Apply changes back to refs
+        if (nextState.currentProject !== projectRef.current) {
+            projectRef.current = nextState.currentProject
+        }
+        state.selectedClips = nextState.selectedClips
+        state.currentTime = nextState.currentTime
+        
+        return { patches, inversePatches }
+    },
 
     addClip: (clipOrRecordingId: Clip | string, startTime?: number) => {
       if (!projectRef.current) return
@@ -137,7 +161,7 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore; 
     cacheIdlePeriods: () => { },
     restoreClipsFromUndo: () => { },
     settings: { ...DEFAULT_STORE_SETTINGS },
-    // PatchedCommand support: replace entire project state for undo/redo
+    // PatchedCommand support: transaction handles updates
     setProject: (newProject: Project) => {
       projectRef.current = newProject
     }

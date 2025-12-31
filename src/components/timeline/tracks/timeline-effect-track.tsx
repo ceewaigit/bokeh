@@ -18,6 +18,8 @@ import { EffectType } from '@/types/effects'
 import { getEffectTrackConfig } from '@/features/timeline/effect-track-registry'
 import { useTimelineColors } from '@/features/timeline/utils/colors'
 import { useShallow } from 'zustand/react/shallow'
+import { useCommandExecutor } from '@/hooks/use-command-executor'
+import { UpdateEffectCommand } from '@/lib/commands'
 
 interface TimelineEffectTrackProps {
   /** The effect type to render */
@@ -26,6 +28,7 @@ interface TimelineEffectTrackProps {
 
 export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
   const config = getEffectTrackConfig(effectType)
+  const executorRef = useCommandExecutor()
 
   const {
     pixelsPerMs,
@@ -40,15 +43,13 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
     currentProject,
     selectedEffectLayer,
     selectEffectLayer,
-    clearEffectSelection,
-    updateEffect
+    clearEffectSelection
   } = useProjectStore(
     useShallow((s) => ({
       currentProject: s.currentProject,
       selectedEffectLayer: s.selectedEffectLayer,
       selectEffectLayer: s.selectEffectLayer,
-      clearEffectSelection: s.clearEffectSelection,
-      updateEffect: s.updateEffect
+      clearEffectSelection: s.clearEffectSelection
     }))
   )
 
@@ -145,7 +146,9 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
                 (document.querySelector('.timeline-container') as HTMLElement)?.focus()
               })
             }}
-            onUpdate={(updates) => updateEffect(effect.id, updates)}
+            onUpdate={(updates) => {
+              executorRef.current?.execute(UpdateEffectCommand, effect.id, updates)
+            }}
           />
         )
       })}

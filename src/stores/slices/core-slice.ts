@@ -8,6 +8,7 @@
  * - Project cleanup
  */
 
+import { produceWithPatches } from 'immer'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { addRecordingToProject } from '@/features/timeline/timeline-operations'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
@@ -27,6 +28,13 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   settings: DEFAULT_SETTINGS,
 
   // Actions
+  transaction: (recipe) => {
+    const currentState = get()
+    const [nextState, patches, inversePatches] = produceWithPatches(currentState, recipe)
+    set(() => nextState)
+    return { patches, inversePatches }
+  },
+
   newProject: (name) => {
     set((state) => {
       state.currentProject = ProjectIOService.createNewProject(name)

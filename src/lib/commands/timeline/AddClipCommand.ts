@@ -9,6 +9,10 @@ import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/stores/project-store'
+import { addClipToTrack } from '@/features/timeline/timeline-operations'
+import { EffectsFactory } from '@/features/effects/effects-factory'
 
 export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
   private clipOrRecordingId: Clip | string
@@ -41,26 +45,24 @@ export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
     return true
   }
 
-  doExecute(): CommandResult<{ clipId: string }> {
-    const store = this.context.getStore()
-    const project = this.context.getProject()
-    if (!project) {
-      return { success: false, error: 'No active project' }
-    }
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    const project = draft.currentProject
+    if (!project) throw new Error('No active project')
 
     let clip: Clip
 
     if (typeof this.clipOrRecordingId === 'object') {
       clip = this.clipOrRecordingId
     } else {
-      const recording = this.context.findRecording(this.clipOrRecordingId)
+      const recordingId = this.clipOrRecordingId as string
+      const recording = project.recordings.find(r => r.id === recordingId)
       if (!recording) {
-        return { success: false, error: `Recording ${this.clipOrRecordingId} not found` }
+        throw new Error(`Recording ${recordingId} not found`)
       }
 
       clip = {
         id: `clip-${Date.now()}`,
-        recordingId: this.clipOrRecordingId,
+        recordingId: recordingId,
         startTime: this.startTime ?? project.timeline.duration,
         duration: recording.duration,
         sourceIn: 0,
@@ -68,14 +70,28 @@ export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
       }
     }
 
-    const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
-    if (!videoTrack) {
-      return { success: false, error: 'No video track found' }
+    const addedClip = addClipToTrack(project, clip, clip.startTime)
+    if (!addedClip) {
+      throw new Error('Failed to add clip (no video track found)')
     }
 
-    store.addClip(clip, clip.startTime)
-    this.createdClipId = clip.id
+    // Logic from timeline-slice.ts:
+    // Determine if we need to sync keystrokes (only if recording has metadata)
+    const recordingId = addedClip.recordingId
+    const recording = project.recordings.find(r => r.id === recordingId)
 
-    return { success: true, data: { clipId: clip.id } }
+    if (recording && (recording.metadata?.keyboardEvents?.length || 0) > 0) {
+      EffectsFactory.syncKeystrokeEffects(project)
+    }
+
+    draft.selectedClips = [addedClip.id]
+
+    // Enable waveforms by default if the recording has audio
+    if (recording?.hasAudio) {
+      draft.settings.editing.showWaveforms = true
+    }
+
+    this.createdClipId = addedClip.id
+    this.result = { success: true, data: { clipId: addedClip.id } }
   }
 }

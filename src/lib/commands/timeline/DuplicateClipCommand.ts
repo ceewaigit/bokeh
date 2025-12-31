@@ -7,6 +7,10 @@
 import { PatchedCommand } from '../base/PatchedCommand'
 import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/stores/project-store'
+import { duplicateClipInTrack } from '@/features/timeline/timeline-operations'
+import { EffectsFactory } from '@/features/effects/effects-factory'
 
 export class DuplicateClipCommand extends PatchedCommand<{ newClipId: string }> {
   private clipId: string
@@ -28,21 +32,25 @@ export class DuplicateClipCommand extends PatchedCommand<{ newClipId: string }> 
     return this.context.findClip(this.clipId) !== null
   }
 
-  doExecute(): CommandResult<{ newClipId: string }> {
-    const store = this.context.getStore()
-    const result = this.context.findClip(this.clipId)
-
-    if (!result) {
-      return { success: false, error: `Clip ${this.clipId} not found` }
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    if (!draft.currentProject) {
+        throw new Error('No active project')
     }
 
-    const newClipId = store.duplicateClip(this.clipId)
-
-    if (!newClipId) {
-      return { success: false, error: 'Failed to duplicate clip' }
+    const newClip = duplicateClipInTrack(draft.currentProject, this.clipId)
+    if (!newClip) {
+        throw new Error('Failed to duplicate clip')
     }
+
+    const newClipId = newClip.id
+
+    // Duplicated clips should get matching derived keystroke blocks.
+    EffectsFactory.syncKeystrokeEffects(draft.currentProject)
+
+    // Select the duplicated clip
+    draft.selectedClips = [newClipId]
 
     this.newClipId = newClipId
-    return { success: true, data: { newClipId } }
+    this.setResult({ success: true, data: { newClipId } })
   }
 }

@@ -13,7 +13,7 @@ import type {
   CropEffectData,
   ZoomEffectData,
 } from './project';
-import type { MockupPositionResult } from '@/lib/mockups/mockup-transform';
+import type { MockupPositionResult } from '@/features/timeline/logic/layout-engine';
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 import type { ParsedZoomBlock } from '@/features/effects/utils/camera-calculator';
 import type { MetadataUrlSet } from '@/lib/export/metadata-loader';

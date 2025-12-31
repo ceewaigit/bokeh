@@ -22,22 +22,11 @@ export class AnnotationEffectStrategy implements IEffectStrategy {
 
     const { ctx, timestamp, width, height } = context
 
-    // Calculate fade based on effect timing
-    const effectDuration = effect.endTime - effect.startTime
-    const effectAge = timestamp - effect.startTime
-    const fadeInTime = 200
-    const fadeOutTime = 200
-
-    let opacity = 1
-    const fadeIn = effectAge < fadeInTime ? effectAge / fadeInTime : 1
-    const fadeOut = effectAge > effectDuration - fadeOutTime ? (effectDuration - effectAge) / fadeOutTime : 1
-
-    opacity = Math.min(fadeIn, fadeOut)
-
-    if (opacity <= 0) return
+    // Force opacity to 1 for now to debugging visibility issues
+    const opacity = 1
 
     ctx.save()
-    ctx.globalAlpha = opacity * (data.style?.opacity || 1)
+    ctx.globalAlpha = opacity * (data.style?.opacity ?? 1)
 
     // Convert 0-100% position to pixel coordinates
     const rawPosition = data.position || { x: 50, y: 50 }

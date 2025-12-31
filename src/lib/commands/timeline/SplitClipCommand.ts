@@ -8,6 +8,12 @@ import { PatchedCommand } from '../base/PatchedCommand'
 import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { timelineToClipRelative } from '@/features/timeline/time/time-space-converter'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/stores/project-store'
+import { executeSplitClip } from '@/features/timeline/timeline-operations'
+import { EffectsFactory } from '@/features/effects/effects-factory'
+import { playbackService } from '@/features/timeline/playback/playback-service'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
 export interface SplitClipResult {
   originalClipId: string
@@ -44,38 +50,42 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
     return relativeTime > 0 && relativeTime < clip.duration
   }
 
-  doExecute(): CommandResult<SplitClipResult> {
-    const store = this.context.getStore()
-    const result = this.context.findClip(this.clipId)
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    if (!draft.currentProject) {
+        throw new Error('No active project')
+    }
 
+    const result = executeSplitClip(draft.currentProject, this.clipId, this.splitTime)
     if (!result) {
-      return { success: false, error: `Clip ${this.clipId} not found` }
+        throw new Error('Split failed')
     }
 
-    const { track } = result
-    const originalIndex = track.clips.findIndex(c => c.id === this.clipId)
+    const { firstClip, secondClip } = result
+    
+    // Split changes clip boundaries; rebuild derived keystroke blocks.
+    EffectsFactory.syncKeystrokeEffects(draft.currentProject)
 
-    store.splitClip(this.clipId, this.splitTime)
+    // Select the left clip to keep focus at the split point
+    draft.selectedClips = [firstClip.id]
 
-    // Re-read project after store mutation to get new clip IDs
-    const updatedProject = this.context.getProject()
-    if (updatedProject) {
-      const updatedTrack = updatedProject.timeline.tracks.find(t => t.id === track.id)
-      if (updatedTrack && originalIndex !== -1) {
-        const candidateLeft = updatedTrack.clips[originalIndex]
-        const candidateRight = updatedTrack.clips[originalIndex + 1]
-        if (candidateLeft) this.leftClipId = candidateLeft.id
-        if (candidateRight) this.rightClipId = candidateRight.id
-      }
+    // Move playhead to just before the split point
+    if (draft.currentTime >= this.splitTime) {
+        draft.currentTime = playbackService.seek(this.splitTime - 1, draft.currentProject.timeline.duration)
     }
 
-    return {
+    // Clear render caches to prevent stale data after split
+    TimelineDataService.invalidateCache(draft.currentProject)
+
+    this.leftClipId = firstClip.id
+    this.rightClipId = secondClip.id
+
+    this.setResult({
       success: true,
       data: {
         originalClipId: this.clipId,
-        leftClipId: this.leftClipId || '',
-        rightClipId: this.rightClipId || ''
+        leftClipId: firstClip.id,
+        rightClipId: secondClip.id
       }
-    }
+    })
   }
 }

@@ -7,7 +7,13 @@
 import { PatchedCommand } from '../base/PatchedCommand'
 import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/stores/project-store'
 import { computeEffectiveDuration } from '@/features/timeline/time/time-space-converter'
+import { findClipById, updateClipInTrack, calculateTimelineDuration } from '@/features/timeline/timeline-operations'
+import { EffectsFactory } from '@/features/effects/effects-factory'
+import { PlayheadService } from '@/features/timeline/playback/playhead-service'
+import { playbackService } from '@/features/timeline/playback/playback-service'
 
 export class ChangePlaybackRateCommand extends PatchedCommand<{ clipId: string; playbackRate: number }> {
   private clipId: string
@@ -33,28 +39,60 @@ export class ChangePlaybackRateCommand extends PatchedCommand<{ clipId: string; 
     return this.playbackRate > 0.0625 && this.playbackRate <= 16
   }
 
-  doExecute(): CommandResult<{ clipId: string; playbackRate: number }> {
-    const result = this.context.findClip(this.clipId)
-    if (!result) {
-      return { success: false, error: `Clip ${this.clipId} not found` }
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    if (!draft.currentProject) {
+      throw new Error('No active project')
     }
 
-    const newDuration = computeEffectiveDuration(result.clip, this.playbackRate)
+    const result = findClipById(draft.currentProject, this.clipId)
+    if (!result) {
+      throw new Error(`Clip ${this.clipId} not found`)
+    }
 
-    const validSourceOut = (result.clip.sourceOut != null && isFinite(result.clip.sourceOut))
-      ? result.clip.sourceOut
-      : (result.clip.sourceIn || 0) + (result.clip.duration * (result.clip.playbackRate || 1))
+    const { clip } = result
 
-    const store = this.context.getStore()
-    store.updateClip(this.clipId, {
+    const newDuration = computeEffectiveDuration(clip, this.playbackRate)
+
+    const validSourceOut = (clip.sourceOut != null && isFinite(clip.sourceOut))
+      ? clip.sourceOut
+      : (clip.sourceIn || 0) + (clip.duration * (clip.playbackRate || 1))
+
+    const updates = {
       playbackRate: this.playbackRate,
       duration: newDuration,
       sourceOut: validSourceOut
-    })
+    }
 
-    return {
+    // Use the service to update the clip
+    if (!updateClipInTrack(draft.currentProject, this.clipId, updates, undefined, result.track)) {
+      throw new Error('updateClip: Failed to update clip')
+    }
+
+    // Clip timing/position can change; keep derived keystroke blocks aligned.
+    EffectsFactory.syncKeystrokeEffects(draft.currentProject)
+
+    // Maintain playhead relative position inside the edited clip
+    const updatedResult = findClipById(draft.currentProject, this.clipId)
+    if (updatedResult) {
+      const newTime = PlayheadService.trackPlayheadDuringClipEdit(
+        draft.currentTime,
+        result.clip,
+        updatedResult.clip
+      )
+      if (newTime !== null) {
+        draft.currentTime = playbackService.seek(newTime, draft.currentProject.timeline.duration)
+      }
+    }
+
+    // Clamp current time inside new timeline bounds
+    draft.currentTime = playbackService.seek(
+      draft.currentTime,
+      draft.currentProject.timeline.duration
+    )
+
+    this.setResult({
       success: true,
       data: { clipId: this.clipId, playbackRate: this.playbackRate }
-    }
+    })
   }
 }

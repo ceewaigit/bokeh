@@ -243,6 +243,58 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                 className="h-8 text-xs"
               />
             </div>
+
+          )}
+
+          {/* Typography Settings */}
+          {(selectedData.type === AnnotationType.Text || selectedData.type === AnnotationType.Keyboard) && (
+            <div className="space-y-3 pt-2 border-t border-border/50">
+              <div className="space-y-1.5">
+                <label className="text-2xs font-medium text-muted-foreground">
+                  Font Family
+                </label>
+                <select
+                  className="w-full h-8 text-xs bg-background border border-input rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                  value={selectedData.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif'}
+                  onChange={(e) => {
+                    if (!selectedAnnotation) return
+                    const currentData = selectedAnnotation.data as AnnotationData
+                    const newStyle = { ...currentData.style, fontFamily: e.target.value }
+                    updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
+                  }}
+                >
+                  <option value="system-ui, -apple-system, sans-serif">System UI</option>
+                  <option value="Inter, sans-serif">Inter</option>
+                  <option value="'Courier New', monospace">Monospace</option>
+                  <option value="Georgia, serif">Serif</option>
+                  <option value="'Comic Sans MS', cursive">Handwritten</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-2xs font-medium text-muted-foreground">
+                  Font Size
+                </label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[selectedData.style?.fontSize ?? 18]}
+                    onValueChange={([v]) => {
+                      if (!selectedAnnotation) return
+                      const currentData = selectedAnnotation.data as AnnotationData
+                      const newStyle = { ...currentData.style, fontSize: v }
+                      updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
+                    }}
+                    min={8}
+                    max={120}
+                    step={1}
+                    className="flex-1"
+                  />
+                  <div className="text-3xs text-muted-foreground/70 tabular-nums w-8 text-right">
+                    {Math.round(selectedData.style?.fontSize ?? 18)}px
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Content editor for keyboard */}
@@ -370,55 +422,60 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             </div>
           )}
         </div>
-      )}
+      )
+      }
 
       {/* Annotation list */}
-      {annotationEffects.length > 0 && !selectedAnnotation && (
-        <div className="rounded-2xl border border-border/50 bg-background/60 p-2.5 overflow-hidden">
-          <div className="text-2xs font-medium text-muted-foreground mb-2">
-            Timeline Annotations
-          </div>
-          <div className="space-y-1">
-            {annotationEffects.map((effect) => {
-              const data = effect.data as AnnotationData
-              const typeIcon = ANNOTATION_TYPES.find((t) => t.type === data.type)?.icon
-              const Icon = typeIcon ?? Type
+      {
+        annotationEffects.length > 0 && !selectedAnnotation && (
+          <div className="rounded-2xl border border-border/50 bg-background/60 p-2.5 overflow-hidden">
+            <div className="text-2xs font-medium text-muted-foreground mb-2">
+              Timeline Annotations
+            </div>
+            <div className="space-y-1">
+              {annotationEffects.map((effect) => {
+                const data = effect.data as AnnotationData
+                const typeIcon = ANNOTATION_TYPES.find((t) => t.type === data.type)?.icon
+                const Icon = typeIcon ?? Type
 
-              return (
-                <button
-                  key={effect.id}
-                  onClick={() => onSelectAnnotation?.(effect)}
-                  className={cn(
-                    'flex items-center gap-2 w-full p-2 rounded-md',
-                    'border border-border/30 bg-background/40',
-                    'hover:bg-background/80 hover:border-border/50',
-                    'transition-colors duration-100 text-left'
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-2xs font-medium truncate capitalize">
-                      {data.type ?? 'Unknown'}
+                return (
+                  <button
+                    key={effect.id}
+                    onClick={() => onSelectAnnotation?.(effect)}
+                    className={cn(
+                      'flex items-center gap-2 w-full p-2 rounded-md',
+                      'border border-border/30 bg-background/40',
+                      'hover:bg-background/80 hover:border-border/50',
+                      'transition-colors duration-100 text-left'
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-2xs font-medium truncate capitalize">
+                        {data.type ?? 'Unknown'}
+                      </div>
+                      <div className="text-3xs text-muted-foreground/70 tabular-nums">
+                        {(effect.startTime / 1000).toFixed(1)}s - {(effect.endTime / 1000).toFixed(1)}s
+                      </div>
                     </div>
-                    <div className="text-3xs text-muted-foreground/70 tabular-nums">
-                      {(effect.startTime / 1000).toFixed(1)}s - {(effect.endTime / 1000).toFixed(1)}s
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Empty state */}
-      {annotationEffects.length === 0 && !selectedAnnotation && (
-        <div className="rounded-2xl border border-dashed border-border/50 bg-background/30 p-4 text-center overflow-hidden">
-          <div className="text-2xs text-muted-foreground">
-            No overlays yet. Pick a type above to create one.
+      {
+        annotationEffects.length === 0 && !selectedAnnotation && (
+          <div className="rounded-2xl border border-dashed border-border/50 bg-background/30 p-4 text-center overflow-hidden">
+            <div className="text-2xs text-muted-foreground">
+              No overlays yet. Pick a type above to create one.
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   )
 }

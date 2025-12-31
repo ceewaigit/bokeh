@@ -1,102 +1,30 @@
 /**
  * PatchedCommand - Command base class with automatic undo/redo via Immer patches.
  *
- * Instead of manually tracking state like:
- *   this.originalClip = JSON.parse(JSON.stringify(clip))
- *
  * Commands extending PatchedCommand get automatic state restoration by
- * capturing Immer patches during execution.
+ * performing mutations within a store transaction.
  *
  * Usage:
  *   export class MyCommand extends PatchedCommand<MyResult> {
- *     doExecute(): CommandResult<MyResult> {
- *       const store = this.context.getStore()
- *       store.someOperation() // State changes are automatically tracked
- *       return { success: true, data: { ... } }
+ *     protected mutate(draft: WritableDraft<ProjectStore>): void {
+ *       // Direct mutation on draft state
+ *       draft.someOperation()
  *     }
- *     // doUndo() is inherited and uses inverse patches automatically!
  *   }
  */
 
-import { produce, enablePatches, Patch, applyPatches } from 'immer'
+import { enablePatches, Patch, applyPatches, WritableDraft } from 'immer'
 import { Command, CommandResult, CommandMetadata } from './Command'
 import { CommandContext } from './CommandContext'
-import type { Project } from '@/types/project'
+import type { ProjectStore } from '@/stores/project-store'
 
 // Enable Immer patches globally
 enablePatches()
 
-/**
- * Patch Store - Captures patches during command execution.
- * 
- * The store's immer middleware mutates state in place, but we need to capture
- * the patches for undo/redo. This singleton captures patches by wrapping
- * the project state before and after execution.
- */
-export class PatchStore {
-    private static instance: PatchStore | null = null
-    private capturedPatches: Patch[] = []
-    private capturedInversePatches: Patch[] = []
-    private isCapturing: boolean = false
-
-    static getInstance(): PatchStore {
-        if (!PatchStore.instance) {
-            PatchStore.instance = new PatchStore()
-        }
-        return PatchStore.instance
-    }
-
-    startCapture(): void {
-        this.capturedPatches = []
-        this.capturedInversePatches = []
-        this.isCapturing = true
-    }
-
-    stopCapture(): { patches: Patch[]; inversePatches: Patch[] } {
-        this.isCapturing = false
-        return {
-            patches: [...this.capturedPatches],
-            inversePatches: [...this.capturedInversePatches]
-        }
-    }
-
-    /**
-     * Capture patches by computing the diff between two project states.
-     * This is called after command execution completes.
-     */
-    captureFromDiff(before: Project | null, after: Project | null): void {
-        if (!this.isCapturing || !before || !after) return
-
-        // Use Immer's produce to compute patches between states
-        produce(
-            before,
-            draft => {
-                // Deep copy after state into draft
-                Object.assign(draft, JSON.parse(JSON.stringify(after)))
-            },
-            (patches, inversePatches) => {
-                this.capturedPatches.push(...patches)
-                this.capturedInversePatches.push(...inversePatches)
-            }
-        )
-    }
-
-    isCurrentlyCapturing(): boolean {
-        return this.isCapturing
-    }
-}
-
-/**
- * PatchedCommand - Base class for commands with automatic undo/redo.
- *
- * Subclasses implement doExecute() to perform state changes.
- * doUndo() uses captured inverse patches for perfect state restoration.
- */
 export abstract class PatchedCommand<TResult = any> extends Command<TResult> {
     protected context: CommandContext
     protected inversePatches: Patch[] = []
     protected forwardPatches: Patch[] = []
-    private beforeState: Project | null = null
 
     constructor(
         context: CommandContext,
@@ -107,8 +35,20 @@ export abstract class PatchedCommand<TResult = any> extends Command<TResult> {
     }
 
     /**
-     * Execute with automatic patch capture.
-     * Subclasses should NOT override this - override doExecute() instead.
+     * Subclasses must implement mutate() to perform state changes.
+     * This runs inside a store transaction to capture patches.
+     */
+    protected abstract mutate(draft: WritableDraft<ProjectStore>): void
+
+    /**
+     * Helper to set the command result from within mutate()
+     */
+    protected setResult(result: CommandResult<TResult>) {
+        this.result = result
+    }
+
+    /**
+     * Execute with automatic patch capture via store transaction.
      */
     public async execute(): Promise<CommandResult<TResult>> {
         const canExec = await Promise.resolve(this.canExecute())
@@ -119,31 +59,24 @@ export abstract class PatchedCommand<TResult = any> extends Command<TResult> {
             }
         }
 
-        const patchStore = PatchStore.getInstance()
+        const store = this.context.getStore()
 
         try {
-            // Capture state before execution
-            this.beforeState = this.context.getProject()
-                ? JSON.parse(JSON.stringify(this.context.getProject()))
-                : null
-
-            patchStore.startCapture()
-
-            // Execute the command's logic
-            this.result = await Promise.resolve(this.doExecute())
-
-            // Capture state after execution
-            const afterState = this.context.getProject()
-            patchStore.captureFromDiff(this.beforeState, afterState)
-
-            const { patches, inversePatches } = patchStore.stopCapture()
+            const { patches, inversePatches } = store.transaction((draft) => {
+                this.mutate(draft)
+            })
+            
             this.forwardPatches = patches
             this.inversePatches = inversePatches
-
             this.executed = true
+            
+            // If mutate didn't set result, assume success
+            if (!this.result) {
+                 this.result = { success: true } as CommandResult<TResult>
+            }
+            
             return this.result
         } catch (error) {
-            patchStore.stopCapture()
             return {
                 success: false,
                 error: error instanceof Error ? error : String(error)
@@ -152,8 +85,7 @@ export abstract class PatchedCommand<TResult = any> extends Command<TResult> {
     }
 
     /**
-     * Undo by applying inverse patches.
-     * This provides byte-for-byte perfect state restoration.
+     * Undo by applying inverse patches via store transaction.
      */
     doUndo(): CommandResult<TResult> {
         if (this.inversePatches.length === 0) {
@@ -163,22 +95,12 @@ export abstract class PatchedCommand<TResult = any> extends Command<TResult> {
             }
         }
 
-        const project = this.context.getProject()
-        if (!project) {
-            return {
-                success: false,
-                error: 'No active project'
-            }
-        }
+        const store = this.context.getStore()
 
         try {
-            // Apply inverse patches to restore previous state
-            const restoredState = applyPatches(project, this.inversePatches)
-
-            // Update the store with restored state
-            const store = this.context.getStore()
-            store.setProject(restoredState)
-
+            store.transaction(draft => {
+                applyPatches(draft, this.inversePatches)
+            })
             return { success: true }
         } catch (error) {
             return {
@@ -189,26 +111,23 @@ export abstract class PatchedCommand<TResult = any> extends Command<TResult> {
     }
 
     /**
-     * Redo by applying forward patches.
+     * Redo by applying forward patches via store transaction.
      */
     async doRedo(): Promise<CommandResult<TResult>> {
         if (this.forwardPatches.length === 0) {
-            // Fallback to re-execution if no forward patches
-            return await Promise.resolve(this.doExecute())
-        }
-
-        const project = this.context.getProject()
-        if (!project) {
+            // Should not happen if executed successfully
             return {
                 success: false,
-                error: 'No active project'
+                error: 'No forward patches captured - cannot redo'
             }
         }
 
+        const store = this.context.getStore()
+
         try {
-            const newState = applyPatches(project, this.forwardPatches)
-            const store = this.context.getStore()
-            store.setProject(newState)
+            store.transaction(draft => {
+                applyPatches(draft, this.forwardPatches)
+            })
             return { success: true }
         } catch (error) {
             return {
@@ -219,13 +138,9 @@ export abstract class PatchedCommand<TResult = any> extends Command<TResult> {
     }
 
     /**
-     * Subclasses must implement canExecute().
+     * Satisfy abstract base class, but unused by PatchedCommand's execute override.
      */
-    abstract canExecute(): boolean | Promise<boolean>
-
-    /**
-     * Subclasses must implement doExecute() with their specific logic.
-     * State changes made via store methods are automatically tracked.
-     */
-    abstract doExecute(): CommandResult<TResult> | Promise<CommandResult<TResult>>
+    doExecute(): CommandResult<TResult> {
+        throw new Error('doExecute should not be called on PatchedCommand. Use mutate() instead.')
+    }
 }

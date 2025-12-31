@@ -22,6 +22,8 @@ import type { CameraPathFrame } from '@/types/remotion'
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 import type { EffectGenerationConfig } from '@/features/effects/services/effect-generation-service'
 import type { ProxyUrlEntry } from './cache-slice'
+import type { Patch } from 'immer'
+import type { WritableDraft } from 'immer'
 
 // Re-export ClipboardEffect from stores.ts for backward compatibility
 import type { ClipboardEffect } from '@/types/stores'
@@ -84,9 +86,13 @@ export interface SelectionSliceState {
   // Crop Editing State
   isEditingCrop: boolean
   editingCropId: string | null
-  // Overlay Editing State (for dragging/resizing positioned elements)
+  // Overlay Editing State (for positioned elements like plugins, annotations, webcam)
   isEditingOverlay: boolean
   editingOverlayId: string | null
+
+  // Transient state for high-performance drag feedback
+  // This allows effects to update visually without committing to history
+  transientEffectState: { id: string, data: Record<string, any> } | null
 }
 
 export interface PlaybackSliceState {
@@ -135,6 +141,7 @@ export interface ProgressSliceState {
 // Slice Action Interfaces
 // =============================================================================
 
+
 export interface CoreSliceActions {
   newProject: (name: string) => void
   openProject: (projectPath: string) => Promise<void>
@@ -143,6 +150,11 @@ export interface CoreSliceActions {
   updateProjectData: (updater: (project: Project) => Project) => void
   addRecording: (recording: Recording, videoBlob: Blob) => Promise<void>
   cleanupProject: () => void
+  /**
+   * Execute a state modification transaction and return Immer patches.
+   * Used by PatchedCommand for efficient undo/redo.
+   */
+  transaction: (recipe: (draft: WritableDraft<ProjectStore>) => void) => { patches: Patch[]; inversePatches: Patch[] }
 }
 
 export interface ClipSliceActions {
@@ -221,6 +233,7 @@ export interface SelectionSliceActions {
   // Overlay Editing Actions (for positioned elements like plugins, annotations, webcam)
   startEditingOverlay: (effectId: string) => void
   stopEditingOverlay: () => void
+  setTransientEffectState: (id: string | null, data?: Record<string, any>) => void
 }
 
 export interface PlaybackSliceActions {
