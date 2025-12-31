@@ -157,18 +157,10 @@ export const CursorLayer = React.memo(() => {
   // NOTE: Do NOT early return here - it violates React Rules of Hooks
   // All hooks must be called unconditionally; we handle generated recordings at the end
 
-  // DIRECT STORE SUBSCRIPTION: Bypass prop drilling for cursor settings.
-  // We use the recording ID from activeClipData to fetch the LIVE effect data from the store.
-  const liveEffects = useProjectStore((s) => {
-    if (!recordingId || !s.currentProject) return null;
-    return s.currentProject.recordings.find((r) => r.id === recordingId)?.effects;
-  });
-
   const cursorEffect = useMemo(() => {
-    // Prefer live store data if available, fall back to context data (for export/offline)
-    const effectsToUse = liveEffects ?? activeClipData?.effects ?? [];
+    const effectsToUse = activeClipData?.effects ?? [];
     return activeClipData ? getCursorEffect(effectsToUse) : undefined;
-  }, [activeClipData, liveEffects]);
+  }, [activeClipData]);
 
   const cursorData = (cursorEffect?.data as CursorEffectData | undefined);
   const clickEffectConfig = useMemo(() => resolveClickEffectConfig(cursorData), [cursorData]);

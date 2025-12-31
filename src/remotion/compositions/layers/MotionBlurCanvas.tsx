@@ -23,8 +23,8 @@ export interface MotionBlurCanvasProps {
 
     /** Intensity multiplier (0-1) */
     intensity?: number;
-    /** Debug mode */
-    debugSplit?: boolean;
+    /** Blur mix factor (0 = sharp, 1 = full blur) */
+    mix?: number;
     /** Samples count (optional override) */
     samples?: number;
 
@@ -45,7 +45,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     enabled: enabledProp = true, // Default to true if not passed
     velocity,
     intensity = 1.0,
-    debugSplit = false,
+    mix = 1.0,
     samples,
     videoElement: propsVideoElement,
     containerRef,
@@ -206,7 +206,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 uvVelocityY: Number.isFinite(uvVelocityY) ? uvVelocityY : 0,
                 intensity: 1.0, // Intensity is pre-calculated in uvVelocity
                 samples: finalSamples,
-                debugSplit,
+                mix: Number.isFinite(mix) ? mix : 1.0,
                 gamma: Number.isFinite(gamma) ? gamma : 1.0,
                 blackLevel: safeBlackLevel,
                 saturation: safeSaturation
@@ -228,7 +228,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         return () => {
             if (handle && isVideo && 'cancelVideoFrameCallback' in mediaElement) (mediaElement as any).cancelVideoFrameCallback(handle);
         };
-    }, [frame, velocity, intensity, debugSplit, drawWidth, drawHeight, rampRange, velocityThreshold, clamp, maxBlurRadius, tick, gamma, samples, blackLevel, saturation, force]);
+    }, [frame, velocity, intensity, mix, drawWidth, drawHeight, rampRange, velocityThreshold, clamp, maxBlurRadius, tick, gamma, samples, blackLevel, saturation, force]);
 
     if (!enabled) return null;
 

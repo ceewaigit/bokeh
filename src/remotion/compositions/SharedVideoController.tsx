@@ -11,10 +11,7 @@
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
-import {
-  useVideoData,
-  useActiveClipData,
-} from '../context/video-data-context';
+import { useTimelineContext } from '../context/TimelineContext';
 import { useComposition } from '../context/CompositionContext';
 import { useProjectStore } from '@/stores/project-store';
 import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
@@ -56,7 +53,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const isPreview = !isRendering;
 
   // Consume computed video data from context (for rendering loop)
-  const { recordingsMap, effects, getActiveClipData, frameLayout } = useVideoData();
+  // We still need this for recordingsMap and frameLayout which might not be fully in snapshot or needed for iterating
+  const { recordingsMap, effects, getActiveClipData, frameLayout } = useTimelineContext();
 
   const { preferOffthreadVideo } = renderSettings;
   const useOffthreadVideo = isRendering && preferOffthreadVideo;
@@ -102,9 +100,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const zoomTransform = snapshotCamera.zoomTransform;
 
   // ==========================================================================
-  // ACTIVE CLIP DATA (Legacy/Context)
+  // ACTIVE CLIP DATA (Unified)
   // ==========================================================================
-  const activeClipData = useActiveClipData(currentFrame);
+  // Use data directly from snapshot instead of legacy hook
+  const activeClipData = snapshot.activeClipData;
 
   // Previous frame's clip data (for cursor smoothing)
   const prevFrameClipData = useMemo(

@@ -1,8 +1,6 @@
 /**
  * useFrameSnapshot Hook
  * 
- * REPLACES: useLayoutCalculation + useTransformCalculation + useEffectiveClipData + useRenderableItems
- * 
  * Single hook that consolidates all layout, transform, and clip resolution calculations,
  * eliminating the "hook tax" of calling multiple hooks.
  * 
@@ -26,7 +24,7 @@ import { usePlaybackSettings } from '@/remotion/context/playback/PlaybackSetting
 import { useCameraPath } from '@/remotion/hooks/camera/useCameraPath'
 import { calculateFullCameraPath } from '@/features/effects/utils/camera-path-calculator'
 import { frameToMs } from '@/remotion/compositions/utils/time/frame-time'
-import { useLayoutNavigation } from '@/remotion/context/video-data-context'
+import { useLayoutNavigation } from '@/remotion/hooks/use-layout-navigation'
 
 // Re-export FrameSnapshot type for consumers
 export type { FrameSnapshot } from '@/features/timeline/logic/layout-engine'
@@ -60,7 +58,7 @@ export function useFrameSnapshot(): FrameSnapshot {
     // 3. Settings & Store
     const cameraPathCache = useProjectStore((s) => s.cameraPathCache);
     const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera);
-    
+
     // Playback Settings (Render Settings)
     const { renderSettings } = usePlaybackSettings();
     const isEditingCrop = renderSettings.isEditingCrop;
@@ -133,7 +131,7 @@ export function useFrameSnapshot(): FrameSnapshot {
             activeLayoutItem: renderActiveLayoutItem,
             prevLayoutItem: renderPrevLayoutItem,
             nextLayoutItem: renderNextLayoutItem,
-            sourceWidth: sourceVideoWidth, 
+            sourceWidth: sourceVideoWidth,
             sourceHeight: sourceVideoHeight,
         });
     }, [
@@ -179,7 +177,7 @@ export function useFrameSnapshot(): FrameSnapshot {
     // 7. Calculate Snapshot
     // Frozen layout ref - persists layout during crop editing
     const frozenLayoutRef = useRef<FrameSnapshot | null>(null)
-    
+
     // Stability/Persistence refs
     const lastValidClipDataRef = useRef<ActiveClipDataAtFrame | null>(null);
     const prevRenderableItemsRef = useRef<FrameLayoutItem[]>([]);
@@ -210,7 +208,7 @@ export function useFrameSnapshot(): FrameSnapshot {
             // Recording dimensions (optional, fallbacks)
             recordingWidth: undefined,
             recordingHeight: undefined,
-            
+
             frameLayout,
             recordingsMap,
             activeClipData,

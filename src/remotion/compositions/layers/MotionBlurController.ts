@@ -98,7 +98,7 @@ export class MotionBlurController {
             u_velocity: gl.getUniformLocation(program, 'u_velocity')!,
             u_intensity: gl.getUniformLocation(program, 'u_intensity')!,
             u_samples: gl.getUniformLocation(program, 'u_samples')!,
-            u_debugSplit: gl.getUniformLocation(program, 'u_debugSplit')!,
+            u_mix: gl.getUniformLocation(program, 'u_mix')!,
             u_gamma: gl.getUniformLocation(program, 'u_gamma')!,
             u_blackLevel: gl.getUniformLocation(program, 'u_blackLevel')!,
             u_saturation: gl.getUniformLocation(program, 'u_saturation')!,
@@ -144,7 +144,7 @@ export class MotionBlurController {
             uvVelocityY: number;
             intensity: number;
             samples: number;
-            debugSplit: boolean;
+            mix: number;
             gamma: number;
             blackLevel: number;
             saturation: number;
@@ -195,7 +195,7 @@ export class MotionBlurController {
         gl.uniform2f(this.locations.u_velocity as WebGLUniformLocation, uniforms.uvVelocityX, uniforms.uvVelocityY);
         gl.uniform1f(this.locations.u_intensity as WebGLUniformLocation, uniforms.intensity);
         gl.uniform1i(this.locations.u_samples as WebGLUniformLocation, uniforms.samples);
-        gl.uniform1f(this.locations.u_debugSplit as WebGLUniformLocation, uniforms.debugSplit ? 1.0 : 0.0);
+        gl.uniform1f(this.locations.u_mix as WebGLUniformLocation, uniforms.mix);
         gl.uniform1f(this.locations.u_gamma as WebGLUniformLocation, uniforms.gamma);
         gl.uniform1f(this.locations.u_blackLevel as WebGLUniformLocation, uniforms.blackLevel);
         gl.uniform1f(this.locations.u_saturation as WebGLUniformLocation, uniforms.saturation);

@@ -24,6 +24,7 @@ import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk'
 import { assertDefined } from '@/lib/errors'
+import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext'
 import { useTimelineContext } from '@/remotion/context/TimelineContext'
 
 interface PluginLayerProps {
@@ -34,7 +35,9 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
   layer = 'below-cursor'
 }) => {
   // Pull core state from contexts
-  const { effects, fps, videoWidth, videoHeight } = useTimelineContext()
+  // Use VideoPositionContext for consistency with other layers
+  const { videoWidth, videoHeight } = useVideoPosition()
+  const { effects, fps } = useTimelineContext()
   const currentFrame = useCurrentFrame()
 
   const width = videoWidth

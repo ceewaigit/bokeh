@@ -28,7 +28,7 @@ import { WebcamLayer } from './layers/WebcamLayer';
 import { OverlayEditor } from './layers/OverlayEditor';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
-import { useVideoData } from '../context/video-data-context';
+import { useTimelineContext } from '../context/TimelineContext';
 import { useVideoUrl } from '../hooks/media/useVideoUrl';
 import { findActiveFrameLayoutItems } from '@/features/timeline/utils/frame-layout';
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
@@ -84,7 +84,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   sourceVideoHeight,
 }) => {
   const frame = useCurrentFrame();
-  const { frameLayout, getActiveLayoutItems, getRecording } = useVideoData(); // Remove fps from here
+  const { frameLayout, getActiveLayoutItems, getRecording } = useTimelineContext(); // Remove fps from here
   const currentTimeMs = (frame / fps) * 1000;
 
   // Find active webcam EFFECT by time (effect timing is the single source of truth)
@@ -323,12 +323,11 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         {useVideoConfig().width > 300 && !renderSettings.isEditingCrop && (
           <OverlayEditor effects={effects} enabled={!renderSettings.isGlowMode} />
         )}
+        {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
+        {!renderSettings.isGlowMode && (
+          <PluginLayer layer="above-cursor" />
+        )}
       </SharedVideoController>
-
-      {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
-      {!renderSettings.isGlowMode && (
-        <PluginLayer layer="above-cursor" />
-      )}
 
       {/* Audio track layer - renders standalone audio clips (imported MP3, WAV, etc.) */}
       {visibleAudioClips.map((audioClip) => {

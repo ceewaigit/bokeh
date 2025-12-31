@@ -33,7 +33,7 @@ uniform vec2 u_velocity;     // Velocity in texture coordinates (0..1)
 uniform float u_intensity;   // Blur intensity
 uniform int u_samples;       // Number of samples
 
-uniform float u_debugSplit;  // 0 = normal, 1 = debug split (show only right half)
+uniform float u_mix;         // Blend between original and blurred result (0..1)
 uniform float u_gamma;       // Gamma correction factor
 uniform float u_blackLevel;  // Manual Black Level (0.0 - 0.2)
 uniform float u_saturation;  // Saturation (0.0 - 2.0)
@@ -46,11 +46,19 @@ float hash12(vec2 p) {
 }
 
 vec3 sRGBToLinear(vec3 color) {
-    return pow(color, vec3(2.2));
+    return mix(
+        color / 12.92,
+        pow((color + 0.055) / 1.055, vec3(2.4)),
+        step(0.04045, color)
+    );
 }
 
 vec3 linearToSRGB(vec3 color) {
-    return pow(color, vec3(1.0 / 2.2));
+    return mix(
+        color * 12.92,
+        1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055,
+        step(0.0031308, color)
+    );
 }
 
 float shutterWeight(float t) {
@@ -61,11 +69,6 @@ float shutterWeight(float t) {
 }
 
 void main() {
-    // Debug Split Logic:
-    if (u_debugSplit > 0.5 && v_texCoord.x < 0.5) {
-        outColor = vec4(0.0);
-        return;
-    }
 
     // Calculate blur magnitude - if near zero, passthrough directly
     float blurMagnitude = length(u_velocity) * u_intensity;
@@ -107,11 +110,10 @@ void main() {
     }
 
     vec4 baseSample = texture(u_image, v_texCoord);
-    
     vec4 blurred = color / totalWeight;
-    
-    // Pure accumulation - no mixing with base image
-    vec3 corrected = blurred.rgb;
+
+    vec3 baseLinear = sRGBToLinear(baseSample.rgb);
+    vec3 corrected = mix(baseLinear, blurred.rgb, u_mix);
 
     if (u_blackLevel != 0.0) {
         corrected = max(vec3(0.0), corrected - u_blackLevel) / (1.0 - u_blackLevel);

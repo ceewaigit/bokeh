@@ -114,18 +114,19 @@ export interface FrameSnapshot {
         zoomTransform: Record<string, unknown> | null
         velocity: { x: number; y: number }
     }
-    
+
     // Zoom limits
     maxZoomScale: number
 
     // Clip Data & Renderable Items (New)
+    activeClipData: ActiveClipDataAtFrame | null
     effectiveClipData: ActiveClipDataAtFrame | null
     persistedVideoState: ResolvedVideoState | null
     renderableItems: FrameLayoutItem[]
-    
+
     // Boundary State (Pass-through for renderers)
     boundaryState: BoundaryOverlapState | undefined
-    
+
     // Layout Items (Resolved visual items)
     layoutItems: {
         active: FrameLayoutItem | null
@@ -158,14 +159,14 @@ export interface FrameSnapshotOptions {
     recordingsMap: Map<string, Recording>
     activeClipData: ActiveClipDataAtFrame | null
     clipEffects: Effect[]
-    
+
     // Services
     getRecording: (id: string) => Recording | null | undefined
-    
+
     // Camera/Zoom state
     zoomTransform?: Record<string, unknown> | null
     zoomTransformStr?: string
-    
+
     // Boundary/Stability State
     boundaryState?: {
         isNearBoundaryStart: boolean;
@@ -176,11 +177,11 @@ export interface FrameSnapshotOptions {
         shouldHoldPrevFrame: boolean;
         overlapFrames?: number;
     }
-    
+
     // Persistence/Fallback (for stability across frames)
     lastValidClipData?: ActiveClipDataAtFrame | null
     prevRenderableItems?: FrameLayoutItem[]
-    
+
     // Flags
     isRendering: boolean
     isEditingCrop?: boolean
@@ -452,17 +453,17 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
         videoHeight,
         sourceVideoWidth,
         sourceVideoHeight,
-        
+
         // Data Sources
         frameLayout,
         activeClipData,
         clipEffects,
         getRecording,
-        
+
         // Transforms
         zoomTransform = null,
         zoomTransformStr = '',
-        
+
         // State
         boundaryState,
         lastValidClipData,
@@ -473,7 +474,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     // ==========================================================================
     // STEP 1: Clip Data Resolution (Effective Clip)
     // ==========================================================================
-    
+
     // Calculate effective clip data (handling inheritance and boundaries)
     const { effectiveClipData, persistedVideoState } = calculateEffectiveClipData({
         activeClipData,
@@ -490,7 +491,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     // Use resolved dimensions if available, otherwise fallbacks
     const activeSourceWidth = effectiveClipData?.recording.width || options.recordingWidth || sourceVideoWidth || videoWidth
     const activeSourceHeight = effectiveClipData?.recording.height || options.recordingHeight || sourceVideoHeight || videoHeight
-    
+
     // Resolve effects from effective clip (if different from passed effects)
     const resolvedEffects = effectiveClipData?.effects ?? clipEffects;
 
@@ -590,7 +591,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
 
     const highResScaleX = activeSourceWidth > 0 ? drawWidth / activeSourceWidth : 1
     const highResScaleY = activeSourceHeight > 0 ? drawHeight / activeSourceHeight : 1
-    
+
     // Calculate max zoom scale from effects
     const maxZoomScale = getMaxZoomScale(clipEffects);
 
@@ -636,9 +637,10 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
             zoomTransform: isEditingCrop ? null : zoomTransform,
             velocity: { x: 0, y: 0 }, // Caller should update from camera path
         },
-        
+
         maxZoomScale,
 
+        activeClipData,
         effectiveClipData,
         persistedVideoState,
         renderableItems,
@@ -648,7 +650,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
             shouldHoldPrevFrame: boundaryState.shouldHoldPrevFrame,
             overlapFrames: boundaryState.overlapFrames || 0
         } : undefined,
-        
+
         layoutItems: {
             active: boundaryState?.activeLayoutItem ?? null,
             prev: boundaryState?.prevLayoutItem ?? null,
@@ -728,7 +730,7 @@ function calculateEffectiveClipData(options: {
     // 1. BOUNDARY FALLBACK
     if (!clipData && !isRendering && boundaryState) {
         const { isNearBoundaryStart, isNearBoundaryEnd, prevLayoutItem, nextLayoutItem, activeLayoutItem } = boundaryState;
-        
+
         if (isNearBoundaryStart && prevLayoutItem && activeLayoutItem) {
             clipData = getActiveClipDataAtFrame({
                 frame: activeLayoutItem.startFrame - 1,
@@ -827,7 +829,7 @@ function calculateRenderableItems(options: FrameSnapshotOptions): FrameLayoutIte
         boundaryState,
         prevRenderableItems = []
     } = options
-    
+
     // Default to safe values if boundary state is missing
     const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false
     const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false
@@ -880,7 +882,7 @@ function calculateRenderableItems(options: FrameSnapshotOptions): FrameLayoutIte
 
     // STABILITY FIX: Return previous array reference if groupIds haven't changed
     const currentIds = sortedItems.map((i) => i.groupId).join(',');
-    
+
     // We can't check ref equality here easily without passing the ID string from outside.
     // Instead, we check if the content matches. 
     // Optimization: If the caller provided prevRenderableItems, check if IDs match.
