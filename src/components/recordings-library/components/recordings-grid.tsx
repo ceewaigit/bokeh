@@ -154,7 +154,7 @@ export const RecordingsGrid = ({
                             <h3 className="font-semibold text-xs text-white truncate drop-shadow-sm">
                               {displayName}
                             </h3>
-                            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-white/70">
+                            <div className="mt-1 flex items-center gap-1.5 text-3xs text-white/70">
                               {hasDuration && (
                                 <span className="font-mono px-1.5 py-0.5 rounded-md bg-black/40 border border-white/10 text-white/80">
                                   {formatTime(recording.projectInfo?.duration || 0)}
@@ -177,7 +177,7 @@ export const RecordingsGrid = ({
 
                   {isExpandedLayout && hasDuration && (
                     <div className="absolute bottom-2 right-2">
-                      <span className="font-mono px-1.5 py-0.5 rounded-md bg-black/60 border border-white/10 text-[10px] text-white/85">
+                      <span className="font-mono px-1.5 py-0.5 rounded-md bg-black/60 border border-white/10 text-3xs text-white/85">
                         {formatTime(recording.projectInfo?.duration || 0)}
                       </span>
                     </div>
@@ -187,10 +187,10 @@ export const RecordingsGrid = ({
                 {isExpandedLayout && (
                   <div className="flex items-start justify-between gap-3 px-3 pt-2.5 pb-3">
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-[13px] text-foreground truncate">
+                      <h3 className="font-semibold text-ui-sm text-foreground truncate">
                         {displayName}
                       </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-2xs text-muted-foreground">
                         <span className="truncate">{relativeTime}</span>
                         {resolutionLabel && (
                           <span className="font-mono text-muted-foreground/80">{resolutionLabel}</span>

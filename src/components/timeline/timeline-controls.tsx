@@ -94,7 +94,7 @@ function TrackVisibilityDropdown() {
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="start" className="min-w-[140px]">
-        <DropdownMenuLabel className="text-[11px] text-muted-foreground font-medium">
+        <DropdownMenuLabel className="text-2xs text-muted-foreground font-medium">
           Tracks
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -103,7 +103,7 @@ function TrackVisibilityDropdown() {
             key={track}
             checked={visibleTracks.has(track)}
             onCheckedChange={() => toggleTrackVisibility(track)}
-            className="text-[12px]"
+            className="text-xs"
           >
             {TRACK_LABELS[track]}
           </DropdownMenuCheckboxItem>
@@ -394,7 +394,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
             <span className="font-mono text-xs font-medium tabular-nums text-foreground">
               {formatTimecode(displayTime, fps)}
             </span>
-            <span className="text-muted-foreground/40 text-[10px] mx-0.5">/</span>
+            <span className="text-muted-foreground/40 text-3xs mx-0.5">/</span>
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
               {formatTimecode(duration, fps)}
             </span>

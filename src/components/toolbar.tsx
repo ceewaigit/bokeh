@@ -79,7 +79,7 @@ export function Toolbar({
         {/* Logo/Brand */}
         <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/8 rounded-lg">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-          <span className="font-semibold text-[10px] text-primary uppercase tracking-wide whitespace-nowrap">
+          <span className="font-semibold text-3xs text-primary uppercase tracking-wide whitespace-nowrap">
             Studio
           </span>
         </div>
@@ -180,7 +180,7 @@ export function Toolbar({
                   className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
                   style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 >
-                  <span className="text-[11px] font-medium text-foreground/90">{project.name}</span>
+                  <span className="text-2xs font-medium text-foreground/90">{project.name}</span>
                   <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
                 </div>
               </TooltipTrigger>
@@ -216,11 +216,11 @@ export function Toolbar({
               status === 'recording' && "bg-red-500 animate-pulse",
               status === 'paused' && "bg-yellow-500"
             )} />
-            <span className="text-[10px] font-medium uppercase tracking-wider">
+            <span className="text-3xs font-medium uppercase tracking-wider">
               {status}
             </span>
             {isRecording && (
-              <span className="font-mono text-[10px] text-muted-foreground/70">
+              <span className="font-mono text-3xs text-muted-foreground/70">
                 {formatTime(duration / 1000)}
               </span>
             )}
@@ -237,7 +237,7 @@ export function Toolbar({
           variant="ghost"
           size="sm"
           onClick={() => useWorkspaceStore.getState().setCurrentView('plugin-creator')}
-          className="h-7 px-2 text-[11px] font-medium hover:bg-muted/30"
+          className="h-7 px-2 text-2xs font-medium hover:bg-muted/30"
         >
           <Sparkles className="w-3 h-3 mr-1 flex-shrink-0 text-amber-400" />
           <span className="whitespace-nowrap">Plugins</span>

@@ -76,7 +76,7 @@ export function ChatPanel({
                             onKeyDown={handleKeyDown}
                             placeholder="Describe the effect you want to create..."
                             rows={1}
-                            className="w-full bg-transparent border-none px-4 py-4 pr-14 text-sm resize-none !outline-none !ring-0 focus:!ring-0 placeholder-muted-foreground text-foreground min-h-[56px] max-h-32 leading-relaxed"
+                            className="w-full bg-transparent border-none px-4 py-4 pr-14 text-sm resize-none !outline-none !ring-0 focus:!ring-0 placeholder-muted-foreground text-foreground min-h-14 max-h-32 leading-relaxed"
                             style={{ height: 'auto' }}
                         />
                         <button
@@ -92,7 +92,7 @@ export function ChatPanel({
                         </button>
                     </form>
                 </div>
-                <div className="text-[10px] text-muted-foreground text-center mt-3 font-medium">
+                <div className="text-3xs text-muted-foreground text-center mt-3 font-medium">
                     Press <kbd className="font-sans px-1 py-0.5 bg-muted rounded text-muted-foreground border border-border">Enter</kbd> to send
                 </div>
             </div>
@@ -147,7 +147,7 @@ function MessageBubble({
                                         <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{message.plugin.description}</div>
                                     </div>
                                 </div>
-                                <span className={`text-[10px] px-2.5 py-1 rounded-full border font-medium ${getCategoryColor(message.plugin.category)}`}>
+                                <span className={`text-3xs px-2.5 py-1 rounded-full border font-medium ${getCategoryColor(message.plugin.category)}`}>
                                     {message.plugin.category}
                                 </span>
                             </div>
@@ -163,7 +163,7 @@ function MessageBubble({
                     </div>
                 )}
 
-                <span className="text-[10px] text-muted-foreground mt-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-3xs text-muted-foreground mt-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
             </div>

@@ -327,7 +327,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
 
       {/* Horizontal Background Type Tabs with scroll arrows */}
       <div className="rounded-md bg-background/40 p-2.5 space-y-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Source</div>
+        <div className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Source</div>
         <div className="grid grid-cols-5 gap-1.5">
           {backgroundTypeOptions.map((option) => {
             const Icon = option.icon
@@ -352,7 +352,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     >
                       <Icon className="h-3 w-3" />
                     </div>
-                    <div className="text-[11px] font-medium leading-none">{option.label}</div>
+                    <div className="text-2xs font-medium leading-none">{option.label}</div>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">
@@ -369,7 +369,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {backgroundType === BackgroundType.Wallpaper && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Scenes</h4>
+              <h4 className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Scenes</h4>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1">
                   <button
@@ -379,7 +379,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[11px] text-muted-foreground min-w-[32px] text-center tabular-nums">
+                  <span className="text-2xs text-muted-foreground min-w-8 text-center tabular-nums">
                     {wallpaperPage + 1}/{totalPages}
                   </span>
                   <button
@@ -452,7 +452,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                         />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                          <span className="text-[12px] leading-none text-white/70 truncate px-1">{wallpaper.name}</span>
+                          <span className="text-xs leading-none text-white/70 truncate px-1">{wallpaper.name}</span>
                         </div>
                       )}
                       {isLoading && (
@@ -460,7 +460,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         </div>
                       )}
-                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[12px] leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-xs leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                         {wallpaper.name}{isDefault ? ' ★' : ''}
                       </span>
                     </button>
@@ -612,7 +612,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* Gradient Presets */}
         {backgroundType === BackgroundType.Gradient && (
           <div className="space-y-3">
-            <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Blends</h4>
+            <h4 className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Blends</h4>
             <div className="grid grid-cols-5 gap-2">
               {GRADIENT_PRESETS.map(wallpaper => (
                 <button
@@ -639,7 +639,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* Solid Color */}
         {backgroundType === BackgroundType.Color && (
           <div className="space-y-3">
-            <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Solids</h4>
+            <h4 className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Solids</h4>
 
             {/* Color picker - streamlined single section */}
             <div className="flex gap-2 items-center rounded-lg bg-background/40 p-3">
@@ -677,7 +677,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     })
                   }
                 }}
-                className="flex-1 px-2.5 py-1.5 text-[12px] font-mono bg-background/50 rounded-md"
+                className="flex-1 px-2.5 py-1.5 text-xs font-mono bg-background/50 rounded-md"
                 placeholder="#000000"
                 maxLength={7}
               />
@@ -711,7 +711,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* Custom Image */}
         {backgroundType === BackgroundType.Image && (
           <div className="space-y-3">
-            <h4 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Photo</h4>
+            <h4 className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Photo</h4>
             <button
               onClick={async () => {
                 if (window.electronAPI?.selectImageFile && window.electronAPI?.loadImageAsDataUrl) {
@@ -759,9 +759,9 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* bokeh. - only show for image-based backgrounds */}
         {(backgroundType === BackgroundType.Wallpaper || backgroundType === BackgroundType.Image) && (
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
-            <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm">
+            <div className="border border-border/20 bg-background/50 shadow-sm rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between gap-3 px-3 py-3">
-                <div className="flex items-center gap-2 text-left font-[var(--font-display)] text-[13px] font-semibold tracking-tight text-foreground">
+                <div className="flex items-center gap-2 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground">
                   bokeh.
                   <InfoTooltip content="Blur for depth of field" />
                 </div>
@@ -772,9 +772,9 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   }}
                 />
               </div>
-              <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
+              <div className="border-t border-border/15 bg-background/60 px-3 py-2">
                 {softFocusEnabled && bgData?.blur != null ? (
-                  <div className="space-y-2">
+                  <div className="space-y-2 pt-2">
                     <Slider
                       value={[localBlur ?? bgData.blur]}
                       onValueChange={([value]) => setLocalBlur(value)}
@@ -784,10 +784,10 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       step={1}
                       className="w-full"
                     />
-                    <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
+                    <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{(localBlur ?? bgData.blur)}px</span>
                   </div>
                 ) : (
-                  <div className="text-[12px] text-muted-foreground/70 leading-snug">
+                  <div className="text-xs text-muted-foreground/70 leading-snug">
                     Toggle on to add depth-of-field blur.
                   </div>
                 )}

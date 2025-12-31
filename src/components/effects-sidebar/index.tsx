@@ -74,7 +74,7 @@ function SubTabs<T extends string>({
           disabled={tab.disabled}
           onClick={() => onChange(tab.id)}
           className={cn(
-            "relative min-w-0 rounded-md px-2.5 py-1.5 text-[12px] font-medium leading-tight transition-colors duration-150",
+            "relative min-w-0 rounded-md px-2.5 py-1.5 text-xs font-medium leading-tight transition-colors duration-150",
             tab.disabled && "opacity-40 cursor-not-allowed",
             value === tab.id
               ? "text-foreground"
@@ -362,7 +362,7 @@ export function EffectsSidebar({
     <TooltipProvider>
       <div ref={tooltipRef} className={cn("flex h-full bg-transparent border-l border-border/30", className)}>
         {/* Left sidebar with section tabs */}
-        <div className="w-[56px] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent relative z-50">
+        <div className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent relative z-50">
           <div className="flex flex-col gap-1.5 w-full px-1.5">
             {visibleTabs.map((tab) => (
               <Tooltip key={tab.id} delayDuration={200}>
@@ -390,7 +390,7 @@ export function EffectsSidebar({
                         />
                       )}
                     </AnimatePresence>
-                    <tab.icon className="relative z-10 w-[18px] h-[18px]" />
+                    <tab.icon className="relative z-10 w-4.5 h-4.5" />
                   </motion.button>
                 </TooltipTrigger>
                 <TooltipContent side="right" align="center" sideOffset={8} className="text-xs">
@@ -412,13 +412,13 @@ export function EffectsSidebar({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
-                className="text-[13px] font-semibold tracking-tight font-[var(--font-display)]"
+                className="text-ui-sm font-semibold tracking-tight font-[var(--font-display)]"
               >
                 {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
               </motion.h2>
             </AnimatePresence>
             {selectedEffectLayer && (
-              <div className="ml-auto max-w-[55%] truncate whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+              <div className="ml-auto max-w-[55%] truncate whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-0.5 text-2xs font-medium text-primary">
                 {`Editing ${EFFECT_LABELS[selectedEffectLayer.type] ?? 'Layer'}`}
               </div>
             )}

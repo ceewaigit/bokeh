@@ -22,12 +22,12 @@ export function WebcamAnimations({
     return (
         <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
             <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold tracking-[-0.01em]">Animations</span>
+                <span className="text-xs font-semibold tracking-[-0.01em]">Animations</span>
                 <InfoTooltip content="Choose how the webcam appears, exits, and floats." />
             </div>
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                 <div className="space-y-1">
-                    <label className="text-[12px] font-medium text-muted-foreground">Entry</label>
+                    <label className="text-xs font-medium text-muted-foreground">Entry</label>
                     <Select
                         value={entryAnimation}
                         onValueChange={onEntryChange}
@@ -45,7 +45,7 @@ export function WebcamAnimations({
                     </Select>
                 </div>
                 <div className="space-y-1">
-                    <label className="text-[12px] font-medium text-muted-foreground">Exit</label>
+                    <label className="text-xs font-medium text-muted-foreground">Exit</label>
                     <Select
                         value={exitAnimation}
                         onValueChange={onExitChange}
@@ -63,7 +63,7 @@ export function WebcamAnimations({
             </div>
             <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                    <label className="text-[12px] font-medium text-muted-foreground">Inset Motion</label>
+                    <label className="text-xs font-medium text-muted-foreground">Inset Motion</label>
                     <InfoTooltip content="Subtle movement for the picture-in-picture window." />
                 </div>
                 <Select

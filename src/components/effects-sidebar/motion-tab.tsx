@@ -64,7 +64,7 @@ export function MotionTab() {
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Motion & Blur</span>
       </div>
 
-      <div className="rounded-xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30">
+      <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30 overflow-hidden">
         <div className="flex items-center justify-between">
           <SectionHeader
             icon={Activity}
@@ -96,7 +96,7 @@ export function MotionTab() {
         <div className="pt-1">
           <button
             onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-            className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground hover:text-primary transition-colors select-none mb-2"
+            className="flex items-center gap-1.5 text-3xs font-semibold text-muted-foreground hover:text-primary transition-colors select-none mb-2"
           >
             <ChevronRight className={cn("w-3 h-3 transition-transform duration-200", isAdvancedOpen && "rotate-90")} />
             ADVANCED SETTINGS
@@ -143,7 +143,7 @@ export function MotionTab() {
                   />
 
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-[11px] font-medium text-muted-foreground">Fix Dark Edges (Unpack)</span>
+                    <span className="text-2xs font-medium text-muted-foreground">Fix Dark Edges (Unpack)</span>
                     <Switch
                       checked={camera.motionBlurUnpackPremultiply ?? false}
                       onCheckedChange={(checked) => setCameraSettings({ motionBlurUnpackPremultiply: checked })}
@@ -172,7 +172,7 @@ export function MotionTab() {
                   />
 
                   <div className="flex items-center justify-between py-1">
-                    <span className="text-[11px] font-medium text-muted-foreground">Debug View</span>
+                    <span className="text-2xs font-medium text-muted-foreground">Debug View</span>
                     <Switch
                       checked={camera.motionBlurDebugSplit ?? false}
                       onCheckedChange={(checked) => setCameraSettings({ motionBlurDebugSplit: checked })}

@@ -49,7 +49,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
             {hoveredLayer === 'background' && canSelectBackground && (
                 <div className="pointer-events-none absolute inset-0 z-20 opacity-100 transition-opacity duration-150 ease-out">
                     <div className="absolute inset-0 rounded-2xl bg-white/5 ring-1 ring-white/15" />
-                    <div className="absolute left-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/80">
+                    <div className="absolute left-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80">
                         Background
                     </div>
                 </div>
@@ -68,7 +68,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                         }}
                     />
                     <div
-                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/80"
+                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
                         style={{
                             left: `${Math.max(12, webcamOverlay.x + 8)}px`,
                             top: `${Math.max(12, webcamOverlay.y + 8)}px`,
@@ -92,7 +92,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                     />
                     {/* Label */}
                     <div
-                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/80"
+                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
                         style={{
                             left: `${Math.max(12, cursorOverlay.left + cursorOverlay.width * 0.65)}px`,
                             top: `${Math.max(12, cursorOverlay.top - 22)}px`,

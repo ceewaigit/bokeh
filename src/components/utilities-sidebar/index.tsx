@@ -47,7 +47,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
         <TooltipProvider>
             <div className={cn("flex h-full border-r border-border/30 bg-transparent", className)}>
                 {/* Left icon strip */}
-                <div className="w-[56px] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent">
+                <div className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent">
                     <div className="flex flex-col gap-1.5 w-full px-1.5">
                         {UTILITY_TABS.map((tab) => (
                             <Tooltip key={tab.id} delayDuration={200}>
@@ -97,7 +97,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -4 }}
                                 transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
-                                className="text-[13px] font-semibold tracking-tight font-[var(--font-display)]"
+                                className="text-ui-sm font-semibold tracking-tight font-[var(--font-display)]"
                             >
                                 {UTILITY_TABS.find(t => t.id === activeUtilityTab)?.label}
                             </motion.h2>

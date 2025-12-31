@@ -195,7 +195,7 @@ export function CameraPreview({
         <div className="absolute top-2 left-2">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/50 text-white/80">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] font-medium">LIVE</span>
+            <span className="text-3xs font-medium">LIVE</span>
           </div>
         </div>
       )}

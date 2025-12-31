@@ -109,7 +109,7 @@ export function SpeedUpSuggestionPopover({
       ref={ref}
       role="dialog"
       aria-label={`${title} suggestion`}
-      className="fixed z-[9999] w-[240px] rounded-lg border border-border bg-popover text-popover-foreground shadow-xl backdrop-blur-sm"
+      className="fixed z-[9999] w-popover rounded-lg border border-border bg-popover text-popover-foreground shadow-xl backdrop-blur-sm"
       style={{ left: pos.left, top: pos.top }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -120,13 +120,13 @@ export function SpeedUpSuggestionPopover({
             <Icon className={`h-3.5 w-3.5 ${iconColor}`} />
             <span className="text-sm font-medium">{title}</span>
           </div>
-          <div className="text-[11px] text-muted-foreground tabular-nums">
+          <div className="text-2xs text-muted-foreground tabular-nums">
             {stats.wpm ? `Avg ${stats.wpm} WPM · ` : ''}
             {stats.duration} · saves ~{stats.timeSaved}
             {stats.confidencePct < 70 && ` · ${stats.confidencePct}%`}
           </div>
         </div>
-        <div className="mt-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-semibold tabular-nums">
+        <div className="mt-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-2xs font-semibold tabular-nums">
           {period.suggestedSpeedMultiplier.toFixed(1)}×
         </div>
       </div>

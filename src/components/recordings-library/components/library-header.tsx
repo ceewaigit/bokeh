@@ -47,11 +47,11 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
     <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-md">
         <Film className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-        <span className="font-bold text-[10px] text-primary uppercase tracking-wider whitespace-nowrap">
+        <span className="font-bold text-3xs text-primary uppercase tracking-wider whitespace-nowrap">
           Library
         </span>
       </div>
-      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-background backdrop-blur-xl px-2 py-0.5 rounded-full ring-1 ring-border/20">
+      <div className="flex items-center gap-1.5 text-3xs text-muted-foreground bg-background backdrop-blur-xl px-2 py-0.5 rounded-full ring-1 ring-border/20">
         <Layers className="w-3 h-3" />
         <span className="font-mono">{totalRecordings}</span>
       </div>
@@ -79,7 +79,7 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
-        <span className="text-[10px] text-muted-foreground font-mono w-12 text-center">
+        <span className="text-3xs text-muted-foreground font-mono w-12 text-center">
           {currentPage} / {totalPages}
         </span>
         <Button

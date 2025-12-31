@@ -30,7 +30,7 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                 className={cn(
                     buttonVariants({ variant, size: "sm" }),
                     "btn-bubble-none",
-                    "h-7 px-3 text-[11px] font-medium",
+                    "h-7 px-3 text-2xs font-medium",
                     "transition-all duration-150 ease-out",
                     "hover:bg-accent/80 hover:text-accent-foreground active:scale-[0.97]",
                     active && "bg-accent text-accent-foreground",
@@ -61,7 +61,7 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                     <TooltipContent side="bottom" className="text-xs flex items-center gap-2">
                         <span>{tooltip}</span>
                         {shortcut && (
-                            <span className="ml-1 text-[10px] text-muted-foreground font-sans bg-muted/20 px-1 py-0.5 rounded">
+                            <span className="ml-1 text-3xs text-muted-foreground font-sans bg-muted/20 px-1 py-0.5 rounded">
                                 {shortcut}
                             </span>
                         )}

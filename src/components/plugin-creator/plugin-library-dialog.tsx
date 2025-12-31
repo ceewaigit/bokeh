@@ -158,7 +158,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full border border-border/50 uppercase tracking-wider">
+                                    <span className="text-3xs font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full border border-border/50 uppercase tracking-wider">
                                         {plugin.category}
                                     </span>
 

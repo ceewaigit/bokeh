@@ -45,21 +45,21 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
     description: string
     icon: React.ComponentType<{ className?: string }>
   }> = [
-    {
-      id: 'focused',
-      label: 'Focused',
-      preset: ScreenEffectPreset.Hero,
-      description: 'Deeper, more dramatic tilt',
-      icon: Target
-    },
-    {
-      id: 'smooth',
-      label: 'Smooth',
-      preset: ScreenEffectPreset.Subtle,
-      description: 'Gentle depth with soft motion',
-      icon: Wind
-    }
-  ]
+      {
+        id: 'focused',
+        label: 'Focused',
+        preset: ScreenEffectPreset.Hero,
+        description: 'Deeper, more dramatic tilt',
+        icon: Target
+      },
+      {
+        id: 'smooth',
+        label: 'Smooth',
+        preset: ScreenEffectPreset.Subtle,
+        description: 'Gentle depth with soft motion',
+        icon: Wind
+      }
+    ]
 
   const speedPresets: Array<{
     id: string
@@ -69,11 +69,11 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
     description: string
     icon: React.ComponentType<{ className?: string }>
   }> = [
-    { id: 'smooth', label: 'Smooth', introMs: 600, outroMs: 600, description: 'Long, elegant ease', icon: Sparkles },
-    { id: 'medium', label: 'Medium', introMs: 350, outroMs: 350, description: 'Balanced, natural pace', icon: Gauge },
-    { id: 'rapid', label: 'Rapid', introMs: 150, outroMs: 150, description: 'Quick, snappy motion', icon: Zap },
-    { id: 'none', label: 'None', introMs: 0, outroMs: 0, description: 'Instant cut', icon: CircleOff }
-  ]
+      { id: 'smooth', label: 'Smooth', introMs: 600, outroMs: 600, description: 'Long, elegant ease', icon: Sparkles },
+      { id: 'medium', label: 'Medium', introMs: 350, outroMs: 350, description: 'Balanced, natural pace', icon: Gauge },
+      { id: 'rapid', label: 'Rapid', introMs: 150, outroMs: 150, description: 'Quick, snappy motion', icon: Zap },
+      { id: 'none', label: 'None', introMs: 0, outroMs: 0, description: 'Instant cut', icon: CircleOff }
+    ]
 
   const applySpeedPreset = (intro: number, outro: number) => {
     setIntroMs(intro)
@@ -84,9 +84,9 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
   return (
     <div className="space-y-3">
       {/* Add Screen Block */}
-      <div className="rounded-lg bg-background/40 p-3">
+      <div className="rounded-2xl bg-background/40 p-3 overflow-hidden">
         <button
-          className="w-full px-3 py-2 text-[12px] font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
+          className="w-full px-3 py-2 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
           onClick={async () => {
             if (!selectedClip) return
             const newEffect: Effect = {
@@ -104,7 +104,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           Add Depth Block
         </button>
         <div className="mt-2 flex items-center justify-center gap-2">
-          <p className="text-[11px] text-muted-foreground/70 italic leading-snug">
+          <p className="text-2xs text-muted-foreground/70 italic leading-snug">
             Adds a block you can resize on the timeline.
           </p>
           <InfoTooltip content="Select the block on the timeline to edit its preset here." />
@@ -113,9 +113,9 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
       {/* Show presets only when a screen block is selected */}
       {selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id ? (
-        <div className="rounded-lg bg-background/40 p-3 space-y-3">
+        <div className="rounded-2xl bg-background/40 p-3 space-y-3 overflow-hidden">
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Depth Style</label>
+            <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Depth Style</label>
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
               {styleOptions.map((option) => {
                 const Icon = option.icon
@@ -139,12 +139,12 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       {isSelected && (
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
+                        <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
                       )}
                     </div>
                     <div>
-                      <div className="text-[12px] font-semibold leading-tight">{option.label}</div>
-                      <div className="mt-1 text-[11px] leading-snug text-muted-foreground/80">{option.description}</div>
+                      <div className="text-xs font-semibold leading-tight">{option.label}</div>
+                      <div className="mt-1 text-2xs leading-snug text-muted-foreground/80">{option.description}</div>
                     </div>
                   </button>
                 )
@@ -153,7 +153,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           </div>
 
           <div className="space-y-2 pt-1">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Motion</label>
+            <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Motion</label>
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
               {speedPresets.map((option) => {
                 const Icon = option.icon
@@ -177,12 +177,12 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       {isSelected && (
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
+                        <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
                       )}
                     </div>
                     <div>
-                      <div className="text-[12px] font-semibold leading-tight">{option.label}</div>
-                      <div className="mt-1 text-[11px] leading-snug text-muted-foreground/80">{option.description}</div>
+                      <div className="text-xs font-semibold leading-tight">{option.label}</div>
+                      <div className="mt-1 text-2xs leading-snug text-muted-foreground/80">{option.description}</div>
                     </div>
                   </button>
                 )
@@ -192,10 +192,10 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-md transition-colors"
           >
             <span>Advanced</span>
-            <span className={cn("text-[11px] uppercase tracking-[0.2em] transition-opacity", showAdvanced ? "opacity-100" : "opacity-60")}>
+            <span className={cn("text-2xs uppercase tracking-[0.2em] transition-opacity", showAdvanced ? "opacity-100" : "opacity-60")}>
               {showAdvanced ? 'On' : 'Off'}
             </span>
           </button>
@@ -204,8 +204,8 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 pt-3 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease In</label>
-                  <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{introMs}ms</span>
+                  <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease In</label>
+                  <span className="text-2xs text-muted-foreground/70 font-mono tabular-nums">{introMs}ms</span>
                 </div>
                 <Slider
                   value={[introMs]}
@@ -219,8 +219,8 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease Out</label>
-                  <span className="text-[11px] text-muted-foreground/70 font-mono tabular-nums">{outroMs}ms</span>
+                  <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease Out</label>
+                  <span className="text-2xs text-muted-foreground/70 font-mono tabular-nums">{outroMs}ms</span>
                 </div>
                 <Slider
                   value={[outroMs]}
@@ -236,8 +236,8 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           )}
         </div>
       ) : (
-        <div className="rounded-lg bg-background/40 p-3">
-          <p className="text-[11px] text-muted-foreground leading-snug">Select a depth block on the timeline to update its look.</p>
+        <div className="rounded-2xl bg-background/40 p-3 overflow-hidden">
+          <p className="text-2xs text-muted-foreground leading-snug">Select a depth block on the timeline to update its look.</p>
         </div>
       )}
     </div>

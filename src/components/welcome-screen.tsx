@@ -73,18 +73,18 @@ function PermissionCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className={cn(
-            "text-[15px] font-medium tracking-[-0.01em]",
+            "text-ui-base font-medium tracking-[-0.01em]",
             isGranted ? "text-foreground" : "text-foreground/90"
           )}>
             {title}
           </span>
           {isOptional && (
-            <span className="text-[9px] uppercase tracking-[0.1em] font-semibold text-muted-foreground/60 px-1.5 py-0.5 rounded bg-white/[0.04]">
+            <span className="text-4xs uppercase tracking-[0.1em] font-semibold text-muted-foreground/60 px-1.5 py-0.5 rounded bg-white/[0.04]">
               Optional
             </span>
           )}
         </div>
-        <p className="text-[13px] text-muted-foreground/70 leading-relaxed mt-0.5">
+        <p className="text-ui-sm text-muted-foreground/70 leading-relaxed mt-0.5">
           {description}
         </p>
       </div>
@@ -92,13 +92,13 @@ function PermissionCard({
       {/* Status */}
       <div className="flex-shrink-0">
         {isGranted ? (
-          <div className="flex items-center gap-1.5 text-primary text-[11px] font-medium px-2.5 py-1.5 rounded-full bg-primary/10">
+          <div className="flex items-center gap-1.5 text-primary text-2xs font-medium px-2.5 py-1.5 rounded-full bg-primary/10">
             <Check size={12} strokeWidth={2.5} />
             <span>Granted</span>
           </div>
         ) : (
           <div className={cn(
-            "text-[11px] font-medium px-3 py-1.5 rounded-full",
+            "text-2xs font-medium px-3 py-1.5 rounded-full",
             "bg-white/[0.06] text-white/60",
             "group-hover:bg-white/[0.1] group-hover:text-white/80",
             "transition-colors duration-150"
@@ -151,16 +151,16 @@ export function WelcomeScreen({
       >
         {/* Header */}
         <motion.div variants={itemVariants} className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 mb-4">
+          <div className="inline-flex items-center gap-2 text-3xs uppercase tracking-[0.2em] text-muted-foreground/50 mb-4">
             <Lock size={10} />
             <span>Privacy First</span>
           </div>
 
-          <h1 className="text-[28px] font-semibold tracking-[-0.02em] text-foreground mb-2">
+          <h1 className="text-3xl font-semibold tracking-[-0.02em] text-foreground mb-2">
             Quick Setup
           </h1>
 
-          <p className="text-[15px] text-muted-foreground/70 leading-relaxed">
+          <p className="text-ui-base text-muted-foreground/70 leading-relaxed">
             Grant permissions to start recording.
             <br />
             <span className="text-muted-foreground/50">Your data never leaves your device.</span>
@@ -170,11 +170,11 @@ export function WelcomeScreen({
         {/* Progress indicator */}
         <motion.div variants={itemVariants} className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-medium text-muted-foreground/60">
+            <span className="text-2xs font-medium text-muted-foreground/60">
               {grantedCount} of {totalRequired} required
             </span>
             {requiredGranted && (
-              <span className="text-[11px] font-medium text-primary">Ready to go</span>
+              <span className="text-2xs font-medium text-primary">Ready to go</span>
             )}
           </div>
           <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
@@ -222,7 +222,7 @@ export function WelcomeScreen({
             onClick={onContinue}
             disabled={!requiredGranted}
             className={cn(
-              "w-full h-12 rounded-xl text-[14px] font-medium",
+              "w-full h-12 rounded-xl text-sm font-medium",
               "transition-all duration-200",
               requiredGranted
                 ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
@@ -238,7 +238,7 @@ export function WelcomeScreen({
             )}
           </Button>
 
-          <p className="text-center text-[11px] text-muted-foreground/40 mt-4">
+          <p className="text-center text-2xs text-muted-foreground/40 mt-4">
             You can change permissions anytime in System Settings
           </p>
         </motion.div>

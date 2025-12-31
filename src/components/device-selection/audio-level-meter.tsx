@@ -84,7 +84,7 @@ export function AudioLevelMeter({
     return (
       <div className={cn('flex flex-col items-center gap-1.5', className)}>
         {showLabel && (
-          <span className="text-[10px] text-muted-foreground">Level</span>
+          <span className="text-3xs text-muted-foreground">Level</span>
         )}
 
         <div className="flex flex-col-reverse gap-0.5 h-20">
@@ -118,7 +118,7 @@ export function AudioLevelMeter({
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">Audio Level</span>
           {error && (
-            <span className="text-[10px] text-red-400">{error}</span>
+            <span className="text-3xs text-red-400">{error}</span>
           )}
         </div>
       )}
@@ -151,7 +151,7 @@ export function AudioLevelMeter({
         </div>
 
         {/* dB display */}
-        <span className="text-[10px] text-muted-foreground font-mono w-8 text-right">
+        <span className="text-3xs text-muted-foreground font-mono w-8 text-right">
           {level > 0 ? Math.round(-60 + level * 60) : '-∞'} dB
         </span>
       </div>

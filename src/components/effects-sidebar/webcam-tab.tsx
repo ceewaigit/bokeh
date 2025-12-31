@@ -190,20 +190,20 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
 
   if (!hasWebcamFootage) {
     return (
-      <div className="rounded-lg border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground">
+      <div className="rounded-2xl border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground overflow-hidden">
         <Video className="mx-auto mb-3 h-8 w-8 opacity-50" />
-        <p className="text-[12px] font-medium">No webcam footage in this project.</p>
-        <p className="mt-1 text-[12px]">Import or record with webcam enabled to use these settings.</p>
+        <p className="text-xs font-medium">No webcam footage in this project.</p>
+        <p className="mt-1 text-xs">Import or record with webcam enabled to use these settings.</p>
       </div>
     )
   }
 
   if (!webcamEffect) {
     return (
-      <div className="rounded-lg border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground">
+      <div className="rounded-2xl border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-muted-foreground overflow-hidden">
         <Video className="mx-auto mb-3 h-8 w-8 opacity-50" />
-        <p className="text-[12px] font-medium">Select a webcam block to edit settings.</p>
-        <p className="mt-1 text-[12px]">Choose a webcam block on the timeline to customize it.</p>
+        <p className="text-xs font-medium">Select a webcam block to edit settings.</p>
+        <p className="mt-1 text-xs">Choose a webcam block on the timeline to customize it.</p>
       </div>
     )
   }
@@ -217,8 +217,8 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
             <Video className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
           <div className="space-y-1">
-            <div className="text-[12px] font-semibold tracking-[-0.015em]">Webcam Overlay</div>
-            <p className="text-[12px] text-muted-foreground">Picture-in-picture styling and placement.</p>
+            <div className="text-xs font-semibold tracking-[-0.015em]">Webcam Overlay</div>
+            <p className="text-xs text-muted-foreground">Picture-in-picture styling and placement.</p>
           </div>
         </div>
         <Switch
@@ -263,7 +263,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
           {/* Advanced Section */}
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <ChevronRight className={cn("w-3 h-3 transition-transform", showAdvanced && "rotate-90")} />
             Advanced Options

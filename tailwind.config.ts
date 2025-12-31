@@ -57,6 +57,30 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "var(--radius-lg)", // 12px
+        "2xl": "1rem", // 16px
+        "3xl": "1.5rem", // 24px
+        "10": "10px",
+        "14": "14px",
+      },
+      fontSize: {
+        "4xs": ["9px", { lineHeight: "12px" }],
+        "3xs": ["10px", { lineHeight: "14px" }],
+        "2xs": ["11px", { lineHeight: "14px" }],
+        "xs": ["12px", { lineHeight: "16px" }],
+        "sm": ["14px", { lineHeight: "20px" }],
+        "base": ["16px", { lineHeight: "24px" }],
+        "ui-sm": ["13px", { lineHeight: "18px" }],
+        "ui-base": ["15px", { lineHeight: "22px" }],
+      },
+      spacing: {
+        "4.5": "1.125rem", // 18px
+        "13": "3.25rem", // 52px
+        "15": "3.75rem", // 60px
+        sidebar: "300px",
+        popover: "240px",
+        dialog: "420px",
+        "dialog-sm": "460px", // Wait, sm:max-w-[460px]
       },
       keyframes: {
         "accordion-down": {

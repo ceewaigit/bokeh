@@ -54,7 +54,7 @@ export function EditingSection() {
                 {/* Snap to Grid */}
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
-                        <Label htmlFor="snap-grid" className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+                        <Label htmlFor="snap-grid" className="text-2xs font-medium text-muted-foreground whitespace-nowrap">
                             Snap to grid
                         </Label>
                         <Tooltip>
@@ -75,7 +75,7 @@ export function EditingSection() {
                 {/* Show Waveforms */}
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
-                        <Label htmlFor="show-waveforms" className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+                        <Label htmlFor="show-waveforms" className="text-2xs font-medium text-muted-foreground whitespace-nowrap">
                             Waveforms
                         </Label>
                         <Tooltip>
@@ -96,7 +96,7 @@ export function EditingSection() {
                 {/* Auto Ripple */}
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
-                        <Label htmlFor="auto-ripple" className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+                        <Label htmlFor="auto-ripple" className="text-2xs font-medium text-muted-foreground whitespace-nowrap">
                             Auto ripple
                         </Label>
                         <Tooltip>
@@ -123,7 +123,7 @@ export function EditingSection() {
                 <Dialog open={isRegenerateDialogOpen} onOpenChange={setIsRegenerateDialogOpen}>
                 <DialogTrigger asChild>
                     <button
-                        className="w-full flex items-center justify-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-[12px] font-medium text-destructive transition-all group hover:bg-destructive/20"
+                        className="w-full flex items-center justify-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-all group hover:bg-destructive/20"
                     >
                         <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-[-180deg] transition-transform duration-500" />
                         Regenerate Effects
@@ -143,7 +143,7 @@ export function EditingSection() {
                     {/* Advanced Settings Toggle */}
                     <button
                         onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="w-full flex items-center justify-between rounded-md bg-muted/30 px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                        className="w-full flex items-center justify-between rounded-md bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                     >
                         <span>Advanced Settings</span>
                         <ChevronRight className={cn("w-4 h-4 transition-transform duration-200", showAdvanced && "rotate-90")} />
@@ -154,8 +154,8 @@ export function EditingSection() {
                             {/* Min Idle Duration */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-[11px] text-muted-foreground">Min Idle Duration</span>
-                                    <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
+                                    <span className="text-2xs text-muted-foreground">Min Idle Duration</span>
+                                    <span className="text-2xs font-mono text-muted-foreground tabular-nums">
                                         {(config.minIdleDurationMs / 1000).toFixed(1)}s
                                     </span>
                                 </div>
@@ -167,14 +167,14 @@ export function EditingSection() {
                                         step={500}
                                         className="w-full"
                                     />
-                                    <p className="text-[11px] text-muted-foreground/60">Minimum duration to detect as idle period</p>
+                                    <p className="text-2xs text-muted-foreground/60">Minimum duration to detect as idle period</p>
                                 </div>
 
                                 {/* Auto 3D Threshold */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[11px] text-muted-foreground">Auto 3D Threshold</span>
-                                        <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
+                                        <span className="text-2xs text-muted-foreground">Auto 3D Threshold</span>
+                                        <span className="text-2xs font-mono text-muted-foreground tabular-nums">
                                             {config.auto3DThreshold.toFixed(1)}x
                                         </span>
                                     </div>
@@ -186,14 +186,14 @@ export function EditingSection() {
                                         step={0.1}
                                         className="w-full"
                                     />
-                                    <p className="text-[11px] text-muted-foreground/60">Apply 3D Window effect when zoom reaches this level</p>
+                                    <p className="text-2xs text-muted-foreground/60">Apply 3D Window effect when zoom reaches this level</p>
                                 </div>
 
                                 {/* Max Zooms Per Minute */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[11px] text-muted-foreground">Max Zooms/Min</span>
-                                        <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
+                                        <span className="text-2xs text-muted-foreground">Max Zooms/Min</span>
+                                        <span className="text-2xs font-mono text-muted-foreground tabular-nums">
                                             {config.maxZoomsPerMinute ?? 4}
                                         </span>
                                     </div>
@@ -205,14 +205,14 @@ export function EditingSection() {
                                         step={1}
                                         className="w-full"
                                     />
-                                    <p className="text-[11px] text-muted-foreground/60">Fewer = longer, more deliberate zooms</p>
+                                    <p className="text-2xs text-muted-foreground/60">Fewer = longer, more deliberate zooms</p>
                                 </div>
 
                                 {/* Min Gap Between Zooms */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[11px] text-muted-foreground">Min Gap</span>
-                                        <span className="text-[11px] font-mono text-muted-foreground tabular-nums">
+                                        <span className="text-2xs text-muted-foreground">Min Gap</span>
+                                        <span className="text-2xs font-mono text-muted-foreground tabular-nums">
                                             {((config.minZoomGapMs ?? 6000) / 1000).toFixed(1)}s
                                         </span>
                                     </div>
@@ -224,17 +224,17 @@ export function EditingSection() {
                                         step={1000}
                                         className="w-full"
                                     />
-                                    <p className="text-[11px] text-muted-foreground/60">Minimum time between zoom blocks</p>
+                                    <p className="text-2xs text-muted-foreground/60">Minimum time between zoom blocks</p>
                                 </div>
 
                                 {/* Easing Durations */}
                                 <div className="space-y-2">
-                                    <span className="text-[11px] text-muted-foreground">Easing Duration</span>
+                                    <span className="text-2xs text-muted-foreground">Easing Duration</span>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1.5">
                                             <div className="flex items-center justify-between">
-                                                <span className="text-[11px] text-muted-foreground/80">In</span>
-                                                <span className="text-[11px] font-mono text-muted-foreground/80 tabular-nums">
+                                                <span className="text-2xs text-muted-foreground/80">In</span>
+                                                <span className="text-2xs font-mono text-muted-foreground/80 tabular-nums">
                                                     {config.defaultIntroMs}ms
                                                 </span>
                                             </div>
@@ -249,8 +249,8 @@ export function EditingSection() {
                                         </div>
                                         <div className="space-y-1.5">
                                             <div className="flex items-center justify-between">
-                                                <span className="text-[11px] text-muted-foreground/80">Out</span>
-                                                <span className="text-[11px] font-mono text-muted-foreground/80 tabular-nums">
+                                                <span className="text-2xs text-muted-foreground/80">Out</span>
+                                                <span className="text-2xs font-mono text-muted-foreground/80 tabular-nums">
                                                     {config.defaultOutroMs}ms
                                                 </span>
                                             </div>
@@ -269,7 +269,7 @@ export function EditingSection() {
                                 {/* Reset to Defaults */}
                                 <button
                                     onClick={resetToDefaults}
-                                    className="w-full text-[11px] text-muted-foreground hover:text-foreground py-1"
+                                    className="w-full text-2xs text-muted-foreground hover:text-foreground py-1"
                                 >
                                     Reset to defaults
                                 </button>
@@ -290,7 +290,7 @@ export function EditingSection() {
                         </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <p className="text-[11px] text-muted-foreground/70 text-center leading-snug">
+            <p className="text-2xs text-muted-foreground/70 text-center leading-snug">
                 Restore auto-detected defaults
             </p>
         </div>

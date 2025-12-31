@@ -255,7 +255,7 @@ export function ZoomTab({
 
   return (
     <div className="space-y-2.5">
-      <div className="rounded-xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-3 shadow-sm transition-all hover:bg-background/30">
+      <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-3 shadow-sm transition-all hover:bg-background/30 overflow-hidden">
         <SectionHeader
           icon={Gauge}
           title="Cameraman Style"
@@ -320,7 +320,7 @@ export function ZoomTab({
         </AnimatePresence>
       </div>
 
-      <div className="rounded-xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30">
+      <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30 overflow-hidden">
         <SectionHeader
           icon={AppWindow}
           title="Zoom Blur"
@@ -365,7 +365,7 @@ export function ZoomTab({
       {selectedClip && (
         <div className="rounded-md bg-background/40 p-2.5">
           <button
-            className="w-full px-3 py-2 text-[12px] rounded-md transition-all flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary"
+            className="w-full px-3 py-2 text-xs rounded-md transition-all flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary"
             onClick={async () => {
               const project = useProjectStore.getState().currentProject
               if (!project) return
@@ -401,7 +401,7 @@ export function ZoomTab({
             Fill Frame Zoom
           </button>
           <div className="mt-2 flex items-center justify-center gap-2">
-            <p className="text-[12px] text-muted-foreground/70 italic leading-snug">
+            <p className="text-xs text-muted-foreground/70 italic leading-snug">
               Adds a centered zoom region to fill the frame
             </p>
             <InfoTooltip content="Creates a zoom region you can adjust on the timeline" />
@@ -434,11 +434,11 @@ export function ZoomTab({
                 <div className="flex items-center gap-1.5">
                   <ZoomIn className="w-3 h-3 text-muted-foreground" />
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Zoom Level</span>
+                    <span className="text-xs font-semibold leading-none tracking-[-0.01em]">Zoom Level</span>
                     <InfoTooltip content="Adjusts how close the zoom feels." />
                   </div>
                 </div>
-                <span className="text-[12px] font-mono text-primary tabular-nums">
+                <span className="text-xs font-mono text-primary tabular-nums">
                   {isFillScreen ? 'Fill' : `${(localScale ?? zoomData.scale ?? DEFAULT_ZOOM_DATA.scale).toFixed(1)}x`}
                 </span>
               </div>
@@ -458,7 +458,7 @@ export function ZoomTab({
                 className="w-full"
                 disabled={isFillScreen}
               />
-              <div className="flex justify-between text-[12px] text-muted-foreground/70 tabular-nums">
+              <div className="flex justify-between text-xs text-muted-foreground/70 tabular-nums">
                 <span>1x</span>
                 <span>7x</span>
               </div>
@@ -468,14 +468,14 @@ export function ZoomTab({
             <div className="rounded-md bg-background/40 p-2.5 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Focus Mode</span>
+                  <span className="text-xs font-semibold leading-none tracking-[-0.01em]">Focus Mode</span>
                   <InfoTooltip content="Choose whether zoom tracks the pointer, stays centered, or locks to a manual zoom point." />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   className={cn(
-                    "px-3 py-2 text-[12px] font-medium rounded-md transition-colors",
+                    "px-3 py-2 text-xs font-medium rounded-md transition-colors",
                     !isCenterLocked && !isManualFocus
                       ? "bg-primary text-primary-foreground"
                       : "bg-background/60 text-muted-foreground hover:text-foreground"
@@ -493,7 +493,7 @@ export function ZoomTab({
                 </button>
                 <button
                   className={cn(
-                    "px-3 py-2 text-[12px] font-medium rounded-md transition-colors",
+                    "px-3 py-2 text-xs font-medium rounded-md transition-colors",
                     isManualFocus
                       ? "bg-primary text-primary-foreground"
                       : "bg-background/60 text-muted-foreground hover:text-foreground"
@@ -534,7 +534,7 @@ export function ZoomTab({
                 </button>
                 <button
                   className={cn(
-                    "px-3 py-2 text-[12px] font-medium rounded-md transition-colors",
+                    "px-3 py-2 text-xs font-medium rounded-md transition-colors",
                     isCenterLocked
                       ? "bg-primary text-primary-foreground"
                       : "bg-background/60 text-muted-foreground hover:text-foreground"
@@ -554,14 +554,14 @@ export function ZoomTab({
                   Center Lock
                 </button>
               </div>
-              <div className="flex items-center justify-between gap-3 text-[12px] text-muted-foreground/70 leading-snug">
+              <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground/70 leading-snug">
                 <span>
                   {isManualFocus
                     ? 'Manual zoom lets you drag the zoom window in the sidebar preview.'
                     : 'Center Lock keeps the view fixed for a clean, professional look.'}
                 </span>
                 {isManualFocus && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-muted-foreground/80">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-2xs uppercase tracking-[0.2em] text-muted-foreground/80">
                     <Sparkles className="h-3 w-3" />
                     Sidebar drag
                   </span>
@@ -585,7 +585,7 @@ export function ZoomTab({
                   }}
                 />
                 {!hasManualTarget && (
-                  <div className="text-[12px] text-muted-foreground/70 leading-snug">
+                  <div className="text-xs text-muted-foreground/70 leading-snug">
                     Drag inside the preview to set your first zoom point.
                   </div>
                 )}
@@ -595,7 +595,7 @@ export function ZoomTab({
             {/* Easing Controls */}
             <div className="rounded-lg bg-background/40 p-3 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Transition Timing</span>
+                <span className="text-xs font-semibold leading-none tracking-[-0.01em]">Transition Timing</span>
                 <InfoTooltip content="Makes the zoom transition smooth" />
               </div>
               <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
@@ -664,7 +664,7 @@ export function ZoomTab({
                 <div className="rounded-md bg-background/30 p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Dead Zone</span>
+                      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Dead Zone</span>
                       <InfoTooltip content="How far cursor must move before camera follows" />
                     </div>
                     <span className="text-xs font-mono text-muted-foreground tabular-nums">
@@ -686,10 +686,10 @@ export function ZoomTab({
                     step={1}
                     className="w-full"
                   />
-                  <p className="text-[12px] text-muted-foreground/70 leading-snug">Minimum cursor movement to trigger pan</p>
+                  <p className="text-xs text-muted-foreground/70 leading-snug">Minimum cursor movement to trigger pan</p>
                 </div>
               ) : (
-                <div className="text-[12px] text-muted-foreground/70 leading-snug">
+                <div className="text-xs text-muted-foreground/70 leading-snug">
                   Advanced tracking is disabled when “Fill screen” is enabled.
                 </div>
               )}
@@ -701,8 +701,8 @@ export function ZoomTab({
         )
       })() : (
         <div className="rounded-md bg-background/40 p-2.5">
-          <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Select a zoom block</div>
-          <div className="mt-1 text-[12px] text-muted-foreground leading-snug">
+          <div className="text-xs font-semibold leading-none tracking-[-0.01em]">Select a zoom block</div>
+          <div className="mt-1 text-xs text-muted-foreground leading-snug">
             Click a zoom block in the timeline to edit focus behavior, timing, and target.
           </div>
         </div>

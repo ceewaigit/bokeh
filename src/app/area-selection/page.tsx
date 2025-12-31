@@ -193,7 +193,7 @@ export default function AreaSelectionPage() {
                 </span>
                 <div className="w-px h-4 bg-white/20" />
                 <div className="flex items-center gap-2">
-                    <kbd className="text-[10px] font-bold text-white/60 bg-white/10 px-2 py-1 rounded border border-white/10">ESC</kbd>
+                    <kbd className="text-3xs font-bold text-white/60 bg-white/10 px-2 py-1 rounded border border-white/10">ESC</kbd>
                     <span className="text-sm text-white/60">Cancel</span>
                 </div>
             </div>

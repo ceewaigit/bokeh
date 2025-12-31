@@ -379,7 +379,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         onClick={() => !isExporting && onClose()}
       >
         <div
-          className="bg-background border border-border/50 rounded-2xl w-[420px] shadow-2xl shadow-black/50 overflow-hidden"
+          className="bg-background border border-border/50 rounded-2xl w-dialog shadow-2xl shadow-black/50 overflow-hidden"
           style={{
             animation: 'dialogIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
@@ -414,7 +414,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
               <div className="space-y-4">
                 {/* Resolution */}
                 <div className="space-y-2">
-                  <label className="text-[13px] text-muted-foreground">Resolution</label>
+                  <label className="text-ui-sm text-muted-foreground">Resolution</label>
                   <div className="flex justify-end">
                     <SegmentedControl
                       value={resolution}
@@ -430,7 +430,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
                 {/* Frame Rate */}
                 <div className="flex items-center justify-between">
-                  <label className="text-[13px] text-muted-foreground">Frame Rate</label>
+                  <label className="text-ui-sm text-muted-foreground">Frame Rate</label>
                   <SegmentedControl
                     value={frameRate}
                     onChange={setFrameRate}
@@ -453,21 +453,21 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                       Time scales with pixels × fps.
                       <div className="mt-2 flex flex-wrap gap-2">
                         <button
-                          className="rounded-md bg-background/60 px-2.5 py-1 text-[12px] font-medium text-foreground ring-1 ring-border/50 hover:bg-background"
+                          className="rounded-md bg-background/60 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/50 hover:bg-background"
                           onClick={() => setResolution(recommendations.recommended.value)}
                         >
                           Recommended: {recommendations.recommended.label} (≈{recommendations.recommended.approxSpeedup.toFixed(1)}×)
                         </button>
                         {recommendations.hasDistinctFaster ? (
                           <button
-                            className="rounded-md bg-background/40 px-2.5 py-1 text-[12px] font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
+                            className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
                             onClick={() => setResolution(recommendations.faster.value)}
                           >
                             Faster: {recommendations.faster.label} (≈{recommendations.faster.approxSpeedup.toFixed(1)}×)
                           </button>
                         ) : frameRate === 60 ? (
                           <button
-                            className="rounded-md bg-background/40 px-2.5 py-1 text-[12px] font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
+                            className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
                             onClick={() => setFrameRate(30)}
                           >
                             Faster: 30fps (≈2.0×)
@@ -480,7 +480,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
                 {/* Format */}
                 <div className="flex items-center justify-between">
-                  <label className="text-[13px] text-muted-foreground">Format</label>
+                  <label className="text-ui-sm text-muted-foreground">Format</label>
                   <SegmentedControl
                     value={format}
                     onChange={setFormat}
@@ -494,7 +494,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
                 {/* Divider & Summary */}
                 <div className="pt-3 mt-1 border-t border-border/30">
-                  <div className="flex items-center justify-between text-[12px]">
+                  <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 text-muted-foreground/60">
                       <FileVideo className="w-3.5 h-3.5" />
                       <span>{currentProject?.timeline?.tracks?.[0]?.clips?.length || 0} clips · {currentProject?.timeline?.duration ? (currentProject.timeline.duration / 1000).toFixed(1) : '0.0'}s</span>
@@ -502,7 +502,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                     <div className="flex items-center gap-2">
                       {canvasAspectLabel && (
                         <span
-                          className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary ring-1 ring-primary/20"
+                          className="rounded-md bg-primary/10 px-2 py-0.5 text-2xs font-medium text-primary ring-1 ring-primary/20"
                           title={`Canvas aspect ratio: ${canvasAspectLabel}`}
                         >
                           {canvasAspectLabel}
@@ -511,7 +511,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                       {format !== 'gif' && (
                         <span
                           className={cn(
-                            "rounded-md px-2 py-0.5 text-[11px] font-medium ring-1",
+                            "rounded-md px-2 py-0.5 text-2xs font-medium ring-1",
                             exportSpeed.tone === 'ok'
                               ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
                               : "bg-amber-500/10 text-amber-300 ring-amber-500/20"
@@ -588,11 +588,11 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                     </div>
                   </div>
                   <div className="text-center">
-                    <p className="text-[13px] text-muted-foreground">
+                    <p className="text-ui-sm text-muted-foreground">
                       {funMessage}
                     </p>
                     {formatEta(progress.eta) && (
-                      <p className="mt-1 text-[12px] text-muted-foreground/70 tabular-nums">
+                      <p className="mt-1 text-xs text-muted-foreground/70 tabular-nums">
                         ETA {formatEta(progress.eta)}
                         {typeof progress.currentFrame === 'number' && typeof progress.totalFrames === 'number'
                           ? ` · ${progress.currentFrame}/${progress.totalFrames} frames`

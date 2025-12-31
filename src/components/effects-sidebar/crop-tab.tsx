@@ -93,7 +93,7 @@ export function CropTab({
   if (!cropEffect || !cropData) {
     return (
       <div className="space-y-4">
-        <div className="flex flex-col items-center justify-center py-6 text-center border border-border/40 bg-background/50 rounded-lg">
+        <div className="flex flex-col items-center justify-center py-6 text-center border border-border/40 bg-background/50 rounded-2xl overflow-hidden">
           <Crop className="w-8 h-8 text-muted-foreground/50 mb-3" />
           <p className="text-sm text-muted-foreground mb-1">
             No crop applied
@@ -117,14 +117,14 @@ export function CropTab({
     <div className="space-y-3">
       <div className="flex items-start gap-3">
         <div className="min-w-0">
-          <h3 className="text-[12px] font-semibold tracking-[-0.02em]">Crop</h3>
-          <p className="text-[12px] leading-[1.35] text-muted-foreground/80">
+          <h3 className="text-xs font-semibold tracking-[-0.02em]">Crop</h3>
+          <p className="text-xs leading-[1.35] text-muted-foreground/80">
             Refine framing with precise, non-destructive crop.
           </p>
         </div>
         <div
           className={cn(
-            "shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-mono uppercase tracking-[0.18em] transition-colors duration-150",
+            "shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-2xs font-mono uppercase tracking-[0.18em] transition-colors duration-150",
             isEditingCrop
               ? "bg-primary/10 text-primary border-primary/20"
               : "bg-muted/40 text-muted-foreground border-border/40"
@@ -145,10 +145,10 @@ export function CropTab({
       </Button>
 
       {/* Crop Region Info */}
-      <div className="rounded-md border border-border/40 bg-background/60 p-2.5 space-y-3">
+      <div className="rounded-2xl border border-border/40 bg-background/60 p-2.5 space-y-3 overflow-hidden">
         <div className="flex items-center gap-2">
           <Crop className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-[12px] font-semibold tracking-[-0.01em]">Crop Region</span>
+          <span className="text-xs font-semibold tracking-[-0.01em]">Crop Region</span>
           <InfoTooltip content="The cropped area expands to fill the canvas. Values represent the visible portion of the original frame." />
         </div>
 
@@ -157,8 +157,8 @@ export function CropTab({
           {/* X Position */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] text-muted-foreground">Left (X)</span>
-              <span className="text-[12px] font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground">Left (X)</span>
+              <span className="text-xs font-mono text-muted-foreground tabular-nums">
                 {toPercent(localX ?? cropData.x)}%
               </span>
             </div>
@@ -179,8 +179,8 @@ export function CropTab({
           {/* Y Position */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] text-muted-foreground">Top (Y)</span>
-              <span className="text-[12px] font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground">Top (Y)</span>
+              <span className="text-xs font-mono text-muted-foreground tabular-nums">
                 {toPercent(localY ?? cropData.y)}%
               </span>
             </div>
@@ -204,8 +204,8 @@ export function CropTab({
           {/* Width */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] text-muted-foreground">Width</span>
-              <span className="text-[12px] font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground">Width</span>
+              <span className="text-xs font-mono text-muted-foreground tabular-nums">
                 {toPercent(localWidth ?? cropData.width)}%
               </span>
             </div>
@@ -226,8 +226,8 @@ export function CropTab({
           {/* Height */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[12px] text-muted-foreground">Height</span>
-              <span className="text-[12px] font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground">Height</span>
+              <span className="text-xs font-mono text-muted-foreground tabular-nums">
                 {toPercent(localHeight ?? cropData.height)}%
               </span>
             </div>
@@ -270,7 +270,7 @@ export function CropTab({
       </div>
 
       {/* Info */}
-      <p className="text-[12px] text-muted-foreground/70 text-center">
+      <p className="text-xs text-muted-foreground/70 text-center">
         The selected region scales to fill the canvas.
       </p>
     </div>

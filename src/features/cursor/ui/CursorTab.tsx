@@ -263,8 +263,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
       <div className="rounded-md bg-background/40 p-2.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Cursor</div>
-            <div className="mt-1 text-[12px] text-muted-foreground leading-snug">
+            <div className="text-xs font-semibold leading-none tracking-[-0.01em]">Cursor</div>
+            <div className="mt-1 text-xs text-muted-foreground leading-snug">
               Display and style the cursor
             </div>
           </div>
@@ -291,10 +291,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Size</label>
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Size</label>
                 <InfoTooltip content="Cursor size multiplier" />
               </div>
-              <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{size.toFixed(1)}x</span>
+              <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{size.toFixed(1)}x</span>
             </div>
             <Slider
               value={[size]}
@@ -313,10 +313,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           <div className="rounded-md bg-background/40 p-2.5 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Style</label>
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Style</label>
                 <InfoTooltip content="Choose how cursor motion feels" />
               </div>
-              <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className="rounded-full bg-muted/50 px-2 py-0.5 text-2xs font-medium text-muted-foreground">
                 {motionLabel}
               </span>
             </div>
@@ -350,7 +350,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         )}>
                           <Icon className="h-3 w-3" />
                         </div>
-                        <div className="text-[11px] font-medium leading-none">{option.label}</div>
+                        <div className="text-2xs font-medium leading-none">{option.label}</div>
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="text-xs">
@@ -360,18 +360,18 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 )
               })}
             </div>
-            <div className="text-[11px] text-muted-foreground/70 italic">
+            <div className="text-2xs text-muted-foreground/70 italic">
               Tweaking sliders below switches to Custom.
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm">
-            <div className="px-3 py-3 text-left font-[var(--font-display)] text-[13px] font-semibold tracking-tight text-foreground">
+          <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm overflow-hidden">
+            <div className="px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground">
               Preview
             </div>
             <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
               <div className="space-y-2">
-                <div className="text-[12px] text-muted-foreground/60 italic">Hover a style to see it</div>
+                <div className="text-xs text-muted-foreground/60 italic">Hover a style to see it</div>
                 <div className="relative h-12 rounded-lg border border-border/40 bg-background/60 px-3 overflow-hidden">
                   <div className="absolute inset-y-0 left-3 right-3 flex items-center">
                     <div className="relative w-full" style={previewTrackStyle}>
@@ -388,7 +388,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     </div>
                   </div>
                 </div>
-                <div className="text-[12px] text-muted-foreground/60 italic">
+                <div className="text-xs text-muted-foreground/60 italic rounded-b-2xl">
                   Uses the current preset and movement tuning
                 </div>
               </div>
@@ -399,10 +399,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cursor Movement</label>
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cursor Movement</label>
                 <InfoTooltip content="Higher = faster, more direct tracking" />
               </div>
-              <span className="text-[12px] text-muted-foreground/60 font-mono tabular-nums">{speed.toFixed(2)}</span>
+              <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{speed.toFixed(2)}</span>
             </div>
             <Slider
               value={[speed]}
@@ -424,10 +424,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Blur</label>
+                    <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Blur</label>
                     <InfoTooltip content="Add blur trails on fast movement" />
                   </div>
-                  <span className="text-[12px] text-muted-foreground/60 font-mono tabular-nums">{(Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0).toFixed(0)}%</span>
+                  <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{(Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0).toFixed(0)}%</span>
                 </div>
                 <Slider
                   value={[Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0]}
@@ -447,8 +447,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               <div className="rounded-md bg-background/40 p-2.5 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">Click Animation</div>
-                    <div className="mt-0.5 text-[12px] text-muted-foreground leading-snug">
+                    <div className="text-xs font-semibold leading-none tracking-[-0.01em]">Click Animation</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground leading-snug">
                       Adds a visual pulse on click
                     </div>
                   </div>
@@ -467,7 +467,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               {/* Fine-tune Section */}
               <button
                 onClick={() => setShowFineTune(!showFineTune)}
-                className="w-full flex items-center justify-between px-2 py-1.5 text-[12px] font-medium text-muted-foreground/70 hover:text-muted-foreground bg-background/20 hover:bg-background/30 rounded transition-colors"
+                className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-muted-foreground/70 hover:text-muted-foreground bg-background/20 hover:bg-background/30 rounded transition-colors"
               >
                 <span>Fine-tune</span>
                 <ChevronRight className={cn("w-2.5 h-2.5 transition-transform duration-200", showFineTune && "rotate-90")} />
@@ -478,8 +478,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   {/* Smoothness slider */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="text-[12px] font-medium text-muted-foreground/80">Smoothness</label>
-                      <span className="text-[12px] text-muted-foreground/60 font-mono tabular-nums">{smoothness.toFixed(2)}</span>
+                      <label className="text-xs font-medium text-muted-foreground/80">Smoothness</label>
+                      <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{smoothness.toFixed(2)}</span>
                     </div>
                     <Slider
                       value={[smoothness]}
@@ -499,8 +499,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   {/* Glide slider */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="text-[12px] font-medium text-muted-foreground/80">Glide</label>
-                      <span className="text-[12px] text-muted-foreground/60 font-mono tabular-nums">{glide.toFixed(2)}</span>
+                      <label className="text-xs font-medium text-muted-foreground/80">Glide</label>
+                      <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{glide.toFixed(2)}</span>
                     </div>
                     <Slider
                       value={[glide]}
@@ -521,10 +521,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
-                        <label className="text-[12px] font-medium text-muted-foreground/80">Continuity</label>
+                        <label className="text-xs font-medium text-muted-foreground/80">Continuity</label>
                         <InfoTooltip content="Higher values keep fast motion continuous before snapping." />
                       </div>
-                      <span className="text-[12px] text-muted-foreground/60 font-mono tabular-nums">{continuity.toFixed(2)}</span>
+                      <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{continuity.toFixed(2)}</span>
                     </div>
                     <Slider
                       value={[continuity]}
@@ -554,7 +554,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   <div className="pl-2 space-y-2 border-l-2 border-border/30">
                     <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                       <div className="space-y-1.5">
-                        <div className="text-[12px] font-medium text-muted-foreground">Style</div>
+                        <div className="text-xs font-medium text-muted-foreground">Style</div>
                         <Select
                           value={clickStyle}
                           onValueChange={(value) => {
@@ -576,7 +576,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
                       {showRingControls && (
                         <div className="space-y-1.5">
-                          <div className="text-[12px] font-medium text-muted-foreground">Animation</div>
+                          <div className="text-xs font-medium text-muted-foreground">Animation</div>
                           <Select
                             value={clickAnimation}
                             onValueChange={(value) => {
@@ -599,8 +599,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <div className="text-[12px] font-medium text-muted-foreground">Duration</div>
-                          <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{clickDurationMs}ms</span>
+                          <div className="text-xs font-medium text-muted-foreground">Duration</div>
+                          <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{clickDurationMs}ms</span>
                         </div>
                         <Slider
                           value={[clickDurationMs]}
@@ -617,8 +617,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                       {showRingControls && (
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <div className="text-[12px] font-medium text-muted-foreground">Radius</div>
-                            <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{clickRadius}px</span>
+                            <div className="text-xs font-medium text-muted-foreground">Radius</div>
+                            <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{clickRadius}px</span>
                           </div>
                           <Slider
                             value={[clickRadius]}
@@ -638,8 +638,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                       <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <div className="text-[12px] font-medium text-muted-foreground">Line Width</div>
-                            <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{clickLineWidth}px</span>
+                            <div className="text-xs font-medium text-muted-foreground">Line Width</div>
+                            <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{clickLineWidth}px</span>
                           </div>
                           <Slider
                             value={[clickLineWidth]}
@@ -654,7 +654,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         </div>
 
                         <div className="space-y-1.5">
-                          <div className="text-[12px] font-medium text-muted-foreground">Ring Color</div>
+                          <div className="text-xs font-medium text-muted-foreground">Ring Color</div>
                           <input
                             type="color"
                             value={clickColor}
@@ -670,7 +670,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     {showTextControls && (
                       <>
                         <div className="space-y-1.5">
-                          <div className="text-[12px] font-medium text-muted-foreground">Words (comma-separated)</div>
+                          <div className="text-xs font-medium text-muted-foreground">Words (comma-separated)</div>
                           <input
                             value={clickWordsInput}
                             onChange={(e) => onUpdateCursor({ clickTextWords: parseClickWords(e.target.value) })}
@@ -687,7 +687,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
                         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                           <div className="space-y-1.5">
-                            <div className="text-[12px] font-medium text-muted-foreground">Word Mode</div>
+                            <div className="text-xs font-medium text-muted-foreground">Word Mode</div>
                             <Select
                               value={clickTextMode}
                               onValueChange={(value) => {
@@ -707,7 +707,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           </div>
 
                           <div className="space-y-1.5">
-                            <div className="text-[12px] font-medium text-muted-foreground">Text Animation</div>
+                            <div className="text-xs font-medium text-muted-foreground">Text Animation</div>
                             <Select
                               value={clickTextAnimation}
                               onValueChange={(value) => {
@@ -729,8 +729,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <div className="text-[12px] font-medium text-muted-foreground">Text Size</div>
-                              <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{clickTextSize}px</span>
+                              <div className="text-xs font-medium text-muted-foreground">Text Size</div>
+                              <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{clickTextSize}px</span>
                             </div>
                             <Slider
                               value={[clickTextSize]}
@@ -743,7 +743,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           </div>
 
                           <div className="space-y-1.5">
-                            <div className="text-[12px] font-medium text-muted-foreground">Text Color</div>
+                            <div className="text-xs font-medium text-muted-foreground">Text Color</div>
                             <input
                               type="color"
                               value={clickTextColor}
@@ -758,8 +758,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <div className="text-[12px] font-medium text-muted-foreground">Text Offset</div>
-                              <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{clickTextOffsetY}px</span>
+                              <div className="text-xs font-medium text-muted-foreground">Text Offset</div>
+                              <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{clickTextOffsetY}px</span>
                             </div>
                             <Slider
                               value={[clickTextOffsetY]}
@@ -773,8 +773,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <div className="text-[12px] font-medium text-muted-foreground">Text Rise</div>
-                              <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{clickTextRise}px</span>
+                              <div className="text-xs font-medium text-muted-foreground">Text Rise</div>
+                              <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{clickTextRise}px</span>
                             </div>
                             <Slider
                               value={[clickTextRise]}
@@ -812,7 +812,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                     <div className="text-xs leading-none">Directional Tilt</div>
                     <InfoTooltip content="Tilt cursor in movement direction" />
                   </div>
-                  <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">{tiltMaxDeg.toFixed(0)}°</span>
+                  <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{tiltMaxDeg.toFixed(0)}°</span>
                 </div>
                 <Slider
                   value={[tiltMaxDeg]}
@@ -847,7 +847,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                           <label className="text-xs font-medium text-muted-foreground">Timeout</label>
                           <InfoTooltip content="Seconds until cursor hides" />
                         </div>
-                        <span className="text-[12px] text-muted-foreground/70 font-mono tabular-nums">
+                        <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">
                           {idleTimeoutSec.toFixed(1)}s
                         </span>
                       </div>
@@ -882,7 +882,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           <AccordionSection title="Utilities" className="bg-background/30" contentClassName="pt-2.5">
             <div className="space-y-2">
               <div className="space-y-1.5">
-                <div className="text-[12px] font-medium text-muted-foreground">Duration (seconds)</div>
+                <div className="text-xs font-medium text-muted-foreground">Duration (seconds)</div>
                 <div className="flex items-center justify-between p-2 bg-background/20 rounded-md border border-border/10">
                   <span className="text-xs font-mono tabular-nums text-foreground/80">{returnDuration.toFixed(1)}</span>
                   <div className="flex items-center gap-1">
@@ -911,7 +911,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Add Cursor Return Clip</span>
               </button>
-              <div className="text-[12px] text-muted-foreground/50 leading-snug px-2 text-center">
+              <div className="text-xs text-muted-foreground/50 leading-snug px-2 text-center">
                 Animate cursor back to start, great for seamless loops
               </div>
             </div>

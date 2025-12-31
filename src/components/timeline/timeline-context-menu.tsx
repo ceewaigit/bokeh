@@ -96,7 +96,7 @@ export const TimelineContextMenu = React.memo(({
   const menuContent = (
     <div
       ref={menuRef}
-      className="fixed bg-popover border border-border rounded-md shadow-lg p-1 z-[9999] min-w-[240px]"
+      className="fixed bg-popover border border-border rounded-md shadow-lg p-1 z-[9999] min-w-popover"
       style={{
         left: `${position.left}px`,
         top: `${position.top}px`,
@@ -105,76 +105,76 @@ export const TimelineContextMenu = React.memo(({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="px-2 py-1 text-[10px] font-medium tracking-wide text-muted-foreground/70">
+      <div className="px-2 py-1 text-3xs font-medium tracking-wide text-muted-foreground/70">
         Clip
       </div>
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onSplitClip(clipId))}
       >
         <Scissors className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Split at Playhead</span>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘K</span>
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘K</span>
       </button>
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onTrimClipStart(clipId))}
       >
         <ChevronsLeft className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Trim Start to Playhead</span>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70 whitespace-nowrap">[</span>
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">[</span>
       </button>
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onTrimClipEnd(clipId))}
       >
         <ChevronsRight className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Trim End to Playhead</span>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70 whitespace-nowrap">]</span>
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">]</span>
       </button>
       <div className="h-px bg-border my-1" />
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onCutClip(clipId))}
       >
         <span className="w-4 h-4 justify-self-center" aria-hidden />
         <span className="truncate text-left">Cut</span>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘X</span>
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘X</span>
       </button>
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onCopyClip(clipId))}
       >
         <Copy className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Copy</span>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘C</span>
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘C</span>
       </button>
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onPasteClip())}
       >
         <span className="w-4 h-4 justify-self-center" aria-hidden />
         <span className="truncate text-left">Paste</span>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘V</span>
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘V</span>
       </button>
       <div className="h-px bg-border my-1" />
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onDuplicateClip(clipId))}
       >
         <Layers className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Duplicate</span>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘D</span>
+        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘D</span>
       </button>
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onSpeedUpClip(clipId))}
       >
@@ -184,13 +184,13 @@ export const TimelineContextMenu = React.memo(({
       </button>
       <div className="h-px bg-border my-1" />
       <button
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-[13px] leading-none text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-sm"
+        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-sm"
         disabled={isBusy}
         onClick={() => void handleAction(() => onDeleteClip(clipId))}
       >
         <Trash2 className="w-4 h-4 justify-self-center" />
         <span className="truncate text-left">Delete</span>
-        <span className="font-mono text-[11px] tabular-nums text-destructive/70 whitespace-nowrap">⌫</span>
+        <span className="font-mono text-2xs tabular-nums text-destructive/70 whitespace-nowrap">⌫</span>
       </button>
     </div>
   )

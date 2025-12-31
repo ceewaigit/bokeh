@@ -75,7 +75,7 @@ export function AudioSection() {
                 <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Master Volume</Label>
+                            <Label className="text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Master Volume</Label>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
@@ -83,7 +83,7 @@ export function AudioSection() {
                                 <TooltipContent side="left">Overall volume level</TooltipContent>
                             </Tooltip>
                         </div>
-                        <span className="text-[11px] font-mono text-muted-foreground/70 tabular-nums">
+                        <span className="text-2xs font-mono text-muted-foreground/70 tabular-nums">
                             {volume}%
                         </span>
                     </div>
@@ -105,7 +105,7 @@ export function AudioSection() {
                         ) : (
                             <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />
                         )}
-                        <Label htmlFor="mute-toggle" className="text-[11px] font-medium text-muted-foreground">
+                        <Label htmlFor="mute-toggle" className="text-2xs font-medium text-muted-foreground">
                             Mute All
                         </Label>
                     </div>
@@ -123,7 +123,7 @@ export function AudioSection() {
             {/* Audio Enhancement */}
             <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
-                    <Label className="text-[11px] font-semibold text-foreground/80 tracking-[-0.01em]">Enhancement</Label>
+                    <Label className="text-2xs font-semibold text-foreground/80 tracking-[-0.01em]">Enhancement</Label>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
@@ -141,7 +141,7 @@ export function AudioSection() {
                             <TooltipTrigger asChild>
                                 <button
                                     onClick={() => handlePresetChange(preset)}
-                                    className={`px-2.5 py-1.5 text-[11px] rounded-md transition-colors ${currentPreset === preset
+                                    className={`px-2.5 py-1.5 text-2xs rounded-md transition-colors ${currentPreset === preset
                                         ? 'bg-primary text-primary-foreground'
                                         : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
                                         }`}
@@ -161,7 +161,7 @@ export function AudioSection() {
                     <>
                         <button
                             onClick={() => setShowAdvanced(!showAdvanced)}
-                            className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors pt-1"
+                            className="flex items-center gap-1.5 text-2xs font-medium text-muted-foreground hover:text-foreground transition-colors pt-1"
                         >
                             {showAdvanced ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                             Advanced
@@ -173,8 +173,8 @@ export function AudioSection() {
                                 {/* Threshold */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-[11px] text-muted-foreground">Threshold</Label>
-                                        <span className="text-[11px] font-mono text-muted-foreground/70">
+                                        <Label className="text-2xs text-muted-foreground">Threshold</Label>
+                                        <span className="text-2xs font-mono text-muted-foreground/70">
                                             {displaySettings.threshold} dB
                                         </span>
                                     </div>
@@ -191,8 +191,8 @@ export function AudioSection() {
                                 {/* Ratio */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-[11px] text-muted-foreground">Ratio</Label>
-                                        <span className="text-[11px] font-mono text-muted-foreground/70">
+                                        <Label className="text-2xs text-muted-foreground">Ratio</Label>
+                                        <span className="text-2xs font-mono text-muted-foreground/70">
                                             {displaySettings.ratio}:1
                                         </span>
                                     </div>
@@ -209,8 +209,8 @@ export function AudioSection() {
                                 {/* Attack */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-[11px] text-muted-foreground">Attack</Label>
-                                        <span className="text-[11px] font-mono text-muted-foreground/70">
+                                        <Label className="text-2xs text-muted-foreground">Attack</Label>
+                                        <span className="text-2xs font-mono text-muted-foreground/70">
                                             {(displaySettings.attack * 1000).toFixed(0)} ms
                                         </span>
                                     </div>
@@ -227,8 +227,8 @@ export function AudioSection() {
                                 {/* Release */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-[11px] text-muted-foreground">Release</Label>
-                                        <span className="text-[11px] font-mono text-muted-foreground/70">
+                                        <Label className="text-2xs text-muted-foreground">Release</Label>
+                                        <span className="text-2xs font-mono text-muted-foreground/70">
                                             {(displaySettings.release * 1000).toFixed(0)} ms
                                         </span>
                                     </div>
@@ -245,8 +245,8 @@ export function AudioSection() {
                                 {/* Knee */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-[11px] text-muted-foreground">Knee</Label>
-                                        <span className="text-[11px] font-mono text-muted-foreground/70">
+                                        <Label className="text-2xs text-muted-foreground">Knee</Label>
+                                        <span className="text-2xs font-mono text-muted-foreground/70">
                                             {displaySettings.knee} dB
                                         </span>
                                     </div>
@@ -269,12 +269,12 @@ export function AudioSection() {
 
             {/* Global Fades */}
             <div className="space-y-3">
-                <h4 className="text-[11px] font-semibold text-foreground/80 tracking-[-0.01em]">Global Fades</h4>
+                <h4 className="text-2xs font-semibold text-foreground/80 tracking-[-0.01em]">Global Fades</h4>
 
                 <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                        <Label className="text-[11px] text-muted-foreground">Fade In</Label>
-                        <span className="text-[11px] font-mono text-muted-foreground/70">{fadeInDuration}s</span>
+                        <Label className="text-2xs text-muted-foreground">Fade In</Label>
+                        <span className="text-2xs font-mono text-muted-foreground/70">{fadeInDuration}s</span>
                     </div>
                     <Slider
                         value={[fadeInDuration]}
@@ -288,8 +288,8 @@ export function AudioSection() {
 
                 <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                        <Label className="text-[11px] text-muted-foreground">Fade Out</Label>
-                        <span className="text-[11px] font-mono text-muted-foreground/70">{fadeOutDuration}s</span>
+                        <Label className="text-2xs text-muted-foreground">Fade Out</Label>
+                        <span className="text-2xs font-mono text-muted-foreground/70">{fadeOutDuration}s</span>
                     </div>
                     <Slider
                         value={[fadeOutDuration]}

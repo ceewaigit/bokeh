@@ -53,7 +53,7 @@ export function WebcamGeneral({
             {/* Shape Presets */}
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Shape</label>
+                    <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Shape</label>
                     <InfoTooltip content="Choose the webcam frame shape." />
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
@@ -75,7 +75,7 @@ export function WebcamGeneral({
                                     )}>
                                         {opt.icon}
                                     </div>
-                                    <div className="text-[11px] font-medium leading-none">{opt.label}</div>
+                                    <div className="text-2xs font-medium leading-none">{opt.label}</div>
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="text-xs">
@@ -90,10 +90,10 @@ export function WebcamGeneral({
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Size</label>
+                        <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Size</label>
                         <InfoTooltip content="Controls how large the webcam appears." />
                     </div>
-                    <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{size}%</span>
+                    <span className="text-xs font-mono tabular-nums text-muted-foreground">{size}%</span>
                 </div>
                 <Slider
                     value={[size]}
@@ -107,7 +107,7 @@ export function WebcamGeneral({
             {/* Position Grid */}
             <div className="space-y-2">
                 <div className="flex items-center justify-center gap-2">
-                    <label className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground text-center block">Position</label>
+                    <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground text-center block">Position</label>
                     <InfoTooltip content="Pick where the webcam sits on the canvas." />
                 </div>
                 <div className="grid w-fit mx-auto grid-cols-3 gap-2 rounded-lg border border-border/50 bg-background/40 p-2">
@@ -125,7 +125,7 @@ export function WebcamGeneral({
                         />
                     ))}
                 </div>
-                <p className="text-[12px] text-muted-foreground/70 text-center">Position the picture-in-picture on the canvas.</p>
+                <p className="text-xs text-muted-foreground/70 text-center">Position the picture-in-picture on the canvas.</p>
             </div>
         </>
     )

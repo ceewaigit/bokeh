@@ -41,7 +41,7 @@ export function AccordionSection({
   return (
     <div
       className={cn(
-        'rounded-2xl border border-border/20 bg-background/50 shadow-sm transition-shadow duration-150',
+        'rounded-2xl border border-border/20 bg-background/50 shadow-sm transition-shadow duration-150 overflow-hidden',
         className
       )}
     >
@@ -51,7 +51,7 @@ export function AccordionSection({
         aria-controls={contentId}
         onClick={() => setOpen(!isOpen)}
         className={cn(
-          'w-full flex items-center justify-between gap-3 px-3 py-3 text-left font-[var(--font-display)] text-[13px] font-semibold tracking-tight text-foreground transition-colors duration-150 hover:text-foreground/80',
+          'w-full flex items-center justify-between gap-3 px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground transition-colors duration-150 hover:text-foreground/80',
           headerClassName
         )}
         data-springy

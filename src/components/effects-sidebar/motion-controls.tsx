@@ -20,9 +20,9 @@ export function SectionHeader({
         <Icon className="w-4 h-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-semibold tracking-tight text-foreground">{title}</div>
+        <div className="text-ui-sm font-semibold tracking-tight text-foreground">{title}</div>
         {subtitle && (
-          <div className="text-[11px] text-muted-foreground leading-snug mt-0.5 font-medium">
+          <div className="text-2xs text-muted-foreground leading-snug mt-0.5 font-medium">
             {subtitle}
           </div>
         )}
@@ -68,7 +68,7 @@ export function SegmentedControl({
             key={option.id}
             onClick={() => onChange(option.id)}
             className={cn(
-              "relative py-1.5 text-[11px] font-medium leading-none transition-colors z-10 text-center min-w-0",
+              "relative py-1.5 text-2xs font-medium leading-none transition-colors z-10 text-center min-w-0",
               wrap ? "w-full px-2" : "flex-1",
               isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground/80"
             )}
@@ -118,10 +118,10 @@ export function CompactSlider({
   return (
     <div className="group space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+        <span className="text-2xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
           {label}
         </span>
-        <span className="text-[11px] font-mono font-medium tabular-nums text-foreground bg-muted/30 px-1.5 py-0.5 rounded">
+        <span className="text-2xs font-mono font-medium tabular-nums text-foreground bg-muted/30 px-1.5 py-0.5 rounded">
           {value}{unit}
         </span>
       </div>
@@ -135,7 +135,7 @@ export function CompactSlider({
         className="[&>.relative>.absolute]:bg-primary/80 [&_.block]:border-primary/50 [&_.block]:ring-offset-background [&_.block]:transition-transform [&_.block]:active:scale-105"
       />
       {description && (
-        <p className="text-[10px] text-muted-foreground/60 leading-tight">
+        <p className="text-3xs text-muted-foreground/60 leading-tight">
           {description}
         </p>
       )}

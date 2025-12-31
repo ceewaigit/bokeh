@@ -98,7 +98,7 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setOpen}>
-      <DialogContent className="max-w-md w-[420px] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-md w-dialog p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 pt-4 pb-3">
           <DialogTitle className="text-sm">Settings</DialogTitle>
         </DialogHeader>
@@ -122,7 +122,7 @@ export function SettingsDialog() {
                       <tab.icon className="w-3.5 h-3.5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right" sideOffset={6} className="text-[11px]">
+                  <TooltipContent side="right" sideOffset={6} className="text-2xs">
                     {tab.label}
                   </TooltipContent>
                 </Tooltip>
@@ -166,8 +166,8 @@ export function SettingsDialog() {
                   {isGlowEnabled && (
                     <div className="pt-1">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] text-muted-foreground">Intensity</span>
-                        <span className="text-[11px] font-mono text-muted-foreground">
+                        <span className="text-2xs text-muted-foreground">Intensity</span>
+                        <span className="text-2xs font-mono text-muted-foreground">
                           {Math.round(glowIntensity * 100)}%
                         </span>
                       </div>
@@ -191,16 +191,16 @@ export function SettingsDialog() {
                       variant="secondary"
                       onClick={fetchProcessSnapshot}
                       disabled={processLoading}
-                      className="h-6 text-[11px] px-2"
+                      className="h-6 text-2xs px-2"
                     >
                       {processLoading ? '...' : 'Sample'}
                     </Button>
                   </div>
 
-                  {processError && <div className="text-[11px] text-destructive">{processError}</div>}
+                  {processError && <div className="text-2xs text-destructive">{processError}</div>}
 
                   {processSnapshot && (
-                    <div className="space-y-2 text-[11px]">
+                    <div className="space-y-2 text-2xs">
                       <div className="flex gap-3">
                         <span className="text-muted-foreground">CPU</span>
                         <span className="font-mono">{formatPercent(processSnapshot.totalCpu)}</span>
@@ -209,7 +209,7 @@ export function SettingsDialog() {
                       </div>
                       <div className="max-h-32 overflow-y-auto space-y-1">
                         {processSnapshot.processes.map((p) => (
-                          <div key={p.pid} className="flex items-center justify-between text-[10px] text-muted-foreground">
+                          <div key={p.pid} className="flex items-center justify-between text-3xs text-muted-foreground">
                             <span>{p.name}</span>
                             <span className="font-mono">{formatPercent(p.cpu)} / {formatProcessMemory(p.memRss)}</span>
                           </div>

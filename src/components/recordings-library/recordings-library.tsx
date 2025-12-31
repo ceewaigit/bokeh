@@ -110,7 +110,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
             <div className="mt-4 flex justify-center">
               <div className="bg-muted/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
                 <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
-                <span className="text-[10px] font-medium text-muted-foreground">Loading page…</span>
+                <span className="text-3xs font-medium text-muted-foreground">Loading page…</span>
               </div>
             </div>
           )}

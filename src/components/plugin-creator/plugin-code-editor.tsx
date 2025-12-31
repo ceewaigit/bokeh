@@ -112,7 +112,7 @@ export function PluginCodeEditor({ plugin, onSave, onCancel }: PluginCodeEditorP
             </div>
 
             {/* Help text */}
-            <div className="px-4 py-2 border-t border-border bg-muted/20 text-[10px] text-muted-foreground">
+            <div className="px-4 py-2 border-t border-border bg-muted/20 text-3xs text-muted-foreground">
                 <span className="font-medium">Available:</span>{' '}
                 <code className="bg-muted px-1 rounded">params</code>{' '}
                 <code className="bg-muted px-1 rounded">frame</code>{' '}

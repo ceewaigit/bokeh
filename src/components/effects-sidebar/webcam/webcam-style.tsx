@@ -56,10 +56,10 @@ export function WebcamStyle({
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <label className="text-[12px] font-semibold tracking-[-0.01em]">Edge Padding</label>
+                        <label className="text-xs font-semibold tracking-[-0.01em]">Edge Padding</label>
                         <InfoTooltip content="Distance from the edges of the canvas." />
                     </div>
-                    <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{padding}px</span>
+                    <span className="text-xs font-mono tabular-nums text-muted-foreground">{padding}px</span>
                 </div>
                 <Slider
                     value={[padding]}
@@ -74,7 +74,7 @@ export function WebcamStyle({
             <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-semibold tracking-[-0.01em]">Border</span>
+                        <span className="text-xs font-semibold tracking-[-0.01em]">Border</span>
                         <InfoTooltip content="Add an outline around the webcam." />
                     </div>
                     <Switch
@@ -85,7 +85,7 @@ export function WebcamStyle({
                 {borderEnabled && (
                     <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                            <label className="w-12 text-[12px] font-medium text-muted-foreground">Width</label>
+                            <label className="w-12 text-xs font-medium text-muted-foreground">Width</label>
                             <Slider
                                 value={[borderWidth]}
                                 min={1}
@@ -94,10 +94,10 @@ export function WebcamStyle({
                                 onValueChange={([v]) => onBorderWidthChange(v)}
                                 className="flex-1"
                             />
-                            <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{borderWidth}px</span>
+                            <span className="w-8 text-xs font-mono tabular-nums text-muted-foreground">{borderWidth}px</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <label className="w-12 text-[12px] font-medium text-muted-foreground">Color</label>
+                            <label className="w-12 text-xs font-medium text-muted-foreground">Color</label>
                             <input
                                 type="color"
                                 value={borderColor}
@@ -113,7 +113,7 @@ export function WebcamStyle({
             <div className="space-y-3 rounded-lg border border-border/60 bg-background/40 p-2.5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-semibold tracking-[-0.01em]">Shadow</span>
+                        <span className="text-xs font-semibold tracking-[-0.01em]">Shadow</span>
                         <InfoTooltip content="Soft depth behind the webcam." />
                     </div>
                     <Switch
@@ -123,7 +123,7 @@ export function WebcamStyle({
                 </div>
                 {shadowEnabled && (
                     <div className="flex items-center gap-2">
-                        <label className="w-12 text-[12px] font-medium text-muted-foreground">Blur</label>
+                        <label className="w-12 text-xs font-medium text-muted-foreground">Blur</label>
                         <Slider
                             value={[shadowBlur]}
                             min={0}
@@ -132,7 +132,7 @@ export function WebcamStyle({
                             onValueChange={([v]) => onShadowBlurChange(v)}
                             className="flex-1"
                         />
-                        <span className="w-8 text-[12px] font-mono tabular-nums text-muted-foreground">{shadowBlur}px</span>
+                        <span className="w-8 text-xs font-mono tabular-nums text-muted-foreground">{shadowBlur}px</span>
                     </div>
                 )}
             </div>
@@ -141,10 +141,10 @@ export function WebcamStyle({
             <div className="flex items-center justify-between">
                 <div>
                     <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-semibold tracking-[-0.01em]">Mirror</span>
+                        <span className="text-xs font-semibold tracking-[-0.01em]">Mirror</span>
                         <InfoTooltip content="Flip the webcam horizontally." />
                     </div>
-                    <p className="text-[12px] text-muted-foreground">Flip webcam horizontally</p>
+                    <p className="text-xs text-muted-foreground">Flip webcam horizontally</p>
                 </div>
                 <Switch
                     checked={mirror}
@@ -156,10 +156,10 @@ export function WebcamStyle({
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <label className="text-[12px] font-semibold tracking-[-0.01em]">Opacity</label>
+                        <label className="text-xs font-semibold tracking-[-0.01em]">Opacity</label>
                         <InfoTooltip content="Overall transparency of the webcam." />
                     </div>
-                    <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{Math.round(opacity * 100)}%</span>
+                    <span className="text-xs font-mono tabular-nums text-muted-foreground">{Math.round(opacity * 100)}%</span>
                 </div>
                 <Slider
                     value={[opacity * 100]}
@@ -174,10 +174,10 @@ export function WebcamStyle({
             <div className="flex items-center justify-between">
                 <div>
                     <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-semibold tracking-[-0.01em]">Fade on Zoom</span>
+                        <span className="text-xs font-semibold tracking-[-0.01em]">Fade on Zoom</span>
                         <InfoTooltip content="Automatically dim the webcam when zoomed in." />
                     </div>
-                    <p className="text-[12px] text-muted-foreground">Reduce opacity when zoomed in</p>
+                    <p className="text-xs text-muted-foreground">Reduce opacity when zoomed in</p>
                 </div>
                 <Switch
                     checked={reduceOpacityOnZoom}
@@ -189,8 +189,8 @@ export function WebcamStyle({
             {showCornerRadius && (
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-semibold tracking-[-0.01em]">Corner Radius</label>
-                        <span className="text-[12px] font-mono tabular-nums text-muted-foreground">{cornerRadius}px</span>
+                        <label className="text-xs font-semibold tracking-[-0.01em]">Corner Radius</label>
+                        <span className="text-xs font-mono tabular-nums text-muted-foreground">{cornerRadius}px</span>
                     </div>
                     <Slider
                         value={[cornerRadius]}

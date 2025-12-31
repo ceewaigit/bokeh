@@ -126,7 +126,7 @@ export function PluginCodePanel({ plugin, onSave, onSaveToLibrary, onEdit }: Plu
             {/* Code */}
             {isExpanded && (
                 <div className="px-4 pb-4 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
-                    <pre className="text-[10px] leading-relaxed bg-background/70 border border-border/70 rounded-lg p-3 overflow-x-auto font-mono text-muted-foreground">
+                    <pre className="text-3xs leading-relaxed bg-background/70 border border-border/70 rounded-lg p-3 overflow-x-auto font-mono text-muted-foreground">
                         <code>{fullCode}</code>
                     </pre>
                 </div>

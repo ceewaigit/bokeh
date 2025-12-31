@@ -271,7 +271,7 @@ function PermissionBadge({ granted }: { granted: boolean }) {
     return (
       <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-500">
         <CheckCircle className="w-3 h-3" />
-        <span className="text-[10px] font-medium">Granted</span>
+        <span className="text-3xs font-medium">Granted</span>
       </div>
     )
   }

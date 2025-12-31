@@ -45,7 +45,7 @@ export function LayerVisualizer({ currentCategory }: LayerVisualizerProps) {
                                         {layer.label}
                                     </span>
                                     {isSystem && (
-                                        <span className="text-[10px] px-1.5 py-0.5 bg-background/70 rounded-full text-muted-foreground border border-border/60">
+                                        <span className="text-3xs px-1.5 py-0.5 bg-background/70 rounded-full text-muted-foreground border border-border/60">
                                             System
                                         </span>
                                     )}

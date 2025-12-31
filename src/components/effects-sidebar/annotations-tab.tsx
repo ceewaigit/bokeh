@@ -157,32 +157,32 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
   return (
     <div className="space-y-2.5">
       {/* Header */}
-      <div className="rounded-md bg-background/40 p-2.5">
+      <div className="rounded-2xl bg-background/40 p-2.5 overflow-hidden">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[12px] font-semibold leading-none tracking-[-0.01em]">
+            <div className="text-xs font-semibold leading-none tracking-[-0.01em]">
               Overlays
             </div>
-            <div className="mt-1 text-[12px] text-muted-foreground leading-snug">
+            <div className="mt-1 text-xs text-muted-foreground leading-snug">
               Add text, arrows, and highlights
             </div>
-            <div className="mt-0.5 text-[12px] text-muted-foreground/70 tabular-nums">
+            <div className="mt-0.5 text-xs text-muted-foreground/70 tabular-nums">
               {annotationEffects.length} overlays
             </div>
           </div>
-          <div className="text-[10px] text-muted-foreground/70">
+          <div className="text-3xs text-muted-foreground/70">
             Select a type below to add
           </div>
         </div>
       </div>
 
       {/* Add annotation type picker */}
-      <div className="rounded-md border border-border/50 bg-background/60 p-2.5">
+      <div className="rounded-2xl border border-border/50 bg-background/60 p-2.5 overflow-hidden">
         <div className="flex items-center justify-between">
-          <div className="text-[11px] font-medium text-muted-foreground">
+          <div className="text-2xs font-medium text-muted-foreground">
             Create overlay
           </div>
-          <div className="text-[10px] text-muted-foreground/70">
+          <div className="text-3xs text-muted-foreground/70">
             Click a type to place it
           </div>
         </div>
@@ -200,9 +200,9 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             >
               <div className="flex items-center gap-2">
                 <Icon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" />
-                <span className="text-[11px] font-medium">{label}</span>
+                <span className="text-2xs font-medium">{label}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground/80 leading-snug">
+              <span className="text-3xs text-muted-foreground/80 leading-snug">
                 {description}
               </span>
             </button>
@@ -212,9 +212,9 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
 
       {/* Selected annotation editor */}
       {selectedAnnotation && selectedData && (
-        <div className="space-y-2.5 rounded-md border border-primary/30 bg-background/60 p-2.5">
+        <div className="space-y-2.5 rounded-2xl border border-primary/30 bg-background/60 p-2.5 overflow-hidden">
           <div className="flex items-center justify-between">
-            <div className="text-[11px] font-medium text-primary capitalize">
+            <div className="text-2xs font-medium text-primary capitalize">
               {selectedData.type ?? 'Unknown'} Overlay
             </div>
             <Button
@@ -226,14 +226,14 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <div className="text-[10px] text-muted-foreground/70">
+          <div className="text-3xs text-muted-foreground/70">
             Drag on canvas to move. Resize handles appear for highlights.
           </div>
 
           {/* Content editor for text */}
           {selectedData.type === AnnotationType.Text && (
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-muted-foreground">
+              <label className="text-2xs font-medium text-muted-foreground">
                 Text Content
               </label>
               <Input
@@ -248,7 +248,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
           {/* Content editor for keyboard */}
           {selectedData.type === AnnotationType.Keyboard && (
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-muted-foreground">
+              <label className="text-2xs font-medium text-muted-foreground">
                 Keys
               </label>
               <Input
@@ -263,7 +263,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
           {/* Position controls */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-muted-foreground">
+              <label className="text-2xs font-medium text-muted-foreground">
                 X Position
               </label>
               <Slider
@@ -274,12 +274,12 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                 step={1}
                 className="w-full"
               />
-              <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+              <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
                 {Math.round(selectedData.position?.x ?? 50)}%
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-muted-foreground">
+              <label className="text-2xs font-medium text-muted-foreground">
                 Y Position
               </label>
               <Slider
@@ -290,7 +290,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                 step={1}
                 className="w-full"
               />
-              <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+              <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
                 {Math.round(selectedData.position?.y ?? 50)}%
               </div>
             </div>
@@ -299,7 +299,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
           {selectedData.type === AnnotationType.Highlight && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-muted-foreground">
+                <label className="text-2xs font-medium text-muted-foreground">
                   Width
                 </label>
                 <Slider
@@ -310,12 +310,12 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                   step={1}
                   className="w-full"
                 />
-                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
                   {Math.round(selectedData.width ?? 20)}%
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-muted-foreground">
+                <label className="text-2xs font-medium text-muted-foreground">
                   Height
                 </label>
                 <Slider
@@ -326,7 +326,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                   step={1}
                   className="w-full"
                 />
-                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
                   {Math.round(selectedData.height ?? 10)}%
                 </div>
               </div>
@@ -336,7 +336,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
           {selectedData.type === AnnotationType.Arrow && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-muted-foreground">
+                <label className="text-2xs font-medium text-muted-foreground">
                   End X
                 </label>
                 <Slider
@@ -347,12 +347,12 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                   step={1}
                   className="w-full"
                 />
-                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
                   {Math.round(selectedData.endPosition?.x ?? 60)}%
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-muted-foreground">
+                <label className="text-2xs font-medium text-muted-foreground">
                   End Y
                 </label>
                 <Slider
@@ -363,7 +363,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                   step={1}
                   className="w-full"
                 />
-                <div className="text-[10px] text-muted-foreground/70 text-center tabular-nums">
+                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
                   {Math.round(selectedData.endPosition?.y ?? 50)}%
                 </div>
               </div>
@@ -374,8 +374,8 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
 
       {/* Annotation list */}
       {annotationEffects.length > 0 && !selectedAnnotation && (
-        <div className="rounded-md border border-border/50 bg-background/60 p-2.5">
-          <div className="text-[11px] font-medium text-muted-foreground mb-2">
+        <div className="rounded-2xl border border-border/50 bg-background/60 p-2.5 overflow-hidden">
+          <div className="text-2xs font-medium text-muted-foreground mb-2">
             Timeline Annotations
           </div>
           <div className="space-y-1">
@@ -397,10 +397,10 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                 >
                   <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-medium truncate capitalize">
+                    <div className="text-2xs font-medium truncate capitalize">
                       {data.type ?? 'Unknown'}
                     </div>
-                    <div className="text-[10px] text-muted-foreground/70 tabular-nums">
+                    <div className="text-3xs text-muted-foreground/70 tabular-nums">
                       {(effect.startTime / 1000).toFixed(1)}s - {(effect.endTime / 1000).toFixed(1)}s
                     </div>
                   </div>
@@ -413,8 +413,8 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
 
       {/* Empty state */}
       {annotationEffects.length === 0 && !selectedAnnotation && (
-        <div className="rounded-md border border-dashed border-border/50 bg-background/30 p-4 text-center">
-          <div className="text-[11px] text-muted-foreground">
+        <div className="rounded-2xl border border-dashed border-border/50 bg-background/30 p-4 text-center overflow-hidden">
+          <div className="text-2xs text-muted-foreground">
             No overlays yet. Pick a type above to create one.
           </div>
         </div>
