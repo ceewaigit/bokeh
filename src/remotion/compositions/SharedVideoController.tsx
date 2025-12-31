@@ -5,11 +5,8 @@
  * Manages video clip rendering, transforms, and visual effects for both
  * preview playback and export rendering modes.
  *
- * Uses extracted hooks for clean separation of concerns:
- * - useEffectiveClipData: Resolves clip with inheritance logic
- * - useLayoutCalculation: Computes dimensions and positions
- * - useTransformCalculation: Computes zoom, crop, 3D transforms
- * - useRenderableItems: Determines which clips to render
+ * Uses consolidated hook for performance:
+ * - useFrameSnapshot: Consolidates layout, transforms, clip resolution, and renderable items
  */
 
 import React, { useEffect, useMemo, useRef } from 'react';
@@ -27,8 +24,6 @@ import { type FrameLayoutItem, findActiveFrameLayoutItems, getBoundaryOverlapSta
 import { useCameraPath } from '@/remotion/hooks/camera/useCameraPath';
 import { getMaxZoomScale } from '@/remotion/hooks/media/useVideoUrl';
 import { useRenderDelay } from '@/remotion/hooks/render/useRenderDelay';
-import { useRenderableItems } from '@/remotion/hooks/render/useRenderableItems';
-import { useEffectiveClipData } from '@/remotion/hooks/clip/useEffectiveClipData';
 import { useFrameSnapshot } from '@/remotion/hooks/use-frame-snapshot';
 import { frameToMs } from './utils/time/frame-time';
 
@@ -53,6 +48,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   children,
   cameraSettings,
   renderSettings,
+  cameraPath,
 }) => {
   // ==========================================================================
   // REMOTION HOOKS & CONTEXT
@@ -70,7 +66,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const useOffthreadVideo = isRendering && preferOffthreadVideo;
 
   const currentTimeMs = frameToMs(currentFrame, fps);
-  const cameraPathCache = useProjectStore((s) => s.cameraPathCache);
+  // cameraPathCache is now passed via props as `cameraPath` (SSOT)
+  // const cameraPathCache = useProjectStore((s) => s.cameraPathCache); // Removed
   const isScrubbing = useProjectStore((s) => s.isScrubbing);
 
   // ==========================================================================
@@ -160,44 +157,18 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     sourceVideoHeight,
   ]);
 
-  const { isNearBoundaryStart, isNearBoundaryEnd, shouldHoldPrevFrame, overlapFrames } = boundaryState;
+  const { shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames } = boundaryState;
 
   // ==========================================================================
-  // CLIP DATA RESOLUTION
+  // CLIP DATA RESOLUTION & CAMERA
   // ==========================================================================
 
   // Pre-compute camera path
   const cameraPathFrame = useCameraPath({
     enabled: true,
-    isRendering,
     currentFrame,
-    frameLayout,
-    fps,
-    videoWidth,
-    videoHeight,
-    sourceVideoWidth,
-    sourceVideoHeight,
-    effects,
-    getRecording: (id) => getRecording(id) ?? null,
-    cachedPath: cameraPathCache
+    cachedPath: cameraPath
   });
-
-  // Resolve effective clip data (handling inheritance, "Return Cursor" logic)
-  const effectiveResult = useEffectiveClipData({
-    activeClipData,
-    currentFrame,
-    frameLayout,
-    fps,
-    effects,
-    getRecording: (id) => getRecording(id) ?? null,
-    isRendering,
-    isNearBoundaryStart,
-    isNearBoundaryEnd,
-    activeLayoutItem,
-    prevLayoutItem,
-    nextLayoutItem,
-  });
-  const { effectiveClipData: resolvedClipData } = effectiveResult;
 
   // ==========================================================================
   // RENDER DELAY
@@ -220,14 +191,29 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     videoHeight,
     sourceVideoWidth,
     sourceVideoHeight,
-    recordingWidth: resolvedClipData?.recording.width,
-    recordingHeight: resolvedClipData?.recording.height,
-    clipEffects: resolvedClipData?.effects ?? effects,
+    // Clip resolution props
+    currentFrame,
     currentTimeMs,
+    fps,
+    frameLayout,
+    recordingsMap,
+    activeClipData,
+    clipEffects: effects,
+    getRecording: (id) => getRecording(id) ?? null,
+    isRendering,
+    boundaryState: {
+      ...boundaryState,
+      activeLayoutItem: renderActiveLayoutItem,
+      prevLayoutItem: renderPrevLayoutItem,
+      nextLayoutItem: renderNextLayoutItem,
+    },
+    // Transform props
     zoomTransform: zoomTransform as any,
     zoomTransformStr,
     isEditingCrop
   });
+
+  const { effectiveClipData: resolvedClipData, renderableItems } = snapshot;
 
   // Destructure for backwards compatibility with existing code
   const layout = {
@@ -310,17 +296,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
   // RENDERABLE ITEMS
   // ==========================================================================
-  const renderableItems = useRenderableItems({
-    frameLayout,
-    currentFrame,
-    fps,
-    isRendering,
-    recordingsMap,
-    prevLayoutItem: renderPrevLayoutItem,
-    nextLayoutItem: renderNextLayoutItem,
-    shouldHoldPrevFrame,
-    isNearBoundaryEnd,
-  });
 
   useEffect(() => {
     if (!isRendering && renderableItems.length === 0) {

@@ -52,16 +52,16 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
 
   protected mutate(draft: WritableDraft<ProjectStore>): void {
     if (!draft.currentProject) {
-        throw new Error('No active project')
+      throw new Error('No active project')
     }
 
     const result = executeSplitClip(draft.currentProject, this.clipId, this.splitTime)
     if (!result) {
-        throw new Error('Split failed')
+      throw new Error('Split failed')
     }
 
     const { firstClip, secondClip } = result
-    
+
     // Split changes clip boundaries; rebuild derived keystroke blocks.
     EffectsFactory.syncKeystrokeEffects(draft.currentProject)
 
@@ -70,7 +70,7 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
 
     // Move playhead to just before the split point
     if (draft.currentTime >= this.splitTime) {
-        draft.currentTime = playbackService.seek(this.splitTime - 1, draft.currentProject.timeline.duration)
+      draft.currentTime = playbackService.seek(this.splitTime - 1, draft.currentProject.timeline.duration)
     }
 
     // Clear render caches to prevent stale data after split

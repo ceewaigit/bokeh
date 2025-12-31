@@ -5,7 +5,6 @@
  */
 
 import { PatchedCommand } from '../base/PatchedCommand'
-import type { CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/stores/project-store'
@@ -51,7 +50,7 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
 
   protected mutate(draft: WritableDraft<ProjectStore>): void {
     if (!draft.currentProject) {
-        throw new Error('No active project')
+      throw new Error('No active project')
     }
 
     const result = findClipById(draft.currentProject, this.clipId)
@@ -66,7 +65,7 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
       if (this.trimPosition <= clip.startTime || this.trimPosition >= clip.startTime + clip.duration) {
         throw new Error('Invalid trim position for start')
       }
-      
+
       if (!executeTrimClipStart(draft.currentProject, this.clipId, this.trimPosition)) {
         throw new Error('Trim start failed')
       }
@@ -74,7 +73,7 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
       if (this.trimPosition <= clip.startTime || this.trimPosition >= clip.startTime + clip.duration) {
         throw new Error('Invalid trim position for end')
       }
-      
+
       if (!executeTrimClipEnd(draft.currentProject, this.clipId, this.trimPosition)) {
         throw new Error('Trim end failed')
       }

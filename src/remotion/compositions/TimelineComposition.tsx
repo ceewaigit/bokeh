@@ -35,6 +35,9 @@ import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
 import { isProxySufficientForTarget } from '@/shared/utils/resolution-utils';
 import type { WebcamEffectData } from '@/types/project';
 import { TimelineProvider } from '../context/TimelineContext';
+import { useProjectStore } from '@/stores/project-store';
+import { calculateFullCameraPath } from '@/features/effects/utils/camera-path-calculator';
+import { TimeConverter } from '@/features/timeline/time/time-space-converter';
 
 /**
  * Get audio URL for a recording
@@ -208,7 +211,40 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     prevVisibleIdsRef.current = currentIds;
     prevVisibleLayoutRef.current = items;
     return items;
+    prevVisibleIdsRef.current = currentIds;
+    prevVisibleLayoutRef.current = items;
+    return items;
   }, [frameLayout, fps, frame, getActiveLayoutItems]);
+
+  // ROBUST CAMERA PATH RESOLUTION:
+  // 1. Try Store Cache (Editor/Preview mode - reactive to edits)
+  // 2. Fallback to calculation (Export/Headless mode - static)
+  // This explicitly guarantees a valid camera path exists before children render.
+  const cachedPath = useProjectStore(s => s.cameraPathCache);
+
+  const cameraPath = React.useMemo(() => {
+    if (cachedPath) return cachedPath;
+
+    // Export Mode: Calculate on the fly using exact SSOT logic
+    // Note: frameLayout is already computed by Context
+    return calculateFullCameraPath({
+      frameLayout,
+      fps,
+      videoWidth,
+      videoHeight,
+      sourceVideoWidth,
+      sourceVideoHeight,
+      effects,
+      getRecording,
+      // During export, metadata loading is handled by resolution or passed via props. 
+      // TimelineComposition doesn't have direct access to 'loadedMetadata' map from store easily 
+      // but 'getRecording' might return enriched recordings with metadata if the provider does its job.
+      // In export-handler, we saw `downsampleRecordingMetadata` populates metadata on the recording object itself.
+      // `calculateFullCameraPath` usage of `loadedMetadata` map is optional if recording.metadata is present.
+      loadedMetadata: undefined,
+      cameraSettings: cameraSettings
+    });
+  }, [cachedPath, frameLayout, fps, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight, effects, getRecording, cameraSettings]);
 
   return (
     <AbsoluteFill
@@ -236,7 +272,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         })}
       </AbsoluteFill>
 
-      {/* SharedVideoController provides VideoPositionContext for all children */}
       <SharedVideoController
         videoWidth={videoWidth}
         videoHeight={videoHeight}
@@ -246,6 +281,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         playback={playback}
         renderSettings={renderSettings}
         cropSettings={cropSettings}
+        cameraPath={cameraPath}
       >
         {/* Overlay layers (cursor, keystrokes, etc.) rendered per clip as children */}
         {!renderSettings.isGlowMode && visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {

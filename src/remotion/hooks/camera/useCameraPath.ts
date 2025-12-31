@@ -3,28 +3,20 @@ import type { CameraPathFrame } from '@/types'
 import type { Effect, Recording, RecordingMetadata } from '@/types/project'
 import { useMemo } from 'react'
 
-type UseCameraPathArgs = {
-    enabled: boolean
-    isRendering: boolean
-    currentFrame: number
-    frameLayout: FrameLayoutItem[]
-    fps: number
-    videoWidth: number
-    videoHeight: number
-    sourceVideoWidth?: number
-    sourceVideoHeight?: number
-    effects: Effect[]
-    getRecording: (recordingId: string) => Recording | null | undefined
-    loadedMetadata?: Map<string, RecordingMetadata>
-    cachedPath?: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
-}
-
+// Import DEFAULT_RESULT from calculator or define locally if not exported
+// Using the same default as before to be safe
 const DEFAULT_RESULT: CameraPathFrame & { path?: CameraPathFrame[] } = {
     activeZoomBlock: undefined,
     zoomCenter: { x: 0.5, y: 0.5 },
     velocity: { x: 0, y: 0 },
     zoomTransform: { scale: 1, panX: 0, panY: 0, scaleCompensationX: 0, scaleCompensationY: 0, refocusBlur: 0 },
     zoomTransformStr: 'translate3d(0px, 0px, 0) scale3d(1, 1, 1)'
+}
+
+type UseCameraPathArgs = {
+    enabled: boolean
+    currentFrame: number
+    cachedPath?: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
 }
 
 /**
@@ -34,10 +26,10 @@ const DEFAULT_RESULT: CameraPathFrame & { path?: CameraPathFrame[] } = {
  * The `cameraPathCache` (computed on project load) is the Single Source of Truth (SSOT).
  * 
  * - If cache exists: Return frame from cache (Preview & Render).
- * - If no cache: Return default center (static).
+ * - If no cache (Export/Headless): Return default center (static).
  * 
- * We no longer fallback to expensive realtime physics because the cache
- * should always be populated when a project is loaded.
+ * NOTE: For export, the parent component (TimelineComposition) MUST ensure `cachedPath` 
+ * is populated via calculation before rendering. This hook is purely for access.
  */
 // Utility for safe frame lookup (SSOT)
 export function getCameraFrameForTime(
@@ -61,14 +53,13 @@ export function useCameraPath(args: UseCameraPathArgs): (CameraPathFrame & { pat
     return useMemo(() => {
         if (!enabled) return null
 
-        // 1. Use Cache if available (This is the happy path for 99% of cases)
+        // 1. Use Cache if available (Only path - SSOT)
         if (cachedPath) {
             return getCameraFrameForTime(cachedPath, currentFrame);
         }
 
-        // 2. Fallback: No cache means we treat camera as static centered.
-        // In the future, if we need realtime editing of path without re-caching,
-        // we can re-introduce a LIGHTWEIGHT calculator here.
+        // 2. No cache? Static center.
+        // It is the responsibility of the caller to provide the path if dynamic camera is needed.
         return DEFAULT_RESULT
 
     }, [enabled, currentFrame, cachedPath])

@@ -6,11 +6,12 @@
  * - Video position calculation (from video-position.ts)
  * - Mockup position calculation (from mockup-transform.ts)
  * - Zoom, crop, and 3D transforms (from transform hooks)
+ * - Clip data resolution and renderable item calculation (moved from hooks)
  * 
  * PIVOT STANDARDIZATION: All coordinates use Top-Left (0,0) as origin.
  */
 
-import type { Effect, BackgroundEffect, DeviceMockupData } from '@/types/project'
+import type { Effect, BackgroundEffect, DeviceMockupData, Recording } from '@/types/project'
 import { DeviceModel } from '@/types/project'
 import { resolveMockupMetadata } from '@/lib/mockups/mockup-metadata'
 import { DEVICE_MOCKUPS } from '@/lib/constants/device-mockups'
@@ -20,6 +21,13 @@ import { calculateCropTransform, getCropTransformString, combineCropAndZoomTrans
 import { calculateScreenTransform } from '@/remotion/compositions/utils/transforms/screen-transform'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
 import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/lib/constants/layout'
+
+// Logic imports
+import type { ActiveClipDataAtFrame } from '@/types/remotion'
+import type { FrameLayoutItem, PersistedVideoState } from '@/features/timeline/utils/frame-layout'
+import { getVisibleFrameLayout } from '@/features/timeline/utils/frame-layout'
+import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame'
+import { applyInheritance } from '@/features/effects/effect-inheritance'
 
 // =============================================================================
 // TYPES
@@ -51,6 +59,11 @@ export interface MockupPositionResult {
 
     // Scale factor applied to the mockup
     mockupScale: number
+}
+
+// Extended type to include calculated source time for consumers
+export interface ResolvedVideoState extends PersistedVideoState {
+    sourceTimeMs: number;
 }
 
 /**
@@ -99,16 +112,21 @@ export interface FrameSnapshot {
         zoomTransform: Record<string, unknown> | null
         velocity: { x: number; y: number }
     }
+
+    // Clip Data & Renderable Items (New)
+    effectiveClipData: ActiveClipDataAtFrame | null
+    persistedVideoState: ResolvedVideoState | null
+    renderableItems: FrameLayoutItem[]
 }
 
 /**
  * Options for calculating a frame snapshot.
  */
 export interface FrameSnapshotOptions {
-    // Time in milliseconds
+    // Time & Dimensions
     currentTimeMs: number
-
-    // Composition dimensions
+    currentFrame: number
+    fps: number
     compositionWidth: number
     compositionHeight: number
 
@@ -120,14 +138,35 @@ export interface FrameSnapshotOptions {
     recordingWidth?: number
     recordingHeight?: number
 
-    // Effects for the active clip
+    // Data Sources
+    frameLayout: FrameLayoutItem[]
+    recordingsMap: Map<string, Recording>
+    activeClipData: ActiveClipDataAtFrame | null
     clipEffects: Effect[]
-
-    // Camera/Zoom state (precomputed from camera-calculator)
+    
+    // Services
+    getRecording: (id: string) => Recording | null | undefined
+    
+    // Camera/Zoom state
     zoomTransform?: Record<string, unknown> | null
     zoomTransformStr?: string
-
-    // Editing states
+    
+    // Boundary/Stability State
+    boundaryState?: {
+        isNearBoundaryStart: boolean;
+        isNearBoundaryEnd: boolean;
+        activeLayoutItem: FrameLayoutItem | null;
+        prevLayoutItem: FrameLayoutItem | null;
+        nextLayoutItem: FrameLayoutItem | null;
+        shouldHoldPrevFrame: boolean;
+    }
+    
+    // Persistence/Fallback (for stability across frames)
+    lastValidClipData?: ActiveClipDataAtFrame | null
+    prevRenderableItems?: FrameLayoutItem[]
+    
+    // Flags
+    isRendering: boolean
     isEditingCrop?: boolean
 }
 
@@ -374,38 +413,83 @@ export function canvasToVideoCoordinates(
  * Calculate the complete render state for a frame.
  * 
  * This performs a "Single Pass" through all layout calculations:
- * 1. Video/Mockup positioning
- * 2. Crop transform
- * 3. Zoom transform (from camera path)
- * 4. 3D screen transform
- * 5. High-res scale calculation
+ * 1. Clip Data Resolution
+ * 2. Renderable Items Calculation
+ * 3. Video/Mockup positioning
+ * 4. Crop transform
+ * 5. Zoom transform (from camera path)
+ * 6. 3D screen transform
+ * 7. High-res scale calculation
  * 
  * @param options - Frame calculation options
  * @returns Complete FrameSnapshot for rendering
  */
 export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnapshot {
     const {
+        // Time & Dimensions
         currentTimeMs,
+        currentFrame,
+        fps,
         compositionWidth,
         compositionHeight,
         videoWidth,
         videoHeight,
         sourceVideoWidth,
         sourceVideoHeight,
-        recordingWidth,
-        recordingHeight,
+        
+        // Data Sources
+        frameLayout,
+        activeClipData,
         clipEffects,
+        getRecording,
+        
+        // Transforms
         zoomTransform = null,
         zoomTransformStr = '',
+        
+        // State
+        boundaryState,
+        lastValidClipData,
+        isRendering,
         isEditingCrop = false,
     } = options
 
     // ==========================================================================
-    // STEP 1: Layout Calculation
+    // STEP 1: Clip Data Resolution (Effective Clip)
+    // ==========================================================================
+    
+    // Calculate effective clip data (handling inheritance and boundaries)
+    const { effectiveClipData, persistedVideoState } = calculateEffectiveClipData({
+        activeClipData,
+        currentFrame,
+        frameLayout,
+        fps,
+        effects: clipEffects,
+        getRecording,
+        isRendering,
+        boundaryState,
+        lastValidClipData
+    });
+
+    // Use resolved dimensions if available, otherwise fallbacks
+    const activeSourceWidth = effectiveClipData?.recording.width || options.recordingWidth || sourceVideoWidth || videoWidth
+    const activeSourceHeight = effectiveClipData?.recording.height || options.recordingHeight || sourceVideoHeight || videoHeight
+    
+    // Resolve effects from effective clip (if different from passed effects)
+    const resolvedEffects = effectiveClipData?.effects ?? clipEffects;
+
+    // ==========================================================================
+    // STEP 2: Renderable Items
+    // ==========================================================================
+
+    const renderableItems = calculateRenderableItems(options);
+
+    // ==========================================================================
+    // STEP 3: Layout Calculation
     // ==========================================================================
 
     // Get background effect data
-    const backgroundEffect = getActiveBackgroundEffect(clipEffects, currentTimeMs) as BackgroundEffect | undefined
+    const backgroundEffect = getActiveBackgroundEffect(resolvedEffects, currentTimeMs) as BackgroundEffect | undefined
     const backgroundData = backgroundEffect?.data || null
 
     // Calculate scale factor
@@ -421,10 +505,6 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     const shadowIntensity = backgroundData?.shadowIntensity ?? DEFAULT_BACKGROUND_DATA.shadowIntensity ?? 0
     const mockupData = backgroundData?.mockup
     const mockupEnabled = mockupData?.enabled ?? false
-
-    // Source dimensions
-    const activeSourceWidth = recordingWidth || sourceVideoWidth || videoWidth
-    const activeSourceHeight = recordingHeight || sourceVideoHeight || videoHeight
 
     // Calculate video position
     const vidPos = calculateVideoPosition(
@@ -449,11 +529,11 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     }
 
     // ==========================================================================
-    // STEP 2: Transform Calculation
+    // STEP 4: Transform Calculation
     // ==========================================================================
 
     // Crop transform
-    const cropEffect = getActiveCropEffect(clipEffects, currentTimeMs)
+    const cropEffect = getActiveCropEffect(resolvedEffects, currentTimeMs)
     const resolvedCropData = isEditingCrop || !cropEffect
         ? null
         : getCropData(cropEffect)
@@ -478,18 +558,17 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
         : cropTransform.clipPath
 
     // 3D Screen transform
-    const extra3DTransform = calculateScreenTransform(clipEffects, currentTimeMs)
+    const extra3DTransform = calculateScreenTransform(resolvedEffects, currentTimeMs)
     const combinedZoomCrop = combineCropAndZoomTransforms(cropTransformStr, zoomTransformStr)
     const combinedTransform = extra3DTransform
         ? `${extra3DTransform} ${combinedZoomCrop}`.trim()
         : combinedZoomCrop
 
     // ==========================================================================
-    // STEP 3: High-Res Scale Calculation
+    // STEP 5: High-Res Scale Calculation
     // ==========================================================================
 
     // Calculate the scale needed to fit source media into the composition
-    // This prevents the "Zoom to Top-Left" bug by using explicit scaling
     const drawWidth = Math.round(vidPos.drawWidth)
     const drawHeight = Math.round(vidPos.drawHeight)
 
@@ -538,6 +617,10 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
             zoomTransform: isEditingCrop ? null : zoomTransform,
             velocity: { x: 0, y: 0 }, // Caller should update from camera path
         },
+        
+        effectiveClipData,
+        persistedVideoState,
+        renderableItems
     }
 }
 
@@ -578,4 +661,202 @@ export function videoToCompositionCoords(
         x: layout.offsetX + normalizedX * layout.drawWidth,
         y: layout.offsetY + normalizedY * layout.drawHeight,
     }
+}
+
+// =============================================================================
+// INTERNAL HELPERS (Moved from Hooks)
+// =============================================================================
+
+function calculateEffectiveClipData(options: {
+    activeClipData: ActiveClipDataAtFrame | null
+    currentFrame: number
+    frameLayout: FrameLayoutItem[]
+    fps: number
+    effects: Effect[]
+    getRecording: (id: string) => Recording | null | undefined
+    isRendering: boolean
+    boundaryState?: FrameSnapshotOptions['boundaryState']
+    lastValidClipData?: ActiveClipDataAtFrame | null
+}): { effectiveClipData: ActiveClipDataAtFrame | null, persistedVideoState: ResolvedVideoState | null } {
+    const {
+        activeClipData,
+        currentFrame,
+        frameLayout,
+        fps,
+        effects,
+        getRecording,
+        isRendering,
+        boundaryState,
+        lastValidClipData
+    } = options
+
+    let clipData = activeClipData;
+
+    // 1. BOUNDARY FALLBACK
+    if (!clipData && !isRendering && boundaryState) {
+        const { isNearBoundaryStart, isNearBoundaryEnd, prevLayoutItem, nextLayoutItem, activeLayoutItem } = boundaryState;
+        
+        if (isNearBoundaryStart && prevLayoutItem && activeLayoutItem) {
+            clipData = getActiveClipDataAtFrame({
+                frame: activeLayoutItem.startFrame - 1,
+                frameLayout,
+                fps,
+                effects,
+                getRecording,
+            });
+        } else if (isNearBoundaryEnd && nextLayoutItem) {
+            clipData = getActiveClipDataAtFrame({
+                frame: nextLayoutItem.startFrame,
+                frameLayout,
+                fps,
+                effects,
+                getRecording,
+            });
+        }
+    }
+
+    if (!clipData && lastValidClipData && !isRendering) {
+        clipData = lastValidClipData;
+    }
+
+    // 2. RESOLVE PERSISTED/INHERITED VIDEO STATE
+    const isVisualSource = (rec: Recording | null | undefined) =>
+        rec && (rec.sourceType === 'video' || rec.sourceType === 'image');
+
+    let persistedVideoState: ResolvedVideoState | null = null;
+    const activeLayoutItem = boundaryState?.activeLayoutItem ?? null;
+
+    if (activeLayoutItem?.persistedVideoState) {
+        // Strategy 1: Explicit constraint from layout (Pre-computed)
+        const state = activeLayoutItem.persistedVideoState;
+
+        // Calculate current source time on the background video
+        let currentSourceTimeMs: number;
+
+        if (state.isFrozen) {
+            // If frozen, do NOT advance time. Stick to the clamped base time.
+            currentSourceTimeMs = state.baseSourceTimeMs;
+        } else {
+            // Normal playback: advance time based on how far we are into the overlay
+            const framesIntoOverlay = currentFrame - activeLayoutItem.startFrame;
+            const msIntoOverlay = (framesIntoOverlay / fps) * 1000;
+            currentSourceTimeMs = state.baseSourceTimeMs + (msIntoOverlay * (state.clip.playbackRate || 1));
+        }
+
+        persistedVideoState = {
+            ...state,
+            sourceTimeMs: currentSourceTimeMs
+        };
+    }
+    else if (isVisualSource(clipData?.recording) && activeLayoutItem && clipData) {
+        // Strategy 2: Self is visual
+        persistedVideoState = {
+            recording: clipData.recording,
+            clip: clipData.clip,
+            layoutItem: activeLayoutItem,
+            baseSourceTimeMs: clipData.sourceTimeMs,
+            sourceTimeMs: clipData.sourceTimeMs,
+            isFrozen: false,
+        };
+    }
+
+    // 3. APPLY INHERITANCE
+    if (
+        clipData &&
+        clipData.recording.sourceType === 'generated' &&
+        persistedVideoState &&
+        isVisualSource(persistedVideoState.recording)
+    ) {
+        clipData = applyInheritance({
+            clipData,
+            persistedState: persistedVideoState,
+            currentFrame,
+            frameLayout,
+            fps,
+            effects,
+            getRecording,
+        });
+    }
+
+    return {
+        effectiveClipData: clipData,
+        persistedVideoState,
+    };
+}
+
+function calculateRenderableItems(options: FrameSnapshotOptions): FrameLayoutItem[] {
+    const {
+        frameLayout,
+        currentFrame,
+        fps,
+        isRendering,
+        recordingsMap,
+        boundaryState,
+        prevRenderableItems = []
+    } = options
+    
+    // Default to safe values if boundary state is missing
+    const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false
+    const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false
+    const prevLayoutItem = boundaryState?.prevLayoutItem ?? null
+    const nextLayoutItem = boundaryState?.nextLayoutItem ?? null
+
+    const items = getVisibleFrameLayout({
+        frameLayout,
+        currentFrame,
+        fps,
+        isRendering,
+        prevLayoutItem,
+        nextLayoutItem,
+        shouldHoldPrevFrame,
+        isNearBoundaryEnd,
+    });
+
+    // Deduplicate by groupId (O(N) with Map vs O(N²) with filter)
+    const uniqueItems = new Map<string, FrameLayoutItem>();
+    for (const item of items) {
+        if (!uniqueItems.has(item.groupId)) {
+            uniqueItems.set(item.groupId, item);
+        }
+    }
+
+    let sortedItems = Array.from(uniqueItems.values()).sort(
+        (a, b) => a.startFrame - b.startFrame
+    );
+
+    // MEMORY CAP: Maximum 3 video clips mounted at once to prevent VTDecoder exhaustion
+    const MAX_VIDEO_CLIPS = 3;
+    const videoItems = sortedItems.filter(
+        (item) => recordingsMap.get(item.clip.recordingId)?.sourceType === 'video'
+    );
+    if (videoItems.length > MAX_VIDEO_CLIPS) {
+        // Keep closest to currentFrame
+        const byDistance = videoItems
+            .map((item) => ({ item, dist: Math.abs(item.startFrame - currentFrame) }))
+            .sort((a, b) => a.dist - b.dist)
+            .slice(0, MAX_VIDEO_CLIPS)
+            .map(({ item }) => item);
+
+        const nonVideoItems = sortedItems.filter(
+            (item) => recordingsMap.get(item.clip.recordingId)?.sourceType !== 'video'
+        );
+        sortedItems = [...nonVideoItems, ...byDistance].sort(
+            (a, b) => a.startFrame - b.startFrame
+        );
+    }
+
+    // STABILITY FIX: Return previous array reference if groupIds haven't changed
+    const currentIds = sortedItems.map((i) => i.groupId).join(',');
+    
+    // We can't check ref equality here easily without passing the ID string from outside.
+    // Instead, we check if the content matches. 
+    // Optimization: If the caller provided prevRenderableItems, check if IDs match.
+    if (prevRenderableItems.length > 0) {
+        const prevIds = prevRenderableItems.map(i => i.groupId).join(',');
+        if (currentIds === prevIds) {
+            return prevRenderableItems;
+        }
+    }
+
+    return sortedItems;
 }

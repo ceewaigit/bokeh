@@ -351,6 +351,8 @@ export interface SharedVideoControllerProps {
   sourceVideoHeight?: number;
   children?: ReactNode;
   cameraSettings?: CameraSettings;
+  /** Explicit camera path (SSOT) - passed from parent to avoid implicit store dependency during export */
+  cameraPath?: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null;
 
   // New Config Objects
   playback: PlaybackSettings;

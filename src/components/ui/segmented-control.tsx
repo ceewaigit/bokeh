@@ -43,7 +43,7 @@ export function SegmentedControl<T extends string | number>({
                         className={cn(
                             "relative px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 outline-none",
                             "border border-border/40 hover:border-border/80 hover:bg-muted/30",
-                            isSelected && "text-primary-foreground border-transparent hover:bg-primary",
+                            isSelected && "text-black border-transparent",
                             disabled && "opacity-50 cursor-not-allowed",
                             !isSelected && "bg-muted/10 text-muted-foreground hover:text-foreground"
                         )}
@@ -52,7 +52,7 @@ export function SegmentedControl<T extends string | number>({
                         {isSelected && (
                             <motion.div
                                 layoutId={`segmented-indicator-${className}`}
-                                className="absolute inset-0 bg-primary rounded-md -z-10"
+                                className="absolute inset-0 bg-white rounded-md z-0 shadow-sm"
                                 initial={false}
                                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
                             />
