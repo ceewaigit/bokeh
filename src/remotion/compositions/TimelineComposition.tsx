@@ -25,7 +25,8 @@ import { AnnotationLayer } from './layers/AnnotationLayer';
 import { PluginLayer } from './layers/PluginLayer';
 import { CropEditingLayer } from './layers/CropEditingLayer';
 import { WebcamLayer } from './layers/WebcamLayer';
-import { OverlayEditor } from './layers/OverlayEditor';
+
+
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/components/recordings-library/utils/recording-paths';
 import { useTimelineContext } from '../context/TimelineContext';
@@ -305,24 +306,10 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
         {!renderSettings.isGlowMode && <CursorLayer />}
 
-        {/* Annotation overlay rendered on the same video coordinates */}
-        {!renderSettings.isGlowMode && <AnnotationLayer />}
-
         {/* Crop editing overlay - uses VideoPositionContext for accurate positioning */}
-        {useVideoConfig().width > 300 && (
-          <CropEditingLayer
-            isEditingCrop={renderSettings.isEditingCrop}
-            cropData={cropSettings.cropData ?? null}
-            onCropChange={cropSettings.onCropChange}
-            onCropConfirm={cropSettings.onCropConfirm}
-            onCropReset={cropSettings.onCropReset}
-          />
-        )}
 
-        {/* Overlay editor - Canva-style drag/resize for positioned elements */}
-        {useVideoConfig().width > 300 && !renderSettings.isEditingCrop && (
-          <OverlayEditor effects={effects} enabled={!renderSettings.isGlowMode} />
-        )}
+
+
         {/* Transition plugins - renders ABOVE everything at composition level (fullscreen transitions) */}
         {!renderSettings.isGlowMode && (
           <PluginLayer layer="above-cursor" />

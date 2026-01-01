@@ -23,8 +23,11 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
   isEditingOverlay: false,
   editingOverlayId: null,
 
-  // Transient Effect State
-  transientEffectState: null,
+  // Inline Text Editing State (contentEditable for annotations)
+  inlineEditingId: null,
+
+  // Note: transientEffectState has been moved to isolated AnnotationEditContext
+  // to prevent video re-renders during annotation drag/resize operations
 
   // Actions
   selectClip: (clipId, multi = false) => {
@@ -133,13 +136,17 @@ export const createSelectionSlice: CreateSelectionSlice = (set) => ({
     })
   },
 
-  setTransientEffectState: (id, data) => {
+  // Note: setTransientEffectState removed - now in AnnotationEditContext
+
+  startInlineEditing: (effectId) => {
     set((state) => {
-      if (!id || !data) {
-        state.transientEffectState = null
-      } else {
-        state.transientEffectState = { id, data }
-      }
+      state.inlineEditingId = effectId
+    })
+  },
+
+  stopInlineEditing: () => {
+    set((state) => {
+      state.inlineEditingId = null
     })
   }
 })

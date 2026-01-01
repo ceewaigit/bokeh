@@ -1,6 +1,7 @@
 import React from 'react';
+import { AnnotationType } from '@/types/project';
 
-export type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | null;
+export type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | 'annotation' | null;
 
 export interface CursorOverlayData {
     left: number;
@@ -19,15 +20,44 @@ export interface WebcamOverlayData {
     height: number;
 }
 
+export interface AnnotationOverlayData {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    type: AnnotationType;
+}
+
 interface LayerHoverOverlaysProps {
     hoveredLayer: PreviewHoverLayer;
     cursorOverlay: CursorOverlayData | null;
     webcamOverlay: WebcamOverlayData | null;
+    annotationOverlay: AnnotationOverlayData | null;
     canSelectBackground: boolean;
     canSelectCursor: boolean;
     canSelectWebcam: boolean;
+    canSelectAnnotation: boolean;
     containerWidth?: number;
     containerHeight?: number;
+}
+
+/**
+ * Get display label for annotation type
+ */
+function getAnnotationLabel(type: AnnotationType): string {
+    switch (type) {
+        case AnnotationType.Text:
+            return 'Text';
+        case AnnotationType.Keyboard:
+            return 'Keyboard';
+        case AnnotationType.Highlight:
+            return 'Highlight';
+        case AnnotationType.Arrow:
+            return 'Arrow';
+        default:
+            return 'Annotation';
+    }
 }
 
 /**
@@ -41,7 +71,9 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
     hoveredLayer,
     cursorOverlay,
     webcamOverlay,
+    annotationOverlay,
     canSelectBackground,
+    canSelectAnnotation,
 }) => {
     return (
         <>
@@ -109,6 +141,30 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                         }}
                     >
                         Cursor
+                    </div>
+                </div>
+            )}
+
+            {/* Annotation layer hover hint - uses bounds from DOM query */}
+            {hoveredLayer === 'annotation' && annotationOverlay && canSelectAnnotation && (
+                <div className="pointer-events-none absolute inset-0 z-20">
+                    <div
+                        className="absolute rounded-md bg-white/5 border border-primary/40 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+                        style={{
+                            left: `${annotationOverlay.x}px`,
+                            top: `${annotationOverlay.y}px`,
+                            width: `${annotationOverlay.width}px`,
+                            height: `${annotationOverlay.height}px`,
+                        }}
+                    />
+                    <div
+                        className="absolute rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
+                        style={{
+                            left: `${Math.max(12, annotationOverlay.x)}px`,
+                            top: `${Math.max(12, annotationOverlay.y - 24)}px`,
+                        }}
+                    >
+                        {getAnnotationLabel(annotationOverlay.type)}
                     </div>
                 </div>
             )}

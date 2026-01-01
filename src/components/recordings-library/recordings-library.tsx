@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2 } from 'lucide-react'
+import { Loader2, SearchX } from 'lucide-react'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { type LibraryRecording, type LibraryRecordingView } from '@/stores/recordings-library-store'
@@ -43,7 +43,8 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     setSearchQuery,
     sortKey,
     sortDirection,
-    setSort
+    setSort,
+    totalRecordingsCount
   } = useRecordingsLibraryData(PAGE_SIZE)
 
   const {
@@ -66,7 +67,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return <LibraryLoadingState />
   }
 
-  if (recordings.length === 0) {
+  if (totalRecordingsCount === 0 && !loading) {
     return <LibraryEmptyState onNewRecording={handleNewRecording} />
   }
 
@@ -97,13 +98,25 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
         <div className="p-6">
           <div ref={setGridEl}>
-            <RecordingsGrid
-              recordings={displayedRecordings}
-              gridCapacity={gridCapacity}
-              isExpandedLayout={isExpandedLayout}
-              onSelect={handleSelect}
-              onRequestDelete={setPendingDelete}
-            />
+            {recordings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in duration-300">
+                <div className="mb-4 h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
+                  <SearchX className="h-8 w-8 opacity-70" />
+                </div>
+                <p className="text-sm font-medium">No such recording exists</p>
+                <p className="text-2xs text-muted-foreground/60 mt-1 max-w-xs text-center">
+                  We couldn't find any recordings matching "{searchQuery}"
+                </p>
+              </div>
+            ) : (
+              <RecordingsGrid
+                recordings={displayedRecordings}
+                gridCapacity={gridCapacity}
+                isExpandedLayout={isExpandedLayout}
+                onSelect={handleSelect}
+                onRequestDelete={setPendingDelete}
+              />
+            )}
           </div>
 
           {showHydrationIndicator && (

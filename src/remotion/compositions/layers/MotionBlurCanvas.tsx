@@ -205,7 +205,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 width: drawWidth,
                 height: drawHeight,
                 pointerEvents: 'none',
-                zIndex: 10,
+                zIndex: 150,  // Above AnnotationLayer (z-index 100)
                 opacity: 0,
             }}
         />

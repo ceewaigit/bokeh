@@ -17,7 +17,6 @@ import { EffectStrategyRegistry, type IEffectStrategy } from './strategies'
 import { BackgroundEffectStrategy } from './strategies/background-strategy'
 import { CursorEffectStrategy } from './strategies/cursor-strategy'
 import { KeystrokeEffectStrategy } from './strategies/keystroke-strategy'
-import { AnnotationEffectStrategy } from './strategies/annotation-strategy'
 
 export interface EffectRenderContext {
   canvas: HTMLCanvasElement | OffscreenCanvas
@@ -49,7 +48,7 @@ export class EffectRenderer {
     this.registry.register(new BackgroundEffectStrategy())
     this.registry.register(new CursorEffectStrategy())
     this.registry.register(new KeystrokeEffectStrategy())
-    this.registry.register(new AnnotationEffectStrategy())
+
   }
 
   /**

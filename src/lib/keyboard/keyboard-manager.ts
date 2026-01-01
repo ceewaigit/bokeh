@@ -549,18 +549,21 @@ class KeyboardManager extends EventEmitter {
 
     // Allow certain shortcuts even when input fields are focused
     const target = event.target as HTMLElement
-    const isTextInput = target?.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text'
-    const isTextarea = target?.tagName === 'TEXTAREA'
+    const isTextInput =
+      (target?.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text') ||
+      target?.tagName === 'TEXTAREA' ||
+      target?.isContentEditable
 
     // Check if this is a shortcut that should work even with inputs focused
     const shortcut = this.findMatchingShortcut(event)
+    // Removed 'delete' from allowed list to prevent accidental deletion while typing
     const allowedWithInputs = shortcut && [
       'copy', 'cut', 'paste', 'pasteInPlace',
-      'undo', 'redo', 'save', 'delete'
+      'undo', 'redo', 'save'
     ].includes(shortcut.action)
 
     // Skip keyboard handling if typing in a text field and not an allowed shortcut
-    if ((isTextInput || isTextarea) && !allowedWithInputs) {
+    if (isTextInput && !allowedWithInputs) {
       return
     }
 

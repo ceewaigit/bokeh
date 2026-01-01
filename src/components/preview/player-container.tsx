@@ -30,7 +30,7 @@ interface PlayerContainerProps {
     zoomSettings?: ZoomSettings;
 }
 
-export const PlayerContainer: React.FC<PlayerContainerProps> = ({
+const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     playerRef,
     playerContainerRef,
     timelineMetadata,
@@ -154,3 +154,5 @@ export const PlayerContainer: React.FC<PlayerContainerProps> = ({
         </>
     );
 };
+
+export const PlayerContainer = React.memo(PlayerContainerComp);

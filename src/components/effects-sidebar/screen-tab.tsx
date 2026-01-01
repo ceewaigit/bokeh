@@ -88,12 +88,14 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
         <button
           className="w-full px-3 py-2 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
           onClick={async () => {
-            if (!selectedClip) return
+            const startTime = selectedClip ? selectedClip.startTime : useProjectStore.getState().currentTime
+            const duration = selectedClip ? selectedClip.duration : 3000
+
             const newEffect: Effect = {
               id: `screen-${Date.now()}`,
               type: EffectType.Screen,
-              startTime: selectedClip.startTime,
-              endTime: selectedClip.startTime + selectedClip.duration,
+              startTime: startTime,
+              endTime: startTime + duration,
               enabled: true,
               data: { preset: ScreenEffectPreset.Subtle }
             }

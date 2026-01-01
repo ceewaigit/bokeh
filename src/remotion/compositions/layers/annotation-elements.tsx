@@ -1,0 +1,364 @@
+/**
+ * DOM-based annotation rendering components
+ *
+ * Replaces Canvas 2D rendering with performant DOM elements that support:
+ * - GPU-accelerated CSS transforms
+ * - Proper hit testing via data attributes
+ * - Isolated updates without affecting video
+ */
+
+import React, { memo } from 'react'
+import { AnnotationType } from '@/types/project'
+import type { AnnotationData, AnnotationStyle } from '@/types/project'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface AnnotationRenderContext {
+    /** Video container width in pixels */
+    videoWidth: number
+    /** Video container height in pixels */
+    videoHeight: number
+    /** Video offset X from composition edge */
+    offsetX: number
+    /** Video offset Y from composition edge */
+    offsetY: number
+    /** Scale factor (rendered / original) */
+    scale?: number
+    /** Camera transform for zoom/pan in preview mode */
+    cameraTransform?: { scale: number; panX: number; panY: number }
+}
+
+interface BaseAnnotationProps {
+    id: string
+    data: AnnotationData
+    context: AnnotationRenderContext
+    // isSelected/isEditing props removed/ignored as they are handled by InteractionLayer now
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Convert percentage position to pixel position
+ */
+function percentToPixel(
+    percent: number,
+    containerSize: number,
+    offset: number
+): number {
+    return offset + (percent / 100) * containerSize
+}
+
+/**
+ * Resolve padding from style, handling both number and object formats
+ */
+function resolvePadding(padding?: AnnotationStyle['padding']): number {
+    if (typeof padding === 'number') return padding
+    if (!padding || typeof padding !== 'object') return 12
+    const p = padding as { top: number; right: number; bottom: number; left: number }
+    return Math.max(p.top, p.right, p.bottom, p.left)
+}
+
+/**
+ * Get computed position for an annotation in pixels.
+ * Applies camera transform for proper zoom behavior in preview mode.
+ */
+function getComputedPosition(
+    data: AnnotationData,
+    context: AnnotationRenderContext
+): { x: number; y: number } {
+    const pos = data.position ?? { x: 50, y: 50 }
+    const rawPos = {
+        x: percentToPixel(pos.x, context.videoWidth, context.offsetX),
+        y: percentToPixel(pos.y, context.videoHeight, context.offsetY),
+    }
+
+    // Apply camera transform if provided (for preview mode zooming)
+    if (context.cameraTransform && context.cameraTransform.scale !== 1) {
+        const centerX = context.offsetX + context.videoWidth / 2
+        const centerY = context.offsetY + context.videoHeight / 2
+        const { scale, panX, panY } = context.cameraTransform
+
+        return {
+            x: centerX + (rawPos.x - centerX) * scale + panX,
+            y: centerY + (rawPos.y - centerY) * scale + panY
+        }
+    }
+
+    return rawPos
+}
+
+// ============================================================================
+// Text Annotation
+// ============================================================================
+
+const TextAnnotation = memo<BaseAnnotationProps>(({
+    id,
+    data,
+    context,
+}) => {
+    const style = data.style ?? {}
+    const position = getComputedPosition(data, context)
+    const rotation = data.rotation ?? 0
+
+    // Include camera scale in effective scale for proper zoom behavior
+    const cameraScale = context.cameraTransform?.scale ?? 1
+    const effectiveScale = (context.scale ?? 1) * cameraScale
+    const fontSize = (style.fontSize ?? 18) * effectiveScale
+    const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
+    const fontWeight = style.fontWeight ?? 'normal'
+    const color = style.color ?? '#ffffff'
+    const bgColor = style.backgroundColor
+    const padding = resolvePadding(style.padding) * effectiveScale
+    const borderRadius = (style.borderRadius ?? 4) * effectiveScale
+
+    return (
+        <div
+            data-annotation-id={id}
+            data-annotation-type="text"
+            style={{
+                position: 'absolute',
+                left: position.x,
+                top: position.y,
+                transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+                transformOrigin: 'center center',
+                fontSize,
+                fontFamily,
+                fontWeight: fontWeight as React.CSSProperties['fontWeight'],
+                color,
+                backgroundColor: bgColor,
+                padding: bgColor ? padding : 0,
+                borderRadius: bgColor ? borderRadius : 0,
+                whiteSpace: 'pre-wrap',
+                cursor: 'inherit',
+                outline: 'none',
+                contain: 'layout style paint',
+                willChange: 'transform',
+                userSelect: 'none',
+                pointerEvents: 'auto',
+            }}
+        >
+            {data.content ?? 'Text'}
+        </div>
+    )
+})
+TextAnnotation.displayName = 'TextAnnotation'
+
+// ============================================================================
+// Keyboard Annotation
+// ============================================================================
+
+const KeyboardAnnotation = memo<BaseAnnotationProps>(({
+    id,
+    data,
+    context,
+}) => {
+    const style = data.style ?? {}
+    const position = getComputedPosition(data, context)
+    const rotation = data.rotation ?? 0
+    const keys = data.keys ?? ['Cmd', 'S']
+    const displayLabel = keys.join(' + ')
+
+    // Include camera scale in effective scale for proper zoom behavior
+    const cameraScale = context.cameraTransform?.scale ?? 1
+    const effectiveScale = (context.scale ?? 1) * cameraScale
+    const fontSize = (style.fontSize ?? 16) * effectiveScale
+    const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
+    const fontWeight = style.fontWeight ?? 600
+    const color = style.color ?? '#ffffff'
+    const bgColor = style.backgroundColor ?? 'rgba(0, 0, 0, 0.65)'
+    const borderColor = style.borderColor ?? 'rgba(255, 255, 255, 0.15)'
+    const padding = (resolvePadding(style.padding) || 10) * effectiveScale
+    const borderRadius = (style.borderRadius ?? 8) * effectiveScale
+    const gap = 4 * effectiveScale
+
+    return (
+        <div
+            data-annotation-id={id}
+            data-annotation-type="keyboard"
+            style={{
+                position: 'absolute',
+                left: position.x,
+                top: position.y,
+                transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+                transformOrigin: 'center center',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap,
+                fontSize,
+                fontFamily,
+                fontWeight: fontWeight as React.CSSProperties['fontWeight'],
+                color,
+                backgroundColor: bgColor,
+                border: `1px solid ${borderColor}`,
+                padding: `${padding * 0.6}px ${padding}px`,
+                borderRadius,
+                whiteSpace: 'nowrap',
+                cursor: 'inherit',
+                outline: 'none',
+                contain: 'layout style paint',
+                willChange: 'transform',
+                userSelect: 'none',
+                pointerEvents: 'auto',
+            }}
+        >
+            {displayLabel}
+        </div>
+    )
+})
+KeyboardAnnotation.displayName = 'KeyboardAnnotation'
+
+// ============================================================================
+// Highlight Annotation
+// ============================================================================
+
+const HighlightAnnotation = memo<BaseAnnotationProps>(({
+    id,
+    data,
+    context,
+}) => {
+    const style = data.style ?? {}
+    const position = getComputedPosition(data, context)
+    const rotation = data.rotation ?? 0
+
+    // Width/height are percentages of video dimensions
+    const width = ((data.width ?? 20) / 100) * context.videoWidth
+    const height = ((data.height ?? 10) / 100) * context.videoHeight
+
+    const bgColor = style.backgroundColor ?? 'rgba(255, 255, 0, 0.3)'
+    const borderColor = style.borderColor
+    const borderWidth = style.borderWidth ?? 0
+
+    return (
+        <div
+            data-annotation-id={id}
+            data-annotation-type="highlight"
+            style={{
+                position: 'absolute',
+                left: position.x,
+                top: position.y,
+                width,
+                height,
+                transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+                transformOrigin: 'center center',
+                backgroundColor: bgColor,
+                border: borderColor ? `${borderWidth}px solid ${borderColor}` : 'none',
+                borderRadius: style.borderRadius ?? 0,
+                pointerEvents: 'auto',
+                contain: 'layout style paint',
+                willChange: 'transform',
+            }}
+        />
+    )
+})
+HighlightAnnotation.displayName = 'HighlightAnnotation'
+
+// ============================================================================
+// Arrow Annotation
+// ============================================================================
+
+const ArrowAnnotation = memo<BaseAnnotationProps>(({
+    id,
+    data,
+    context,
+}) => {
+    const style = data.style ?? {}
+    const rotation = data.rotation ?? 0
+
+    const start = getComputedPosition(data, context)
+    const rawEnd = data.endPosition ?? { x: (data.position?.x ?? 50) + 10, y: (data.position?.y ?? 50) + 10 }
+    const end = {
+        x: percentToPixel(rawEnd.x, context.videoWidth, context.offsetX),
+        y: percentToPixel(rawEnd.y, context.videoHeight, context.offsetY),
+    }
+
+    // Calculate midpoint for rotation origin
+    const midX = (start.x + end.x) / 2
+    const midY = (start.y + end.y) / 2
+
+    const color = style.color ?? '#ff0000'
+    const strokeWidth = style.strokeWidth ?? 3
+    const arrowHeadSize = style.arrowHeadSize ?? 10
+
+    // Calculate bounds for SVG viewBox
+    const padding = Math.max(strokeWidth, arrowHeadSize) + 4
+
+    return (
+        <svg
+            data-annotation-id={id}
+            data-annotation-type="arrow"
+            style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: '100%',
+                height: '100%',
+                overflow: 'visible',
+                pointerEvents: 'none',
+                contain: 'layout style',
+                transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+                transformOrigin: `${midX}px ${midY}px`,
+            }}
+        >
+            <defs>
+                <marker
+                    id={`arrowhead-${id}`}
+                    markerWidth={arrowHeadSize}
+                    markerHeight={arrowHeadSize}
+                    refX={arrowHeadSize}
+                    refY={arrowHeadSize / 2}
+                    orient="auto"
+                >
+                    <polygon
+                        points={`0,0 ${arrowHeadSize},${arrowHeadSize / 2} 0,${arrowHeadSize}`}
+                        fill={color}
+                    />
+                </marker>
+            </defs>
+            <line
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                stroke={color}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                markerEnd={`url(#arrowhead-${id})`}
+                style={{ pointerEvents: 'visibleStroke', cursor: 'default' }}
+            />
+        </svg>
+    )
+})
+ArrowAnnotation.displayName = 'ArrowAnnotation'
+
+// ============================================================================
+// Main Annotation Element (Dispatcher)
+// ============================================================================
+
+export interface AnnotationElementProps extends BaseAnnotationProps { }
+
+/**
+ * Renders a single annotation as a DOM element.
+ * Dispatches to the appropriate sub-component based on annotation type.
+ */
+export const AnnotationElement = memo<AnnotationElementProps>((props) => {
+    const { data } = props
+
+    switch (data.type) {
+        case AnnotationType.Text:
+            return <TextAnnotation {...props} />
+        case AnnotationType.Keyboard:
+            return <KeyboardAnnotation {...props} />
+        case AnnotationType.Highlight:
+            return <HighlightAnnotation {...props} />
+        case AnnotationType.Arrow:
+            return <ArrowAnnotation {...props} />
+        default:
+            // Fallback to text for unknown types
+            return <TextAnnotation {...props} />
+    }
+})
+AnnotationElement.displayName = 'AnnotationElement'

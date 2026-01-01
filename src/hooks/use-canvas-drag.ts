@@ -28,7 +28,7 @@ export type HandlePosition =
     | 'bottom-left'
     | 'left'
 
-export type DragType = 'move' | HandlePosition
+export type DragType = 'move' | 'rotate' | HandlePosition
 
 export interface CanvasDragDelta {
     /** Raw pixel delta from drag start */
@@ -75,7 +75,7 @@ export function useCanvasDrag<T = unknown>(
     onDragEndRef.current = onDragEnd
 
     const handleMouseMove = useCallback(
-        (e: MouseEvent) => {
+        (e: PointerEvent) => {
             const delta = {
                 x: e.clientX - dragStart.x,
                 y: e.clientY - dragStart.y,
@@ -100,11 +100,11 @@ export function useCanvasDrag<T = unknown>(
     // Global mouse event listeners
     useEffect(() => {
         if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove)
-            window.addEventListener('mouseup', handleMouseUp)
+            window.addEventListener('pointermove', handleMouseMove)
+            window.addEventListener('pointerup', handleMouseUp)
             return () => {
-                window.removeEventListener('mousemove', handleMouseMove)
-                window.removeEventListener('mouseup', handleMouseUp)
+                window.removeEventListener('pointermove', handleMouseMove)
+                window.removeEventListener('pointerup', handleMouseUp)
             }
         }
     }, [isDragging, handleMouseMove, handleMouseUp])

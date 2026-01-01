@@ -24,6 +24,7 @@ import { VideoClipRenderer } from './renderers/VideoClipRenderer';
 import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
 import { ImageClipRenderer } from './renderers/ImageClipRenderer';
 import { MockupLayer } from './layers/MockupLayer';
+import { AnnotationLayer } from './layers/AnnotationLayer';
 
 import { MotionBlurDebugLayer } from './layers/MotionBlurDebugLayer';
 import { PreviewGuides } from '@/components/preview-guides';
@@ -328,6 +329,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 enabled={true}
               />
             )}
+
+            {/* Annotations render INSIDE, inheriting CSS transform. TransformControls measures these DOM elements. */}
+            <AnnotationLayer />
           </div>
 
           {/* Preview Guides */}

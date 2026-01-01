@@ -780,6 +780,8 @@ export interface AnnotationData {
   keys?: string[] // For keyboard annotations
   /** Smoothing factor for scrollCinematic annotations */
   smoothing?: number
+  /** Rotation in degrees (clockwise positive, 0-360) */
+  rotation?: number
 }
 
 export interface Annotation {

@@ -12,7 +12,15 @@ import { EffectType } from '@/types/effects'
 import type { Effect, PluginEffectData, AnnotationData, AnnotationStyle } from '@/types/project'
 import { AnnotationType } from '@/types/project'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
-import { percentToPixels, isPointInRect, type VideoRect } from './coordinate-utils'
+import {
+  percentToPixels,
+  isPointInRect,
+  isPointInRotatedRect,
+  rotatePointAroundAnchor,
+  inverseCameraTransformPoint,
+  type VideoRect,
+  type CameraTransform
+} from './coordinate-utils'
 
 export type HandlePosition =
   | 'top-left'
@@ -23,6 +31,7 @@ export type HandlePosition =
   | 'bottom'
   | 'bottom-left'
   | 'left'
+  | 'rotate'
 
 export interface HitTestResult {
   effectId: string
@@ -36,56 +45,19 @@ export interface EffectBounds {
   y: number
   width: number
   height: number
+  /** Rotation in degrees (clockwise positive) */
+  rotation?: number
+  /** Center point for rotation anchor */
+  centerX?: number
+  centerY?: number
 }
 
-const HANDLE_SIZE = 12
-const HANDLE_HIT_PADDING = 4 // Extra padding for easier handle clicks
+const HANDLE_SIZE = 16       // Slightly larger visual handle for easier targeting
+const HANDLE_HIT_PADDING = 8 // Generous hit zone for corner/edge resize handles
 
-const DEFAULT_TEXT_BOX = { width: 160, height: 44 }
-const DEFAULT_KEYBOARD_BOX = { width: 180, height: 48 }
+import { resolvePadding, getAnnotationLabel, measureAnnotationBox } from './annotation-utils'
 
-let textMeasureCtx: CanvasRenderingContext2D | null = null
-
-function getTextMeasureContext(): CanvasRenderingContext2D | null {
-  if (textMeasureCtx) return textMeasureCtx
-  if (typeof document === 'undefined') return null
-  const canvas = document.createElement('canvas')
-  textMeasureCtx = canvas.getContext('2d')
-  return textMeasureCtx
-}
-
-function resolvePadding(padding?: AnnotationStyle['padding']): number {
-  if (typeof padding === 'number') return padding
-  if (!padding || typeof padding !== 'object') return 12
-  const { top, right, bottom, left } = padding as { top: number; right: number; bottom: number; left: number }
-  return (top + right + bottom + left) / 4
-}
-
-function getAnnotationLabel(data: AnnotationData): string {
-  if (data.type === AnnotationType.Keyboard) {
-    return (data.keys ?? []).join(' + ')
-  }
-  return data.content ?? ''
-}
-
-function measureAnnotationBox(data: AnnotationData): { width: number; height: number } {
-  const label = getAnnotationLabel(data)
-  const fontSize = data.style?.fontSize ?? 18
-  const fontFamily = data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif'
-  const fontWeight = data.style?.fontWeight ?? 'normal'
-  const padding = resolvePadding(data.style?.padding) + (data.type === AnnotationType.Keyboard ? 4 : 0)
-
-  const ctx = getTextMeasureContext()
-  if (!ctx || !label) {
-    return data.type === AnnotationType.Keyboard ? DEFAULT_KEYBOARD_BOX : DEFAULT_TEXT_BOX
-  }
-
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-  const metrics = ctx.measureText(label)
-  const width = Math.max(40, metrics.width + padding * 2)
-  const height = Math.max(24, fontSize * 1.4 + padding * 2)
-  return { width, height }
-}
+// Removed local implementations of getTextMeasureContext, resolvePadding, getAnnotationLabel, measureAnnotationBox
 
 /**
  * Check if an effect is positionable (has drag/resize support)
@@ -113,7 +85,8 @@ export function isPositionableEffect(effect: Effect): boolean {
  */
 export function getEffectBounds(
   effect: Effect,
-  videoRect: VideoRect
+  videoRect: VideoRect,
+  scale: number = 1
 ): EffectBounds | null {
   switch (effect.type) {
     case EffectType.Plugin: {
@@ -140,6 +113,7 @@ export function getEffectBounds(
     case EffectType.Annotation: {
       const annotationData = effect.data as AnnotationData
       if (!annotationData.position) return null
+      const rotation = annotationData.rotation ?? 0
 
       if (annotationData.type === AnnotationType.Arrow) {
         const start = percentToPixels(
@@ -151,6 +125,7 @@ export function getEffectBounds(
         const end = percentToPixels(rawEnd.x, rawEnd.y, videoRect)
         const strokeWidth = annotationData.style?.strokeWidth ?? 3
         const arrowHead = annotationData.style?.arrowHeadSize ?? 10
+        // Padding doesn't technically scale but for hit-test safety maybe should? Leave for now.
         const padding = Math.max(strokeWidth, arrowHead) + 6
 
         const minX = Math.min(start.x, end.x) - padding
@@ -158,11 +133,18 @@ export function getEffectBounds(
         const maxX = Math.max(start.x, end.x) + padding
         const maxY = Math.max(start.y, end.y) + padding
 
+        // Arrow center is midpoint between start and end
+        const centerX = (start.x + end.x) / 2
+        const centerY = (start.y + end.y) / 2
+
         return {
           x: minX,
           y: minY,
           width: maxX - minX,
           height: maxY - minY,
+          rotation,
+          centerX,
+          centerY,
         }
       }
 
@@ -174,32 +156,47 @@ export function getEffectBounds(
         )
         const width = ((annotationData.width ?? 20) / 100) * videoRect.width
         const height = ((annotationData.height ?? 10) / 100) * videoRect.height
+        // Highlight center is its geometric center
+        const centerX = topLeft.x + width / 2
+        const centerY = topLeft.y + height / 2
         return {
           x: topLeft.x,
           y: topLeft.y,
           width,
           height,
+          rotation,
+          centerX,
+          centerY,
         }
       }
 
-      const topLeft = percentToPixels(
+      // Standard Annotations (Text, Keyboard) - Center Anchored
+      const center = percentToPixels(
         annotationData.position.x,
         annotationData.position.y,
         videoRect
       )
+
       const measured = measureAnnotationBox(annotationData)
+      // Standard Annotations render at fixed pixel size relative to draw dimensions (unscaled by video scale)
+      const measuredWidth = measured.width
+      const measuredHeight = measured.height
+
       const width = annotationData.width
         ? (annotationData.width / 100) * videoRect.width
-        : measured.width
+        : measuredWidth
       const height = annotationData.height
         ? (annotationData.height / 100) * videoRect.height
-        : measured.height
+        : measuredHeight
 
       return {
-        x: topLeft.x,
-        y: topLeft.y,
+        x: center.x - width / 2,
+        y: center.y - height / 2,
         width,
         height,
+        rotation,
+        centerX: center.x,
+        centerY: center.y,
       }
     }
 
@@ -210,14 +207,30 @@ export function getEffectBounds(
   }
 }
 
+const ROTATION_HANDLE_DISTANCE = 30 // Distance of rotation handle above the element
+
 /**
- * Check if a point hits any of the 8 resize handles
+ * Check if a point hits any of the 8 resize handles or the rotation handle
+ * Handles are rotated around the element center when the element is rotated
  */
 function hitTestHandles(
   mouseX: number,
   mouseY: number,
-  bounds: EffectBounds
+  bounds: EffectBounds,
+  cameraScale: number = 1
 ): HandlePosition | null {
+  const rotation = bounds.rotation ?? 0
+  const centerX = bounds.centerX ?? (bounds.x + bounds.width / 2)
+  const centerY = bounds.centerY ?? (bounds.y + bounds.height / 2)
+
+  // Inverse scale handle size to match visual overlay
+  const inverseScale = 1 / cameraScale
+  // Use slightly larger hit zone than visual size (10px visual vs 16px hit)
+  const scaledHandleSize = HANDLE_SIZE * inverseScale
+  const scaledHitPadding = HANDLE_HIT_PADDING * inverseScale
+  const hitSize = scaledHandleSize + scaledHitPadding * 2
+
+  // Define handle positions in unrotated space
   const handlePositions: { position: HandlePosition; x: number; y: number }[] = [
     { position: 'top-left', x: bounds.x, y: bounds.y },
     { position: 'top', x: bounds.x + bounds.width / 2, y: bounds.y },
@@ -227,14 +240,20 @@ function hitTestHandles(
     { position: 'bottom', x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
     { position: 'bottom-left', x: bounds.x, y: bounds.y + bounds.height },
     { position: 'left', x: bounds.x, y: bounds.y + bounds.height / 2 },
+    // Rotation handle is above the top-center (also scaled distance?)
+    // Visual overlay scales rotation distance. We should too.
+    { position: 'rotate', x: bounds.x + bounds.width / 2, y: bounds.y - (ROTATION_HANDLE_DISTANCE * inverseScale) },
   ]
 
-  const hitSize = HANDLE_SIZE + HANDLE_HIT_PADDING * 2
-
   for (const handle of handlePositions) {
+    // Rotate handle position around center if element is rotated
+    const rotatedHandle = rotation !== 0
+      ? rotatePointAroundAnchor(handle.x, handle.y, centerX, centerY, rotation)
+      : { x: handle.x, y: handle.y }
+
     const handleRect = {
-      x: handle.x - hitSize / 2,
-      y: handle.y - hitSize / 2,
+      x: rotatedHandle.x - hitSize / 2,
+      y: rotatedHandle.y - hitSize / 2,
       width: hitSize,
       height: hitSize,
     }
@@ -249,13 +268,18 @@ function hitTestHandles(
 
 /**
  * Check if a point hits the body of an effect (not handles)
+ * Accounts for element rotation
  */
 function hitTestBody(
   mouseX: number,
   mouseY: number,
   bounds: EffectBounds
 ): boolean {
-  return isPointInRect(mouseX, mouseY, bounds)
+  const rotation = bounds.rotation ?? 0
+  const centerX = bounds.centerX ?? (bounds.x + bounds.width / 2)
+  const centerY = bounds.centerY ?? (bounds.y + bounds.height / 2)
+
+  return isPointInRotatedRect(mouseX, mouseY, bounds, rotation, centerX, centerY)
 }
 
 /**
@@ -267,20 +291,35 @@ function hitTestBody(
  * @param effects - All effects at current time
  * @param videoRect - Video position from VideoPositionContext
  * @param selectedEffectId - Currently selected effect (for handle priority)
+ * @param scale - Scale factor (Screen / Original Resolution)
+ * @param cameraTransform - Optional camera transform for zoom/pan (inverse applied to mouse)
  */
 export function hitTestEffects(
   mouseX: number,
   mouseY: number,
   effects: Effect[],
   videoRect: VideoRect,
-  selectedEffectId: string | null = null
+  selectedEffectId: string | null = null,
+  scale: number = 1,
+  cameraTransform?: CameraTransform | null
 ): HitTestResult | null {
+  // Apply inverse camera transform to mouse position for accurate hit-testing
+  // This converts screen coordinates to annotation-space coordinates
+  let testX = mouseX
+  let testY = mouseY
+  if (cameraTransform && cameraTransform.scale !== 1) {
+    const inverted = inverseCameraTransformPoint(mouseX, mouseY, videoRect, cameraTransform)
+    testX = inverted.x
+    testY = inverted.y
+  }
+
   // Filter to positionable effects and get their bounds
   const positionableEffects = effects
+    // console.log('[HitTest] Checking', effects.length, 'effects at', testX, testY, 'Rect:', videoRect)
     .filter(isPositionableEffect)
     .map(effect => ({
       effect,
-      bounds: getEffectBounds(effect, videoRect),
+      bounds: getEffectBounds(effect, videoRect, scale),
       zIndex: getEffectZIndex(effect),
     }))
     .filter((item): item is { effect: Effect; bounds: EffectBounds; zIndex: number } =>
@@ -293,7 +332,7 @@ export function hitTestEffects(
   if (selectedEffectId) {
     const selected = positionableEffects.find(e => e.effect.id === selectedEffectId)
     if (selected) {
-      const handle = hitTestHandles(mouseX, mouseY, selected.bounds)
+      const handle = hitTestHandles(testX, testY, selected.bounds, cameraTransform?.scale ?? 1)
       if (handle) {
         return {
           effectId: selected.effect.id,
@@ -307,7 +346,7 @@ export function hitTestEffects(
 
   // Then check bodies (top-most first)
   for (const { effect, bounds } of positionableEffects) {
-    if (hitTestBody(mouseX, mouseY, bounds)) {
+    if (hitTestBody(testX, testY, bounds)) {
       return {
         effectId: effect.id,
         effectType: effect.type,

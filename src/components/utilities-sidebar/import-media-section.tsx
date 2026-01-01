@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import Image from 'next/image'
-import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera, Library } from 'lucide-react'
+import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera, Library, SearchX } from 'lucide-react'
 import { cn, formatTime } from '@/shared/utils/utils'
 import { useProjectStore } from '@/stores/project-store'
 import { toast } from 'sonner'
@@ -677,9 +677,9 @@ export function ImportMediaSection() {
                         ) : libraryRecordings.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center text-sm text-muted-foreground">
                                 <div className="mb-2 h-10 w-10 rounded-full bg-muted/40 flex items-center justify-center">
-                                    <Film className="h-5 w-5" />
+                                    {searchQuery ? <SearchX className="h-5 w-5" /> : <Film className="h-5 w-5" />}
                                 </div>
-                                No recordings found yet.
+                                {searchQuery ? "No such recording exists" : "No recordings found yet."}
                             </div>
                         ) : (
                             <div className="space-y-3">

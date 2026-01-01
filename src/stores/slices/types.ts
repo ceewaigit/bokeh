@@ -89,10 +89,12 @@ export interface SelectionSliceState {
   // Overlay Editing State (for positioned elements like plugins, annotations, webcam)
   isEditingOverlay: boolean
   editingOverlayId: string | null
+  // Inline Text Editing State (for contentEditable annotations)
+  // Distinct from overlay editing - triggered by double-click
+  inlineEditingId: string | null
 
-  // Transient state for high-performance drag feedback
-  // This allows effects to update visually without committing to history
-  transientEffectState: { id: string, data: Record<string, any> } | null
+  // Note: transientEffectState has been moved to isolated AnnotationEditContext
+  // to prevent video re-renders during annotation drag/resize operations
 }
 
 export interface PlaybackSliceState {
@@ -233,7 +235,10 @@ export interface SelectionSliceActions {
   // Overlay Editing Actions (for positioned elements like plugins, annotations, webcam)
   startEditingOverlay: (effectId: string) => void
   stopEditingOverlay: () => void
-  setTransientEffectState: (id: string | null, data?: Record<string, any>) => void
+  // Note: setTransientEffectState removed - now in AnnotationEditContext
+  // Inline Text Editing Actions (for contentEditable annotations)
+  startInlineEditing: (effectId: string) => void
+  stopInlineEditing: () => void
 }
 
 export interface PlaybackSliceActions {

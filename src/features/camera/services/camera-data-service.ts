@@ -3,37 +3,22 @@
  * 
  * Centralized cache management for camera and cursor-related data.
  * Consolidates orphaned caches from:
- * - camera/smoothing.ts (motionClusterCache)
  * - cursor-calculator.ts (smoothingCache)
  * 
  * Design: Static methods with manual invalidation.
  * Call invalidateCache() when switching projects/recordings.
  */
 
-import type { MouseEvent } from '@/types/project'
-
-export interface Cluster {
-    startTime: number
-    endTime: number
-    centroidX: number
-    centroidY: number
-}
-
-type MotionClusterCacheEntry = {
-    clusters: Cluster[]
-}
-
 type SmoothedPosition = { x: number; y: number }
 
-const MAX_MOTION_CLUSTER_ENTRIES = 50
+
 const MAX_SMOOTHING_CACHE_SIZE = 300
 
 /**
  * CameraDataService - Centralized cache for camera/cursor data.
  */
 export class CameraDataService {
-    // Motion cluster cache (from camera/smoothing.ts)
-    private static motionClusterCache = new Map<string, MotionClusterCacheEntry>()
+
 
     // Cursor smoothing cache (from cursor-calculator.ts)
     private static smoothingCache = new Map<string, SmoothedPosition>()
@@ -43,36 +28,11 @@ export class CameraDataService {
      * Call when switching projects or recordings.
      */
     static invalidateCache(): void {
-        this.motionClusterCache.clear()
+
         this.smoothingCache.clear()
     }
 
-    // ==========================================================================
-    // MOTION CLUSTER CACHE
-    // ==========================================================================
 
-    static getMotionClusterCacheKey(
-        mouseEvents: MouseEvent[],
-        videoWidth: number,
-        videoHeight: number
-    ): string {
-        const firstTs = mouseEvents[0]?.timestamp ?? 0
-        const lastTs = mouseEvents[mouseEvents.length - 1]?.timestamp ?? 0
-        return `${firstTs}-${mouseEvents.length}-${lastTs}-${videoWidth}-${videoHeight}`
-    }
-
-    static getMotionClusters(key: string): Cluster[] | undefined {
-        return this.motionClusterCache.get(key)?.clusters
-    }
-
-    static setMotionClusters(key: string, clusters: Cluster[]): void {
-        // LRU eviction
-        if (this.motionClusterCache.size >= MAX_MOTION_CLUSTER_ENTRIES) {
-            const firstKey = this.motionClusterCache.keys().next().value
-            if (firstKey) this.motionClusterCache.delete(firstKey)
-        }
-        this.motionClusterCache.set(key, { clusters })
-    }
 
     // ==========================================================================
     // CURSOR SMOOTHING CACHE

@@ -453,6 +453,7 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     canNext,
     pendingDelete,
     setPendingDelete,
-    handleDeleteRecording
+    handleDeleteRecording,
+    totalRecordingsCount: recordings.length,
   }
 }
