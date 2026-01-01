@@ -158,6 +158,8 @@
   --timeline-ruler: 25 10% 12%;
   --timeline-playhead: 25 100% 65%;
   --window-surface-color: 25 15% 6%;
+  --popover: 25 15% 6%;
+  --popover-foreground: 35 40% 95%;
 }
 
 /* Theme Preset: Industrial (Rams-inspired, Slate/Red) */
@@ -215,6 +217,8 @@
   --timeline-ruler: 210 15% 15%;
   --timeline-playhead: 0 85% 65%;
   --window-surface-color: 210 15% 10%;
+  --popover: 210 15% 10%;
+  --popover-foreground: 210 20% 95%;
 }
 
 /* Theme Preset: Forest (Organic, Sage/Clay) */
@@ -272,6 +276,8 @@
   --timeline-ruler: 150 15% 14%;
   --timeline-playhead: 142 45% 55%;
   --window-surface-color: 150 20% 8%;
+  --popover: 150 20% 8%;
+  --popover-foreground: 35 20% 95%;
 }
 
 /* Theme Preset: Nordic (Cold, Blue/Ice) */
@@ -329,6 +335,8 @@
   --timeline-ruler: 210 25% 14%;
   --timeline-playhead: 210 100% 65%;
   --window-surface-color: 210 30% 8%;
+  --popover: 210 30% 8%;
+  --popover-foreground: 210 20% 98%;
 }
 
 /* Theme Preset: Midnight (Premium, Ruby/Black) */
@@ -386,6 +394,8 @@
   --timeline-ruler: 0 0% 10%;
   --timeline-playhead: 345 100% 60%;
   --window-surface-color: 0 0% 4%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 0 0% 95%;
 }
 
 /* Theme Preset: Space (Cosmic, Navy/Cyan) */
@@ -443,6 +453,8 @@
   --timeline-ruler: 222 40% 12%;
   --timeline-playhead: 190 100% 50%;
   --window-surface-color: 222 47% 6%;
+  --popover: 222 47% 6%;
+  --popover-foreground: 190 10% 95%;
 }
 
 @layer base {

@@ -10,7 +10,7 @@ import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpo
 import { CursorType, electronToCustomCursor } from '../store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import { clamp01, lerp, easeOutCubic, clamp } from '@/lib/core/math'
-import { CameraDataService } from '@/features/camera/camera-data-service'
+import { CameraDataService } from '@/features/camera/services/camera-data-service'
 
 /**
  * Clear the smoothing cache - call when switching projects or recordings
@@ -483,7 +483,7 @@ function smoothPositionWithHistory(
   const sampleCount = Math.max(6, Math.min(16, Math.round(historyWindowMs / stepMs)))
   const tauMs = Math.max(120, historyWindowMs * 0.45)
 
-  const smoothed = computeExponentialSmooth(
+  const smoothed = computeSymmetricSmooth(
     mouseEvents,
     timestamp,
     rawPosition,
@@ -686,7 +686,7 @@ function calculateClickEffects(
   return activeClicks
 }
 
-function computeExponentialSmooth(
+function computeSymmetricSmooth(
   mouseEvents: MouseEvent[],
   timestamp: number,
   fallback: { x: number; y: number },
@@ -709,12 +709,14 @@ function computeExponentialSmooth(
   let sumY = 0
   let sumW = 0
 
-  for (let i = 0; i <= sampleCount; i++) {
-    const t = timestamp - i * stepMs
+  for (let i = -sampleCount; i <= sampleCount; i++) {
+    const t = timestamp + i * stepMs
     const pos = interpolateMousePosition(mouseEvents, t)
     if (!pos) continue
 
-    const w = Math.exp(-(i * stepMs) / tauMs)
+    // Symmetric exponential weight (Laplace kernel)
+    // This provides zero-phase smoothing (no lag)
+    const w = Math.exp(-Math.abs(i * stepMs) / tauMs)
     sumW += w
     sumX += pos.x * w
     sumY += pos.y * w

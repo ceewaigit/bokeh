@@ -30,6 +30,8 @@ import {
 
 import type { ExportJobConfig, CompositionMetadata } from './types'
 
+import { mapRecordingEffectsToTimeline } from './utils/effect-mapper'
+
 // Re-export cleanup function for app lifecycle
 export { cleanupBundleCache }
 
@@ -655,10 +657,12 @@ export function setupExportHandler(): void {
 
       // Some effects (notably background/corner effects) are stored on recordings
       // with source-relative timings. Segment filtering is timeline-relative and may drop them.
-      // Merge in recording-scoped effects so Remotion can resolve them at sourceTimeMs.
-      const recordingEffects = downsampledRecordings.flatMap((r: any) => r.effects || [])
+      // Merge in recording-scoped effects, BUT map them to timeline space for each clip.
+      // This ensures getActiveClipDataAtFrame (which filters by timeline time) picks them up.
+      const recordingEffectsMapped = mapRecordingEffectsToTimeline(allClips, downsampledRecordings)
+
       const allEffects = (() => {
-        const merged = [...segmentEffects, ...recordingEffects]
+        const merged = [...segmentEffects, ...recordingEffectsMapped]
         const seen = new Set<string>()
         return merged.filter((e: any) => {
           const id = e?.id
