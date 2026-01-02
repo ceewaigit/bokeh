@@ -9,7 +9,7 @@ module.exports = {
     appBundleId: 'com.bokeh.app',
     name: 'Bokeh',
     executableName: 'bokeh',
-    icon: path.join(__dirname, 'assets', 'icon'),
+    icon: path.join(__dirname, 'public/brand/dock_icon'),
     appCategoryType: 'public.app-category.productivity',
     darwinDarkModeSupport: true,
     extendInfo: {

@@ -57,8 +57,8 @@ export function createMainWindow(): BrowserWindow {
       sandbox: false
     },
     icon: isDev
-      ? path.join(__dirname, '../../../../public/brand/icon.png')
-      : path.join(process.resourcesPath, 'public/brand/icon.png'),
+      ? path.join(__dirname, '../../../../public/brand/dock_icon.png')
+      : path.join(process.resourcesPath, 'public/brand/dock_icon.png'),
   })
 
   setupPermissions(mainWindow)
