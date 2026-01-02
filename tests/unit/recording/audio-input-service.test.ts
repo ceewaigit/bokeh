@@ -1,5 +1,5 @@
 import { AudioInputService } from '@/features/recording/services/audio-input-service'
-import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
+import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/features/bridges/recording-ipc-bridge'
 
 // Mock MediaRecorder
 class MockMediaRecorder {

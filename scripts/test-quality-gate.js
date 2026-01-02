@@ -15,9 +15,10 @@ const path = require('path')
 
 const COVERAGE_FILE = path.join(__dirname, '../coverage/coverage-summary.json')
 const BUSINESS_LOGIC_PATHS = [
-  'src/stores/',
+  'src/features/stores/',
   'src/lib/',
-  'src/hooks/'
+  'src/shared/hooks/',
+  'src/features/'
 ]
 
 const QUALITY_THRESHOLDS = {
@@ -45,10 +46,10 @@ const QUALITY_THRESHOLDS = {
 }
 
 const CRITICAL_FILES = [
-  'src/stores/recording-store.ts',
-  'src/stores/timeline-store.ts',
+  'src/features/stores/project-store.ts',
+  'src/features/stores/slices/timeline-slice.ts',
   'src/lib/recording/screen-recorder.ts',
-  'src/hooks/use-recording.ts'
+  'src/features/recording/hooks/use-recording.ts'
 ]
 
 function loadCoverageData() {

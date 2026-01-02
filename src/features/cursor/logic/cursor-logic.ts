@@ -8,9 +8,9 @@ import type { CursorEffectData, MouseEvent, ClickEvent } from '@/types/project'
 import { CursorStyle } from '@/types/project'
 import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 import { CursorType, electronToCustomCursor } from '../store/cursor-types'
-import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
-import { clamp01, lerp, easeOutCubic, clamp } from '@/lib/core/math'
-import { CameraDataService } from '@/features/camera/services/camera-data-service'
+import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
+import { clamp01, lerp, easeOutCubic, clamp } from '@/features/canvas/math'
+import { CameraDataService } from '@/features/editor/logic/viewport/services/camera-data-service'
 
 /**
  * Clear the smoothing cache - call when switching projects or recordings
@@ -540,11 +540,11 @@ function getSmoothingJumpThreshold(mouseEvents: MouseEvent[], cursorData?: Curso
   return Math.max(1200, diagonal * ratio)
 }
 
-// clamp01 is now imported from @/lib/core/math
+// clamp01 is now imported from @/features/canvas/math
 
 // clampNumber removed in favor of standard clamp function
 
-// easeOutCubic is now imported from @/lib/core/math and re-exported for backwards compatibility
+// easeOutCubic is now imported from @/features/canvas/math and re-exported for backwards compatibility
 export { easeOutCubic }
 
 function normalizeClickWords(words: string[]): string[] {

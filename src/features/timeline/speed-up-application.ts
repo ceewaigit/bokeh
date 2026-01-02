@@ -1,6 +1,6 @@
 import type { Project, Track, Clip, Effect } from '@/types/project'
 import { reflowClips, calculateTimelineDuration } from './timeline-operations'
-import { EffectStore } from '@/lib/core/effects'
+import { EffectStore } from '@/features/effects/core/store'
 
 /**
  * Service for applying speed-up suggestions to clips by splitting them
@@ -255,4 +255,3 @@ export class SpeedUpApplicationService {
         return { affectedClips, originalClips }
     }
 }
-

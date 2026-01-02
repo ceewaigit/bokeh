@@ -4,9 +4,9 @@
  */
 
 import type { ElectronMetadata } from '@/types/recording'
-import { RecordingIpcBridge, getRecordingBridge } from '@/lib/bridges'
+import { RecordingIpcBridge, getRecordingBridge } from '@/features/bridges'
 import { logger } from '@/shared/utils/logger'
-import { isLikelyKeyboardKey } from '@/lib/keyboard/keyboard-utils'
+import { isLikelyKeyboardKey } from '@/features/keyboard/keyboard-utils'
 
 interface CaptureArea {
   fullBounds?: { x: number; y: number; width: number; height: number }

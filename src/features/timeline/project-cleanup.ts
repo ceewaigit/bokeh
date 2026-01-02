@@ -1,8 +1,8 @@
 import type { Project } from '@/types/project'
-import { WaveformAnalyzer } from '@/lib/audio/waveform-analyzer'
+import { WaveformAnalyzer } from '@/features/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { EffectStore, isValidEffectTiming } from '@/lib/core/effects'
+import { RecordingStorage } from '@/features/storage/recording-storage'
+import { EffectStore, isValidEffectTiming } from '@/features/effects/core/store'
 
 export class ProjectCleanupService {
     /**

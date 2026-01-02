@@ -11,8 +11,8 @@ import type { Effect, Recording, RecordingMetadata, Clip, Project, ZoomEffectDat
 import { EffectType, ScreenEffectPreset, ZoomFollowStrategy } from '@/types/project'
 import { ZoomDetector } from '@/features/effects/utils/zoom-detector'
 import { EffectsFactory } from '@/features/effects/effects-factory'
-import { EffectStore } from '@/lib/core/effects'
-import { DEFAULT_MOCKUP_DATA } from '@/lib/constants/device-mockups'
+import { EffectStore } from '@/features/effects/core/store'
+import { DEFAULT_MOCKUP_DATA } from '@/shared/constants/device-mockups'
 
 /**
  * Configuration for effect generation

@@ -7,8 +7,8 @@
 
 import type { Project, Clip } from '@/types/project'
 import { EffectsFactory } from '@/features/effects/effects-factory'
-import { getCropEffectForClip } from '@/features/effects/effect-filters'
-import { EffectStore } from '@/lib/core/effects'
+import { getCropEffectForClip } from '@/features/effects/core/filters'
+import { EffectStore } from '@/features/effects/core/store'
 import { findClipById, syncCropEffectTimes } from './clip-reflow'
 
 /**

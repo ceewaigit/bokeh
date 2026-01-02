@@ -6,8 +6,8 @@ import AreaSelectionPage from './app/area-selection/page';
 import { ThemeProvider } from './shared/contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { PermissionGuard } from './components/permission-guard';
-import { WindowAppearanceProvider } from './components/window-appearance-provider';
-import { SettingsDialog } from './components/settings-dialog';
+import { WindowSurfaceProvider } from './components/window-surface-provider';
+import { SettingsDialog } from '@/features/settings/components/settings-dialog';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import './app/globals.css';
@@ -22,11 +22,11 @@ const App = () => {
   if (isRecordButton) {
     // Record button needs ThemeProvider to access design tokens
     return (
-      <WindowAppearanceProvider>
-        <ThemeProvider>
+      <ThemeProvider>
+        <WindowSurfaceProvider>
           <RecordButtonDock />
-        </ThemeProvider>
-      </WindowAppearanceProvider>
+        </WindowSurfaceProvider>
+      </ThemeProvider>
     );
   }
 
@@ -38,8 +38,8 @@ const App = () => {
 
   // Main app UI needs ThemeProvider
   return (
-    <WindowAppearanceProvider>
-      <ThemeProvider>
+    <ThemeProvider>
+      <WindowSurfaceProvider>
         <TooltipProvider>
           <ErrorBoundary>
             <PermissionGuard>
@@ -49,8 +49,8 @@ const App = () => {
             <Toaster />
           </ErrorBoundary>
         </TooltipProvider>
-      </ThemeProvider>
-    </WindowAppearanceProvider>
+      </WindowSurfaceProvider>
+    </ThemeProvider>
   );
 };
 

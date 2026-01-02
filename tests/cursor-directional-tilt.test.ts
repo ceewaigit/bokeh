@@ -1,4 +1,4 @@
-import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
+import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
 import { calculateCursorState } from '@/features/cursor/logic/cursor-logic'
 import type { MouseEvent } from '@/types/project'
 

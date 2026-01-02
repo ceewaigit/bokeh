@@ -14,20 +14,20 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/shared/contexts/theme-context"
-import { useWindowAppearanceStore, type WindowSurfaceMode } from "@/stores/window-appearance-store"
+import { useWindowSurfaceStore, type WindowSurfaceMode } from "@/features/stores/window-surface-store"
+import { WINDOW_SURFACE_PRESETS } from "@/shared/appearance/window-surface"
 import { cn, clamp } from "@/shared/utils/utils"
 
-// Preset definitions matching the store - modern glassmorphism
-const GLASS_PRESETS = {
-    light: { opacity: 0.08, blurPx: 18 },
-    medium: { opacity: 0.12, blurPx: 26 },
-    strong: { opacity: 0.16, blurPx: 34 },
+const FROSTED_PRESETS = {
+    light: WINDOW_SURFACE_PRESETS["frosted-light"],
+    medium: WINDOW_SURFACE_PRESETS["frosted"],
+    strong: WINDOW_SURFACE_PRESETS["frosted-strong"],
 } as const
 
 const CLEAR_PRESETS = {
-    light: { opacity: 0.52, blurPx: 0 },
-    medium: { opacity: 0.72, blurPx: 0 },
-    strong: { opacity: 0.92, blurPx: 0 },
+    light: WINDOW_SURFACE_PRESETS["clear-light"],
+    medium: WINDOW_SURFACE_PRESETS["clear"],
+    strong: WINDOW_SURFACE_PRESETS["clear-strong"],
 } as const
 
 interface AppearanceToggleProps {
@@ -42,38 +42,37 @@ export function AppearanceToggle({
     const { theme, setTheme } = useTheme()
     const [showAdvanced, setShowAdvanced] = useState(false)
 
-    const mode = useWindowAppearanceStore((s) => s.mode)
-    const opacity = useWindowAppearanceStore((s) => s.opacity)
-    const blurPx = useWindowAppearanceStore((s) => s.blurPx)
-    const setMode = useWindowAppearanceStore((s) => s.setMode)
-    const setOpacity = useWindowAppearanceStore((s) => s.setOpacity)
-    const setBlurPx = useWindowAppearanceStore((s) => s.setBlurPx)
-    const applyPreset = useWindowAppearanceStore((s) => s.applyPreset)
+    const mode = useWindowSurfaceStore((s) => s.mode)
+    const tintAlpha = useWindowSurfaceStore((s) => s.tintAlpha)
+    const blurPx = useWindowSurfaceStore((s) => s.blurPx)
+    const setMode = useWindowSurfaceStore((s) => s.setMode)
+    const setTintAlpha = useWindowSurfaceStore((s) => s.setTintAlpha)
+    const setBlurPx = useWindowSurfaceStore((s) => s.setBlurPx)
+    const applyPreset = useWindowSurfaceStore((s) => s.applyPreset)
 
     const isSolid = mode === "solid"
-    const isGlass = mode === "glass"
+    const isFrosted = mode === "frosted"
     const isClear = mode === "clear"
 
     // Check if a preset is currently active
-    const isGlassPresetActive = (preset: keyof typeof GLASS_PRESETS) => {
-        if (mode !== "glass") return false
-        const p = GLASS_PRESETS[preset]
-        return Math.abs(opacity - p.opacity) < 0.01 && Math.abs(blurPx - p.blurPx) < 1
+    const isFrostedPresetActive = (preset: keyof typeof FROSTED_PRESETS) => {
+        if (mode !== "frosted") return false
+        const p = FROSTED_PRESETS[preset]
+        return Math.abs(tintAlpha - p.tintAlpha) < 0.01 && Math.abs(blurPx - p.blurPx) < 1
     }
 
     const isClearPresetActive = (preset: keyof typeof CLEAR_PRESETS) => {
         if (mode !== "clear") return false
         const p = CLEAR_PRESETS[preset]
-        return Math.abs(opacity - p.opacity) < 0.01
+        return Math.abs(tintAlpha - p.tintAlpha) < 0.01
     }
 
-    // Opacity controls - allow full range for glass/custom
-    const opacityMin = mode === "glass" || mode === "custom" || mode === "clear" ? 0 : 40
-    const opacityMax = mode === "glass" || mode === "custom" || mode === "clear" ? 90 : 90
-    const opacityPct = Math.round(opacity * 100)
+    const opacityPct = Math.round(tintAlpha * 100)
+    const opacityMin = 0
+    const opacityMax = 100
 
     const blurMin = 0
-    const blurMax = 30 // Reduced max since we want subtle blur
+    const blurMax = 120
 
     // Cycle through themes on button click
     const cycleTheme = useCallback((e: React.MouseEvent) => {
@@ -123,18 +122,18 @@ export function AppearanceToggle({
                         <DropdownMenuRadioItem value="clear" className="text-xs">
                             Glass
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="glass" className="text-xs">
+                        <DropdownMenuRadioItem value="frosted" className="text-xs">
                             Frosted
                         </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
 
                     {/* Quick presets - only show for glass or clear modes */}
-                    {(isGlass || isClear) && (
+                    {(isFrosted || isClear) && (
                         <>
                             <DropdownMenuSeparator />
                             <div className="px-2 py-2">
                                 <div className="text-2xs text-muted-foreground mb-2">
-                                    {isGlass ? "Frosted" : "Glass"} Presets
+                                    {isFrosted ? "Frosted" : "Glass"} Presets
                                 </div>
                                 <div className="grid grid-cols-3 gap-1">
                                     <Button
@@ -142,9 +141,9 @@ export function AppearanceToggle({
                                         size="sm"
                                         className={cn(
                                             "h-6 text-3xs",
-                                            (isGlass ? isGlassPresetActive("light") : isClearPresetActive("light")) && "border border-primary bg-primary/10"
+                                            (isFrosted ? isFrostedPresetActive("light") : isClearPresetActive("light")) && "border border-primary bg-primary/10"
                                         )}
-                                        onClick={() => applyPreset(isGlass ? "glass-light" : "clear-light")}
+                                        onClick={() => applyPreset(isFrosted ? "frosted-light" : "clear-light")}
                                     >
                                         Light
                                     </Button>
@@ -153,9 +152,9 @@ export function AppearanceToggle({
                                         size="sm"
                                         className={cn(
                                             "h-6 text-3xs",
-                                            (isGlass ? isGlassPresetActive("medium") : isClearPresetActive("medium")) && "border border-primary bg-primary/10"
+                                            (isFrosted ? isFrostedPresetActive("medium") : isClearPresetActive("medium")) && "border border-primary bg-primary/10"
                                         )}
-                                        onClick={() => applyPreset(isGlass ? "glass" : "clear")}
+                                        onClick={() => applyPreset(isFrosted ? "frosted" : "clear")}
                                     >
                                         Medium
                                     </Button>
@@ -164,9 +163,9 @@ export function AppearanceToggle({
                                         size="sm"
                                         className={cn(
                                             "h-6 text-3xs",
-                                            (isGlass ? isGlassPresetActive("strong") : isClearPresetActive("strong")) && "border border-primary bg-primary/10"
+                                            (isFrosted ? isFrostedPresetActive("strong") : isClearPresetActive("strong")) && "border border-primary bg-primary/10"
                                         )}
-                                        onClick={() => applyPreset(isGlass ? "glass-strong" : "clear-strong")}
+                                        onClick={() => applyPreset(isFrosted ? "frosted-strong" : "clear-strong")}
                                     >
                                         Strong
                                     </Button>
@@ -191,7 +190,7 @@ export function AppearanceToggle({
 
                     {showAdvanced && (
                         <div className="px-2 py-2 space-y-3 border-t border-border/30">
-                            {/* Opacity slider */}
+                            {/* Tint slider */}
                             <div>
                                 <div className="flex items-center justify-between text-2xs text-muted-foreground mb-1.5">
                                     <span>Opacity</span>
@@ -202,7 +201,7 @@ export function AppearanceToggle({
                                     min={opacityMin}
                                     max={opacityMax}
                                     step={1}
-                                    onValueChange={([value]) => setOpacity(value / 100)}
+                                    onValueChange={([value]) => setTintAlpha(value / 100)}
                                     disabled={isSolid}
                                 />
                             </div>
@@ -219,12 +218,12 @@ export function AppearanceToggle({
                                     max={blurMax}
                                     step={1}
                                     onValueChange={([value]) => setBlurPx(value)}
-                                    disabled={isSolid || mode === "clear"}
+                                    disabled={isSolid}
                                 />
                             </div>
 
                             {/* Custom mode hint */}
-                            {(mode === "glass" || mode === "clear") && (
+                            {(mode === "frosted" || mode === "clear") && (
                                 <p className="text-3xs text-muted-foreground/70">
                                     Adjusting sliders switches to custom mode
                                 </p>

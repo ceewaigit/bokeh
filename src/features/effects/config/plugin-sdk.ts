@@ -67,7 +67,7 @@ export interface PluginFrameContext {
  *
  * Note: For clip-type plugins that need access to other clips (e.g., for
  * freeze-frame backgrounds), use the useComposition() hook from
- * '@/remotion/context/CompositionContext' to access clips and recordings.
+ * '@/features/renderer/context/CompositionContext' to access clips and recordings.
  */
 export interface PluginRenderProps<TParams extends Record<string, any> = Record<string, any>> {
     /** Resolved parameter values (validated at runtime) */

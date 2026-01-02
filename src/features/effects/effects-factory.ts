@@ -10,9 +10,9 @@
  * @deprecated Prefer importing directly from specialized modules in new code to reduce coupling.
  */
 import type { Effect, Project, Recording, CropEffectData } from '@/types/project'
-import { EffectStore } from '@/lib/core/effects'
-import { EffectCreation } from './effect-creation'
-import { EffectInitialization } from './effect-initialization'
+import { EffectStore } from '@/features/effects/core/store'
+import { EffectCreation } from './core/creation'
+import { EffectInitialization } from './core/initialization'
 
 // Re-export specific services if needed, or just use the facade methods below
 export { EffectCreation, EffectInitialization }

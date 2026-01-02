@@ -1,5 +1,5 @@
 import { calculateCursorState } from '@/features/cursor/logic/cursor-logic'
-import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
+import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
 import type { CursorEffectData, MouseEvent } from '@/types/project'
 
 function createMouseEvents(): MouseEvent[] {

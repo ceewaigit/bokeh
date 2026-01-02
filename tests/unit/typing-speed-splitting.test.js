@@ -1,6 +1,6 @@
 
 import { SpeedUpApplicationService } from '@/features/timeline/speed-up-application'
-import { normalizeProjectSettings } from '@/lib/settings/normalize-project-settings'
+import { normalizeProjectSettings } from '@/features/settings/normalize-project-settings'
 
 // Mock dependencies
 jest.mock('@/features/timeline/timeline-operations', () => ({

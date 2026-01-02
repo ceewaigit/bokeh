@@ -7,7 +7,7 @@ import { EffectType } from '@/types/project'
 import type { EffectRenderContext } from '../effect-renderer'
 import type { IEffectStrategy } from './index'
 import { KeystrokeRenderer } from '../keystroke-renderer'
-import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
+import { DEFAULT_KEYSTROKE_DATA } from '@/features/keystroke/config'
 import type { KeyboardEvent } from '@/types/project'
 
 export class KeystrokeEffectStrategy implements IEffectStrategy {

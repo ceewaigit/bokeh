@@ -1,5 +1,5 @@
 
-import { computeCameraState, type CameraPhysicsState } from '@/features/effects/utils/camera-calculator'
+import { computeCameraState, type CameraPhysicsState } from '@/features/editor/logic/viewport/logic/orchestrator'
 import { EffectType } from '@/types/effects'
 
 function makePhysics(x = 0.5, y = 0.5): CameraPhysicsState {

@@ -1,4 +1,4 @@
-import { KeystrokeRenderer } from '@/features/effects/keystroke-renderer'
+import { KeystrokeRenderer } from '@/features/effects/keystroke/renderer'
 import type { KeyboardEvent } from '@/types/project'
 
 function makeMockCanvas() {
@@ -69,4 +69,3 @@ describe('KeystrokeRenderer', () => {
     expect(fillText.mock.calls[0][0]).toBe('ab')
   })
 })
-

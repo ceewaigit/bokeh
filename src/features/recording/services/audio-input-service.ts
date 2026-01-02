@@ -5,7 +5,7 @@
  * Provides audio level monitoring for UI feedback.
  */
 
-import { RecordingIpcBridge, getRecordingBridge } from '@/lib/bridges'
+import { RecordingIpcBridge, getRecordingBridge } from '@/features/bridges'
 import { logger } from '@/shared/utils/logger'
 import { getSharedAudioContext } from '@/shared/contexts/audio-context'
 

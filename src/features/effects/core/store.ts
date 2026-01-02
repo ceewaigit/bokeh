@@ -1,0 +1,138 @@
+/**
+ * Effect Store - Single Source of Truth for all effect CRUD operations
+ *
+ * This module provides a centralized API for managing effects.
+ * All effects live on timeline.effects[] - this is THE ONLY authoritative location.
+ */
+
+import type { Effect, Project } from '@/types/project'
+import { EffectType } from '@/types/project'
+import { findNearestAvailableStart } from '@/features/timeline/utils/nearest-gap'
+
+export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
+  EffectType.Plugin,
+  EffectType.Zoom,
+  EffectType.Screen,
+  EffectType.Keystroke,
+  EffectType.Webcam,
+])
+
+export function isValidEffectTiming(effect: Effect): boolean {
+  if (!Number.isFinite(effect.startTime) || !Number.isFinite(effect.endTime)) return false
+  return effect.endTime > effect.startTime
+}
+
+function findNearestNonOverlappingPosition(
+  effect: Effect,
+  sameTypeEffects: Effect[],
+  effectId?: string
+): { startTime: number; endTime: number } {
+  const duration = effect.endTime - effect.startTime
+  const occupied = sameTypeEffects.filter(e => e.id !== effectId).map(e => ({ startTime: e.startTime, endTime: e.endTime }))
+  const startTime = findNearestAvailableStart(effect.startTime, duration, occupied)
+  return { startTime, endTime: startTime + duration }
+}
+
+export const EffectStore = {
+  getAll(project: Project): Effect[] {
+    return project.timeline.effects ?? []
+  },
+
+  add(project: Project, effect: Effect): void {
+    const existing = project.timeline.effects ?? []
+
+    if (!isValidEffectTiming(effect)) {
+      console.error(`[EffectStore] Refusing to add effect ${effect.id} with invalid timing`, {
+        startTime: effect.startTime,
+        endTime: effect.endTime,
+      })
+      return
+    }
+
+    if (NON_OVERLAPPING_EFFECT_TYPES.has(effect.type)) {
+      const sameTypeEffects = existing.filter(e => e.type === effect.type)
+      const { startTime, endTime } = findNearestNonOverlappingPosition(effect, sameTypeEffects)
+      effect.startTime = startTime
+      effect.endTime = endTime
+    }
+
+    project.timeline.effects = [...existing, effect]
+    project.modifiedAt = new Date().toISOString()
+  },
+
+  addMany(project: Project, effects: Effect[]): void {
+    const existing = project.timeline.effects ?? []
+    const validEffects = effects.filter(isValidEffectTiming)
+    if (validEffects.length !== effects.length) {
+      console.error('[EffectStore] Skipped effects with invalid timing during addMany')
+    }
+    project.timeline.effects = [...existing, ...validEffects]
+    project.modifiedAt = new Date().toISOString()
+  },
+
+  remove(project: Project, effectId: string): boolean {
+    const effects = project.timeline.effects ?? []
+    const nextEffects = effects.filter(e => e.id !== effectId)
+    if (nextEffects.length !== effects.length) {
+      project.timeline.effects = nextEffects
+      project.modifiedAt = new Date().toISOString()
+      return true
+    }
+    return false
+  },
+
+  update(project: Project, effectId: string, updates: Partial<Effect>): boolean {
+    const effects = project.timeline.effects ?? []
+    const index = effects.findIndex(e => e.id === effectId)
+    if (index === -1) return false
+    const effect = effects[index]
+
+    const nextStartTime = updates.startTime ?? effect.startTime
+    const nextEndTime = updates.endTime ?? effect.endTime
+    if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime) || nextEndTime <= nextStartTime) {
+      console.error(`[EffectStore] Refusing to update effect ${effectId} with invalid timing`, {
+        startTime: nextStartTime,
+        endTime: nextEndTime,
+      })
+      return false
+    }
+
+    const isTimeUpdate = updates.startTime !== undefined || updates.endTime !== undefined
+    if (isTimeUpdate && NON_OVERLAPPING_EFFECT_TYPES.has(effect.type)) {
+      const tempEffect = { ...effect, startTime: nextStartTime, endTime: nextEndTime }
+      const sameTypeEffects = effects.filter(e => e.type === effect.type)
+      const { startTime, endTime } = findNearestNonOverlappingPosition(tempEffect, sameTypeEffects, effectId)
+      updates = { ...updates, startTime, endTime }
+    }
+
+    const nextEffect: Effect =
+      updates.data && effect.data
+        ? ({ ...effect, ...updates, data: { ...effect.data, ...(updates.data as typeof effect.data) } } as Effect)
+        : ({ ...effect, ...updates } as Effect)
+
+    const nextEffects = effects.slice()
+    nextEffects[index] = nextEffect
+    project.timeline.effects = nextEffects
+    project.modifiedAt = new Date().toISOString()
+    return true
+  },
+
+  get(project: Project, effectId: string): Effect | null {
+    const effects = project.timeline.effects ?? []
+    return effects.find(e => e.id === effectId) ?? null
+  },
+
+  find(project: Project, effectId: string): { effect: Effect; scope: 'timeline' } | null {
+    const effect = this.get(project, effectId)
+    return effect ? { effect, scope: 'timeline' } : null
+  },
+
+  exists(project: Project, effectId: string): boolean {
+    return this.get(project, effectId) !== null
+  },
+
+  ensureArray(project: Project): void {
+    if (!project.timeline.effects) project.timeline.effects = []
+  },
+}
+

@@ -62,10 +62,15 @@
   --transition-slow: 500ms;
 
   /* Window surface (glassmorphism) */
-  --window-surface-opacity: 1;
-  --window-surface-blur: 0px;
-  /* Light mode glass: Pure white for clean frosted/snow effect */
+  /* Window surface (glassmorphism) */
+  --window-surface-opacity: 0.22;
+  --window-surface-blur: 30px;
+  /* Surface tint is neutral (keeps glass consistent across color presets). */
   --window-surface-color: 0 0% 100%;
+  --window-surface-saturate: 160%;
+  --window-surface-brightness: 110%;
+  --window-surface-contrast: 105%;
+  --window-surface-border-alpha: 0.16;
 
   /* Default Theme: Bokeh (Purple) */
   --background: 0 0% 100%;
@@ -99,6 +104,12 @@
   --timeline-playhead: 262 80% 50%;
   --recording-active: 0 84.2% 60.2%;
   --recording-inactive: 220 8.9% 46.1%;
+}
+
+.dark {
+  --window-surface-color: 0 0% 0%;
+  --window-surface-brightness: 100%;
+  --window-surface-contrast: 103%;
 }
 
 /* --- THEME PRESETS --- */
@@ -609,24 +620,41 @@
 
   .window-surface {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.2) contrast(1.02);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.2) contrast(1.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, var(--window-surface-border-alpha));
     border-radius: var(--window-surface-radius);
     overflow: hidden;
   }
 
-  :root:not(.dark) [data-window-surface="glass"] .window-surface,
-  :root:not(.dark) [data-window-surface="custom"] .window-surface {
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(125%) brightness(1.45) contrast(1.02);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(125%) brightness(1.45) contrast(1.02);
+  /* Material tuning per mode */
+  [data-window-surface="clear"] {
+    --window-surface-saturate: 120%;
+    --window-surface-brightness: 100%;
+    --window-surface-contrast: 100%;
+    --window-surface-border-alpha: 0.12;
   }
 
-  /* Dark mode: reduce brightness boost */
-  .dark .window-surface {
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  [data-window-surface="frosted"] {
+    --window-surface-saturate: 120%;
+    --window-surface-brightness: 100%;
+    --window-surface-contrast: 100%;
+    --window-surface-border-alpha: 0.18;
+  }
+
+  .dark[data-window-surface="clear"],
+  .dark[data-window-surface="custom"] {
+    --window-surface-brightness: 100%;
+    --window-surface-saturate: 140%;
+    --window-surface-border-alpha: 0.08;
+  }
+
+  .dark[data-window-surface="frosted"] {
+    --window-surface-brightness: 100%;
+    --window-surface-saturate: 130%;
+    --window-surface-border-alpha: 0.1;
   }
 
   /* Solid mode: use pure background color with no transparency tricks */
@@ -638,30 +666,28 @@
     box-shadow: none;
   }
 
-  /* Clear mode: clear glass (subtle blur, minimal tint) */
+  /* Clear mode: clear glass (no blur, minimal tint) */
   [data-window-surface="clear"] .window-surface,
   [data-window-surface="clear"].window-surface {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(11px) saturate(150%) brightness(1.07);
-    backdrop-filter: blur(11px) saturate(150%) brightness(1.07);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, var(--window-surface-border-alpha));
   }
 
   /* Full-window surface uses the app background token */
   .window-surface-bg {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.2) contrast(1.02);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.2) contrast(1.02);
-  }
-
-  :root:not(.dark) [data-window-surface="glass"] .window-surface-bg,
-  :root:not(.dark) [data-window-surface="custom"] .window-surface-bg {
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(125%) brightness(1.45) contrast(1.02);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(125%) brightness(1.45) contrast(1.02);
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
   }
 
   /* Light-mode glass/clear: keep text dark for contrast on bright surfaces */
-  :root:not(.dark)[data-window-surface="glass"],
+  :root:not(.dark)[data-window-surface="frosted"],
   :root:not(.dark)[data-window-surface="custom"],
   :root:not(.dark)[data-window-surface="clear"] {
     --foreground: 222.2 84% 4.9%;
@@ -669,19 +695,16 @@
     --secondary-foreground: 222.2 84% 4.9%;
   }
 
-  .dark .window-surface-bg {
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
-  }
-
   [data-window-surface="clear"] .window-surface-bg,
   [data-window-surface="clear"].window-surface-bg {
-    -webkit-backdrop-filter: blur(11px) saturate(150%) brightness(1.07);
-    backdrop-filter: blur(11px) saturate(150%) brightness(1.07);
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
+      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
   }
 
   /* Glass/clear timeline ruler matches track background */
-  [data-window-surface="glass"],
+  [data-window-surface="frosted"],
   [data-window-surface="clear"] {
     --timeline-ruler: var(--timeline-track);
   }
@@ -773,7 +796,7 @@
   }
 
   /* Glass/Clear/Custom modes: transparent, minimal processing for true glass effect */
-  [data-window-surface="glass"] .timeline-controls,
+  [data-window-surface="frosted"] .timeline-controls,
   [data-window-surface="clear"] .timeline-controls,
   [data-window-surface="custom"] .timeline-controls {
     background: transparent;
@@ -787,7 +810,7 @@
   }
 
   /* Timecode - glass/clear/custom modes: transparent to match controls */
-  [data-window-surface="glass"] .timeline-controls-timecode,
+  [data-window-surface="frosted"] .timeline-controls-timecode,
   [data-window-surface="clear"] .timeline-controls-timecode,
   [data-window-surface="custom"] .timeline-controls-timecode {
     background: hsl(var(--foreground) / 0.06);
@@ -796,7 +819,7 @@
   }
 
   /* Timeline container - glass/clear modes need transparent background */
-  [data-window-surface="glass"] .timeline-container,
+  [data-window-surface="frosted"] .timeline-container,
   [data-window-surface="clear"] .timeline-container {
     background: transparent;
     border-color: hsl(var(--foreground) / 0.08);
@@ -804,52 +827,52 @@
   }
 
   /* Dark mode refinements for glass containers */
-  .dark[data-window-surface="glass"] .timeline-container,
+  .dark[data-window-surface="frosted"] .timeline-container,
   .dark[data-window-surface="clear"] .timeline-container {
     border-color: hsl(var(--foreground) / 0.06);
     box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.03);
   }
 
   /* Force higher contrast for muted text in glass mode */
-  [data-window-surface="glass"] .text-muted-foreground {
+  [data-window-surface="frosted"] .text-muted-foreground {
     color: hsl(var(--foreground) / 0.85) !important;
   }
 
-  .dark [data-window-surface="glass"] .text-muted-foreground {
+  .dark [data-window-surface="frosted"] .text-muted-foreground {
     color: hsl(var(--foreground) / 0.85) !important;
   }
 
   /* Make muted backgrounds (like tabs) slightly more opaque in glass mode */
-  [data-window-surface="glass"] .bg-muted\/50 {
+  [data-window-surface="frosted"] .bg-muted\/50 {
     background-color: hsl(var(--foreground) / 0.1) !important;
   }
 
   /* Boost colored text contrast in glass mode - these accent colors need more opacity and a subtle shadow */
-  [data-window-surface="glass"] [class*="text-blue-"],
-  [data-window-surface="glass"] [class*="text-green-"],
-  [data-window-surface="glass"] [class*="text-orange-"],
-  [data-window-surface="glass"] [class*="text-destructive"] {
+  [data-window-surface="frosted"] [class*="text-blue-"],
+  [data-window-surface="frosted"] [class*="text-green-"],
+  [data-window-surface="frosted"] [class*="text-orange-"],
+  [data-window-surface="frosted"] [class*="text-destructive"] {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 
   /* Force full opacity for colored text labels in glass mode */
-  [data-window-surface="glass"] .text-blue-400\/70 {
+  [data-window-surface="frosted"] .text-blue-400\/70 {
     color: rgb(96, 165, 250) !important;
     /* blue-400 full opacity */
   }
 
-  [data-window-surface="glass"] .text-green-400\/70 {
+  [data-window-surface="frosted"] .text-green-400\/70 {
     color: rgb(74, 222, 128) !important;
     /* green-400 full opacity */
   }
 
-  [data-window-surface="glass"] .text-orange-400\/70 {
+  [data-window-surface="frosted"] .text-orange-400\/70 {
     color: rgb(251, 146, 60) !important;
     /* orange-400 full opacity */
   }
 
-  [data-window-surface="glass"] .text-muted-foreground\/50,
-  [data-window-surface="glass"] .text-muted-foreground\/60 {
+  [data-window-surface="frosted"] .text-muted-foreground\/50,
+  [data-window-surface="frosted"] .text-muted-foreground\/60 {
     color: hsl(var(--foreground) / 0.7) !important;
   }
 

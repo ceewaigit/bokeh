@@ -5,7 +5,7 @@
  * Uses MediaRecorder API to stream webcam video to a temp file.
  */
 
-import { RecordingIpcBridge, getRecordingBridge } from '@/lib/bridges'
+import { RecordingIpcBridge, getRecordingBridge } from '@/features/bridges'
 import { logger } from '@/shared/utils/logger'
 
 export interface WebcamRecordingConfig {

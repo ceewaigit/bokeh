@@ -8,8 +8,8 @@
 import type { Project, Track, Clip } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
-import { EffectStore, isValidEffectTiming } from '@/lib/core/effects'
-import { isGlobalEffectType } from '@/features/effects/effect-classification'
+import { EffectStore, isValidEffectTiming } from '@/features/effects/core/store'
+import { isGlobalEffectType } from '@/features/effects/core/classification'
 
 /**
  * Calculate total timeline duration from clips and effects.

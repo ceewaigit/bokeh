@@ -1,5 +1,5 @@
 import type { MouseEvent } from '@/types/project'
-import { binarySearchEvents } from '@/lib/core/math'
+import { binarySearchEvents } from '@/features/canvas/math'
 
 /**
  * Hermite spline interpolation for smooth, cinematic mouse movement.

@@ -44,19 +44,6 @@ const customJestConfig = {
       functions: 50,
       lines: 50,
       statements: 50
-    },
-    // Core stores should be well tested
-    'src/stores/recording-store.ts': {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70
-    },
-    'src/stores/timeline-store.ts': {
-      branches: 60,
-      functions: 60,
-      lines: 60,
-      statements: 60
     }
   },
   testTimeout: 10000,

@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
-import { REFERENCE_WIDTH } from '@/lib/constants/layout';
+import { REFERENCE_WIDTH } from '@/shared/constants/layout';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
 import {
   CursorType,
@@ -9,16 +9,17 @@ import {
   getCursorImagePath,
 } from '../store/cursor-types';
 import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../logic/cursor-logic';
-import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects';
+import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config';
 
-import { useProjectStore } from '@/stores/project-store';
-import { normalizeClickEvents, normalizeMouseEvents } from '@/remotion/compositions/utils/events/event-normalizer';
-import { useTimelineContext } from '@/remotion/context/TimelineContext';
-import { getCursorEffect } from '@/features/effects/effect-filters';
-import { applyCssTransformToPoint } from '@/remotion/compositions/utils/transforms/transform-point';
+import { useProjectStore } from '@/features/stores/project-store';
+import { normalizeClickEvents, normalizeMouseEvents } from '@/features/renderer/compositions/utils/events/event-normalizer';
+import { useTimelineContext } from '@/features/renderer/context/TimelineContext';
+import { getCursorEffect } from '@/features/effects/core/filters';
+import { applyCssTransformToPoint } from '@/features/canvas/math/transforms/transform-point';
+import { calculateZoomScale } from '@/features/canvas/math/transforms/zoom-transform';
 
-import { useRecordingMetadata } from '@/remotion/hooks/media/useRecordingMetadata';
-import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext';
+import { useRecordingMetadata } from '@/features/renderer/hooks/media/useRecordingMetadata';
+import { useVideoPosition } from '@/features/renderer/context/layout/VideoPositionContext';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {

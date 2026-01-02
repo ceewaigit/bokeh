@@ -8,6 +8,8 @@
 import { EffectType, EffectLayerType } from '@/types/effects'
 import type { Effect, ZoomEffectData, PluginEffectData, AnnotationData } from '@/types/project'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
+import { screenTrackConfig } from '@/features/screen/config'
+import { zoomTrackConfig } from '@/features/editor/logic/viewport/zoom/config'
 
 export interface EffectTrackConfig {
   /** Display label for the track */
@@ -22,36 +24,17 @@ export interface EffectTrackConfig {
   layerType: EffectLayerType
 }
 
+import { keystrokeTrackConfig } from '@/features/keystroke/config'
+import { annotationTrackConfig } from '@/features/annotation/config'
+
 /**
  * Registry of all effect types that should have timeline tracks.
  * Add new effect tracks here - everything else is derived automatically.
  */
 export const EFFECT_TRACK_REGISTRY: Partial<Record<EffectType, EffectTrackConfig>> = {
-  [EffectType.Zoom]: {
-    label: 'Zoom',
-    order: 0,
-    colorKey: 'zoomBlock',
-    layerType: EffectLayerType.Zoom,
-    getBlockLabel: (effect) => {
-      const data = effect.data as ZoomEffectData
-      if (data.autoScale === 'fill') return 'Fill'
-      return `${data.scale?.toFixed(1) ?? '1.0'}×`
-    }
-  },
-  [EffectType.Screen]: {
-    label: 'Screen',
-    order: 1,
-    colorKey: 'screenBlock',
-    layerType: EffectLayerType.Screen,
-    getBlockLabel: () => '3D'
-  },
-  [EffectType.Keystroke]: {
-    label: 'Keys',
-    order: 2,
-    colorKey: 'keystrokeBlock',
-    layerType: EffectLayerType.Keystroke,
-    getBlockLabel: () => 'Type'
-  },
+  [EffectType.Zoom]: zoomTrackConfig,
+  [EffectType.Screen]: screenTrackConfig,
+  [EffectType.Keystroke]: keystrokeTrackConfig,
   [EffectType.Plugin]: {
     label: 'Plugins',
     order: 3,
@@ -63,18 +46,7 @@ export const EFFECT_TRACK_REGISTRY: Partial<Record<EffectType, EffectTrackConfig
       return plugin?.name?.slice(0, 8) ?? 'Plugin'
     }
   },
-  [EffectType.Annotation]: {
-    label: 'Notes',
-    order: 4,
-    colorKey: 'annotationBlock',
-    layerType: EffectLayerType.Annotation,
-    getBlockLabel: (effect) => {
-      const data = effect.data as AnnotationData
-      return data.type
-        ? data.type.charAt(0).toUpperCase() + data.type.slice(1)
-        : 'Note'
-    }
-  }
+  [EffectType.Annotation]: annotationTrackConfig
 }
 
 /** Effect types that have timeline tracks */

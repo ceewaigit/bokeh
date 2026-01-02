@@ -8,7 +8,7 @@ import type { SpeedUpPeriod, SpeedUpSuggestions } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import type { ActivityDetector } from './index'
 import { calculateOverallSuggestion } from './index'
-import { countPrintableCharacters, getPrintableCharFromKey } from '@/lib/keyboard/keyboard-utils'
+import { countPrintableCharacters, getPrintableCharFromKey } from '@/features/keyboard/keyboard-utils'
 
 const MIN_TYPING_DURATION = 2000 // 2 seconds minimum
 const MAX_GAP_BETWEEN_KEYS = 3000 // 3 seconds max gap

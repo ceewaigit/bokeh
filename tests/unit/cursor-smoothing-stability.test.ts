@@ -1,5 +1,5 @@
 import { calculateCursorState } from '@/features/cursor/logic/cursor-logic'
-import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
+import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
 
 describe('cursor smoothing stability', () => {
   it('does not jitter when input stops with small noise', () => {

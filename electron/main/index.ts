@@ -21,7 +21,7 @@ import { registerKeyboardTrackingHandlers, cleanupKeyboardTracking } from './han
 import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
-import { registerWindowAppearanceHandlers } from './handlers/window-appearance'
+import { registerWindowSurfaceHandlers } from './handlers/window-surface'
 import { setupNativeRecorder } from './handlers/native-recorder'
 import { setupExportHandler, cleanupBundleCache } from './handlers/export'
 import { setupThumbnailHandler } from './handlers/thumbnail'
@@ -75,7 +75,7 @@ function registerAllHandlers(): void {
   registerFileOperationHandlers()
   registerDialogHandlers()
   registerWindowControlHandlers()
-  registerWindowAppearanceHandlers()
+  registerWindowSurfaceHandlers()
   registerAssetHandlers()
   registerBokehProcessHandlers()
   setupNativeRecorder()

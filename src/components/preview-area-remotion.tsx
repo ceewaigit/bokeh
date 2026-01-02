@@ -11,22 +11,24 @@
 
 import React, { useRef, useEffect, useMemo } from 'react';
 import { PlayerRef } from '@remotion/player';
-import { useProjectStore } from '@/stores/project-store';
-import { DEFAULT_PROJECT_SETTINGS } from '@/lib/settings/defaults';
-import { usePreviewSettingsStore } from '@/stores/preview-settings-store';
-import { useTimelineMetadata } from '@/hooks/timeline/use-timeline-metadata';
-import { usePlayerConfiguration } from '@/hooks/use-player-configuration';
+import { useProjectStore } from '@/features/stores/project-store';
+import { DEFAULT_PROJECT_SETTINGS } from '@/features/settings/defaults';
+import { usePreviewSettingsStore } from '@/features/stores/preview-settings-store';
+import { useTimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata';
+import { usePlayerConfiguration } from '@/shared/hooks/use-player-configuration';
 import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
 import type { CropEffectData } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
-import { assertDefined } from '@/lib/errors';
-import { useWorkspaceStore } from '@/stores/workspace-store';
-import { EffectStore } from '@/lib/core/effects';
-import { usePlayerSync } from './preview/use-player-sync';
-import { usePreviewVisibility, usePreviewResize, useVideoPreloader } from './preview/use-preview-lifecycle';
-import { PlayerContainer } from './preview/player-container';
-import { PreviewInteractions } from './preview/preview-interactions';
-import { msToFrame } from '@/remotion/compositions/utils/time/frame-time';
+import { assertDefined } from '@/shared/errors';
+import { useWorkspaceStore } from '@/features/stores/workspace-store';
+import { EffectStore } from '@/features/effects/core/store';
+import { usePlayerSync } from '@/features/editor/components/preview/use-player-sync';
+import { usePreviewVisibility, usePreviewResize, useVideoPreloader } from '@/features/editor/components/preview/use-preview-lifecycle';
+import { PlayerContainer } from '@/features/editor/components/preview/player-container';
+import { PreviewInteractions } from '@/features/editor/components/preview/preview-interactions';
+import { TimelineProvider } from '@/features/renderer/context/TimelineContext';
+import { PlaybackSettingsProvider } from '@/features/renderer/context/playback/PlaybackSettingsContext';
+import { msToFrame } from '@/features/renderer/compositions/utils/time/frame-time';
 
 interface PreviewAreaRemotionProps {
   // Crop editing props
@@ -178,71 +180,104 @@ export function PreviewAreaRemotion({
                 height: `${previewFrameBounds.height}px`,
               }}
             >
-              <div className="rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.14)] h-full w-full overflow-hidden">
-
-                <PreviewInteractions
-                  project={project}
-                  projectEffects={projectEffects}
-                  timelineMetadata={timelineMetadata}
-                  selectedEffectLayer={selectedEffectLayer}
-                  isEditingCrop={Boolean(isEditingCrop)}
-                  isPlaying={isPlaying}
-                  zoomSettings={zoomSettings}
-                  previewFrameBounds={previewFrameBounds}
-                  aspectContainerRef={aspectContainerRef}
-                  playerContainerRef={playerContainerRef}
-                  playerRef={playerRef}
+              {playerConfig && (
+                <TimelineProvider
+                  compositionWidth={timelineMetadata.width}
+                  compositionHeight={timelineMetadata.height}
+                  videoWidth={timelineMetadata.width}
+                  videoHeight={timelineMetadata.height}
+                  fps={timelineMetadata.fps}
+                  clips={playerConfig.clips}
+                  recordings={playerConfig.recordings}
+                  effects={playerConfig.effects}
+                  resources={{
+                    videoFilePaths: {},
+                    videoUrls: {}
+                  }}
                 >
-                  {/* Memoize PlayerContainer to prevent re-renders when selection/crop state changes but playback doesn't */}
-                  {useMemo(() => (
-                    <PlayerContainer
-                      playerRef={playerRef}
-                      playerContainerRef={playerContainerRef}
+                  <PlaybackSettingsProvider
+                    playback={{
+                      isPlaying,
+                      isScrubbing,
+                      isHighQualityPlaybackEnabled,
+                      previewMuted: muted,
+                      previewVolume: volume / 100
+                    }}
+                    renderSettings={{
+                      isGlowMode: false,
+                      preferOffthreadVideo: false,
+                      enhanceAudio: false,
+                      isEditingCrop: Boolean(isEditingCrop)
+                    }}
+                    resources={{
+                      videoFilePaths: {},
+                      videoUrls: {}
+                    }}
+                  >
+                    <PreviewInteractions
+                      project={project}
+                      projectEffects={projectEffects}
                       timelineMetadata={timelineMetadata}
-                      playerConfig={playerConfig}
-                      playerKey={playerKey}
-                      initialFrame={initialFrame}
-                      isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-                      muted={muted}
-                      volume={volume}
-                      isGlowEnabled={isGlowEnabled}
-                      glowIntensity={glowIntensity}
-                      isPlaying={isPlaying}
-                      isScrubbing={isScrubbing}
+                      selectedEffectLayer={selectedEffectLayer}
                       isEditingCrop={Boolean(isEditingCrop)}
-                      cropData={cropData || null}
-                      onCropChange={onCropChange}
-                      onCropConfirm={onCropConfirm}
-                      onCropReset={onCropReset}
+                      isPlaying={isPlaying}
                       zoomSettings={zoomSettings}
-                    />
-                  ), [
-                    // Dependencies for PlayerContainer
-                    // Crucially, EXCLUDE selectedEffectLayer or project reference if possible (project is used inside?)
-                    // PlayerConfig, Key, and Metadata drive the core player.
-                    playerRef, // Ref stable
-                    playerContainerRef, // Ref stable
-                    timelineMetadata,
-                    playerConfig,
-                    playerKey,
-                    initialFrame,
-                    isHighQualityPlaybackEnabled,
-                    muted,
-                    volume,
-                    isGlowEnabled,
-                    glowIntensity,
-                    isPlaying,
-                    isScrubbing,
-                    isEditingCrop,
-                    cropData,
-                    onCropChange,
-                    onCropConfirm,
-                    onCropReset,
-                    zoomSettings
-                  ])}
-                </PreviewInteractions>
-
-              </div>
+                      previewFrameBounds={previewFrameBounds}
+                      aspectContainerRef={aspectContainerRef}
+                      playerContainerRef={playerContainerRef}
+                      playerRef={playerRef}
+                    >
+                      {/* Memoize PlayerContainer to prevent re-renders when selection/crop state changes but playback doesn't */}
+                      {useMemo(() => (
+                        <PlayerContainer
+                          playerRef={playerRef}
+                          playerContainerRef={playerContainerRef}
+                          timelineMetadata={timelineMetadata}
+                          playerConfig={playerConfig}
+                          playerKey={playerKey}
+                          initialFrame={initialFrame}
+                          isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+                          muted={muted}
+                          volume={volume}
+                          isGlowEnabled={isGlowEnabled}
+                          glowIntensity={glowIntensity}
+                          isPlaying={isPlaying}
+                          isScrubbing={isScrubbing}
+                          isEditingCrop={Boolean(isEditingCrop)}
+                          cropData={cropData || null}
+                          onCropChange={onCropChange}
+                          onCropConfirm={onCropConfirm}
+                          onCropReset={onCropReset}
+                          zoomSettings={zoomSettings}
+                        />
+                      ), [
+                        // Dependencies for PlayerContainer
+                        // Crucially, EXCLUDE selectedEffectLayer or project reference if possible (project is used inside?)
+                        // PlayerConfig, Key, and Metadata drive the core player.
+                        playerRef, // Ref stable
+                        playerContainerRef, // Ref stable
+                        timelineMetadata,
+                        playerConfig,
+                        playerKey,
+                        initialFrame,
+                        isHighQualityPlaybackEnabled,
+                        muted,
+                        volume,
+                        isGlowEnabled,
+                        glowIntensity,
+                        isPlaying,
+                        isScrubbing,
+                        isEditingCrop,
+                        cropData,
+                        onCropChange,
+                        onCropConfirm,
+                        onCropReset,
+                        zoomSettings
+                      ])}
+                    </PreviewInteractions>
+                  </PlaybackSettingsProvider>
+                </TimelineProvider>
+              )}
             </div>
           </div>
         )}

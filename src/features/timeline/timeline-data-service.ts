@@ -16,7 +16,7 @@ import type { Project, Clip, Recording, Effect } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { buildFrameLayout, type FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
-import { EffectStore } from '@/lib/core/effects'
+import { EffectStore } from '@/features/effects/core/store'
 
 /**
  * Cached timeline data structure.

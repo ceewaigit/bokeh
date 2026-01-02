@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { WelcomeScreen } from './welcome-screen'
-import { usePermissions } from '@/hooks/use-permissions'
+import { usePermissions } from '@/shared/hooks/use-permissions'
 
 interface PermissionGuardProps {
   children: React.ReactNode

@@ -4,8 +4,8 @@
  */
 
 import { RecordingStrategy, RecordingConfig, RecordingResult } from '../types/recording-strategy'
-import { parseAreaSourceId, parseWindowId, parseScreenDisplayId } from '@/lib/recording/utils/area-source-parser'
-import { RecordingIpcBridge, getRecordingBridge } from '@/lib/bridges'
+import { parseAreaSourceId, parseWindowId, parseScreenDisplayId } from '@/features/recording/logic/area-source-parser'
+import { RecordingIpcBridge, getRecordingBridge } from '@/features/bridges'
 import { logger } from '@/shared/utils/logger'
 
 export class NativeRecordingStrategy implements RecordingStrategy {

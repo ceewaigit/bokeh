@@ -1,6 +1,6 @@
 import React from 'react'
-import { usePreviewSettingsStore } from '@/stores/preview-settings-store'
-import { useVideoPosition } from '@/remotion/context/layout/VideoPositionContext'
+import { usePreviewSettingsStore } from '@/features/stores/preview-settings-store'
+import { useVideoPosition } from '@/features/renderer/context/layout/VideoPositionContext'
 
 interface PreviewGuidesProps {
     rect?: {

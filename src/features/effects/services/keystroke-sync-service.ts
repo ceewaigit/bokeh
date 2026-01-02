@@ -12,8 +12,8 @@
 import type { Effect, Project, KeystrokeEffectData, RecordingMetadata } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { sourceToTimeline, getSourceDuration } from '@/features/timeline/time/time-space-converter'
-import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
-import { EffectStore } from '@/lib/core/effects'
+import { DEFAULT_KEYSTROKE_DATA } from '@/features/keystroke/config'
+import { EffectStore } from '@/features/effects/core/store'
 
 // Configuration
 const MAX_GAP_MS = 2000 // Max gap between keys to be in same cluster

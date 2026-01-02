@@ -1,6 +1,6 @@
-import { CommandManager, DefaultCommandContext } from '@/lib/commands'
-import type { CommandResult } from '@/lib/commands/base/Command'
-import { Command } from '@/lib/commands/base/Command'
+import { CommandManager, DefaultCommandContext } from '@/features/commands'
+import type { CommandResult } from '@/features/commands/base/Command'
+import { Command } from '@/features/commands/base/Command'
 import type { ProjectStore } from '@/types/stores'
 
 class CounterCommand extends Command<{ value: number }> {

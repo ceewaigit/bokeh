@@ -10,10 +10,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { AccordionSection } from '@/components/ui/accordion-section'
 import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, CursorMotionPreset, Effect } from '@/types/project'
 import { EffectType } from '@/types'
-import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
-import { InfoTooltip } from '@/components/effects-sidebar/info-tooltip'
-import { useProjectStore } from '@/stores/project-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
+import { InfoTooltip } from '@/features/effects/components/info-tooltip'
+import { useProjectStore } from '@/features/stores/project-store'
+import { useWorkspaceStore } from '@/features/stores/workspace-store'
 
 interface CursorTabProps {
   cursorEffect: Effect | undefined

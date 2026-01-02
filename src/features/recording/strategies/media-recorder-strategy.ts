@@ -5,7 +5,7 @@
  */
 
 import { RecordingStrategy, RecordingConfig, RecordingResult } from '../types/recording-strategy'
-import { RecordingIpcBridge, getRecordingBridge } from '@/lib/bridges'
+import { RecordingIpcBridge, getRecordingBridge } from '@/features/bridges'
 import { logger } from '@/shared/utils/logger'
 
 export class MediaRecorderStrategy implements RecordingStrategy {

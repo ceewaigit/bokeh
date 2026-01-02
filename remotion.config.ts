@@ -19,7 +19,6 @@ Config.overrideWebpackConfig((currentConfig) => {
         '@': srcPath,
         '@/types': path.resolve(srcPath, 'types'),
         '@/lib': path.resolve(srcPath, 'lib'),
-        '@/remotion': path.resolve(srcPath, 'remotion'),
         '@/stores': path.resolve(srcPath, 'stores'),
         '@/features': path.resolve(srcPath, 'features'),
         '@/components': path.resolve(srcPath, 'components'),

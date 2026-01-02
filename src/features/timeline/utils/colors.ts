@@ -97,7 +97,7 @@ export const getTimelineColors = () => {
 
   const isDark = document.documentElement.classList.contains('dark')
   const windowSurfaceMode = document.documentElement.dataset.windowSurface
-  const isGlassMode = windowSurfaceMode === 'glass' || windowSurfaceMode === 'custom' || windowSurfaceMode === 'clear'
+  const isGlassMode = windowSurfaceMode === 'frosted' || windowSurfaceMode === 'custom' || windowSurfaceMode === 'clear'
   const surfaceOpacity = getNumberVar('--window-surface-opacity', 0.12)
   const glassAlpha = Math.min(0.45, Math.max(0.12, 0.08 + surfaceOpacity * 0.5))
   const rulerBase = computedStyle.getPropertyValue('--timeline-ruler').trim()

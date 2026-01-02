@@ -2,7 +2,7 @@ import type { Clip, Effect, Project, Recording } from '@/types/project'
 import { EffectType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { resolveEffectIdForType } from '@/features/effects/effect-selection'
+import { resolveEffectIdForType } from '@/features/effects/core/selection'
 
 type ExecuteCommand = (commandName: string, ...args: any[]) => void
 

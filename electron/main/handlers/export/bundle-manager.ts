@@ -44,7 +44,7 @@ export async function getBundleLocation(forceRebuild = false): Promise<string> {
     console.log('Building new Remotion bundle...')
 
     const { bundle } = await import('@remotion/bundler')
-    const entryPoint = path.join(process.cwd(), 'src/remotion/index.ts')
+    const entryPoint = path.join(process.cwd(), 'src/features/renderer/index.ts')
 
     const startTime = Date.now()
     const bundleLocation = await bundle({
@@ -61,7 +61,7 @@ export async function getBundleLocation(forceRebuild = false): Promise<string> {
               '@': resolvedPath,
               '@/types': path.join(resolvedPath, 'types'),
               '@/lib': path.join(resolvedPath, 'lib'),
-              '@/remotion': path.join(resolvedPath, 'remotion'),
+              '@/features': path.join(resolvedPath, 'features'),
             },
             extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
           },
@@ -89,7 +89,7 @@ export async function getBundleLocation(forceRebuild = false): Promise<string> {
  */
 export function cleanupBundleCache(): void {
   if (cachedBundle?.location) {
-    fs.rm(cachedBundle.location, { recursive: true, force: true }).catch(() => {})
+    fs.rm(cachedBundle.location, { recursive: true, force: true }).catch(() => { })
     cachedBundle = null
   }
 }

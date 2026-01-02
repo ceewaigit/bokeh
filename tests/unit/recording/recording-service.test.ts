@@ -1,5 +1,5 @@
 import { RecordingService } from '@/features/recording/services/recording-service'
-import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/lib/bridges/recording-ipc-bridge'
+import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/features/bridges/recording-ipc-bridge'
 import { AudioInput, ExportFormat, QualityLevel, RecordingArea, type RecordingSettings } from '@/types'
 
 const baseSettings: RecordingSettings = {

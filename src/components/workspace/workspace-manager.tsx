@@ -6,41 +6,41 @@ import { PreviewAreaRemotion } from '../preview-area-remotion'
 import dynamic from 'next/dynamic'
 
 const TimelineCanvas = dynamic(
-  () => import('../timeline/timeline-canvas').then(mod => mod.TimelineCanvas),
+  () => import('@/features/timeline/components/timeline-canvas').then(mod => mod.TimelineCanvas),
   { ssr: false }
 )
 const PluginCreator = dynamic(
   () => import('../plugin-creator/page').then(mod => mod.PluginCreator),
   { ssr: false }
 )
-import { EffectsSidebar } from '../effects-sidebar'
-import { EffectsSidebarProvider } from '../effects-sidebar/EffectsSidebarContext'
-import { ExportDialog } from '../export-dialog'
-import { RecordingsLibrary } from '../recordings-library'
-import { UtilitiesSidebar } from '../utilities-sidebar'
-import { useProjectStore } from '@/stores/project-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { EffectsSidebar } from '@/features/effects/components'
+import { EffectsSidebarProvider } from '@/features/effects/components/EffectsSidebarContext'
+import { ExportDialog } from '@/features/export/components/export-dialog'
+import { RecordingsLibrary } from '@/features/recording/components/library/recordings-library'
+import { UtilitiesSidebar } from '@/features/editor/components/utilities'
+import { useProjectStore } from '@/features/stores/project-store'
+import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { ZoomBlock, ZoomEffectData } from '@/types/project'
-import { useCropManager } from '@/hooks/use-crop-manager'
-import { useCommandExecutor } from '@/hooks/use-command-executor'
-import { usePlayheadState } from '@/hooks/use-playhead-state'
-import { useTimelineMetadata } from '@/hooks/timeline/use-timeline-metadata'
+import { useCropManager } from '@/features/crop/hooks/use-crop-manager'
+import { useCommandExecutor } from '@/shared/hooks/use-command-executor'
+import { usePlayheadState } from '@/features/timeline/hooks/use-playhead'
+import { useTimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { timelineToSource, getSourceDuration } from '@/features/timeline/time/time-space-converter'
-import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
+import { useCommandKeyboard } from '@/shared/hooks/use-command-keyboard'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
-import { calculateFullCameraPath } from '@/features/effects/utils/camera-path-calculator'
-import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
+import { calculateFullCameraPath } from '@/features/editor/logic/viewport/logic/path-calculator'
+import { setDefaultWallpaper, initializeDefaultWallpaper } from '@/features/background'
 import { EffectLayerType } from '@/types/effects'
-import { EffectStore } from '@/lib/core/effects'
+import { EffectStore } from '@/features/effects/core/store'
 import { applyEffectChange } from '@/features/effects/services/effect-change'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { UpdateZoomBlockCommand } from '@/lib/commands'
+import { RecordingStorage } from '@/features/storage/recording-storage'
+import { UpdateZoomBlockCommand } from '@/features/commands'
 import { toast } from 'sonner'
-import { useSelectedClip } from '@/stores/selectors/clip-selectors'
-import { useProjectLoader } from '@/hooks/use-project-loader'
-import { usePanelResizer } from '@/hooks/use-panel-resizer'
+import { useSelectedClip } from '@/features/stores/selectors/clip-selectors'
+import { useProjectLoader } from '@/shared/hooks/use-project-loader'
+import { usePanelResizer } from '@/features/editor/hooks/use-panel-resizer'
 
 
 
@@ -408,7 +408,7 @@ export function WorkspaceManager() {
                   resetWorkspace()
 
                   // Clear all rendering caches to free memory
-                  import('@/lib/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
+                  import('@/features/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
                   import('@/features/cursor/logic/cursor-logic').then(m => m.clearCursorCalculatorCache())
                   import('@/shared/utils/video-metadata').then(m => m.clearDurationCache())
 

@@ -5,7 +5,7 @@
  */
 
 import type { MouseEvent, ZoomBlock, ClickEvent, KeyboardEvent as ProjectKeyboardEvent, ScrollEvent } from '@/types/project'
-import { ACTION_ZOOM_CONFIG, ZOOM_DETECTION_CONFIG } from '@/features/effects/config/physics-config'
+import { ACTION_ZOOM_CONFIG, ZOOM_DETECTION_CONFIG } from '@/shared/config/physics-config'
 
 // Types for action-based detection
 interface ActionPoint {

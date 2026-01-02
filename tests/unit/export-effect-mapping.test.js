@@ -1,5 +1,4 @@
-
-const assert = require('assert');
+describe('Export Effect Mapping', () => {
 
 // Mock data
 const clips = [
@@ -81,42 +80,41 @@ function mapEffects(allClips, downsampledRecordings) {
 
 const mapped = mapEffects(clips, recordings);
 
-console.log('Mapped Effects:', JSON.stringify(mapped, null, 2));
+test('cursor-effect should be mapped for clip-1 with correct times', () => {
+  const cursorClip1 = mapped.find(e => e.id === 'cursor-effect-mapped-clip-1');
+  expect(cursorClip1).toBeDefined();
+  // Clip 1 uses 2s-7s of recording. Cursor covers 0-10s. Overlap: 2s-7s.
+  // Timeline placement: 1000 + (2000 - 2000) = 1000.
+  // Timeline end: 1000 + (7000 - 2000) = 6000.
+  expect(cursorClip1.startTime).toBe(1000);
+  expect(cursorClip1.endTime).toBe(6000);
+});
 
-// Assertions
+test('short-effect should be mapped for clip-1 with correct times', () => {
+  const shortClip1 = mapped.find(e => e.id === 'short-effect-mapped-clip-1');
+  expect(shortClip1).toBeDefined();
+  // Clip 1 uses 2s-7s. Short effect is 5s-6s. It is FULLY contained.
+  // Overlap start: 5000. Overlap end: 6000.
+  // Timeline start: 1000 + (5000 - 2000) = 4000.
+  // Timeline end: 1000 + (6000 - 2000) = 5000.
+  expect(shortClip1.startTime).toBe(4000);
+  expect(shortClip1.endTime).toBe(5000);
+});
 
-// 1. cursor-effect should be mapped for clip-1
-const cursorClip1 = mapped.find(e => e.id === 'cursor-effect-mapped-clip-1');
-assert(cursorClip1, 'cursor-effect for clip-1 missing');
-// Clip 1 uses 2s-7s of recording. Cursor covers 0-10s. Overlap: 2s-7s.
-// Timeline placement: 1000 + (2000 - 2000) = 1000.
-// Timeline end: 1000 + (7000 - 2000) = 6000.
-assert.strictEqual(cursorClip1.startTime, 1000);
-assert.strictEqual(cursorClip1.endTime, 6000);
+test('cursor-effect should be mapped for clip-2 with correct times', () => {
+  const cursorClip2 = mapped.find(e => e.id === 'cursor-effect-mapped-clip-2');
+  expect(cursorClip2).toBeDefined();
+  // Clip 2 uses 0s-3s. Cursor covers 0-10s. Overlap: 0s-3s.
+  // Timeline start: 10000 + (0 - 0) = 10000.
+  // Timeline end: 10000 + (3000 - 0) = 13000.
+  expect(cursorClip2.startTime).toBe(10000);
+  expect(cursorClip2.endTime).toBe(13000);
+});
 
-// 2. short-effect should be mapped for clip-1
-const shortClip1 = mapped.find(e => e.id === 'short-effect-mapped-clip-1');
-assert(shortClip1, 'short-effect for clip-1 missing');
-// Clip 1 uses 2s-7s. Short effect is 5s-6s. It is FULLY contained.
-// Overlap start: 5000. Overlap end: 6000.
-// Timeline start: 1000 + (5000 - 2000) = 4000.
-// Timeline end: 1000 + (6000 - 2000) = 5000.
-assert.strictEqual(shortClip1.startTime, 4000);
-assert.strictEqual(shortClip1.endTime, 5000);
+test('short-effect should NOT be mapped for clip-2 (no overlap)', () => {
+  const shortClip2 = mapped.find(e => e.id === 'short-effect-mapped-clip-2');
+  // Clip 2 uses 0s-3s. Short effect is 5s-6s. No overlap.
+  expect(shortClip2).toBeUndefined();
+});
 
-
-// 3. cursor-effect should be mapped for clip-2
-const cursorClip2 = mapped.find(e => e.id === 'cursor-effect-mapped-clip-2');
-assert(cursorClip2, 'cursor-effect for clip-2 missing');
-// Clip 2 uses 0s-3s. Cursor covers 0-10s. Overlap: 0s-3s.
-// Timeline start: 10000 + (0 - 0) = 10000.
-// Timeline end: 10000 + (3000 - 0) = 13000.
-assert.strictEqual(cursorClip2.startTime, 10000);
-assert.strictEqual(cursorClip2.endTime, 13000);
-
-// 4. short-effect should NOT be mapped for clip-2
-const shortClip2 = mapped.find(e => e.id === 'short-effect-mapped-clip-2');
-assert(!shortClip2, 'short-effect should not exist for clip-2 (no overlap)');
-// Clip 2 uses 0s-3s. Short effect is 5s-6s. No overlap.
-
-console.log('All tests passed!');
+}); // End describe

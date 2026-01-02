@@ -17,9 +17,9 @@ import { MediaRecorderStrategy } from '../strategies/media-recorder-strategy'
 import { TrackingService } from './tracking-service'
 import { WebcamService, WebcamRecordingResult } from './webcam-service'
 import { AudioInputService, AudioInputResult } from './audio-input-service'
-import { parseAreaSourceId, isAreaSource, isWindowSource } from '@/lib/recording/utils/area-source-parser'
+import { parseAreaSourceId, isAreaSource, isWindowSource } from '@/features/recording/logic/area-source-parser'
 import { logger } from '@/shared/utils/logger'
-import { PermissionError, ElectronError } from '@/lib/errors'
+import { PermissionError, ElectronError } from '@/shared/errors'
 
 interface CaptureArea {
   fullBounds: { x: number; y: number; width: number; height: number }

@@ -1,4 +1,4 @@
-import { getElectronAssetUrl } from '@/lib/assets/electron-asset-url'
+import { getElectronAssetUrl } from '@/shared/assets/electron-asset-url'
 
 describe('getElectronAssetUrl', () => {
   const originalElectronAPI = (window as any).electronAPI
