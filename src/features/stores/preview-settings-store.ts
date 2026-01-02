@@ -27,7 +27,7 @@ const defaultPreviewSettings: PreviewSettings = {
   safeZoneMargin: 10,
   highQuality: false,
   showGlow: false,
-  glowIntensity: 1,
+  glowIntensity: 0.3,
   showTimelineThumbnails: true,
 }
 

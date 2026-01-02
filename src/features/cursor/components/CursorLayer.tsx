@@ -1,6 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
-import { REFERENCE_WIDTH } from '@/shared/constants/layout';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
 import {
   CursorType,
@@ -18,6 +17,10 @@ import { applyCssTransformToPoint } from '@/features/canvas/math/transforms/tran
 
 import { useRecordingMetadata } from '@/features/renderer/hooks/media/useRecordingMetadata';
 import { useVideoPosition } from '@/features/renderer/context/layout/VideoPositionContext';
+
+// Fixed reference width for resolution-agnostic cursor sizing.
+// Cursor is designed at 1080p (1920px width) - all resolutions scale relative to this.
+const CURSOR_REFERENCE_WIDTH = 1920;
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -87,7 +90,7 @@ class CursorImagePreloader {
 // This works with VideoPositionContext optimization to allow "static" cursor frames during video playback.
 export const CursorLayer = React.memo(() => {
   const { fps } = useVideoConfig();
-  const { videoWidth, videoHeight, resources } = useTimelineContext();
+  const { compositionWidth, compositionHeight, videoWidth: baseVideoWidth, videoHeight: baseVideoHeight, resources } = useTimelineContext();
   const metadataUrls = resources.metadataUrls;
 
   // Pull Context Data (SSOT)
@@ -105,6 +108,7 @@ export const CursorLayer = React.memo(() => {
     effectiveClipData: activeClipData,
     // Transforms
     contentTransform,
+    zoomTransform,
     // Effects
     refocusBlurPx,
     mockupData
@@ -150,7 +154,9 @@ export const CursorLayer = React.memo(() => {
     folderPath: recording?.folderPath,
     metadataChunks: recording?.metadataChunks,
     metadataUrls: metadataUrls,
-    inlineMetadata: recording?.metadata, // Fallback to already-loaded metadata
+    inlineMetadata: recording?.metadata,
+    isExternal: recording?.isExternal,
+    capabilities: recording?.capabilities,
   });
 
   // NOTE: Do NOT early return here - it violates React Rules of Hooks
@@ -186,8 +192,10 @@ export const CursorLayer = React.memo(() => {
   // Image clips with synthetic events have no click events
   const isImageWithSyntheticEvents = recording?.sourceType === 'image' && recording?.syntheticMouseEvents?.length;
 
+  // Normalize events: converts timestamps to source space AND coordinates to 0-1 range
   const cursorEvents = useMemo(() => normalizeMouseEvents(rawCursorEvents), [rawCursorEvents]);
-  const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents), [rawClickEvents]);
+  // Pass cursor events as reference for capture dimensions
+  const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents, cursorEvents), [rawClickEvents, cursorEvents]);
 
   const currentSourceTime = activeClipData?.sourceTimeMs ?? 0;
   // Cache cursor states by SOURCE TIME (milliseconds, not frame numbers)
@@ -304,25 +312,25 @@ export const CursorLayer = React.memo(() => {
 
   const isMockup = Boolean(mockup.enabled && mockup.position);
 
-  // Get capture dimensions from first event - this is the SSOT for cursor coordinates
-  // The cursor coordinates were recorded relative to these dimensions, so we MUST use them
+  // Get capture dimensions from first event (preserved for reference even though coords are normalized)
   const firstEvent = cursorEvents[0];
-  const captureWidth = firstEvent?.captureWidth ?? videoWidth;
-  const captureHeight = firstEvent?.captureHeight ?? videoHeight;
+  const captureWidth = firstEvent?.captureWidth ?? baseVideoWidth;
+  const captureHeight = firstEvent?.captureHeight ?? baseVideoHeight;
 
-  // Normalize cursor position (0-1 range within the capture area).
+  // Cursor coordinates are PRE-NORMALIZED to 0-1 range by normalizeMouseEvents().
   // For mockups, clamp to keep the cursor inside the device screen.
-  const rawNormalizedX = cursorPosition ? (cursorPosition.x / captureWidth) : 0;
-  const rawNormalizedY = cursorPosition ? (cursorPosition.y / captureHeight) : 0;
+  const rawNormalizedX = cursorPosition ? cursorPosition.x : 0;
+  const rawNormalizedY = cursorPosition ? cursorPosition.y : 0;
   const shouldClampToScreen = Boolean(mockup.enabled);
   const normalizedX = shouldClampToScreen ? Math.max(0, Math.min(1, rawNormalizedX)) : rawNormalizedX;
   const normalizedY = shouldClampToScreen ? Math.max(0, Math.min(1, rawNormalizedY)) : rawNormalizedY;
+  // cursorState.x/y are also pre-normalized (from cursor-logic.ts which uses normalized events)
   const debugNormalizedX = shouldClampToScreen
-    ? Math.max(0, Math.min(1, cursorState.x / captureWidth))
-    : (cursorState.x / captureWidth);
+    ? Math.max(0, Math.min(1, cursorState.x))
+    : cursorState.x;
   const debugNormalizedY = shouldClampToScreen
-    ? Math.max(0, Math.min(1, cursorState.y / captureHeight))
-    : (cursorState.y / captureHeight);
+    ? Math.max(0, Math.min(1, cursorState.y))
+    : cursorState.y;
 
   // Calculate the cursor position within the video content area (before zoom)
   // Simply map the normalized position to the video display area
@@ -369,19 +377,22 @@ export const CursorLayer = React.memo(() => {
   // This ensures the cursor appears the same visual size whether the source video
   // is 720p, 1080p, 4K, 8K, or any resolution - only the preview/export dimensions matter.
 
-  // ZOOM-AGNOSTIC CURSOR SIZING:
-  // Use the COMPOSITION width (videoWidth) as the base for cursor scale, NOT the video offset width.
-  // videoOffset.width changes when the video is zoomed, which would make the cursor shrink/grow with zoom.
-  // The cursor should maintain a consistent visual size on screen regardless of zoom level.
-  // For mockups, use the screen area width at its natural (unzoomed) size.
+  // Cursor sizing is RESOLUTION-AGNOSTIC: uses fixed 1080p reference (CURSOR_REFERENCE_WIDTH).
+  // This ensures identical cursor size whether source is 720p, 1080p, 4K, or 8K.
+  // Only the output/composition dimensions affect visual cursor size.
   const cursorScaleBaseWidth = isMockup && mockup.position
     ? mockup.position.screenWidth
-    : videoWidth; // Use composition width, NOT videoOffset.width
+    : compositionWidth;
   const videoDisplayScale = useMemo(() => {
-    // Use composition width divided by fixed reference
-    // This makes cursor size independent of both source resolution AND zoom level
-    return cursorScaleBaseWidth / REFERENCE_WIDTH;
+    // Scale cursor relative to fixed 1080p reference, not source resolution.
+    // - At 1920px composition: scale = 1.0
+    // - At 1280px composition: scale = 0.67
+    // - At 3840px composition: scale = 2.0
+    return cursorScaleBaseWidth / CURSOR_REFERENCE_WIDTH;
   }, [cursorScaleBaseWidth]);
+
+  // Get zoom scale from transform - cursor should scale with zoom to maintain visual proportion
+  const zoomScale = zoomTransform?.scale ?? 1;
 
   const useContainerTransform = Boolean(isMockup && transforms.combined);
   const debugEnabled = typeof window !== 'undefined' && Boolean((window as any).__ssDebugMockup);
@@ -390,8 +401,9 @@ export const CursorLayer = React.memo(() => {
     if (!cursorState.clickEffects.length) return null;
 
     const elements = cursorState.clickEffects.map((effect, index) => {
-      const normalizedClickX = effect.x / captureWidth;
-      const normalizedClickY = effect.y / captureHeight;
+      // Click effect coordinates are PRE-NORMALIZED to 0-1 range (from cursor-logic.ts)
+      const normalizedClickX = effect.x;
+      const normalizedClickY = effect.y;
       const clickInVideoX = normalizedClickX * cursorAreaWidth;
       const clickInVideoY = normalizedClickY * cursorAreaHeight;
 
@@ -399,8 +411,8 @@ export const CursorLayer = React.memo(() => {
       let clickY = cursorBaseOffsetY + clickInVideoY;
 
       if (transforms.combined && !useContainerTransform) {
-        const originX = mockup.enabled ? videoWidth / 2 : (videoOffset.x + videoOffset.width / 2);
-        const originY = mockup.enabled ? videoHeight / 2 : (videoOffset.y + videoOffset.height / 2);
+        const originX = mockup.enabled ? compositionWidth / 2 : (videoOffset.x + videoOffset.width / 2);
+        const originY = mockup.enabled ? compositionHeight / 2 : (videoOffset.y + videoOffset.height / 2);
         const transformed = applyCssTransformToPoint(
           clickX,
           clickY,
@@ -412,7 +424,9 @@ export const CursorLayer = React.memo(() => {
         clickY = transformed.y;
       }
 
-      const ringRadius = effect.radius * videoDisplayScale;
+      // Apply both videoDisplayScale (for composition size) and zoomScale (for zoom level)
+      const effectScale = videoDisplayScale * zoomScale;
+      const ringRadius = effect.radius * effectScale;
       const ringOpacity = effect.opacity * cursorState.opacity;
       const textStyle = getClickTextStyle(effect, clickEffectConfig);
       const textOpacity = textStyle ? textStyle.opacity * cursorState.opacity : 0;
@@ -429,7 +443,7 @@ export const CursorLayer = React.memo(() => {
                 height: ringRadius * 2,
                 transform: 'translate3d(-50%, -50%, 0)',
                 borderRadius: 9999,
-                border: `${clickEffectConfig.lineWidth * videoDisplayScale}px solid ${clickEffectConfig.color}`,
+                border: `${clickEffectConfig.lineWidth * effectScale}px solid ${clickEffectConfig.color}`,
                 opacity: ringOpacity,
                 pointerEvents: 'none',
                 willChange: 'transform, opacity',
@@ -443,10 +457,10 @@ export const CursorLayer = React.memo(() => {
                 position: 'absolute',
                 left: clickX,
                 top: clickY,
-                transform: `translate3d(-50%, ${textStyle.offsetY * videoDisplayScale}px, 0) scale(${textStyle.scale})`,
+                transform: `translate3d(-50%, ${textStyle.offsetY * effectScale}px, 0) scale(${textStyle.scale})`,
                 opacity: textOpacity,
                 color: clickEffectConfig.textColor,
-                fontSize: clickEffectConfig.textSize * videoDisplayScale,
+                fontSize: clickEffectConfig.textSize * effectScale,
                 fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
                 fontWeight: 700,
                 whiteSpace: 'nowrap',
@@ -463,8 +477,6 @@ export const CursorLayer = React.memo(() => {
 
     return elements;
   }, [
-    captureHeight,
-    captureWidth,
     clickEffectConfig,
     cursorState.clickEffects,
     cursorState.opacity,
@@ -473,30 +485,33 @@ export const CursorLayer = React.memo(() => {
     cursorBaseOffsetX,
     cursorBaseOffsetY,
     videoDisplayScale,
+    zoomScale,
     videoOffset.height,
     videoOffset.width,
     videoOffset.x,
     videoOffset.y,
     transforms.combined,
     mockup.enabled,
-    videoWidth,
-    videoHeight,
+    compositionWidth,
+    compositionHeight,
     useContainerTransform,
   ]);
 
-  // Calculate the rendered size of the cursor - fixed size regardless of source resolution
-  const renderedWidth = dimensions.width * cursorSize * videoDisplayScale;
-  const renderedHeight = dimensions.height * cursorSize * videoDisplayScale;
+  // Calculate the rendered size of the cursor - fixed size regardless of source resolution,
+  // but scales proportionally with zoom to maintain visual proportion relative to content
+  const renderedWidth = dimensions.width * cursorSize * videoDisplayScale * zoomScale;
+  const renderedHeight = dimensions.height * cursorSize * videoDisplayScale * zoomScale;
 
   const motionBlurIntensity = cursorData?.motionBlurIntensity ?? DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40;
   const motionBlurEnabled = (cursorData?.motionBlur ?? DEFAULT_CURSOR_DATA.motionBlur ?? true) && motionBlurIntensity > 0;
   const motionBlurSample = motionBlurEnabled ? cursorState.motionBlur : undefined;
 
+  // Motion blur previousX/Y are PRE-NORMALIZED to 0-1 range (from cursor-logic.ts)
   const previousNormalizedX = motionBlurSample
-    ? (shouldClampToScreen ? Math.max(0, Math.min(1, motionBlurSample.previousX / captureWidth)) : (motionBlurSample.previousX / captureWidth))
+    ? (shouldClampToScreen ? Math.max(0, Math.min(1, motionBlurSample.previousX)) : motionBlurSample.previousX)
     : null;
   const previousNormalizedY = motionBlurSample
-    ? (shouldClampToScreen ? Math.max(0, Math.min(1, motionBlurSample.previousY / captureHeight)) : (motionBlurSample.previousY / captureHeight))
+    ? (shouldClampToScreen ? Math.max(0, Math.min(1, motionBlurSample.previousY)) : motionBlurSample.previousY)
     : null;
 
   let previousTipX = previousNormalizedX != null ? cursorBaseOffsetX + previousNormalizedX * cursorAreaWidth : null;
@@ -509,8 +524,8 @@ export const CursorLayer = React.memo(() => {
   // Apply the EXACT same CSS transform string as the video element.
   // This keeps ordering correct under combinations of zoom + 3D (perspective/tilt/skew).
   if (transforms.combined && !useContainerTransform) {
-    const originX = mockup.enabled ? videoWidth / 2 : (videoOffset.x + videoOffset.width / 2);
-    const originY = mockup.enabled ? videoHeight / 2 : (videoOffset.y + videoOffset.height / 2);
+    const originX = mockup.enabled ? compositionWidth / 2 : (videoOffset.x + videoOffset.width / 2);
+    const originY = mockup.enabled ? compositionHeight / 2 : (videoOffset.y + videoOffset.height / 2);
     const transformed = applyCssTransformToPoint(
       cursorX,
       cursorY,
@@ -654,8 +669,8 @@ export const CursorLayer = React.memo(() => {
     if (!mockup.enabled || !mockupPosition) return null;
     const left = mockupPosition.screenX;
     const top = mockupPosition.screenY;
-    const right = Math.max(0, videoWidth - (mockupPosition.screenX + mockupPosition.screenWidth));
-    const bottom = Math.max(0, videoHeight - (mockupPosition.screenY + mockupPosition.screenHeight));
+    const right = Math.max(0, compositionWidth - (mockupPosition.screenX + mockupPosition.screenWidth));
+    const bottom = Math.max(0, compositionHeight - (mockupPosition.screenY + mockupPosition.screenHeight));
     return {
       left,
       top,
@@ -663,7 +678,7 @@ export const CursorLayer = React.memo(() => {
       bottom,
       radius: mockupPosition.screenCornerRadius,
     };
-  }, [videoHeight, mockup.enabled, mockup.position, videoWidth]);
+  }, [compositionHeight, mockup.enabled, mockup.position, compositionWidth]);
 
   if (!shouldShowCursor && !debugEnabled) {
     return <AbsoluteFill style={{ opacity: 0, pointerEvents: 'none', zIndex: 200 }} />;
@@ -736,20 +751,20 @@ export const CursorLayer = React.memo(() => {
       </div>
       {debugEnabled && (
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9999 }}>
-          {mockupClip && (
-            <div
-              style={{
-                position: 'absolute',
-                left: mockupClip.left,
-                top: mockupClip.top,
-                width: videoWidth - mockupClip.left - mockupClip.right,
-                height: videoHeight - mockupClip.top - mockupClip.bottom,
-                border: '2px solid #ff3b30',
-                borderRadius: mockupClip.radius,
-                boxSizing: 'border-box',
-              }}
-            />
-          )}
+	          {mockupClip && (
+	            <div
+	              style={{
+	                position: 'absolute',
+	                left: mockupClip.left,
+	                top: mockupClip.top,
+	                width: compositionWidth - mockupClip.left - mockupClip.right,
+	                height: compositionHeight - mockupClip.top - mockupClip.bottom,
+	                border: '2px solid #ff3b30',
+	                borderRadius: mockupClip.radius,
+	                boxSizing: 'border-box',
+	              }}
+	            />
+	          )}
           <div
             style={{
               position: 'absolute',

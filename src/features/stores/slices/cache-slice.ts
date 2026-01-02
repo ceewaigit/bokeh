@@ -28,15 +28,20 @@ export interface ProxyUrlEntry {
 export const createCacheSlice: CreateCacheSlice = (set, get) => ({
     // State
     cameraPathCache: null,
+    cameraPathCacheDimensions: null,
     frameLayoutCache: null,
     timelineMutationCounter: 0,
     previewReady: false,
     proxyUrls: {} as Record<string, ProxyUrlEntry>,
 
     // Actions
-    setCameraPathCache: (cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null) => {
+    setCameraPathCache: (
+        cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null,
+        dimensions?: { width: number; height: number } | null
+    ) => {
         set((state) => {
             state.cameraPathCache = cache
+            state.cameraPathCacheDimensions = cache ? (dimensions ?? null) : null
         })
     },
 
@@ -55,6 +60,7 @@ export const createCacheSlice: CreateCacheSlice = (set, get) => ({
     invalidateAllCaches: () => {
         set((state) => {
             state.cameraPathCache = null
+            state.cameraPathCacheDimensions = null
             state.frameLayoutCache = null
             state.timelineMutationCounter += 1
             // Note: proxyUrls are NOT invalidated - they are ephemeral but stable

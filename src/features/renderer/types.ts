@@ -10,6 +10,8 @@ import type { CropSettings } from '@/features/crop/types';
 export interface RenderSettings {
     /** Whether we are in "glow" mode (ambient background blur) */
     isGlowMode: boolean;
+    /** Whether glow mode uses crossfades at clip boundaries */
+    glowCrossfade: boolean;
     /** Whether to use offthread video rendering (safer but more memory intensive) */
     preferOffthreadVideo: boolean;
     /** Whether to enhance audio (normalize/compress) */

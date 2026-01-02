@@ -312,7 +312,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               clipPath: layout.mockupEnabled ? undefined : cropClipPath,
               borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
               overflow: cropClipPath ? 'hidden' : undefined,
-              willChange: isRendering ? undefined : 'transform, filter',
+              willChange: isRendering ? undefined : (effectiveBlurPx > 0 ? 'transform, filter' : 'transform'),
             }}
           >
             {/* Video content container - also used by MotionBlurLayer to find active video */}

@@ -140,6 +140,22 @@ export interface Project {
   exportPresets: ExportPreset[]
 }
 
+/**
+ * Recording capabilities - explicitly describes what data is available.
+ * This makes recordings self-describing so consumers don't need to infer
+ * capabilities from other fields like folderPath or isExternal.
+ */
+export interface RecordingCapabilities {
+  /** True if cursor/mouse events are available */
+  hasCursorData?: boolean
+  /** True if keyboard events are available */
+  hasKeystrokeData?: boolean
+  /** True if scroll events are available */
+  hasScrollData?: boolean
+  /** True if screen dimension events are available */
+  hasScreenData?: boolean
+}
+
 interface RecordingBase {
   id: string
   duration: number
@@ -155,6 +171,13 @@ interface RecordingBase {
 
   /** True if the source file was verified missing at last load */
   isMissing?: boolean
+
+  /**
+   * Recording capabilities - explicitly describes what data is available.
+   * Self-describing: consumers check these flags to determine behavior.
+   * If undefined, capabilities are inferred from other fields (backward compat).
+   */
+  capabilities?: RecordingCapabilities
 
   /**
    * URL to a downscaled preview proxy video for memory-efficient preview playback.

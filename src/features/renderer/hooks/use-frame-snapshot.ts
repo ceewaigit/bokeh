@@ -25,6 +25,8 @@ import { useCameraPath } from '@/features/editor/logic/viewport/hooks/useCameraP
 import { calculateFullCameraPath } from '@/features/editor/logic/viewport/logic/path-calculator'
 import { frameToMs } from '@/features/renderer/compositions/utils/time/frame-time'
 import { useLayoutNavigation } from '@/features/renderer/hooks/use-layout-navigation'
+import { getZoomTransformString } from '@/features/canvas/math/transforms/zoom-transform'
+import type { ZoomTransform } from '@/types'
 
 // Re-export FrameSnapshot type for consumers
 export type { FrameSnapshot } from '@/features/renderer/engine/layout-engine'
@@ -56,6 +58,7 @@ function useCalculatedSnapshot(
 
     // 3. Settings & Store
     const cameraPathCache = useProjectStore((s) => s.cameraPathCache);
+    const cameraPathCacheDimensions = useProjectStore((s) => s.cameraPathCacheDimensions);
     const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera);
 
     // Playback Settings (Render Settings)
@@ -170,8 +173,30 @@ function useCalculatedSnapshot(
         cachedPath: cameraPath
     });
 
-    const zoomTransform = cameraPathFrame?.zoomTransform ?? null;
-    const zoomTransformStr = cameraPathFrame?.zoomTransformStr ?? '';
+    // Camera path cache is computed in "project video" coordinates (`videoWidth`/`videoHeight`).
+    // The Remotion composition can be downscaled for preview, so we must scale translations
+    // into composition space to keep zoom/cursor behavior resolution-agnostic.
+    const cameraBaseWidth = cameraPathCacheDimensions?.width ?? videoWidth;
+    const cameraBaseHeight = cameraPathCacheDimensions?.height ?? videoHeight;
+    const cameraScaleX = cameraBaseWidth > 0 ? (compositionWidth / cameraBaseWidth) : 1;
+    const cameraScaleY = cameraBaseHeight > 0 ? (compositionHeight / cameraBaseHeight) : 1;
+
+    const zoomTransform = useMemo<ZoomTransform | null>(() => {
+        const baseTransform = cameraPathFrame?.zoomTransform as ZoomTransform | undefined;
+        if (!baseTransform) return null;
+        if (cameraScaleX === 1 && cameraScaleY === 1) return baseTransform;
+        return {
+            ...baseTransform,
+            panX: baseTransform.panX * cameraScaleX,
+            panY: baseTransform.panY * cameraScaleY,
+            scaleCompensationX: baseTransform.scaleCompensationX * cameraScaleX,
+            scaleCompensationY: baseTransform.scaleCompensationY * cameraScaleY,
+        };
+    }, [cameraPathFrame?.zoomTransform, cameraScaleX, cameraScaleY]);
+
+    const zoomTransformStr = useMemo(() => {
+        return zoomTransform ? getZoomTransformString(zoomTransform) : '';
+    }, [zoomTransform]);
 
     // 7. Calculate Snapshot
     // Frozen layout ref - persists layout during crop editing

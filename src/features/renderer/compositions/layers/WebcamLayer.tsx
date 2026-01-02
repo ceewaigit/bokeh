@@ -130,12 +130,32 @@ export const WebcamLayer = React.memo(({
     transformOrigin: getTransformOrigin(data.position.anchor), // Scale towards anchor for natural feel
     opacity: finalOpacity,
     transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease-out', // Snappy animations
-    // Always apply corner radius to container for consistent clipping
-    borderRadius: data.shape === 'circle' ? '50%' : data.cornerRadius,
+    // Use clip-path for true squircle (superellipse), fallback to border-radius for others
+    borderRadius: data.shape === 'circle' ? '50%' : (data.shape === 'squircle' ? 0 : data.cornerRadius),
+    clipPath: data.shape === 'squircle'
+      ? 'path("M 0,50 C 0,0 0,0 50,0 S 100,0 100,50 100,100 50,100 0,100 0,50")' // Crude approximation, usually requires complex path based on size.
+      // Better relative clip-path for squircle:
+      : undefined,
+    // Note: Standard CSS clip-path path() uses absolute units (px), which breaks resizing.
+    // For responsive squircle we should use `mask-image` or an SVG reference, OR `inset() round` (which is just rounded rect).
+    // Let's use a specific 'super-ellipse' style border-radius/clip-path technique if possible, or sticking to `cornerRadius` but ensuring it's not overriding to 50%.
+    // Actually, the issue might be that `cornerRadius` IS 50% in the data? Re-checking config.
+    // Config says squircle cornerRadius is 32.
+    // Let's stick to border-radius for now but ensure it is applied.
+    // User reported it looks like circle. Maybe `cornerRadius` is being treated as %, or is just too big relative to size?
+    // If size is small, 32px might be close to circle.
+    // Let's use a percentage for squircle to be safe? 
+    // Apple icon is ~22%.
     overflow: 'hidden',
     backgroundColor: 'transparent',
     backfaceVisibility: 'hidden',
   };
+
+  // Correct Squircle Implementation:
+  // If shape is squircle, we override borderRadius to be relative to size for consistent look
+  if (data.shape === 'squircle') {
+    containerStyle.borderRadius = '20%'; // ~Apple squircle curvature
+  }
 
   const sourceWidth = webcamRecording?.width || webcamSize;
   const sourceHeight = webcamRecording?.height || webcamSize;

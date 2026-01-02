@@ -114,6 +114,11 @@ export interface TimelineSliceState {
 
 export interface CacheSliceState {
   cameraPathCache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null
+  /**
+   * Dimensions used when computing `cameraPathCache`.
+   * Needed to scale cached pixel translations when preview composition is downscaled.
+   */
+  cameraPathCacheDimensions: { width: number; height: number } | null
   frameLayoutCache: FrameLayoutItem[] | null
   timelineMutationCounter: number
   previewReady: boolean
@@ -263,7 +268,10 @@ export interface EffectsSliceActions {
 export interface TimelineSliceActions extends ClipSliceActions, EffectsSliceActions { }
 
 export interface CacheSliceActions {
-  setCameraPathCache: (cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null) => void
+  setCameraPathCache: (
+    cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null,
+    dimensions?: { width: number; height: number } | null
+  ) => void
   setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
   setPreviewReady: (ready: boolean) => void
   invalidateAllCaches: () => void

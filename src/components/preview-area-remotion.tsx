@@ -9,7 +9,7 @@
 
 'use client';
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useLayoutEffect, useState } from 'react';
 import { PlayerRef } from '@remotion/player';
 import { useProjectStore } from '@/features/stores/project-store';
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/settings/defaults';
@@ -39,6 +39,7 @@ interface PreviewAreaRemotionProps {
   onCropConfirm?: () => void;
   onCropReset?: () => void;
   zoomSettings?: ZoomSettings;
+  glowPortalRootRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 
@@ -49,6 +50,7 @@ export function PreviewAreaRemotion({
   onCropConfirm,
   onCropReset,
   zoomSettings,
+  glowPortalRootRef,
 }: PreviewAreaRemotionProps) {
   // Subscribe directly to store to avoid WorkspaceManager re-renders.
   // Avoid subscribing to currentTime here as it updates at 60fps.
@@ -65,6 +67,15 @@ export function PreviewAreaRemotion({
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const aspectContainerRef = useRef<HTMLDivElement>(null);
   const previewViewportRef = useRef<HTMLDivElement>(null);
+  const glowAnchorRef = useRef<HTMLDivElement>(null);
+  const [glowPortalRoot, setGlowPortalRoot] = useState<HTMLElement | null>(null);
+  const [glowPortalStyle, setGlowPortalStyle] = useState<{
+    centerX: number;
+    centerY: number;
+    width: number;
+    height: number;
+    scale: number;
+  } | null>(null);
 
   const previewViewportSize = usePreviewResize(previewViewportRef);
 
@@ -158,6 +169,73 @@ export function PreviewAreaRemotion({
     return { width: maxWidth, height: heightFromWidth };
   }, [previewScale, timelineMetadata, previewViewportSize.width, previewViewportSize.height]);
 
+  useLayoutEffect(() => {
+    setGlowPortalRoot(glowPortalRootRef?.current ?? null);
+  }, [glowPortalRootRef]);
+
+  useLayoutEffect(() => {
+    const glowRoot = glowPortalRoot;
+    const anchor = glowAnchorRef.current;
+    if (!glowRoot || !anchor) return;
+
+    const updateGlowStyle = () => {
+      const anchorRect = anchor.getBoundingClientRect();
+      const rootRect = glowRoot.getBoundingClientRect();
+
+      const centerX = anchorRect.left - rootRect.left + anchorRect.width / 2;
+      const centerY = anchorRect.top - rootRect.top + anchorRect.height / 2;
+      const halfWidth = anchorRect.width / 2;
+      const halfHeight = anchorRect.height / 2;
+      const scaleX = halfWidth > 0
+        ? Math.max((2 * centerX) / anchorRect.width, (2 * (rootRect.width - centerX)) / anchorRect.width)
+        : 1;
+      const scaleY = halfHeight > 0
+        ? Math.max((2 * centerY) / anchorRect.height, (2 * (rootRect.height - centerY)) / anchorRect.height)
+        : 1;
+      const maxScale = Math.max(1, scaleX, scaleY);
+      const intensityStrength = Math.pow(Math.max(0, Math.min(1, glowIntensity)), 1.1);
+      const scale = 1 + (maxScale - 1) * intensityStrength;
+      const next = {
+        centerX,
+        centerY,
+        width: anchorRect.width,
+        height: anchorRect.height,
+        scale,
+      };
+
+      setGlowPortalStyle((prev) => {
+        if (
+          prev &&
+          prev.centerX === next.centerX &&
+          prev.centerY === next.centerY &&
+          prev.width === next.width &&
+          prev.height === next.height &&
+          prev.scale === next.scale
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    };
+
+    updateGlowStyle();
+    const rafId = requestAnimationFrame(updateGlowStyle);
+    const timeoutId = window.setTimeout(updateGlowStyle, 60);
+
+    const resizeObserver = new ResizeObserver(updateGlowStyle);
+    resizeObserver.observe(anchor);
+    resizeObserver.observe(glowRoot);
+
+    window.addEventListener('resize', updateGlowStyle);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateGlowStyle);
+    };
+  }, [glowPortalRoot, glowIntensity]);
+
   // Ensure all videos are loaded
   useVideoPreloader(project);
 
@@ -185,6 +263,8 @@ export function PreviewAreaRemotion({
         onCropConfirm={onCropConfirm}
         onCropReset={onCropReset}
         zoomSettings={zoomSettings}
+        glowPortalRoot={glowPortalRoot}
+        glowPortalStyle={glowPortalStyle}
       />
     );
   }, [
@@ -205,10 +285,11 @@ export function PreviewAreaRemotion({
     cropData,
     onCropChange,
     onCropConfirm,
-    onCropReset,
-    zoomSettings,
-  ]);
-
+            onCropReset,
+            zoomSettings,
+            glowPortalRoot,
+            glowPortalStyle,
+          ]);
   if (!project) return null;
 
   return (
@@ -224,6 +305,7 @@ export function PreviewAreaRemotion({
           <div ref={previewViewportRef} className="relative w-full h-full flex items-center justify-center">
             <div
               className="relative"
+              ref={glowAnchorRef}
               style={{
                 width: `${previewFrameBounds.width}px`,
                 height: `${previewFrameBounds.height}px`,
@@ -257,7 +339,8 @@ export function PreviewAreaRemotion({
                       isGlowMode: false,
                       preferOffthreadVideo: false,
                       enhanceAudio: false,
-                      isEditingCrop: Boolean(isEditingCrop)
+                      isEditingCrop: Boolean(isEditingCrop),
+                      glowCrossfade: false
                     }}
                     resources={{
                       videoFilePaths: {},

@@ -14,6 +14,7 @@ type CompositionBaseProps = Omit<
 
 const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   isGlowMode: false,
+  glowCrossfade: true,
   preferOffthreadVideo: false,
   enhanceAudio: false,
   isEditingCrop: false

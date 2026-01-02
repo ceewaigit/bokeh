@@ -49,7 +49,9 @@ export function ClipProvider({ clip, children }: ClipProviderProps) {
     folderPath: recording.folderPath,
     metadataChunks: recording.metadataChunks,
     metadataUrls: resources?.metadataUrls,
-    inlineMetadata: recording.metadata, // Fallback to already-loaded metadata
+    inlineMetadata: recording.metadata,
+    isExternal: recording.isExternal,
+    capabilities: recording.capabilities,
   });
 
   // Use lazy-loaded metadata, falling back to recording.metadata if available
@@ -72,10 +74,10 @@ export function ClipProvider({ clip, children }: ClipProviderProps) {
     [metadata?.mouseEvents, sourceIn, sourceOut]
   );
 
-  // Filter click events
+  // Filter click events - pass cursorEvents as reference for capture dimensions
   const clickEvents = useMemo(
-    () => normalizeClickEvents(filterEventsForSourceRange(metadata?.clickEvents ?? [], sourceIn, sourceOut)),
-    [metadata?.clickEvents, sourceIn, sourceOut]
+    () => normalizeClickEvents(filterEventsForSourceRange(metadata?.clickEvents ?? [], sourceIn, sourceOut), cursorEvents),
+    [metadata?.clickEvents, sourceIn, sourceOut, cursorEvents]
   );
 
   // Filter keystroke events

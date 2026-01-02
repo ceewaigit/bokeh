@@ -20,6 +20,7 @@ export function usePanelResizer() {
 
     const [dragUtilitiesWidth, setDragUtilitiesWidth] = useState<number | null>(null)
     const [dragPropertiesWidth, setDragPropertiesWidth] = useState<number | null>(null)
+    const [dragTimelineHeight, setDragTimelineHeight] = useState<number | null>(null)
 
     const [panelMaxWidth, setPanelMaxWidth] = useState(() =>
         typeof window === 'undefined' ? 0 : window.innerWidth * 0.3
@@ -38,25 +39,28 @@ export function usePanelResizer() {
         const getPanelMaxWidth = () => window.innerWidth * 0.3
 
         const handleMouseMove = (event: MouseEvent) => {
-            if (isResizingUtilitiesRef.current) {
-                const rawWidth = Math.max(0, event.clientX)
-                const panelMaxWidth = getPanelMaxWidth()
-                const utilMin = Math.min(UTIL_MIN, panelMaxWidth)
-                const clampedWidth = Math.min(Math.max(rawWidth, utilMin), panelMaxWidth)
-                setDragUtilitiesWidth(clampedWidth)
-            }
-            if (isResizingPropertiesRef.current) {
-                const rawWidth = Math.max(0, window.innerWidth - event.clientX)
-                const panelMaxWidth = getPanelMaxWidth()
-                const propsMin = Math.min(PROPS_MIN, panelMaxWidth)
-                const clampedWidth = Math.min(Math.max(rawWidth, propsMin), panelMaxWidth)
-                setDragPropertiesWidth(clampedWidth)
-            }
-            if (isResizingTimelineRef.current) {
-                // Calculate height from bottom of viewport
-                const newHeight = window.innerHeight - event.clientY
-                setTimelineHeight(newHeight)
-            }
+            requestAnimationFrame(() => {
+                if (isResizingUtilitiesRef.current) {
+                    const rawWidth = Math.max(0, event.clientX)
+                    const panelMaxWidth = getPanelMaxWidth()
+                    const utilMin = Math.min(UTIL_MIN, panelMaxWidth)
+                    const clampedWidth = Math.min(Math.max(rawWidth, utilMin), panelMaxWidth)
+                    setDragUtilitiesWidth(clampedWidth)
+                }
+                if (isResizingPropertiesRef.current) {
+                    const rawWidth = Math.max(0, window.innerWidth - event.clientX)
+                    const panelMaxWidth = getPanelMaxWidth()
+                    const propsMin = Math.min(PROPS_MIN, panelMaxWidth)
+                    const clampedWidth = Math.min(Math.max(rawWidth, propsMin), panelMaxWidth)
+                    setDragPropertiesWidth(clampedWidth)
+                }
+                if (isResizingTimelineRef.current) {
+                    // Calculate height from bottom of viewport
+                    const newHeight = window.innerHeight - event.clientY
+                    // Don't commit to store yet, just update local drag state
+                    setDragTimelineHeight(Math.max(100, newHeight))
+                }
+            })
         }
 
         const handleMouseUp = () => {
@@ -76,6 +80,11 @@ export function usePanelResizer() {
 
                 setDragUtilitiesWidth(null)
                 setDragPropertiesWidth(null)
+                setDragTimelineHeight(null)
+
+                if (isResizingTimelineRef.current && dragTimelineHeight !== null) {
+                    setTimelineHeight(dragTimelineHeight)
+                }
 
                 if (isUtilitiesOpen) {
                     setUtilitiesPanelWidth(Math.min(Math.max(utilMin, utilitiesWidth), maxWidth))
@@ -102,7 +111,8 @@ export function usePanelResizer() {
         isUtilitiesOpen,
         isPropertiesOpen,
         dragUtilitiesWidth,
-        dragPropertiesWidth
+        dragPropertiesWidth,
+        dragTimelineHeight
     ])
 
     const startResizingUtilities = (e: React.MouseEvent) => {
@@ -130,6 +140,7 @@ export function usePanelResizer() {
         panelMaxWidth,
         dragUtilitiesWidth,
         dragPropertiesWidth,
+        dragTimelineHeight,
         startResizingUtilities,
         startResizingProperties,
         startResizingTimeline

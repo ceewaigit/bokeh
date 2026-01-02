@@ -9,7 +9,7 @@
  * - DOM-based video element discovery (reliable across all modes)
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { useCurrentFrame } from 'remotion';
 import { clamp01, smootherStep } from '@/features/canvas/math';
 import { MotionBlurController } from '../logic/MotionBlurController';
@@ -65,37 +65,11 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
     const frame = useCurrentFrame();
 
-    // For preview mode: trigger re-renders on video frame updates
-    const [tick, setTick] = useState(0);
-
-    // DOM fallback for preview mode: find video element and use requestVideoFrameCallback
-    React.useEffect(() => {
-        if (videoFrame || !containerRef?.current || !enabled) return;
-
-        const video = containerRef.current.querySelector('video') as HTMLVideoElement | null;
-        if (!video) return;
-
-        let handle: number | undefined;
-        const onFrame = () => {
-            setTick(t => t + 1);
-            if ('requestVideoFrameCallback' in video) {
-                handle = (video as any).requestVideoFrameCallback(onFrame);
-            }
-        };
-
-        if ('requestVideoFrameCallback' in video) {
-            handle = (video as any).requestVideoFrameCallback(onFrame);
-        }
-
-        return () => {
-            if (handle !== undefined && 'cancelVideoFrameCallback' in video) {
-                (video as any).cancelVideoFrameCallback(handle);
-            }
-        };
-    }, [videoFrame, containerRef, enabled]);
-
-    // Render effect when videoFrame changes or tick updates (preview mode)
+    // Render effect when the Remotion frame advances (preview/export) or when `videoFrame` changes (export mode).
     React.useLayoutEffect(() => {
+        const canvasEl = canvasRef.current;
+        if (!canvasEl) return;
+
         // Determine media source: export uses videoFrame, preview uses DOM fallback
         let mediaSource: CanvasImageSource | null = videoFrame ?? null;
 
@@ -106,11 +80,19 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             }
         }
 
-        if (!mediaSource || !canvasRef.current) return;
+        if (!mediaSource) {
+            // If we can't resolve a media source (e.g. during a seek), ensure the overlay
+            // doesn't cover the underlying video with a stale/blank frame.
+            canvasEl.style.opacity = '0';
+            if (ctxRef.current) {
+                ctxRef.current.clearRect(0, 0, ctxRef.current.canvas.width, ctxRef.current.canvas.height);
+            }
+            return;
+        }
 
         let ctx = ctxRef.current;
         if (!ctx) {
-            ctx = canvasRef.current.getContext('2d');
+            ctx = canvasEl.getContext('2d');
             ctxRef.current = ctx;
         }
         if (!ctx) return;
@@ -136,17 +118,13 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const targetRadius = cinematicCurve * validIntensity * maxRadius;
         const effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
 
-        const rawSpeed = Math.hypot(velocity?.x ?? 0, velocity?.y ?? 0);
-
         // Opacity modulation
         const opacityRamp = clamp01(effectiveRadius / 2.0);
-        if (canvasRef.current) {
-            canvasRef.current.style.opacity = opacityRamp.toFixed(3);
-        }
+        canvasEl.style.opacity = opacityRamp.toFixed(3);
 
-        const isIdle = rawSpeed < 0.1 && opacityRamp < 0.01;
-        if (isIdle) {
-            ctx.clearRect(0, 0, drawWidth, drawHeight);
+        // If the blur is effectively invisible, skip the expensive WebGL pass.
+        if (opacityRamp < 0.01) {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
             return;
         }
 
@@ -189,7 +167,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             ctx.globalCompositeOperation = 'copy';
             ctx.drawImage(resultCanvas, 0, 0, drawWidth, drawHeight);
         }
-    }, [frame, videoFrame, velocity, intensity, mix, samples, drawWidth, drawHeight, containerRef, tick]);
+    }, [frame, videoFrame, velocity, intensity, mix, samples, drawWidth, drawHeight, containerRef]);
 
     if (!enabled) return null;
 
@@ -211,4 +189,3 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         />
     );
 };
-

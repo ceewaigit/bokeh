@@ -408,7 +408,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     isVideoTrackExpanded,
     getTrackBounds
   }), [
-    timelineWidth, containerSize, duration, zoom, pixelsPerMs,
+    timelineWidth, containerSize, totalContentHeight, duration, zoom, pixelsPerMs,
     fixedTrackHeights, fixedTrackPositions, effectTrackHeights, effectTrackPositions,
     effectTrackExistence, trackHeights, trackPositions, mediaTrackExistence,
     isScreenGroupCollapsed, hasSpeedUpSuggestions, showTypingSuggestions,

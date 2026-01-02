@@ -2,6 +2,9 @@
  * Cursor effect calculator
  * Pure functions for calculating cursor position, visibility, and effects
  * Used by both Remotion preview and export engines
+ *
+ * NOTE: This module works with NORMALIZED coordinates (0-1 range).
+ * Mouse events are pre-normalized by the event normalizer.
  */
 
 import type { CursorEffectData, MouseEvent, ClickEvent } from '@/types/project'
@@ -11,6 +14,10 @@ import { CursorType, electronToCustomCursor } from '../store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
 import { clamp01, lerp, easeOutCubic, clamp } from '@/features/canvas/math'
 import { CameraDataService } from '@/features/editor/logic/viewport/services/camera-data-service'
+
+// Reference width for converting normalized velocities to pixel-equivalent units.
+// This ensures velocity thresholds continue to work correctly with normalized coordinates.
+const VELOCITY_REFERENCE_WIDTH = 1920
 
 /**
  * Clear the smoothing cache - call when switching projects or recordings
@@ -296,9 +303,12 @@ export function calculateCursorState(
 
     const dx = position.x - referencePosition.x
     const dy = position.y - referencePosition.y
-    const velocity = Math.sqrt(dx * dx + dy * dy)
+    // Scale normalized distance to pixel-equivalent for threshold comparison
+    // This preserves the intuitive meaning of threshold values (6px, 50px, etc.)
+    const velocityNormalized = Math.sqrt(dx * dx + dy * dy)
+    const velocity = velocityNormalized * VELOCITY_REFERENCE_WIDTH
 
-    if (velocity > 6) { // Only show blur for significant movement
+    if (velocity > 6) { // Only show blur for significant movement (6px equivalent)
       motionBlur = {
         previousX: referencePosition.x,
         previousY: referencePosition.y,
@@ -387,6 +397,7 @@ function calculateDirectionalTilt(options: {
     const p0 = interpolateMousePosition(mouseEvents, t0) || position
     const p1 = interpolateMousePosition(mouseEvents, t1) || p0
 
+    // Velocities are in normalized units (0-1 per second)
     const vx = (p0.x - p1.x) / dtSec
     const vy = (p0.y - p1.y) / dtSec
 
@@ -400,7 +411,9 @@ function calculateDirectionalTilt(options: {
 
   const vxHat = sumVx / sumW
   const vyHat = sumVy / sumW
-  const speedPxPerSec = Math.sqrt(vxHat * vxHat + vyHat * vyHat)
+  // Scale velocity to pixel-equivalent for threshold comparison
+  const speedNormalized = Math.sqrt(vxHat * vxHat + vyHat * vyHat)
+  const speedPxPerSec = speedNormalized * VELOCITY_REFERENCE_WIDTH
 
   // REFINED: Higher deadzone to ignore micro-movements, gentler ramp for polished feel
   // subtle at low speed, natural at medium, capped at high
@@ -409,7 +422,9 @@ function calculateDirectionalTilt(options: {
   const speed01 = clamp01(speed01Smooth)
 
   // Smooth direction mapping; avoids sign flip jitter on tiny vx
-  const direction = Math.tanh(vxHat / 1000) // was 900 - smoother direction response
+  // Scale vx to pixel-equivalent for consistent threshold behavior
+  const vxPx = vxHat * VELOCITY_REFERENCE_WIDTH
+  const direction = Math.tanh(vxPx / 1000) // was 900 - smoother direction response
 
   // Normalize for 360° tilt direction (all angles).
   const invSpeed = speedPxPerSec > 1e-6 ? (1 / speedPxPerSec) : 0
@@ -531,13 +546,16 @@ function computeHistoryWindowMs(cursorData: CursorEffectData): number {
 }
 
 function getSmoothingJumpThreshold(mouseEvents: MouseEvent[], cursorData?: CursorEffectData): number {
-  const first = mouseEvents[0]
-  const width = first?.captureWidth || first?.screenWidth || 1920
-  const height = first?.captureHeight || first?.screenHeight || 1080
-  const diagonal = Math.sqrt(width * width + height * height)
+  // With normalized coordinates (0-1), we use a normalized threshold.
+  // The normalized diagonal is sqrt(1^2 + 1^2) ≈ 1.41
+  // Old: Math.max(1200, diagonal * ratio) with diagonal ~2200px → ~1200-1980px
+  // This is ~0.54-0.9 of the diagonal
+  // New: Use normalized equivalent (threshold expressed as fraction of normalized diagonal)
+  const normalizedDiagonal = Math.sqrt(2) // ~1.41
   const ratioRaw = cursorData?.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9
   const ratio = clamp(ratioRaw, 0.4, 1.6)
-  return Math.max(1200, diagonal * ratio)
+  // Minimum threshold of ~0.55 (equiv to old 1200/2200)
+  return Math.max(0.55, normalizedDiagonal * ratio)
 }
 
 // clamp01 is now imported from @/features/canvas/math

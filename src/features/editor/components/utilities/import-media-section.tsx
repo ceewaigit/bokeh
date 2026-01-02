@@ -4,7 +4,7 @@ import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera, Library, 
 import { cn, formatTime } from '@/shared/utils/utils'
 import { useProjectStore } from '@/features/stores/project-store'
 import { toast } from 'sonner'
-import { TrackType, type Project, type Recording, type RecordingMetadata, type Clip } from '@/types/project'
+import { TrackType, type Project } from '@/types/project'
 import { addAssetRecording } from '@/features/timeline/timeline-operations'
 import { useAssetLibraryStore, type Asset } from '@/features/stores/asset-library-store'
 import { getVideoMetadataFromPath } from '@/shared/utils/video-metadata'
@@ -18,19 +18,10 @@ import { LibrarySort } from '@/features/recording/components/library/components/
 import { useRecordingsLibraryData } from '@/features/recording/components/library/hooks/use-recordings-library-data'
 import { type LibraryRecordingView } from '@/features/recording/store/library-store'
 import { RecordingsGrid } from '@/features/recording/components/library/components/recordings-grid'
-import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath, createVideoStreamUrl } from '@/features/recording/components/library/utils/recording-paths'
+import { createVideoStreamUrl } from '@/features/recording/components/library/utils/recording-paths'
 import { ProjectIOService } from '@/features/storage/project-io-service'
-import { RecordingStorage } from '@/features/storage/recording-storage'
 import { CommandExecutor } from '@/features/commands/base/CommandExecutor'
-import { ImportRecordingCommand } from '@/features/commands/timeline/ImportRecordingCommand'
-
-const EMPTY_METADATA: RecordingMetadata = {
-    mouseEvents: [],
-    keyboardEvents: [],
-    clickEvents: [],
-    scrollEvents: [],
-    screenEvents: [],
-}
+import { MergeProjectCommand } from '@/features/commands/timeline/MergeProjectCommand'
 
 // --- Metadata Helpers ---
 
@@ -427,80 +418,16 @@ export function ImportMediaSection() {
         }
 
         try {
+            // Load the source project using the standard project loading logic
+            // This handles path resolution, migrations, and asset loading
             const sourceProject = await ProjectIOService.loadProject(recording.path)
-            const sourceRecordings = (sourceProject.recordings ?? []).filter(rec => rec.sourceType === 'video')
-            const sourceEffects = sourceProject.timeline.effects ?? []
-            const sourceClips = sourceProject.timeline.tracks.flatMap(track => track.clips)
 
-            if (sourceRecordings.length === 0) {
-                toast.error('No video recordings found in this library item')
-                return
-            }
+            // Validate that there's content to import
+            const hasRecordings = sourceProject.recordings?.length > 0
+            const hasClips = sourceProject.timeline.tracks.some(t => t.clips.length > 0)
 
-            const projectFilePath = await getProjectFilePath(recording.path, window.electronAPI?.fileExists)
-            const projectDir = getProjectDir(recording.path, projectFilePath)
-            const toImport: Array<{
-                recording: Recording
-                trackType: TrackType
-                sourceClip?: Clip
-            }> = []
-            let missingMetadataCount = 0
-
-            for (const rec of sourceRecordings) {
-                if (!rec.filePath || !isValidFilePath(rec.filePath)) continue
-
-                const cloned = structuredClone(rec) as Recording
-                if (!cloned.filePath) continue
-                const sourceId = cloned.id
-                const sourceClip = sourceClips
-                    .filter(clip => clip.recordingId === sourceId)
-                    .sort((a, b) => a.startTime - b.startTime)[0]
-
-                const resolvedPath = await resolveRecordingMediaPath({
-                    projectDir,
-                    filePath: cloned.filePath,
-                    recordingId: sourceId,
-                    fileExists: window.electronAPI?.fileExists
-                })
-
-                if (!resolvedPath) continue
-                cloned.filePath = resolvedPath
-
-                if (cloned.folderPath && !cloned.folderPath.startsWith('/')) {
-                    cloned.folderPath = `${projectDir}/${cloned.folderPath}`
-                }
-
-                if (!cloned.folderPath || !cloned.metadataChunks) {
-                    cloned.metadata = cloned.metadata ?? EMPTY_METADATA
-                    missingMetadataCount += 1
-                } else if (!cloned.metadata) {
-                    try {
-                        cloned.metadata = await RecordingStorage.loadMetadataChunks(cloned.folderPath, cloned.metadataChunks)
-                    } catch (error) {
-                        console.warn('Failed to load recording metadata during import:', error)
-                    }
-                }
-
-                if (cloned.metadata && cloned.captureArea && !cloned.metadata.captureArea) {
-                    cloned.metadata = { ...cloned.metadata, captureArea: cloned.captureArea }
-                }
-
-                if (!cloned.effects) {
-                    cloned.effects = []
-                }
-
-                cloned.id = `imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-                if (cloned.metadata) {
-                    RecordingStorage.setMetadata(cloned.id, cloned.metadata)
-                }
-
-                const isWebcam = sourceId.startsWith('webcam-') || cloned.filePath.includes('/webcam-')
-                const trackType = isWebcam ? TrackType.Webcam : TrackType.Video
-                toImport.push({ recording: cloned, trackType, sourceClip })
-            }
-
-            if (toImport.length === 0) {
-                toast.error('No importable recordings found in this library item')
+            if (!hasRecordings || !hasClips) {
+                toast.error('No content found in this library item')
                 return
             }
 
@@ -510,32 +437,25 @@ export function ImportMediaSection() {
             }
 
             const executor = CommandExecutor.getInstance()
-            if (toImport.length > 1) {
-                executor.beginGroup('import-recordings')
+
+            // Use MergeProjectCommand to properly import the loaded project
+            // This command handles:
+            // - Recording import with ID remapping
+            // - Clip import maintaining track associations (Video, Webcam, Audio)
+            // - Effect import with proper timing offset
+            // - Timeline duration update
+            const result = await executor.execute(MergeProjectCommand, {
+                sourceProject,
+                importEffects: true,
+            })
+
+            if (!result.success) {
+                const errorMessage = result.error instanceof Error ? result.error.message : result.error
+                throw new Error(errorMessage || 'Failed to import content')
             }
 
-            for (const entry of toImport) {
-                const result = await executor.execute(ImportRecordingCommand, {
-                    recording: entry.recording,
-                    trackType: entry.trackType,
-                    sourceClip: entry.sourceClip,
-                    sourceEffects
-                })
-                if (!result.success) {
-                    const errorMessage = result.error instanceof Error ? result.error.message : result.error
-                    throw new Error(errorMessage || 'Failed to import recording')
-                }
-            }
-
-            if (toImport.length > 1) {
-                await executor.endGroup()
-            }
-
-            const importedCount = toImport.length
-            toast.success(`Added ${importedCount} recording${importedCount === 1 ? '' : 's'} to your timeline`)
-            if (missingMetadataCount > 0) {
-                toast.warning(`Imported ${missingMetadataCount} clip${missingMetadataCount === 1 ? '' : 's'} without metadata`)
-            }
+            const clipCount = result.data?.importedClipIds.length ?? 0
+            toast.success(`Added ${clipCount} clip${clipCount === 1 ? '' : 's'} to your timeline`)
         } catch (error) {
             console.error('Failed to import from library:', error)
             toast.error('Failed to import from library')

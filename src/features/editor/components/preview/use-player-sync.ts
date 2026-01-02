@@ -152,9 +152,6 @@ export function usePlayerSync({
             return;
         }
 
-        const currentTimeMs = useProjectStore.getState().currentTime;
-        const targetFrame = clampFrame(timeToFrame(currentTimeMs));
-
         if (isPlaying) {
             if (!lastIsPlayingRef.current) {
                 const playerFrame = playerRef.current.getCurrentFrame();
@@ -190,7 +187,12 @@ export function usePlayerSync({
 
         playerRef.current.pause();
         if (justPaused) {
-            playerRef.current.seekTo(targetFrame);
+            // When pausing, the Remotion Player is the source of truth.
+            // Sync the store to the player's exact paused frame to avoid a visible jump/blink
+            // caused by seeking back to a throttled store time.
+            const pausedFrame = clampFrame(playerRef.current.getCurrentFrame());
+            const pausedTimeMs = (pausedFrame / timelineMetadata.fps) * 1000;
+            storeSeekFromPlayer(pausedTimeMs);
         }
 
         let prevTime = useProjectStore.getState().currentTime;
@@ -207,7 +209,7 @@ export function usePlayerSync({
         return () => {
             unsubscribe();
         };
-    }, [isPlaying, timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame, muted, safePlay, volume, playerRef]);
+    }, [isPlaying, timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame, muted, safePlay, storeSeekFromPlayer, volume, playerRef]);
 
     // Sync volume/mute changes
     useEffect(() => {

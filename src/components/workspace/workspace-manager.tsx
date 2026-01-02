@@ -126,6 +126,7 @@ export function WorkspaceManager() {
     panelMaxWidth,
     dragUtilitiesWidth,
     dragPropertiesWidth,
+    dragTimelineHeight,
     startResizingUtilities,
     startResizingProperties,
     startResizingTimeline
@@ -145,12 +146,28 @@ export function WorkspaceManager() {
 
   // Subscribe to cache invalidation to trigger recalculation
   const cameraPathCache = useProjectStore((s) => s.cameraPathCache)
+  const cameraPathCacheDimensions = useProjectStore((s) => s.cameraPathCacheDimensions)
   const timelineMutationCounter = useProjectStore((s) => s.timelineMutationCounter)
 
   // Recalculate camera path when cache is invalidated (effects changed)
   useEffect(() => {
-    // Skip if no project or cache exists (initial load handles this)
-    if (!currentProject || cameraPathCache !== null) return
+    if (!currentProject || !timelineMetadata) return
+
+    const targetWidth = timelineMetadata.width
+    const targetHeight = timelineMetadata.height
+
+    // If cache exists but was computed at a different resolution, invalidate it to avoid drift.
+    if (
+      cameraPathCache &&
+      cameraPathCacheDimensions &&
+      (cameraPathCacheDimensions.width !== targetWidth || cameraPathCacheDimensions.height !== targetHeight)
+    ) {
+      setCameraPathCache(null, null)
+      return
+    }
+
+    // Skip if cache exists (initial load handles this)
+    if (cameraPathCache !== null) return
 
     // Debounce to avoid recalculating on every keystroke during rapid edits
     const timeoutId = setTimeout(() => {
@@ -161,8 +178,8 @@ export function WorkspaceManager() {
       const newCameraPath = calculateFullCameraPath({
         frameLayout,
         fps,
-        videoWidth: currentProject.settings.resolution.width,
-        videoHeight: currentProject.settings.resolution.height,
+        videoWidth: targetWidth,
+        videoHeight: targetHeight,
         effects: EffectStore.getAll(currentProject),
         getRecording: (id) => recordingsMap.get(id),
         loadedMetadata: undefined,
@@ -170,12 +187,19 @@ export function WorkspaceManager() {
       })
 
       if (newCameraPath) {
-        setCameraPathCache(newCameraPath)
+        setCameraPathCache(newCameraPath, { width: targetWidth, height: targetHeight })
       }
     }, 50) // 50ms debounce
 
     return () => clearTimeout(timeoutId)
-  }, [currentProject, cameraPathCache, timelineMutationCounter, setCameraPathCache])
+  }, [
+    currentProject,
+    timelineMetadata,
+    cameraPathCache,
+    cameraPathCacheDimensions,
+    timelineMutationCounter,
+    setCameraPathCache
+  ])
 
 
 
@@ -192,6 +216,7 @@ export function WorkspaceManager() {
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const glowPortalRef = useRef<HTMLDivElement>(null)
 
   // Track unsaved changes by comparing saved timestamp with current
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
@@ -438,136 +463,143 @@ export function WorkspaceManager() {
           <div className="flex-1 flex flex-col overflow-hidden relative">
             <div className="flex flex-col h-full">
               {/* Top Section - Preview and Sidebars (flexible height) */}
-              <div className="flex flex-1 min-h-0">
-                {/* Left Sidebar - Utilities (closed by default) */}
-                <AnimatePresence mode="wait">
-                  {isUtilitiesOpen && (
-                    <motion.div
-                      key="utilities-panel"
-                      initial={{ opacity: 0, x: -20, width: 0 }}
-                      animate={{
-                        opacity: 1,
-                        x: 0,
-                        width: Math.min(
-                          dragUtilitiesWidth ?? utilitiesPanelWidth,
-                          panelMaxWidth || Number.POSITIVE_INFINITY
-                        )
-                      }}
-                      exit={{ opacity: 0, x: -20, width: 0 }}
-                      transition={
-                        dragUtilitiesWidth
-                          ? { duration: 0 } // Instant updates during drag
-                          : { type: 'spring', stiffness: 520, damping: 28 } // Smooth spring for toggle
-                      }
-                      className="flex flex-shrink-0 h-full overflow-hidden"
-                    >
-                      <div
-                        className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pl-4"
-                        style={{
-                          // Keep inner width fixed to target width to create "reveal" effect instead of squish
-                          width: `${Math.min(
+              <div className="flex flex-1 min-h-0 relative">
+                <div
+                  ref={glowPortalRef}
+                  className="absolute inset-0 pointer-events-none z-[-1] overflow-visible"
+                />
+                <div className="relative z-10 flex flex-1 min-h-0">
+                  {/* Left Sidebar - Utilities (closed by default) */}
+                  <AnimatePresence mode="wait">
+                    {isUtilitiesOpen && (
+                      <motion.div
+                        key="utilities-panel"
+                        initial={{ opacity: 0, x: -20, width: 0 }}
+                        animate={{
+                          opacity: 1,
+                          x: 0,
+                          width: Math.min(
                             dragUtilitiesWidth ?? utilitiesPanelWidth,
                             panelMaxWidth || Number.POSITIVE_INFINITY
-                          )}px`
+                          )
                         }}
+                        exit={{ opacity: 0, x: -20, width: 0 }}
+                        transition={
+                          dragUtilitiesWidth
+                            ? { duration: 0 } // Instant updates during drag
+                            : { type: 'spring', stiffness: 520, damping: 28 } // Smooth spring for toggle
+                        }
+                        className="relative z-20 flex flex-shrink-0 h-full overflow-visible"
                       >
-                        <div className="flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
-                          <UtilitiesSidebar className="h-full w-full" />
+                        <div
+                          className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pl-4"
+                          style={{
+                            // Keep inner width fixed to target width to create "reveal" effect instead of squish
+                            width: `${Math.min(
+                              dragUtilitiesWidth ?? utilitiesPanelWidth,
+                              panelMaxWidth || Number.POSITIVE_INFINITY
+                            )}px`
+                          }}
+                        >
+                          <div className="flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
+                            <UtilitiesSidebar className="h-full w-full" />
+                          </div>
+                        </div>
+                        <div
+                          className="flex-shrink-0 w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-20 mx-1"
+                          onMouseDown={startResizingUtilities}
+                        >
+                          <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Preview Area */}
+                  <div className="flex-1 overflow-hidden relative min-w-0">
+                    {/* DEBUGPROP: Check WorkspaceManager state */}
+                    {(() => {
+                      return null;
+                    })()}
+                    {timelineMetadata ? (
+                      <PreviewAreaRemotion
+                        isEditingCrop={isEditingCrop}
+                        cropData={editingCropData}
+                        onCropChange={handleCropChange}
+                        onCropConfirm={handleCropConfirm}
+                        onCropReset={handleCropReset}
+                        zoomSettings={zoomSettings}
+                        glowPortalRootRef={glowPortalRef}
+                      />
+                    ) : (
+                      <div className="relative w-full h-full overflow-hidden bg-transparent">
+                        <div className="absolute inset-0 flex items-center justify-center p-8">
+                          <div className="text-gray-500 text-center">
+                            <p className="text-lg font-medium mb-2">No timeline data</p>
+                            <p className="text-sm">Create or select a project to preview</p>
+                          </div>
                         </div>
                       </div>
-                      <div
-                        className="w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10 mx-1"
-                        onMouseDown={startResizingUtilities}
-                      >
-                        <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    )}
+                  </div>
 
-                {/* Preview Area */}
-                <div className="flex-1 overflow-hidden relative min-w-0">
-                  {/* DEBUGPROP: Check WorkspaceManager state */}
-                  {(() => {
-                    return null;
-                  })()}
-                  {timelineMetadata ? (
-                    <PreviewAreaRemotion
-                      isEditingCrop={isEditingCrop}
-                      cropData={editingCropData}
-                      onCropChange={handleCropChange}
-                      onCropConfirm={handleCropConfirm}
-                      onCropReset={handleCropReset}
-                      zoomSettings={zoomSettings}
-                    />
-                  ) : (
-                    <div className="relative w-full h-full overflow-hidden bg-transparent">
-                      <div className="absolute inset-0 flex items-center justify-center p-8">
-                        <div className="text-gray-500 text-center">
-                          <p className="text-lg font-medium mb-2">No timeline data</p>
-                          <p className="text-sm">Create or select a project to preview</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Properties Panel - Fixed width when open, same height as preview */}
-                <AnimatePresence mode="wait">
-                  {isPropertiesOpen && (
-                    <motion.div
-                      key="properties-panel"
-                      initial={{ opacity: 0, x: 20, width: 0 }}
-                      animate={{
-                        opacity: 1,
-                        x: 0,
-                        width: Math.min(
-                          dragPropertiesWidth ?? propertiesPanelWidth,
-                          panelMaxWidth || Number.POSITIVE_INFINITY
-                        )
-                      }}
-                      exit={{ opacity: 0, x: 20, width: 0 }}
-                      transition={
-                        dragPropertiesWidth
-                          ? { duration: 0 }
-                          : { type: 'spring', stiffness: 520, damping: 28 }
-                      }
-                      className="flex flex-shrink-0 h-full overflow-hidden"
-                    >
-                      <div
-                        className="w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-10 mx-1"
-                        onMouseDown={startResizingProperties}
-                      >
-                        <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
-                      </div>
-                      <div
-                        className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pr-4"
-                        style={{
-                          width: `${Math.min(
+                  {/* Properties Panel - Fixed width when open, same height as preview */}
+                  <AnimatePresence mode="wait">
+                    {isPropertiesOpen && (
+                      <motion.div
+                        key="properties-panel"
+                        initial={{ opacity: 0, x: 20, width: 0 }}
+                        animate={{
+                          opacity: 1,
+                          x: 0,
+                          width: Math.min(
                             dragPropertiesWidth ?? propertiesPanelWidth,
                             panelMaxWidth || Number.POSITIVE_INFINITY
-                          )}px`
+                          )
                         }}
+                        exit={{ opacity: 0, x: 20, width: 0 }}
+                        transition={
+                          dragPropertiesWidth
+                            ? { duration: 0 }
+                            : { type: 'spring', stiffness: 520, damping: 28 }
+                        }
+                        className="relative z-20 flex flex-shrink-0 h-full overflow-visible"
                       >
-                        <div className="flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
-                          <EffectsSidebarProvider
-                            value={{
-                              onEffectChange: handleEffectChange,
-                              onZoomBlockUpdate: handleZoomBlockUpdate,
-                              onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
-                              onAddCrop: handleAddCrop,
-                              onRemoveCrop: handleRemoveCrop,
-                              onUpdateCrop: handleUpdateCrop,
-                              onStartEditCrop: handleStartEditCrop
-                            }}
-                          >
-                            <EffectsSidebar className="h-full w-full" />
-                          </EffectsSidebarProvider>
+                        <div
+                          className="flex-shrink-0 w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-20 mx-1"
+                          onMouseDown={startResizingProperties}
+                        >
+                          <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
                         </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                        <div
+                          className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pr-4"
+                          style={{
+                            width: `${Math.min(
+                              dragPropertiesWidth ?? propertiesPanelWidth,
+                              panelMaxWidth || Number.POSITIVE_INFINITY
+                            )}px`
+                          }}
+                        >
+                          <div className="flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
+                            <EffectsSidebarProvider
+                              value={{
+                                onEffectChange: handleEffectChange,
+                                onZoomBlockUpdate: handleZoomBlockUpdate,
+                                onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
+                                onAddCrop: handleAddCrop,
+                                onRemoveCrop: handleRemoveCrop,
+                                onUpdateCrop: handleUpdateCrop,
+                                onStartEditCrop: handleStartEditCrop
+                              }}
+                            >
+                              <EffectsSidebar className="h-full w-full" />
+                            </EffectsSidebarProvider>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* Timeline Resize Divider */}
@@ -582,7 +614,7 @@ export function WorkspaceManager() {
               {/* Timeline Section - Full width at bottom */}
               <div
                 className="bg-transparent overflow-hidden flex-shrink-0"
-                style={{ height: `${timelineHeight}px`, minHeight: '15vh', width: '100vw' }}
+                style={{ height: `${dragTimelineHeight ?? timelineHeight}px`, minHeight: '15vh', width: '100vw' }}
               >
                 <TimelineCanvas
                   className="h-full w-full pt-1 px-4 pb-3"

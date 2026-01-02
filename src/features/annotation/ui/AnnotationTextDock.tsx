@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline } from 'lucide-react'
 import { useProjectStore } from '@/features/stores/project-store'
 import { EffectStore } from '@/features/effects/core/store'
-import { springConfig } from '@/features/effects/components/motion-controls'
 import { Button } from '@/components/ui/button'
 import { ColorPickerPopover } from '@/components/ui/color-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -151,7 +150,7 @@ export function AnnotationTextDock() {
                   </SelectTrigger>
                   <SelectContent>
                     {FONT_FAMILIES.map((family) => (
-                      <SelectItem key={family.value} value={family.value} className="text-xs">
+                    <SelectItem key={family.value} value={family.value} className="text-xs">
                         {family.label}
                       </SelectItem>
                     ))}

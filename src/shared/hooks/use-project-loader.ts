@@ -10,6 +10,8 @@ import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { TimelineConfig } from '@/features/timeline/config'
 import { useRecordingsLibraryStore } from '@/features/recording/store/library-store'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
+import { calculateCanvasDimensions } from '@/shared/constants/aspect-ratio-presets'
+import { AspectRatioPreset } from '@/types/project'
 
 export function useProjectLoader() {
     const [isLoading, setIsLoading] = useState(false)
@@ -58,11 +60,25 @@ export function useProjectLoader() {
             const frameLayout = TimelineDataService.getFrameLayout(project, fps)
 
             // Run the heavy calculation
+            const canvasSettings = project.settings.canvas
+            const aspectRatioPreset = canvasSettings?.aspectRatio ?? AspectRatioPreset.Original
+            const sourceDimensions = TimelineDataService.getSourceDimensions(project)
+            const canvasDimensions = calculateCanvasDimensions(
+                aspectRatioPreset,
+                1080, // base resolution
+                canvasSettings?.customWidth,
+                canvasSettings?.customHeight,
+                sourceDimensions.width,
+                sourceDimensions.height
+            )
+
             const cameraPath = calculateFullCameraPath({
                 frameLayout,
                 fps,
-                videoWidth: project.settings.resolution.width,
-                videoHeight: project.settings.resolution.height,
+                // Important: Camera path must match the timeline canvas, not the raw recording resolution.
+                // Preview and renderer use `videoWidth/videoHeight` from TimelineComposition props.
+                videoWidth: canvasDimensions.width,
+                videoHeight: canvasDimensions.height,
                 effects: EffectStore.getAll(project),
                 getRecording: (id) => recordingsMap.get(id),
                 loadedMetadata: undefined,
@@ -71,7 +87,10 @@ export function useProjectLoader() {
 
             // Store in cache
             if (cameraPath) {
-                setCameraPathCache(cameraPath)
+                setCameraPathCache(cameraPath, {
+                    width: canvasDimensions.width,
+                    height: canvasDimensions.height,
+                })
             }
 
             const viewportWidth = window.innerWidth

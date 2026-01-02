@@ -126,6 +126,7 @@ export const ColorPicker = ({
       setLightness(nextLightness)
       setAlpha(nextAlpha)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, fallbackColor])
 
   useEffect(() => {
@@ -420,13 +421,14 @@ const PercentageInput = ({ className, ...props }: PercentageInputProps) => {
 }
 
 export type ColorPickerFormatProps = Omit<HTMLAttributes<HTMLDivElement>, 'onChange'>
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
 export const ColorPickerFormat = ({
   className,
   ...props
 }: ColorPickerFormatProps) => {
   const { hue, saturation, lightness, alpha, mode, setHue, setSaturation, setLightness, setAlpha } = useColorPicker()
   const color = useMemo(() => Color.hsl(hue, saturation, lightness, alpha / 100), [hue, saturation, lightness, alpha])
-  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
   const updateFromColor = useCallback((next: ColorInstance) => {
     const hsl = next.hsl()
     setHue(hsl.hue() || 0)
@@ -484,7 +486,7 @@ export const ColorPickerFormat = ({
       clamp(g, 0, 255),
       clamp(b, 0, 255)
     ).alpha(alpha / 100))
-  }, [alpha, clamp, updateFromColor])
+  }, [alpha, updateFromColor])
 
   const commitHsl = useCallback((values: string[]) => {
     const [h, s, l] = values.map((v) => Number(v))
@@ -494,7 +496,7 @@ export const ColorPickerFormat = ({
       clamp(s, 0, 100),
       clamp(l, 0, 100)
     ).alpha(alpha / 100))
-  }, [alpha, clamp, updateFromColor])
+  }, [alpha, updateFromColor])
 
   const commitCss = useCallback((value: string) => {
     try {
@@ -508,7 +510,7 @@ export const ColorPickerFormat = ({
     const next = Number(value)
     if (Number.isNaN(next)) return
     setAlpha(clamp(next, 0, 100))
-  }, [setAlpha, clamp])
+  }, [setAlpha])
   if (mode === 'hex') {
     return (
       <div

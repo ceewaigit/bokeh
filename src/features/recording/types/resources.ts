@@ -1,5 +1,5 @@
 
-import type { Recording, RecordingMetadata } from '@/types/project';
+import type { Recording, RecordingMetadata, RecordingCapabilities } from '@/types/project';
 import type { MetadataUrlSet } from '@/features/export/metadata-loader';
 
 export type VideoUrlMap = Record<string, string>;
@@ -23,6 +23,13 @@ export interface UseRecordingMetadataOptions {
     metadataUrls?: MetadataUrlMap;
     /** Already-loaded metadata to use as fallback */
     inlineMetadata?: RecordingMetadata;
+    /** True if this is an external/imported recording (no cursor metadata available) */
+    isExternal?: boolean;
+    /** 
+     * Recording capabilities - explicitly describes what data is available.
+     * If hasCursorData is false, metadata loading is skipped entirely.
+     */
+    capabilities?: RecordingCapabilities;
 }
 
 export interface UseRecordingMetadataResult {

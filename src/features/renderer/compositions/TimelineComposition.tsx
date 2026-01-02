@@ -96,17 +96,22 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     ) ?? null;
   }, [effects, currentTimeMs]);
 
-  // Get webcam clip for recordingId only (not for timing)
+  // Get webcam clip that is active at the current time
   const activeWebcamClip = React.useMemo(() => {
     if (!activeWebcamEffect || !webcamClips.length) {
       return null;
     }
-    // Warn if multiple webcam clips - helps identify unexpected state
-    if (webcamClips.length > 1) {
-      console.warn(`[TimelineComposition] Multiple webcam clips found (${webcamClips.length}), using first one`);
-    }
-    return webcamClips[0];
-  }, [activeWebcamEffect, webcamClips]);
+
+    // Find the webcam clip that overlaps with current time
+    const currentClip = webcamClips.find(clip => {
+      const clipStart = clip.startTime;
+      const clipEnd = clip.startTime + clip.duration;
+      return currentTimeMs >= clipStart && currentTimeMs < clipEnd;
+    });
+
+    // Fallback to first clip if no match (for compatibility)
+    return currentClip ?? webcamClips[0];
+  }, [activeWebcamEffect, webcamClips, currentTimeMs]);
 
   const activeWebcamRecording = activeWebcamClip
     ? getRecording(activeWebcamClip.recordingId)

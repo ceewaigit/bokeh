@@ -2,17 +2,13 @@
  * Clip Creation Operations
  * 
  * Functions for creating clips from recordings and assets.
- * Extracted from timeline-operations.ts.
+ * Uses the recording factory for consistent recording creation.
  */
 
-import type { Project, Recording, Clip, VideoRecording, ImageRecording } from '@/types/project'
+import type { Project, Recording, Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { addClipToTrack } from './clip-crud'
-
-// Simple ID generator to avoid external dependencies
-function generateId(): string {
-    return Math.random().toString(36).substr(2, 9)
-}
+import { createRecording, type RecordingType } from './recording-factory'
 
 export interface AssetDetails {
     path: string
@@ -47,49 +43,34 @@ export function addRecordingToProject(
 }
 
 /**
- * Add asset as recording and clip
+ * Add asset as recording and clip.
+ * 
+ * Uses the recording factory for consistent recording creation with proper capabilities.
  */
 export function addAssetRecording(
     project: Project,
     asset: AssetDetails,
     startTimeOrOptions?: number | { startTime?: number; insertIndex?: number; trackType?: TrackType; inheritCrop?: boolean }
 ): Clip | null {
-    const recordingId = generateId()
+    // Map asset type to recording type
+    const recordingType: RecordingType = asset.type === 'image' ? 'image' : 'video'
 
-    // Common properties for all recording types (from RecordingBase + filePath)
-    // Note: We don't construct RecordingBase directly, but the properties match.
-    const commonProps = {
-        id: recordingId,
+    // Use factory to create properly configured recording
+    const recording = createRecording({
+        type: recordingType,
+        source: 'external', // Assets are always external imports
+        filePath: asset.path,
         duration: asset.duration,
         width: asset.width,
         height: asset.height,
-        frameRate: asset.frameRate || 30,
+        frameRate: asset.frameRate,
         hasAudio: asset.type === 'video' || asset.type === 'audio',
-        effects: [],
-        filePath: asset.path,
-    }
-
-    let recording: Recording
-
-    if (asset.type === 'image') {
-        const imageRecording: ImageRecording = {
-            ...commonProps,
-            sourceType: 'image',
-            imageSource: {
-                imagePath: asset.path,
-                sourceWidth: asset.width,
-                sourceHeight: asset.height
-            }
-        }
-        recording = imageRecording
-    } else {
-        // Video or Audio defaults to VideoRecording structure
-        const videoRecording: VideoRecording = {
-            ...commonProps,
-            sourceType: 'video',
-        }
-        recording = videoRecording
-    }
+        imageSource: asset.type === 'image' ? {
+            imagePath: asset.path,
+            sourceWidth: asset.width,
+            sourceHeight: asset.height,
+        } : undefined,
+    })
 
     // Determine start time from options
     let startTime = typeof startTimeOrOptions === 'number' ? startTimeOrOptions : undefined

@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/features/renderer/compositions/TimelineComposition';
 import { AmbientGlowPlayer } from './ambient-glow-player';
 import { buildTimelineCompositionInput } from '@/features/renderer/utils/composition-input';
-import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
+import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT } from '@/shared/utils/resolution-utils';
 import type { TimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata';
 import type { PlayerConfiguration, CropEffectData } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
@@ -28,6 +29,14 @@ interface PlayerContainerProps {
     onCropConfirm?: () => void;
     onCropReset?: () => void;
     zoomSettings?: ZoomSettings;
+    glowPortalRoot?: HTMLElement | null;
+    glowPortalStyle?: {
+        centerX: number;
+        centerY: number;
+        width: number;
+        height: number;
+        scale: number;
+    } | null;
 }
 
 const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
@@ -50,6 +59,8 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     onCropConfirm,
     onCropReset,
     zoomSettings,
+    glowPortalRoot,
+    glowPortalStyle,
 }) => {
     // Calculate composition size for preview
     const compositionSize = useMemo(() => {
@@ -59,10 +70,10 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
 
         const maxWidth = isHighQualityPlaybackEnabled
             ? videoWidth
-            : PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER;
+            : PREVIEW_DISPLAY_WIDTH;
         const maxHeight = isHighQualityPlaybackEnabled
             ? videoHeight
-            : PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER;
+            : PREVIEW_DISPLAY_HEIGHT;
 
         const scaleByWidth = maxWidth / videoWidth;
         const scaleByHeight = maxHeight / videoHeight;
@@ -113,22 +124,46 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
         volume,
     ]);
 
+    const glowNode = isGlowEnabled ? (
+        <AmbientGlowPlayer
+            mainPlayerRef={playerRef}
+            timelineMetadata={timelineMetadata}
+            playerConfig={playerConfig}
+            isPlaying={isPlaying}
+            isScrubbing={isScrubbing}
+            playerKey={playerKey}
+            initialFrame={initialFrame}
+            glowIntensity={glowIntensity}
+        />
+    ) : null;
+
+    const shouldPortalGlow = Boolean(glowPortalRoot && glowPortalStyle);
+
     return (
         <>
-            {isGlowEnabled && (
-                <div className="absolute inset-0 -z-10 pointer-events-none">
-                    <AmbientGlowPlayer
-                        mainPlayerRef={playerRef}
-                        timelineMetadata={timelineMetadata}
-                        playerConfig={playerConfig}
-                        isPlaying={isPlaying}
-                        isScrubbing={isScrubbing}
-                        playerKey={playerKey}
-                        initialFrame={initialFrame}
-                        glowIntensity={glowIntensity}
-                    />
-                </div>
-            )}
+            {glowNode && shouldPortalGlow && glowPortalRoot && glowPortalStyle
+                ? ReactDOM.createPortal(
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: glowPortalStyle.centerY,
+                            left: glowPortalStyle.centerX,
+                            width: glowPortalStyle.width,
+                            height: glowPortalStyle.height,
+                            transform: `translate(-50%, -50%) scale(${glowPortalStyle.scale})`,
+                            transformOrigin: 'center',
+                            pointerEvents: 'none',
+                        }}
+                    >
+                        {glowNode}
+                    </div>,
+                    glowPortalRoot
+                )
+                : glowNode && (
+                    <div className="absolute inset-0 -z-10 pointer-events-none">
+                        {glowNode}
+                    </div>
+                )}
 
             <div ref={playerContainerRef} className="w-full h-full rounded-2xl overflow-hidden relative z-0">
                 <Player

@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useProjectStore } from '@/features/stores/project-store';
 import { useWorkspaceStore } from '@/features/stores/workspace-store';
@@ -56,17 +56,39 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen);
     const toggleProperties = useWorkspaceStore((s) => s.toggleProperties);
 
-    // Sync current frame from player for annotation filtering and camera calculation
-    const [currentFrame, setCurrentFrame] = useState(0);
+    const isPlayingRef = useRef(isPlaying);
+    useEffect(() => {
+        isPlayingRef.current = isPlaying;
+    }, [isPlaying]);
+
+    // Sync current frame from player for annotation filtering and camera calculation.
+    // PERF: Avoid state updates during playback to prevent 60fps React renders outside Remotion.
+    const [currentFrame, setCurrentFrame] = useState(() => playerRef?.current?.getCurrentFrame() ?? 0);
 
     useEffect(() => {
         const player = playerRef?.current;
         if (!player) return;
-        const onFrame = (e: { detail: { frame: number } }) => setCurrentFrame(e.detail.frame);
+
+        const onFrame = (e: { detail: { frame: number } }) => {
+            if (isPlayingRef.current) return;
+            setCurrentFrame(e.detail.frame);
+        };
+
         player.addEventListener('frameupdate', onFrame);
+
+        // Keep state in sync when (re)mounting or when we transition to paused.
         setCurrentFrame(player.getCurrentFrame());
+
         return () => player.removeEventListener('frameupdate', onFrame);
     }, [playerRef]);
+
+    // Sync frame once when playback stops (so paused UI matches actual player position).
+    useEffect(() => {
+        if (isPlaying) return;
+        const player = playerRef?.current;
+        if (!player) return;
+        setCurrentFrame(player.getCurrentFrame());
+    }, [isPlaying, playerRef]);
 
     // Deselect annotation when playback starts
     useEffect(() => {
@@ -110,19 +132,13 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         if (!project) return null;
         const timeMs = (currentFrame / timelineMetadata.fps) * 1000;
 
-        // Find visible clip at current time (iterate tracks top-down or bottom-up?)
-        // Renderer usually renders bottom-up (track 0 is bottom).
-        // Hit testing usually prioritizes top-most visual.
-        // We'll search tracks in reverse order to find top-most clip.
+        // Find visible clip at current time. Search tracks in reverse order to prioritize top-most.
         for (let i = project.timeline.tracks.length - 1; i >= 0; i--) {
             const track = project.timeline.tracks[i];
             const clip = track.clips.find(c => timeMs >= c.startTime && timeMs < c.startTime + c.duration);
             if (clip) {
                 const offset = timeMs - clip.startTime;
-                // Simple speed adjusted time (assuming speed=1 for now as simpler clip model)
                 const sourceTimeMs = clip.sourceIn + offset;
-
-                // Retrieve recording via ID: project.recordings is an array
                 const recording = project.recordings.find(r => r.id === clip.recordingId) ?? null;
 
                 return {
@@ -138,7 +154,6 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     const canSelectBackground = Boolean(backgroundEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
     const canSelectCursor = Boolean(cursorEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
     const canSelectWebcam = Boolean(activeWebcamEffect) && !isEditingCrop && !zoomSettings?.isEditing;
-    // Video is selectable if we have an active clip (which implies video content)
     const canSelectVideo = Boolean(activeClipData) && !isEditingCrop && !zoomSettings?.isEditing;
 
     const {
@@ -171,6 +186,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     }, []);
 
     const handleLayerSelect = useCallback((event: React.MouseEvent) => {
+        if (isPlaying) return;
         if (event.defaultPrevented) return;
         if (inlineEditingId) return;
         if (isFromAnnotationDock(event.target)) {
@@ -190,8 +206,6 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
             selectEffectLayer(EffectLayerType.Webcam, webcamEffectId);
             layerName = 'Webcam';
         } else if (layer === 'video' && canSelectVideo) {
-            // For video, we select the generic 'video' layer type. 
-            // We don't stick to a specific effect ID for now as it represents the "content".
             selectEffectLayer(EffectLayerType.Video, 'video-layer');
             if (activeClipData?.clipId) {
                 selectClip(activeClipData.clipId);
@@ -207,29 +221,38 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
 
         toast.success(`Viewing ${layerName} settings`);
     }, [
+        isPlaying,
         hoveredLayer,
         inlineEditingId,
         canSelectBackground,
         canSelectCursor,
         canSelectWebcam,
+        canSelectVideo,
         backgroundEffectId,
         cursorEffectId,
         webcamEffectId,
         selectEffectLayer,
+        selectClip,
+        activeClipData?.clipId,
         isPropertiesOpen,
-        toggleProperties
+        toggleProperties,
+        isFromAnnotationDock,
     ]);
+
+    const isInteractive = !isPlaying;
+    const showOverlays = isInteractive;
 
     return (
         <AnnotationEditProvider>
             <div
                 ref={aspectContainerRef}
-                className={`relative w-full h-full group/preview${(canSelectBackground || canSelectCursor || canSelectWebcam) ? ' cursor-pointer' : ''}`}
+                className={`relative w-full h-full group/preview${(isInteractive && (canSelectBackground || canSelectCursor || canSelectWebcam || canSelectVideo)) ? ' cursor-pointer' : ''}`}
                 style={{
                     aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
                 }}
                 onClick={handleLayerSelect}
                 onMouseMove={(event) => {
+                    if (!isInteractive) return;
                     if (isFromAnnotationDock(event.target)) {
                         handlePreviewLeave();
                         return;
@@ -237,41 +260,34 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
                     handlePreviewHover(event);
                 }}
                 onMouseLeave={(event) => {
+                    if (!isInteractive) return;
                     if (isFromAnnotationDock(event.target)) return;
                     handlePreviewLeave();
                 }}
             >
                 {children}
 
-                {/* Layer Hover Overlays - receives bounds from DOM queries */}
-                {/* Note: Annotation hover is handled by OverlayEditor separately via hit tests on interactions usually,
-                but here we show hover hints */}
-                <LayerHoverOverlays
-                    hoveredLayer={hoveredLayer}
-                    cursorOverlay={cursorOverlay}
-                    webcamOverlay={webcamOverlay}
-                    annotationOverlay={annotationOverlay}
-                    videoOverlay={videoOverlay}
-                    backgroundOverlay={backgroundOverlay}
-                    canSelectBackground={canSelectBackground}
-                    canSelectCursor={canSelectCursor}
-                    canSelectWebcam={canSelectWebcam}
-                    canSelectVideo={canSelectVideo}
-                    canSelectAnnotation={true}
-                    containerWidth={previewFrameBounds.width}
-                    containerHeight={previewFrameBounds.height}
-                    selectedAnnotationId={selectedEffectLayer?.type === EffectLayerType.Annotation ? selectedEffectLayer.id : null}
-                />
+                {showOverlays && (
+                    <LayerHoverOverlays
+                        hoveredLayer={hoveredLayer}
+                        cursorOverlay={cursorOverlay}
+                        webcamOverlay={webcamOverlay}
+                        annotationOverlay={annotationOverlay}
+                        videoOverlay={videoOverlay}
+                        backgroundOverlay={backgroundOverlay}
+                        canSelectBackground={canSelectBackground}
+                        canSelectCursor={canSelectCursor}
+                        canSelectWebcam={canSelectWebcam}
+                        canSelectVideo={canSelectVideo}
+                        canSelectAnnotation={true}
+                        containerWidth={previewFrameBounds.width}
+                        containerHeight={previewFrameBounds.height}
+                        selectedAnnotationId={selectedEffectLayer?.type === EffectLayerType.Annotation ? selectedEffectLayer.id : null}
+                    />
+                )}
 
-                {/* 
-              Decoupled Editor Layer:
-              Renders dragging interaction handles and selection box ON TOP of the player.
-              We provide VideoPositionContext here so OverlayEditor can calculate relative positions correctly.
-              Since we are outside the player transform, we must ensure previewFrameBounds matches the video rect 
-              (which it does in current implementation where player fills container).
-            */}
                 {/* Hide InteractionLayer during playback - only show when paused */}
-                {(!isPlaying && !zoomSettings?.isEditing && !isEditingCrop) && (
+                {(isInteractive && !zoomSettings?.isEditing && !isEditingCrop) && (
                     <InteractionLayer
                         effects={projectEffects}
                         snapshot={snapshot}
@@ -282,3 +298,4 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         </AnnotationEditProvider>
     );
 };
+

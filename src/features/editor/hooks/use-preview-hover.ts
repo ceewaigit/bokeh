@@ -356,7 +356,7 @@ export function usePreviewHover({
             setHoverState(null, null, null, null, null, null);
         }
 
-    }, [aspectContainerRef, canSelectBackground, canSelectCursor, canSelectWebcam, canSelectVideo, playerContainerRef, webcamEffect, snapshot, setHoverState]);
+    }, [aspectContainerRef, canSelectBackground, canSelectCursor, canSelectWebcam, canSelectVideo, playerContainerRef, webcamEffect, snapshot, setHoverState, projectEffects.length]);
 
     return {
         hoveredLayer,

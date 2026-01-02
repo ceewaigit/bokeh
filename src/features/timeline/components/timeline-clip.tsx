@@ -105,6 +105,8 @@ const TimelineClipComponent = ({
     folderPath: recording?.folderPath,
     metadataChunks: recording?.metadataChunks,
     inlineMetadata: recording?.metadata,
+    isExternal: recording?.isExternal,
+    capabilities: recording?.capabilities,
   })
 
   // Visual calculations

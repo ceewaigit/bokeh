@@ -63,6 +63,8 @@ export interface ClipRenderState {
 export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderState {
     const { renderSettings } = usePlaybackSettings();
     const { isGlowMode } = renderSettings;
+    const glowCrossfadeEnabled = renderSettings.glowCrossfade !== false;
+    const glowFadeMode = isGlowMode && glowCrossfadeEnabled;
 
     // Pull layout and boundary state from context (Zero-Prop)
     // accessible because Renderers are children of VideoPositionProvider
@@ -112,23 +114,23 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
         const isNextContiguous = nextLayoutItem && nextLayoutItem.groupId === activeLayoutItem?.groupId;
         const isPrevContiguous = prevLayoutItem && prevLayoutItem.groupId === activeLayoutItem?.groupId;
 
-        const wantsGlowIntro = isGlowMode && (
+        const wantsGlowIntro = glowFadeMode && (
             (clip.id === activeLayoutItem?.clip.id && shouldHoldPrevFrame && !isPrevContiguous) ||
             (clip.id === nextLayoutItem?.clip.id && !isNextContiguous)
         );
-        const wantsGlowOutro = isGlowMode && (
+        const wantsGlowOutro = glowFadeMode && (
             (clip.id === activeLayoutItem?.clip.id && isNearBoundaryEnd && !isNextContiguous) ||
             (clip.id === prevLayoutItem?.clip.id && !isPrevContiguous)
         );
 
         const { introFadeDuration, outroFadeDuration } = calculateClipFadeDurations(
-            clip, fps, isGlowMode, wantsGlowIntro, wantsGlowOutro
+            clip, fps, glowFadeMode, wantsGlowIntro, wantsGlowOutro
         );
         const fadeOpacity = calculateClipFadeOpacity({
             localFrame, durationFrames, introFadeDuration, outroFadeDuration
         });
         const glowOpacityOverride = calculateGlowCrossfadeOpacity({
-            isGlowMode, clipId: clip.id, currentFrame, fps, shouldHoldPrevFrame,
+            isGlowMode: glowFadeMode, clipId: clip.id, currentFrame, fps, shouldHoldPrevFrame,
             isNearBoundaryEnd, prevLayoutItem, activeLayoutItem, nextLayoutItem,
         });
 
@@ -162,7 +164,7 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
             outroFadeDuration,
         };
     }, [
-        options, isGlowMode,
+        options, glowFadeMode,
         drawWidth, drawHeight,
         activeLayoutItem, prevLayoutItem, nextLayoutItem,
         shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames

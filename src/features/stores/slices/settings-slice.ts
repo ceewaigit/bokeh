@@ -34,6 +34,7 @@ export const createSettingsSlice: CreateSettingsSlice = (set) => ({
     state.currentProject.settings.resolution = { width, height }
     state.currentProject.modifiedAt = new Date().toISOString()
     state.cameraPathCache = null
+    state.cameraPathCacheDimensions = null
   }),
 
   setFramerate: (fps) => set((state) => {
@@ -41,6 +42,7 @@ export const createSettingsSlice: CreateSettingsSlice = (set) => ({
     state.currentProject.settings.frameRate = fps
     state.currentProject.modifiedAt = new Date().toISOString()
     state.cameraPathCache = null
+    state.cameraPathCacheDimensions = null
   }),
 
   setAudioSettings: (updates) => set((state) => {
@@ -55,6 +57,7 @@ export const createSettingsSlice: CreateSettingsSlice = (set) => ({
     state.currentProject.modifiedAt = new Date().toISOString()
     // Invalidate camera path cache to trigger recalculation
     state.cameraPathCache = null
+    state.cameraPathCacheDimensions = null
   }),
 
   // =========================================================================

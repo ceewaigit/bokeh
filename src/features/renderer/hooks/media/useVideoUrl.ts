@@ -82,16 +82,14 @@ export function useVideoUrl({
     }
 
 
-    // Glow player (64×36) always uses proxy
-    // No point decoding 5K when output is 64px wide
+    // Glow player prefers preview proxy to keep color/time aligned with main playback.
+    // Fall back to glow proxy only if no preview proxy is available.
     if (isGlowMode) {
-      // PRIORITY 0: Specific glow proxy (super low res)
-      if (glowProxyUrl) {
-        return glowProxyUrl;
-      }
-
       if (previewProxyUrl) {
         return previewProxyUrl;
+      }
+      if (glowProxyUrl) {
+        return glowProxyUrl;
       } else {
         // console.warn(`[useVideoUrl] ⚠️ GLOW has NO proxy, will use full source: ${recording.id}`);
       }
