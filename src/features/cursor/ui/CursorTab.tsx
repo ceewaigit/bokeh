@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AccordionSection } from '@/components/ui/accordion-section'
+import { ColorPickerPopover } from '@/components/ui/color-picker'
 import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, CursorMotionPreset, Effect } from '@/types/project'
 import { EffectType } from '@/types'
 import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
@@ -655,13 +656,14 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
                         <div className="space-y-1.5">
                           <div className="text-xs font-medium text-muted-foreground">Ring Color</div>
-                          <input
-                            type="color"
+                          <ColorPickerPopover
                             value={clickColor}
-                            onChange={(e) => {
-                              onUpdateCursor({ clickEffectColor: e.target.value })
+                            onChange={(value) => {
+                              onUpdateCursor({ clickEffectColor: value })
                             }}
-                            className="h-8 w-full rounded border border-border/40 bg-background/60"
+                            label="Pick ring color"
+                            className="w-full justify-between"
+                            swatchClassName="h-5 w-5 rounded-sm"
                           />
                         </div>
                       </div>
@@ -744,13 +746,14 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
                           <div className="space-y-1.5">
                             <div className="text-xs font-medium text-muted-foreground">Text Color</div>
-                            <input
-                              type="color"
+                            <ColorPickerPopover
                               value={clickTextColor}
-                              onChange={(e) => {
-                                onUpdateCursor({ clickTextColor: e.target.value })
+                              onChange={(value) => {
+                                onUpdateCursor({ clickTextColor: value })
                               }}
-                              className="h-8 w-full rounded border border-border/40 bg-background/60"
+                              label="Pick text color"
+                              className="w-full justify-between"
+                              swatchClassName="h-5 w-5 rounded-sm"
                             />
                           </div>
                         </div>

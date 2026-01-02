@@ -4,6 +4,7 @@ import React from 'react'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
+import { ColorPickerPopover } from '@/components/ui/color-picker'
 
 
 interface WebcamStyleProps {
@@ -98,11 +99,11 @@ export function WebcamStyle({
                         </div>
                         <div className="flex items-center gap-2">
                             <label className="w-12 text-xs font-medium text-muted-foreground">Color</label>
-                            <input
-                                type="color"
+                            <ColorPickerPopover
                                 value={borderColor}
-                                onChange={(e) => onBorderColorChange(e.target.value)}
-                                className="h-6 w-12 cursor-pointer rounded-md border border-border/60 bg-background"
+                                onChange={(value) => onBorderColorChange(value)}
+                                className="px-2 py-1"
+                                swatchClassName="h-4 w-4 rounded-sm"
                             />
                         </div>
                     </div>

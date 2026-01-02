@@ -110,6 +110,9 @@ const TextAnnotation = memo<BaseAnnotationProps>(({
     const fontSize = (style.fontSize ?? 18) * effectiveScale
     const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
     const fontWeight = style.fontWeight ?? 'normal'
+    const fontStyle = style.fontStyle ?? 'normal'
+    const textDecoration = style.textDecoration ?? 'none'
+    const textAlign = style.textAlign ?? 'center'
     const color = style.color ?? '#ffffff'
     const bgColor = style.backgroundColor
     const padding = resolvePadding(style.padding) * effectiveScale
@@ -128,6 +131,9 @@ const TextAnnotation = memo<BaseAnnotationProps>(({
                 fontSize,
                 fontFamily,
                 fontWeight: fontWeight as React.CSSProperties['fontWeight'],
+                fontStyle,
+                textDecoration,
+                textAlign,
                 color,
                 backgroundColor: bgColor,
                 padding: bgColor ? padding : 0,
@@ -168,6 +174,8 @@ const KeyboardAnnotation = memo<BaseAnnotationProps>(({
     const fontSize = (style.fontSize ?? 16) * effectiveScale
     const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
     const fontWeight = style.fontWeight ?? 600
+    const fontStyle = style.fontStyle ?? 'normal'
+    const textDecoration = style.textDecoration ?? 'none'
     const color = style.color ?? '#ffffff'
     const bgColor = style.backgroundColor ?? 'rgba(0, 0, 0, 0.65)'
     const borderColor = style.borderColor ?? 'rgba(255, 255, 255, 0.15)'
@@ -191,6 +199,8 @@ const KeyboardAnnotation = memo<BaseAnnotationProps>(({
                 fontSize,
                 fontFamily,
                 fontWeight: fontWeight as React.CSSProperties['fontWeight'],
+                fontStyle,
+                textDecoration,
                 color,
                 backgroundColor: bgColor,
                 border: `1px solid ${borderColor}`,

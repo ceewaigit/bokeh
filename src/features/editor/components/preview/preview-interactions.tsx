@@ -52,6 +52,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer);
     const selectClip = useProjectStore((s) => s.selectClip);
     const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection);
+    const inlineEditingId = useProjectStore((s) => s.inlineEditingId);
     const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen);
     const toggleProperties = useWorkspaceStore((s) => s.toggleProperties);
 
@@ -164,8 +165,17 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         activeClipData
     });
 
+    const isFromAnnotationDock = useCallback((eventTarget: EventTarget | null) => {
+        return eventTarget instanceof HTMLElement
+            && eventTarget.closest('[data-annotation-text-dock="true"]') !== null;
+    }, []);
+
     const handleLayerSelect = useCallback((event: React.MouseEvent) => {
         if (event.defaultPrevented) return;
+        if (inlineEditingId) return;
+        if (isFromAnnotationDock(event.target)) {
+            return;
+        }
         const layer = hoveredLayer;
         if (!layer) return;
 
@@ -198,6 +208,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         toast.success(`Viewing ${layerName} settings`);
     }, [
         hoveredLayer,
+        inlineEditingId,
         canSelectBackground,
         canSelectCursor,
         canSelectWebcam,
@@ -218,8 +229,17 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
                     aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
                 }}
                 onClick={handleLayerSelect}
-                onMouseMove={handlePreviewHover}
-                onMouseLeave={handlePreviewLeave}
+                onMouseMove={(event) => {
+                    if (isFromAnnotationDock(event.target)) {
+                        handlePreviewLeave();
+                        return;
+                    }
+                    handlePreviewHover(event);
+                }}
+                onMouseLeave={(event) => {
+                    if (isFromAnnotationDock(event.target)) return;
+                    handlePreviewLeave();
+                }}
             >
                 {children}
 

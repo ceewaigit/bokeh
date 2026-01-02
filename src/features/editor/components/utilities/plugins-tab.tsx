@@ -6,6 +6,7 @@ import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { ColorPickerPopover } from '@/components/ui/color-picker'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { EffectsFactory } from '@/features/effects/effects-factory'
@@ -610,20 +611,18 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
     }
 
     if (param.type === 'color') {
+        const colorValue = typeof value === 'string'
+            ? value
+            : String(param.default ?? '#000000')
         return (
             <div className="flex items-center justify-between">
                 <Label className="text-2xs text-foreground">{param.label}</Label>
-                <div className="flex items-center gap-2">
-                    <span className="text-2xs font-mono text-muted-foreground">
-                        {String(value)}
-                    </span>
-                    <input
-                        type="color"
-                        value={String(value)}
-                        onChange={(e) => onChange(e.target.value)}
-                        className="w-5 h-5 rounded-full cursor-pointer border border-border/50 bg-background"
-                    />
-                </div>
+                <ColorPickerPopover
+                    value={colorValue}
+                    onChange={(next) => onChange(next)}
+                    className="px-2 py-1"
+                    swatchClassName="h-4 w-4 rounded-full"
+                />
             </div>
         )
     }

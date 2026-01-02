@@ -36,8 +36,9 @@ function toUnitOpacity(opacity: unknown): number | null {
   return clamp01(opacity)
 }
 
-function getHighlightOpacity(currentTimeMs: number, startTime: number, endTime: number): number {
-  const fadeIn = clamp01((currentTimeMs - startTime) / HIGHLIGHT_FADE_MS)
+function getHighlightOpacity(currentTimeMs: number, startTime: number, endTime: number, frameMs: number): number {
+  // Add one frame so the first visible frame isn't fully "off" (feels laggy).
+  const fadeIn = clamp01((currentTimeMs - startTime + frameMs) / HIGHLIGHT_FADE_MS)
   const fadeOut = clamp01((endTime - currentTimeMs) / HIGHLIGHT_FADE_MS)
   return Math.min(fadeIn, fadeOut)
 }
@@ -73,6 +74,7 @@ export const AnnotationLayer: React.FC = memo(() => {
   // Get selection state (only used in preview mode)
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
   const updateEffect = useProjectStore((s) => s.updateEffect)
+  const stopInlineEditing = useProjectStore((s) => s.stopInlineEditing)
 
   // Get editing context (optional - returns null in export mode or if provider not present)
   const editContext = useAnnotationEditContextOptional()
@@ -118,7 +120,12 @@ export const AnnotationLayer: React.FC = memo(() => {
   // Handle content changes during editing
   const handleContentChange = useCallback((annotationId: string, content: string) => {
     editContext?.setTransientState(annotationId, { content })
-  }, [editContext])
+    // Persist immediately so side panels + timeline reflect edits live.
+    // Guard against export renders mutating project state.
+    if (!isRendering) {
+      updateEffect(annotationId, { data: { content } })
+    }
+  }, [editContext, isRendering, updateEffect])
 
   // Handle edit completion - called when user finishes editing
   const handleEditComplete = useCallback((annotationId: string) => {
@@ -135,7 +142,8 @@ export const AnnotationLayer: React.FC = memo(() => {
     // Clear transient state and editing mode
     editContext?.setTransientState(null)
     editContext?.setIsInlineEditing(false)
-  }, [updateEffect, editContext])
+    stopInlineEditing()
+  }, [updateEffect, editContext, stopInlineEditing])
 
   // Render in BOTH preview and export modes
   // Annotations are inside the video transform container and inherit zoom/pan from CSS
@@ -179,7 +187,7 @@ export const AnnotationLayer: React.FC = memo(() => {
             const cx = x + width / 2
             const cy = y + height / 2
 
-            const anim = getHighlightOpacity(currentTimeMs, effect.startTime, effect.endTime)
+            const anim = getHighlightOpacity(currentTimeMs, effect.startTime, effect.endTime, 1000 / fps)
             const dim = toUnitOpacity((data.style as any)?.opacity) ?? DEFAULT_DIM_OPACITY
             const dimOpacity = dim * anim
 

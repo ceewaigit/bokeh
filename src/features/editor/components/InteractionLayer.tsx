@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react'
 import { useProjectStore } from '@/features/stores/project-store'
+import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { useCanvasDrag, type DragType, type CanvasDragDelta } from '@/features/editor/hooks/use-canvas-drag'
 import { hitTestEffects, type HandlePosition } from '@/features/editor/logic/hit-testing'
 import { hitTestAnnotationsFromPoint } from '@/features/editor/logic/dom-hit-testing'
@@ -22,6 +23,7 @@ import {
 import type { FrameSnapshot } from '@/features/renderer/engine/layout-engine'
 import { EffectType, AnnotationType, type Effect, type AnnotationData } from '@/types/project'
 import { useAnnotationEditContext } from '@/features/editor/context/AnnotationEditContext'
+import { SidebarTabId } from '@/features/effects/components/constants'
 
 /**
  * Calculate rotation angle from drag position relative to center
@@ -94,6 +96,10 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay)
     const stopEditingOverlay = useProjectStore((s) => s.stopEditingOverlay)
     const updateEffect = useProjectStore((s) => s.updateEffect)
+    const startInlineEditing = useProjectStore((s) => s.startInlineEditing)
+    const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
+    const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
+    const setActiveSidebarTab = useWorkspaceStore((s) => s.setActiveSidebarTab)
 
     // SSOT: Use isolated annotation editing context for transient state
     // This ensures video rendering is never affected by annotation drag/resize
@@ -610,12 +616,20 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
                     selectEffectLayer(layerType as any, hit.effectId)
                     startEditingOverlay(hit.effectId)
+                    if (effect.type === EffectType.Annotation) {
+                        setActiveSidebarTab(SidebarTabId.Annotation)
+                        if (!isPropertiesOpen) toggleProperties()
+                    }
                 }
             }
 
             const effect = effects.find((e: Effect) => e.id === hit.effectId)
 
             if (effect) {
+                if (effect.type === EffectType.Annotation) {
+                    setActiveSidebarTab(SidebarTabId.Annotation)
+                    if (!isPropertiesOpen) toggleProperties()
+                }
                 // Start Drag/Resize/Rotate
                 if (hit.hitType === 'handle') {
                     if (hit.handlePosition === 'rotate' && effect.type === EffectType.Annotation) {
@@ -731,12 +745,15 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         clearEffectSelection,
         effects,
         interactableEffects,
+        isPropertiesOpen,
         selectEffectLayer,
         selectedEffect,
         snapshot,
         startDrag,
         startEditingOverlay,
-        stopEditingOverlay
+        setActiveSidebarTab,
+        stopEditingOverlay,
+        toggleProperties
     ])
 
     // Click handler - stops propagation when annotation/plugin is hit
@@ -799,19 +816,22 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 const data = effect.data as any
                 const annotationType = (data.type ?? AnnotationType.Text) as AnnotationType
                 if (annotationType === AnnotationType.Text) {
+                    setActiveSidebarTab(SidebarTabId.Annotation)
+                    if (!isPropertiesOpen) toggleProperties()
                     // Select if not already selected
                     if (selectedEffect?.id !== hit.effectId) {
                         selectEffectLayer('annotation' as any, hit.effectId)
                         startEditingOverlay(hit.effectId)
                     }
                     setIsInlineEditing(true)
+                    startInlineEditing(hit.effectId)
                     setMode('EDITING')
                     e.stopPropagation()
                     e.preventDefault()
                 }
             }
         }
-    }, [selectedEffect, effects, selectEffectLayer, startEditingOverlay, setIsInlineEditing])
+    }, [selectedEffect, effects, selectEffectLayer, startEditingOverlay, setIsInlineEditing, setActiveSidebarTab, isPropertiesOpen, toggleProperties, startInlineEditing])
 
 
     return (

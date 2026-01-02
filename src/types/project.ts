@@ -752,7 +752,9 @@ export interface AnnotationStyle {
   fontSize?: number
   fontFamily?: string
   fontWeight?: string | number
+  fontStyle?: 'normal' | 'italic'
   textAlign?: 'left' | 'center' | 'right' | 'justify'
+  textDecoration?: 'none' | 'underline'
   backgroundColor?: string
   borderColor?: string
   borderWidth?: number

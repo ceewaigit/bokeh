@@ -3,17 +3,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { usePreviewSettingsStore, type PreviewSettings } from '@/features/stores/preview-settings-store'
-import { cn } from '@/shared/utils/utils'
-
-const GUIDE_COLORS = [
-    { label: 'Ink', value: '#111111' },
-    { label: 'Graphite', value: '#2c2c2c' },
-    { label: 'White', value: '#ffffff' },
-    { label: 'Red', value: '#ff4444' },
-    { label: 'Blue', value: '#4488ff' },
-    { label: 'Green', value: '#44ff44' },
-    { label: 'Yellow', value: '#ffff44' },
-]
+import { ColorPickerPopover } from '@/components/ui/color-picker'
 
 export function GuidesSection() {
     const showRuleOfThirds = usePreviewSettingsStore((s) => s.showRuleOfThirds)
@@ -75,20 +65,13 @@ export function GuidesSection() {
                     {/* Color Picker */}
                     <div className="space-y-1.5">
                         <Label className="text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Color</Label>
-                        <div className="flex items-center gap-2">
-                            {GUIDE_COLORS.map((color) => (
-                                <button
-                                    key={color.value}
-                                    onClick={() => updatePreviewSettings('guideColor', color.value)}
-                                    className={cn(
-                                        "w-4 h-4 rounded-full border border-white/10 transition-all",
-                                        guideColor === color.value ? "border-2 border-primary scale-110" : "hover:scale-105"
-                                    )}
-                                    style={{ backgroundColor: color.value }}
-                                    title={color.label}
-                                />
-                            ))}
-                        </div>
+                        <ColorPickerPopover
+                            value={guideColor}
+                            onChange={(value) => updatePreviewSettings('guideColor', value)}
+                            label="Pick guide color"
+                            className="w-full justify-between"
+                            swatchClassName="h-5 w-5"
+                        />
                     </div>
 
                     {/* Opacity Slider */}

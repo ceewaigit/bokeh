@@ -75,7 +75,7 @@ interface EditableTextContentProps {
     onEditComplete?: () => void
 }
 
-const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
+const EditableTextContentImpl: React.FC<EditableTextContentProps> = ({
     data,
     context,
     isEditing,
@@ -85,6 +85,7 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
 }) => {
     const contentRef = useRef<HTMLDivElement>(null)
     const wasEditingRef = useRef(false)
+    const didCompleteEditRef = useRef(false)
     const style = data.style ?? {}
 
     const effectiveScale = context.scale ?? 1
@@ -105,17 +106,17 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
         if (isEditing && el) {
             // Seed the editable DOM once on entry (React will not re-control children while editing).
             if (!wasEditingRef.current) {
+                didCompleteEditRef.current = false
                 el.textContent = data.content ?? 'Text'
+                el.focus()
+                // Place cursor at end on entry, but don't fight user selection while editing.
+                const range = document.createRange()
+                range.selectNodeContents(el)
+                range.collapse(false)
+                const sel = window.getSelection()
+                sel?.removeAllRanges()
+                sel?.addRange(range)
             }
-
-            el.focus()
-            // Move cursor to end
-            const range = document.createRange()
-            range.selectNodeContents(el)
-            range.collapse(false)
-            const sel = window.getSelection()
-            sel?.removeAllRanges()
-            sel?.addRange(range)
         }
         wasEditingRef.current = isEditing
     }, [isEditing, data.content])
@@ -124,14 +125,31 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
         onContentChange?.(e.currentTarget.textContent || '')
     }, [onContentChange])
 
-    const handleBlur = useCallback(() => {
-        onEditComplete?.()
-    }, [onEditComplete])
+    // Click outside to finish editing (single-click exit).
+    // Without this, users get "stuck" in edit mode and can't re-select/drag.
+    useEffect(() => {
+        if (!isEditing) return
+
+        const onDocPointerDownCapture = (e: PointerEvent) => {
+            const el = contentRef.current
+            if (!el) return
+
+            const target = e.target as Node | null
+            if (target && el.contains(target)) return
+
+            if (didCompleteEditRef.current) return
+            didCompleteEditRef.current = true
+            onEditComplete?.()
+        }
+
+        document.addEventListener('pointerdown', onDocPointerDownCapture, true)
+        return () => document.removeEventListener('pointerdown', onDocPointerDownCapture, true)
+    }, [isEditing, onEditComplete])
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
-            contentRef.current?.blur()
+            onEditComplete?.()
         }
         if (e.key === 'Escape') {
             onEditComplete?.()
@@ -140,6 +158,12 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
         e.stopPropagation()
     }, [onEditComplete])
 
+    const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isEditing) return
+        // Prevent preview click handlers / selection logic from stealing the click.
+        e.stopPropagation()
+    }, [isEditing])
+
     return (
         <div
             ref={contentRef}
@@ -147,8 +171,9 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
             contentEditable={isEditing}
             suppressContentEditableWarning
             onInput={handleInput}
-            onBlur={handleBlur}
             onKeyDown={isEditing ? handleKeyDown : undefined}
+            onPointerDown={handlePointerDown}
+            onClick={isEditing ? (e) => e.stopPropagation() : undefined}
             style={{
                 display: constrainWidth ? 'block' : 'inline-block',
                 width: constrainWidth ? '100%' : undefined,
@@ -175,7 +200,44 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
             {!isEditing ? (data.content ?? 'Text') : null}
         </div>
     )
-})
+}
+
+const EditableTextContent = memo(
+    EditableTextContentImpl,
+    (prev, next) => {
+        // Keep DOM stable while editing so the caret/selection doesn't get reset by re-renders,
+        // but still allow style changes (color, font) to apply.
+        if (prev.isEditing && next.isEditing) {
+            const prevStyle = prev.data.style ?? {}
+            const nextStyle = next.data.style ?? {}
+            return (
+                (prevStyle.fontSize ?? 18) === (nextStyle.fontSize ?? 18) &&
+                (prevStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') === (nextStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') &&
+                (prevStyle.fontWeight ?? 'normal') === (nextStyle.fontWeight ?? 'normal') &&
+                (prevStyle.fontStyle ?? 'normal') === (nextStyle.fontStyle ?? 'normal') &&
+                (prevStyle.textDecoration ?? 'none') === (nextStyle.textDecoration ?? 'none') &&
+                (prevStyle.color ?? '#ffffff') === (nextStyle.color ?? '#ffffff') &&
+                (prevStyle.backgroundColor ?? '') === (nextStyle.backgroundColor ?? '') &&
+                (prevStyle.borderRadius ?? 4) === (nextStyle.borderRadius ?? 4) &&
+                (prevStyle.textAlign ?? 'center') === (nextStyle.textAlign ?? 'center')
+            )
+        }
+
+        return (
+            prev.isEditing === next.isEditing &&
+            prev.constrainWidth === next.constrainWidth &&
+            (prev.data.content ?? '') === (next.data.content ?? '') &&
+            (prev.data.style?.fontSize ?? 18) === (next.data.style?.fontSize ?? 18) &&
+            (prev.data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif') === (next.data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif') &&
+            (prev.data.style?.fontWeight ?? 'normal') === (next.data.style?.fontWeight ?? 'normal') &&
+            (prev.data.style?.color ?? '#ffffff') === (next.data.style?.color ?? '#ffffff') &&
+            (prev.data.style?.backgroundColor ?? '') === (next.data.style?.backgroundColor ?? '') &&
+            (prev.data.style?.borderRadius ?? 4) === (next.data.style?.borderRadius ?? 4) &&
+            (prev.data.style?.textAlign ?? 'center') === (next.data.style?.textAlign ?? 'center') &&
+            (prev.context.scale ?? 1) === (next.context.scale ?? 1)
+        )
+    }
+)
 EditableTextContent.displayName = 'EditableTextContent'
 
 // ============================================================================

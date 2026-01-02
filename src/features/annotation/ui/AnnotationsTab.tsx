@@ -10,7 +10,8 @@ import { EffectStore } from '@/features/effects/core/store'
 import { DEFAULT_KEYBOARD_KEYS, getDefaultAnnotationSize } from '../config'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
-import { Type, ArrowRight, Highlighter, Keyboard, Trash2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
+import { Type, ArrowRight, Highlighter, Keyboard, Trash2 } from 'lucide-react'
+import { ColorPickerPopover } from '@/components/ui/color-picker'
 
 interface AnnotationsTabProps {
   selectedAnnotation?: Effect
@@ -95,18 +96,10 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
     onSelectAnnotation?.(effect)
   }, [currentTime, addEffect, onSelectAnnotation])
 
-  // Update annotation content
-  const handleUpdateContent = useCallback((content: string) => {
+  const handleUpdateTextColor = useCallback((color: string) => {
     if (!selectedAnnotation) return
     const currentData = selectedAnnotation.data as AnnotationData
-    const newData: AnnotationData = { ...currentData, content }
-    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
-  }, [selectedAnnotation, updateEffect])
-
-  const handleUpdateTextAlign = useCallback((textAlign: 'left' | 'center' | 'right') => {
-    if (!selectedAnnotation) return
-    const currentData = selectedAnnotation.data as AnnotationData
-    const newStyle = { ...currentData.style, textAlign }
+    const newStyle = { ...currentData.style, color }
     updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
   }, [selectedAnnotation, updateEffect])
 
@@ -237,61 +230,9 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             Drag on canvas to move. Resize handles appear for highlights.
           </div>
 
-          {/* Content editor for text */}
-          {selectedData.type === AnnotationType.Text && (
-            <div className="space-y-1.5">
-              <label className="text-2xs font-medium text-muted-foreground">
-                Text Content
-              </label>
-              <Input
-                value={selectedData.content ?? ''}
-                onChange={(e) => handleUpdateContent(e.target.value)}
-                placeholder="Enter text..."
-                className="h-8 text-xs"
-              />
-            </div>
-
-          )}
-
           {/* Typography Settings */}
-          {(selectedData.type === AnnotationType.Text || selectedData.type === AnnotationType.Keyboard) && (
+          {selectedData.type === AnnotationType.Keyboard && (
             <div className="space-y-3 pt-2 border-t border-border/50">
-              {selectedData.type === AnnotationType.Text && (
-                <div className="space-y-1.5">
-                  <label className="text-2xs font-medium text-muted-foreground">
-                    Alignment
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={(selectedData.style?.textAlign ?? 'center') === 'left' ? 'secondary' : 'ghost'}
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleUpdateTextAlign('left')}
-                    >
-                      <AlignLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={(selectedData.style?.textAlign ?? 'center') === 'center' ? 'secondary' : 'ghost'}
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleUpdateTextAlign('center')}
-                    >
-                      <AlignCenter className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={(selectedData.style?.textAlign ?? 'center') === 'right' ? 'secondary' : 'ghost'}
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleUpdateTextAlign('right')}
-                    >
-                      <AlignRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
               <div className="space-y-1.5">
                 <label className="text-2xs font-medium text-muted-foreground">
                   Font Family
@@ -336,6 +277,19 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                     {Math.round(selectedData.style?.fontSize ?? 18)}px
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-2xs font-medium text-muted-foreground">
+                  Text Color
+                </label>
+                <ColorPickerPopover
+                  value={selectedData.style?.color ?? '#ffffff'}
+                  onChange={handleUpdateTextColor}
+                  label="Pick color"
+                  className="w-full justify-between"
+                  swatchClassName="h-5 w-5"
+                />
               </div>
             </div>
           )}

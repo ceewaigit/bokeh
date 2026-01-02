@@ -10,7 +10,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { BackgroundEffectData, Effect } from '@/types/project'
 import { BackgroundType } from '@/types/project'
 import { DEFAULT_PARALLAX_LAYERS, DEFAULT_BACKGROUND_DATA } from '../config'
-import { GRADIENT_PRESETS, COLOR_PRESETS } from '@/features/effects/components/constants'
+import { GRADIENT_PRESETS } from '@/features/effects/components/constants'
+import { ColorPickerPopover } from '@/components/ui/color-picker'
 import { getElectronAssetUrl } from '@/shared/assets/electron-asset-url'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 
@@ -641,70 +642,18 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
           <div className="space-y-3">
             <h4 className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Solids</h4>
 
-            {/* Color picker - streamlined single section */}
-            <div className="flex gap-2 items-center rounded-lg bg-background/40 p-3">
-              <input
-                type="color"
-                value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
-                onChange={(e) => {
-                  onUpdateBackground({
-                    type: BackgroundType.Color,
-                    color: e.target.value
-                  })
-                }}
-                className="w-12 h-12 rounded-md cursor-pointer border-0 bg-transparent"
-                style={{ backgroundColor: bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000' }}
-              />
-              <input
-                type="text"
-                value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
-                    if (value.length === 7) {
-                      onUpdateBackground({
-                        type: BackgroundType.Color,
-                        color: value
-                      })
-                    }
-                  }
-                }}
-                onBlur={(e) => {
-                  if (e.target.value.length > 0) {
-                    onUpdateBackground({
-                      type: BackgroundType.Color,
-                      color: e.target.value.padEnd(7, '0')
-                    })
-                  }
-                }}
-                className="flex-1 px-2.5 py-1.5 text-xs font-mono bg-background/50 rounded-md"
-                placeholder="#000000"
-                maxLength={7}
-              />
-            </div>
-
-            {/* Preset colors */}
-            <div className="grid grid-cols-6 gap-2">
-              {COLOR_PRESETS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => {
-                    onUpdateBackground({
-                      type: BackgroundType.Color,
-                      color
-                    })
-                  }}
-                  className={cn(
-                    "aspect-square rounded-md transition-all hover:scale-110",
-                    bgData?.type === BackgroundType.Color && bgData?.color?.toUpperCase() === color.toUpperCase()
-                      ? "border-2 border-primary shadow-lg"
-                      : "border border-border/30 hover:border-border/50"
-                  )}
-                  style={{ backgroundColor: color }}
-                  title={color}
-                />
-              ))}
-            </div>
+            <ColorPickerPopover
+              value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
+              onChange={(value) => {
+                onUpdateBackground({
+                  type: BackgroundType.Color,
+                  color: value
+                })
+              }}
+              label="Pick background"
+              className="w-full justify-between"
+              swatchClassName="h-5 w-5"
+            />
           </div>
         )}
 
