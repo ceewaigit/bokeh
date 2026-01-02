@@ -8,7 +8,6 @@ import type { Effect, WebcamEffectData, WebcamShape, WebcamAnchor, CropEffectDat
 import { EffectType } from '@/types/project'
 import { DEFAULT_WEBCAM_DATA, WEBCAM_SHAPE_PRESETS } from '../config'
 import { DEFAULT_CROP_DATA, clampCropData } from '@/features/canvas/math/transforms/crop-transform'
-import { getZoomTransformString } from '@/features/canvas/math/transforms/zoom-transform'
 import { useProjectStore } from '@/features/stores/project-store'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { resolveRecordingPath, createVideoStreamUrl } from '@/features/recording/components/library/utils/recording-paths'

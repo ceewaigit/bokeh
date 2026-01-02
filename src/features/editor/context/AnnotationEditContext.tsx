@@ -65,7 +65,7 @@ export function AnnotationEditProvider({ children, onInlineEditingChange }: Anno
         getMergedEffectData,
         isInlineEditing,
         setIsInlineEditing
-    }), [transientState, setTransientState, getMergedEffectData, isInlineEditing])
+    }), [transientState, setTransientState, getMergedEffectData, isInlineEditing, setIsInlineEditing])
 
     return (
         <AnnotationEditContext.Provider value={value}>

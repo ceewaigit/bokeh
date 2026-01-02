@@ -5,7 +5,7 @@ import { EffectLayerType } from '@/types/effects'
 import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 
-const LAYER_TO_EFFECT_TYPE: Record<EffectLayerType, EffectType> = {
+const LAYER_TO_EFFECT_TYPE: Partial<Record<EffectLayerType, EffectType>> = {
   [EffectLayerType.Zoom]: EffectType.Zoom,
   [EffectLayerType.Cursor]: EffectType.Cursor,
   [EffectLayerType.Background]: EffectType.Background,
@@ -19,8 +19,8 @@ const LAYER_TO_EFFECT_TYPE: Record<EffectLayerType, EffectType> = {
 
 export type ClipboardEffectRoute = 'zoom' | 'global' | 'block'
 
-export function getEffectTypeFromLayer(layerType: EffectLayerType): EffectType {
-  return LAYER_TO_EFFECT_TYPE[layerType]
+export function getEffectTypeFromLayer(layerType: EffectLayerType): EffectType | null {
+  return LAYER_TO_EFFECT_TYPE[layerType] ?? null
 }
 
 export function getClipboardEffectRoute(effectType: EffectType): ClipboardEffectRoute {
@@ -38,6 +38,7 @@ export function resolveClipboardEffect(
   if (!project || !selectedEffectLayer) return null
 
   const effectType = getEffectTypeFromLayer(selectedEffectLayer.type)
+  if (!effectType) return null
 
   if (selectedEffectLayer.id) {
     const effect = EffectStore.get(project, selectedEffectLayer.id)

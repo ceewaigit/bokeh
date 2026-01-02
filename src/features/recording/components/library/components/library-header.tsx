@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { HeaderButton } from '@/components/ui/header-button'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
 import { WindowHeader } from '@/components/ui/window-header'
-import { useRecordingsLibraryStore, type SortKey, type SortDirection } from '@/features/recording/store/library-store'
+import { type SortKey, type SortDirection } from '@/features/recording/store/library-store'
 import { LibrarySearch } from './library-search'
 import { LibrarySort } from './library-sort'
 

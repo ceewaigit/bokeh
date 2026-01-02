@@ -549,22 +549,46 @@
     display: none;
   }
 
-  /* Alternative class for auto-hiding scrollbars */
-  .scrollbar-auto {
-    scrollbar-gutter: stable;
+  /* Smart auto-hiding scrollbar - hidden by default, shows on scroll or track hover */
+  .scrollbar-smart {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.3s;
   }
 
-  .scrollbar-auto::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0);
-    transition: background 0.3s ease;
+  .scrollbar-smart::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
 
-  .scrollbar-auto:hover::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+  /* Track is always transparent but hoverable */
+  .scrollbar-smart::-webkit-scrollbar-track {
+    background: transparent;
   }
 
-  .scrollbar-auto:hover::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.4);
+  /* Thumb is transparent by default */
+  .scrollbar-smart::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+    transition: background 0.3s;
+  }
+
+  /* Show thumb when scrolling (class added via JS) */
+  .scrollbar-smart.is-scrolling {
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+
+  .scrollbar-smart.is-scrolling::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  /* Show thumb when hovering the scrollbar area (native behavior) */
+  .scrollbar-smart::-webkit-scrollbar:hover {
+    background: transparent;
+  }
+
+  .scrollbar-smart::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
   }
 }
 
@@ -620,10 +644,8 @@
 
   .window-surface {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, var(--window-surface-border-alpha));
     border-radius: var(--window-surface-radius);
     overflow: hidden;
@@ -670,20 +692,16 @@
   [data-window-surface="clear"] .window-surface,
   [data-window-surface="clear"].window-surface {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, var(--window-surface-border-alpha));
   }
 
   /* Full-window surface uses the app background token */
   .window-surface-bg {
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
   }
 
   /* Light-mode glass/clear: keep text dark for contrast on bright surfaces */
@@ -697,10 +715,8 @@
 
   [data-window-surface="clear"] .window-surface-bg,
   [data-window-surface="clear"].window-surface-bg {
-    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
-    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate))
-      brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
   }
 
   /* Glass/clear timeline ruler matches track background */

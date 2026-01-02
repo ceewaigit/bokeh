@@ -115,7 +115,13 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
 
     const handleMouseDown = (e: React.MouseEvent, type: DragType) => {
         if (!cropData) return
-        startDrag(e, type, cropData)
+        startDrag({
+            startX: e.clientX,
+            startY: e.clientY,
+            type,
+            initialValue: cropData,
+            activationDistance: 0,
+        })
     }
 
     // Don't render during export or when not editing

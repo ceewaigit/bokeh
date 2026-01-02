@@ -11,10 +11,9 @@
 import React, { useMemo } from 'react'
 import { cn } from '@/shared/utils/utils'
 import type { Effect } from '@/types/project'
-import { getWebcamEffect } from '@/features/effects/core/filters'
 
 interface WebcamOverlayProps {
-  effects: Effect[]
+  webcamEffect?: Effect | null
   containerWidth: number
   containerHeight: number
   isSelected?: boolean
@@ -25,21 +24,17 @@ interface WebcamOverlayProps {
 }
 
 export function WebcamOverlay({
-  effects,
+  webcamEffect,
   containerWidth,
   containerHeight,
   isSelected = false,
   className,
   playerContainerRef,
 }: WebcamOverlayProps) {
-  // Get webcam effect to check if enabled
-  const webcamEffect = getWebcamEffect(effects)
-
   // If we need to show a visual ring around the webcam when selected,
   // we can query the DOM for the webcam element position
   const webcamBounds = useMemo(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const _ = [containerWidth, containerHeight];
+    if (!containerWidth || !containerHeight) return null;
     if (!playerContainerRef?.current) return null;
     const webcamEl = playerContainerRef.current.querySelector('[data-webcam-overlay="true"]');
     if (!webcamEl) return null;

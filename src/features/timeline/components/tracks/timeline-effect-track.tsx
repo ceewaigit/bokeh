@@ -11,6 +11,7 @@ import React, { useMemo } from 'react'
 import { TimelineEffectBlock } from '../timeline-effect-block'
 import { useTimelineLayout } from '../timeline-layout-provider'
 import { useProjectStore } from '@/features/stores/project-store'
+import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { EffectStore } from '@/features/effects/core/store'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { TimelineConfig, getClipInnerHeight } from '@/features/timeline/config'
@@ -52,6 +53,10 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
       clearEffectSelection: s.clearEffectSelection
     }))
   )
+
+  // Sidebar state for auto-open on selection
+  const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
+  const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
 
   const colors = useTimelineColors()
 
@@ -141,6 +146,10 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
                 clearEffectSelection()
               } else {
                 selectEffectLayer(config.layerType, effect.id)
+                // Auto-open sidebar when selecting an effect block
+                if (!isPropertiesOpen) {
+                  toggleProperties()
+                }
               }
               requestAnimationFrame(() => {
                 (document.querySelector('.timeline-container') as HTMLElement)?.focus()

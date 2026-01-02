@@ -11,11 +11,6 @@ import { EffectCreation } from './creation'
 import { syncKeystrokeEffects } from '../services/keystroke-sync-service'
 
 export const EffectInitialization = {
-  createInitialEffectsForRecording(): void {
-    // NOTE: All effects now live in timeline.effects (the SSOT)
-    // This method is kept for API compatibility but does nothing
-  },
-
   ensureGlobalEffects(project: Project): void {
     EffectStore.ensureArray(project)
 
@@ -50,4 +45,3 @@ export const EffectInitialization = {
     syncKeystrokeEffects(project, metadataByRecordingId)
   },
 }
-

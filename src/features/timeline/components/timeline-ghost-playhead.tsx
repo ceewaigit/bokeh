@@ -6,16 +6,23 @@ import { useTimelineColors } from '@/features/timeline/utils/colors'
 import { clamp } from '@/shared/utils/utils'
 import { useProjectStore } from '@/features/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
 export const TimelineGhostPlayhead = React.memo(() => {
   const { stageHeight: totalHeight, pixelsPerMs, duration: maxTime } = useTimelineLayout()
   const hoverTime = useProjectStore((s) => s.hoverTime)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
   const isPlaying = useProjectStore((s) => s.isPlaying)
+  const currentProject = useProjectStore((s) => s.currentProject)
   const colors = useTimelineColors()
   // Hide ghost playhead during playback - only show when paused
   if (hoverTime === null || isScrubbing || isPlaying) return null
-  const time = clamp(hoverTime, 0, maxTime)
+  // Clamp to safe end time (center of last frame) to prevent empty video
+  const fps = currentProject ? TimelineDataService.getFps(currentProject) : 30
+  const frameDuration = 1000 / fps
+  const safeEndTime = Math.max(0, maxTime - (frameDuration * 0.5))
+
+  const time = clamp(hoverTime, 0, safeEndTime)
   const x = TimeConverter.msToPixels(time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 
   const lineOpacity = colors.isGlassMode ? 0.35 : 0.55

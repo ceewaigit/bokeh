@@ -160,6 +160,54 @@ export function PreviewAreaRemotion({
   // Ensure all videos are loaded
   useVideoPreloader(project);
 
+  const playerContainer = useMemo(() => {
+    if (!playerConfig) return null;
+
+    return (
+      <PlayerContainer
+        playerRef={playerRef}
+        playerContainerRef={playerContainerRef}
+        timelineMetadata={timelineMetadata}
+        playerConfig={playerConfig}
+        playerKey={playerKey}
+        initialFrame={initialFrame}
+        isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+        muted={muted}
+        volume={volume}
+        isGlowEnabled={isGlowEnabled}
+        glowIntensity={glowIntensity}
+        isPlaying={isPlaying}
+        isScrubbing={isScrubbing}
+        isEditingCrop={Boolean(isEditingCrop)}
+        cropData={cropData || null}
+        onCropChange={onCropChange}
+        onCropConfirm={onCropConfirm}
+        onCropReset={onCropReset}
+        zoomSettings={zoomSettings}
+      />
+    );
+  }, [
+    playerRef,
+    playerContainerRef,
+    timelineMetadata,
+    playerConfig,
+    playerKey,
+    initialFrame,
+    isHighQualityPlaybackEnabled,
+    muted,
+    volume,
+    isGlowEnabled,
+    glowIntensity,
+    isPlaying,
+    isScrubbing,
+    isEditingCrop,
+    cropData,
+    onCropChange,
+    onCropConfirm,
+    onCropReset,
+    zoomSettings,
+  ]);
+
   if (!project) return null;
 
   return (
@@ -228,52 +276,7 @@ export function PreviewAreaRemotion({
                       playerRef={playerRef}
                     >
                       {/* Memoize PlayerContainer to prevent re-renders when selection/crop state changes but playback doesn't */}
-                      {useMemo(() => (
-                        <PlayerContainer
-                          playerRef={playerRef}
-                          playerContainerRef={playerContainerRef}
-                          timelineMetadata={timelineMetadata}
-                          playerConfig={playerConfig}
-                          playerKey={playerKey}
-                          initialFrame={initialFrame}
-                          isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-                          muted={muted}
-                          volume={volume}
-                          isGlowEnabled={isGlowEnabled}
-                          glowIntensity={glowIntensity}
-                          isPlaying={isPlaying}
-                          isScrubbing={isScrubbing}
-                          isEditingCrop={Boolean(isEditingCrop)}
-                          cropData={cropData || null}
-                          onCropChange={onCropChange}
-                          onCropConfirm={onCropConfirm}
-                          onCropReset={onCropReset}
-                          zoomSettings={zoomSettings}
-                        />
-                      ), [
-                        // Dependencies for PlayerContainer
-                        // Crucially, EXCLUDE selectedEffectLayer or project reference if possible (project is used inside?)
-                        // PlayerConfig, Key, and Metadata drive the core player.
-                        playerRef, // Ref stable
-                        playerContainerRef, // Ref stable
-                        timelineMetadata,
-                        playerConfig,
-                        playerKey,
-                        initialFrame,
-                        isHighQualityPlaybackEnabled,
-                        muted,
-                        volume,
-                        isGlowEnabled,
-                        glowIntensity,
-                        isPlaying,
-                        isScrubbing,
-                        isEditingCrop,
-                        cropData,
-                        onCropChange,
-                        onCropConfirm,
-                        onCropReset,
-                        zoomSettings
-                      ])}
+                      {playerContainer}
                     </PreviewInteractions>
                   </PlaybackSettingsProvider>
                 </TimelineProvider>

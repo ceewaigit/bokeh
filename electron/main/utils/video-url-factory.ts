@@ -3,7 +3,6 @@
  * Provides consistent URL generation for preview and export
  */
 
-import * as path from 'path'
 import { getVideoServer } from '../video-http-server'
 
 export type VideoTarget = 'preview' | 'export'

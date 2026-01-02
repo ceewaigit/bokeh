@@ -22,11 +22,9 @@ import { useTimelineContext } from '@/features/renderer/context/TimelineContext'
 import { useProjectStore } from '@/features/stores/project-store'
 import { usePlaybackSettings } from '@/features/renderer/context/playback/PlaybackSettingsContext'
 import { useCameraPath } from '@/features/editor/logic/viewport/hooks/useCameraPath'
-import { calculateFullCameraPath, getCameraOutputContext } from '@/features/editor/logic/viewport/logic/path-calculator'
+import { calculateFullCameraPath } from '@/features/editor/logic/viewport/logic/path-calculator'
 import { frameToMs } from '@/features/renderer/compositions/utils/time/frame-time'
 import { useLayoutNavigation } from '@/features/renderer/hooks/use-layout-navigation'
-
-import { calculateVideoPosition } from '@/features/renderer/engine/layout-engine'
 
 // Re-export FrameSnapshot type for consumers
 export type { FrameSnapshot } from '@/features/renderer/engine/layout-engine'

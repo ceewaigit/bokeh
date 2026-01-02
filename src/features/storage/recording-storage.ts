@@ -769,7 +769,7 @@ export class RecordingStorage {
           screenEvents: [],
           captureArea: reconstructedCaptureArea
         },
-        // Effects will be created below via createInitialEffectsForRecording
+        // Legacy field: effects now live in project.timeline.effects (SSOT)
         effects: []
       }
 
@@ -916,9 +916,6 @@ export class RecordingStorage {
           audioFilePath = undefined
         }
       }
-
-      // Create effects on the recording itself (in source space)
-      EffectsFactory.createInitialEffectsForRecording(recording)
 
       // Ensure global effects exist (background, cursor, and per-typing-period keystroke effects)
       EffectsFactory.ensureGlobalEffects(project)

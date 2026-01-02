@@ -8,9 +8,9 @@ const logger = {
   warn: (msg: string, ...args: any[]) => console.warn(msg, ...args),
   error: (msg: string, ...args: any[]) => console.error(msg, ...args)
 }
-import { getUIohook, startUIohook, stopUIohook } from '../utils/uiohook-manager'
+import { getUIohook, stopUIohook } from '../utils/uiohook-manager'
 import { startScrollDetection, stopScrollDetection } from './scroll-tracking'
-import { TIMING, DISPLAY, MOUSE_BUTTONS } from '../utils/constants'
+import { TIMING, MOUSE_BUTTONS } from '../utils/constants'
 
 // Get uiohook instance from shared manager
 const uIOhook = getUIohook('mouse-tracking')
@@ -25,15 +25,6 @@ let isMouseTracking = false
 let clickDetectionActive = false
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
 let uiohookStarted = false
-let isMouseDown = false
-let lastClickPosition = { x: 0, y: 0 }
-
-// Extend the imported MouseTrackingOptions for local needs
-interface ExtendedMouseTrackingOptions extends MouseTrackingOptions {
-  sourceType?: 'screen' | 'window'
-  sourceId?: string
-}
-
 interface MousePosition {
   x: number
   y: number
@@ -150,7 +141,7 @@ export function registerMouseTrackingHandlers(): void {
           if (cursorDetector) {
             try {
               usedCursorType = cursorDetector.getCurrentCursorType()
-            } catch (err) {
+            } catch {
               // ignore
             }
           }
@@ -227,10 +218,8 @@ export function registerMouseTrackingHandlers(): void {
       // Stop scroll detection
       stopScrollDetection()
 
-      // Reset mouse history and state
+      // Reset mouse history
       mouseHistory = []
-      isMouseDown = false
-      lastClickPosition = { x: 0, y: 0 }
 
       mouseEventSender = null
 
@@ -289,15 +278,12 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const scaleFactor = currentDisplay.scaleFactor || 1
 
       // Track mouse down state for cursor detection
-      isMouseDown = true
-      lastClickPosition = { x: event.x, y: event.y }
-
       // Get cursor type at click position
       let clickCursorType = 'pointer' // Default for clicks
       if (cursorDetector) {
         try {
           clickCursorType = cursorDetector.getCurrentCursorType()
-        } catch (err) {
+        } catch {
           // Keep pointer as default
         }
       }
@@ -323,9 +309,6 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
 
     const handleMouseUp = (event: any) => {
       if (!isMouseTracking) return
-
-      // Track mouse up state for cursor detection
-      isMouseDown = false
 
       logger.debug(`Mouse up at (${event.x}, ${event.y})`)
     }

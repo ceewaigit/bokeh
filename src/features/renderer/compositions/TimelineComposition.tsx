@@ -21,9 +21,7 @@ import { PlaybackSettingsProvider } from '../context/playback/PlaybackSettingsCo
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
 import { CursorLayer } from '@/features/cursor/components/CursorLayer';
-import { AnnotationLayer } from './layers/AnnotationLayer';
 import { PluginLayer } from './layers/PluginLayer';
-import { CropEditingLayer } from './layers/CropEditingLayer';
 import { WebcamLayer } from './layers/WebcamLayer';
 
 
@@ -291,7 +289,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         })}
 
         <WebcamLayer
-          effects={effects}
           webcamEffect={activeWebcamEffect ?? undefined}
           webcamVideoUrl={webcamVideoUrl}
           webcamClip={activeWebcamClip ?? undefined}

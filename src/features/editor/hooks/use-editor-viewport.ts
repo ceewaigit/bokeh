@@ -32,9 +32,9 @@ interface EditorViewportState {
  */
 export function useEditorViewport({
     currentFrame,
-    timelineMetadata,
+    timelineMetadata: _timelineMetadata,
     zoomSettings,
-    isAnnotationEditing = false  // Kept for API compatibility but no longer used
+    isAnnotationEditing: _isAnnotationEditing = false  // Kept for API compatibility but no longer used
 }: UseEditorViewportProps): EditorViewportState {
 
     // Subscribe to camera cache (SSOT)
@@ -48,9 +48,6 @@ export function useEditorViewport({
         if (zoomSettings?.isEditing && zoomSettings.zoomData) {
             const s = zoomSettings.zoomData.scale;
             // Simplified center-based zoom for editing preview
-            const panX = (0.5 - 0.5) * timelineMetadata.width * (s - 1);
-            const panY = (0.5 - 0.5) * timelineMetadata.height * (s - 1);
-
             const transform: ZoomTransform = {
                 scale: s,
                 panX: 0,
@@ -89,5 +86,5 @@ export function useEditorViewport({
             transformString: 'translate3d(0px, 0px, 0) scale3d(1, 1, 1)',
             scale: 1
         };
-    }, [cameraPathCache, currentFrame, zoomSettings, timelineMetadata]);
+    }, [cameraPathCache, currentFrame, zoomSettings]);
 }

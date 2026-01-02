@@ -53,6 +53,7 @@ const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Crop]: 'Frame',
   [EffectLayerType.Plugin]: 'Tools',
   [EffectLayerType.Annotation]: 'Overlay',
+  [EffectLayerType.Video]: 'Video',
 }
 
 function SubTabs<T extends string>({
@@ -266,6 +267,10 @@ export function EffectsSidebar({
         return
       case EffectLayerType.Annotation:
         setActiveTab(SidebarTabId.Annotation)
+        return
+      case EffectLayerType.Video:
+        setActiveTab(SidebarTabId.Framing)
+        setFramingSubTab('zoom')
         return
       default:
         setActiveTab(SidebarTabId.Advanced)

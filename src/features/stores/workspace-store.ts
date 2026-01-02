@@ -64,7 +64,7 @@ interface WorkspaceStore {
 }
 
 const defaultWorkspaceState = {
-  isPropertiesOpen: true,
+  isPropertiesOpen: false,  // Closed by default for cleaner UX - opens on selection
   isUtilitiesOpen: false,  // Closed by default for clean UX
   isTimelineOpen: true,
   isExportOpen: false,
@@ -73,7 +73,7 @@ const defaultWorkspaceState = {
   isSettingsOpen: false,
   propertiesPanelWidth: 400,
   utilitiesPanelWidth: 400,  // Default open width
-  timelineHeight: 250,  // Default height in px (will respect 30vh minimum)
+  timelineHeight: 165,  // Shows clip, webcam, zoom tracks - scroll for others
   previewScale: 1,
   currentView: 'library' as WorkspaceView,
   activeUtilityTab: 'import' as UtilityTabId,
@@ -205,7 +205,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     }),
     {
       name: 'workspace-storage',
-      version: 6,
+      version: 7,
       migrate: (persistedState: unknown, version: number) => {
         if (!persistedState || typeof persistedState !== 'object') return persistedState
 
@@ -217,6 +217,15 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             ...state,
             activeSidebarTab: SidebarTabId.Style,
             motionTabAdvancedOpen: false
+          }
+        }
+
+        // Version 7: Close sidebar by default and reduce timeline height
+        if (version < 7) {
+          state = {
+            ...state,
+            isPropertiesOpen: false,  // Close sidebar for cleaner default
+            timelineHeight: 150       // Compact timeline
           }
         }
 

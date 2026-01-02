@@ -41,7 +41,7 @@ const HANDLE_POSITIONS: { id: HandlePosition; x: string | number; y: string | nu
 export const SelectionBox: React.FC<SelectionBoxProps> = memo(({
     showHandles = true,
     showRotation = true,
-    rotation = 0,
+    rotation: _rotation = 0,
 }) => {
     // Get zoom scale for inverse-scaling handles
     const videoPosition = useVideoPosition()

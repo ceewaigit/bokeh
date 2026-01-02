@@ -53,6 +53,30 @@ export function applyCameraTransformToPoint(
 }
 
 /**
+ * Apply camera transform to a pixel rect to get screen rect.
+ */
+export function applyCameraTransformToPixelRect(
+  rect: { x: number; y: number; width: number; height: number },
+  videoRect: VideoRect,
+  cameraTransform: CameraTransform
+): { x: number; y: number; width: number; height: number } {
+  // Center of scaling is the video rect center
+  const centerX = videoRect.x + videoRect.width / 2
+  const centerY = videoRect.y + videoRect.height / 2
+
+  // 1. Scale dimensions
+  const width = rect.width * cameraTransform.scale
+  const height = rect.height * cameraTransform.scale
+
+  // 2. Transform position (top-left)
+  // Logic: (point - center) * scale + center + pan
+  const x = centerX + (rect.x - centerX) * cameraTransform.scale + cameraTransform.panX
+  const y = centerY + (rect.y - centerY) * cameraTransform.scale + cameraTransform.panY
+
+  return { x, y, width, height }
+}
+
+/**
  * Inverse camera transform - converts screen coordinates back to source coordinates.
  * Used for hit-testing: convert mouse position to annotation-space coordinates.
  */

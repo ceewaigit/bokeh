@@ -1,4 +1,4 @@
-import { systemPreferences, BrowserWindow, shell } from 'electron'
+import { systemPreferences, BrowserWindow } from 'electron'
 import { exec } from 'child_process'
 
 export class PermissionService {

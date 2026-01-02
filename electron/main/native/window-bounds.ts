@@ -151,7 +151,7 @@ export async function bringAppToFront(appName: string): Promise<boolean> {
       await execAsync(`osascript -e '${script}'`)
       console.log(`[WindowBounds] Brought ${appName} to front via System Events`)
       return true
-    } catch (fallbackError) {
+    } catch {
       console.warn(`[WindowBounds] Failed to bring ${appName} to front:`, error)
       return false
     }

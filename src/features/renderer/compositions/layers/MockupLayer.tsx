@@ -82,6 +82,7 @@ export const MockupLayer = React.memo(({
 
       {/* Video content container (clipped to screen region) */}
       <div
+        data-video-content-container="true"
         style={{
           position: 'absolute',
           left: Math.round(mockupPosition.screenX - mockupPosition.mockupX),

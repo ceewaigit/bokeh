@@ -376,7 +376,7 @@ async function generateProxyInternal(
             proxyPathCache.set(cacheKey, proxyPath)
             console.log(`[ProxyService] Proxy generated (Strategy 1 - HW/HW): ${path.basename(proxyPath)}`)
             return { success: true, proxyPath }
-        } catch (err) {
+        } catch {
             // Silently fall through to Strategy 2
             // console.warn('[ProxyService] Strategy 1 failed (HW Decode/Encode):', err)
         }
@@ -410,7 +410,7 @@ async function generateProxyInternal(
             proxyPathCache.set(cacheKey, proxyPath)
             console.log(`[ProxyService] Proxy generated (Strategy 2 - SW/HW): ${path.basename(proxyPath)}`)
             return { success: true, proxyPath }
-        } catch (err) {
+        } catch {
             // Silently fall through to Strategy 3
             // console.warn('[ProxyService] Strategy 2 failed (HW Encode):', err)
         }

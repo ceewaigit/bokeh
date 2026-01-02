@@ -448,7 +448,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                   setPreviewScale(value)
                 }}
                 min={0.8}
-                max={1.3}
+                max={1.5}
                 step={0.05}
                 className="w-20"
               />

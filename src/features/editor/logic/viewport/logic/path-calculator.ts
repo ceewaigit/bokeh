@@ -8,8 +8,7 @@ import { getActiveClipDataAtFrame } from '@/features/renderer/utils/get-active-c
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
 import { getActiveBackgroundEffect } from '@/features/effects/core/filters'
 import { calculateZoomTransform, getZoomTransformString } from '@/features/canvas/math/transforms/zoom-transform'
-import { DEFAULT_PARALLAX_LAYERS, DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
-import { DEFAULT_WEBCAM_DATA } from '@/features/webcam/config'
+import { DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
 import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/shared/constants/layout'
 
 // Re-using types from hook or defining shared types locally if needed

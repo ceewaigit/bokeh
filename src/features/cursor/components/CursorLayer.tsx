@@ -11,12 +11,10 @@ import {
 import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../logic/cursor-logic';
 import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config';
 
-import { useProjectStore } from '@/features/stores/project-store';
 import { normalizeClickEvents, normalizeMouseEvents } from '@/features/renderer/compositions/utils/events/event-normalizer';
 import { useTimelineContext } from '@/features/renderer/context/TimelineContext';
 import { getCursorEffect } from '@/features/effects/core/filters';
 import { applyCssTransformToPoint } from '@/features/canvas/math/transforms/transform-point';
-import { calculateZoomScale } from '@/features/canvas/math/transforms/zoom-transform';
 
 import { useRecordingMetadata } from '@/features/renderer/hooks/media/useRecordingMetadata';
 import { useVideoPosition } from '@/features/renderer/context/layout/VideoPositionContext';

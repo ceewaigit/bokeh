@@ -7,7 +7,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { type SortKey, type SortDirection, useRecordingsLibraryStore } from '@/features/recording/store/library-store'
+import { type SortKey, type SortDirection } from '@/features/recording/store/library-store'
 
 interface LibrarySortProps {
     sortKey: SortKey

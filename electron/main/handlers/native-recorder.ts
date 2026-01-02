@@ -51,7 +51,7 @@ function loadNativeRecorder() {
             console.log('✅ Native ScreenCaptureKit recorder loaded - cursor will be hidden!')
             return
           }
-        } catch (err: any) {
+        } catch {
           // Try next candidate
         }
       }

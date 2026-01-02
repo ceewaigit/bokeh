@@ -23,7 +23,6 @@ export function splitClipAtTime(
         return null
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { clipRelativeToSource } = require('../time/time-space-converter')
 
     const clipSourceIn = clip.sourceIn ?? 0

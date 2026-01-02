@@ -1,7 +1,6 @@
 /**
  * @jest-environment node
  */
-import * as path from 'path'
 import * as fs from 'fs'
 import { resolveRecordingFilePath, guessMimeType } from '../../electron/main/utils/file-resolution'
 

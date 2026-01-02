@@ -133,8 +133,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       // Use the service to add recording and create clip with effects
       const clip = addRecordingToProject(
         state.currentProject,
-        recording,
-        EffectsFactory.createInitialEffectsForRecording
+        recording
       )
 
       if (clip) {

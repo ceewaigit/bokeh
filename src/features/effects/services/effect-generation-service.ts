@@ -8,7 +8,7 @@
  */
 
 import type { Effect, Recording, RecordingMetadata, Clip, Project, ZoomEffectData } from '@/types/project'
-import { EffectType, ScreenEffectPreset, ZoomFollowStrategy } from '@/types/project'
+import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { ZoomDetector } from '@/features/effects/utils/zoom-detector'
 import { EffectsFactory } from '@/features/effects/effects-factory'
 import { EffectStore } from '@/features/effects/core/store'
@@ -139,27 +139,6 @@ export class EffectGenerationService {
             }
 
             zoomEffects.push(zoomEffect)
-
-            // Auto 3D: Create Screen effect only for high-importance, deep zooms
-            // Requires both scale threshold AND importance threshold for more selective 3D
-            const hasHighImportance = (block.importance ?? 0) >= config.auto3DImportanceThreshold
-            const hasDeepZoom = block.scale >= config.auto3DThreshold
-
-            if (hasDeepZoom && hasHighImportance) {
-                const screenEffect: Effect = {
-                    id: `screen-auto-${zoomEffect.id}`,
-                    type: EffectType.Screen,
-                    startTime: zoomEffect.startTime,
-                    endTime: zoomEffect.endTime,
-                    data: {
-                        preset: ScreenEffectPreset.Window,
-                        introMs: block.introMs || config.defaultIntroMs,
-                        outroMs: block.outroMs || config.defaultOutroMs
-                    },
-                    enabled: true
-                }
-                screenEffects.push(screenEffect)
-            }
         })
 
         return { zoomEffects, screenEffects }

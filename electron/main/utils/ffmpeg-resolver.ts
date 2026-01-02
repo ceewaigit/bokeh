@@ -19,7 +19,7 @@ export function resolveFfmpegPath(): string {
       console.log(`[FFmpeg Resolver] Using @ffmpeg-installer binary: ${ffmpegPath}`);
       return ffmpegPath;
     }
-  } catch (error) {
+  } catch {
     // fall through to error below
   }
 
@@ -38,7 +38,7 @@ export function resolveFfprobePath(): string {
       console.log(`[FFmpeg Resolver] Using @ffprobe-installer binary: ${ffprobePath}`);
       return ffprobePath;
     }
-  } catch (error) {
+  } catch {
     // fall through to error below
   }
 

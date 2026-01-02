@@ -18,19 +18,19 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const deleteResetTimeoutRef = useRef<number | null>(null)
 
-    // Load plugins when dialog opens
-    useEffect(() => {
-        if (isOpen) {
-            loadPlugins()
-        }
-    }, [isOpen])
-
     const loadPlugins = () => {
         // Filter for custom plugins (those with renderCode)
         const allPlugins = PluginRegistry.getAll()
         const customPlugins = allPlugins.filter(p => p.renderCode)
         setPlugins(customPlugins)
     }
+
+    // Load plugins when dialog opens
+    useEffect(() => {
+        if (isOpen) {
+            loadPlugins()
+        }
+    }, [isOpen])
 
     useEffect(() => {
         return () => {

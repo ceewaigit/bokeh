@@ -25,20 +25,19 @@ export interface AssetDetails {
 }
 
 /**
- * Add recording with effects
+ * Add recording to project and create a clip.
+ *
+ * Note: recording-level `recording.effects` is legacy; all effects live on `project.timeline.effects`.
  */
 export function addRecordingToProject(
     project: Project,
     recording: Recording,
-    createEffects: (recording: Recording) => void,
     options?: { trackType?: TrackType }
 ): Clip | null {
     // Add to recordings if not exists
     const exists = project.recordings.find((r) => r.id === recording.id)
     if (!exists) {
         project.recordings.push(recording)
-        // Create default effects for the new recording
-        createEffects(recording)
     }
 
     // Create clip

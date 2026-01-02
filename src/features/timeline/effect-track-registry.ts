@@ -6,7 +6,7 @@
  */
 
 import { EffectType, EffectLayerType } from '@/types/effects'
-import type { Effect, ZoomEffectData, PluginEffectData, AnnotationData } from '@/types/project'
+import type { Effect, PluginEffectData } from '@/types/project'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { screenTrackConfig } from '@/features/screen/config'
 import { zoomTrackConfig } from '@/features/editor/logic/viewport/zoom/config'

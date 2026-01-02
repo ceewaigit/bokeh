@@ -40,7 +40,7 @@ export function getExportStrategy(
   profile: MachineProfile,
   context: ExportContext
 ): WorkerAllocation {
-  const { chunkCount, totalFrames, fps, effectiveMemoryGB, videoSizeEstimateGB = 0 } = context;
+  const { chunkCount, totalFrames, fps, effectiveMemoryGB } = context;
 
   const cpuCores = Math.max(1, profile.cpuCores || 1);
   const totalMemGB = profile.totalMemoryGB || 4;

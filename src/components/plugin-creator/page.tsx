@@ -205,7 +205,6 @@ export function PluginCreator() {
 
 interface ${plugin.id.split('-').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')}Params {
 ${Object.entries(plugin.params || {}).map(([key, def]) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const d = def as any
             return `  ${key}: ${d.type === 'number' ? 'number' : d.type === 'boolean' ? 'boolean' : 'string'}`
         }).join('\n')}

@@ -1,5 +1,5 @@
-import { EffectType, EffectLayerType } from '@/types/effects'
-import type { Effect, ScreenEffectData } from '@/types/project'
+import { EffectLayerType } from '@/types/effects'
+import type { ScreenEffectData } from '@/types/project'
 import { ScreenEffectPreset } from '@/types/project'
 
 // Default screen effect data

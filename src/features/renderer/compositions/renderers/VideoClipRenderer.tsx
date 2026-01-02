@@ -19,7 +19,6 @@ import { msToFrame } from '@/features/renderer/compositions/utils/time/frame-tim
 import { devAssert } from '@/shared/utils/invariant';
 import { useComposition } from '@/features/renderer/context/CompositionContext';
 import { useProjectStore } from '@/features/stores/project-store';
-// import { useFrameSnapshot } from '@/features/renderer/hooks/use-frame-snapshot'; // Removed
 import type { Clip, Recording } from '@/types/project';
 import type { SyntheticEvent } from 'react';
 import { createVideoStreamUrl } from '@/features/recording/components/library/utils/recording-paths';

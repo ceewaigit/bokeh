@@ -542,9 +542,6 @@ export class ProjectIOService {
     project: Project,
     onProgress?: (message: string) => void
   ): Promise<void> {
-    const { EffectsFactory } = await import('@/features/effects/effects-factory')
-
-
     // Load assets (eagerly load metadata to ensure SSOT and persistence)
     for (let i = 0; i < project.recordings.length; i++) {
       const recording = project.recordings[i]
@@ -575,10 +572,6 @@ export class ProjectIOService {
       }
 
       // NOTE: recording.effects is deprecated - all effects live in timeline.effects
-      // The call to createInitialEffectsForRecording is a no-op now, kept for API compatibility
-      if (recording.metadata) {
-        EffectsFactory.createInitialEffectsForRecording(recording)
-      }
 
       // PRE-COMPUTE EFFECT CACHES: Warm up expensive caches during load
       // This eliminates the lag when first rendering cursor/camera effects

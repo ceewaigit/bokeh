@@ -5,7 +5,7 @@
 
 import type { Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
-import type { EffectRenderContext } from '../effect-renderer'
+import type { EffectRenderContext } from '../rendering/renderer'
 
 /**
  * Interface for effect rendering strategies

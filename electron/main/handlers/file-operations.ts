@@ -1,4 +1,4 @@
-import { ipcMain, app, IpcMainInvokeEvent, protocol } from 'electron'
+import { ipcMain, app, IpcMainInvokeEvent } from 'electron'
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { makeVideoSrc } from '../utils/video-url-factory'
@@ -89,7 +89,7 @@ export function registerFileOperationHandlers(): void {
       // Return video-stream URL using our safe encoding utility
       // Use the unified video URL factory for consistency
       return await makeVideoSrc(normalizedPath, 'preview')
-    } catch (error) {
+    } catch {
       return null
     }
   })

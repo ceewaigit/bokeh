@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 import {
-  normalizeWindowSurfaceState,
   type WindowSurfaceMode,
   type WindowSurfacePreset,
   WINDOW_SURFACE_PERSIST_KEY,

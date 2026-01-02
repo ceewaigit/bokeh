@@ -165,6 +165,6 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
         options, isGlowMode,
         drawWidth, drawHeight,
         activeLayoutItem, prevLayoutItem, nextLayoutItem,
-        boundaryState, shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames
+        shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames
     ]);
 }

@@ -177,7 +177,7 @@ class ExportWorker extends BaseWorker {
     }
   }
 
-  protected async onMessage(method: string, data: any): Promise<void> {
+  protected async onMessage(method: string, _data: any): Promise<void> {
     switch (method) {
       case 'cancel':
         await this.cancelExport();
@@ -215,9 +215,6 @@ class ExportWorker extends BaseWorker {
         message: 'Initializing export...'
       });
 
-      // Lazy load Remotion modules
-      const { renderMedia } = await import('@remotion/renderer');
-
       // Use pre-selected composition metadata from main process
       if (!job.compositionMetadata) {
         throw new Error('Composition metadata is required');
@@ -241,8 +238,6 @@ class ExportWorker extends BaseWorker {
       const fps = job.settings.framerate || composition.fps;
       const totalFrames = composition.durationInFrames;
       const durationInSeconds = totalFrames / fps;
-
-      const exportStartTime = Date.now();
       console.log(`[ExportWorker] Starting export: ${totalFrames} frames at ${fps}fps (${durationInSeconds.toFixed(1)}s)`);
 
       // Determine if we need chunked rendering
@@ -303,7 +298,6 @@ class ExportWorker extends BaseWorker {
     const { renderFrames, stitchFramesToVideo, openBrowser } = await import('@remotion/renderer');
     const totalMemGB = os.totalmem() / 1024 / 1024 / 1024;
     const fps = job.settings?.framerate || composition?.fps || 30;
-    const durationSeconds = totalFrames / Math.max(1, fps);
     const width = job.compositionMetadata?.width ?? job.settings?.resolution?.width ?? 1920;
     const height = job.compositionMetadata?.height ?? job.settings?.resolution?.height ?? 1080;
     const is1080pOrLess = width * height <= 1920 * 1080;
@@ -509,7 +503,7 @@ class ExportWorker extends BaseWorker {
     composition: any,
     totalFrames: number,
     chunkSize: number,
-    startTime: number = Date.now(),
+    _startTime: number = Date.now(),
     providedChunks?: ChunkAssignment[],
     combineChunksInWorker: boolean = true
   ): Promise<{ success: boolean; outputPath?: string; error?: string; chunkResults?: Array<{ index: number; path: string }> }> {
@@ -521,7 +515,6 @@ class ExportWorker extends BaseWorker {
 
     const totalMemGB = os.totalmem() / 1024 / 1024 / 1024;
     const fps = job.settings?.framerate || composition?.fps || 30;
-    const durationSeconds = totalFrames / Math.max(1, fps);
     const width = job.compositionMetadata?.width ?? job.settings?.resolution?.width ?? 1920;
     const height = job.compositionMetadata?.height ?? job.settings?.resolution?.height ?? 1080;
     const is1080pOrLess = width * height <= 1920 * 1080;
@@ -580,9 +573,6 @@ class ExportWorker extends BaseWorker {
         console.log(`[ExportWorker] Rendering chunk ${chunkInfo.index + 1}/${totalChunkCount}: frames ${startFrame}-${endFrame}`);
 
         // Calculate time range for this chunk
-        const chunkStartTimeMs = chunkInfo.startTimeMs;
-        const chunkEndTimeMs = chunkInfo.endTimeMs;
-
         // Use pre-filtered metadata if available, otherwise filter on demand
         let chunkInputProps = { ...job.inputProps };
         let filteredMetadata: any = {};
@@ -1183,5 +1173,5 @@ class ExportWorker extends BaseWorker {
 }
 
 // Create and start the worker
-const worker = new ExportWorker();
+new ExportWorker();
 console.log('[ExportWorker] Worker process started');

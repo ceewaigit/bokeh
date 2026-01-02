@@ -70,6 +70,7 @@ interface EditableTextContentProps {
     data: AnnotationData
     context: AnnotationRenderContext
     isEditing: boolean
+    constrainWidth?: boolean
     onContentChange?: (content: string) => void
     onEditComplete?: () => void
 }
@@ -78,15 +79,15 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
     data,
     context,
     isEditing,
+    constrainWidth = false,
     onContentChange,
     onEditComplete,
 }) => {
     const contentRef = useRef<HTMLDivElement>(null)
+    const wasEditingRef = useRef(false)
     const style = data.style ?? {}
 
-    // Camera scale from context (for font sizing during zoom)
-    const cameraScale = context.cameraTransform?.scale ?? 1
-    const effectiveScale = (context.scale ?? 1) * cameraScale
+    const effectiveScale = context.scale ?? 1
 
     const fontSize = (style.fontSize ?? 18) * effectiveScale
     const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
@@ -95,20 +96,29 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
     const bgColor = style.backgroundColor
     const padding = resolvePadding(style.padding) * effectiveScale
     const borderRadius = (style.borderRadius ?? 4) * effectiveScale
+    const textAlign = style.textAlign ?? 'center'
 
-    // Focus on edit start
+    // Initialize + focus on edit start.
+    // Important: keep contentEditable uncontrolled during editing to preserve selection/caret.
     useEffect(() => {
-        if (isEditing && contentRef.current) {
-            contentRef.current.focus()
+        const el = contentRef.current
+        if (isEditing && el) {
+            // Seed the editable DOM once on entry (React will not re-control children while editing).
+            if (!wasEditingRef.current) {
+                el.textContent = data.content ?? 'Text'
+            }
+
+            el.focus()
             // Move cursor to end
             const range = document.createRange()
-            range.selectNodeContents(contentRef.current)
+            range.selectNodeContents(el)
             range.collapse(false)
             const sel = window.getSelection()
             sel?.removeAllRanges()
             sel?.addRange(range)
         }
-    }, [isEditing])
+        wasEditingRef.current = isEditing
+    }, [isEditing, data.content])
 
     const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
         onContentChange?.(e.currentTarget.textContent || '')
@@ -133,12 +143,15 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
     return (
         <div
             ref={contentRef}
+            data-annotation-content="true"
             contentEditable={isEditing}
             suppressContentEditableWarning
             onInput={handleInput}
             onBlur={handleBlur}
             onKeyDown={isEditing ? handleKeyDown : undefined}
             style={{
+                display: constrainWidth ? 'block' : 'inline-block',
+                width: constrainWidth ? '100%' : undefined,
                 fontSize,
                 fontFamily,
                 fontWeight: fontWeight as React.CSSProperties['fontWeight'],
@@ -146,15 +159,20 @@ const EditableTextContent: React.FC<EditableTextContentProps> = memo(({
                 backgroundColor: bgColor,
                 padding: bgColor ? padding : 0,
                 borderRadius: bgColor ? borderRadius : 0,
+                textAlign: constrainWidth ? textAlign : undefined,
                 whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
                 cursor: isEditing ? 'text' : 'inherit',
                 outline: 'none',
                 contain: 'layout style paint',
                 willChange: 'transform',
                 userSelect: isEditing ? 'text' : 'none',
+                // Avoid stealing pointer events when the editor overlay is active.
+                pointerEvents: isEditing ? 'auto' : 'none',
             }}
         >
-            {data.content ?? 'Text'}
+            {/* Intentionally uncontrolled during editing to preserve selection/caret position. */}
+            {!isEditing ? (data.content ?? 'Text') : null}
         </div>
     )
 })
@@ -177,8 +195,7 @@ const KeyboardContent: React.FC<KeyboardContentProps> = memo(({
     const keys = data.keys ?? ['Cmd', 'S']
     const displayLabel = keys.join(' + ')
 
-    const cameraScale = context.cameraTransform?.scale ?? 1
-    const effectiveScale = (context.scale ?? 1) * cameraScale
+    const effectiveScale = context.scale ?? 1
 
     const fontSize = (style.fontSize ?? 16) * effectiveScale
     const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
@@ -192,6 +209,7 @@ const KeyboardContent: React.FC<KeyboardContentProps> = memo(({
 
     return (
         <div
+            data-annotation-content="true"
             style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -231,24 +249,16 @@ const HighlightContent: React.FC<HighlightContentProps> = memo(({
     data,
     context,
 }) => {
-    const style = data.style ?? {}
-
     // Width/height are percentages of video dimensions
     const width = ((data.width ?? 20) / 100) * context.videoWidth
     const height = ((data.height ?? 10) / 100) * context.videoHeight
 
-    const bgColor = style.backgroundColor ?? 'rgba(255, 255, 0, 0.3)'
-    const borderColor = style.borderColor
-    const borderWidth = style.borderWidth ?? 0
-
     return (
         <div
+            data-annotation-content="true"
             style={{
                 width,
                 height,
-                backgroundColor: bgColor,
-                border: borderColor ? `${borderWidth}px solid ${borderColor}` : 'none',
-                borderRadius: style.borderRadius ?? 0,
                 contain: 'layout style paint',
                 willChange: 'transform',
             }}
@@ -306,6 +316,7 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
 
     return (
         <svg
+            data-annotation-content="true"
             style={{
                 width: boxW,
                 height: boxH,
@@ -361,6 +372,9 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
     const { isRendering } = getRemotionEnvironment()
     const position = getComputedPosition(data, context)
     const rotation = data.rotation ?? 0
+    const constrainTextWidth =
+        (data.type === AnnotationType.Text || data.type === AnnotationType.Keyboard) && typeof data.width === 'number'
+    const textWidthPx = constrainTextWidth ? (data.width! / 100) * context.videoWidth : undefined
 
     // Determine if this annotation type supports rotation handle
     const showRotation = data.type !== AnnotationType.Arrow
@@ -418,6 +432,7 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                         data={data}
                         context={context}
                         isEditing={isEditing}
+                        constrainWidth={constrainTextWidth}
                         onContentChange={onContentChange}
                         onEditComplete={onEditComplete}
                     />
@@ -434,6 +449,7 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                         data={data}
                         context={context}
                         isEditing={isEditing}
+                        constrainWidth={constrainTextWidth}
                         onContentChange={onContentChange}
                         onEditComplete={onEditComplete}
                     />
@@ -447,6 +463,8 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
             data-annotation-type={data.type}
             style={{
                 position: 'absolute',
+                display: 'inline-block',
+                width: constrainTextWidth ? textWidthPx : 'fit-content',
                 ...positionStyles,
                 pointerEvents: 'auto',
             }}
@@ -454,8 +472,8 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
             {/* Annotation Content */}
             {renderContent()}
 
-            {/* Selection Box - only in preview mode, when selected */}
-            {isSelected && !isRendering && (
+            {/* Selection Box - only in preview mode, when selected (hidden during inline editing) */}
+            {isSelected && !isRendering && !isEditing && (
                 <SelectionBox
                     showHandles={true}
                     showRotation={showRotation}

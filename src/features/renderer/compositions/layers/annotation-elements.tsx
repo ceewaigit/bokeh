@@ -275,16 +275,28 @@ const ArrowAnnotation = memo<BaseAnnotationProps>(({
         y: percentToPixel(rawEnd.y, context.videoHeight, context.offsetY),
     }
 
-    // Calculate midpoint for rotation origin
-    const midX = (start.x + end.x) / 2
-    const midY = (start.y + end.y) / 2
-
     const color = style.color ?? '#ff0000'
     const strokeWidth = style.strokeWidth ?? 3
     const arrowHeadSize = style.arrowHeadSize ?? 10
 
-    // Calculate bounds for SVG viewBox
+    // Calculate bounding box for the arrow (instead of 100% width/height)
     const padding = Math.max(strokeWidth, arrowHeadSize) + 4
+    const minX = Math.min(start.x, end.x) - padding
+    const minY = Math.min(start.y, end.y) - padding
+    const maxX = Math.max(start.x, end.x) + padding
+    const maxY = Math.max(start.y, end.y) + padding
+    const boxWidth = maxX - minX
+    const boxHeight = maxY - minY
+
+    // Coordinates relative to the bounding box
+    const svgStartX = start.x - minX
+    const svgStartY = start.y - minY
+    const svgEndX = end.x - minX
+    const svgEndY = end.y - minY
+
+    // Calculate midpoint for rotation origin (relative to the box)
+    const midX = boxWidth / 2
+    const midY = boxHeight / 2
 
     return (
         <svg
@@ -292,10 +304,10 @@ const ArrowAnnotation = memo<BaseAnnotationProps>(({
             data-annotation-type="arrow"
             style={{
                 position: 'absolute',
-                left: 0,
-                top: 0,
-                width: '100%',
-                height: '100%',
+                left: minX,
+                top: minY,
+                width: boxWidth,
+                height: boxHeight,
                 overflow: 'visible',
                 pointerEvents: 'none',
                 contain: 'layout style',
@@ -319,10 +331,10 @@ const ArrowAnnotation = memo<BaseAnnotationProps>(({
                 </marker>
             </defs>
             <line
-                x1={start.x}
-                y1={start.y}
-                x2={end.x}
-                y2={end.y}
+                x1={svgStartX}
+                y1={svgStartY}
+                x2={svgEndX}
+                y2={svgEndY}
                 stroke={color}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"

@@ -11,9 +11,11 @@
  *
  */
 
-import React, { useCallback, useState, useEffect, useMemo } from 'react'
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import { Stage, Layer, Rect } from 'react-konva'
 import { useProjectStore } from '@/features/stores/project-store'
+import { useWorkspaceStore } from '@/features/stores/workspace-store'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { useShallow } from 'zustand/react/shallow'
 import { cn } from '@/shared/utils/utils'
 import type { Project, Clip } from '@/types/project'
@@ -121,6 +123,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const {
     stageWidth,
     stageHeight,
+    totalContentHeight,
     timelineWidth,
     containerWidth,
     duration,
@@ -161,6 +164,8 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     allIdlePeriods: SpeedUpPeriod[]
     clipId: string
   } | null>(null)
+  const [isScrolling, setIsScrolling] = useState(false)
+  const isScrollingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Theming
@@ -372,6 +377,10 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     return () => container.removeEventListener('wheel', handleWheel)
   }, [scrollContainerRef])
 
+  // Sidebar state for auto-open on clip selection
+  const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
+  const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
+
   // ─────────────────────────────────────────────────────────────────────────
   // Event handlers
   // ─────────────────────────────────────────────────────────────────────────
@@ -381,8 +390,12 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     } else {
       selectClip(clipId)
       onClipSelect?.(clipId)
+      // Auto-open sidebar when selecting a clip
+      if (!isPropertiesOpen) {
+        toggleProperties()
+      }
     }
-  }, [selectClip, onClipSelect, selectedClips, clearSelection])
+  }, [selectClip, onClipSelect, selectedClips, clearSelection, isPropertiesOpen, toggleProperties])
 
   const handleClipContextMenu = useCallback((e: { evt: { clientX: number; clientY: number } }, clipId: string) => {
     selectClip(clipId)
@@ -510,9 +523,23 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 
           <div
             ref={scrollContainerRef}
-            className="flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-auto"
+            className={cn(
+              "flex-1 overflow-x-auto overflow-y-auto relative bg-transparent select-none outline-none focus:outline-none timeline-container scrollbar-smart",
+              isScrolling && "is-scrolling"
+            )}
             tabIndex={0}
-            onScroll={onScroll}
+            onScroll={(e) => {
+              onScroll(e)
+
+              // Handle scrollbar visibility
+              setIsScrolling(true)
+              if (isScrollingTimeoutRef.current) {
+                clearTimeout(isScrollingTimeoutRef.current)
+              }
+              isScrollingTimeoutRef.current = setTimeout(() => {
+                setIsScrolling(false)
+              }, 1000)
+            }}
             onMouseLeave={() => scheduleHoverUpdate(null)}
             onMouseDown={() => scrollContainerRef.current?.focus()}
             onDragOver={assetDragDrop.handlers.onDragOver}
@@ -529,7 +556,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
             <Stage
               key={themeKey}
               width={stageWidth}
-              height={stageHeight}
+              height={Math.max(stageHeight, totalContentHeight)}
               onMouseDown={handleStageScrubStart}
               onTouchStart={handleStageScrubStart}
               onMouseUp={handleScrubEnd}
@@ -539,8 +566,17 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                 const stage = e.target.getStage()
                 const pointerPos = stage?.getPointerPosition()
                 if (!pointerPos) return
-                const time = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
-                scheduleHoverUpdate(time)
+                const rawTime = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
+                if (rawTime === null) return
+
+                // CLAMP FIX: Target the CENTER of the last frame to ensure we hit a valid frame index.
+                // Using 1ms can still fall on a boundary due to rounding.
+                const fps = TimelineDataService.getFps(currentProject)
+                const frameDuration = 1000 / fps
+                const safeEndTime = Math.max(0, currentProject.timeline.duration - (frameDuration * 0.5))
+
+                const clampedTime = Math.max(0, Math.min(rawTime, safeEndTime))
+                scheduleHoverUpdate(clampedTime)
               }}
               onTouchMove={(e) => handleScrubMove(e)}
               style={{
@@ -556,7 +592,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                   x={0}
                   y={0}
                   width={stageWidth}
-                  height={stageHeight}
+                  height={Math.max(stageHeight, totalContentHeight)} // Expand background to fit content
                   fill={colors.background}
                   opacity={0} // Using container bg instead
                   name="timeline-background"

@@ -5,7 +5,7 @@ import { useRecordingSessionStore } from '@/features/recording/store/session-sto
 import { useDeviceStore } from '@/features/stores/device-store'
 import { formatTime, cn } from '@/shared/utils/utils'
 import { logger } from '@/shared/utils/logger'
-import { setDefaultWallpaper, initializeDefaultWallpaper } from '@/features/background'
+import { initializeDefaultWallpaper } from '@/features/background'
 import { createAreaSourceId } from '@/features/recording/logic/area-source-parser'
 import { RecordingSourceType } from '@/types/project'
 import { AudioInput } from '@/types'

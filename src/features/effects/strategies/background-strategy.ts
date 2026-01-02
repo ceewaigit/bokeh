@@ -4,7 +4,7 @@
 
 import type { Effect, BackgroundEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
-import type { EffectRenderContext } from '../effect-renderer'
+import type { EffectRenderContext } from '../rendering/renderer'
 import type { IEffectStrategy } from './index'
 import { calculateBackgroundStyle, applyGradientToCanvas } from '@/features/background/logic/calculator'
 

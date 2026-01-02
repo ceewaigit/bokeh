@@ -13,7 +13,7 @@
  *   })
  *   
  *   // Start drag with initial data
- *   startDrag(e, 'move', { x: 50, y: 50 })
+ *   startDrag({ startX: e.clientX, startY: e.clientY, type: 'move', initialValue: { x: 50, y: 50 } })
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -49,7 +49,14 @@ export interface UseCanvasDragReturn<T = unknown> {
     /** Current drag type (move or resize handle) */
     dragType: DragType | null
     /** Start a drag operation with optional initial value */
-    startDrag: (e: React.MouseEvent, type: DragType, initialValue?: T) => void
+    startDrag: (options: {
+        startX: number
+        startY: number
+        type: DragType
+        initialValue?: T
+        /** Minimum movement in pixels before drag activates (prevents click-vs-drag conflicts). */
+        activationDistance?: number
+    }) => void
     /** Current drag delta from start (pixels) */
     dragDelta: CanvasDragDelta
     /** Initial value passed when drag started */
@@ -62,10 +69,13 @@ export function useCanvasDrag<T = unknown>(
     const { onDrag, onDragEnd } = options
 
     const [isDragging, setIsDragging] = useState(false)
+    const [isPending, setIsPending] = useState(false)
     const [dragType, setDragType] = useState<DragType | null>(null)
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
     const [dragDelta, setDragDelta] = useState<CanvasDragDelta>({ x: 0, y: 0 })
     const [initialValue, setInitialValue] = useState<T | null>(null)
+    const activationDistanceRef = useRef(0)
+    const didDragRef = useRef(false)
 
     // Refs for stable callbacks
     const onDragRef = useRef(onDrag)
@@ -80,26 +90,50 @@ export function useCanvasDrag<T = unknown>(
                 x: e.clientX - dragStart.x,
                 y: e.clientY - dragStart.y,
             }
+
+            // Pending -> Dragging threshold
+            let draggingNow = isDragging
+            if (isPending) {
+                const dist = Math.hypot(delta.x, delta.y)
+                if (dist < activationDistanceRef.current) {
+                    return
+                }
+                setIsPending(false)
+                setIsDragging(true)
+                didDragRef.current = true
+                // Prevent text selection once drag activates
+                e.preventDefault?.()
+                draggingNow = true
+            }
+
+            if (!draggingNow) return
+
             setDragDelta(delta)
             if (onDragRef.current && dragType) {
                 onDragRef.current(delta, dragType, initialValueRef.current)
             }
         },
-        [dragStart.x, dragStart.y, dragType]
+        [dragStart.x, dragStart.y, dragType, isPending, isDragging]
     )
 
     const handleMouseUp = useCallback(() => {
+        if (!isDragging && !isPending) return
+        const didDrag = didDragRef.current
         setIsDragging(false)
+        setIsPending(false)
         setDragType(null)
         setDragDelta({ x: 0, y: 0 })
         setInitialValue(null)
         initialValueRef.current = null
-        onDragEndRef.current?.()
-    }, [])
+        didDragRef.current = false
+        if (didDrag) {
+            onDragEndRef.current?.()
+        }
+    }, [isDragging, isPending])
 
     // Global mouse event listeners
     useEffect(() => {
-        if (isDragging) {
+        if (isDragging || isPending) {
             window.addEventListener('pointermove', handleMouseMove)
             window.addEventListener('pointerup', handleMouseUp)
             return () => {
@@ -107,16 +141,24 @@ export function useCanvasDrag<T = unknown>(
                 window.removeEventListener('pointerup', handleMouseUp)
             }
         }
-    }, [isDragging, handleMouseMove, handleMouseUp])
+    }, [isDragging, isPending, handleMouseMove, handleMouseUp])
 
-    const startDrag = useCallback((e: React.MouseEvent, type: DragType, initial?: T) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsDragging(true)
-        setDragType(type)
-        setDragStart({ x: e.clientX, y: e.clientY })
+    const startDrag = useCallback((params: {
+        startX: number
+        startY: number
+        type: DragType
+        initialValue?: T
+        activationDistance?: number
+    }) => {
+        const activationDistance = params.activationDistance ?? 0
+        activationDistanceRef.current = Math.max(0, activationDistance)
+        setIsPending(activationDistanceRef.current > 0)
+        setIsDragging(activationDistanceRef.current === 0)
+        didDragRef.current = activationDistanceRef.current === 0
+        setDragType(params.type)
+        setDragStart({ x: params.startX, y: params.startY })
         setDragDelta({ x: 0, y: 0 })
-        const value = initial ?? null
+        const value = params.initialValue ?? null
         setInitialValue(value)
         initialValueRef.current = value
     }, [])
@@ -201,4 +243,3 @@ export function applyResizeDelta(
 
     return result
 }
-

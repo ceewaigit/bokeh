@@ -13,6 +13,7 @@ import { Rect, Group, Text } from 'react-konva'
 import { TimelineEffectBlock } from '../timeline-effect-block'
 import { useTimelineLayout } from '../timeline-layout-provider'
 import { useProjectStore } from '@/features/stores/project-store'
+import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { EffectStore } from '@/features/effects/core/store'
 import { getWebcamEffects } from '@/features/effects/core/filters'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
@@ -48,6 +49,10 @@ export function TimelineWebcamTrack() {
 
   const colors = useTimelineColors()
   const [isHovering, setIsHovering] = useState(false)
+
+  // Sidebar state for auto-open on selection
+  const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
+  const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
 
   // Get all webcam effects from the project
   const timelineEffects = useMemo(
@@ -151,6 +156,10 @@ export function TimelineWebcamTrack() {
                 clearEffectSelection()
               } else {
                 selectEffectLayer(EffectLayerType.Webcam, effect.id)
+                // Auto-open sidebar when selecting a webcam effect
+                if (!isPropertiesOpen) {
+                  toggleProperties()
+                }
               }
               requestAnimationFrame(() => {
                 // Focus container so keyboard shortcuts work immediately

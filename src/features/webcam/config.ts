@@ -1,5 +1,4 @@
 import { DEFAULT_CROP_DATA } from '@/features/canvas/math/transforms/crop-transform'
-import { getZoomTransformString } from '@/features/canvas/math/transforms/zoom-transform'
 import type { WebcamEffectData } from '@/types/project'
 
 // Default webcam effect data - Apple-quality PiP styling

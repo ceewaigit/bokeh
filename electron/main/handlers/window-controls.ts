@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, app, desktopCapturer, systemPreferences } from 'electron'
+import { ipcMain, BrowserWindow, IpcMainInvokeEvent, app, desktopCapturer } from 'electron'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { createMainWindow } from '../windows/main-window'

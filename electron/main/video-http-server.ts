@@ -40,7 +40,6 @@ const hostGuard = (req: express.Request, res: express.Response, next: express.Ne
  * Middleware to check bearer token authentication
  */
 const tokenAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const authHeader = req.headers.authorization;
   const token = req.params.token;
   
   const entry = TOKENS.get(token);

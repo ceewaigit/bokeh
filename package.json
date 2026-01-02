@@ -15,7 +15,7 @@
     "build-only": "next build",
     "fix-paths": "node scripts/fix-production-paths.js",
     "start": "next start",
-    "lint": "next lint .",
+    "lint": "eslint .",
     "build:electron": "tsc -p electron/tsconfig.json",
     "electron": "npm run build:electron && NODE_OPTIONS='--max-old-space-size=2048' electron .",
     "electron-dev": "concurrently \"NODE_ENV=development npm run dev\" \"npm run build:electron && NODE_OPTIONS='--max-old-space-size=2048' node scripts/wait-for-next.js\"",

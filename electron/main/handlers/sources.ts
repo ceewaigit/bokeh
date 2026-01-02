@@ -2,7 +2,6 @@ import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, scr
 import { exec, execSync } from 'child_process'
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import { promisify } from 'util'
 import * as crypto from 'crypto'
 
 const WALLPAPER_EXTS = new Set(['.heic', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.gif', '.webp'])
@@ -241,10 +240,7 @@ export function registerSourceHandlers(): void {
         const { getWindowBoundsForSource, getAllWindowBounds } = await import('../native/window-bounds')
 
         // Get all visible windows from native API (uses .optionOnScreenOnly)
-        const visibleWindows = await getAllWindowBounds()
-        const visibleWindowNames = new Set(visibleWindows.map(w => w.name))
-        const visibleOwnerNames = new Set(visibleWindows.map(w => w.ownerName))
-
+        await getAllWindowBounds()
         // Get all displays for enhanced information
         const displays = screen.getAllDisplays()
         const primaryDisplay = screen.getPrimaryDisplay()

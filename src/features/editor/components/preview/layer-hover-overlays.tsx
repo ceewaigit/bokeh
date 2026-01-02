@@ -1,7 +1,7 @@
 import React from 'react';
 import { AnnotationType } from '@/types/project';
 
-export type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | 'annotation' | null;
+export type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | 'annotation' | 'video' | null;
 
 export interface CursorOverlayData {
     left: number;
@@ -18,6 +18,16 @@ export interface WebcamOverlayData {
     y: number;
     width: number;
     height: number;
+    borderRadius?: string;
+}
+
+export interface VideoOverlayData {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    borderRadius?: string;
+    clipPath?: string;
 }
 
 export interface AnnotationOverlayData {
@@ -34,10 +44,13 @@ interface LayerHoverOverlaysProps {
     cursorOverlay: CursorOverlayData | null;
     webcamOverlay: WebcamOverlayData | null;
     annotationOverlay: AnnotationOverlayData | null;
+    videoOverlay?: VideoOverlayData | null;
+    backgroundOverlay?: VideoOverlayData | null; // Reusing VideoOverlayData structure (x,y,w,h)
     canSelectBackground: boolean;
     canSelectCursor: boolean;
     canSelectWebcam: boolean;
     canSelectAnnotation: boolean;
+    canSelectVideo?: boolean;
     containerWidth?: number;
     containerHeight?: number;
     /** Hide annotation hover overlay when this annotation is already selected */
@@ -74,16 +87,29 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
     cursorOverlay,
     webcamOverlay,
     annotationOverlay,
+    videoOverlay,
     canSelectBackground,
     canSelectAnnotation,
     selectedAnnotationId,
+    canSelectVideo = false,
+    backgroundOverlay, // New prop
 }) => {
     return (
         <>
             {/* Background layer hover hint */}
             {hoveredLayer === 'background' && canSelectBackground && (
-                <div className="pointer-events-none absolute inset-0 z-20 opacity-100 transition-opacity duration-150 ease-out">
-                    <div className="absolute inset-0 rounded-2xl bg-white/5 border border-white/15" />
+                <div className="pointer-events-none absolute z-20 overflow-hidden"
+                    style={backgroundOverlay ? {
+                        left: `${backgroundOverlay.x}px`,
+                        top: `${backgroundOverlay.y}px`,
+                        width: `${backgroundOverlay.width}px`,
+                        height: `${backgroundOverlay.height}px`,
+                    } : {
+                        inset: 0
+                    }}
+                >
+                    {/* Inner content */}
+                    <div className={backgroundOverlay ? "absolute inset-0 rounded-lg bg-white/5 border border-white/15" : "absolute inset-0 rounded-2xl bg-white/5 border border-white/15"} />
                     <div className="absolute left-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80">
                         Background
                     </div>
@@ -94,12 +120,13 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
             {hoveredLayer === 'webcam' && webcamOverlay && (
                 <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
                     <div
-                        className="absolute rounded-[22px] bg-white/5 border border-white/30 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+                        className="absolute bg-white/5 border border-white/30 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
                         style={{
                             left: `${webcamOverlay.x}px`,
                             top: `${webcamOverlay.y}px`,
                             width: `${webcamOverlay.width}px`,
                             height: `${webcamOverlay.height}px`,
+                            borderRadius: webcamOverlay.borderRadius ?? '22px',
                         }}
                     />
                     <div
@@ -151,25 +178,52 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
             {/* Annotation layer hover hint - uses bounds from DOM query */}
             {/* Hide when annotation is already selected (SelectionBox handles it) */}
             {hoveredLayer === 'annotation' && annotationOverlay && canSelectAnnotation &&
-             annotationOverlay.id !== selectedAnnotationId && (
+                annotationOverlay.id !== selectedAnnotationId && (
+                    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+                        <div
+                            className="absolute rounded-md bg-white/5 border border-primary/40 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+                            style={{
+                                left: `${annotationOverlay.x}px`,
+                                top: `${annotationOverlay.y}px`,
+                                width: `${annotationOverlay.width}px`,
+                                height: `${annotationOverlay.height}px`,
+                            }}
+                        />
+                        <div
+                            className="absolute rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
+                            style={{
+                                left: `${Math.max(12, annotationOverlay.x)}px`,
+                                top: `${Math.max(12, annotationOverlay.y - 24)}px`,
+                            }}
+                        >
+                            {getAnnotationLabel(annotationOverlay.type)}
+                        </div>
+                    </div>
+                )}
+            {/* Video layer hover hint */}
+            {hoveredLayer === 'video' && videoOverlay && canSelectVideo && (
                 <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+                    {/* Border around the video content */}
                     <div
-                        className="absolute rounded-md bg-white/5 border border-primary/40 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+                        className="absolute bg-white/5 border border-white/20 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
                         style={{
-                            left: `${annotationOverlay.x}px`,
-                            top: `${annotationOverlay.y}px`,
-                            width: `${annotationOverlay.width}px`,
-                            height: `${annotationOverlay.height}px`,
+                            left: `${videoOverlay.x}px`,
+                            top: `${videoOverlay.y}px`,
+                            width: `${videoOverlay.width}px`,
+                            height: `${videoOverlay.height}px`,
+                            borderRadius: videoOverlay.borderRadius ?? '12px',
+                            clipPath: videoOverlay.clipPath || undefined,
                         }}
                     />
+                    {/* Label */}
                     <div
                         className="absolute rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
                         style={{
-                            left: `${Math.max(12, annotationOverlay.x)}px`,
-                            top: `${Math.max(12, annotationOverlay.y - 24)}px`,
+                            left: `${Math.max(12, videoOverlay.x + 12)}px`,
+                            top: `${Math.max(12, videoOverlay.y + 12)}px`,
                         }}
                     >
-                        {getAnnotationLabel(annotationOverlay.type)}
+                        Video
                     </div>
                 </div>
             )}

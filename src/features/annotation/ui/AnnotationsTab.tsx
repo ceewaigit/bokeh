@@ -10,7 +10,7 @@ import { EffectStore } from '@/features/effects/core/store'
 import { DEFAULT_KEYBOARD_KEYS, getDefaultAnnotationSize } from '../config'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
-import { Type, ArrowRight, Highlighter, Keyboard, Trash2 } from 'lucide-react'
+import { Type, ArrowRight, Highlighter, Keyboard, Trash2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
 
 interface AnnotationsTabProps {
   selectedAnnotation?: Effect
@@ -86,7 +86,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
         style: {
           color: '#ffffff',
           fontSize: 18,
-          backgroundColor: type === AnnotationType.Highlight ? 'rgba(255, 255, 0, 0.3)' : undefined,
+          textAlign: type === AnnotationType.Text ? 'center' : undefined,
         },
       } satisfies AnnotationData,
     }
@@ -101,6 +101,13 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
     const currentData = selectedAnnotation.data as AnnotationData
     const newData: AnnotationData = { ...currentData, content }
     updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
+  }, [selectedAnnotation, updateEffect])
+
+  const handleUpdateTextAlign = useCallback((textAlign: 'left' | 'center' | 'right') => {
+    if (!selectedAnnotation) return
+    const currentData = selectedAnnotation.data as AnnotationData
+    const newStyle = { ...currentData.style, textAlign }
+    updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
   }, [selectedAnnotation, updateEffect])
 
   // Update annotation position
@@ -249,6 +256,42 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
           {/* Typography Settings */}
           {(selectedData.type === AnnotationType.Text || selectedData.type === AnnotationType.Keyboard) && (
             <div className="space-y-3 pt-2 border-t border-border/50">
+              {selectedData.type === AnnotationType.Text && (
+                <div className="space-y-1.5">
+                  <label className="text-2xs font-medium text-muted-foreground">
+                    Alignment
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={(selectedData.style?.textAlign ?? 'center') === 'left' ? 'secondary' : 'ghost'}
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleUpdateTextAlign('left')}
+                    >
+                      <AlignLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={(selectedData.style?.textAlign ?? 'center') === 'center' ? 'secondary' : 'ghost'}
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleUpdateTextAlign('center')}
+                    >
+                      <AlignCenter className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={(selectedData.style?.textAlign ?? 'center') === 'right' ? 'secondary' : 'ghost'}
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleUpdateTextAlign('right')}
+                    >
+                      <AlignRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-2xs font-medium text-muted-foreground">
                   Font Family

@@ -2,7 +2,6 @@
 
 import React, { useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { rotatePointAroundAnchor } from '@/features/canvas/math/coordinates'
 import { Check, RotateCcw } from 'lucide-react'
 import type { CropEffectData } from '@/types/project'
 import { clampCropData } from '@/features/canvas/math/transforms/crop-transform'
@@ -113,7 +112,13 @@ export function CropOverlay({
   })
 
   const handleMouseDown = (e: React.MouseEvent, type: DragType) => {
-    startDrag(e, type, cropData)
+    startDrag({
+      startX: e.clientX,
+      startY: e.clientY,
+      type,
+      initialValue: cropData,
+      activationDistance: 0,
+    })
   }
 
   // Render a drag handle

@@ -20,7 +20,6 @@ import {
   type VideoRect
 } from '@/features/canvas/math/coordinates'
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout'
-import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, CursorType } from '@/features/cursor/store/cursor-types'
 
 export type HandlePosition =
   | 'top-left'

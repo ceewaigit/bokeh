@@ -1,4 +1,4 @@
-import { EffectType, EffectLayerType } from '@/types/effects'
+import { EffectLayerType } from '@/types/effects'
 import type { Effect, ZoomEffectData } from '@/types/project'
 import { ZoomFollowStrategy } from '@/types/project'
 

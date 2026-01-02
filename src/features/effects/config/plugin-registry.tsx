@@ -138,7 +138,6 @@ class PluginRegistryClass {
 
                             p.render = (props: PluginRenderProps) => {
                                 const { params, frame, width, height } = props
-                                // eslint-disable-next-line @typescript-eslint/no-require-imports
                                 const React = require('react')
                                 const sandboxPrelude = `
                                     'use strict';

@@ -2,20 +2,25 @@
 
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react'
 import { useProjectStore } from '@/features/stores/project-store'
-import type { TimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata'
 import { useCanvasDrag, type DragType, type CanvasDragDelta } from '@/features/editor/hooks/use-canvas-drag'
 import { hitTestEffects, type HandlePosition } from '@/features/editor/logic/hit-testing'
+import { hitTestAnnotationsFromPoint } from '@/features/editor/logic/dom-hit-testing'
 import {
     deltaToPercent,
     clampPosition,
     clampPoint,
-    getElementBounds,
-    pixelsToPercent,
     type CameraTransform
 } from '@/features/canvas/math/coordinates'
+import {
+    containerPointToVideoPoint,
+    getVideoRectFromSnapshot,
+    percentToVideoPoint,
+    videoDeltaToPercentDelta,
+    videoPointToContainerPoint,
+    type Point
+} from '@/features/editor/logic/preview-point-transforms'
 import type { FrameSnapshot } from '@/features/renderer/engine/layout-engine'
-import { EffectType, AnnotationType, type Project, type Effect, type AnnotationData } from '@/types/project'
-import { type AnnotationRenderContext } from '@/features/renderer/compositions/layers/annotation-elements'
+import { EffectType, AnnotationType, type Effect, type AnnotationData } from '@/types/project'
 import { useAnnotationEditContext } from '@/features/editor/context/AnnotationEditContext'
 
 /**
@@ -44,22 +49,39 @@ function calculateRotationFromDrag(
     return newRotation
 }
 
+function getCursorForHandle(handle: HandlePosition): string {
+    switch (handle) {
+        case 'top-left':
+        case 'bottom-right':
+            return 'nwse-resize'
+        case 'top-right':
+        case 'bottom-left':
+            return 'nesw-resize'
+        case 'top':
+        case 'bottom':
+            return 'ns-resize'
+        case 'left':
+        case 'right':
+            return 'ew-resize'
+        case 'rotate':
+            return 'grab'
+        default:
+            return 'default'
+    }
+}
+
 // Types
 export type InteractionMode = 'IDLE' | 'DRAGGING' | 'RESIZING' | 'ROTATING' | 'EDITING'
 
 interface InteractionLayerProps {
-    project: Project
     effects: Effect[]
     snapshot: FrameSnapshot
-    timelineMetadata: TimelineMetadata
     currentTimeMs: number
 }
 
 export const InteractionLayer: React.FC<InteractionLayerProps> = ({
-    project,
     effects,
     snapshot,
-    timelineMetadata,
     currentTimeMs
 }) => {
     // --- Stores & Context ---
@@ -81,6 +103,8 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     // --- State ---
     const [mode, setMode] = useState<InteractionMode>('IDLE')
     const shiftKeyRef = useRef(false)
+    const lastCursorRef = useRef<string>('default')
+    const didJustDragRef = useRef(false) // Tracks if drag just ended to prevent click-after-drag from deselecting
 
     // Track Shift key for rotation snapping
     useEffect(() => {
@@ -99,12 +123,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     }, [])
 
     // --- Derived ---
-    const videoRect = useMemo(() => ({
-        x: snapshot.layout.offsetX,
-        y: snapshot.layout.offsetY,
-        width: snapshot.layout.drawWidth,
-        height: snapshot.layout.drawHeight,
-    }), [snapshot.layout])
+    const videoRect = useMemo(() => getVideoRectFromSnapshot(snapshot), [snapshot])
 
     const selectedEffect = useMemo(() => {
         if (!selectedEffectLayer) return null
@@ -156,6 +175,10 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         })
     }, [effects, currentTimeMs, transientState])
 
+    const interactablePlugins = useMemo(() => {
+        return interactableEffects.filter((effect) => effect.type === EffectType.Plugin)
+    }, [interactableEffects])
+
     // Extract camera transform from snapshot
     const cameraTransform: CameraTransform | null = useMemo(() => {
         if (!snapshot.camera.zoomTransform) return null
@@ -169,39 +192,59 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         }
     }, [snapshot.camera.zoomTransform])
 
-    const renderContext = useMemo<AnnotationRenderContext>(() => {
-        // Calculate scale relative to original project dimensions
-        const originalWidth = timelineMetadata.width || 1920
-        const scale = videoRect.width / originalWidth
-
-        return {
-            videoWidth: videoRect.width,
-            videoHeight: videoRect.height,
-            offsetX: videoRect.x,
-            offsetY: videoRect.y,
-            scale,
-            cameraTransform: cameraTransform ?? undefined
-        }
-    }, [videoRect, timelineMetadata, cameraTransform])
-
     // --- Helpers ---
     const pendingUpdateRef = useRef<any>(null)
+    const setOverlayCursor = useCallback((next: string) => {
+        const el = overlayRef.current
+        if (!el) return
+        if (lastCursorRef.current === next) return
+        lastCursorRef.current = next
+        el.style.cursor = next
+    }, [])
 
     // --- Drag Handlers (Defined BEFORE useCanvasDrag) ---
 
     const onDrag = useCallback((delta: CanvasDragDelta, type: DragType, initial: any) => {
+        if (mode === 'IDLE') {
+            if (type === 'move') setMode('DRAGGING')
+            else if (type === 'rotate') setMode('ROTATING')
+            else setMode('RESIZING')
+        }
+
         // Handle visual updates (Transient State)
         if (!selectedEffect || !initial) return
         if (!initial.data) return
 
-        // IMPORTANT: Adjust delta by camera scale for correct drag behavior when zoomed
-        // When zoomed in 2x, a 10px mouse movement should move the annotation 5px in source space
-        const cameraScale = cameraTransform?.scale ?? 1
-        const adjustedDelta = {
-            x: delta.x / cameraScale,
-            y: delta.y / cameraScale
+        let videoDeltaPx: Point = { x: delta.x, y: delta.y }
+        let percentDelta: Point = { x: 0, y: 0 }
+
+        // For annotations (rendered inside the transformed video container), convert pointer movement
+        // into untransformed video-local deltas by inverting the renderer's combined transform.
+        if (initial.kind === 'annotation' && initial.startContainer && initial.startVideoPoint) {
+            const startContainer = initial.startContainer as Point
+            const startVideoPoint = initial.startVideoPoint as Point
+            const currentContainer: Point = {
+                x: startContainer.x + delta.x,
+                y: startContainer.y + delta.y
+            }
+
+            const currentVideoPoint = containerPointToVideoPoint(currentContainer, snapshot)
+            videoDeltaPx = {
+                x: currentVideoPoint.x - startVideoPoint.x,
+                y: currentVideoPoint.y - startVideoPoint.y
+            }
+            percentDelta = videoDeltaToPercentDelta(videoDeltaPx, snapshot)
+        } else {
+            // Plugins use legacy math hit-testing/drag behavior for now.
+            // IMPORTANT: Adjust delta by camera scale for correct behavior when zoomed.
+            const cameraScale = cameraTransform?.scale ?? 1
+            const adjustedDelta = {
+                x: delta.x / cameraScale,
+                y: delta.y / cameraScale
+            }
+            videoDeltaPx = adjustedDelta
+            percentDelta = deltaToPercent(adjustedDelta.x, adjustedDelta.y, videoRect)
         }
-        const percentDelta = deltaToPercent(adjustedDelta.x, adjustedDelta.y, videoRect)
         let newData: any = null
 
         if (initial.kind === 'annotation') {
@@ -332,34 +375,56 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
                     const dir = RESIZE_DIRS[type] || { x: 0, y: 0 }
                     const isSideHandle = dir.y === 0 && dir.x !== 0
+                    const isCornerHandle = dir.x !== 0 && dir.y !== 0
+
+                    const basePosition = base.position ?? { x: 50, y: 50 }
+                    const startBounds = (initial as any).startBounds as { width: number; height: number } | null | undefined
+                    const fallbackWidthPx = Math.max(60, startBounds?.width ?? initialFontSize * 6)
+                    const fallbackHeightPx = Math.max(16, startBounds?.height ?? initialFontSize * 1.4)
 
                     if (isSideHandle) {
                         // WIDTH RESIZE
-                        const currentWidthPx = (safeWidth / 100) * videoRect.width
-                        const deltaPx = delta.x * (type === 'left' ? -1 : 1)
-                        const newWidthPx = Math.max(40, currentWidthPx + deltaPx)
+                        const currentWidthPx =
+                            typeof base.width === 'number' ? (base.width / 100) * videoRect.width : fallbackWidthPx
+                        const edgeDeltaPx = videoDeltaPx.x
+                        const newWidthPx = Math.max(40, currentWidthPx + edgeDeltaPx * dir.x)
 
                         const newWidthPercent = (newWidthPx / videoRect.width) * 100
-                        const newXPercent = type === 'left' ? base.position!.x + percentDelta.x : base.position!.x
+                        // Text is center-anchored: edge drags shift center by half the edge movement.
+                        const nextCenter = clampPoint({
+                            x: basePosition.x + percentDelta.x / 2,
+                            y: basePosition.y
+                        })
 
                         newData = {
-                            position: { ...base.position, x: newXPercent },
+                            position: { ...basePosition, x: nextCenter.x },
                             width: newWidthPercent
                         }
                     } else {
-                        // FONT SCALE
-                        let deltaH = 0
-                        if (dir.y !== 0) {
-                            deltaH = percentDelta.y * dir.y
-                        }
+                        // FONT SCALE (Canva-like): corners scale text; top/bottom also scale font size.
+                        const basisPx = fallbackHeightPx
+                        const deltaPx = isCornerHandle
+                            ? (videoDeltaPx.x * dir.x + videoDeltaPx.y * dir.y) / Math.sqrt(2)
+                            : videoDeltaPx.y * dir.y
 
-                        const pixelHeight = (safeHeight / 100) * videoRect.height
-                        const pixelDelta = (deltaH / 100) * videoRect.height
-
-                        if (pixelHeight + pixelDelta >= 10) {
-                            const ratio = (pixelHeight + pixelDelta) / pixelHeight
+                        if (basisPx + deltaPx >= 10) {
+                            const ratio = (basisPx + deltaPx) / basisPx
                             const newFontSize = Math.max(8, Math.min(300, initialFontSize * ratio))
+
+                            const maybeWidth =
+                                isCornerHandle
+                                    ? (() => {
+                                        const currentWidthPx =
+                                            typeof base.width === 'number'
+                                                ? (base.width / 100) * videoRect.width
+                                                : fallbackWidthPx
+                                        const newWidthPx = Math.max(40, currentWidthPx * ratio)
+                                        return { width: (newWidthPx / videoRect.width) * 100 }
+                                    })()
+                                    : null
+
                             newData = {
+                                ...(maybeWidth ?? null),
                                 style: { ...base.style, fontSize: newFontSize }
                             }
                         }
@@ -409,7 +474,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             setTransientState(selectedEffect.id, newData)
         }
 
-    }, [selectedEffect, videoRect, setTransientState, cameraTransform])
+    }, [mode, selectedEffect, snapshot, videoRect, setTransientState, cameraTransform])
 
     const onDragEnd = useCallback(() => {
         setMode('IDLE')
@@ -418,6 +483,11 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             pendingUpdateRef.current = null
         }
         setTransientState(null)
+        // Mark that drag just ended - prevents click event from deselecting the annotation
+        didJustDragRef.current = true
+        requestAnimationFrame(() => {
+            didJustDragRef.current = false
+        })
     }, [selectedEffectLayer, updateEffect, setTransientState])
 
     // --- Hook Usage (Must be after handlers) --- 
@@ -425,6 +495,59 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         onDrag,
         onDragEnd
     })
+
+    const handlePointerMove = useCallback((e: React.PointerEvent) => {
+        if (!canInteract) return
+
+        // Keep cursor stable during active gestures.
+        if (mode === 'DRAGGING') {
+            setOverlayCursor('grabbing')
+            return
+        }
+        if (mode === 'ROTATING') {
+            setOverlayCursor('grabbing')
+            return
+        }
+
+        const overlayElement = overlayRef.current
+        if (!overlayElement) return
+
+        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
+            ignoreElement: overlayElement
+        })
+
+        if (domHit?.kind === 'handle') {
+            setOverlayCursor(getCursorForHandle(domHit.handle))
+            return
+        }
+
+        if (domHit?.kind === 'annotation') {
+            setOverlayCursor('move')
+            return
+        }
+
+        // Plugin hover (legacy math hit test)
+        const rect = overlayElement.getBoundingClientRect()
+        const mouseX = e.clientX - rect.left
+        const mouseY = e.clientY - rect.top
+        const hit = hitTestEffects(mouseX, mouseY, interactablePlugins, snapshot, selectedEffect?.id ?? null)
+
+        if (hit?.hitType === 'handle' && hit.handlePosition) {
+            setOverlayCursor(getCursorForHandle(hit.handlePosition as HandlePosition))
+            return
+        }
+
+        if (hit?.hitType === 'body') {
+            setOverlayCursor('move')
+            return
+        }
+
+        setOverlayCursor('default')
+    }, [canInteract, interactablePlugins, mode, selectedEffect?.id, setOverlayCursor, snapshot])
+
+    const handlePointerLeave = useCallback(() => {
+        setOverlayCursor('default')
+    }, [setOverlayCursor])
 
     // --- Pointer Handler (Uses startDrag) ---
 
@@ -437,14 +560,42 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         if (!rect) return
         const mouseX = e.clientX - rect.left
         const mouseY = e.clientY - rect.top
+        const startContainer: Point = { x: mouseX, y: mouseY }
+        const startVideoPoint = containerPointToVideoPoint(startContainer, snapshot)
 
-        const hit = hitTestEffects(
-            mouseX,
-            mouseY,
-            interactableEffects,
-            snapshot,
-            selectedEffect?.id
-        )
+        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
+            ignoreElement: overlayRef.current
+        })
+
+        const startBounds =
+            domHit && overlayRef.current
+                ? (() => {
+                    const overlayRect = overlayRef.current!.getBoundingClientRect()
+                    const rect = domHit.annotationElement.getBoundingClientRect()
+                    const topLeftVideo = containerPointToVideoPoint(
+                        { x: rect.left - overlayRect.left, y: rect.top - overlayRect.top },
+                        snapshot
+                    )
+                    const bottomRightVideo = containerPointToVideoPoint(
+                        { x: rect.right - overlayRect.left, y: rect.bottom - overlayRect.top },
+                        snapshot
+                    )
+                    return {
+                        width: Math.abs(bottomRightVideo.x - topLeftVideo.x),
+                        height: Math.abs(bottomRightVideo.y - topLeftVideo.y),
+                    }
+                })()
+                : null
+
+        const pluginEffects = interactableEffects.filter((effect) => effect.type === EffectType.Plugin)
+        const hit = domHit
+            ? {
+                effectId: domHit.annotationId,
+                effectType: EffectType.Annotation,
+                hitType: domHit.kind === 'handle' ? 'handle' : 'body',
+                handlePosition: domHit.kind === 'handle' ? domHit.handle : undefined
+            }
+            : hitTestEffects(mouseX, mouseY, pluginEffects, snapshot, selectedEffect?.id ?? null)
 
         if (hit) {
             e.stopPropagation() // Vital: Stop bubbling to background
@@ -469,7 +620,6 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 if (hit.hitType === 'handle') {
                     if (hit.handlePosition === 'rotate' && effect.type === EffectType.Annotation) {
                         // Rotation handle - need to calculate center position
-                        setMode('ROTATING')
                         const data = effect.data as AnnotationData
                         const pos = data.position ?? { x: 50, y: 50 }
 
@@ -492,47 +642,79 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                             }
                         }
 
-                        // Convert to screen pixels
-                        let centerX = videoRect.x + (annotationCenterPercent.x / 100) * videoRect.width
-                        let centerY = videoRect.y + (annotationCenterPercent.y / 100) * videoRect.height
+                        const rotateCenter = videoPointToContainerPoint(
+                            percentToVideoPoint(annotationCenterPercent, snapshot),
+                            snapshot
+                        )
 
-                        // Apply camera transform if zoomed
-                        if (cameraTransform && cameraTransform.scale !== 1) {
-                            const videoCenterX = videoRect.x + videoRect.width / 2
-                            const videoCenterY = videoRect.y + videoRect.height / 2
-                            centerX = videoCenterX + (centerX - videoCenterX) * cameraTransform.scale + cameraTransform.panX
-                            centerY = videoCenterY + (centerY - videoCenterY) * cameraTransform.scale + cameraTransform.panY
-                        }
-
-                        startDrag(e, 'rotate', {
-                            kind: 'annotation',
-                            data: { ...data },
-                            rotateCenter: { x: centerX, y: centerY },
-                            startPos: { x: mouseX, y: mouseY }
+                        startDrag({
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            type: 'rotate',
+                            initialValue: {
+                                kind: 'annotation',
+                                data: { ...data },
+                                rotateCenter,
+                                startPos: { x: mouseX, y: mouseY },
+                                startContainer,
+                                startVideoPoint
+                            },
+                            activationDistance: 0
                         })
                     } else {
-                        setMode('RESIZING')
                         if (effect.type === EffectType.Annotation) {
                             const data = effect.data as any
-                            startDrag(e, hit.handlePosition!, {
-                                kind: 'annotation',
-                                data: { ...data } // Copy data
+                            startDrag({
+                                startX: e.clientX,
+                                startY: e.clientY,
+                                type: hit.handlePosition!,
+                                initialValue: {
+                                    kind: 'annotation',
+                                    data: { ...data }, // Copy data
+                                    startContainer,
+                                    startVideoPoint,
+                                    startBounds,
+                                },
+                                activationDistance: 0
                             })
                         } else if (effect.type === EffectType.Plugin) {
                             const data = effect.data as any
-                            startDrag(e, hit.handlePosition!, {
-                                kind: 'plugin',
-                                data: { ...data.position }
+                            startDrag({
+                                startX: e.clientX,
+                                startY: e.clientY,
+                                type: hit.handlePosition!,
+                                initialValue: {
+                                    kind: 'plugin',
+                                    data: { ...data.position }
+                                },
+                                activationDistance: 0
                             })
                         }
                     }
                 } else {
-                    setMode('DRAGGING')
                     if (effect.type === EffectType.Annotation) {
                         // Pass distinct type for anchor handling if needed
-                        startDrag(e, 'move', { kind: 'annotation', data: effect.data })
+                        startDrag({
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            type: 'move',
+                            initialValue: {
+                                kind: 'annotation',
+                                data: { ...(effect.data as any) },
+                                startContainer,
+                                startVideoPoint,
+                                startBounds,
+                            },
+                            activationDistance: 6
+                        })
                     } else {
-                        startDrag(e, 'move', { kind: 'plugin', data: (effect.data as any).position })
+                        startDrag({
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            type: 'move',
+                            initialValue: { kind: 'plugin', data: (effect.data as any).position },
+                            activationDistance: 6
+                        })
                     }
                 }
             }
@@ -544,7 +726,18 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             setMode('IDLE')
         }
 
-    }, [effects, videoRect, selectedEffect, canInteract, selectEffectLayer, startEditingOverlay, clearEffectSelection, stopEditingOverlay, renderContext.scale, startDrag])
+    }, [
+        canInteract,
+        clearEffectSelection,
+        effects,
+        interactableEffects,
+        selectEffectLayer,
+        selectedEffect,
+        snapshot,
+        startDrag,
+        startEditingOverlay,
+        stopEditingOverlay
+    ])
 
     // Click handler - stops propagation when annotation/plugin is hit
     // This prevents PreviewInteractions from duplicating selection handling
@@ -552,18 +745,29 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     const handleClick = useCallback((e: React.MouseEvent) => {
         if (!canInteract) return
 
+        // If drag just ended, stop propagation to prevent selecting background
+        if (didJustDragRef.current) {
+            e.stopPropagation()
+            return
+        }
+
         const rect = overlayRef.current?.getBoundingClientRect()
         if (!rect) return
         const mouseX = e.clientX - rect.left
         const mouseY = e.clientY - rect.top
 
-        const hit = hitTestEffects(
-            mouseX,
-            mouseY,
-            interactableEffects,
-            snapshot,
-            selectedEffect?.id ?? null
-        )
+        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
+            ignoreElement: overlayRef.current
+        })
+        const pluginEffects = interactableEffects.filter((effect) => effect.type === EffectType.Plugin)
+        const hit = domHit
+            ? {
+                effectId: domHit.annotationId,
+                effectType: EffectType.Annotation,
+                hitType: domHit.kind === 'handle' ? 'handle' : 'body',
+                handlePosition: domHit.kind === 'handle' ? domHit.handle : undefined
+            }
+            : hitTestEffects(mouseX, mouseY, pluginEffects, snapshot, selectedEffect?.id ?? null)
 
         if (hit) {
             // Stop propagation to prevent PreviewInteractions from handling
@@ -575,21 +779,26 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     // Double Click -> Edit
     // IMPORTANT: Perform fresh hit-test so double-click works on unselected annotations
     const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-        const rect = overlayRef.current?.getBoundingClientRect()
-        if (!rect) return
-        const mouseX = e.clientX - rect.left
-        const mouseY = e.clientY - rect.top
+        const overlayElement = overlayRef.current
+        if (!overlayElement) return
 
-        const hit = hitTestEffects(
-            mouseX, mouseY, interactableEffects, snapshot,
-            selectedEffect?.id ?? null
-        )
+        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
+            ignoreElement: overlayElement
+        })
+        const hit = domHit && domHit.kind === 'annotation'
+            ? {
+                effectId: domHit.annotationId,
+                effectType: EffectType.Annotation,
+                hitType: 'body' as const
+            }
+            : null
 
         if (hit) {
             const effect = effects.find((eff: Effect) => eff.id === hit.effectId)
             if (effect?.type === EffectType.Annotation) {
                 const data = effect.data as any
-                if (data.type === AnnotationType.Text || data.type === AnnotationType.Keyboard) {
+                const annotationType = (data.type ?? AnnotationType.Text) as AnnotationType
+                if (annotationType === AnnotationType.Text) {
                     // Select if not already selected
                     if (selectedEffect?.id !== hit.effectId) {
                         selectEffectLayer('annotation' as any, hit.effectId)
@@ -602,14 +811,16 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 }
             }
         }
-    }, [selectedEffect, effects, interactableEffects, snapshot, selectEffectLayer, startEditingOverlay, setIsInlineEditing])
+    }, [selectedEffect, effects, selectEffectLayer, startEditingOverlay, setIsInlineEditing])
 
 
     return (
         <div
             ref={overlayRef}
-            className="absolute inset-0 z-50 outline-none"
+            className="absolute inset-0 z-[2000] outline-none"
             onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
             onClick={handleClick} // Stop propagation when annotation is hit
             onDoubleClick={handleDoubleClick}
             style={{

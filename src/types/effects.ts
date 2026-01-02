@@ -21,7 +21,8 @@ export enum EffectLayerType {
   Plugin = 'plugin',
   Crop = 'crop',
   Webcam = 'webcam',
-  Annotation = 'annotation'
+  Annotation = 'annotation',
+  Video = 'video'
 }
 
 export type SelectedEffectLayer = { type: EffectLayerType; id?: string } | null

@@ -22,8 +22,6 @@ export type TrackId = TimelineTrackType | EffectType
 // Track height constants
 const TRACK_HEIGHT_COLLAPSED = 28
 const TRACK_HEIGHT_EXPANDED = 45
-const TRACK_HEIGHT_VIDEO_MAX = 80
-const TRACK_HEIGHT_AUDIO_MAX = 40
 
 /** Fixed track heights (non-effect tracks) */
 export interface FixedTrackHeights {
@@ -56,6 +54,7 @@ export interface TrackBounds {
 export interface TimelineLayoutContextValue {
   stageWidth: number
   stageHeight: number
+  totalContentHeight: number // The full scrollable height
   containerHeight: number
   containerWidth: number
   timelineWidth: number
@@ -145,7 +144,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   })
 
   const [activeTrack, setActiveTrack] = useState<TrackId | null>(null)
-  const [expandedEffectTrack, setExpandedEffectTrack] = useState<EffectType | null>(null)
+  const [expandedEffectTrack, setExpandedEffectTrack] = useState<EffectType | null>(EffectType.Zoom)  // Zoom expanded by default
   const [isVideoTrackExpanded, setIsVideoTrackExpanded] = useState(false)
 
   const zoom = useProjectStore((s) => s.zoom)
@@ -206,7 +205,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     [duration, pixelsPerMs, containerSize.width]
   )
 
-  // Calculate fixed track heights
+  // Calculate fixed track heights - use fixed values to allow vertical scrolling
   const fixedTrackHeights = useMemo((): FixedTrackHeights => {
     const rulerHeight = TimelineConfig.RULER_HEIGHT
     const speedUpBarSpace = (hasSpeedUpSuggestions.typing || hasSpeedUpSuggestions.idle) && showTypingSuggestions
@@ -217,31 +216,20 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     const audioVisible = visibleTracks.has(TimelineTrackType.Audio) && !isScreenGroupCollapsed && isVideoTrackExpanded
     const webcamVisible = visibleTracks.has(TimelineTrackType.Webcam) && mediaTrackExistence.hasWebcamTrack
 
-    // Calculate effect track total height
-    let effectTotalHeight = 0
-    for (const type of EFFECT_TRACK_TYPES) {
-      if (effectTrackExistence[type] && !isScreenGroupCollapsed && visibleTracks.has(type)) {
-        effectTotalHeight += expandedEffectTrack === type ? TRACK_HEIGHT_EXPANDED : TRACK_HEIGHT_COLLAPSED
-      }
-    }
+    // Use fixed heights instead of scaling to container - enables vertical scrolling
+    const videoHeight = videoVisible ? 50 : 0
+    const audioHeight = audioVisible ? 32 : 0
     const webcamHeight = webcamVisible ? TRACK_HEIGHT_COLLAPSED : 0
-
-    const fixedHeight = rulerHeight + speedUpBarSpace + webcamHeight + effectTotalHeight
-    const remainingHeight = Math.max(0, containerSize.height - fixedHeight - TimelineConfig.LAYOUT_PADDING * 2)
-
-    const videoWeight = videoVisible ? 2 : 0
-    const audioWeight = audioVisible ? 1 : 0
-    const totalWeight = videoWeight + audioWeight || 1
 
     return {
       ruler: rulerHeight,
       speedUpBarSpace,
       screenGroupHeader: 0,
-      video: videoVisible ? Math.min(TRACK_HEIGHT_VIDEO_MAX, Math.floor(remainingHeight * (videoWeight / totalWeight))) : 0,
-      audio: audioVisible ? Math.min(TRACK_HEIGHT_AUDIO_MAX, Math.floor(remainingHeight * (audioWeight / totalWeight))) : 0,
+      video: videoHeight,
+      audio: audioHeight,
       webcam: webcamHeight
     }
-  }, [containerSize.height, hasSpeedUpSuggestions, showTypingSuggestions, isScreenGroupCollapsed, visibleTracks, isVideoTrackExpanded, expandedEffectTrack, effectTrackExistence, mediaTrackExistence.hasWebcamTrack])
+  }, [hasSpeedUpSuggestions, showTypingSuggestions, isScreenGroupCollapsed, visibleTracks, isVideoTrackExpanded, mediaTrackExistence.hasWebcamTrack])
 
   // Calculate effect track heights dynamically
   const effectTrackHeights = useMemo((): Record<EffectType, number> => {
@@ -286,7 +274,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   }, [fixedTrackHeights])
 
   // Calculate effect track positions dynamically
-  const effectTrackPositions = useMemo((): Record<EffectType, number> => {
+  // Also tracks total content height
+  const { positions: effectTrackPositions, totalContentHeight } = useMemo(() => {
     let y = fixedTrackPositions.webcam + fixedTrackHeights.webcam
     const positions: Record<string, number> = {}
     const sortedConfigs = getSortedTrackConfigs()
@@ -297,7 +286,14 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
         y += effectTrackHeights[type]
       }
     }
-    return positions as Record<EffectType, number>
+
+    // Add some bottom padding for better UX
+    const bottomPadding = 100
+
+    return {
+      positions: positions as Record<EffectType, number>,
+      totalContentHeight: y + bottomPadding
+    }
   }, [fixedTrackPositions.webcam, fixedTrackHeights.webcam, effectTrackExistence, isScreenGroupCollapsed, effectTrackHeights])
 
   // Backwards-compatible merged views
@@ -375,6 +371,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const value = useMemo<TimelineLayoutContextValue>(() => ({
     stageWidth: containerSize.width - TimelineConfig.LAYOUT_PADDING * 2,
     stageHeight: containerSize.height - TimelineConfig.LAYOUT_PADDING * 2,
+    totalContentHeight,
     containerHeight: containerSize.height,
     containerWidth: containerSize.width,
     timelineWidth,

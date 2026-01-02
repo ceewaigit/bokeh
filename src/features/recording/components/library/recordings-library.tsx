@@ -105,7 +105,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 </div>
                 <p className="text-sm font-medium">No such recording exists</p>
                 <p className="text-2xs text-muted-foreground/60 mt-1 max-w-xs text-center">
-                  We couldn't find any recordings matching "{searchQuery}"
+                  We couldn&apos;t find any recordings matching &quot;{searchQuery}&quot;
                 </p>
               </div>
             ) : (

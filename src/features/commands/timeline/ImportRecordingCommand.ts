@@ -51,7 +51,6 @@ export class ImportRecordingCommand extends Command<{ clipId: string }> {
       newClip = addRecordingToProject(
         draft,
         this.payload.recording,
-        () => { },
         { trackType: this.payload.trackType }
       )
 

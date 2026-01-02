@@ -135,10 +135,9 @@ export function registerRecordingHandlers(): void {
   // ========== NEW STREAMING HANDLERS ==========
 
   // Create a temporary recording file and return its path
-  ipcMain.handle('create-temp-recording-file', async (event: IpcMainInvokeEvent, extension: string = 'webm') => {
+  ipcMain.handle('create-temp-recording-file', async (_event: IpcMainInvokeEvent, extension: string = 'webm') => {
     try {
       const tempDir = app.getPath('temp')
-      const timestamp = Date.now()
       const tempPath = path.join(tempDir, `bokeh-recording-${Date.now()}.${extension}`)
 
       // Create write stream for this recording
@@ -155,7 +154,7 @@ export function registerRecordingHandlers(): void {
   })
 
   // Append chunk to recording file (streaming write)
-  ipcMain.handle('append-to-recording', async (event: IpcMainInvokeEvent, filePath: string, chunk: ArrayBuffer | Buffer) => {
+  ipcMain.handle('append-to-recording', async (_event: IpcMainInvokeEvent, filePath: string, chunk: ArrayBuffer | Buffer) => {
     try {
       const stream = activeRecordings.get(filePath)
       if (!stream) {
@@ -225,7 +224,7 @@ export function registerRecordingHandlers(): void {
   })
 
   // Create metadata file for streaming writes
-  ipcMain.handle('create-metadata-file', async (event: IpcMainInvokeEvent) => {
+  ipcMain.handle('create-metadata-file', async (_event: IpcMainInvokeEvent) => {
     try {
       const tempDir = app.getPath('temp')
       const timestamp = Date.now()
@@ -261,7 +260,7 @@ export function registerRecordingHandlers(): void {
   })
 
   // Read metadata from file
-  ipcMain.handle('read-metadata-file', async (event: IpcMainInvokeEvent, filePath: string) => {
+  ipcMain.handle('read-metadata-file', async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
       const content = await fs.readFile(filePath, 'utf8')
       let metadata: unknown
@@ -283,7 +282,7 @@ export function registerRecordingHandlers(): void {
           try {
             metadata = JSON.parse(repaired)
             console.warn('[Recording] Repaired malformed metadata JSON for', filePath)
-          } catch (repairError) {
+          } catch {
             throw parseError
           }
         }

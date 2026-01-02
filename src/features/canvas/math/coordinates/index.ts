@@ -21,5 +21,5 @@ export {
 // Dimensions
 export { getSourceDimensions, getSourceDimensionsStatic } from './dimensions'
 
-// Legacy / Overlay Utils (migrated from canvas-editor)
-export * from './legacy-utils'
+// Overlay utilities (normalized 0-100% helpers)
+export * from './overlay-utils'

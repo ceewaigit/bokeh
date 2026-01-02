@@ -19,8 +19,7 @@ import { DEVICE_MOCKUPS } from '@/shared/constants/device-mockups'
 import { getActiveBackgroundEffect, getActiveCropEffect, getCropData } from '@/features/effects/core/filters'
 import { calculateCropTransform, getCropTransformString, combineCropAndZoomTransforms } from '@/features/canvas/math/transforms/crop-transform'
 import { calculateScreenTransform } from '@/features/canvas/math/transforms/screen-transform'
-import { calculateZoomScale } from '@/features/canvas/math/transforms/zoom-transform'
-import { DEFAULT_PARALLAX_LAYERS, DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
+import { DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
 import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/shared/constants/layout'
 
 // Logic imports

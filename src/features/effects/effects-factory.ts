@@ -9,7 +9,7 @@
  *
  * @deprecated Prefer importing directly from specialized modules in new code to reduce coupling.
  */
-import type { Effect, Project, Recording, CropEffectData } from '@/types/project'
+import type { Effect, Project, CropEffectData } from '@/types/project'
 import { EffectStore } from '@/features/effects/core/store'
 import { EffectCreation } from './core/creation'
 import { EffectInitialization } from './core/initialization'
@@ -54,13 +54,6 @@ export class EffectsFactory {
 
   // === INITIALIZATION (Delegated to EffectInitialization) ===
 
-  static createInitialEffectsForRecording(
-    _recording: Recording,
-    _existingGlobalEffects: Effect[] = []
-  ): void {
-    EffectInitialization.createInitialEffectsForRecording()
-  }
-
   static ensureGlobalEffects(project: Project): void {
     EffectInitialization.ensureGlobalEffects(project)
   }
@@ -96,7 +89,7 @@ export class EffectsFactory {
 
   /**
    * Find an effect by ID in the project.
-   * @deprecated Use EffectStore.find() directly for new code.
+   * Prefer `EffectStore.find()` for new code.
    */
   static findEffectInProject(project: Project, effectId: string): {
     effect: Effect

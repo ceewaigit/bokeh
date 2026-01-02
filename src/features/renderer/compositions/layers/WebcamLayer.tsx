@@ -10,10 +10,9 @@
  */
 
 import React, { useMemo } from 'react';
-import { Video, Sequence, useCurrentFrame, interpolate, useVideoConfig } from 'remotion';
+import { Video, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { Effect, WebcamEffectData, Clip, Recording } from '@/types/project';
-import { getWebcamEffect } from '@/features/effects/core/filters';
-import { DEFAULT_WEBCAM_DATA, WEBCAM_SHAPE_PRESETS } from '@/features/webcam/config';
+import { DEFAULT_WEBCAM_DATA } from '@/features/webcam/config';
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
 import { clampCropData, DEFAULT_CROP_DATA } from '@/features/canvas/math/transforms/crop-transform';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
@@ -22,7 +21,6 @@ import { usePlaybackSettings } from '@/features/renderer/context/playback/Playba
 import { calculateWebcamAnimations } from '@/features/effects/utils/webcam-animations';
 
 interface WebcamLayerProps {
-  effects: Effect[];
   webcamEffect?: Effect;  // Active webcam effect (timing source of truth)
   webcamVideoUrl?: string;
   webcamClip?: Clip;      // Used only for recordingId and sourceIn
@@ -48,7 +46,6 @@ function getTransformOrigin(anchor: WebcamEffectData['position']['anchor']): str
 }
 
 export const WebcamLayer = React.memo(({
-  effects,
   webcamEffect,
   webcamVideoUrl,
   webcamClip,
@@ -61,11 +58,13 @@ export const WebcamLayer = React.memo(({
   const effectiveVolume = Math.max(0, Math.min(1, playback.previewVolume ?? 1));
   const shouldMuteAudio = playback.previewMuted || effectiveVolume <= 0 || !webcamRecording?.hasAudio;
 
-  // Get zoom scale from VideoPositionContext for inverse scaling
   const { zoomTransform } = useVideoPosition();
+  const inverseCameraScale = zoomTransform?.scale ? 1 / zoomTransform.scale : 1;
 
-  // Get webcam effect data (use passed-in effect, or find from effects array for backwards compat)
-  const effectToUse = webcamEffect ?? getWebcamEffect(effects);
+  // Anchor to the full composition instead of the transformed video content.
+
+  // Use the time-aware effect passed in from the composition.
+  const effectToUse = webcamEffect;
   const data: WebcamEffectData = useMemo(
     () => (effectToUse?.data as WebcamEffectData) ?? DEFAULT_WEBCAM_DATA,
     [effectToUse]
@@ -101,59 +100,24 @@ export const WebcamLayer = React.memo(({
     return null;
   }
 
-  // Visibility is controlled by parent (TimelineComposition) based on effect timing
-  // No need to check frame range here - if we have an active effect, render it
-
-  const containerRect = {
-    x: 0,
-    y: 0,
-    width: compositionWidth,
-    height: compositionHeight,
-  };
-
-  // Calculate size and position inside the actual video rect
-  const layout = getWebcamLayout(data, containerRect.width, containerRect.height);
+  // Calculate size and position relative to the full composition.
+  const layout = getWebcamLayout(data, compositionWidth, compositionHeight);
   const webcamSize = Math.round(layout.size);
   const position = { x: Math.round(layout.x), y: Math.round(layout.y) };
 
-  // Zoom-responsive inverse scaling: shrink webcam when zooming in to focus on content
-  // When zoomScale > 1 (zoomed in), webcam gets smaller
-  // When zoomScale = 1 (normal), webcam is at full size (or slightly larger for prominence)
-  const zoomScale = zoomTransform?.scale ?? 1;
-  // Map zoom scale inversely: higher zoom = smaller webcam
-  // At scale 1.0 -> webcam at 1.1 (slightly prominent)
-  // At scale 2.0 -> webcam at 0.7 (smaller, out of the way)
-  // At scale 3.0+ -> webcam at 0.55 (minimum size)
-  const inverseZoomScale = interpolate(
-    zoomScale,
-    [1, 2, 3],
-    [1.1, 0.7, 0.55],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
+  const finalScale = animationScale * inverseCameraScale;
 
-  // Combine animation scale with zoom-responsive scale
-  const finalScale = animationScale * inverseZoomScale;
+  const finalOpacity = animationOpacity;
 
-  // Opacity reduction when zoomed in (optional setting)
-  let finalOpacity = animationOpacity;
-  if (data.reduceOpacityOnZoom && zoomScale > 1) {
-    // Reduce opacity when zoomed in: at 2x zoom -> 60% opacity, at 3x+ -> 40%
-    const zoomOpacityFactor = interpolate(
-      zoomScale,
-      [1, 2, 3],
-      [1, 0.6, 0.4],
-      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-    );
-    finalOpacity = animationOpacity * zoomOpacityFactor;
-  }
-
+  // Container that covers the full composition so webcam is anchored to all layers.
   const overlayContainerStyle: React.CSSProperties = {
     position: 'absolute',
-    left: containerRect.x,
-    top: containerRect.y,
-    width: containerRect.width,
-    height: containerRect.height,
-    pointerEvents: 'none'
+    left: 0,
+    top: 0,
+    width: compositionWidth,
+    height: compositionHeight,
+    pointerEvents: 'none',
+    zIndex: 20, // Sit above video (usually 0-10) and overlays (10-20)
   };
 
   const containerStyle: React.CSSProperties = {
@@ -165,7 +129,6 @@ export const WebcamLayer = React.memo(({
     transform: `scale(${finalScale}) translateY(${translateY}px)`,
     transformOrigin: getTransformOrigin(data.position.anchor), // Scale towards anchor for natural feel
     opacity: finalOpacity,
-    zIndex: 100,
     transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease-out', // Snappy animations
     // Always apply corner radius to container for consistent clipping
     borderRadius: data.shape === 'circle' ? '50%' : data.cornerRadius,

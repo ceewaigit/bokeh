@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { useRecordingsLibraryStore, type LibraryRecordingView } from '@/features/recording/store/library-store'
+import { type LibraryRecordingView } from '@/features/recording/store/library-store'
 import { PROJECT_EXTENSION_REGEX } from '@/features/storage/recording-storage'
 
 interface DeleteRecordingDialogProps {

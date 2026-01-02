@@ -11,8 +11,6 @@ export function createRecordButton(): BrowserWindow {
 
   const isDev = process.env.NODE_ENV === 'development'
 
-  const isMac = process.platform === 'darwin'
-
   const recordButton = new BrowserWindow({
     width: 180,
     height: 72,

@@ -84,9 +84,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   // Extract boundary state
   const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false;
-  const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false;
-  const overlapFrames = boundaryState?.overlapFrames ?? 0;
-
   // Extract layout items
   const { active: activeLayoutItem, prev: prevLayoutItem, next: nextLayoutItem } = layoutItems;
 
@@ -240,12 +237,17 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       return null;
     });
   }, [
-    renderableItems, recordingsMap, width, height,
-    currentFrame, fps, isRendering, layout,
-    activeLayoutItem, prevLayoutItem, nextLayoutItem,
-    shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
-    markRenderReady, handleVideoReady, useOffthreadVideo,
-    isScrubbing
+    renderableItems,
+    recordingsMap,
+    width,
+    height,
+    currentFrame,
+    fps,
+    isRendering,
+    markRenderReady,
+    handleVideoReady,
+    useOffthreadVideo,
+    isScrubbing,
   ]);
 
   // ==========================================================================
@@ -297,6 +299,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
         {/* Main Transform Container */}
         <AbsoluteFill>
           <div
+            data-video-transform-container="true"
             style={{
               position: 'absolute',
               left: layout.mockupEnabled ? 0 : layout.offsetX,
@@ -331,7 +334,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             )}
 
             {/* Annotations render INSIDE, inheriting CSS transform. TransformControls measures these DOM elements. */}
-            <AnnotationLayer />
+            {/* Skip annotations in glow mode to prevent duplicate DOM elements causing hover detection issues */}
+            {!renderSettings.isGlowMode && <AnnotationLayer />}
           </div>
 
           {/* Preview Guides */}

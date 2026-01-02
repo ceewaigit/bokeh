@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react'
 import { Group, Line, Rect, Text, RegularPolygon, Circle } from 'react-konva'
 import Konva from 'konva'
@@ -6,6 +7,7 @@ import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { useTimelineColors } from '@/features/timeline/utils/colors'
 import { clamp, formatTime } from '@/shared/utils/utils'
 import { useProjectStore } from '@/features/stores/project-store'
+import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
 import { timeObserver } from '@/features/timeline/time/time-observer'
@@ -186,7 +188,15 @@ export const TimelinePlayhead = React.memo(() => {
       onDragMove={(e) => {
         const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH
         const time = TimeConverter.pixelsToMs(newX, pixelsPerMs)
-        const clampedTime = clamp(time, 0, maxTime)
+        // Clamp to maxTime - 1ms to prevent showing empty video frame at the very end
+        // CLAMP FIX: Clamp to center of last frame (see timeline-canvas.tsx)
+        const currentProject = useProjectStore.getState().currentProject
+        const fps = currentProject ? TimelineDataService.getFps(currentProject) : 30
+        const frameDuration = 1000 / fps
+        const safeEndTime = Math.max(0, maxTime - (frameDuration * 0.5))
+
+        const clampedTime = clamp(time, 0, safeEndTime)
+
         // Push to observer immediately for visual feedback
         timeObserver.pushTime(clampedTime)
         // Also update store via onSeek for persistence

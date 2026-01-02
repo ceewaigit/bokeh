@@ -4,9 +4,9 @@
 
 import type { Effect, KeystrokeEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
-import type { EffectRenderContext } from '../effect-renderer'
+import type { EffectRenderContext } from '../rendering/renderer'
 import type { IEffectStrategy } from './index'
-import { KeystrokeRenderer } from '../keystroke-renderer'
+import { KeystrokeRenderer } from '../keystroke/renderer'
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/keystroke/config'
 import type { KeyboardEvent } from '@/types/project'
 

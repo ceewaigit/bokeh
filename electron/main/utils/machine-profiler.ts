@@ -30,7 +30,7 @@ export class MachineProfiler {
   /**
    * Get basic system info without complex benchmarking
    */
-  async profileSystem(videoWidth: number, videoHeight: number): Promise<MachineProfile> {
+  async profileSystem(_videoWidth: number, _videoHeight: number): Promise<MachineProfile> {
     const cpuCores = os.cpus().length;
     const totalBytes = os.totalmem();
     const rawAvailableBytes = os.freemem();

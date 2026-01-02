@@ -1,6 +1,6 @@
 import { BrowserWindow, WebContents, screen } from 'electron'
 import * as path from 'path'
-import { getAppURL, isDev } from '../config'
+import { isDev } from '../config'
 import { applyContentSecurityPolicy } from './content-security-policy'
 
 // Webpack entry points are set as environment variables by electron-forge

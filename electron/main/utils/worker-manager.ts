@@ -5,7 +5,6 @@
 
 import { utilityProcess } from 'electron';
 import { EventEmitter } from 'events';
-import path from 'path';
 
 export interface WorkerOptions {
   serviceName: string;
@@ -165,7 +164,7 @@ export class SupervisedWorker extends EventEmitter {
     }
 
     // Clear pending requests
-    for (const [id, pending] of this.pendingRequests) {
+    for (const pending of this.pendingRequests.values()) {
       clearTimeout(pending.timeout);
       pending.reject(new Error('Worker shutdown'));
     }
@@ -276,7 +275,7 @@ export class SupervisedWorker extends EventEmitter {
     console.error(`[WorkerManager] ${this.options.serviceName} crashed`);
     
     // Clear pending requests
-    for (const [id, pending] of this.pendingRequests) {
+    for (const pending of this.pendingRequests.values()) {
       clearTimeout(pending.timeout);
       pending.reject(new Error('Worker crashed'));
     }

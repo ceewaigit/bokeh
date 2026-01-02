@@ -295,40 +295,6 @@ export function extractEffectsFromSegments(segments: any[]): any[] {
 }
 
 /**
- * Binary search to find the closest event to a target timestamp
- */
-function findClosestEvent<T extends { timestamp: number }>(events: T[], targetTimeMs: number): T | null {
-  if (!events || events.length === 0) return null
-
-  let low = 0
-  let high = events.length - 1
-
-  // Edge cases
-  if (targetTimeMs <= events[0].timestamp) return events[0]
-  if (targetTimeMs >= events[high].timestamp) return events[high]
-
-  // Binary search for closest
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2)
-    if (events[mid].timestamp === targetTimeMs) {
-      return events[mid]
-    } else if (events[mid].timestamp < targetTimeMs) {
-      low = mid + 1
-    } else {
-      high = mid - 1
-    }
-  }
-
-  // Return the closer of the two surrounding events
-  if (high < 0) return events[0]
-  if (low >= events.length) return events[events.length - 1]
-
-  const lowDiff = Math.abs(events[low].timestamp - targetTimeMs)
-  const highDiff = Math.abs(events[high].timestamp - targetTimeMs)
-  return lowDiff < highDiff ? events[low] : events[high]
-}
-
-/**
  * Sample a smooth mouse event at a specific time by interpolating between
  * surrounding raw events. This avoids snapping to the nearest event, which
  * can introduce jitter when camera follow uses spring physics during export.
@@ -434,8 +400,6 @@ export function downsampleRecordingMetadata(recording: any, fps: number): any {
   const durationMs = recording.duration
   if (!durationMs || durationMs <= 0) return recording
 
-  const originalMouseCount = metadata.mouseEvents?.length || 0
-
   return {
     ...recording,
     metadata: {
@@ -508,8 +472,6 @@ export function setupExportHandler(): void {
       // Calculate memory constraints using consolidated utility
       const memoryConstraints = machineProfiler.getExportMemoryConstraints(machineProfile)
       const effectiveMemoryGB = memoryConstraints.effectiveMemoryGB
-      const totalMemoryGB = machineProfile.totalMemoryGB || 16
-
       // Apply video cache size
       dynamicSettings.offthreadVideoCacheSizeInBytes = memoryConstraints.videoCacheSizeBytes
 
@@ -1049,7 +1011,7 @@ export function setupExportHandler(): void {
     try {
       await fs.unlink(filePath)
       return { success: true }
-    } catch (error) {
+    } catch (_error) {
       return { success: false }
     }
   })

@@ -12,7 +12,6 @@
 import React, { createContext, useContext, useMemo, useRef, useEffect } from 'react';
 import type { Clip, Effect, RecordingMetadata } from '@/types/project';
 import { EffectType } from '@/types/project';
-import { useComposition } from '../CompositionContext';
 import { useVideoUrl } from '../../hooks/media/useVideoUrl';
 import { useRecordingMetadata } from '../../hooks/media/useRecordingMetadata';
 import {

@@ -4,7 +4,7 @@
 
 import type { Effect, CursorEffectData } from '@/types/project'
 import { EffectType, CursorStyle } from '@/types/project'
-import type { EffectRenderContext } from '../effect-renderer'
+import type { EffectRenderContext } from '../rendering/renderer'
 import type { IEffectStrategy } from './index'
 import { calculateCursorState, getClickTextStyle, getCursorPath, resolveClickEffectConfig } from '@/features/cursor/logic/cursor-logic'
 
