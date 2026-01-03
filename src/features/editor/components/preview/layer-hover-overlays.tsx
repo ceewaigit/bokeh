@@ -66,6 +66,8 @@ function getAnnotationLabel(type: AnnotationType): string {
             return 'Text';
         case AnnotationType.Blur:
             return 'Blur';
+        case AnnotationType.Redaction:
+            return 'Redaction';
         case AnnotationType.Highlight:
             return 'Highlight';
         case AnnotationType.Arrow:

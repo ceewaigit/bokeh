@@ -11,10 +11,10 @@
  */
 
 import React, { memo, useCallback, useRef, useEffect } from 'react'
-import { getRemotionEnvironment } from 'remotion'
 import { AnnotationType } from '@/types/project'
 import type { AnnotationData, AnnotationStyle } from '@/types/project'
 import type { AnnotationRenderContext } from './annotation-elements'
+import { clamp01 } from '@/features/canvas/math/clamp'
 
 interface AnnotationWrapperProps {
     id: string
@@ -271,7 +271,7 @@ const HighlightContent: React.FC<HighlightContentProps> = memo(({
 HighlightContent.displayName = 'HighlightContent'
 
 // ============================================================================
-// Blur Annotation Content - Solid opaque mask for privacy
+// Blur Annotation Content - Privacy material (blurred glass)
 // ============================================================================
 
 interface BlurContentProps {
@@ -286,6 +286,12 @@ const BlurContent: React.FC<BlurContentProps> = memo(({
     // Width/height are percentages of video dimensions
     const width = ((data.width ?? 20) / 100) * context.videoWidth
     const height = ((data.height ?? 12) / 100) * context.videoHeight
+    const effectiveScale = context.scale ?? 1
+    const style = data.style ?? {}
+    const radius = (style.borderRadius ?? 20) * effectiveScale
+
+    const tintPercent = typeof style.opacity === 'number' ? style.opacity : 20
+    const tintAlpha = clamp01(tintPercent / 100) * 0.35
 
     return (
         <div
@@ -293,17 +299,96 @@ const BlurContent: React.FC<BlurContentProps> = memo(({
             style={{
                 width,
                 height,
-                borderRadius: 8,
-                // Solid opaque background for masking sensitive content
-                background: '#888888',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                position: 'relative',
+                borderRadius: radius,
+                overflow: 'hidden',
+                contain: 'layout style',
+                willChange: 'backdrop-filter',
+                background: `rgba(255, 255, 255, ${0.10 + tintAlpha})`,
+                border: `1px solid rgba(255, 255, 255, ${0.22 + tintAlpha * 0.5})`,
+                boxShadow: [
+                    '0 8px 32px rgba(31, 38, 135, 0.20)',
+                    '0 2px 16px rgba(31, 38, 135, 0.10)',
+                    'inset 0 1px 0 rgba(255, 255, 255, 0.40)',
+                    'inset 0 -1px 0 rgba(255, 255, 255, 0.20)',
+                ].join(', '),
+            }}
+        >
+            <div
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backdropFilter: 'blur(14px) saturate(1.6) brightness(1.08)',
+                    WebkitBackdropFilter: 'blur(14px) saturate(1.6) brightness(1.08)',
+                }}
+            />
+            <div
+                aria-hidden="true"
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    backgroundImage: [
+                        'radial-gradient(rgba(255,255,255,0.10) 1px, rgba(0,0,0,0) 0)',
+                        'radial-gradient(rgba(0,0,0,0.10) 1px, rgba(0,0,0,0) 0)',
+                    ].join(', '),
+                    backgroundSize: '3px 3px, 4px 4px',
+                    backgroundPosition: '0 0, 1px 1px',
+                    opacity: 0.10,
+                    mixBlendMode: 'overlay',
+                }}
+            />
+        </div>
+    )
+})
+BlurContent.displayName = 'BlurContent'
+
+interface RedactionContentProps {
+    id: string
+    data: AnnotationData
+    context: AnnotationRenderContext
+}
+
+const RedactionContent: React.FC<RedactionContentProps> = memo(({
+    id,
+    data,
+    context,
+}) => {
+    // Redaction is privacy material (strong blur + obscure)
+    // We used to have a flickering grid, but user requested a static blur.
+
+    const width = ((data.width ?? 20) / 100) * context.videoWidth
+    const height = ((data.height ?? 12) / 100) * context.videoHeight
+    const effectiveScale = context.scale ?? 1
+    const style = data.style ?? {}
+    const radius = (style.borderRadius ?? 2) * effectiveScale
+
+    return (
+        <div
+            data-annotation-content="true"
+            style={{
+                width,
+                height,
+                position: 'relative',
+                borderRadius: radius,
+                overflow: 'hidden',
+                // Solid background to fully obscure text
+                background: '#FFFFFF',
+                border: '1px solid rgba(0, 0, 0, 0.04)',
+                backdropFilter: 'none',
+                WebkitBackdropFilter: 'none',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                // Keep corner fixes just in case
+                transform: 'translateZ(0)',
+                isolation: 'isolate',
                 contain: 'layout style paint',
-                willChange: 'transform',
             }}
         />
     )
 })
-BlurContent.displayName = 'BlurContent'
+RedactionContent.displayName = 'RedactionContent'
 
 // ============================================================================
 // Arrow Annotation Content
@@ -313,12 +398,14 @@ interface ArrowContentProps {
     id: string
     data: AnnotationData
     context: AnnotationRenderContext
+    isSelected: boolean
 }
 
 const ArrowContent: React.FC<ArrowContentProps> = memo(({
     id,
     data,
     context,
+    isSelected,
 }) => {
     const style = data.style ?? {}
     const pos = data.position ?? { x: 50, y: 50 }
@@ -334,7 +421,7 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
     const endY = percentToPixel(rawEnd.y, context.videoHeight, context.offsetY)
 
     const color = style.color ?? '#ff0000'
-    const strokeWidth = style.strokeWidth ?? 3
+    const strokeWidth = style.strokeWidth ?? 1
     const arrowHeadSize = style.arrowHeadSize ?? 10
 
     // Calculate bounds
@@ -346,50 +433,112 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
     const boxW = maxX - minX
     const boxH = maxY - minY
 
-    // Coordinates relative to SVG viewBox
+    // Coordinates relative to SVG viewBox (and now wrapper div)
     const svgStartX = startX - minX
     const svgStartY = startY - minY
     const svgEndX = endX - minX
     const svgEndY = endY - minY
 
+    // Styles matching standard SelectionOverlay
+    const SELECTION_HANDLE_SIZE = 8
+    const BORDER_COLOR = 'hsl(var(--accent))'
+    const HANDLE_SHADOW = '0 1px 3px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)'
+
     return (
-        <svg
+        <div
             data-annotation-content="true"
             style={{
                 width: boxW,
                 height: boxH,
-                overflow: 'visible',
-                pointerEvents: 'none',
-                contain: 'layout style',
+                position: 'relative',
+                // Important: allow pointer events on handles
             }}
         >
-            <defs>
-                <marker
-                    id={`arrowhead-${id}`}
-                    markerWidth={arrowHeadSize}
-                    markerHeight={arrowHeadSize}
-                    refX={arrowHeadSize}
-                    refY={arrowHeadSize / 2}
-                    orient="auto"
-                >
-                    <polygon
-                        points={`0,0 ${arrowHeadSize},${arrowHeadSize / 2} 0,${arrowHeadSize}`}
-                        fill={color}
+            <svg
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    overflow: 'visible',
+                    pointerEvents: isSelected ? 'auto' : 'none',
+                    contain: 'layout style',
+                    display: 'block',
+                }}
+            >
+                <defs>
+                    <marker
+                        id={`arrowhead-${id}`}
+                        markerWidth={arrowHeadSize}
+                        markerHeight={arrowHeadSize}
+                        // Shift tip slightly forward to cover line end (prevent round cap protrusion)
+                        refX={arrowHeadSize - 1}
+                        refY={arrowHeadSize / 2}
+                        markerUnits="userSpaceOnUse"
+                        orient="auto"
+                    >
+                        <polygon
+                            points={`0,0 ${arrowHeadSize},${arrowHeadSize / 2} 0,${arrowHeadSize}`}
+                            fill={color}
+                        />
+                    </marker>
+                </defs>
+                <line
+                    x1={svgStartX}
+                    y1={svgStartY}
+                    x2={svgEndX}
+                    y2={svgEndY}
+                    stroke={color}
+                    strokeWidth={strokeWidth}
+                    strokeLinecap="butt"
+                    markerEnd={`url(#arrowhead-${id})`}
+                    style={{ pointerEvents: 'visibleStroke', cursor: 'default' }}
+                />
+            </svg>
+
+            {isSelected && (
+                <>
+                    {/* Start Handle */}
+                    <div
+                        data-handle="arrow-start"
+                        style={{
+                            position: 'absolute',
+                            left: svgStartX,
+                            top: svgStartY,
+                            width: SELECTION_HANDLE_SIZE,
+                            height: SELECTION_HANDLE_SIZE,
+                            backgroundColor: 'white',
+                            border: `1px solid ${BORDER_COLOR}`,
+                            borderRadius: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            cursor: 'grab',
+                            pointerEvents: 'auto',
+                            boxShadow: HANDLE_SHADOW,
+                            boxSizing: 'border-box',
+                            zIndex: 10,
+                        }}
                     />
-                </marker>
-            </defs>
-            <line
-                x1={svgStartX}
-                y1={svgStartY}
-                x2={svgEndX}
-                y2={svgEndY}
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeLinecap="round"
-                markerEnd={`url(#arrowhead-${id})`}
-                style={{ pointerEvents: 'visibleStroke', cursor: 'default' }}
-            />
-        </svg>
+                    {/* End Handle */}
+                    <div
+                        data-handle="arrow-end"
+                        style={{
+                            position: 'absolute',
+                            left: svgEndX,
+                            top: svgEndY,
+                            width: SELECTION_HANDLE_SIZE,
+                            height: SELECTION_HANDLE_SIZE,
+                            backgroundColor: 'white',
+                            border: `1px solid ${BORDER_COLOR}`,
+                            borderRadius: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            cursor: 'grab',
+                            pointerEvents: 'auto',
+                            boxShadow: HANDLE_SHADOW,
+                            boxSizing: 'border-box',
+                            zIndex: 10,
+                        }}
+                    />
+                </>
+            )}
+        </div>
     )
 })
 ArrowContent.displayName = 'ArrowContent'
@@ -407,18 +556,16 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
     onContentChange,
     onEditComplete,
 }) => {
-    const { isRendering } = getRemotionEnvironment()
     const position = getComputedPosition(data, context)
     const rotation = data.rotation ?? 0
     const constrainTextWidth =
         data.type === AnnotationType.Text && typeof data.width === 'number'
     const textWidthPx = constrainTextWidth ? (data.width! / 100) * context.videoWidth : undefined
 
-    // Determine if this annotation type supports rotation handle
-    const showRotation = data.type !== AnnotationType.Arrow
-
-    // Determine anchor type - Highlight and Blur are top-left, others are center
-    const isTopLeftAnchor = data.type === AnnotationType.Highlight || data.type === AnnotationType.Blur
+    // Determine anchor type - Highlight, Glass and Redaction are top-left, others are center
+    const isTopLeftAnchor = data.type === AnnotationType.Highlight ||
+        data.type === AnnotationType.Blur ||
+        data.type === AnnotationType.Redaction
 
     // For Arrow, position at the bounding box min
     let wrapperPosition = position
@@ -479,8 +626,10 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                 return <HighlightContent data={data} context={context} />
             case AnnotationType.Blur:
                 return <BlurContent data={data} context={context} />
+            case AnnotationType.Redaction:
+                return <RedactionContent id={id} data={data} context={context} />
             case AnnotationType.Arrow:
-                return <ArrowContent id={id} data={data} context={context} />
+                return <ArrowContent id={id} data={data} context={context} isSelected={isSelected} />
             default:
                 return (
                     <EditableTextContent

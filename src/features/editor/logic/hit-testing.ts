@@ -30,6 +30,8 @@ export type HandlePosition =
   | 'bottom'
   | 'bottom-left'
   | 'left'
+  | 'arrow-start'
+  | 'arrow-end'
   | 'rotate'
 
 export type HitLayerType = EffectType | 'cursor' | 'background'

@@ -3,14 +3,12 @@
 import React, { useCallback } from 'react'
 import { cn } from '@/shared/utils/utils'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import { useProjectStore } from '@/features/stores/project-store'
 import { EffectStore } from '@/features/effects/core/store'
 import { getDefaultAnnotationSize } from '../config'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
-import { Type, ArrowRight, Highlighter, Sparkles, Layers, Trash2 } from 'lucide-react'
-import { ColorPickerPopover } from '@/components/ui/color-picker'
+import { Type, ArrowRight, Highlighter, EyeOff, Trash2 } from 'lucide-react'
 
 interface AnnotationsTabProps {
   selectedAnnotation?: Effect
@@ -37,18 +35,23 @@ const ANNOTATION_TYPES = [
     icon: Highlighter,
   },
   {
-    type: AnnotationType.Blur,
-    label: 'Blur',
-    description: 'Mask sensitive info',
-    icon: Sparkles,
+    type: AnnotationType.Redaction,
+    label: 'Redaction',
+    description: 'Censor sensitive info',
+    icon: EyeOff,
   },
 ] as const
+
+function getAnnotationTypeLabel(type?: AnnotationType): string {
+  if (type === AnnotationType.Blur) return 'Blur (legacy)'
+  const meta = ANNOTATION_TYPES.find((t) => t.type === type)
+  return meta?.label ?? (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Unknown')
+}
 
 export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: AnnotationsTabProps) {
   const project = useProjectStore((s) => s.currentProject)
   const currentTime = useProjectStore((s) => s.currentTime)
   const addEffect = useProjectStore((s) => s.addEffect)
-  const updateEffect = useProjectStore((s) => s.updateEffect)
   const removeEffect = useProjectStore((s) => s.removeEffect)
 
   // Get all annotation effects
@@ -87,6 +90,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
           color: type === AnnotationType.Highlight ? '#ffeb3b' : '#ffffff',
           fontSize: 18,
           textAlign: type === AnnotationType.Text ? 'center' : undefined,
+          borderRadius: type === AnnotationType.Redaction ? 2 : undefined,
         },
       } satisfies AnnotationData,
     }
@@ -94,34 +98,6 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
     addEffect(effect)
     onSelectAnnotation?.(effect)
   }, [currentTime, addEffect, onSelectAnnotation])
-
-  const handleUpdateTextColor = useCallback((color: string) => {
-    if (!selectedAnnotation) return
-    const currentData = selectedAnnotation.data as AnnotationData
-    const newStyle = { ...currentData.style, color }
-    updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
-  }, [selectedAnnotation, updateEffect])
-
-  const handleUpdateSize = useCallback((axis: 'width' | 'height', value: number) => {
-    if (!selectedAnnotation) return
-    const currentData = selectedAnnotation.data as AnnotationData
-    const newData: AnnotationData = {
-      ...currentData,
-      [axis]: value,
-    }
-    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
-  }, [selectedAnnotation, updateEffect])
-
-  const handleUpdateArrowEnd = useCallback((axis: 'x' | 'y', value: number) => {
-    if (!selectedAnnotation) return
-    const currentData = selectedAnnotation.data as AnnotationData
-    const currentEnd = currentData.endPosition ?? { x: 60, y: 50 }
-    const newData: AnnotationData = {
-      ...currentData,
-      endPosition: { ...currentEnd, [axis]: value },
-    }
-    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
-  }, [selectedAnnotation, updateEffect])
 
   // Delete annotation
   const handleDelete = useCallback(() => {
@@ -140,7 +116,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
               Overlays
             </div>
             <div className="mt-1 text-xs text-muted-foreground leading-snug">
-              Add text, arrows, highlights and blurs
+              Add text, arrows, highlights, glass and redactions
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground/70 tabular-nums">
               {annotationEffects.length} overlays
@@ -191,7 +167,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
         <div className="space-y-2.5 rounded-2xl border border-primary/30 bg-background/60 p-2.5 overflow-hidden">
           <div className="flex items-center justify-between">
             <div className="text-2xs font-medium text-primary capitalize">
-              {selectedData.type ?? 'Unknown'} Overlay
+              {getAnnotationTypeLabel(selectedData.type)} Overlay
             </div>
             <Button
               size="sm"
@@ -203,83 +179,8 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             </Button>
           </div>
           <div className="text-3xs text-muted-foreground/70">
-            Drag on canvas to move. Resize handles appear for highlights and blurs.
+            Drag on canvas to move. Customize in the top dock.
           </div>
-
-          {/* Size controls for Highlight and Blur */}
-          {(selectedData.type === AnnotationType.Highlight || selectedData.type === AnnotationType.Blur) && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <label className="text-2xs font-medium text-muted-foreground">
-                  Width
-                </label>
-                <Slider
-                  value={[selectedData.width ?? 20]}
-                  onValueChange={([v]) => handleUpdateSize('width', v)}
-                  min={2}
-                  max={150}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
-                  {Math.round(selectedData.width ?? 20)}%
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-2xs font-medium text-muted-foreground">
-                  Height
-                </label>
-                <Slider
-                  value={[selectedData.height ?? 10]}
-                  onValueChange={([v]) => handleUpdateSize('height', v)}
-                  min={2}
-                  max={150}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
-                  {Math.round(selectedData.height ?? 10)}%
-                </div>
-              </div>
-            </div>
-          )}
-
-          {selectedData.type === AnnotationType.Arrow && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <label className="text-2xs font-medium text-muted-foreground">
-                  End X
-                </label>
-                <Slider
-                  value={[selectedData.endPosition?.x ?? 60]}
-                  onValueChange={([v]) => handleUpdateArrowEnd('x', v)}
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
-                  {Math.round(selectedData.endPosition?.x ?? 60)}%
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-2xs font-medium text-muted-foreground">
-                  End Y
-                </label>
-                <Slider
-                  value={[selectedData.endPosition?.y ?? 50]}
-                  onValueChange={([v]) => handleUpdateArrowEnd('y', v)}
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-                <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
-                  {Math.round(selectedData.endPosition?.y ?? 50)}%
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )
       }
@@ -311,7 +212,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="text-2xs font-medium truncate capitalize">
-                        {data.type ?? 'Unknown'}
+                        {getAnnotationTypeLabel(data.type)}
                       </div>
                       <div className="text-3xs text-muted-foreground/70 tabular-nums">
                         {(effect.startTime / 1000).toFixed(1)}s - {(effect.endTime / 1000).toFixed(1)}s

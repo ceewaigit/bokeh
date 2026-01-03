@@ -6,6 +6,7 @@ export const DEFAULT_ANNOTATION_SIZES: Record<AnnotationType, { width?: number; 
   [AnnotationType.Arrow]: {},
   [AnnotationType.Highlight]: { width: 20, height: 12 },
   [AnnotationType.Blur]: { width: 20, height: 12 },
+  [AnnotationType.Redaction]: { width: 20, height: 12 },
 }
 
 // Effect Track Configuration
@@ -16,9 +17,20 @@ export const annotationTrackConfig = {
   layerType: EffectLayerType.Annotation,
   getBlockLabel: (effect: any) => {
     const data = effect.data
-    return data.type
-      ? data.type.charAt(0).toUpperCase() + data.type.slice(1)
-      : 'Note'
+    switch (data.type) {
+      case AnnotationType.Blur:
+        return 'Blur (legacy)'
+      case AnnotationType.Redaction:
+        return 'Redaction'
+      case AnnotationType.Highlight:
+        return 'Highlight'
+      case AnnotationType.Arrow:
+        return 'Arrow'
+      case AnnotationType.Text:
+        return 'Text'
+      default:
+        return 'Note'
+    }
   }
 }
 

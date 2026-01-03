@@ -31,6 +31,7 @@ interface PreviewInteractionsProps {
     isEditingCrop: boolean;
     /** Hide selection/interaction controls during playback */
     isPlaying: boolean;
+    playerKey?: string;
     zoomSettings?: ZoomSettings;
     previewFrameBounds: { width: number; height: number; };
     aspectContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -46,6 +47,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     selectedEffectLayer,
     isEditingCrop,
     isPlaying,
+    playerKey,
     zoomSettings,
     previewFrameBounds,
     aspectContainerRef,
@@ -84,7 +86,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         setCurrentFrame(player.getCurrentFrame());
 
         return () => player.removeEventListener('frameupdate', onFrame);
-    }, [playerRef]);
+    }, [playerRef, playerKey]);
 
     // Sync frame once when playback stops (so paused UI matches actual player position).
     useEffect(() => {
@@ -92,7 +94,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         const player = playerRef?.current;
         if (!player) return;
         setCurrentFrame(player.getCurrentFrame());
-    }, [isPlaying, playerRef]);
+    }, [isPlaying, playerRef, playerKey]);
 
     // Deselect annotation when playback starts
     useEffect(() => {

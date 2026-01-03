@@ -354,6 +354,7 @@ export function PreviewAreaRemotion({
                       selectedEffectLayer={selectedEffectLayer}
                       isEditingCrop={Boolean(isEditingCrop)}
                       isPlaying={isPlaying}
+                      playerKey={playerKey}
                       zoomSettings={zoomSettings}
                       previewFrameBounds={previewFrameBounds}
                       aspectContainerRef={aspectContainerRef}

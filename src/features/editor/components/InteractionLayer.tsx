@@ -66,6 +66,9 @@ function getCursorForHandle(handle: HandlePosition): string {
         case 'left':
         case 'right':
             return 'ew-resize'
+        case 'arrow-start':
+        case 'arrow-end':
+            return 'grab'
         case 'rotate':
             return 'grab'
         default:
@@ -380,7 +383,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 const safeWidth = base.width ?? 20
                 const safeHeight = base.height ?? 10
 
-                if (base.type === AnnotationType.Highlight || base.type === AnnotationType.Blur) {
+                if (base.type === AnnotationType.Highlight || base.type === AnnotationType.Blur || base.type === AnnotationType.Redaction) {
                     // Highlight/Blur are Top-Left anchored
                     // We need to handle this like a standard rect resize
                     let newPos = { ...base.position, width: safeWidth, height: safeHeight }
@@ -436,11 +439,26 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                         height: newPos.height
                     }
                 } else if (base.type === AnnotationType.Arrow) {
-                    // Arrow Resize: Actually just moving endpoints?
-                    // Usually users want to drag endpoints.
-                    // Since Arrow "handles" hit test is generic box, let's just 
-                    // allow "Scale" via box resize for now, but really we should enable endpoint dragging.
-                    // Currently leaving as placeholder to avoid breaking it, but prevent crash.
+                    const pos = base.position || { x: 50, y: 50 }
+                    const end = base.endPosition || { x: pos.x + 10, y: pos.y + 10 }
+
+                    if (type === 'arrow-start') {
+                        newData = {
+                            position: clampPoint({
+                                x: pos.x + percentDelta.x,
+                                y: pos.y + percentDelta.y
+                            }),
+                            endPosition: end
+                        }
+                    } else if (type === 'arrow-end') {
+                        newData = {
+                            position: pos,
+                            endPosition: clampPoint({
+                                x: end.x + percentDelta.x,
+                                y: end.y + percentDelta.y
+                            })
+                        }
+                    }
                 } else {
                     // Text / Keyboard (Center Anchored)
                     const initialFontSize = base.style?.fontSize ?? 18
@@ -719,7 +737,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                         // Text/Keyboard are center-anchored, so pos IS the center
                         let annotationCenterPercent = { x: pos.x, y: pos.y }
 
-                        if (data.type === AnnotationType.Highlight || data.type === AnnotationType.Blur) {
+                        if (data.type === AnnotationType.Highlight || data.type === AnnotationType.Blur || data.type === AnnotationType.Redaction) {
                             annotationCenterPercent = {
                                 x: pos.x + (data.width ?? 20) / 2,
                                 y: pos.y + (data.height ?? 12) / 2
@@ -948,11 +966,12 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                             height: selectionBounds.height,
                         }}
                         borderRadius={
-                            (selectedAnnotation.data as AnnotationData).type === AnnotationType.Blur
+                            (selectedAnnotation.data as AnnotationData).type === AnnotationType.Blur ||
+                            (selectedAnnotation.data as AnnotationData).type === AnnotationType.Redaction
                                 ? 12
                                 : ((selectedAnnotation.data as AnnotationData).style?.borderRadius ?? 4)
                         }
-                        showHandles={true}
+                        showHandles={(selectedAnnotation.data as AnnotationData).type !== AnnotationType.Arrow}
                         showRotation={(selectedAnnotation.data as AnnotationData).type !== AnnotationType.Arrow}
                     />
                 </div>

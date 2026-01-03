@@ -114,6 +114,37 @@
 
 /* --- THEME PRESETS --- */
 
+/* Theme Preset: Royal (Default, Purple) */
+.dark[data-color-preset="default"] {
+  --background: 250 20% 6%;
+  --foreground: 250 30% 96%;
+  --card: 250 20% 8%;
+  --card-foreground: 250 30% 96%;
+  --primary: 262 80% 90%;
+  --primary-foreground: 250 20% 6%;
+  --secondary: 250 15% 14%;
+  --secondary-foreground: 250 30% 92%;
+  --muted: 250 15% 14%;
+  --muted-foreground: 250 15% 60%;
+  --accent: 262 80% 60%;
+  --accent-foreground: 0 0% 100%;
+  --warning: 45 100% 60%;
+  --warning-foreground: 45 100% 5%;
+  --info: 210 100% 70%;
+  --info-foreground: 210 100% 5%;
+  --border: 250 15% 12%;
+  --input: 250 15% 10%;
+  --ring: 262 80% 60%;
+
+  --timeline-bg: 250 20% 8%;
+  --timeline-track: 250 15% 12%;
+  --timeline-ruler: 250 15% 12%;
+  --timeline-playhead: 262 80% 60%;
+  --window-surface-color: 250 20% 6%;
+  --popover: 250 20% 6%;
+  --popover-foreground: 250 30% 96%;
+}
+
 /* Theme Preset: Sand (Warm, Orange) */
 [data-color-preset="sand"] {
   --background: 35 40% 98%;
@@ -466,6 +497,64 @@
   --window-surface-color: 222 47% 6%;
   --popover: 222 47% 6%;
   --popover-foreground: 190 10% 95%;
+}
+
+/* Theme Preset: Mono (Industrial, Black/White/Grey) */
+[data-color-preset="mono"] {
+  --background: 0 0% 98%;
+  --foreground: 0 0% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 12%;
+  --primary: 0 0% 20%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 92%;
+  --secondary-foreground: 0 0% 12%;
+  --muted: 0 0% 92%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 35%;
+  --accent-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 48 96% 2%;
+  --info: 217 91% 60%;
+  --info-foreground: 210 20% 98%;
+  --border: 0 0% 88%;
+  --input: 0 0% 88%;
+  --ring: 0 0% 35%;
+
+  --timeline-bg: 0 0% 96%;
+  --timeline-track: 0 0% 92%;
+  --timeline-ruler: 0 0% 92%;
+  --timeline-playhead: 0 0% 35%;
+}
+
+.dark[data-color-preset="mono"] {
+  --background: 0 0% 6%;
+  --foreground: 0 0% 95%;
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 95%;
+  --primary: 0 0% 92%;
+  --primary-foreground: 0 0% 6%;
+  --secondary: 0 0% 14%;
+  --secondary-foreground: 0 0% 92%;
+  --muted: 0 0% 14%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 0 0% 70%;
+  --accent-foreground: 0 0% 5%;
+  --warning: 45 100% 60%;
+  --warning-foreground: 45 100% 5%;
+  --info: 210 100% 70%;
+  --info-foreground: 210 100% 5%;
+  --border: 0 0% 12%;
+  --input: 0 0% 10%;
+  --ring: 0 0% 70%;
+
+  --timeline-bg: 0 0% 8%;
+  --timeline-track: 0 0% 12%;
+  --timeline-ruler: 0 0% 12%;
+  --timeline-playhead: 0 0% 70%;
+  --window-surface-color: 0 0% 6%;
+  --popover: 0 0% 6%;
+  --popover-foreground: 0 0% 95%;
 }
 
 @layer base {

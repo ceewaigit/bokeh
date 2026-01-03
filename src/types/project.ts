@@ -557,7 +557,8 @@ export enum AnnotationType {
   Text = 'text',
   Arrow = 'arrow',
   Highlight = 'highlight',
-  Blur = 'blur'
+  Blur = 'blur',
+  Redaction = 'redaction'
 }
 
 // Cursor style enum
@@ -786,6 +787,8 @@ export interface AnnotationStyle {
   opacity?: number
   strokeWidth?: number
   arrowHeadSize?: number
+  /** Redaction-only: number of mosaic cells across (lower = chunkier). */
+  mosaicDetail?: number
 }
 
 export interface AnnotationData {

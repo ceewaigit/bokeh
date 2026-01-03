@@ -151,7 +151,7 @@ export function AmbientGlowPlayer({
             glowPlayerRef.current.pause();
             glowPlayerRef.current.seekTo(targetFrame);
         }
-    }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, safePlay]);
+    }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, safePlay, playerKey]);
 
     useEffect(() => {
         if (!timelineMetadata) return;
@@ -220,7 +220,7 @@ export function AmbientGlowPlayer({
         throttledSeek(initialFrame);
 
         return () => unsubscribe();
-    }, [timelineMetadata, isPlaying, isScrubbing, clampFrame, timeToFrame, throttledSeek]);
+    }, [timelineMetadata, isPlaying, isScrubbing, clampFrame, timeToFrame, throttledSeek, playerKey]);
 
     useEffect(() => {
         const glowPlayer = glowPlayerRef.current;
@@ -246,7 +246,7 @@ export function AmbientGlowPlayer({
         return () => {
             mainPlayer.removeEventListener('frameupdate', handleFrameUpdate);
         };
-    }, [clampFrame, mainPlayerRef, timelineMetadata, isPlaying, isScrubbing]);
+    }, [clampFrame, mainPlayerRef, timelineMetadata, isPlaying, isScrubbing, playerKey]);
     // Handle loop synchronization
     useEffect(() => {
         const glowPlayer = glowPlayerRef.current;
@@ -264,7 +264,7 @@ export function AmbientGlowPlayer({
         return () => {
             glowPlayer.removeEventListener('ended', handleEnded);
         };
-    }, [isPlaying, safePlay]);
+    }, [isPlaying, safePlay, playerKey]);
 
     // Prepare input props
     const glowPlayerInputProps = React.useMemo(() => {

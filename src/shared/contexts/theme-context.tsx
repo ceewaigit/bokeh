@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
 export type Theme = 'dark' | 'light' | 'system'
-export type ColorPreset = 'default' | 'sand' | 'industrial' | 'forest' | 'nordic' | 'midnight' | 'space'
+export type ColorPreset = 'default' | 'sand' | 'industrial' | 'forest' | 'nordic' | 'midnight' | 'space' | 'mono'
 
 interface ThemeContextType {
   theme: Theme

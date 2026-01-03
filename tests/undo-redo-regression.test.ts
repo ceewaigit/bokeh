@@ -4,7 +4,7 @@ import { RemoveClipCommand } from '@/features/commands/timeline/RemoveClipComman
 import { ChangePlaybackRateCommand } from '@/features/commands/timeline/ChangePlaybackRateCommand'
 import { TrimCommand } from '@/features/commands/timeline/TrimCommand'
 import { SplitClipCommand } from '@/features/commands/timeline/SplitClipCommand'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { addClipToTrack, updateClipInTrack, removeClipFromTrack, restoreClipToTrack, duplicateClipInTrack } from '@/features/timeline/clips/clip-crud'
 import { executeTrimClipEnd } from '@/features/timeline/clips/clip-trim'
 import { executeSplitClip } from '@/features/timeline/clips/clip-split'
@@ -15,6 +15,8 @@ import type { ProjectStore } from '@/features/stores/slices/types'
 import { produceWithPatches, enablePatches } from 'immer'
 
 enablePatches()
+
+const findClipById = ClipLookup.byId
 
 function createProjectWithAudioClip(): Project {
   const createdAt = new Date(0).toISOString()
@@ -82,24 +84,24 @@ function createStoreAccessor(project: Project): { getState: () => ProjectStore; 
     zoomManuallyAdjusted: false,
 
     transaction: (recipe: any) => {
-        // Mock state that includes the currentProject
-        const mockState = {
-            currentProject: projectRef.current,
-            settings: state.settings,
-            selectedClips: state.selectedClips,
-            currentTime: state.currentTime
-        }
-        
-        const [nextState, patches, inversePatches] = produceWithPatches(mockState, recipe)
-        
-        // Apply changes back to refs
-        if (nextState.currentProject !== projectRef.current) {
-            projectRef.current = nextState.currentProject
-        }
-        state.selectedClips = nextState.selectedClips
-        state.currentTime = nextState.currentTime
-        
-        return { patches, inversePatches }
+      // Mock state that includes the currentProject
+      const mockState = {
+        currentProject: projectRef.current,
+        settings: state.settings,
+        selectedClips: state.selectedClips,
+        currentTime: state.currentTime
+      }
+
+      const [nextState, patches, inversePatches] = produceWithPatches(mockState, recipe)
+
+      // Apply changes back to refs
+      if (nextState.currentProject !== projectRef.current) {
+        projectRef.current = nextState.currentProject
+      }
+      state.selectedClips = nextState.selectedClips
+      state.currentTime = nextState.currentTime
+
+      return { patches, inversePatches }
     },
 
     addClip: (clipOrRecordingId: Clip | string, startTime?: number) => {

@@ -25,7 +25,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { ZoomBlock, ZoomEffectData } from '@/types/project'
 import { useCropManager } from '@/features/crop/hooks/use-crop-manager'
 import { useCommandExecutor } from '@/shared/hooks/use-command-executor'
-import { usePlayheadState } from '@/features/timeline/hooks/use-playhead'
+import { PlayheadService, type PlayheadState } from '@/features/timeline/playback/playhead-service'
 import { useTimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { timelineToSource, getSourceDuration } from '@/features/timeline/time/time-space-converter'
@@ -79,8 +79,11 @@ export function WorkspaceManager() {
   const selectedClip = selectedClipResult?.clip ?? null
   const timelineMetadata = useTimelineMetadata(currentProject)
 
-  // Computed playhead state (SSOT - derived from currentTime and clips)
-  const { playheadClip, playheadRecording } = usePlayheadState()
+  // Keep playhead state in a ref to avoid 30fps re-renders in WorkspaceManager.
+  const playheadStateRef = useRef<PlayheadState | undefined>(undefined)
+  useEffect(() => {
+    playheadStateRef.current = undefined
+  }, [currentProject?.id])
 
   // Initialize default wallpaper once on mount
   useEffect(() => {
@@ -261,19 +264,27 @@ export function WorkspaceManager() {
 
   // Monitor clip boundaries during playback - use reactive playhead clip from store
   useEffect(() => {
-    if (!playheadClip || !isPlaying || isExporting) return
+    if (!isPlaying || isExporting) return
 
     const syncInterval = setInterval(() => {
-      if (!isPlaying || !playheadClip) return
+      const state = useProjectStore.getState()
+      if (!state.isPlaying || !state.currentProject) return
 
-      // Get fresh currentTime from store to avoid stale closure
-      const freshCurrentTime = useProjectStore.getState().currentTime
+      const nextPlayheadState = PlayheadService.updatePlayheadState(
+        state.currentProject,
+        state.currentTime,
+        playheadStateRef.current
+      )
+      playheadStateRef.current = nextPlayheadState
+
+      const activeClip = nextPlayheadState.playheadClip
+      if (!activeClip) return
 
       // Convert timeline time to source time using the shared converter (respects playbackRate + remaps).
-      const sourceTimeMs = timelineToSource(freshCurrentTime, playheadClip)
+      const sourceTimeMs = timelineToSource(state.currentTime, activeClip)
       const sourceOutMs =
-        playheadClip.sourceOut ??
-        ((playheadClip.sourceIn || 0) + getSourceDuration(playheadClip))
+        activeClip.sourceOut ??
+        ((activeClip.sourceIn || 0) + getSourceDuration(activeClip))
 
       if (sourceTimeMs > sourceOutMs) {
         handlePause()
@@ -287,7 +298,7 @@ export function WorkspaceManager() {
         clearInterval(playbackIntervalRef.current)
       }
     }
-  }, [isPlaying, playheadClip, handlePause, isExporting])
+  }, [isPlaying, handlePause, isExporting])
 
   // Centralized playback control - no selection required for playback
   const handlePlay = useCallback(() => {
@@ -306,19 +317,30 @@ export function WorkspaceManager() {
     const executor = executorRef.current
 
     if (!executor) return
+    const state = useProjectStore.getState()
+    const nextPlayheadState = state.currentProject
+      ? PlayheadService.updatePlayheadState(
+        state.currentProject,
+        state.currentTime,
+        playheadStateRef.current
+      )
+      : null
+    if (nextPlayheadState) {
+      playheadStateRef.current = nextPlayheadState
+    }
 
     void applyEffectChange(type, data, {
       effects: contextEffects,
       selectedEffectLayer,
       currentProject,
       selectedClip,
-      playheadRecording,
-      currentTime: useProjectStore.getState().currentTime,
+      playheadRecording: nextPlayheadState?.playheadRecording ?? null,
+      currentTime: state.currentTime,
       executeCommand: (commandName: string, ...args: any[]) => {
         executor.executeByName(commandName, ...args)
       }
     })
-  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, contextEffects, executorRef])
+  }, [currentProject, selectedEffectLayer, selectedClip, contextEffects, executorRef])
 
   // Bulk toggle all keystroke effects
   const handleBulkToggleKeystrokes = useCallback((enabled: boolean) => {

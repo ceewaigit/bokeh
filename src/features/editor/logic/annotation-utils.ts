@@ -21,8 +21,8 @@ export function resolvePadding(padding?: AnnotationStyle['padding']): number {
 }
 
 export function getAnnotationLabel(data: AnnotationData): string {
-    if (data.type === AnnotationType.Blur) {
-        return '' // Blur has no text content
+    if (data.type === AnnotationType.Blur || data.type === AnnotationType.Redaction) {
+        return '' // Glass/Redaction have no text content
     }
     return data.content ?? ''
 }
@@ -36,7 +36,7 @@ export function measureAnnotationBox(data: AnnotationData): { width: number; hei
     const padding = resolvePadding(data.style?.padding) + 4
 
     // Blur uses fixed dimensions based on width/height properties
-    if (data.type === AnnotationType.Blur) {
+    if (data.type === AnnotationType.Blur || data.type === AnnotationType.Redaction) {
         return DEFAULT_BLUR_BOX
     }
 
