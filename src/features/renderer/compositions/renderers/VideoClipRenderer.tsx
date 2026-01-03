@@ -69,6 +69,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     zoomTransform,
     motionBlur,
     maxZoomScale,
+    useParentFade,
   } = videoPosition;
 
   // Derive current zoom scale from transform
@@ -228,7 +229,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Opacity: purely based on render state (intro/outro/glow).
   const effectiveOpacity = renderState.effectiveOpacity;
-  const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1));
+  const visualOpacity = useParentFade ? 1 : effectiveOpacity;
+  const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1)) * effectiveOpacity;
   const shouldMuteAudio = previewMuted || effectiveVolume <= 0 || !recording?.hasAudio || renderState.isPreloading;
 
   return (
@@ -245,12 +247,12 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           position: 'absolute',
           top: 0,
           left: 0,
-          opacity: effectiveOpacity,
+          opacity: visualOpacity,
         }}>
           {/* Motion blur dimensions must match video render dimensions:
               - Export: video renders at native res, scaled via CSS -> use native dims
               - Preview: video renders at display size -> use drawWidth/Height */}
-            <MotionBlurWrapper
+          <MotionBlurWrapper
             enabled={motionBlur?.enabled ?? false}
             velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
             intensity={motionBlur?.intensity ?? 1.0}
@@ -281,6 +283,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                   position: 'absolute', top: 0, left: 0,
                   borderRadius: `${cornerRadius}px`,
                   pointerEvents: 'none',
+                  opacity: visualOpacity,
                 }}
                 volume={effectiveVolume}
                 muted={shouldMuteAudio}
@@ -296,6 +299,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                 onSeeked={isRendering ? handleVideoReady : undefined}
                 onVideoFrame={isRendering ? handleVideoFrame : undefined}
                 onError={(e: any) => {
+                  // CRITICAL: Always signal "ready" to Remotion/Thumbnail generator even on error,
+                  // otherwise delayRender() will time out and crash the app/export.
+                  if (typeof handleVideoReady === 'function') {
+                    // Safe to cast - we just need it to stop waiting
+                    handleVideoReady(e as any);
+                  }
+
                   // Self-healing: fallback to original source instead of crashing
                   if (!urlFailed) {
                     console.warn(`[VideoClipRenderer] Video error, falling back to source: ${recording.id}`, e?.target?.error);

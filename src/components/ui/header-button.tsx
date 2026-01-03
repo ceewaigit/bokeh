@@ -16,6 +16,7 @@ interface HeaderButtonProps extends Omit<HTMLMotionProps<"button">, "size" | "ch
     shortcut?: string
     active?: boolean
     variant?: ButtonVariant
+    iconClassName?: string
     children?: React.ReactNode
 }
 
@@ -23,7 +24,7 @@ const springConfig = { type: "spring", stiffness: 420, damping: 32 } as const
 const MotionButton = motion.button
 
 export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProps>(
-    ({ className, children, icon: Icon, tooltip, shortcut, active, variant = "ghost", ...props }, ref) => {
+    ({ className, children, icon: Icon, tooltip, shortcut, active, variant = "ghost", iconClassName, ...props }, ref) => {
         const button = (
             <MotionButton
                 ref={ref}
@@ -44,7 +45,7 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                 {...props}
             >
                 {Icon && (
-                    <Icon className={cn("w-3.5 h-3.5", children && "mr-1.5")} />
+                    <Icon className={cn("w-3.5 h-3.5", children && "mr-1.5", iconClassName)} />
                 )}
                 {children}
             </MotionButton>

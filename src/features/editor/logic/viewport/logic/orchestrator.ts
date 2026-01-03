@@ -12,7 +12,7 @@ import { EffectType } from '@/types/project'
 import { getActiveCropEffect, getDataOfType } from '@/features/effects/core/filters'
 import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 import { calculateZoomScale } from '@/features/canvas/math/transforms/zoom-transform'
-import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/features/cursor/store/cursor-types'
+import { getCursorDimensions, getCursorHotspot, electronToCustomCursor } from '@/features/cursor/store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
 import { clamp01, lerp, smootherStep } from '@/features/canvas/math'
 import { getSourceDimensions } from '@/features/canvas/math/coordinates'
@@ -465,7 +465,8 @@ export function computeCameraState({
     }
     const cursorTypeRaw = (mouseEvents[cursorEventIndex] ?? mouseEvents[0])?.cursorType ?? 'default'
     const cursorType = electronToCustomCursor(cursorTypeRaw)
-    const baseDim = CURSOR_DIMENSIONS[cursorType], hotspot = CURSOR_HOTSPOTS[cursorType]
+    const cursorTheme = cursorData?.theme
+    const baseDim = getCursorDimensions(cursorType, cursorTheme), hotspot = getCursorHotspot(cursorType, cursorTheme)
     const widthPx = baseDim.width * cursorScale, heightPx = baseDim.height * cursorScale
     const leftPx = hotspot.x * widthPx, rightPx = (1 - hotspot.x) * widthPx
     const topPx = hotspot.y * heightPx, bottomPx = (1 - hotspot.y) * heightPx

@@ -53,6 +53,7 @@ const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Crop]: 'Frame',
   [EffectLayerType.Plugin]: 'Tools',
   [EffectLayerType.Annotation]: 'Overlay',
+  [EffectLayerType.Frame]: 'Window',
   [EffectLayerType.Video]: 'Video',
 }
 
@@ -242,6 +243,10 @@ export function EffectsSidebar({
       case EffectLayerType.Screen:
         setActiveTab(SidebarTabId.Style)
         setStyleSubTab('screen')
+        return
+      case EffectLayerType.Frame:
+        setActiveTab(SidebarTabId.Style)
+        setStyleSubTab('frame')
         return
       case EffectLayerType.Webcam:
         setActiveTab(SidebarTabId.Webcam)

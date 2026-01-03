@@ -36,6 +36,39 @@ export function calculateClipFadeOpacity(opts: FadeOpacityOptions): number {
   return fadeOpacity;
 }
 
+export function resolveClipFade(opts: {
+  clip: { introFadeMs?: number; outroFadeMs?: number };
+  layout: { mockupEnabled?: boolean; shadowIntensity?: number; padding?: number };
+  currentFrame: number;
+  startFrame: number;
+  durationFrames: number;
+  fps: number;
+}): { clipFadeOpacity: number; useParentFade: boolean } {
+  const { clip, layout, currentFrame, startFrame, durationFrames, fps } = opts;
+  const introFadeDuration = clip.introFadeMs ? Math.round((clip.introFadeMs / 1000) * fps) : 0;
+  const outroFadeDuration = clip.outroFadeMs ? Math.round((clip.outroFadeMs / 1000) * fps) : 0;
+
+  if (introFadeDuration === 0 && outroFadeDuration === 0) {
+    return { clipFadeOpacity: 1, useParentFade: false };
+  }
+
+  const localFrame = currentFrame - startFrame;
+  const safeLocalFrame = Math.max(0, Math.min(localFrame, durationFrames));
+  const clipFadeOpacity = calculateClipFadeOpacity({
+    localFrame: safeLocalFrame,
+    durationFrames,
+    introFadeDuration,
+    outroFadeDuration,
+  });
+
+  const hasLookWindow = Boolean(layout.mockupEnabled)
+    || (layout.shadowIntensity ?? 0) > 0
+    || (layout.padding ?? 0) > 0;
+  const useParentFade = clipFadeOpacity < 0.999 && hasLookWindow;
+
+  return { clipFadeOpacity, useParentFade };
+}
+
 /**
  * Calculate glow crossfade opacity override for smooth clip transitions.
  * Returns null if no override is needed.

@@ -15,11 +15,29 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
 
   const [padding, setPadding] = useState(bgData?.padding ?? 40)
   const [cornerRadius, setCornerRadius] = useState(bgData?.cornerRadius ?? 15)
-  const [shadowIntensity, setShadowIntensity] = useState(bgData?.shadowIntensity ?? 85)
+  // Use mockup shadow if enabled, otherwise background shadow
+  const isMockupEnabled = bgData?.mockup?.enabled ?? false
+  const currentShadow = isMockupEnabled ? (bgData?.mockup?.shadowIntensity ?? 0) : (bgData?.shadowIntensity ?? 85)
+  const [shadowIntensity, setShadowIntensity] = useState(currentShadow)
 
   useEffect(() => setPadding(bgData?.padding ?? 40), [bgData?.padding])
   useEffect(() => setCornerRadius(bgData?.cornerRadius ?? 15), [bgData?.cornerRadius])
-  useEffect(() => setShadowIntensity(bgData?.shadowIntensity ?? 85), [bgData?.shadowIntensity])
+  useEffect(() => setShadowIntensity(isMockupEnabled ? (bgData?.mockup?.shadowIntensity ?? 0) : (bgData?.shadowIntensity ?? 85)), [bgData?.shadowIntensity, bgData?.mockup?.shadowIntensity, isMockupEnabled])
+
+  const applyShadowUpdate = (value: number) => {
+    setShadowIntensity(value)
+    if (isMockupEnabled) {
+      if (!bgData?.mockup) return
+      onUpdateBackground({
+        mockup: {
+          ...bgData.mockup,
+          shadowIntensity: value
+        }
+      })
+    } else {
+      onUpdateBackground({ shadowIntensity: value })
+    }
+  }
 
   return (
     <div className="space-y-2.5">
@@ -39,8 +57,10 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
           </div>
           <Slider
             value={[padding]}
-            onValueChange={([value]) => setPadding(value)}
-            onValueCommit={([value]) => onUpdateBackground({ padding: value })}
+            onValueChange={([value]) => {
+              setPadding(value)
+              onUpdateBackground({ padding: value })
+            }}
             min={0}
             max={200}
             step={2}
@@ -59,12 +79,15 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
           </div>
           <Slider
             value={[cornerRadius]}
-            onValueChange={([value]) => setCornerRadius(value)}
-            onValueCommit={([value]) => onUpdateBackground({ cornerRadius: value })}
+            onValueChange={([value]) => {
+              setCornerRadius(value)
+              onUpdateBackground({ cornerRadius: value })
+            }}
             min={0}
             max={48}
             step={1}
             className="w-full"
+            disabled={isMockupEnabled}
           />
         </div>
 
@@ -79,8 +102,7 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
           </div>
           <Slider
             value={[shadowIntensity]}
-            onValueChange={([value]) => setShadowIntensity(value)}
-            onValueCommit={([value]) => onUpdateBackground({ shadowIntensity: value })}
+            onValueChange={([value]) => applyShadowUpdate(value)}
             min={0}
             max={100}
             step={1}

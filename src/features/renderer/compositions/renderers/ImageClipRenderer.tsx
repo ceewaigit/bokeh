@@ -36,7 +36,8 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
     currentFrame, fps, isRendering
   });
 
-  const { cornerRadius = 0, drawWidth, drawHeight } = useVideoPosition();
+  const { cornerRadius = 0, drawWidth, drawHeight, useParentFade } = useVideoPosition();
+  const visualOpacity = useParentFade ? 1 : renderState.effectiveOpacity;
 
   // Get settings from context for URL resolution
   const { resources } = usePlaybackSettings();
@@ -66,7 +67,7 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
         <div style={{
           width: drawWidth, height: drawHeight,
           backgroundColor: '#1a1a1a',
-          opacity: renderState.effectiveOpacity,
+          opacity: visualOpacity,
           borderRadius: cornerRadius,
         }} />
       </Sequence>
@@ -83,7 +84,7 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
         position: 'absolute',
         top: 0,
         left: 0,
-        opacity: renderState.effectiveOpacity,
+        opacity: visualOpacity,
         borderRadius: effectiveRadius,
         overflow: 'hidden',
       }}>

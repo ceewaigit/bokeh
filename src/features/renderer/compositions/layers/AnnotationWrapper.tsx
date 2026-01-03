@@ -24,6 +24,7 @@ interface AnnotationWrapperProps {
     isEditing: boolean
     onContentChange?: (content: string) => void
     onEditComplete?: () => void
+    fadeOpacity?: number
 }
 
 /**
@@ -555,6 +556,7 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
     isEditing,
     onContentChange,
     onEditComplete,
+    fadeOpacity = 1,
 }) => {
     const position = getComputedPosition(data, context)
     const rotation = data.rotation ?? 0
@@ -583,6 +585,16 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
         }
     }
 
+    // Shadow logic
+    const shadowIntensity = data.style?.shadowIntensity ?? 0
+    let filterStyle = ''
+    if (shadowIntensity > 0) {
+        const alpha = Math.min(0.8, shadowIntensity / 100 * 0.8)
+        const blur = Math.max(2, shadowIntensity / 100 * 20)
+        const dist = Math.max(1, shadowIntensity / 100 * 8)
+        filterStyle = `drop-shadow(0px ${dist}px ${blur}px rgba(0,0,0,${alpha}))`
+    }
+
     // Position styles based on anchor type
     const positionStyles: React.CSSProperties = isTopLeftAnchor
         ? {
@@ -591,6 +603,8 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
             top: wrapperPosition.y,
             transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
             transformOrigin: 'center center',
+            opacity: fadeOpacity,
+            filter: filterStyle || undefined
         }
         : data.type === AnnotationType.Arrow
             ? {
@@ -599,6 +613,8 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                 top: wrapperPosition.y,
                 transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
                 transformOrigin: 'center center',
+                opacity: fadeOpacity,
+                filter: filterStyle || undefined
             }
             : {
                 // Center anchor (Text, Keyboard)
@@ -606,6 +622,8 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                 top: wrapperPosition.y,
                 transform: `translate(-50%, -50%)${rotation !== 0 ? ` rotate(${rotation}deg)` : ''}`,
                 transformOrigin: 'center center',
+                opacity: fadeOpacity,
+                filter: filterStyle || undefined
             }
 
     // Render the appropriate content based on type

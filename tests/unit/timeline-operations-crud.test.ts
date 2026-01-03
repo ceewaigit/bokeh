@@ -71,7 +71,8 @@ function createTestClip(overrides: Partial<Clip> = {}): Clip {
 describe('Timeline Operations CRUD', () => {
     describe('findClipById', () => {
         it('finds a clip in the video track', () => {
-            const { findClipById } = require('../../src/features/timeline/clips/clip-reflow')
+            const { ClipLookup } = require('../../src/features/timeline/clips/clip-lookup')
+            const findClipById = ClipLookup.byId
 
             const clip = createTestClip({ id: 'test-clip-1' })
             const project = createTestProject([clip])
@@ -84,7 +85,8 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('returns null for non-existent clip', () => {
-            const { findClipById } = require('../../src/features/timeline/clips/clip-reflow')
+            const { ClipLookup } = require('../../src/features/timeline/clips/clip-lookup')
+            const findClipById = ClipLookup.byId
 
             const project = createTestProject([])
 

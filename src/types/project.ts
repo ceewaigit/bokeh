@@ -561,11 +561,18 @@ export enum AnnotationType {
   Redaction = 'redaction'
 }
 
-// Cursor style enum
+// Cursor style enum (kept for backward compatibility)
 export enum CursorStyle {
   Default = 'default',
   MacOS = 'macOS',
   Custom = 'custom'
+}
+
+// Cursor theme enum for cursor appearance selection
+export enum CursorTheme {
+  Default = 'default',  // macOS-style cursors
+  Tahoe = 'tahoe',      // Tahoe cursors
+  TahoeNoTail = 'tahoe-notail'  // Tahoe cursors without tail
 }
 
 // Zoom follow strategy enum
@@ -616,6 +623,8 @@ export interface ZoomEffectData {
 
 export interface CursorEffectData {
   style: CursorStyle
+  /** Cursor theme for appearance selection (default: macOS-style) */
+  theme?: CursorTheme
   size: number
   color: string
   clickEffects: boolean
@@ -785,6 +794,7 @@ export interface AnnotationStyle {
   borderRadius?: number
   padding?: number | { top: number; right: number; bottom: number; left: number }
   opacity?: number
+  shadowIntensity?: number
   strokeWidth?: number
   arrowHeadSize?: number
   /** Redaction-only: number of mosaic cells across (lower = chunkier). */
@@ -797,6 +807,9 @@ export interface AnnotationData {
   position?: { x: number; y: number }
   content?: string
   style?: AnnotationStyle
+  // Fade timing (in milliseconds)
+  introFadeMs?: number
+  outroFadeMs?: number
   // Optional discriminator for advanced behaviors (e.g., 'screen3d', 'scrollCinematic')
   kind?: string
   // Additional properties for specific annotation types

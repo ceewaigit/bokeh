@@ -89,10 +89,10 @@ export const AnnotationLayer: React.FC = memo(() => {
     // Extract camera transform properties from zoomTransform if available
     const cameraTransform = videoPosition.zoomTransform
       ? {
-          scale: (videoPosition.zoomTransform as any).scale ?? 1,
-          panX: (videoPosition.zoomTransform as any).panX ?? 0,
-          panY: (videoPosition.zoomTransform as any).panY ?? 0,
-        }
+        scale: (videoPosition.zoomTransform as any).scale ?? 1,
+        panX: (videoPosition.zoomTransform as any).panX ?? 0,
+        panY: (videoPosition.zoomTransform as any).panY ?? 0,
+      }
       : undefined
 
     return {
@@ -256,6 +256,30 @@ export const AnnotationLayer: React.FC = memo(() => {
           ? editContext.getMergedEffectData(effect.id, baseData as unknown as Record<string, unknown>) as AnnotationData
           : baseData
 
+        // Calculate fade opacity
+        const introFadeMs = effectData.introFadeMs ?? 0
+        const outroFadeMs = effectData.outroFadeMs ?? 0
+
+        let fadeOpacity = 1
+        if (introFadeMs > 0 || outroFadeMs > 0) {
+          const durationFrames = ((effect.endTime - effect.startTime) / 1000) * fps
+          const introFrames = (introFadeMs / 1000) * fps
+          const outroFrames = (outroFadeMs / 1000) * fps
+          const localFrame = frame - (effect.startTime / 1000 * fps)
+
+          if (introFrames > 0 && localFrame < introFrames) {
+            fadeOpacity = clamp01(localFrame / introFrames)
+            // Smoothstep for smoother fade
+            fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
+          } else if (outroFrames > 0) {
+            const outroStart = durationFrames - outroFrames
+            if (localFrame > outroStart) {
+              fadeOpacity = clamp01(1 - (localFrame - outroStart) / outroFrames)
+              fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
+            }
+          }
+        }
+
         return (
           <AnnotationWrapper
             key={effect.id}
@@ -266,6 +290,7 @@ export const AnnotationLayer: React.FC = memo(() => {
             isEditing={isEditing}
             onContentChange={(content) => handleContentChange(effect.id, content)}
             onEditComplete={() => handleEditComplete(effect.id)}
+            fadeOpacity={fadeOpacity}
           />
         )
       })}

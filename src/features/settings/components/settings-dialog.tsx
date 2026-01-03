@@ -12,7 +12,8 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  DialogDescription
 } from '@/components/ui/dialog'
 import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { useProjectStore } from '@/features/stores/project-store'
@@ -168,6 +169,7 @@ export function SettingsDialog() {
       <DialogContent className="max-w-[40rem] min-h-[460px] w-dialog p-0 gap-0 overflow-hidden [&>button]:top-4 [&>button]:right-4 border shadow-2xl bg-background/95 backdrop-blur-xl ring-1 ring-border/50">
         <DialogHeader className="px-4 py-1.5 sr-only">
           <DialogTitle className="text-sm">Settings</DialogTitle>
+          <DialogDescription className="sr-only">Configure application preferences</DialogDescription>
         </DialogHeader>
 
         <div className="flex h-full min-h-[460px]">
@@ -216,7 +218,10 @@ export function SettingsDialog() {
                 initial={{ opacity: 0, x: 10, filter: 'blur(2px)' }}
                 animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, x: -10, filter: 'blur(2px)' }}
-                transition={smoothSpring}
+                transition={{
+                  ...smoothSpring,
+                  filter: { type: "tween", duration: 0.2 } // Use tween for blur to avoid negative values
+                }}
                 className="h-full max-w-xl mx-auto flex flex-col"
               >
                 {activeTab === 'recording' && (

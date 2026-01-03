@@ -15,6 +15,7 @@ export const ParallaxBackgroundLayer: React.FC<ParallaxBackgroundLayerProps> = (
     mouseX,
     mouseY,
     intensity,
+    blur = 0,
 }) => {
     const { isRendering } = getRemotionEnvironment();
 
@@ -56,7 +57,12 @@ export const ParallaxBackgroundLayer: React.FC<ParallaxBackgroundLayerProps> = (
     };
 
     return (
-        <AbsoluteFill style={{ backgroundColor: '#1a1a2e', zIndex: 5, pointerEvents: 'none' }}>
+        <AbsoluteFill style={{
+            backgroundColor: '#1a1a2e',
+            zIndex: 5,
+            pointerEvents: 'none',
+            filter: blur > 0 ? `blur(${blur}px)` : undefined
+        }}>
             {/* Sky gradient background */}
             <AbsoluteFill
                 style={{

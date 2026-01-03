@@ -32,10 +32,15 @@ const StaticBackgroundLayer: React.FC<{
     parallaxLayers: backgroundData.parallaxLayers ?? DEFAULT_BACKGROUND_DATA.parallaxLayers,
   };
 
+  // Calculate background style first
   const style = calculateBackgroundStyle(resolvedData, 1920, 1080);
   if (!style.cssStyle || style.type === BackgroundType.None) return null;
 
-  return <AbsoluteFill style={{ ...style.cssStyle, zIndex: 5, pointerEvents: 'none' }} />;
+  // Apply blur if present
+  const blur = backgroundData.blur ?? 0;
+  const filterStyle = blur > 0 ? { filter: `blur(${blur}px)` } : {};
+
+  return <AbsoluteFill style={{ ...style.cssStyle, ...filterStyle, zIndex: 5, pointerEvents: 'none' }} />;
 });
 
 StaticBackgroundLayer.displayName = 'StaticBackgroundLayer';
@@ -62,6 +67,7 @@ const ParallaxBackgroundWrapper: React.FC<{
 
   // Get intensity (default 50)
   const intensity = backgroundData.parallaxIntensity ?? 50;
+  const blur = backgroundData.blur ?? 0;
 
   return (
     <ParallaxBackgroundLayer
@@ -69,6 +75,7 @@ const ParallaxBackgroundWrapper: React.FC<{
       mouseX={mouseX}
       mouseY={mouseY}
       intensity={intensity}
+      blur={blur}
     />
   );
 };

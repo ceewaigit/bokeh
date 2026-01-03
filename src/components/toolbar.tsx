@@ -334,7 +334,7 @@ export function Toolbar({
                 projectFilePath: project.filePath,
                 frame,
                 outputPath,
-                preferOffthreadVideo: false,
+                preferOffthreadVideo: true,
                 cleanupAfterRender: true
               })
 
@@ -354,7 +354,7 @@ export function Toolbar({
           }}
           tooltip="Save Snapshot"
           icon={isSnapshotting ? Loader2 : Camera}
-          className={cn(isSnapshotting && "animate-spin")}
+          iconClassName={cn(isSnapshotting && "animate-spin")}
         />
 
         {/* Settings Button */}

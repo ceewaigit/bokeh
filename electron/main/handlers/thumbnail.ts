@@ -78,14 +78,40 @@ export function setupThumbnailHandler() {
                 videoHeight: settings.resolution?.height || 1080,
                 sourceVideoWidth: nativeSourceWidth,
                 sourceVideoHeight: nativeSourceHeight,
-                preferOffthreadVideo: preferOffthreadVideo ?? false,
                 fps,
                 metadata: Object.fromEntries(metadata instanceof Map ? metadata : new Map(metadata)),
-                videoUrls,
-                videoFilePaths,
-                metadataUrls,
-                ...settings,
-                projectFolder
+                projectFolder,
+
+                resources: {
+                    videoUrls,
+                    videoUrlsHighRes: videoUrls,
+                    videoFilePaths,
+                    metadataUrls,
+                },
+
+                playback: {
+                    isPlaying: false,
+                    isScrubbing: false,
+                    isHighQualityPlaybackEnabled: true,
+                    previewMuted: true,
+                    previewVolume: 1,
+                },
+
+                renderSettings: {
+                    isGlowMode: false,
+                    preferOffthreadVideo: preferOffthreadVideo ?? false,
+                    enhanceAudio: false,
+                    isEditingCrop: false,
+                },
+
+                cropSettings: {
+                    cropData: null,
+                },
+
+                zoomSettings: {
+                    isEditing: false,
+                    zoomData: null,
+                },
             }
 
             // 3. Select composition and render still

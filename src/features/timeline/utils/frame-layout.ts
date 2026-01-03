@@ -334,22 +334,7 @@ export function getVisibleFrameLayout(opts: {
 
   if (isRendering) {
     // Export/Thumbnail: render ALL active clips to support overlapping tracks.
-    // We also include neighbors near boundaries if there are fades.
-    const items = [...activeItems];
-
-    for (const item of activeItems) {
-      const prev = frameLayout.find(p => p.endFrame === item.startFrame);
-      if (prev && item.clip.introFadeMs && currentFrame < item.startFrame + Math.round((item.clip.introFadeMs / 1000) * fps)) {
-        if (!items.find(i => i.clip.id === prev.clip.id)) items.push(prev);
-      }
-
-      const next = frameLayout.find(n => n.startFrame === item.endFrame);
-      if (next && item.clip.outroFadeMs && currentFrame >= item.endFrame - Math.round((item.clip.outroFadeMs / 1000) * fps)) {
-        if (!items.find(i => i.clip.id === next.clip.id)) items.push(next);
-      }
-    }
-
-    return items;
+    return [...activeItems];
   }
 
   // Preview: render active clips + boundary overlap for smooth transitions
@@ -370,27 +355,6 @@ export function getVisibleFrameLayout(opts: {
     }
     if (item.startFrame === currentFrame && i > 0) {
       items.push(frameLayout[i - 1]);
-    }
-  }
-
-  // Include fade neighbors for smooth preview transitions.
-  for (const item of activeItems) {
-    const prev = frameLayout.find(p => p.endFrame === item.startFrame);
-    if (
-      prev &&
-      item.clip.introFadeMs &&
-      currentFrame < item.startFrame + Math.round((item.clip.introFadeMs / 1000) * fps)
-    ) {
-      items.push(prev);
-    }
-
-    const next = frameLayout.find(n => n.startFrame === item.endFrame);
-    if (
-      next &&
-      item.clip.outroFadeMs &&
-      currentFrame >= item.endFrame - Math.round((item.clip.outroFadeMs / 1000) * fps)
-    ) {
-      items.push(next);
     }
   }
 

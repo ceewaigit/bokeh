@@ -1,8 +1,59 @@
 import type { CursorEffectData, CursorMotionPreset } from '@/types/project'
-import { CursorStyle } from '@/types/project'
+import { CursorStyle, CursorTheme } from '@/types/project'
+import { CursorType } from './store/cursor-types'
+
+// Cursor theme configuration
+export interface CursorThemeConfig {
+    id: CursorTheme
+    name: string
+    description: string
+    /** Cursors available in this theme (others fall back to Default) */
+    availableCursors: CursorType[]
+}
+
+// Available cursor themes
+export const CURSOR_THEMES: Record<CursorTheme, CursorThemeConfig> = {
+    [CursorTheme.Default]: {
+        id: CursorTheme.Default,
+        name: 'macOS',
+        description: 'Apple-style cursors',
+        availableCursors: Object.values(CursorType) as CursorType[]
+    },
+    [CursorTheme.Tahoe]: {
+        id: CursorTheme.Tahoe,
+        name: 'Tahoe',
+        description: 'Tahoe cursor theme',
+        availableCursors: [
+            CursorType.ARROW,
+            CursorType.IBEAM,
+            CursorType.CROSSHAIR,
+            CursorType.RESIZE_LEFT_RIGHT,
+            CursorType.RESIZE_UP_DOWN,
+            CursorType.POINTING_HAND,
+            CursorType.OPEN_HAND,
+            CursorType.OPERATION_NOT_ALLOWED
+        ]
+    },
+    [CursorTheme.TahoeNoTail]: {
+        id: CursorTheme.TahoeNoTail,
+        name: 'Tahoe (No Tail)',
+        description: 'Tahoe without tail',
+        availableCursors: [
+            CursorType.ARROW,
+            CursorType.IBEAM,
+            CursorType.CROSSHAIR,
+            CursorType.RESIZE_LEFT_RIGHT,
+            CursorType.RESIZE_UP_DOWN,
+            CursorType.POINTING_HAND,
+            CursorType.OPEN_HAND,
+            CursorType.OPERATION_NOT_ALLOWED
+        ]
+    }
+}
 
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     style: CursorStyle.MacOS,
+    theme: CursorTheme.Default,
     size: 1,
     color: '#ffffff',
     speed: 0.25,

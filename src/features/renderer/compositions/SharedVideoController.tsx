@@ -19,6 +19,7 @@ import type { SharedVideoControllerProps } from '@/types';
 import { getMaxZoomScale } from '@/features/renderer/hooks/media/useVideoUrl';
 import { useRenderDelay } from '@/features/renderer/hooks/render/useRenderDelay';
 import { useFrameSnapshot } from '@/features/renderer/hooks/use-frame-snapshot';
+import { resolveClipFade } from '@/features/renderer/compositions/utils/effects/clip-fade';
 
 import { VideoClipRenderer } from './renderers/VideoClipRenderer';
 import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
@@ -149,6 +150,20 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const refocusBlurRaw = ((zoomTransform as any)?.refocusBlur ?? 0) * 12 * refocusIntensity;
   // Allow fractional blur for smooth transitions (prevents 0->1px snap blink)
   const effectiveBlurPx = refocusBlurRaw < 0.1 ? 0 : Number(refocusBlurRaw.toFixed(2));
+
+  const { clipFadeOpacity, useParentFade } = useMemo(() => {
+    if (!activeLayoutItem) {
+      return { clipFadeOpacity: 1, useParentFade: false };
+    }
+    return resolveClipFade({
+      clip: activeLayoutItem.clip,
+      layout,
+      currentFrame,
+      startFrame: activeLayoutItem.startFrame,
+      durationFrames: activeLayoutItem.durationFrames,
+      fps,
+    });
+  }, [activeLayoutItem, currentFrame, fps, layout]);
 
   useEffect(() => {
     // Preview ready when no motion blur (which handles its own readiness)
@@ -289,7 +304,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     videoWidth,
     videoHeight,
     maxZoomScale: getMaxZoomScale(effects),
-    boundaryState
+    boundaryState,
+    clipFadeOpacity,
+    useParentFade,
   };
 
   // If no active content, render children (overlays) or empty container
@@ -319,28 +336,52 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               height: layout.mockupEnabled ? '100%' : layout.drawHeight,
               transform: outerTransform,
               transformOrigin: 'center center',
-              filter: effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : undefined,
-              clipPath: layout.mockupEnabled ? undefined : cropClipPath,
-              borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
-              overflow: cropClipPath ? 'hidden' : undefined,
-              willChange: isRendering ? undefined : (effectiveBlurPx > 0 ? 'transform, filter' : 'transform'),
+              opacity: useParentFade ? clipFadeOpacity : 1,
+              // OUTER CONTAINER: Handles positioning, transforms, and SHADOWS
+              // Shadows must be here because they are drawn *outside* the box.
+              // If we put overflow:hidden here, shadows get clipped.
+              filter: [
+                effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : null,
+                !layout.mockupEnabled && layout.shadowIntensity > 0
+                  ? `drop-shadow(0px 10px ${layout.shadowIntensity * 0.5}px rgba(0,0,0,${Math.min(0.6, layout.shadowIntensity / 100)}))`
+                  : null
+              ].filter(Boolean).join(' ') || undefined,
+              willChange: isRendering ? undefined : 'transform, filter',
+              zIndex: 1,
             }}
           >
-            {/* Video content container - also used by MotionBlurLayer to find active video */}
-            <div ref={videoContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-              {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
-                <MockupLayer>
-                  {renderedContent}
-                </MockupLayer>
-              ) : (
-                renderedContent
-              )}
+            {/* INNER CONTAINER: Handles CLIPPING (Border Radius, Crop) */}
+            {/* This clips the video content but NOT the shadow (which is on the parent) */}
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                clipPath: layout.mockupEnabled ? undefined : cropClipPath,
+                borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
+                overflow: cropClipPath ? 'hidden' : undefined,
+                // Ensure border-radius clips children (like video)
+                isolation: 'isolate',
+              }}
+            >
+              {/* Video content container */}
+              <div ref={videoContainerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+                {layout.mockupEnabled && layout.mockupData && layout.mockupPosition ? (
+                  <MockupLayer>
+                    {renderedContent}
+                  </MockupLayer>
+                ) : (
+                  renderedContent
+                )}
+              </div>
             </div>
 
             {/* Debug Overlay - Independent visual guide if needed */}
 
-            {/* Annotations render INSIDE, inheriting CSS transform. TransformControls measures these DOM elements. */}
-            {/* Skip annotations in glow mode to prevent duplicate DOM elements causing hover detection issues */}
+            {/* Annotations render INSIDE the transform context, but OUTSIDE the clipping container */}
+            {/* This ensures annotations (like arrows) can stick out if needed, OR we can choose to put them inside */}
+            {/* Typically annotations should move with the video. Placing them here means they inherit transforms. */}
+            {/* Note: If annotations need to be clipped by crop, move them INSIDE the inner container. */}
+            {/* For now, keeping them here matches previous behavior (they float on top). */}
             {!renderSettings.isGlowMode && <AnnotationLayer />}
           </div>
 

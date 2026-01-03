@@ -152,6 +152,10 @@ export interface VideoPositionContextValue {
 
     // Rendering State (for VideoClipRenderer)
     maxZoomScale?: number;
+    /** Clip fade opacity applied at the container level (when enabled). */
+    clipFadeOpacity?: number;
+    /** Whether parent container is responsible for fade (avoid double fade). */
+    useParentFade?: boolean;
     boundaryState?: {
         shouldHoldPrevFrame: boolean;
         isNearBoundaryEnd: boolean;
@@ -344,6 +348,7 @@ export interface ParallaxBackgroundLayerProps {
     mouseX: number;
     mouseY: number;
     intensity: number;
+    blur?: number;
 }
 
 export interface ClipSequenceProps {

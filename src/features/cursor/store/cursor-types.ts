@@ -3,6 +3,7 @@
  */
 
 import { staticFile, getRemotionEnvironment } from 'remotion';
+import { CursorTheme } from '@/types/project';
 
 export enum CursorType {
   ARROW = 'arrow',
@@ -79,7 +80,7 @@ export interface CursorHotspot {
 }
 
 /**
- * Define dimensions for each cursor type (base size in pixels)
+ * Default (macOS) cursor dimensions (base size in pixels)
  */
 export const CURSOR_DIMENSIONS: Record<CursorType, CursorDimension> = {
   [CursorType.ARROW]: { width: 24, height: 32 },
@@ -103,48 +104,134 @@ export const CURSOR_DIMENSIONS: Record<CursorType, CursorDimension> = {
 }
 
 /**
- * Define hotspots for each cursor type as ratios of the cursor dimensions
- * These ratios work at any scale since they're proportional
+ * Tahoe cursor dimensions - all cursors are 32x32 base (scaled from 128x128 source)
  */
-export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
-  [CursorType.ARROW]: { x: 0.15, y: 0.12 }, // Arrow tip position fine-tuned
-  [CursorType.IBEAM]: { x: 0.5, y: 0.5 }, // Center of I-beam
-  [CursorType.POINTING_HAND]: { x: 0.64, y: 0.18 }, // Finger tip position
-  [CursorType.CLOSED_HAND]: { x: 0.5, y: 0.34 }, // Click point sits above center
-  [CursorType.OPEN_HAND]: { x: 0.5, y: 0.34 }, // Click point sits above center
-  [CursorType.CROSSHAIR]: { x: 0.5, y: 0.5 }, // Center intersection
-  [CursorType.RESIZE_LEFT]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.RESIZE_RIGHT]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.RESIZE_UP]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.RESIZE_DOWN]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.RESIZE_LEFT_RIGHT]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.RESIZE_UP_DOWN]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.CONTEXTUAL_MENU]: { x: 0.25, y: 0.175 }, // Arrow tip
-  [CursorType.DISAPPEARING_ITEM]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.DRAG_COPY]: { x: 0.25, y: 0.175 }, // Arrow tip
-  [CursorType.DRAG_LINK]: { x: 0.25, y: 0.19 }, // Arrow tip
-  [CursorType.OPERATION_NOT_ALLOWED]: { x: 0.5, y: 0.5 }, // Center
-  [CursorType.IBEAM_VERTICAL]: { x: 0.5, y: 0.5 } // Center
+const TAHOE_CURSOR_DIMENSIONS: Partial<Record<CursorType, CursorDimension>> = {
+  [CursorType.ARROW]: { width: 32, height: 32 },
+  [CursorType.IBEAM]: { width: 32, height: 32 },
+  [CursorType.POINTING_HAND]: { width: 32, height: 32 },
+  [CursorType.OPEN_HAND]: { width: 32, height: 32 },
+  [CursorType.CROSSHAIR]: { width: 32, height: 32 },
+  [CursorType.RESIZE_LEFT_RIGHT]: { width: 32, height: 32 },
+  [CursorType.RESIZE_UP_DOWN]: { width: 32, height: 32 },
+  [CursorType.OPERATION_NOT_ALLOWED]: { width: 32, height: 32 }
 }
 
 /**
- * Get cursor image path for a given cursor type
+ * Default (macOS) hotspots as ratios (0-1)
  */
-export function getCursorImagePath(cursorType: CursorType): string {
+export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
+  [CursorType.ARROW]: { x: 0.15, y: 0.12 },
+  [CursorType.IBEAM]: { x: 0.5, y: 0.5 },
+  [CursorType.POINTING_HAND]: { x: 0.64, y: 0.18 },
+  [CursorType.CLOSED_HAND]: { x: 0.5, y: 0.34 },
+  [CursorType.OPEN_HAND]: { x: 0.5, y: 0.34 },
+  [CursorType.CROSSHAIR]: { x: 0.5, y: 0.5 },
+  [CursorType.RESIZE_LEFT]: { x: 0.5, y: 0.5 },
+  [CursorType.RESIZE_RIGHT]: { x: 0.5, y: 0.5 },
+  [CursorType.RESIZE_UP]: { x: 0.5, y: 0.5 },
+  [CursorType.RESIZE_DOWN]: { x: 0.5, y: 0.5 },
+  [CursorType.RESIZE_LEFT_RIGHT]: { x: 0.5, y: 0.5 },
+  [CursorType.RESIZE_UP_DOWN]: { x: 0.5, y: 0.5 },
+  [CursorType.CONTEXTUAL_MENU]: { x: 0.25, y: 0.175 },
+  [CursorType.DISAPPEARING_ITEM]: { x: 0.5, y: 0.5 },
+  [CursorType.DRAG_COPY]: { x: 0.25, y: 0.175 },
+  [CursorType.DRAG_LINK]: { x: 0.25, y: 0.19 },
+  [CursorType.OPERATION_NOT_ALLOWED]: { x: 0.5, y: 0.5 },
+  [CursorType.IBEAM_VERTICAL]: { x: 0.5, y: 0.5 }
+}
+
+/**
+ * Tahoe hotspots as ratios (extracted from .cur files)
+ */
+const TAHOE_CURSOR_HOTSPOTS: Partial<Record<CursorType, CursorHotspot>> = {
+  [CursorType.ARROW]: { x: 2/128, y: 3/128 },           // hotspot (2,3)
+  [CursorType.IBEAM]: { x: 65/128, y: 62/128 },         // hotspot (65,62)
+  [CursorType.POINTING_HAND]: { x: 22/128, y: 3/128 },  // hotspot (22,3)
+  [CursorType.OPEN_HAND]: { x: 38/128, y: 38/128 },     // hotspot (38,38)
+  [CursorType.CROSSHAIR]: { x: 65/128, y: 65/128 },     // hotspot (65,65)
+  [CursorType.RESIZE_LEFT_RIGHT]: { x: 30/128, y: 47/128 }, // hotspot (30,47)
+  [CursorType.RESIZE_UP_DOWN]: { x: 47/128, y: 33/128 },    // hotspot (47,33)
+  [CursorType.OPERATION_NOT_ALLOWED]: { x: 2/128, y: 2/128 } // hotspot (2,2)
+}
+
+/**
+ * Get cursor dimensions for a specific theme
+ */
+export function getCursorDimensions(cursorType: CursorType, theme: CursorTheme = CursorTheme.Default): CursorDimension {
+  if (theme === CursorTheme.Tahoe || theme === CursorTheme.TahoeNoTail) {
+    return TAHOE_CURSOR_DIMENSIONS[cursorType] ?? CURSOR_DIMENSIONS[cursorType];
+  }
+  return CURSOR_DIMENSIONS[cursorType];
+}
+
+/**
+ * Get cursor hotspot for a specific theme
+ */
+export function getCursorHotspot(cursorType: CursorType, theme: CursorTheme = CursorTheme.Default): CursorHotspot {
+  if (theme === CursorTheme.Tahoe || theme === CursorTheme.TahoeNoTail) {
+    return TAHOE_CURSOR_HOTSPOTS[cursorType] ?? CURSOR_HOTSPOTS[cursorType];
+  }
+  return CURSOR_HOTSPOTS[cursorType];
+}
+
+/** Default cursor theme */
+export const DEFAULT_CURSOR_THEME = CursorTheme.Default;
+
+/** Cursors available in Tahoe themes */
+const TAHOE_AVAILABLE_CURSORS: Set<CursorType> = new Set([
+  CursorType.ARROW,
+  CursorType.IBEAM,
+  CursorType.CROSSHAIR,
+  CursorType.RESIZE_LEFT_RIGHT,
+  CursorType.RESIZE_UP_DOWN,
+  CursorType.POINTING_HAND,
+  CursorType.OPEN_HAND,
+  CursorType.OPERATION_NOT_ALLOWED
+]);
+
+/**
+ * Determine which theme to use for a cursor type.
+ * Falls back to Default theme if the type is not available in the requested theme.
+ */
+function getEffectiveTheme(cursorType: CursorType, requestedTheme: CursorTheme): CursorTheme {
+  if (requestedTheme === CursorTheme.Default) {
+    return CursorTheme.Default;
+  }
+
+  // Both Tahoe themes use the same available cursors
+  if ((requestedTheme === CursorTheme.Tahoe || requestedTheme === CursorTheme.TahoeNoTail)
+      && TAHOE_AVAILABLE_CURSORS.has(cursorType)) {
+    return requestedTheme;
+  }
+
+  // Fall back to Default for unsupported cursor types
+  return CursorTheme.Default;
+}
+
+/**
+ * Get cursor image path for a given cursor type and theme.
+ * Falls back to Default theme if cursor type is not available in requested theme.
+ */
+export function getCursorImagePath(
+  cursorType: CursorType,
+  theme: CursorTheme = DEFAULT_CURSOR_THEME
+): string {
   const { isRendering } = getRemotionEnvironment();
-  
+  const effectiveTheme = getEffectiveTheme(cursorType, theme);
+
   // During Remotion export: Use staticFile to access bundled assets
   if (isRendering) {
-    return staticFile(`cursors/${cursorType}.png`);
+    return staticFile(`cursors/${effectiveTheme}/${cursorType}.png`);
   }
-  
+
   // During Electron preview: Use our custom protocol
   if (typeof window !== 'undefined' && window.electronAPI) {
-    return `video-stream://assets/cursors/${cursorType}.png`;
+    return `video-stream://assets/cursors/${effectiveTheme}/${cursorType}.png`;
   }
-  
+
   // Fallback for development or tests
-  return `/cursors/${cursorType}.png`;
+  return `/cursors/${effectiveTheme}/${cursorType}.png`;
 }
 
 /**

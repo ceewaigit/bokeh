@@ -10,8 +10,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { ColorPickerPopover } from '@/components/ui/color-picker'
 import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, CursorMotionPreset, Effect } from '@/types/project'
+import { CursorTheme } from '@/types/project'
 import { EffectType } from '@/types'
-import { CURSOR_MOTION_PRESETS, DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
+import { CURSOR_MOTION_PRESETS, CURSOR_THEMES, DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
+import { CursorType, getCursorImagePath } from '@/features/cursor/store/cursor-types'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { useProjectStore } from '@/features/stores/project-store'
 import { useWorkspaceStore } from '@/features/stores/workspace-store'
@@ -32,6 +34,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   // Derived state from props (Single Source of Truth)
   // This eliminates "Split Brain" by relying entirely on passed cursorData (which comes from the store)
   const defaults = DEFAULT_CURSOR_DATA
+  const currentTheme = cursorData?.theme ?? defaults.theme ?? CursorTheme.Default
   const size = cursorData?.size ?? defaults.size
   const motionPreset = cursorData?.motionPreset ?? defaults.motionPreset ?? 'cinematic'
   const idleTimeoutSec = (cursorData?.idleTimeout ?? defaults.idleTimeout) / 1000
@@ -308,6 +311,66 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               step={0.1}
               className="w-full"
             />
+          </div>
+
+          {/* Theme Selector - Horizontal Slider */}
+          <div className="rounded-md bg-background/40 p-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Theme</label>
+                <InfoTooltip content="Select cursor appearance style" />
+              </div>
+              <span className="text-xs text-muted-foreground/70">
+                {CURSOR_THEMES[currentTheme]?.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const themes = Object.values(CURSOR_THEMES)
+                  const currentIndex = themes.findIndex(t => t.id === currentTheme)
+                  const prevIndex = (currentIndex - 1 + themes.length) % themes.length
+                  onUpdateCursor({ theme: themes[prevIndex].id })
+                }}
+                className="p-1.5 rounded-md hover:bg-background/60 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronRight className="w-4 h-4 rotate-180" />
+              </button>
+              <div className="flex-1 flex items-center justify-center h-12 rounded-lg border border-border/40 bg-background/60">
+                <img
+                  src={getCursorImagePath(CursorType.ARROW, currentTheme)}
+                  alt={CURSOR_THEMES[currentTheme]?.name}
+                  className="h-8 w-8 object-contain"
+                  style={{ imageRendering: 'auto' }}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  const themes = Object.values(CURSOR_THEMES)
+                  const currentIndex = themes.findIndex(t => t.id === currentTheme)
+                  const nextIndex = (currentIndex + 1) % themes.length
+                  onUpdateCursor({ theme: themes[nextIndex].id })
+                }}
+                className="p-1.5 rounded-md hover:bg-background/60 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex justify-center gap-1.5">
+              {Object.values(CURSOR_THEMES).map((themeConfig) => (
+                <button
+                  key={themeConfig.id}
+                  onClick={() => onUpdateCursor({ theme: themeConfig.id })}
+                  className={cn(
+                    'w-2 h-2 rounded-full transition-all',
+                    currentTheme === themeConfig.id
+                      ? 'bg-primary scale-110'
+                      : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                  )}
+                  title={themeConfig.name}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Animation Style Presets */}

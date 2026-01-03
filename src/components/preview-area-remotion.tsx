@@ -29,7 +29,7 @@ import { PreviewInteractions } from '@/features/editor/components/preview/previe
 import { TimelineProvider } from '@/features/renderer/context/TimelineContext';
 import { PlaybackSettingsProvider } from '@/features/renderer/context/playback/PlaybackSettingsContext';
 import { msToFrame } from '@/features/renderer/compositions/utils/time/frame-time';
-import { AnnotationTextDock } from '@/features/annotation/ui/AnnotationTextDock';
+import { AnnotationDock } from '@/features/annotation/ui/AnnotationDock';
 
 interface PreviewAreaRemotionProps {
   // Crop editing props
@@ -311,7 +311,7 @@ export function PreviewAreaRemotion({
                 height: `${previewFrameBounds.height}px`,
               }}
             >
-              <AnnotationTextDock />
+              <AnnotationDock />
               {playerConfig && (
                 <TimelineProvider
                   compositionWidth={timelineMetadata.width}

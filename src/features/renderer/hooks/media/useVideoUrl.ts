@@ -44,6 +44,7 @@ export function useVideoUrl({
   recording,
   resources,
   clipId,
+  preferOffthreadVideo,
   targetWidth = 1280,
   targetHeight = 720,
   maxZoomScale = 1,
@@ -53,7 +54,7 @@ export function useVideoUrl({
   isScrubbing = false,
 }: UseVideoUrlProps & { isScrubbing?: boolean }): string | undefined {
   const { isRendering } = getRemotionEnvironment();
-  const { videoUrls, videoUrlsHighRes } = resources || {};
+  const { videoUrls, videoUrlsHighRes, videoFilePaths } = resources || {};
 
   // Get proxy URLs from ephemeral store (first priority) with recording fallback
   const ephemeralProxyUrls = useProjectStore((s) => recording ? s.proxyUrls[recording.id] : undefined);
@@ -109,6 +110,9 @@ export function useVideoUrl({
     }
 
     if (isRendering) {
+      if (preferOffthreadVideo && videoFilePaths?.[recording.id]) {
+        return videoFilePaths[recording.id];
+      }
       const proxyUrl = videoUrls?.[recording.id];
       const highResUrl = videoUrlsHighRes?.[recording.id];
 
@@ -180,7 +184,7 @@ export function useVideoUrl({
     }
 
     return `video-stream://${recording.id}`;
-  }, [recording, isRendering, videoUrls, videoUrlsHighRes, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled, isScrubbing, ephemeralProxyUrls]);
+  }, [recording, isRendering, videoUrls, videoUrlsHighRes, videoFilePaths, preferOffthreadVideo, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled, isScrubbing, ephemeralProxyUrls]);
 
   // Use URL locking to prevent mid-playback URL switches that cause video reloads
   // Merged from useUrlLocking logic:

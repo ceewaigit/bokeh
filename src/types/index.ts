@@ -97,6 +97,7 @@ export {
   ScreenEffectPreset,
   AnnotationType,
   CursorStyle,
+  CursorTheme,
   ZoomFollowStrategy,
   KeystrokePosition
 } from './project'

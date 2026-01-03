@@ -415,11 +415,42 @@ function calculateDirectionalTilt(options: {
   const speedNormalized = Math.sqrt(vxHat * vxHat + vyHat * vyHat)
   const speedPxPerSec = speedNormalized * VELOCITY_REFERENCE_WIDTH
 
+  const lastMoveTimeMs = (() => {
+    let lastIndex = -1
+    for (let i = mouseEvents.length - 1; i >= 0; i--) {
+      if (mouseEvents[i].timestamp <= timestamp) {
+        lastIndex = i
+        break
+      }
+    }
+
+    if (lastIndex >= 0 && lastIndex < mouseEvents.length - 1) {
+      const current = mouseEvents[lastIndex]
+      const next = mouseEvents[lastIndex + 1]
+      if ((next.x !== current.x || next.y !== current.y) && next.timestamp > timestamp) {
+        return timestamp
+      }
+    }
+
+    for (let i = Math.max(1, lastIndex); i > 0; i--) {
+      const current = mouseEvents[i]
+      const previous = mouseEvents[i - 1]
+      if (current.x !== previous.x || current.y !== previous.y) {
+        return current.timestamp
+      }
+    }
+
+    return mouseEvents[0]?.timestamp ?? timestamp
+  })()
+
   // REFINED: Higher deadzone to ignore micro-movements, gentler ramp for polished feel
   // subtle at low speed, natural at medium, capped at high
   const speed01Raw = clamp01((speedPxPerSec - 80) / 900)  // was 60/700 - higher deadzone, gentler ramp
   const speed01Smooth = speed01Raw * speed01Raw * (3 - 2 * speed01Raw) // smoothstep
-  const speed01 = clamp01(speed01Smooth)
+  let speed01 = clamp01(speed01Smooth)
+  const idleMs = Math.max(0, timestamp - lastMoveTimeMs)
+  const idleDecay = Math.exp(-idleMs / 180)
+  speed01 *= idleDecay
 
   // Smooth direction mapping; avoids sign flip jitter on tiny vx
   // Scale vx to pixel-equivalent for consistent threshold behavior

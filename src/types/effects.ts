@@ -22,6 +22,7 @@ export enum EffectLayerType {
   Crop = 'crop',
   Webcam = 'webcam',
   Annotation = 'annotation',
+  Frame = 'frame',
   Video = 'video'
 }
 

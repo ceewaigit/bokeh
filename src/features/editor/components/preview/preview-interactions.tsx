@@ -133,6 +133,15 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
 
     const webcamEffectId = activeWebcamEffect?.id ?? null;
 
+    const activeScreenEffect = useMemo(() => {
+        return projectEffects.find((effect) =>
+            effect.type === EffectType.Screen &&
+            effect.enabled !== false &&
+            currentTimeMs >= effect.startTime &&
+            currentTimeMs < effect.endTime
+        ) ?? null;
+    }, [projectEffects, currentTimeMs]);
+
     // Resolve Active Clip for Hit Testing (Cursor)
     const activeClipData = useMemo(() => {
         if (!project) return null;
@@ -212,11 +221,11 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
             selectEffectLayer(EffectLayerType.Webcam, webcamEffectId);
             layerName = 'Webcam';
         } else if (layer === 'video' && canSelectVideo) {
-            selectEffectLayer(EffectLayerType.Video, 'video-layer');
             if (activeClipData?.clipId) {
                 selectClip(activeClipData.clipId);
             }
-            layerName = 'Video';
+            selectEffectLayer(EffectLayerType.Frame, backgroundEffectId ?? undefined);
+            layerName = 'Window';
         } else {
             return;
         }
@@ -240,6 +249,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         selectEffectLayer,
         selectClip,
         activeClipData?.clipId,
+        backgroundEffectId,
         isPropertiesOpen,
         toggleProperties,
         isFromAnnotationDock,

@@ -43,6 +43,15 @@ export const MockupLayer = React.memo(({
   }, [mockupData])
 
   // Shadow style based on intensity
+  const shadowFilter = useMemo(() => {
+    if (!mockupData?.shadowIntensity) return undefined
+    const intensity = mockupData.shadowIntensity
+    const alpha = Math.min(0.6, intensity / 100 * 0.6)
+    const blur = Math.max(4, intensity / 100 * 40)
+    const dist = Math.max(2, intensity / 100 * 15)
+    return `drop-shadow(0px ${dist}px ${blur}px rgba(0,0,0,${alpha}))`
+  }, [mockupData?.shadowIntensity])
+
   // Rotation transform
   const rotationTransform = useMemo(() => {
     if (!mockupData?.rotation || mockupData.rotation === 0) return ''
@@ -64,6 +73,7 @@ export const MockupLayer = React.memo(({
         height: mockupPosition.mockupHeight,
         transform: rotationTransform,
         transformOrigin: 'center center',
+        filter: shadowFilter
       }}
     >
       {/* Screen fill color (background for letterbox/pillarbox) */}

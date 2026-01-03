@@ -11,6 +11,7 @@ import { PluginRegistry } from '@/features/effects/config/plugin-registry';
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk';
 import type { Clip, Recording } from '@/types/project';
 import { assertDefined } from '@/shared/errors';
+import { useVideoPosition } from '@/features/renderer/context/layout/VideoPositionContext';
 
 interface GeneratedClipRendererProps {
   clipForVideo: Clip;
@@ -35,6 +36,8 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
     clip: clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
     currentFrame, fps, isRendering
   });
+  const { useParentFade } = useVideoPosition();
+  const visualOpacity = useParentFade ? 1 : renderState.effectiveOpacity;
 
   // Plugin lookup
   const generatedPluginId = assertDefined(
@@ -71,7 +74,7 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
         position: 'absolute',
         top: 0,
         left: 0,
-        opacity: renderState.effectiveOpacity,
+        opacity: visualOpacity,
       }}>
         {generatedContent}
       </div>

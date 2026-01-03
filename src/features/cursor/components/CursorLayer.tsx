@@ -1,11 +1,11 @@
 import React, { useMemo, useEffect } from 'react';
 import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
-import { EffectType } from '@/types/project';
+import { CursorTheme, EffectType } from '@/types/project';
 import {
   CursorType,
-  CURSOR_DIMENSIONS,
-  CURSOR_HOTSPOTS,
+  getCursorDimensions,
+  getCursorHotspot,
   getCursorImagePath,
 } from '../store/cursor-types';
 import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig } from '../logic/cursor-logic';
@@ -169,6 +169,7 @@ export const CursorLayer = React.memo(() => {
   }, [activeClipData]);
 
   const cursorData = (cursorEffect?.data as CursorEffectData | undefined);
+  const cursorTheme = cursorData?.theme ?? CursorTheme.Default;
   const clickEffectConfig = useMemo(() => resolveClickEffectConfig(cursorData), [cursorData]);
 
   // Use lazy-loaded metadata, falling back to recording.metadata if available
@@ -314,9 +315,9 @@ export const CursorLayer = React.memo(() => {
   // Apply cursor size from cursor state
   const cursorSize = cursorState.scale;
 
-  // Get cursor hotspot and dimensions
-  const hotspot = CURSOR_HOTSPOTS[cursorType];
-  const dimensions = CURSOR_DIMENSIONS[cursorType];
+  // Get cursor hotspot and dimensions (theme-aware)
+  const hotspot = getCursorHotspot(cursorType, cursorTheme);
+  const dimensions = getCursorDimensions(cursorType, cursorTheme);
 
   // Calculate cursor size to be TRULY RESOLUTION-AGNOSTIC.
   //
@@ -583,7 +584,7 @@ export const CursorLayer = React.memo(() => {
         }}
       >
         <Img
-          src={getCursorImagePath(cursorType)}
+          src={getCursorImagePath(cursorType, cursorTheme)}
           style={{
             width: renderedWidth,
             height: renderedHeight,
@@ -597,6 +598,7 @@ export const CursorLayer = React.memo(() => {
   }, [
     clickScale,
     cursorState.opacity,
+    cursorTheme,
     cursorType,
     hotspot.x,
     hotspot.y,
@@ -691,7 +693,7 @@ export const CursorLayer = React.memo(() => {
           }}
         >
           <Img
-            src={getCursorImagePath(cursorType)}
+            src={getCursorImagePath(cursorType, cursorTheme)}
             style={{
               width: renderedWidth,
               height: renderedHeight,

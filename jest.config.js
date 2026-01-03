@@ -13,6 +13,7 @@ const customJestConfig = {
   moduleNameMapper: {
     // Handle module aliases (this will be automatically configured for you based on your tsconfig.json paths)
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^color$': '<rootDir>/tests/__mocks__/color.js',
   },
   testEnvironment: 'jsdom',
   collectCoverageFrom: [
@@ -27,6 +28,9 @@ const customJestConfig = {
     '<rootDir>/node_modules/',
     '<rootDir>/out/',
     '<rootDir>/dist/',
+  ],
+  transformIgnorePatterns: [
+    '/node_modules/(?!(color|color-string|simple-swizzle)/)',
   ],
   coverageReporters: ['text', 'lcov', 'html', 'json-summary'],
   coverageDirectory: 'coverage',
