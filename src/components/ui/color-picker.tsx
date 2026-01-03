@@ -772,6 +772,9 @@ export type ColorPickerPopoverProps = {
   contentClassName?: string
   align?: ComponentProps<typeof PopoverContent>['align']
   sideOffset?: ComponentProps<typeof PopoverContent>['sideOffset']
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  modal?: boolean
 }
 
 export const ColorPickerPopover = ({
@@ -784,11 +787,14 @@ export const ColorPickerPopover = ({
   contentClassName,
   align = 'center',
   sideOffset = 8,
+  open,
+  onOpenChange,
+  modal,
 }: ColorPickerPopoverProps) => {
   const swatchColor = value ? String(value) : String(defaultValue ?? '#000000')
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={onOpenChange} modal={modal}>
       <PopoverTrigger asChild>
         <button
           type="button"

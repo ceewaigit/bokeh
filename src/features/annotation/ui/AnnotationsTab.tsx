@@ -88,6 +88,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
         style: {
           // Fix: Default Highlight to yellow so it doesn't have a white border clash
           color: type === AnnotationType.Highlight ? '#ffeb3b' : '#ffffff',
+          backgroundColor: type === AnnotationType.Redaction ? '#000000' : undefined,
           fontSize: 18,
           textAlign: type === AnnotationType.Text ? 'center' : undefined,
           borderRadius: type === AnnotationType.Redaction ? 2 : undefined,

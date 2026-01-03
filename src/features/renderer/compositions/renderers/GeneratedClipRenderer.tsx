@@ -8,6 +8,7 @@ import React from 'react';
 import { Sequence } from 'remotion';
 import { useClipRenderState } from '@/features/renderer/hooks/render/useClipRenderState';
 import { PluginRegistry } from '@/features/effects/config/plugin-registry';
+import { getDefaultZIndexForCategory } from '@/features/effects/config/plugin-sdk';
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk';
 import type { Clip, Recording } from '@/types/project';
 import { assertDefined } from '@/shared/errors';
@@ -48,6 +49,7 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
     PluginRegistry.get(generatedPluginId),
     `[GeneratedClipRenderer] Plugin not found: ${generatedPluginId}`
   );
+  const baseZIndex = getDefaultZIndexForCategory(generatedPlugin.category);
 
   // Plugin rendering
   const renderWidth = recording.width || compositionWidth;
@@ -75,6 +77,7 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
         top: 0,
         left: 0,
         opacity: visualOpacity,
+        zIndex: baseZIndex,
       }}>
         {generatedContent}
       </div>

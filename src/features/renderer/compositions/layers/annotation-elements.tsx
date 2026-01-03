@@ -331,6 +331,52 @@ const ArrowAnnotation = memo<BaseAnnotationProps>(({
 ArrowAnnotation.displayName = 'ArrowAnnotation'
 
 // ============================================================================
+// Redaction Annotation - Solid block for hiding content
+// ============================================================================
+
+const RedactionAnnotation = memo<BaseAnnotationProps>(({
+    id,
+    data,
+    context,
+}) => {
+    const style = data.style ?? {}
+    const position = getComputedPosition(data, context)
+    const rotation = data.rotation ?? 0
+
+    // Width/height are percentages of video dimensions
+    const width = ((data.width ?? 20) / 100) * context.videoWidth
+    const height = ((data.height ?? 10) / 100) * context.videoHeight
+
+    const bgColor = style.backgroundColor ?? '#000000'
+    const borderColor = style.borderColor
+    const borderWidth = style.borderWidth ?? 0
+    const borderRadius = style.borderRadius ?? 0
+
+    return (
+        <div
+            data-annotation-id={id}
+            data-annotation-type="redaction"
+            style={{
+                position: 'absolute',
+                left: position.x,
+                top: position.y,
+                width,
+                height,
+                transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+                transformOrigin: 'center center',
+                backgroundColor: bgColor,
+                border: borderColor && borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
+                borderRadius,
+                pointerEvents: 'auto',
+                contain: 'layout style paint',
+                willChange: 'transform',
+            }}
+        />
+    )
+})
+RedactionAnnotation.displayName = 'RedactionAnnotation'
+
+// ============================================================================
 // Main Annotation Element (Dispatcher)
 // ============================================================================
 
@@ -352,6 +398,8 @@ export const AnnotationElement = memo<AnnotationElementProps>((props) => {
             return <HighlightAnnotation {...props} />
         case AnnotationType.Arrow:
             return <ArrowAnnotation {...props} />
+        case AnnotationType.Redaction:
+            return <RedactionAnnotation {...props} />
         default:
             // Fallback to text for unknown types
             return <TextAnnotation {...props} />

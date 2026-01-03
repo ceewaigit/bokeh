@@ -29,7 +29,6 @@ import { SpeedUpApplicationService } from '@/features/timeline/speed-up-applicat
 import { PlayheadService } from '@/features/timeline/playback/playhead-service'
 import { playbackService } from '@/features/timeline/playback/playback-service'
 import { RecordingStorage } from '@/features/storage/recording-storage'
-import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
 import { CursorReturnService } from '@/features/cursor/cursor-return-service'
 import { EffectStore } from '@/features/effects/core/store'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
@@ -101,7 +100,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             project.recordings.push(recording)
 
             const insertTime = startTime ?? state.currentTime
-            const { insertIndex } = ClipPositioning.getReorderTarget(insertTime, videoTrack.clips)
+            const insertIndex = videoTrack.clips.findIndex((existing) => existing.startTime >= insertTime)
+            const safeInsertIndex = insertIndex === -1 ? videoTrack.clips.length : insertIndex
 
             const clip: Clip = {
                 id: `clip-${Date.now()}`,
@@ -112,8 +112,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 sourceOut: duration
             }
 
-            videoTrack.clips.splice(insertIndex, 0, clip)
-            reflowClips(videoTrack, insertIndex)
+            // Avoid shifting existing clips; generated clips can overlap.
+            videoTrack.clips.splice(safeInsertIndex, 0, clip)
 
             project.timeline.duration = calculateTimelineDuration(project)
             project.modifiedAt = new Date().toISOString()

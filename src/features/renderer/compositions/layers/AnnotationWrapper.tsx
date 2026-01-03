@@ -365,6 +365,9 @@ const RedactionContent: React.FC<RedactionContentProps> = memo(({
     const effectiveScale = context.scale ?? 1
     const style = data.style ?? {}
     const radius = (style.borderRadius ?? 2) * effectiveScale
+    const bgColor = style.backgroundColor ?? '#000000'
+    const borderColor = style.borderColor
+    const borderWidth = (style.borderWidth ?? 0) * effectiveScale
 
     return (
         <div
@@ -376,8 +379,8 @@ const RedactionContent: React.FC<RedactionContentProps> = memo(({
                 borderRadius: radius,
                 overflow: 'hidden',
                 // Solid background to fully obscure text
-                background: '#FFFFFF',
-                border: '1px solid rgba(0, 0, 0, 0.04)',
+                background: bgColor,
+                border: borderColor && borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
                 backdropFilter: 'none',
                 WebkitBackdropFilter: 'none',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',

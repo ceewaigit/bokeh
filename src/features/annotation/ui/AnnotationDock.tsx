@@ -272,6 +272,7 @@ export function AnnotationDock() {
                                             onChange={(value) => updateStyle({ color: value })}
                                             className="h-8 px-2"
                                             swatchClassName="h-5 w-5"
+                                            modal={true}
                                         />
                                     </div>
                                 </>
@@ -285,6 +286,7 @@ export function AnnotationDock() {
                                             onChange={(value) => updateStyle({ color: value })}
                                             className="h-8 px-2"
                                             swatchClassName="h-5 w-5"
+                                            modal={true}
                                         />
                                     </div>
                                     <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
@@ -347,18 +349,41 @@ export function AnnotationDock() {
                             )}
 
                             {showRedactionControls && (
-                                <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
-                                    <span className="text-3xs text-muted-foreground/80">Detail</span>
-                                    <Slider
-                                        value={[mosaicDetail]}
-                                        onValueChange={([v]) => updateStyle({ mosaicDetail: v })}
-                                        min={8}
-                                        max={40}
-                                        step={1}
-                                        className="w-28"
-                                    />
-                                    <span className="w-6 text-3xs tabular-nums text-muted-foreground/80 text-right">{mosaicDetail}</span>
-                                </div>
+                                <>
+                                    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
+                                        <span className="text-3xs text-muted-foreground/80">Color</span>
+                                        <ColorPickerPopover
+                                            value={style.backgroundColor ?? '#000000'}
+                                            onChange={(value) => updateStyle({ backgroundColor: value })}
+                                            className="h-6 w-8 px-0"
+                                            swatchClassName="h-4 w-4"
+                                            modal={true}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
+                                        <span className="text-3xs text-muted-foreground/80">Border</span>
+                                        <div className="flex items-center gap-1">
+                                            <ColorPickerPopover
+                                                value={style.borderColor ?? '#ffffff'}
+                                                onChange={(value) => updateStyle({ borderColor: value })}
+                                                className="h-6 w-8 px-0"
+                                                swatchClassName="h-4 w-4"
+                                                modal={true}
+                                            />
+                                            <Slider
+                                                value={[Math.round((style.borderWidth as number | undefined) ?? 0)]}
+                                                onValueChange={([v]) => updateStyle({ borderWidth: v })}
+                                                min={0}
+                                                max={10}
+                                                step={1}
+                                                className="w-20"
+                                            />
+                                        </div>
+                                        <span className="w-4 text-3xs tabular-nums text-muted-foreground/80 text-right">
+                                            {Math.round((style.borderWidth as number | undefined) ?? 0)}
+                                        </span>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </motion.div>
