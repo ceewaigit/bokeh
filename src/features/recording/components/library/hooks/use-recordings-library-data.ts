@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Project } from '@/types'
 import { useRecordingsLibraryStore, type LibraryRecording, type LibraryRecordingHydration, type LibraryRecordingView } from '@/features/recording/store/library-store'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
-import { PROJECT_EXTENSION } from '@/features/storage/recording-storage'
+import { PROJECT_EXTENSION, PROJECT_EXTENSION_REGEX } from '@/features/storage/recording-storage'
 import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'
 
 interface HydrationOptions {
@@ -10,6 +10,15 @@ interface HydrationOptions {
 }
 
 type ThumbnailVariant = 'default' | 'large'
+
+const normalizeSearchValue = (value: string) => (
+  value
+    .toLowerCase()
+    .replace(PROJECT_EXTENSION_REGEX, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+)
 
 export const useRecordingsLibraryData = (pageSize: number) => {
   const {
@@ -41,9 +50,19 @@ export const useRecordingsLibraryData = (pageSize: number) => {
 
     // Filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase().trim()
+      const query = normalizeSearchValue(searchQuery)
       if (query) {
-        result = result.filter((rec) => rec.name.toLowerCase().includes(query))
+        const tokens = query.split(' ').filter(Boolean)
+        const getSearchText = (rec: LibraryRecording) => {
+          const hydratedName = hydrationByPath[rec.path]?.projectInfo?.name
+          const fallbackName = rec.name.replace(/^Recording_/, '').replace(PROJECT_EXTENSION_REGEX, '')
+          const displayName = hydratedName || fallbackName
+          return normalizeSearchValue([displayName, rec.name, rec.path].filter(Boolean).join(' '))
+        }
+        result = result.filter((rec) => {
+          const searchText = getSearchText(rec)
+          return tokens.every((token) => searchText.includes(token))
+        })
       }
     }
 
@@ -72,7 +91,7 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     })
 
     return result
-  }, [recordings, searchQuery, sortKey, sortDirection])
+  }, [recordings, searchQuery, sortKey, sortDirection, hydrationByPath])
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedRecordings.length / pageSize))
 
