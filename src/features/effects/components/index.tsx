@@ -6,7 +6,7 @@ import { cn } from '@/shared/utils/utils'
 import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData, Effect } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
-import { getBackgroundEffect, getCropEffectForClip, getCursorEffect, getKeystrokeEffect, getWebcamEffects } from '@/features/effects/core/filters'
+import { getBackgroundEffect, getCropEffectForClip, getEffectByType, getEffectsOfType } from '@/features/effects/core/filters'
 import { resolveEffectIdForType } from '@/features/effects/core/selection'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -159,9 +159,9 @@ export function EffectsSidebar({
 
   // Extract current effects from the array using effect-filters helpers
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
-  const cursorEffect = effects ? getCursorEffect(effects) : undefined
-  const keystrokeEffect = effects ? getKeystrokeEffect(effects) : undefined
-  const webcamEffects = effects ? getWebcamEffects(effects) : []
+  const cursorEffect = effects ? getEffectByType(effects, EffectType.Cursor) : undefined
+  const keystrokeEffect = effects ? getEffectByType(effects, EffectType.Keystroke) : undefined
+  const webcamEffects = effects ? getEffectsOfType(effects, EffectType.Webcam, false) : []
   const webcamEffectId = resolveEffectIdForType(webcamEffects, selectedEffectLayer, EffectType.Webcam, false)
   const webcamEffect = webcamEffectId
     ? webcamEffects.find(effect => effect.id === webcamEffectId)
@@ -375,7 +375,7 @@ export function EffectsSidebar({
                   <motion.button
                     onClick={() => setActiveTab(tab.id as SidebarTabId)}
                     className={cn(
-                      "group relative flex w-full items-center justify-center p-2 rounded-lg transition-colors duration-150",
+                      "group relative flex w-full aspect-square items-center justify-center p-2 rounded-xl transition-colors duration-150",
                       activeTab === tab.id
                         ? "text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
@@ -430,7 +430,7 @@ export function EffectsSidebar({
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-3">
             <div className="w-full relative">
               <AnimatePresence mode="wait" initial={false}>
                 {activeTab === SidebarTabId.Clip && (

@@ -45,6 +45,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
   const [opacity, setOpacity] = useState(webcamData?.opacity ?? DEFAULT_WEBCAM_DATA.opacity)
   const [padding, setPadding] = useState(webcamData?.padding ?? DEFAULT_WEBCAM_DATA.padding)
   const [reduceOpacityOnZoom, setReduceOpacityOnZoom] = useState(webcamData?.reduceOpacityOnZoom ?? DEFAULT_WEBCAM_DATA.reduceOpacityOnZoom)
+  const [zoomInfluence, setZoomInfluence] = useState(webcamData?.zoomInfluence ?? DEFAULT_WEBCAM_DATA.zoomInfluence)
 
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -67,6 +68,7 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
       setOpacity(webcamData.opacity)
       setPadding(webcamData.padding ?? DEFAULT_WEBCAM_DATA.padding)
       setReduceOpacityOnZoom(webcamData.reduceOpacityOnZoom ?? DEFAULT_WEBCAM_DATA.reduceOpacityOnZoom)
+      setZoomInfluence(webcamData.zoomInfluence ?? DEFAULT_WEBCAM_DATA.zoomInfluence)
     }
   }, [webcamData])
 
@@ -312,10 +314,15 @@ export function WebcamTab({ webcamEffect, onUpdateWebcam, onEffectChange }: Webc
                   setOpacity(v)
                   handleUpdate({ opacity: v })
                 }}
-                reduceOpacityOnZoom={reduceOpacityOnZoom}
+                reduceOpacityOnZoom={reduceOpacityOnZoom ?? false}
                 onReduceOpacityOnZoomChange={(v) => {
                   setReduceOpacityOnZoom(v)
                   handleUpdate({ reduceOpacityOnZoom: v })
+                }}
+                zoomInfluence={zoomInfluence}
+                onZoomInfluenceChange={(v) => {
+                  setZoomInfluence(v)
+                  handleUpdate({ zoomInfluence: v })
                 }}
                 cornerRadius={cornerRadius}
                 onCornerRadiusChange={(v) => {

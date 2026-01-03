@@ -96,5 +96,5 @@ export function findNextValidPosition(
   return ClipPositioning.findNextValidPosition(desiredStart, duration, track.clips, clipId)
 }
 
-// Re-export calculateTimelineDuration from timeline-operations for backward compatibility
-export { calculateTimelineDuration } from '@/features/timeline/timeline-operations'
+// Re-export calculateTimelineDuration from clip-reflow for backward compatibility
+export { calculateTimelineDuration } from '@/features/timeline/clips/clip-reflow'

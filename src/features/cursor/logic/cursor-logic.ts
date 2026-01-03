@@ -562,8 +562,6 @@ function getSmoothingJumpThreshold(mouseEvents: MouseEvent[], cursorData?: Curso
 
 // clampNumber removed in favor of standard clamp function
 
-// easeOutCubic is now imported from @/features/canvas/math and re-exported for backwards compatibility
-export { easeOutCubic }
 
 function normalizeClickWords(words: string[]): string[] {
   const sanitized = words

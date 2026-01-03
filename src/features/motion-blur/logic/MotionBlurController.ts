@@ -46,7 +46,7 @@ export class MotionBlurController {
         // 1. Get Context
         const gl = this.canvas.getContext('webgl2', {
             alpha: true,
-            premultipliedAlpha: true,
+            premultipliedAlpha: false,
             antialias: false,
             depth: false,
             stencil: false,
@@ -125,7 +125,9 @@ export class MotionBlurController {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         // Standard pixel store
-        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+        // IMPORTANT: Use browser-default color conversion so WebGL sampling matches native video rendering.
+        // Setting this to NONE can cause visible hue/saturation shifts for tagged (e.g. P3 / Rec.2020) sources.
+        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
         this.texture = texture;
@@ -148,6 +150,9 @@ export class MotionBlurController {
             gamma: number;
             blackLevel: number;
             saturation: number;
+            colorSpace?: PredefinedColorSpace;
+            unpackPremultiplyAlpha?: boolean;
+            pixelRatio?: number;
         }
     ): OffscreenCanvas | HTMLCanvasElement | null {
         if (!this.gl || this.gl.isContextLost()) {
@@ -157,20 +162,23 @@ export class MotionBlurController {
         if (!gl || !this.program || !this.buffers || !this.texture) return null;
 
         // 1. Resize if needed
-        if (this.canvas.width !== width || this.canvas.height !== height) {
-            this.canvas.width = width;
-            this.canvas.height = height;
-            gl.viewport(0, 0, width, height);
+        const pixelRatio = Math.max(1, uniforms.pixelRatio ?? 1);
+        const widthPx = Math.round(width * pixelRatio);
+        const heightPx = Math.round(height * pixelRatio);
+        if (this.canvas.width !== widthPx || this.canvas.height !== heightPx) {
+            this.canvas.width = widthPx;
+            this.canvas.height = heightPx;
+            gl.viewport(0, 0, widthPx, heightPx);
 
             // Update vertices for full quad
-            const x1 = 0; const x2 = width; const y1 = 0; const y2 = height;
+            const x1 = 0; const x2 = widthPx; const y1 = 0; const y2 = heightPx;
             gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.position);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
                 x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2, y2,
             ]), gl.STATIC_DRAW);
 
-            this.lastWidth = width;
-            this.lastHeight = height;
+            this.lastWidth = widthPx;
+            this.lastHeight = heightPx;
         }
 
         // 2. Clear (Fix for artifacting)
@@ -184,13 +192,24 @@ export class MotionBlurController {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
 
-        // Upload with SRGB internal format for hardware decoding
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.SRGB8_ALPHA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
+        // Align WebGL drawing buffer with the rest of the render pipeline (native video / canvas).
+        // This also influences how drawImage() converts between canvases.
+        if (uniforms.colorSpace) {
+            try {
+                gl.drawingBufferColorSpace = uniforms.colorSpace;
+            } catch {
+                // Ignore if unsupported.
+            }
+        }
+
+        // Match browser color management for video sources to avoid left/right mismatch.
+        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, uniforms.unpackPremultiplyAlpha ? 1 : 0);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
 
         // 4. Set Uniforms
         gl.uniform1i(this.locations.u_image as WebGLUniformLocation, 0);
-        gl.uniform2f(this.locations.u_resolution as WebGLUniformLocation, width, height);
+        gl.uniform2f(this.locations.u_resolution as WebGLUniformLocation, widthPx, heightPx);
 
         gl.uniform2f(this.locations.u_velocity as WebGLUniformLocation, uniforms.uvVelocityX, uniforms.uvVelocityY);
         gl.uniform1f(this.locations.u_intensity as WebGLUniformLocation, uniforms.intensity);

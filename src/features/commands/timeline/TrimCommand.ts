@@ -8,8 +8,9 @@ import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { findClipById, executeTrimClipStart, executeTrimClipEnd } from '@/features/timeline/timeline-operations'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { executeTrimClipStart, executeTrimClipEnd } from '@/features/timeline/clips/clip-trim'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
 export type TrimSide = 'start' | 'end'
@@ -38,7 +39,6 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
   canExecute(): boolean {
     const result = this.context.findClip(this.clipId)
     if (!result) return false
-
     const { clip } = result
 
     if (this.side === 'start') {
@@ -58,29 +58,16 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
       throw new Error(`Clip ${this.clipId} not found`)
     }
 
-    const { clip } = result
-
-    // Validate trim position again within the transaction to ensure consistency
     if (this.side === 'start') {
-      if (this.trimPosition <= clip.startTime || this.trimPosition >= clip.startTime + clip.duration) {
-        throw new Error('Invalid trim position for start')
-      }
-
       if (!executeTrimClipStart(draft.currentProject, this.clipId, this.trimPosition)) {
         throw new Error('Trim start failed')
       }
-    } else {
-      if (this.trimPosition <= clip.startTime || this.trimPosition >= clip.startTime + clip.duration) {
-        throw new Error('Invalid trim position for end')
-      }
-
-      if (!executeTrimClipEnd(draft.currentProject, this.clipId, this.trimPosition)) {
-        throw new Error('Trim end failed')
-      }
+    } else if (!executeTrimClipEnd(draft.currentProject, this.clipId, this.trimPosition)) {
+      throw new Error('Trim end failed')
     }
 
     // Trim changes clip boundaries; rebuild derived keystroke blocks.
-    EffectsFactory.syncKeystrokeEffects(draft.currentProject)
+    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
 
     // Clear render caches after trim operation
     TimelineDataService.invalidateCache(draft.currentProject)

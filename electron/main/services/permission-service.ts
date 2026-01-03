@@ -1,6 +1,10 @@
 import { systemPreferences, BrowserWindow } from 'electron'
 import { exec } from 'child_process'
 
+declare global {
+    var screenRecordingPermission: string
+}
+
 export class PermissionService {
     private static instance: PermissionService
     private checkInterval: NodeJS.Timeout | null = null
@@ -11,7 +15,7 @@ export class PermissionService {
     private _mockPermissions: { screen?: boolean; microphone?: boolean; camera?: boolean } = {}
 
     private constructor() {
-        this.checkInitialPermissions()
+        this.refreshCachedPermissions()
     }
 
     public static getInstance(): PermissionService {
@@ -21,7 +25,7 @@ export class PermissionService {
         return PermissionService.instance
     }
 
-    private checkInitialPermissions() {
+    private refreshCachedPermissions() {
         if (process.platform === 'darwin') {
             const status = systemPreferences.getMediaAccessStatus('screen')
             this._screenRecordingGranted = status === 'granted'
@@ -37,6 +41,50 @@ export class PermissionService {
             this._screenRecordingGranted = true
             this._microphoneGranted = true
             this._cameraGranted = true
+        }
+    }
+
+    public async checkInitialPermissions(): Promise<void> {
+        if (process.platform === 'darwin') {
+            try {
+                console.log('🔐 Checking macOS media permissions...')
+
+                const screenStatus = systemPreferences.getMediaAccessStatus('screen')
+                this._screenRecordingGranted = screenStatus === 'granted'
+                console.log('🖥️ Screen recording permission:', screenStatus)
+
+                if (screenStatus !== 'granted') {
+                    console.log('⚠️ Screen recording permission not granted')
+                    console.log('📝 Note: Screen recording permission is required for both video AND system audio capture')
+                    global.screenRecordingPermission = screenStatus
+                    console.log('📝 Will show permission guide to user after window loads')
+                } else {
+                    global.screenRecordingPermission = 'granted'
+                    console.log('✅ System audio capture enabled via screen recording permission')
+                }
+
+                try {
+                    const microphoneGranted = await systemPreferences.askForMediaAccess('microphone')
+                    this._microphoneGranted = microphoneGranted
+                    console.log('🎤 Microphone permission:', microphoneGranted ? 'granted' : 'denied')
+                } catch (e: any) {
+                    console.log('🎤 Microphone permission check skipped:', e.message)
+                }
+
+                const micStatus = systemPreferences.getMediaAccessStatus('microphone')
+                this._microphoneGranted = micStatus === 'granted'
+
+                const camStatus = systemPreferences.getMediaAccessStatus('camera')
+                this._cameraGranted = camStatus === 'granted'
+            } catch (error) {
+                console.error('❌ Error checking media permissions:', error)
+                global.screenRecordingPermission = 'unknown'
+            }
+        } else {
+            this._screenRecordingGranted = true
+            this._microphoneGranted = true
+            this._cameraGranted = true
+            global.screenRecordingPermission = 'granted'
         }
     }
 

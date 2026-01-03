@@ -9,8 +9,9 @@ import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { findClipById, updateClipInTrack } from '@/features/timeline/timeline-operations'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { updateClipInTrack } from '@/features/timeline/clips/clip-crud'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { PlayheadService } from '@/features/timeline/playback/playhead-service'
 import { playbackService } from '@/features/timeline/playback/playback-service'
 
@@ -53,7 +54,7 @@ export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
     }
 
     // Clip timing/position can change; keep derived keystroke blocks aligned.
-    EffectsFactory.syncKeystrokeEffects(draft.currentProject)
+    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
 
     // Maintain playhead relative position inside the edited clip
     const updatedResult = findClipById(draft.currentProject, this.clipId)

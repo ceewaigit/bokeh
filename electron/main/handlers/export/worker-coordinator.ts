@@ -10,12 +10,24 @@ import { workerPool, SupervisedWorker } from '../../utils/worker-manager'
 import type { ExportJobConfig, ChunkPlanEntry } from './types'
 import { ProgressTracker } from './progress-tracker'
 import { combineChunks, cleanupChunks } from './ffmpeg-combiner'
-import { computePerWorkerMemoryMB } from './worker-allocator'
 import { killRemotionChromiumProcesses } from '../../utils/remotion-chromium-cleanup'
 
 // Singleton export worker reference
 let exportWorker: SupervisedWorker | null = null
 const KNOWN_EXPORT_WORKERS = ['export', 'export-par-0', 'export-par-1', 'export-par-2', 'export-par-3'] as const
+
+function computePerWorkerMemoryMB(
+  profile: MachineProfile,
+  workerCount: number
+): number {
+  const totalGB = profile.totalMemoryGB || 4
+  const availableGB = profile.availableMemoryGB ?? totalGB * 0.5
+  const memoryBudget = Math.max(availableGB, totalGB * 0.4)
+  return Math.max(
+    512,
+    Math.min(2048, Math.floor((memoryBudget * 1024) / Math.max(1, workerCount * 3)))
+  )
+}
 
 function cancellationError(): Error {
   return new Error('Export cancelled')

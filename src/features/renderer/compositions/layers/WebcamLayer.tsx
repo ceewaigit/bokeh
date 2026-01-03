@@ -58,8 +58,7 @@ export const WebcamLayer = React.memo(({
   const effectiveVolume = Math.max(0, Math.min(1, playback.previewVolume ?? 1));
   const shouldMuteAudio = playback.previewMuted || effectiveVolume <= 0 || !webcamRecording?.hasAudio;
 
-  const { zoomTransform } = useVideoPosition();
-  const inverseCameraScale = zoomTransform?.scale ? 1 / zoomTransform.scale : 1;
+  // Anchor to the full composition instead of the transformed video content.
 
   // Anchor to the full composition instead of the transformed video content.
 
@@ -93,6 +92,7 @@ export const WebcamLayer = React.memo(({
   );
 
   const webcamContainerRef = useVideoContainerCleanup(webcamVideoUrl);
+  const { zoomTransform } = useVideoPosition();
 
   // Don't render if no webcam video, clip, or effect
   const hasWebcam = Boolean(webcamVideoUrl && webcamClip && effectToUse?.enabled !== false);
@@ -105,7 +105,14 @@ export const WebcamLayer = React.memo(({
   const webcamSize = Math.round(layout.size);
   const position = { x: Math.round(layout.x), y: Math.round(layout.y) };
 
-  const finalScale = animationScale * inverseCameraScale;
+  const inverseCameraScale = zoomTransform?.scale ? 1 / zoomTransform.scale : 1;
+
+  // Apply inverse scale so webcam shrinks when camera zooms in (HUD-like)
+  // zoomInfluence: 0 = No inverse scale (scales with content)
+  // zoomInfluence: 1 = Full inverse scale (stays constant size)
+  const zoomInfluence = data.zoomInfluence ?? 1;
+  const effectiveScale = 1 + (inverseCameraScale - 1) * zoomInfluence;
+  const finalScale = animationScale * effectiveScale;
 
   const finalOpacity = animationOpacity;
 
@@ -130,31 +137,22 @@ export const WebcamLayer = React.memo(({
     transformOrigin: getTransformOrigin(data.position.anchor), // Scale towards anchor for natural feel
     opacity: finalOpacity,
     transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease-out', // Snappy animations
-    // Use clip-path for true squircle (superellipse), fallback to border-radius for others
-    borderRadius: data.shape === 'circle' ? '50%' : (data.shape === 'squircle' ? 0 : data.cornerRadius),
-    clipPath: data.shape === 'squircle'
-      ? 'path("M 0,50 C 0,0 0,0 50,0 S 100,0 100,50 100,100 50,100 0,100 0,50")' // Crude approximation, usually requires complex path based on size.
-      // Better relative clip-path for squircle:
-      : undefined,
-    // Note: Standard CSS clip-path path() uses absolute units (px), which breaks resizing.
-    // For responsive squircle we should use `mask-image` or an SVG reference, OR `inset() round` (which is just rounded rect).
-    // Let's use a specific 'super-ellipse' style border-radius/clip-path technique if possible, or sticking to `cornerRadius` but ensuring it's not overriding to 50%.
-    // Actually, the issue might be that `cornerRadius` IS 50% in the data? Re-checking config.
-    // Config says squircle cornerRadius is 32.
-    // Let's stick to border-radius for now but ensure it is applied.
-    // User reported it looks like circle. Maybe `cornerRadius` is being treated as %, or is just too big relative to size?
-    // If size is small, 32px might be close to circle.
-    // Let's use a percentage for squircle to be safe? 
-    // Apple icon is ~22%.
+    // Use standard border-radius for all shapes including squircle (approximated) to ensure
+    // 1. Shadows work (clip-path clips shadows)
+    // 2. Resizing works (absolute clip-path path() doesn't scale)
+    borderRadius: data.shape === 'circle' ? '50%' : (data.shape === 'squircle' ? '20%' : data.cornerRadius),
     overflow: 'hidden',
     backgroundColor: 'transparent',
     backfaceVisibility: 'hidden',
   };
 
   // Correct Squircle Implementation:
-  // If shape is squircle, we override borderRadius to be relative to size for consistent look
+  // Using '20%' border radius is a close enough approximation for Apple's squircle
+  // that enables consistent shadows and resizing without complex SVG masking.
   if (data.shape === 'squircle') {
-    containerStyle.borderRadius = '20%'; // ~Apple squircle curvature
+    // Already handled in initial assignment, but keeping this block structure if we need override logic later
+    // or if we switch to a mask-image based solution for perfect squircle.
+    // For now, simplicity + correctness (shadows/sizing) wins.
   }
 
   const sourceWidth = webcamRecording?.width || webcamSize;

@@ -7,7 +7,8 @@ import { Slider } from '@/components/ui/slider'
 const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const
 
 const MotionButton = motion.create(Button)
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/shared/utils/utils'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -88,12 +89,12 @@ function TrackVisibilityDropdown() {
             <MotionButton
               size="sm"
               variant="ghost"
-              className="h-7 w-7 p-0"
+              className="h-8 w-8 p-0 rounded-full"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               transition={springConfig}
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-4 h-4" />
             </MotionButton>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -161,17 +162,22 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   const audio = useProjectStore((s) => s.currentProject?.settings.audio ?? DEFAULT_PROJECT_SETTINGS.audio)
   const setAudioSettings = useProjectStore((s) => s.setAudioSettings)
   const { volume, muted } = audio
-  const [lastChangedControl, setLastChangedControl] = React.useState<'volume' | 'preview' | 'zoom'>('zoom')
   const [hoveredControl, setHoveredControl] = React.useState<'volume' | 'preview' | 'zoom' | null>(null)
-  const expandedControl = hoveredControl ?? lastChangedControl
 
-  const getSliderWrapperStyle = (id: 'volume' | 'preview' | 'zoom') => {
-    const isExpanded = expandedControl === id
+  const getSliderWrapperStyle = (id: 'volume' | 'preview' | 'zoom', targetWidth: string, defaultExpanded = false) => {
+    const isExpanded = hoveredControl === id || (defaultExpanded && hoveredControl === null)
     return {
+      width: isExpanded ? targetWidth : '0px',
       opacity: isExpanded ? 1 : 0,
-      transform: isExpanded ? 'translateX(0)' : 'translateX(-6px)',
+      transform: isExpanded ? 'translateX(0)' : 'translateX(-5px)',
       pointerEvents: isExpanded ? 'auto' : 'none',
-      transition: 'opacity 140ms ease-out, transform 160ms cubic-bezier(0.16, 1, 0.3, 1)',
+      overflow: 'hidden',
+      paddingLeft: isExpanded ? '0.625rem' : '0px',
+      paddingRight: isExpanded ? '0.625rem' : '0px',
+      height: '1.5rem', // h-6 (24px) sufficient for 16px thumb + shadow
+      display: 'flex',
+      alignItems: 'center',
+      transition: 'width 250ms cubic-bezier(0.2, 0, 0, 1), padding 250ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease-out, transform 250ms cubic-bezier(0.2, 0, 0, 1)',
     } as React.CSSProperties
   }
 
@@ -189,172 +195,181 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   const effectiveMaxZoom = Math.min(10, maxZoom)
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div
-        className="timeline-controls grid grid-cols-3 items-center px-4 py-1 border-b border-border/10 bg-muted/20"
-      >
+    <div
+      className="timeline-controls grid grid-cols-3 items-center px-4 py-0.5 border-b border-border/10 bg-muted/20"
+    >
 
-        {/* LEFT: Tracks, Volume, Edit Actions */}
-        <div className="flex items-center gap-1 justify-start">
-          {/* Track Visibility Dropdown */}
-          <TrackVisibilityDropdown />
+      {/* LEFT: Tracks, Volume, Edit Actions */}
+      <div className="flex items-center gap-1 justify-start">
+        {/* Track Visibility Dropdown */}
+        <TrackVisibilityDropdown />
 
-          <div className="w-px h-4 bg-border/40 mx-1" />
+        <div className="w-px h-4 bg-border/40 mx-1" />
 
-          {/* Volume Control */}
-          <div
-            className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1"
-            onMouseEnter={() => setHoveredControl('volume')}
-            onMouseLeave={() => setHoveredControl(null)}
-            onFocusCapture={() => handleControlFocus('volume')}
-            onBlurCapture={handleControlBlur}
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLastChangedControl('volume')
-                    setAudioSettings({ muted: !muted })
-                  }}
-                  className="flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={muted ? 'Unmute' : 'Mute'}
-                >
-                  {muted ? (
-                    <VolumeX className="w-3.5 h-3.5" />
-                  ) : (
-                    <Volume2 className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>{muted ? 'Unmute' : 'Mute'} master audio</span>
-              </TooltipContent>
-            </Tooltip>
-            <div style={getSliderWrapperStyle('volume')} aria-hidden={expandedControl !== 'volume'}>
-              <Slider
-                value={[volume]}
-                onValueChange={([value]) => {
-                  setLastChangedControl('volume')
-                  setAudioSettings({ volume: value })
-                }}
-                min={0}
-                max={200}
-                step={1}
-                className="w-20"
-              />
-            </div>
-          </div>
-
-          <div className="w-px h-4 bg-border/40 mx-1.5" />
-
-          {/* Single-clip Edit Controls - Hidden when no selection */}
-          {hasSingleSelection && (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <MotionButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={onSplitSelected}
-                    className="h-7 w-7 p-0"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    transition={springConfig}
-                  >
-                    <Scissors className="w-3.5 h-3.5" />
-                  </MotionButton>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" sideOffset={4}>
-                  <span>Split at playhead (S)</span>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <MotionButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={onTrimStartSelected}
-                    className="h-7 w-7 p-0"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    transition={springConfig}
-                  >
-                    <ChevronsLeft className="w-3.5 h-3.5" />
-                  </MotionButton>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" sideOffset={4}>
-                  <span>Trim start to playhead (Q)</span>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <MotionButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={onTrimEndSelected}
-                    className="h-7 w-7 p-0"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    transition={springConfig}
-                  >
-                    <ChevronsRight className="w-3.5 h-3.5" />
-                  </MotionButton>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" sideOffset={4}>
-                  <span>Trim end to playhead (W)</span>
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <MotionButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={onDuplicateSelected}
-                    className="h-7 w-7 p-0"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    transition={springConfig}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                  </MotionButton>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" sideOffset={4}>
-                  <span>Duplicate (⌘D)</span>
-                </TooltipContent>
-              </Tooltip>
-            </>
+        {/* Volume Control */}
+        <div
+          className={cn(
+            "flex items-center rounded-full transition-all duration-300 ease-out",
+            hoveredControl === 'volume' ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
           )}
-
-          {/* Always visible but disabled when no selection */}
+          onMouseEnter={() => setHoveredControl('volume')}
+          onMouseLeave={() => setHoveredControl(null)}
+          onFocusCapture={() => handleControlFocus('volume')}
+          onBlurCapture={handleControlBlur}
+        >
           <Tooltip>
             <TooltipTrigger asChild>
-              <MotionButton
-                size="sm"
-                variant="ghost"
-                onClick={onDeleteSelected}
-                disabled={!hasSelection}
-                className="h-7 w-7 p-0 disabled:opacity-50"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                transition={springConfig}
+              <button
+                type="button"
+                onClick={() => {
+                  setAudioSettings({ muted: !muted })
+                }}
+                className="flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={muted ? 'Unmute' : 'Mute'}
               >
-                <Trash2 className="w-3.5 h-3.5" />
-              </MotionButton>
+                {muted ? (
+                  <VolumeX className="w-3.5 h-3.5" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5" />
+                )}
+              </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={4}>
-              <span>Delete selected (Del)</span>
+              <span>{muted ? 'Unmute' : 'Mute'} master audio</span>
             </TooltipContent>
           </Tooltip>
-
+          <div style={getSliderWrapperStyle('volume', '7rem')} aria-hidden={hoveredControl !== 'volume'}>
+            <Slider
+              value={[volume]}
+              onValueChange={([value]) => {
+                setAudioSettings({ volume: value })
+              }}
+              min={0}
+              max={200}
+              step={1}
+              className="w-28 pl-2"
+            />
+          </div>
         </div>
 
-        {/* CENTER: Playback Controls & Timecode */}
-        <div className="flex items-center justify-center gap-4">
-          {/* Playback Controls */}
+        <div className="w-px h-4 bg-border/40 mx-1.5" />
+
+        {/* Single-clip Edit Controls - Hidden when no selection */}
+        {hasSingleSelection && (
+          <>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <MotionButton
+                  size="sm"
+                  variant="ghost"
+                  onClick={onSplitSelected}
+                  className="h-8 w-8 p-0 rounded-full"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
+                >
+                  <Scissors className="w-4 h-4" />
+                </MotionButton>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4}>
+                <span>Split at playhead (S)</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <MotionButton
+                  size="sm"
+                  variant="ghost"
+                  onClick={onTrimStartSelected}
+                  className="h-8 w-8 p-0 rounded-full"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </MotionButton>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4}>
+                <span>Trim start to playhead (Q)</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <MotionButton
+                  size="sm"
+                  variant="ghost"
+                  onClick={onTrimEndSelected}
+                  className="h-8 w-8 p-0 rounded-full"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </MotionButton>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4}>
+                <span>Trim end to playhead (W)</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <MotionButton
+                  size="sm"
+                  variant="ghost"
+                  onClick={onDuplicateSelected}
+                  className="h-8 w-8 p-0 rounded-full"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  transition={springConfig}
+                >
+                  <Layers className="w-4 h-4" />
+                </MotionButton>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" sideOffset={4}>
+                <span>Duplicate (⌘D)</span>
+              </TooltipContent>
+            </Tooltip>
+          </>
+        )}
+
+        {/* Always visible but disabled when no selection */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <MotionButton
+              size="sm"
+              variant="ghost"
+              onClick={onDeleteSelected}
+              disabled={!hasSelection}
+              className="h-8 w-8 p-0 disabled:opacity-50 rounded-full"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              transition={springConfig}
+            >
+              <Trash2 className="w-4 h-4" />
+            </MotionButton>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={4}>
+            <span>Delete selected (Del)</span>
+          </TooltipContent>
+        </Tooltip>
+
+      </div>
+
+      {/* CENTER: Playback Controls & Timecode */}
+      <div className="flex items-center justify-center gap-4">
+        {/* Playback Controls Group */}
+        <div className="flex items-center gap-3">
+          {/* Current Time */}
+          <div className="min-w-[4rem] text-right">
+            <span className="font-mono text-xs font-medium tabular-nums text-foreground">
+              {formatTimecode(displayTime, fps)}
+            </span>
+          </div>
+
+          {/* Controls */}
           <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -362,9 +377,9 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                   size="sm"
                   variant="ghost"
                   onClick={jumpBackward1s}
-                  className="h-8 w-8 p-0 rounded-full"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  className="h-9 w-9 p-0 rounded-full"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   transition={springConfig}
                 >
                   <SkipBack className="w-4 h-4 fill-current opacity-80" />
@@ -381,9 +396,9 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                   size="sm"
                   variant="ghost"
                   onClick={playPause}
-                  className="h-8 w-8 p-0 rounded-full"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  className="h-9 w-9 p-0 rounded-full"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   transition={springConfig}
                 >
                   {isPlaying ? (
@@ -404,9 +419,9 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                   size="sm"
                   variant="ghost"
                   onClick={jumpForward1s}
-                  className="h-8 w-8 p-0 rounded-full"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  className="h-9 w-9 p-0 rounded-full"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   transition={springConfig}
                 >
                   <SkipForward className="w-4 h-4 fill-current opacity-80" />
@@ -418,87 +433,85 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
             </Tooltip>
           </div>
 
-          {/* Timecode Display */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-muted/30 border border-border/10">
-            <span className="font-mono text-xs font-medium tabular-nums text-foreground">
-              {formatTimecode(displayTime, fps)}
-            </span>
-            <span className="text-muted-foreground/40 text-3xs mx-0.5">/</span>
+          {/* Total Duration */}
+          <div className="min-w-[4rem] text-left">
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
               {formatTimecode(duration, fps)}
             </span>
           </div>
         </div>
+      </div>
 
-        {/* RIGHT: Preview Size + Zoom Controls */}
-        <div className="flex items-center gap-2 justify-end">
-          <div
-            className="flex items-center gap-1 rounded-full bg-muted/40 px-2 py-1"
-            onMouseEnter={() => setHoveredControl('preview')}
-            onMouseLeave={() => setHoveredControl(null)}
-            onFocusCapture={() => handleControlFocus('preview')}
-            onBlurCapture={handleControlBlur}
-          >
-            <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
-            <div style={getSliderWrapperStyle('preview')} aria-hidden={expandedControl !== 'preview'}>
-              <Slider
-                value={[previewScale]}
-                onValueChange={([value]) => {
-                  setLastChangedControl('preview')
-                  setPreviewScale(value)
-                }}
-                min={0.8}
-                max={1.5}
-                step={0.05}
-                className="w-20"
-              />
-            </div>
-          </div>
-          <div
-            className="flex items-center gap-2"
-            onMouseEnter={() => setHoveredControl('zoom')}
-            onMouseLeave={() => setHoveredControl(null)}
-            onFocusCapture={() => handleControlFocus('zoom')}
-            onBlurCapture={handleControlBlur}
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setLastChangedControl('zoom')
-                  }}
-                  className="h-7 w-7 p-0"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  transition={springConfig}
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Zoom (Cmd+Scroll)</span>
-              </TooltipContent>
-            </Tooltip>
-            <div style={getSliderWrapperStyle('zoom')} aria-hidden={expandedControl !== 'zoom'}>
-              <Slider
-                value={[zoom]}
-                onValueChange={([value]) => {
-                  setLastChangedControl('zoom')
-                  onZoomChange(value)
-                }}
-                min={effectiveMinZoom}
-                max={effectiveMaxZoom}
-                step={0.05}
-                className="w-24"
-              />
-            </div>
-
+      {/* RIGHT: Preview Size + Zoom Controls */}
+      <div className="flex items-center gap-2 justify-end">
+        <div
+          className={cn(
+            "flex items-center rounded-full transition-all duration-300 ease-out",
+            hoveredControl === 'preview' ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
+          )}
+          onMouseEnter={() => setHoveredControl('preview')}
+          onMouseLeave={() => setHoveredControl(null)}
+          onFocusCapture={() => handleControlFocus('preview')}
+          onBlurCapture={handleControlBlur}
+        >
+          <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
+          <div style={getSliderWrapperStyle('preview', '7rem')} aria-hidden={hoveredControl !== 'preview'}>
+            <Slider
+              value={[previewScale]}
+              onValueChange={([value]) => {
+                setPreviewScale(value)
+              }}
+              min={0.8}
+              max={1.5}
+              step={0.05}
+              className="w-28 pl-2"
+            />
           </div>
         </div>
+        <div
+          className={cn(
+            "flex items-center transition-all duration-300 ease-out",
+            (hoveredControl === 'zoom' || hoveredControl === null) ? "gap-2" : "gap-0"
+          )}
+          onMouseEnter={() => setHoveredControl('zoom')}
+          onMouseLeave={() => setHoveredControl(null)}
+          onFocusCapture={() => handleControlFocus('zoom')}
+          onBlurCapture={handleControlBlur}
+        >
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <MotionButton
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 rounded-full"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                transition={springConfig}
+              >
+                <ZoomIn className="w-4 h-4" />
+              </MotionButton>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={4}>
+              <span>Zoom (Cmd+Scroll)</span>
+            </TooltipContent>
+          </Tooltip>
+          {/* Added padding-left to slider container to give some breathing room from the icon */}
+          <div style={getSliderWrapperStyle('zoom', '8rem', true)} aria-hidden={hoveredControl !== 'zoom' && hoveredControl !== null}>
+            <Slider
+              value={[zoom]}
+              onValueChange={([value]) => {
+                onZoomChange(value)
+              }}
+              min={effectiveMinZoom}
+              max={effectiveMaxZoom}
+              step={0.05}
+              className="w-[calc(100%-1rem)]"
+            />
+          </div>
+
+        </div>
       </div>
-    </TooltipProvider>
+    </div>
   )
 })
 

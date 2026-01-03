@@ -10,9 +10,9 @@
 
 import { produceWithPatches } from 'immer'
 import { globalBlobManager } from '@/shared/security/blob-url-manager'
-import { addRecordingToProject } from '@/features/timeline/timeline-operations'
+import { addRecordingToProject } from '@/features/timeline/clips/clip-creation'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { ProjectIOService } from '@/features/storage/project-io-service'
 import { RecordingStorage } from '@/features/storage/recording-storage'
 import { playbackService } from '@/features/timeline/playback/playback-service'
@@ -46,7 +46,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     // Clean up orphaned recordings before setting project
     ProjectCleanupService.cleanupOrphanedRecordings(project)
     ProjectCleanupService.cleanupInvalidEffects(project)
-    EffectsFactory.ensureGlobalEffects(project)
+    EffectInitialization.ensureGlobalEffects(project)
 
     set((state) => {
       state.currentProject = project
@@ -74,7 +74,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       // Clean up orphaned recordings before setting project
       ProjectCleanupService.cleanupOrphanedRecordings(project)
       ProjectCleanupService.cleanupInvalidEffects(project)
-      EffectsFactory.ensureGlobalEffects(project)
+      EffectInitialization.ensureGlobalEffects(project)
 
       // Cache video URLs for all recordings BEFORE setting project
       // This prevents multiple video-stream requests during initial render

@@ -6,7 +6,8 @@
  */
 
 import type { Project, Clip } from '@/types/project'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { EffectCreation } from '@/features/effects/core/creation'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getCropEffectForClip } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/store'
 import { findClipById, syncCropEffectTimes } from './clip-reflow'
@@ -120,23 +121,23 @@ export function executeSplitClip(
 
     // Handle crop effect: copy to both new clips
     if (originalCropEffect && originalCropEffect.data) {
-        const firstCropEffect = EffectsFactory.createCropEffect({
+        const firstCropEffect = EffectCreation.createCropEffect({
             clipId: splitResult.firstClip.id,
             startTime: splitResult.firstClip.startTime,
             endTime: splitResult.firstClip.startTime + splitResult.firstClip.duration,
             cropData: originalCropEffect.data as any
         })
-        EffectsFactory.addEffectToProject(project, firstCropEffect)
+        EffectStore.add(project, firstCropEffect)
 
-        const secondCropEffect = EffectsFactory.createCropEffect({
+        const secondCropEffect = EffectCreation.createCropEffect({
             clipId: splitResult.secondClip.id,
             startTime: splitResult.secondClip.startTime,
             endTime: splitResult.secondClip.startTime + splitResult.secondClip.duration,
             cropData: originalCropEffect.data as any
         })
-        EffectsFactory.addEffectToProject(project, secondCropEffect)
+        EffectStore.add(project, secondCropEffect)
 
-        EffectsFactory.removeEffectFromProject(project, originalCropEffect.id)
+        EffectStore.remove(project, originalCropEffect.id)
     }
 
     project.modifiedAt = new Date().toISOString()
@@ -144,7 +145,7 @@ export function executeSplitClip(
 
     // Sync keystroke effects
     try {
-        EffectsFactory.syncKeystrokeEffects(project)
+        EffectInitialization.syncKeystrokeEffects(project)
     } catch (e) {
         console.error('Failed to sync keystroke effects during split', e)
     }

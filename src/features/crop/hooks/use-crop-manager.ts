@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useProjectStore } from '@/features/stores/project-store'
 import type { CropEffectData, Clip } from '@/types/project'
 import { CommandExecutor, AddEffectCommand, RemoveEffectCommand, UpdateEffectCommand } from '@/features/commands'
-import { getCropEffectForClip, getCropData } from '@/features/effects/core/filters'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { getCropEffectForClip, getDataOfType } from '@/features/effects/core/filters'
+import { EffectType } from '@/types/project'
+import { EffectCreation } from '@/features/effects/core/creation'
 import { EffectStore } from '@/features/effects/core/store'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -63,7 +64,7 @@ export function useCropManager(
         }
 
         // Create a default crop effect for the selected clip
-        const cropEffect = EffectsFactory.createCropEffect({
+        const cropEffect = EffectCreation.createCropEffect({
             clipId: selectedClip.id,
             startTime: selectedClip.startTime,
             endTime: selectedClip.startTime + selectedClip.duration,
@@ -113,7 +114,7 @@ export function useCropManager(
     const editingCropData = useMemo(() => {
         if (!editingCropEffectId) return null
         const effect = contextEffects.find(e => e.id === editingCropEffectId)
-        return effect ? getCropData(effect) : null
+        return effect ? getDataOfType<CropEffectData>(effect, EffectType.Crop) : null
     }, [contextEffects, editingCropEffectId])
 
     const handleCropConfirm = useCallback(() => {

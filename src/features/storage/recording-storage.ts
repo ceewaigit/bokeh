@@ -6,9 +6,9 @@
 import { logger } from '@/shared/utils/logger'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import type { Project, Recording, Clip, CaptureArea } from '@/types/project'
-import { TrackType, ExportFormat, QualityLevel, RecordingSourceType } from '@/types/project'
-import { EffectsFactory } from '@/features/effects/effects-factory'
-import { getKeystrokeEffects } from '@/features/effects/core/filters'
+import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, EffectType } from '@/types/project'
+import { EffectInitialization } from '@/features/effects/core/initialization'
+import { getEffectsOfType } from '@/features/effects/core/filters'
 import { EffectGenerationService } from '@/features/effects/services/effect-generation-service'
 import { EffectStore } from '@/features/effects/core/store'
 import { isLikelyKeyboardKey, isStandaloneModifierKey } from '@/features/keyboard/keyboard-utils'
@@ -918,7 +918,7 @@ export class RecordingStorage {
       }
 
       // Ensure global effects exist (background, cursor, and per-typing-period keystroke effects)
-      EffectsFactory.ensureGlobalEffects(project)
+      EffectInitialization.ensureGlobalEffects(project)
       // Regenerate all auto effects and default framing for new recordings.
       EffectGenerationService.regenerateAllEffects(
         project,
@@ -927,7 +927,7 @@ export class RecordingStorage {
       )
 
       // Log keystroke effect status after regeneration.
-      const keystrokeEffects = getKeystrokeEffects(EffectStore.getAll(project))
+      const keystrokeEffects = getEffectsOfType(EffectStore.getAll(project), EffectType.Keystroke, false)
       if (keystrokeEffects.length > 0) {
         logger.info(`✅ Created ${keystrokeEffects.length} keystroke effect blocks from typing periods`)
       } else if (keyboardEvents.length > 0) {

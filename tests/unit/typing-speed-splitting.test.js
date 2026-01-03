@@ -3,7 +3,7 @@ import { SpeedUpApplicationService } from '@/features/timeline/speed-up-applicat
 import { normalizeProjectSettings } from '@/features/settings/normalize-project-settings'
 
 // Mock dependencies
-jest.mock('@/features/timeline/timeline-operations', () => ({
+jest.mock('@/features/timeline/clips/clip-reflow', () => ({
     reflowClips: jest.fn(),
     calculateTimelineDuration: jest.fn().mockReturnValue(10000)
 }))

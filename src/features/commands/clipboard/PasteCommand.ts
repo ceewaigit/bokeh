@@ -6,7 +6,7 @@ import type { Clip, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { EffectStore } from '@/features/effects/core/store'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { EffectCreation } from '@/features/effects/core/creation'
 import { getBlockEffectDuration } from '@/features/effects/core/classification'
 import { getClipboardEffectRoute } from './clipboard-routing'
 import { TimelineConfig } from '@/features/timeline/config'
@@ -164,7 +164,7 @@ export class PasteCommand extends Command<PasteResult> {
           if (pastedClipData) {
             const { clip: pastedClip } = pastedClipData
             // Create a new crop effect for the pasted clip with the actual timeline positions
-            const newCropEffect = EffectsFactory.createCropEffect({
+            const newCropEffect = EffectCreation.createCropEffect({
               clipId: pastedClip.id,
               startTime: pastedClip.startTime,
               endTime: pastedClip.startTime + pastedClip.duration,

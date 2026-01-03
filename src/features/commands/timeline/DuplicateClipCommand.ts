@@ -8,8 +8,8 @@ import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { duplicateClipInTrack } from '@/features/timeline/timeline-operations'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { duplicateClipInTrack } from '@/features/timeline/clips/clip-crud'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 
 export class DuplicateClipCommand extends PatchedCommand<{ newClipId: string }> {
   private clipId: string
@@ -44,7 +44,7 @@ export class DuplicateClipCommand extends PatchedCommand<{ newClipId: string }> 
     const newClipId = newClip.id
 
     // Duplicated clips should get matching derived keystroke blocks.
-    EffectsFactory.syncKeystrokeEffects(draft.currentProject)
+    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
 
     // Select the duplicated clip
     draft.selectedClips = [newClipId]

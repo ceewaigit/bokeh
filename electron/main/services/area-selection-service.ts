@@ -28,12 +28,22 @@ interface SelectionBounds {
  * Creates a transparent fullscreen overlay for users to drag-select a region.
  * Follows the same patterns as monitor-overlay.ts for window management.
  */
-class AreaSelectionService {
+export class AreaSelectionService {
+  private static instance: AreaSelectionService | null = null
   private overlayWindows: BrowserWindow[] = []
   private resolvePromise: ((result: AreaSelectionResult) => void) | null = null
   private completeHandler: ((event: any, bounds: SelectionBounds) => void) | null = null
   private cancelHandler: (() => void) | null = null
   private selectionResolved = false
+
+  private constructor() {}
+
+  static getInstance(): AreaSelectionService {
+    if (!AreaSelectionService.instance) {
+      AreaSelectionService.instance = new AreaSelectionService()
+    }
+    return AreaSelectionService.instance
+  }
 
   /**
    * Opens the area selection overlay and returns the selected region.
@@ -323,4 +333,4 @@ class AreaSelectionService {
 }
 
 // Export singleton instance
-export const areaSelectionService = new AreaSelectionService()
+export const areaSelectionService = AreaSelectionService.getInstance()

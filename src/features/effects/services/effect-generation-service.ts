@@ -10,8 +10,8 @@
 import type { Effect, Recording, RecordingMetadata, Clip, Project, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { ZoomDetector } from '@/features/effects/utils/zoom-detector'
-import { EffectsFactory } from '@/features/effects/effects-factory'
 import { EffectStore } from '@/features/effects/core/store'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { DEFAULT_MOCKUP_DATA } from '@/shared/constants/device-mockups'
 
 /**
@@ -294,12 +294,12 @@ export class EffectGenerationService {
 
             // Add all effects to project
             for (const effect of [...zoomEffects, ...screenEffects]) {
-                EffectsFactory.addEffectToProject(project, effect)
+                EffectStore.add(project, effect)
             }
         }
 
         // Regenerate keystroke effects
-        EffectsFactory.syncKeystrokeEffects(project, metadataByRecordingId)
+        EffectInitialization.syncKeystrokeEffects(project, metadataByRecordingId)
 
         // Mark as modified
         project.modifiedAt = new Date().toISOString()

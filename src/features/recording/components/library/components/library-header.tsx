@@ -51,7 +51,7 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
           Library
         </span>
       </div>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/80 backdrop-blur-md px-2.5 h-8 rounded-full border border-border/60 shadow-sm">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/80 backdrop-blur-md px-2.5 h-6 rounded-full border border-border/60 shadow-sm">
         <Layers className="w-3 h-3 opacity-70" />
         <span className="font-mono font-bold">{totalRecordings}</span>
       </div>

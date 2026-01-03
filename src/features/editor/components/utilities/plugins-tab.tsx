@@ -9,15 +9,16 @@ import { Label } from '@/components/ui/label'
 import { ColorPickerPopover } from '@/components/ui/color-picker'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
-import { EffectsFactory } from '@/features/effects/effects-factory'
-import { getPluginData } from '@/features/effects/core/filters'
+import { EffectCreation } from '@/features/effects/core/creation'
+import { getDataOfType } from '@/features/effects/core/filters'
 import { getPluginDefaults } from '@/features/effects/config/plugin-sdk'
 import { EffectStore } from '@/features/effects/core/store'
 import { useProjectStore, useSelectedClipId } from '@/features/stores/project-store'
-import { findClipById } from '@/features/timeline/timeline-operations'
+import { findClipById } from '@/features/timeline/clips/clip-reflow'
 import type { ParamDef, NumberParam, EnumParam, StringParam } from '@/features/effects/config/plugin-sdk'
 import type { PluginDefinition } from '@/features/effects/config/plugin-sdk'
 import { EffectLayerType } from '@/types/effects'
+import { EffectType, type PluginEffectData } from '@/types/project'
 
 const DEFAULT_PLUGIN_DURATION = 3000 // 3 seconds
 const DEFAULT_CLIP_PLUGIN_DURATION = 2000 // 2 seconds
@@ -131,7 +132,7 @@ export function PluginsTab() {
 
         const duration = currentProject.timeline?.duration || 10000
 
-        const effect = EffectsFactory.createPluginEffect({
+        const effect = EffectCreation.createPluginEffect({
             pluginId,
             startTime: currentTime,
             endTime: Math.min(currentTime + DEFAULT_PLUGIN_DURATION, duration),
@@ -160,7 +161,7 @@ export function PluginsTab() {
     const handleSelectedParamChange = (key: string, value: unknown) => {
         if (!selectedPluginEffect) return
 
-        const currentData = getPluginData(selectedPluginEffect)
+        const currentData = getDataOfType<PluginEffectData>(selectedPluginEffect, EffectType.Plugin)
         if (!currentData) return
 
         updateEffect(selectedPluginEffect.id, {
@@ -246,7 +247,7 @@ export function PluginsTab() {
 
     // Render Edit Mode
     if (selectedPluginEffect) {
-        const pluginData = getPluginData(selectedPluginEffect)
+        const pluginData = getDataOfType<PluginEffectData>(selectedPluginEffect, EffectType.Plugin)
         if (!pluginData) return null
 
         const pluginDef = PluginRegistry.get(pluginData.pluginId)

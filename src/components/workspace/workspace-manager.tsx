@@ -572,13 +572,7 @@ export function WorkspaceManager() {
                           <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
                         </div>
                         <div
-                          className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pr-4"
-                          style={{
-                            width: `${Math.min(
-                              dragPropertiesWidth ?? propertiesPanelWidth,
-                              panelMaxWidth || Number.POSITIVE_INFINITY
-                            )}px`
-                          }}
+                          className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pr-4 flex-1 min-w-0"
                         >
                           <div className="flex-1 overflow-hidden rounded-xl border border-border/40 bg-background/50 shadow-sm">
                             <EffectsSidebarProvider

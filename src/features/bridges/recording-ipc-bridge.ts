@@ -116,226 +116,184 @@ export interface RecordingIpcBridge extends IpcBridge {
 // Implementation
 // ============================================================================
 
-/**
- * Concrete implementation of RecordingIpcBridge using window.electronAPI.
- */
-export class ElectronRecordingBridge implements RecordingIpcBridge {
-    // -------------------------------------------------------------------------
-    // Base IpcBridge implementation
-    // -------------------------------------------------------------------------
+type MethodSpec<T> = {
+    path: string[]
+    fallback?: T
+    fallbackOnError?: T
+    errorMessage?: string
+    transform?: (value: any) => T
+}
 
-    async invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
-        if (!window.electronAPI?.ipc) {
-            throw new Error('Electron IPC not available')
+const resolvePath = (root: any, path: string[]): any => {
+    return path.reduce((value, key) => value?.[key], root)
+}
+
+const callElectronMethod = async <T>(spec: MethodSpec<T>, args: unknown[]): Promise<T> => {
+    const api = (window as any).electronAPI
+    const fn = resolvePath(api, spec.path)
+    if (!fn) {
+        if (spec.errorMessage) {
+            throw new Error(spec.errorMessage)
         }
-        return window.electronAPI.ipc.invoke(channel, ...args) as Promise<T>
+        return spec.fallback as T
     }
 
-    on(channel: string, listener: (...args: unknown[]) => void): void {
-        window.electronAPI?.ipc?.on(channel, (_event: unknown, ...args: unknown[]) => {
-            listener(...args)
-        })
+    try {
+        const result = await fn(...args)
+        return spec.transform ? spec.transform(result) : result
+    } catch (error) {
+        if (spec.fallbackOnError !== undefined) {
+            return spec.fallbackOnError
+        }
+        throw error
     }
+}
 
-    removeListener(channel: string, listener: (...args: unknown[]) => void): void {
-        window.electronAPI?.ipc?.removeListener(channel, listener)
+const recordingMethodSpecs: Record<string, MethodSpec<any>> = {
+    nativeRecorderAvailable: {
+        path: ['nativeRecorder', 'isAvailable'],
+        fallback: false,
+        fallbackOnError: false
+    },
+    nativeRecorderStartDisplay: {
+        path: ['nativeRecorder', 'startDisplay'],
+        errorMessage: 'Native recorder not available'
+    },
+    nativeRecorderStartWindow: {
+        path: ['nativeRecorder', 'startWindow'],
+        errorMessage: 'Native recorder not available'
+    },
+    nativeRecorderStop: {
+        path: ['nativeRecorder', 'stop'],
+        errorMessage: 'Native recorder not available'
+    },
+    nativeRecorderPause: {
+        path: ['nativeRecorder', 'pause'],
+        errorMessage: 'Native recorder pause not available'
+    },
+    nativeRecorderResume: {
+        path: ['nativeRecorder', 'resume'],
+        errorMessage: 'Native recorder resume not available'
+    },
+    checkScreenRecordingPermission: {
+        path: ['checkScreenRecordingPermission'],
+        fallback: { status: 'unknown', granted: false }
+    },
+    requestScreenRecordingPermission: {
+        path: ['requestScreenRecordingPermission']
+    },
+    getDesktopSources: {
+        path: ['getDesktopSources'],
+        errorMessage: 'Desktop sources API not available'
+    },
+    getSourceBounds: {
+        path: ['getSourceBounds'],
+        fallback: null
+    },
+    startMouseTracking: {
+        path: ['startMouseTracking'],
+        fallback: { success: false, error: 'Mouse tracking not available' }
+    },
+    stopMouseTracking: {
+        path: ['stopMouseTracking']
+    },
+    startKeyboardTracking: {
+        path: ['startKeyboardTracking']
+    },
+    stopKeyboardTracking: {
+        path: ['stopKeyboardTracking']
+    },
+    createMetadataFile: {
+        path: ['createMetadataFile'],
+        fallback: { success: false, error: 'Metadata file API not available' }
+    },
+    appendMetadataBatch: {
+        path: ['appendMetadataBatch'],
+        fallback: { success: false, error: 'Append metadata API not available' }
+    },
+    readMetadataFile: {
+        path: ['readMetadataFile'],
+        fallback: { success: false, error: 'Read metadata API not available' }
+    },
+    createTempRecordingFile: {
+        path: ['createTempRecordingFile'],
+        fallback: { success: false, error: 'Temp recording file API not available' }
+    },
+    appendToRecording: {
+        path: ['appendToRecording'],
+        fallback: { success: false, error: 'Append to recording API not available' }
+    },
+    finalizeRecording: {
+        path: ['finalizeRecording'],
+        fallback: { success: false, error: 'Finalize recording API not available' }
     }
+}
 
-    // -------------------------------------------------------------------------
-    // Native Recorder
-    // -------------------------------------------------------------------------
+const createRecordingBridgeProxy = (): RecordingIpcBridge => {
+    const base: Partial<RecordingIpcBridge> = {
+        async invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
+            if (!window.electronAPI?.ipc) {
+                throw new Error('Electron IPC not available')
+            }
+            return window.electronAPI.ipc.invoke(channel, ...args) as Promise<T>
+        },
+        on(channel: string, listener: (...args: unknown[]) => void): void {
+            window.electronAPI?.ipc?.on(channel, (_event: unknown, ...args: unknown[]) => {
+                listener(...args)
+            })
+        },
+        removeListener(channel: string, listener: (...args: unknown[]) => void): void {
+            window.electronAPI?.ipc?.removeListener(channel, listener)
+        },
+        async getScreens(): Promise<DisplayInfo[]> {
+            const screens = await window.electronAPI?.getScreens?.()
+            if (!screens) return []
 
-    async nativeRecorderAvailable(): Promise<boolean> {
-        try {
-            return await window.electronAPI?.nativeRecorder?.isAvailable() ?? false
-        } catch {
-            return false
+            return screens.map(s => ({
+                id: s.id,
+                isPrimary: false,
+                isInternal: s.internal,
+                bounds: s.bounds,
+                workArea: s.workArea,
+                scaleFactor: s.scaleFactor
+            }))
+        },
+        onMouseMove(callback: (data: unknown) => void): () => void {
+            if (!window.electronAPI?.onMouseMove) {
+                return () => { }
+            }
+            return window.electronAPI.onMouseMove((_event: unknown, data: unknown) => callback(data))
+        },
+        onMouseClick(callback: (data: unknown) => void): () => void {
+            if (!window.electronAPI?.onMouseClick) {
+                return () => { }
+            }
+            return window.electronAPI.onMouseClick((_event: unknown, data: unknown) => callback(data))
+        },
+        onScroll(callback: (data: unknown) => void): () => void {
+            if (!window.electronAPI?.onScroll) {
+                return () => { }
+            }
+            return window.electronAPI.onScroll((_event: unknown, data: unknown) => callback(data))
+        },
+        onKeyboardEvent(callback: (data: unknown) => void): () => void {
+            if (!window.electronAPI?.onKeyboardEvent) {
+                return () => { }
+            }
+            return window.electronAPI.onKeyboardEvent((_event: unknown, data: unknown) => callback(data))
         }
     }
 
-    async nativeRecorderStartDisplay(displayId: number, bounds?: Rect, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean; useMacOSDefaults?: boolean; framerate?: number }): Promise<{ outputPath: string }> {
-        if (!window.electronAPI?.nativeRecorder?.startDisplay) {
-            throw new Error('Native recorder not available')
+    return new Proxy(base as RecordingIpcBridge, {
+        get(target, prop) {
+            if (prop in target) {
+                return (target as any)[prop]
+            }
+            const spec = recordingMethodSpecs[prop as string]
+            if (!spec) return undefined
+            return (...args: unknown[]) => callElectronMethod(spec, args)
         }
-        return window.electronAPI.nativeRecorder.startDisplay(displayId, bounds, options)
-    }
-
-    async nativeRecorderStartWindow(windowId: number, options?: { lowMemory?: boolean; useMacOSDefaults?: boolean; framerate?: number }): Promise<{ outputPath: string }> {
-        if (!window.electronAPI?.nativeRecorder?.startWindow) {
-            throw new Error('Native recorder not available')
-        }
-        return window.electronAPI.nativeRecorder.startWindow(windowId, options)
-    }
-
-    async nativeRecorderStop(): Promise<{ outputPath: string | null }> {
-        if (!window.electronAPI?.nativeRecorder?.stop) {
-            throw new Error('Native recorder not available')
-        }
-        return window.electronAPI.nativeRecorder.stop()
-    }
-
-    async nativeRecorderPause(): Promise<void> {
-        if (!window.electronAPI?.nativeRecorder?.pause) {
-            throw new Error('Native recorder pause not available')
-        }
-        await window.electronAPI.nativeRecorder.pause()
-    }
-
-    async nativeRecorderResume(): Promise<void> {
-        if (!window.electronAPI?.nativeRecorder?.resume) {
-            throw new Error('Native recorder resume not available')
-        }
-        await window.electronAPI.nativeRecorder.resume()
-    }
-
-    // -------------------------------------------------------------------------
-    // Permissions
-    // -------------------------------------------------------------------------
-
-    async checkScreenRecordingPermission(): Promise<PermissionResult> {
-        if (!window.electronAPI?.checkScreenRecordingPermission) {
-            return { status: 'unknown', granted: false }
-        }
-        return window.electronAPI.checkScreenRecordingPermission()
-    }
-
-    async requestScreenRecordingPermission(): Promise<void> {
-        await window.electronAPI?.requestScreenRecordingPermission?.()
-    }
-
-    // -------------------------------------------------------------------------
-    // Sources
-    // -------------------------------------------------------------------------
-
-    async getDesktopSources(options?: { types?: string[]; thumbnailSize?: { width: number; height: number } }): Promise<DesktopSource[]> {
-        if (!window.electronAPI?.getDesktopSources) {
-            throw new Error('Desktop sources API not available')
-        }
-        return window.electronAPI.getDesktopSources(options)
-    }
-
-    async getSourceBounds(sourceId: string): Promise<Rect | null> {
-        return window.electronAPI?.getSourceBounds?.(sourceId) ?? null
-    }
-
-    async getScreens(): Promise<DisplayInfo[]> {
-        const screens = await window.electronAPI?.getScreens?.()
-        if (!screens) return []
-
-        return screens.map(s => ({
-            id: s.id,
-            isPrimary: false, // Not available in this API
-            isInternal: s.internal,
-            bounds: s.bounds,
-            workArea: s.workArea,
-            scaleFactor: s.scaleFactor
-        }))
-    }
-
-    // -------------------------------------------------------------------------
-    // Mouse Tracking
-    // -------------------------------------------------------------------------
-
-    async startMouseTracking(options: MouseTrackingOptions): Promise<MouseTrackingResult> {
-        if (!window.electronAPI?.startMouseTracking) {
-            return { success: false, error: 'Mouse tracking not available' }
-        }
-        return window.electronAPI.startMouseTracking(options)
-    }
-
-    async stopMouseTracking(): Promise<void> {
-        await window.electronAPI?.stopMouseTracking?.()
-    }
-
-    onMouseMove(callback: (data: unknown) => void): () => void {
-        if (!window.electronAPI?.onMouseMove) {
-            return () => { }
-        }
-        return window.electronAPI.onMouseMove((_event: unknown, data: unknown) => callback(data))
-    }
-
-    onMouseClick(callback: (data: unknown) => void): () => void {
-        if (!window.electronAPI?.onMouseClick) {
-            return () => { }
-        }
-        return window.electronAPI.onMouseClick((_event: unknown, data: unknown) => callback(data))
-    }
-
-    onScroll(callback: (data: unknown) => void): () => void {
-        if (!window.electronAPI?.onScroll) {
-            return () => { }
-        }
-        return window.electronAPI.onScroll((_event: unknown, data: unknown) => callback(data))
-    }
-
-    // -------------------------------------------------------------------------
-    // Keyboard Tracking
-    // -------------------------------------------------------------------------
-
-    async startKeyboardTracking(): Promise<void> {
-        await window.electronAPI?.startKeyboardTracking?.()
-    }
-
-    async stopKeyboardTracking(): Promise<void> {
-        await window.electronAPI?.stopKeyboardTracking?.()
-    }
-
-    onKeyboardEvent(callback: (data: unknown) => void): () => void {
-        if (!window.electronAPI?.onKeyboardEvent) {
-            return () => { }
-        }
-        return window.electronAPI.onKeyboardEvent((_event: unknown, data: unknown) => callback(data))
-    }
-
-    // -------------------------------------------------------------------------
-    // Metadata Persistence
-    // -------------------------------------------------------------------------
-
-    async createMetadataFile(): Promise<MetadataResult> {
-        if (!window.electronAPI?.createMetadataFile) {
-            return { success: false, error: 'Metadata file API not available' }
-        }
-        return window.electronAPI.createMetadataFile()
-    }
-
-    async appendMetadataBatch(filePath: string, batch: unknown[], isLast?: boolean): Promise<{ success: boolean; error?: string }> {
-        if (!window.electronAPI?.appendMetadataBatch) {
-            return { success: false, error: 'Append metadata API not available' }
-        }
-        return window.electronAPI.appendMetadataBatch(filePath, batch, isLast)
-    }
-
-    async readMetadataFile(filePath: string): Promise<MetadataReadResult> {
-        if (!window.electronAPI?.readMetadataFile) {
-            return { success: false, error: 'Read metadata API not available' }
-        }
-        return window.electronAPI.readMetadataFile(filePath)
-    }
-
-    // -------------------------------------------------------------------------
-    // Streaming Recording
-    // -------------------------------------------------------------------------
-
-    async createTempRecordingFile(extension?: string): Promise<{ success: boolean; data?: string; error?: string }> {
-        if (!window.electronAPI?.createTempRecordingFile) {
-            return { success: false, error: 'Temp recording file API not available' }
-        }
-        return window.electronAPI.createTempRecordingFile(extension)
-    }
-
-    async appendToRecording(filePath: string, chunk: ArrayBuffer | Blob): Promise<{ success: boolean; error?: string }> {
-        if (!window.electronAPI?.appendToRecording) {
-            return { success: false, error: 'Append to recording API not available' }
-        }
-        return window.electronAPI.appendToRecording(filePath, chunk)
-    }
-
-    async finalizeRecording(filePath: string): Promise<{ success: boolean; error?: string }> {
-        if (!window.electronAPI?.finalizeRecording) {
-            return { success: false, error: 'Finalize recording API not available' }
-        }
-        return window.electronAPI.finalizeRecording(filePath)
-    }
+    })
 }
 
 // ============================================================================
@@ -346,11 +304,11 @@ let recordingBridge: RecordingIpcBridge | null = null
 
 /**
  * Get the recording IPC bridge singleton.
- * Creates ElectronRecordingBridge by default.
+ * Creates a proxy-based recording bridge by default.
  */
 export function getRecordingBridge(): RecordingIpcBridge {
     if (!recordingBridge) {
-        recordingBridge = new ElectronRecordingBridge()
+        recordingBridge = createRecordingBridgeProxy()
     }
     return recordingBridge
 }

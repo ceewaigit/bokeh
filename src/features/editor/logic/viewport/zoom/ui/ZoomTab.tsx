@@ -6,11 +6,11 @@ import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { useProjectStore } from '@/features/stores/project-store'
-import type { Clip, Effect, ZoomEffectData, ZoomBlock } from '@/types/project'
+import type { Clip, Effect, ZoomEffectData, ZoomBlock, CropEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
-import { getCropData, getCropEffectForClip, getZoomEffects } from '@/features/effects/core/filters'
+import { getCropEffectForClip, getDataOfType, getEffectsOfType } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/store'
 import { AddEffectCommand } from '@/features/commands'
 import { useCommandExecutor } from '@/shared/hooks/use-command-executor'
@@ -48,9 +48,9 @@ export function ZoomTab({
     const camera = useProjectStore((s) => s.currentProject?.settings.camera ?? DEFAULT_PROJECT_SETTINGS.camera)
     const setCameraSettings = useProjectStore((s) => s.setCameraSettings)
     const timelineMetadata = useTimelineMetadata(project)
-    const zoomEffects = effects ? getZoomEffects(effects) : []
+    const zoomEffects = effects ? getEffectsOfType(effects, EffectType.Zoom) : []
     const cropEffect = selectedClip && effects ? getCropEffectForClip(effects, selectedClip) : null
-    const cropData = cropEffect ? getCropData(cropEffect) : null
+    const cropData = cropEffect ? getDataOfType<CropEffectData>(cropEffect, EffectType.Crop) : null
     const activeRecording = useMemo(() => {
         if (!project?.recordings?.length) return null
         if (selectedClip) {

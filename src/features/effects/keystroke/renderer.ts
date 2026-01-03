@@ -1,6 +1,7 @@
-import type { KeyboardEvent, KeystrokeEffectData } from '@/types/project'
-import { KeystrokePosition } from '@/types/project'
+import type { Effect, KeyboardEvent, KeystrokeEffectData } from '@/types/project'
+import { EffectType, KeystrokePosition } from '@/types/project'
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/keystroke/config'
+import type { EffectRenderContext } from '../rendering/renderer'
 import {
   computeKeystrokeSegments,
   getKeystrokeDisplayState,
@@ -14,14 +15,21 @@ import {
 export type KeystrokeDrawRect = { x: number; y: number; width: number; height: number }
 
 export class KeystrokeRenderer {
+  readonly effectType = EffectType.Keystroke
   private canvas: HTMLCanvasElement | null = null
   private ctx: CanvasRenderingContext2D | null = null
   private segments: KeystrokeSegment[] = []
   private options: Required<KeystrokeEffectData>
   private dpr: number = 1
+  private lastKeyboardEvents: KeyboardEvent[] | undefined
+  private lastCanvas: HTMLCanvasElement | undefined
 
   constructor(initialOptions: KeystrokeEffectData = {}) {
     this.options = { ...DEFAULT_KEYSTROKE_DATA, ...initialOptions } as Required<KeystrokeEffectData>
+  }
+
+  canRender(effect: Effect): boolean {
+    return effect.type === EffectType.Keystroke
   }
 
   updateSettings(newOptions: KeystrokeEffectData) {
@@ -41,7 +49,40 @@ export class KeystrokeRenderer {
     this.segments = computeKeystrokeSegments(events, this.options)
   }
 
-  render(timestamp: number, videoWidth: number, videoHeight: number): KeystrokeDrawRect | null {
+  render(timestamp: number, videoWidth: number, videoHeight: number): KeystrokeDrawRect | null
+  render(context: EffectRenderContext, effect: Effect): void
+  render(
+    arg1: number | EffectRenderContext,
+    arg2: number | Effect | undefined,
+    arg3?: number
+  ): KeystrokeDrawRect | null | void {
+    if (typeof arg1 === 'number') {
+      return this.renderFrame(arg1, arg2 as number, arg3 as number)
+    }
+
+    const context = arg1
+    const effect = arg2 as Effect
+    if (!effect || effect.type !== EffectType.Keystroke) return
+    if (!context.keyboardEvents || context.keyboardEvents.length === 0) return
+
+    const data = effect.data as KeystrokeEffectData
+    this.updateSettings({ ...DEFAULT_KEYSTROKE_DATA, ...data })
+
+    if (this.lastKeyboardEvents !== context.keyboardEvents) {
+      this.setKeyboardEvents(context.keyboardEvents)
+      this.lastKeyboardEvents = context.keyboardEvents
+    }
+
+    const canvas = context.canvas as HTMLCanvasElement
+    if (this.lastCanvas !== canvas) {
+      this.setCanvas(canvas)
+      this.lastCanvas = canvas
+    }
+
+    this.renderFrame(context.timestamp, context.width, context.height)
+  }
+
+  private renderFrame(timestamp: number, videoWidth: number, videoHeight: number): KeystrokeDrawRect | null {
     if (!this.canvas || !this.ctx || this.segments.length === 0) return null
 
     const ctx = this.ctx
@@ -186,4 +227,3 @@ export class KeystrokeRenderer {
     return this.segments.some(s => s.startTime <= timestamp && s.endTime + fadeOutDuration > timestamp)
   }
 }
-

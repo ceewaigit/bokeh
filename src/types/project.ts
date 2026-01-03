@@ -1046,7 +1046,8 @@ export interface WebcamEffectData {
   opacity: number
 
   // Reduce opacity when zoomed in (to keep focus on content)
-  reduceOpacityOnZoom: boolean
+  reduceOpacityOnZoom?: boolean
+  zoomInfluence?: number // 0 to 1, how much the webcam resists camera zoom (scale inversely)
 
   // Crop the webcam source (0-1 normalized)
   sourceCrop?: CropEffectData

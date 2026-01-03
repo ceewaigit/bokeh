@@ -21,9 +21,10 @@ export function MotionTab() {
   const setIsAdvancedOpen = useWorkspaceStore((s) => s.setMotionTabAdvancedOpen)
 
   const motionBlurPresets = React.useMemo(() => ([
-    { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: -0.02, saturation: 1.0, samples: 16 } },
-    { id: 'balanced', label: 'Balanced', values: { intensity: 100, threshold: 70, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60, black: -0.02, saturation: 1.1, samples: 32 } },
-    { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100, black: -0.02, saturation: 1.0, samples: 48 } },
+    // Color-neutral presets to prevent color mismatch between blur and original
+    { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: 0, saturation: 1.0, samples: 16 } },
+    { id: 'balanced', label: 'Balanced', values: { intensity: 100, threshold: 70, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60, black: 0, saturation: 1.0, samples: 32 } },
+    { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100, black: 0, saturation: 1.0, samples: 48 } },
     { id: 'custom', label: 'Custom', values: null },
   ] as const), [])
 

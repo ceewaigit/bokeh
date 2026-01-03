@@ -38,29 +38,6 @@ uniform float u_gamma;       // Gamma correction factor
 uniform float u_blackLevel;  // Manual Black Level (0.0 - 0.2)
 uniform float u_saturation;  // Saturation (0.0 - 2.0)
 
-// Pseudo-random number generator
-float hash12(vec2 p) {
-    vec3 p3  = fract(vec3(p.xyx) * .1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return fract((p3.x + p3.y) * p3.z);
-}
-
-vec3 sRGBToLinear(vec3 color) {
-    return mix(
-        color / 12.92,
-        pow((color + 0.055) / 1.055, vec3(2.4)),
-        step(0.04045, color)
-    );
-}
-
-vec3 linearToSRGB(vec3 color) {
-    return mix(
-        color * 12.92,
-        1.055 * pow(color, vec3(1.0 / 2.4)) - 0.055,
-        step(0.0031308, color)
-    );
-}
-
 float shutterWeight(float t) {
     // Cinematic shutter: bell-shaped exposure with soft edges.
     float dist = abs(t);
@@ -70,55 +47,46 @@ float shutterWeight(float t) {
 
 void main() {
 
-    // Calculate blur magnitude - if near zero, passthrough directly
+
+    // Calculate blur magnitude
     float blurMagnitude = length(u_velocity) * u_intensity;
     
-    // RAW PASSTHROUGH: When blur is minimal, skip ALL processing
-    // Threshold lowered to 0.0005 to ensure even subtle motion blur is rendered
-    if (blurMagnitude < 0.0005) {
-        vec4 raw = texture(u_image, v_texCoord);
-        // Even in passthrough, we need to respect the final encoding 
-        // if we are doing any post-processing.
-        // However, if we want "exact" match for raw clips, 
-        // and sampling is linear, we still need to encode back to sRGB.
-        outColor = vec4(linearToSRGB(raw.rgb), raw.a);
+    vec4 blurredColor = vec4(0.0);
+    
+    vec4 baseSample = texture(u_image, v_texCoord);
+
+    // Lower threshold (0.0001 vs 0.0005) to allow more subtle blur effects
+    if (blurMagnitude < 0.0001) {
+        outColor = baseSample;
         return;
     }
 
-    vec4 color = vec4(0.0);
+    vec4 accumulatedColor = vec4(0.0);
     float totalWeight = 0.0;
-    
     float samples = float(u_samples);
-    
-    // Jitter for dithering (banding removal)
-    float jitter = hash12(gl_FragCoord.xy);
     
     for (int i = 0; i < u_samples; i++) {
         // Map i to range -0.5 to 0.5
-        float t = ((float(i) + jitter) / samples) - 0.5;
+        // Use deterministic stratified sampling (no random jitter) to avoid visible grain.
+        float t = ((float(i) + 0.5) / samples) - 0.5;
         
         float weight = shutterWeight(t);
         
         vec2 offset = u_velocity * t * u_intensity;
         vec2 sampleCoord = v_texCoord + offset;
-        
-        // Clamp to edge (or discard if we want hard edges, but clamp is safer)
-        sampleCoord = clamp(sampleCoord, 0.0, 1.0);
+
+        // Clamp with small margin to avoid sampling undefined edge pixels
+        // This prevents purple/blue artifacts at texture boundaries
+        vec2 margin = 1.0 / u_resolution;
+        sampleCoord = clamp(sampleCoord, margin, 1.0 - margin);
 
         vec4 sampleColor = texture(u_image, sampleCoord);
-
-        // Linear blending (Hardware now decodes to linear automatically)
-        vec3 linearColor = sampleColor.rgb;
-
-        color += vec4(linearColor, sampleColor.a) * weight;
+        accumulatedColor += sampleColor * weight;
         totalWeight += weight;
     }
-
-    vec4 baseSample = texture(u_image, v_texCoord);
-    vec4 blurred = color / totalWeight;
-
-    vec3 baseLinear = baseSample.rgb;
-    vec3 corrected = mix(baseLinear, blurred.rgb, u_mix);
+    
+    vec4 blurred = accumulatedColor / totalWeight;
+    vec3 corrected = mix(baseSample.rgb, blurred.rgb, u_mix);
 
     if (u_blackLevel != 0.0) {
         corrected = max(vec3(0.0), corrected - u_blackLevel) / (1.0 - u_blackLevel);
@@ -136,11 +104,6 @@ void main() {
     }
     corrected = clamp(corrected, 0.0, 1.0);
 
-    vec4 finalColor = vec4(corrected, baseSample.a);
-
-    // Linear -> sRGB
-    finalColor.rgb = linearToSRGB(finalColor.rgb);
-
-    outColor = finalColor;
+    outColor = vec4(corrected, baseSample.a);
 }
 `;

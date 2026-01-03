@@ -6,9 +6,6 @@
 // Renderer
 export * from '@/features/renderer/types';
 
-// Timeline
-export * from '@/features/timeline/types';
-
 // Crop
 export * from '@/features/crop/types';
 

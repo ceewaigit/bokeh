@@ -267,6 +267,18 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       intensity: motionBlurIntensity / 100,
       drawWidth: layout.drawWidth,
       drawHeight: layout.drawHeight,
+      colorSpace: cameraSettings?.motionBlurColorSpace,
+      gamma: cameraSettings?.motionBlurGamma ?? 1.0,
+      blackLevel: cameraSettings?.motionBlurBlackLevel ?? 0,
+      saturation: cameraSettings?.motionBlurSaturation ?? 1.0,
+      samples: cameraSettings?.motionBlurSamples,
+      unpackPremultiplyAlpha: cameraSettings?.motionBlurUnpackPremultiply ?? false,
+      debugSplit: cameraSettings?.motionBlurDebugSplit ?? false,
+      // Pass through settings that were previously ignored
+      velocityThreshold: motionBlurConfig.velocityThreshold,
+      rampRange: cameraSettings?.motionBlurRampRange ?? 0.5,
+      clampRadius: cameraSettings?.motionBlurClamp ?? 60,
+      smoothWindow: cameraSettings?.motionBlurSmoothWindow ?? 6,
     },
     activeClipData,
     effectiveClipData: resolvedClipData,
@@ -327,10 +339,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             </div>
 
             {/* Debug Overlay - Independent visual guide if needed */}
-            {false && (
-              <MotionBlurDebugLayer
-                enabled={true}
-              />
+            {isPreview && (cameraSettings?.motionBlurDebugSplit ?? false) && (
+              <MotionBlurDebugLayer enabled={true} />
             )}
 
             {/* Annotations render INSIDE, inheriting CSS transform. TransformControls measures these DOM elements. */}

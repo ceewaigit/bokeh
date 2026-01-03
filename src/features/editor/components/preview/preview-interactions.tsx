@@ -4,7 +4,7 @@ import { useProjectStore } from '@/features/stores/project-store';
 import { useWorkspaceStore } from '@/features/stores/workspace-store';
 import { EffectLayerType } from '@/types/effects';
 import { EffectType, Project, Effect } from '@/types/project';
-import { getBackgroundEffect, getCursorEffect } from '@/features/effects/core/filters';
+import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters';
 import { LayerHoverOverlays } from './layer-hover-overlays';
 import type { ZoomSettings } from '@/types/remotion';
 import type { SelectedEffectLayer } from '@/types/effects';
@@ -112,7 +112,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     }, [projectEffects]);
 
     const cursorEffectId = useMemo(() => {
-        const effect = getCursorEffect(projectEffects);
+        const effect = getEffectByType(projectEffects, EffectType.Cursor);
         return effect && effect.enabled !== false ? effect.id : null;
     }, [projectEffects]);
 
@@ -298,4 +298,3 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         </AnnotationEditProvider>
     );
 };
-

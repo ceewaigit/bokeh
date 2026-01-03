@@ -5,7 +5,7 @@ import { getCropEffectForClip, getActiveCropEffect } from '@/features/effects/co
 import { captureLastFrame } from '@/shared/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/features/cursor/synthetic-events'
 import { resolveProjectRoot } from '@/features/storage/recording-storage'
-import { findClipById } from '@/features/timeline/timeline-operations'
+import { findClipById } from '@/features/timeline/clips/clip-reflow'
 
 export interface CursorReturnData {
     imagePath: string

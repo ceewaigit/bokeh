@@ -1,14 +1,7 @@
 import { WebContents } from 'electron'
 import { getUIohook, startUIohook, stopUIohook } from '../utils/uiohook-manager'
 import { SCROLL_DIRECTION } from '../utils/constants'
-
-// Simple logger for production
-const logger = {
-  debug: (msg: string, ...args: any[]) => process.env.NODE_ENV === 'development' && console.log(msg, ...args),
-  info: (msg: string, ...args: any[]) => console.log(msg, ...args),
-  warn: (msg: string, ...args: any[]) => console.warn(msg, ...args),
-  error: (msg: string, ...args: any[]) => console.error(msg, ...args)
-}
+import { logger as Logger } from '../utils/logger'
 
 // Get uiohook instance from shared manager
 const uIOhook = getUIohook('scroll-tracking')
@@ -23,18 +16,18 @@ let isScrollTracking = false
  */
 export function startScrollDetection(sender: WebContents): void {
   if (isScrollTracking && scrollEventSender === sender) {
-    logger.debug('Scroll detection already active for this sender')
+    Logger.debug('Scroll detection already active for this sender')
     return
   }
   
   if (!uIOhook) {
-    logger.warn('uiohook-napi not available, scroll detection disabled')
+    Logger.warn('uiohook-napi not available, scroll detection disabled')
     return
   }
 
   try {
     if (!startUIohook('scroll-detection')) {
-      logger.error('Failed to start uiohook for scroll detection')
+      Logger.error('Failed to start uiohook for scroll detection')
       return
     }
 
@@ -69,9 +62,9 @@ export function startScrollDetection(sender: WebContents): void {
     uIOhook.on('wheel', handleWheel)
     ;(global as any).uiohookWheelHandler = handleWheel
 
-    logger.info('Scroll detection started')
+    Logger.info('Scroll detection started')
   } catch (error) {
-    logger.error('Failed to start scroll detection:', error)
+    Logger.error('Failed to start scroll detection:', error)
     isScrollTracking = false
     scrollEventSender = null
   }
@@ -95,9 +88,8 @@ export function stopScrollDetection(): void {
     // Stop uiohook for this module
     stopUIohook('scroll-detection')
     
-    logger.info('Scroll detection stopped')
+    Logger.info('Scroll detection stopped')
   } catch (error) {
-    logger.error('Failed to stop scroll detection:', error)
+    Logger.error('Failed to stop scroll detection:', error)
   }
 }
-

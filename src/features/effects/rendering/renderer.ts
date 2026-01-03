@@ -6,7 +6,7 @@ import type { Effect, KeyboardEvent, MouseEvent, ClickEvent } from '@/types/proj
 import { EffectStrategyRegistry, type IEffectStrategy } from '../strategies'
 import { BackgroundEffectStrategy } from '../strategies/background-strategy'
 import { CursorEffectStrategy } from '../strategies/cursor-strategy'
-import { KeystrokeEffectStrategy } from '../strategies/keystroke-strategy'
+import { KeystrokeRenderer } from '../keystroke/renderer'
 
 export interface EffectRenderContext {
   canvas: HTMLCanvasElement | OffscreenCanvas
@@ -30,7 +30,7 @@ export class EffectRenderer {
     this.registry = new EffectStrategyRegistry()
     this.registry.register(new BackgroundEffectStrategy())
     this.registry.register(new CursorEffectStrategy())
-    this.registry.register(new KeystrokeEffectStrategy())
+    this.registry.register(new KeystrokeRenderer())
   }
 
   registerStrategy(strategy: IEffectStrategy): void {
@@ -61,4 +61,3 @@ export class EffectRenderer {
     return this.registry
   }
 }
-

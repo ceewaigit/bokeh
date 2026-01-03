@@ -32,6 +32,9 @@ interface WebcamStyleProps {
     reduceOpacityOnZoom: boolean
     onReduceOpacityOnZoomChange: (val: boolean) => void
 
+    zoomInfluence?: number
+    onZoomInfluenceChange: (val: number) => void
+
     cornerRadius: number
     onCornerRadiusChange: (val: number) => void
 
@@ -48,6 +51,7 @@ export function WebcamStyle({
     mirror, onMirrorChange,
     opacity, onOpacityChange,
     reduceOpacityOnZoom, onReduceOpacityOnZoomChange,
+    zoomInfluence, onZoomInfluenceChange,
     cornerRadius, onCornerRadiusChange,
     showCornerRadius
 }: WebcamStyleProps) {
@@ -178,11 +182,28 @@ export function WebcamStyle({
                         <span className="text-xs font-semibold tracking-[-0.01em]">Fade on Zoom</span>
                         <InfoTooltip content="Automatically dim the webcam when zoomed in." />
                     </div>
-                    <p className="text-xs text-muted-foreground">Reduce opacity when zoomed in</p>
                 </div>
                 <Switch
                     checked={reduceOpacityOnZoom}
                     onCheckedChange={onReduceOpacityOnZoomChange}
+                />
+            </div>
+
+            {/* Zoom Influence */}
+            <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold tracking-[-0.01em]">Zoom Scaling</span>
+                        <InfoTooltip content="0% = Camera zooms in on webcam. 100% = Webcam stays fixed size (HUD)." />
+                    </div>
+                    <span className="text-xs font-mono tabular-nums text-muted-foreground">{Math.round((zoomInfluence ?? 1) * 100)}%</span>
+                </div>
+                <Slider
+                    value={[(zoomInfluence ?? 1) * 100]}
+                    min={0}
+                    max={100}
+                    step={10}
+                    onValueChange={([v]) => onZoomInfluenceChange(v / 100)}
                 />
             </div>
 

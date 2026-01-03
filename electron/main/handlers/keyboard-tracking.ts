@@ -1,13 +1,6 @@
 import { ipcMain, IpcMainInvokeEvent, WebContents } from 'electron'
 import { getUIohook, startUIohook, stopUIohook } from '../utils/uiohook-manager'
-
-// Simple logger for production
-const logger = {
-  debug: (msg: string, ...args: any[]) => process.env.NODE_ENV === 'development' && console.log(msg, ...args),
-  info: (msg: string, ...args: any[]) => console.log(msg, ...args),
-  warn: (msg: string, ...args: any[]) => console.warn(msg, ...args),
-  error: (msg: string, ...args: any[]) => console.error(msg, ...args)
-}
+import { logger as Logger } from '../utils/logger'
 
 // Get uiohook instance from shared manager
 const uIOhook = getUIohook('keyboard-tracking')
@@ -168,7 +161,7 @@ export function startKeyboardTracking(sender: WebContents): void {
 
   // Check if uiohook is available
   if (!uIOhook) {
-    logger.warn('uiohook-napi not available, keyboard tracking disabled')
+    Logger.warn('uiohook-napi not available, keyboard tracking disabled')
     return
   }
 
@@ -177,7 +170,7 @@ export function startKeyboardTracking(sender: WebContents): void {
 
   try {
     if (!startUIohook('keyboard-tracking')) {
-      logger.error('Failed to start uiohook for keyboard tracking')
+      Logger.error('Failed to start uiohook for keyboard tracking')
       isKeyboardTracking = false
       keyboardEventSender = null
       return
@@ -229,10 +222,10 @@ export function startKeyboardTracking(sender: WebContents): void {
       ; (global as any).uiohookKeyDownHandler = handleKeyDown
       ; (global as any).uiohookKeyUpHandler = handleKeyUp
 
-    logger.info('Keyboard tracking started successfully')
+    Logger.info('Keyboard tracking started successfully')
 
   } catch (error) {
-    logger.error('Failed to start keyboard tracking:', error)
+    Logger.error('Failed to start keyboard tracking:', error)
     isKeyboardTracking = false
   }
 }
@@ -253,7 +246,7 @@ export function stopKeyboardTracking(): void {
       }
     }
   } catch (error) {
-    logger.error('Error stopping keyboard tracking:', error)
+    Logger.error('Error stopping keyboard tracking:', error)
   }
 
   // Let the shared manager decide whether to stop the underlying hook.
@@ -266,7 +259,7 @@ export function registerKeyboardTrackingHandlers(): void {
       startKeyboardTracking(event.sender)
       return { success: true }
     } catch (error: any) {
-      logger.error('Error starting keyboard tracking:', error)
+      Logger.error('Error starting keyboard tracking:', error)
       return { success: false, error: error.message }
     }
   })
@@ -276,7 +269,7 @@ export function registerKeyboardTrackingHandlers(): void {
       stopKeyboardTracking()
       return { success: true }
     } catch (error: any) {
-      logger.error('Error stopping keyboard tracking:', error)
+      Logger.error('Error stopping keyboard tracking:', error)
       return { success: false, error: error.message }
     }
   })

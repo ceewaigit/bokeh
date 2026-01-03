@@ -5,13 +5,13 @@ import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { initializeDefaultWallpaper } from '@/features/background'
 import { calculateFullCameraPath } from '@/features/editor/logic/viewport/logic/path-calculator'
 import { EffectStore } from '@/features/effects/core/store'
-import { getZoomEffects } from '@/features/effects/core/filters'
+import { getEffectsOfType } from '@/features/effects/core/filters'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { TimelineConfig } from '@/features/timeline/config'
 import { useRecordingsLibraryStore } from '@/features/recording/store/library-store'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { calculateCanvasDimensions } from '@/shared/constants/aspect-ratio-presets'
-import { AspectRatioPreset } from '@/types/project'
+import { AspectRatioPreset, EffectType } from '@/types/project'
 
 export function useProjectLoader() {
     const [isLoading, setIsLoading] = useState(false)
@@ -94,7 +94,7 @@ export function useProjectLoader() {
             }
 
             const viewportWidth = window.innerWidth
-            const allZoomEffects = getZoomEffects(EffectStore.getAll(project))
+            const allZoomEffects = getEffectsOfType(EffectStore.getAll(project), EffectType.Zoom)
             const zoomBlocks = allZoomEffects.map((e: any) => ({
                 startTime: e.startTime,
                 endTime: e.endTime

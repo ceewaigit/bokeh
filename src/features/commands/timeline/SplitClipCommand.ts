@@ -9,8 +9,8 @@ import { CommandContext } from '../base/CommandContext'
 import { timelineToClipRelative } from '@/features/timeline/time/time-space-converter'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { executeSplitClip } from '@/features/timeline/timeline-operations'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { executeSplitClip } from '@/features/timeline/clips/clip-split'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { playbackService } from '@/features/timeline/playback/playback-service'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
@@ -62,7 +62,7 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
     const { firstClip, secondClip } = result
 
     // Split changes clip boundaries; rebuild derived keystroke blocks.
-    EffectsFactory.syncKeystrokeEffects(draft.currentProject)
+    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
 
     // Select the left clip to keep focus at the split point
     draft.selectedClips = [firstClip.id]

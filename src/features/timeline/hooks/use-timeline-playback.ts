@@ -3,6 +3,12 @@ import { useProjectStore } from '@/features/stores/project-store'
 import { useKeyboardEvents } from '@/shared/hooks/use-keyboard-events'
 import { useShallow } from 'zustand/react/shallow'
 
+const FRAME_TIME_MS = 1000 / 30
+
+const clampTime = (time: number, maxTime: number): number => {
+  return Math.max(0, Math.min(maxTime, time))
+}
+
 interface UseTimelinePlaybackProps {
   enabled?: boolean
 }
@@ -52,10 +58,11 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
 
     if (playbackSpeedRef.current !== 0) {
       shuttleIntervalRef.current = setInterval(() => {
-        const frameTime = (1000 / 30) * playbackSpeedRef.current
+        const frameTime = FRAME_TIME_MS * playbackSpeedRef.current
         const currentTime = useProjectStore.getState().currentTime
-        seek(Math.max(0, currentTime + frameTime))
-      }, 1000 / 30)
+        const maxTime = useProjectStore.getState().currentProject?.timeline?.duration || 0
+        seek(clampTime(currentTime + frameTime, maxTime))
+      }, FRAME_TIME_MS)
     }
   }, [pause, seek])
 
@@ -82,39 +89,41 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
 
     if (playbackSpeedRef.current !== 0) {
       shuttleIntervalRef.current = setInterval(() => {
-        const frameTime = (1000 / 30) * playbackSpeedRef.current
+        const frameTime = FRAME_TIME_MS * playbackSpeedRef.current
         const state = useProjectStore.getState()
         const currentTime = state.currentTime
         const maxTime = state.currentProject?.timeline?.duration || 0
-        seek(Math.min(maxTime, currentTime + frameTime))
-      }, 1000 / 30)
+        seek(clampTime(currentTime + frameTime, maxTime))
+      }, FRAME_TIME_MS)
     }
   }, [pause, seek])
 
   const handleFramePrevious = useCallback(() => {
-    const frameTime = 1000 / 30 // 30fps
+    const frameTime = FRAME_TIME_MS
     const currentTime = useProjectStore.getState().currentTime
-    seek(Math.max(0, currentTime - frameTime))
+    const maxTime = useProjectStore.getState().currentProject?.timeline?.duration || 0
+    seek(clampTime(currentTime - frameTime, maxTime))
   }, [seek])
 
   const handleFrameNext = useCallback(() => {
-    const frameTime = 1000 / 30
+    const frameTime = FRAME_TIME_MS
     const state = useProjectStore.getState()
     const maxTime = state.currentProject?.timeline?.duration || 0
-    seek(Math.min(maxTime, state.currentTime + frameTime))
+    seek(clampTime(state.currentTime + frameTime, maxTime))
   }, [seek])
 
   const handleFramePrevious10 = useCallback(() => {
-    const frameTime = (1000 / 30) * 10
+    const frameTime = FRAME_TIME_MS * 10
     const currentTime = useProjectStore.getState().currentTime
-    seek(Math.max(0, currentTime - frameTime))
+    const maxTime = useProjectStore.getState().currentProject?.timeline?.duration || 0
+    seek(clampTime(currentTime - frameTime, maxTime))
   }, [seek])
 
   const handleFrameNext10 = useCallback(() => {
-    const frameTime = (1000 / 30) * 10
+    const frameTime = FRAME_TIME_MS * 10
     const state = useProjectStore.getState()
     const maxTime = state.currentProject?.timeline?.duration || 0
-    seek(Math.min(maxTime, state.currentTime + frameTime))
+    seek(clampTime(state.currentTime + frameTime, maxTime))
   }, [seek])
 
   const handleTimelineStart = useCallback(() => {
@@ -160,13 +169,14 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
 
   const handleJumpBackward1s = useCallback(() => {
     const currentTime = useProjectStore.getState().currentTime
-    seek(Math.max(0, currentTime - 1000))
+    const maxTime = useProjectStore.getState().currentProject?.timeline?.duration || 0
+    seek(clampTime(currentTime - 1000, maxTime))
   }, [seek])
 
   const handleJumpForward1s = useCallback(() => {
     const state = useProjectStore.getState()
     const maxTime = state.currentProject?.timeline?.duration || 0
-    seek(Math.min(maxTime, state.currentTime + 1000))
+    seek(clampTime(state.currentTime + 1000, maxTime))
   }, [seek])
 
   const bindings = useMemo(() => ([

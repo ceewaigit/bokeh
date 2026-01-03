@@ -6,7 +6,7 @@ import { useProjectStore } from '@/features/stores/project-store'
 import { Button } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import {
-  TooltipProvider,
+  Tooltip,
 } from '@/components/ui/tooltip'
 import {
   Download,
@@ -374,314 +374,312 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-6"
-        onClick={() => !isExporting && onClose()}
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-6"
+      onClick={() => !isExporting && onClose()}
+    >
+      <div
+        className="bg-background border border-border/50 rounded-2xl w-dialog shadow-2xl shadow-black/50 overflow-hidden"
+        style={{
+          animation: 'dialogIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="bg-background border border-border/50 rounded-2xl w-dialog shadow-2xl shadow-black/50 overflow-hidden"
-          style={{
-            animation: 'dialogIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <style>{`
+        <style>{`
             @keyframes dialogIn {
               from { opacity: 0; transform: scale(0.96) translateY(8px); }
               to { opacity: 1; transform: scale(1) translateY(0); }
             }
           `}</style>
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-2 border-b border-border/50">
-            <h2 className="text-sm font-semibold text-foreground">Export</h2>
-            <button
-              onClick={isExporting ? undefined : onClose}
-              disabled={isExporting}
-              className={cn(
-                "w-6 h-6 rounded-md flex items-center justify-center transition-colors",
-                isExporting ? "opacity-50 cursor-not-allowed" : "hover:bg-muted"
-              )}
-            >
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-          </div>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-2 border-b border-border/50">
+          <h2 className="text-sm font-semibold text-foreground">Export</h2>
+          <button
+            onClick={isExporting ? undefined : onClose}
+            disabled={isExporting}
+            className={cn(
+              "w-6 h-6 rounded-md flex items-center justify-center transition-colors",
+              isExporting ? "opacity-50 cursor-not-allowed" : "hover:bg-muted"
+            )}
+          >
+            <X className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+        </div>
 
-          {/* Content */}
-          <div className="p-5">
-            {/* Ready State */}
-            {!isExporting && !lastExport && progress?.progressStage !== 'error' && (
-              <div className="space-y-4">
-                {/* Resolution */}
-                <div className="space-y-2">
-                  <label className="text-ui-sm text-muted-foreground">Resolution</label>
-                  <div className="flex justify-end">
-                    <SegmentedControl
-                      value={resolution}
-                      onChange={setResolution}
-                      disabled={format === 'gif'}
-                      options={resolutionOptions}
-                      layout="grid"
-                      columns={4}
-                      className="w-full max-w-[340px]"
-                    />
-                  </div>
-                </div>
-
-                {/* Frame Rate */}
-                <div className="flex items-center justify-between">
-                  <label className="text-ui-sm text-muted-foreground">Frame Rate</label>
+        {/* Content */}
+        <div className="p-5">
+          {/* Ready State */}
+          {!isExporting && !lastExport && progress?.progressStage !== 'error' && (
+            <div className="space-y-4">
+              {/* Resolution */}
+              <div className="space-y-2">
+                <label className="text-ui-sm text-muted-foreground">Resolution</label>
+                <div className="flex justify-end">
                   <SegmentedControl
-                    value={frameRate}
-                    onChange={setFrameRate}
+                    value={resolution}
+                    onChange={setResolution}
                     disabled={format === 'gif'}
-                    options={[
-                      { value: 30 as FrameRate, label: '30', tooltip: 'Smaller file' },
-                      { value: 60 as FrameRate, label: '60', tooltip: 'Smoother' },
-                    ]}
+                    options={resolutionOptions}
+                    layout="grid"
+                    columns={4}
+                    className="w-full max-w-[340px]"
                   />
                 </div>
+              </div>
 
-                {format !== 'gif' && exportSpeed.tone === 'warn' && recommendations && (
-                  <div className="flex items-start gap-2 rounded-lg bg-muted/30 px-3 py-2">
-                    <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
-                    <div className="text-xs text-muted-foreground">
-                      <span className="text-foreground">
-                        This will export {exportSpeed.label.toLowerCase()} on this machine
-                      </span>
-                      {' '}({selectedResolution.dims.width}×{selectedResolution.dims.height} @ {frameRate}fps).{' '}
-                      Time scales with pixels × fps.
-                      <div className="mt-2 flex flex-wrap gap-2">
+              {/* Frame Rate */}
+              <div className="flex items-center justify-between">
+                <label className="text-ui-sm text-muted-foreground">Frame Rate</label>
+                <SegmentedControl
+                  value={frameRate}
+                  onChange={setFrameRate}
+                  disabled={format === 'gif'}
+                  options={[
+                    { value: 30 as FrameRate, label: '30', tooltip: 'Smaller file' },
+                    { value: 60 as FrameRate, label: '60', tooltip: 'Smoother' },
+                  ]}
+                />
+              </div>
+
+              {format !== 'gif' && exportSpeed.tone === 'warn' && recommendations && (
+                <div className="flex items-start gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                  <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
+                  <div className="text-xs text-muted-foreground">
+                    <span className="text-foreground">
+                      This will export {exportSpeed.label.toLowerCase()} on this machine
+                    </span>
+                    {' '}({selectedResolution.dims.width}×{selectedResolution.dims.height} @ {frameRate}fps).{' '}
+                    Time scales with pixels × fps.
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        className="rounded-md bg-background/60 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/50 hover:bg-background"
+                        onClick={() => setResolution(recommendations.recommended.value)}
+                      >
+                        Recommended: {recommendations.recommended.label} (≈{recommendations.recommended.approxSpeedup.toFixed(1)}×)
+                      </button>
+                      {recommendations.hasDistinctFaster ? (
                         <button
-                          className="rounded-md bg-background/60 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/50 hover:bg-background"
-                          onClick={() => setResolution(recommendations.recommended.value)}
+                          className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
+                          onClick={() => setResolution(recommendations.faster.value)}
                         >
-                          Recommended: {recommendations.recommended.label} (≈{recommendations.recommended.approxSpeedup.toFixed(1)}×)
+                          Faster: {recommendations.faster.label} (≈{recommendations.faster.approxSpeedup.toFixed(1)}×)
                         </button>
-                        {recommendations.hasDistinctFaster ? (
-                          <button
-                            className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
-                            onClick={() => setResolution(recommendations.faster.value)}
-                          >
-                            Faster: {recommendations.faster.label} (≈{recommendations.faster.approxSpeedup.toFixed(1)}×)
-                          </button>
-                        ) : frameRate === 60 ? (
-                          <button
-                            className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
-                            onClick={() => setFrameRate(30)}
-                          >
-                            Faster: 30fps (≈2.0×)
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Format */}
-                <div className="flex items-center justify-between">
-                  <label className="text-ui-sm text-muted-foreground">Format</label>
-                  <SegmentedControl
-                    value={format}
-                    onChange={setFormat}
-                    options={[
-                      { value: 'mp4' as Format, label: 'MP4', tooltip: 'Best compatibility' },
-                      { value: 'prores' as Format, label: 'ProRes', tooltip: 'For editing' },
-                      { value: 'gif' as Format, label: 'GIF', tooltip: 'Animated' },
-                    ]}
-                  />
-                </div>
-
-                {/* Divider & Summary */}
-                <div className="pt-3 mt-1 border-t border-border/30">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 text-muted-foreground/60">
-                      <FileVideo className="w-3.5 h-3.5" />
-                      <span>{currentProject?.timeline?.tracks?.[0]?.clips?.length || 0} clips · {currentProject?.timeline?.duration ? (currentProject.timeline.duration / 1000).toFixed(1) : '0.0'}s</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {canvasAspectLabel && (
-                        <span
-                          className="rounded-md bg-primary/10 px-2 py-0.5 text-2xs font-medium text-primary ring-1 ring-primary/20"
-                          title={`Canvas aspect ratio: ${canvasAspectLabel}`}
+                      ) : frameRate === 60 ? (
+                        <button
+                          className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
+                          onClick={() => setFrameRate(30)}
                         >
-                          {canvasAspectLabel}
-                        </span>
-                      )}
-                      {format !== 'gif' && (
-                        <span
-                          className={cn(
-                            "rounded-md px-2 py-0.5 text-2xs font-medium ring-1",
-                            exportSpeed.tone === 'ok'
-                              ? "bg-accent/15 text-accent ring-accent/20"
-                              : "bg-muted text-muted-foreground ring-border/50"
-                          )}
-                          title={machineProfile
-                            ? `Estimated speed for this machine (${machineProfile.cpuCores} cores, ${machineProfile.totalMemoryGB.toFixed(1)}GB)`
-                            : 'Estimated speed (machine-specific)'
-                          }
-                        >
-                          {exportSpeed.label}
-                        </span>
-                      )}
-                      <span className="font-medium text-foreground tabular-nums">
-                        {format === 'gif'
-                          ? '480p · 15fps'
-                          : `${projectSettings.resolution.width}×${projectSettings.resolution.height} · ${frameRate}fps`
-                        }
-                      </span>
+                          Faster: 30fps (≈2.0×)
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* Format */}
+              <div className="flex items-center justify-between">
+                <label className="text-ui-sm text-muted-foreground">Format</label>
+                <SegmentedControl
+                  value={format}
+                  onChange={setFormat}
+                  options={[
+                    { value: 'mp4' as Format, label: 'MP4', tooltip: 'Best compatibility' },
+                    { value: 'prores' as Format, label: 'ProRes', tooltip: 'For editing' },
+                    { value: 'gif' as Format, label: 'GIF', tooltip: 'Animated' },
+                  ]}
+                />
               </div>
-            )}
 
-            {/* Progress State */}
-            {isExporting && progress && (() => {
-              // Fun loading messages that rotate based on progress
-              const funMessages = [
-                'Brewing your pixels...',
-                'Cooking up some bytes...',
-                'Convincing frames to cooperate...',
-                'Teaching bytes to dance...',
-                'Polishing each frame...',
-                'Assembling movie magic...',
-                'Almost there, hang tight...',
-                'Making it look good...',
-                'Compressing with care...',
-                'Frame by frame...',
-                'Working on it...',
-                'Finishing touches...',
-                'Finishing...',
-              ]
-              const messageIndex = Math.floor((progress.progress / 100) * (funMessages.length - 1))
-              const funMessage = funMessages[Math.min(messageIndex, funMessages.length - 1)]
-
-              return (
-                <div className="py-8 space-y-5">
-                  <div className="relative w-16 h-16 mx-auto">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                      <circle
-                        className="stroke-muted/30"
-                        strokeWidth="8"
-                        fill="transparent"
-                        r="42"
-                        cx="50"
-                        cy="50"
-                      />
-                      <circle
-                        className="stroke-primary transition-all duration-300 ease-out"
-                        strokeWidth="8"
-                        strokeLinecap="round"
-                        fill="transparent"
-                        r="42"
-                        cx="50"
-                        cy="50"
-                        strokeDasharray="264"
-                        strokeDashoffset={264 - (clamp(progress.progress, 0, 100) / 100) * 264}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-sm font-semibold tabular-nums">
-                        {Math.round(progress.progress)}%
-                      </span>
-                    </div>
+              {/* Divider & Summary */}
+              <div className="pt-3 mt-1 border-t border-border/30">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground/60">
+                    <FileVideo className="w-3.5 h-3.5" />
+                    <span>{currentProject?.timeline?.tracks?.[0]?.clips?.length || 0} clips · {currentProject?.timeline?.duration ? (currentProject.timeline.duration / 1000).toFixed(1) : '0.0'}s</span>
                   </div>
-                  <div className="text-center">
-                    <p className="text-ui-sm text-muted-foreground">
-                      {funMessage}
-                    </p>
-                    {formatEta(progress.eta) && (
-                      <p className="mt-1 text-xs text-muted-foreground/70 tabular-nums">
-                        ETA {formatEta(progress.eta)}
-                        {typeof progress.currentFrame === 'number' && typeof progress.totalFrames === 'number'
-                          ? ` · ${progress.currentFrame}/${progress.totalFrames} frames`
-                          : null}
-                      </p>
+                  <div className="flex items-center gap-2">
+                    {canvasAspectLabel && (
+                      <span
+                        className="rounded-md bg-primary/10 px-2 py-0.5 text-2xs font-medium text-primary ring-1 ring-primary/20"
+                        title={`Canvas aspect ratio: ${canvasAspectLabel}`}
+                      >
+                        {canvasAspectLabel}
+                      </span>
                     )}
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* Success State */}
-            {lastExport && progress?.progressStage === 'complete' && (
-              <div className="py-4 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-accent/15 flex items-center justify-center">
-                    <Check className="w-4.5 h-4.5 text-accent" strokeWidth={2} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Export Complete</p>
-                    <p className="text-xs text-muted-foreground">{progress.progressMessage}</p>
+                    {format !== 'gif' && (
+                      <span
+                        className={cn(
+                          "rounded-md px-2 py-0.5 text-2xs font-medium ring-1",
+                          exportSpeed.tone === 'ok'
+                            ? "bg-accent/15 text-accent ring-accent/20"
+                            : "bg-muted text-muted-foreground ring-border/50"
+                        )}
+                        title={machineProfile
+                          ? `Estimated speed for this machine (${machineProfile.cpuCores} cores, ${machineProfile.totalMemoryGB.toFixed(1)}GB)`
+                          : 'Estimated speed (machine-specific)'
+                        }
+                      >
+                        {exportSpeed.label}
+                      </span>
+                    )}
+                    <span className="font-medium text-foreground tabular-nums">
+                      {format === 'gif'
+                        ? '480p · 15fps'
+                        : `${projectSettings.resolution.width}×${projectSettings.resolution.height} · ${frameRate}fps`
+                      }
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Error State */}
-            {progress?.progressStage === 'error' && (
-              <div className="py-4 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center">
-                    <AlertCircle className="w-4.5 h-4.5 text-destructive" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Export Failed</p>
-                    <p className="text-xs text-muted-foreground">{progress.progressMessage}</p>
+          {/* Progress State */}
+          {isExporting && progress && (() => {
+            // Fun loading messages that rotate based on progress
+            const funMessages = [
+              'Brewing your pixels...',
+              'Cooking up some bytes...',
+              'Convincing frames to cooperate...',
+              'Teaching bytes to dance...',
+              'Polishing each frame...',
+              'Assembling movie magic...',
+              'Almost there, hang tight...',
+              'Making it look good...',
+              'Compressing with care...',
+              'Frame by frame...',
+              'Working on it...',
+              'Finishing touches...',
+              'Finishing...',
+            ]
+            const messageIndex = Math.floor((progress.progress / 100) * (funMessages.length - 1))
+            const funMessage = funMessages[Math.min(messageIndex, funMessages.length - 1)]
+
+            return (
+              <div className="py-8 space-y-5">
+                <div className="relative w-16 h-16 mx-auto">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      className="stroke-muted/30"
+                      strokeWidth="8"
+                      fill="transparent"
+                      r="42"
+                      cx="50"
+                      cy="50"
+                    />
+                    <circle
+                      className="stroke-primary transition-all duration-300 ease-out"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      fill="transparent"
+                      r="42"
+                      cx="50"
+                      cy="50"
+                      strokeDasharray="264"
+                      strokeDashoffset={264 - (clamp(progress.progress, 0, 100) / 100) * 264}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-sm font-semibold tabular-nums">
+                      {Math.round(progress.progress)}%
+                    </span>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={reset}
-                  className="w-full"
-                >
-                  Try Again
-                </Button>
+                <div className="text-center">
+                  <p className="text-ui-sm text-muted-foreground">
+                    {funMessage}
+                  </p>
+                  {formatEta(progress.eta) && (
+                    <p className="mt-1 text-xs text-muted-foreground/70 tabular-nums">
+                      ETA {formatEta(progress.eta)}
+                      {typeof progress.currentFrame === 'number' && typeof progress.totalFrames === 'number'
+                        ? ` · ${progress.currentFrame}/${progress.totalFrames} frames`
+                        : null}
+                    </p>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            )
+          })()}
 
-          {/* Footer */}
-          <div className="px-5 py-2 border-t border-border/50 flex justify-end gap-2">
+          {/* Success State */}
+          {lastExport && progress?.progressStage === 'complete' && (
+            <div className="py-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-accent/15 flex items-center justify-center">
+                  <Check className="w-4.5 h-4.5 text-accent" strokeWidth={2} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Export Complete</p>
+                  <p className="text-xs text-muted-foreground">{progress.progressMessage}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {progress?.progressStage === 'error' && (
+            <div className="py-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center">
+                  <AlertCircle className="w-4.5 h-4.5 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Export Failed</p>
+                  <p className="text-xs text-muted-foreground">{progress.progressMessage}</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={reset}
+                className="w-full"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-2 border-t border-border/50 flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={isExporting ? cancelExport : onClose}
+            className="text-xs"
+          >
+            Cancel
+          </Button>
+
+          {lastExport && progress?.progressStage === 'complete' ? (
+            <Button size="sm" onClick={handleSave} className="text-xs">
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Save
+            </Button>
+          ) : (
             <Button
-              variant="ghost"
               size="sm"
-              onClick={isExporting ? cancelExport : onClose}
+              onClick={handleExport}
+              disabled={!currentProject || isExporting}
               className="text-xs"
             >
-              Cancel
+              {isExporting ? (
+                <>
+                  <Zap className="w-3.5 h-3.5 mr-1.5 animate-pulse" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                  Export
+                </>
+              )}
             </Button>
-
-            {lastExport && progress?.progressStage === 'complete' ? (
-              <Button size="sm" onClick={handleSave} className="text-xs">
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                Save
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                onClick={handleExport}
-                disabled={!currentProject || isExporting}
-                className="text-xs"
-              >
-                {isExporting ? (
-                  <>
-                    <Zap className="w-3.5 h-3.5 mr-1.5 animate-pulse" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
-                    Export
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </div>
-    </TooltipProvider>
+    </div>
   )
 }

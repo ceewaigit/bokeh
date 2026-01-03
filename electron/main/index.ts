@@ -123,7 +123,7 @@ async function initializeApp(): Promise<void> {
 
   registerProtocol()
   // Initialize permission service
-  PermissionService.getInstance()
+  await PermissionService.getInstance().checkInitialPermissions()
   registerAllHandlers()
 
   // Explicitly set dock icon on macOS (especially needed for dev mode)

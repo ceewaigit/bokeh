@@ -18,10 +18,10 @@
 import React, { useMemo } from 'react'
 import { AbsoluteFill, useCurrentFrame } from 'remotion'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
-import { getAllPluginEffects } from '@/features/effects/core/filters'
+import { getEffectsOfType } from '@/features/effects/core/filters'
+import { EffectType } from '@/types/project'
 import { frameToMs } from '../utils/time/frame-time'
 import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
-import { EffectType } from '@/types/project'
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk'
 import { assertDefined } from '@/shared/errors'
 import { useVideoPosition } from '@/features/renderer/context/layout/VideoPositionContext'
@@ -45,7 +45,7 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
   const currentTimeMs = frameToMs(currentFrame, fps)
 
   // Effects list is typically stable while playing; avoid re-filtering/sorting every frame.
-  const allPluginEffects = useMemo(() => getAllPluginEffects(effects), [effects])
+  const allPluginEffects = useMemo(() => getEffectsOfType(effects, EffectType.Plugin, false), [effects])
 
   // Filter to active effects at current time that are enabled
   const activePluginEffects = useMemo(() => {

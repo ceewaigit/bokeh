@@ -8,4 +8,3 @@
 export * from './core'
 export * from './rendering'
 export * from './keystroke'
-export { EffectsFactory } from './effects-factory'

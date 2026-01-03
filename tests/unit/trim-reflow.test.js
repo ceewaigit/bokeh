@@ -2,7 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 
 describe('Trim reflow contiguity', () => {
   it('executeTrimClipEnd reflows subsequent clips to prevent gaps', () => {
-    const { executeTrimClipEnd } = require('../../src/features/timeline/timeline-operations');
+    const { executeTrimClipEnd } = require('../../src/features/timeline/clips/clip-trim');
 
     const clip1 = {
       id: 'clip-1',
@@ -52,4 +52,3 @@ describe('Trim reflow contiguity', () => {
     expect(project.timeline.duration).toBe(3000);
   });
 });
-

@@ -8,8 +8,9 @@ import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { findClipById, removeClipFromTrack } from '@/features/timeline/timeline-operations'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { removeClipFromTrack } from '@/features/timeline/clips/clip-crud'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
@@ -63,7 +64,7 @@ export class RemoveClipCommand extends PatchedCommand<{ clipId: string }> {
 
     if (removeClipFromTrack(project, this.clipId, track)) {
         // Clip removal changes layout; rebuild derived keystroke blocks.
-        EffectsFactory.syncKeystrokeEffects(project)
+        EffectInitialization.syncKeystrokeEffects(project)
 
         // Clear selection if removed clip was selected
         draft.selectedClips = draft.selectedClips.filter(id => id !== this.clipId)

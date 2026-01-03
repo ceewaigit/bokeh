@@ -11,7 +11,7 @@ import { EffectType, KeystrokePosition } from '@/types'
 import { DEFAULT_KEYSTROKE_DATA } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { useProjectStore } from '@/features/stores/project-store'
-import { getKeystrokeEffects } from '@/features/effects/core/filters'
+import { getEffectsOfType } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/store'
 import { KeystrokePreviewOverlay } from '@/features/keystroke/components/keystroke-preview-overlay'
 
@@ -58,7 +58,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
 
   const keystrokeEffects = React.useMemo(() => {
     if (!project) return []
-    return getKeystrokeEffects(EffectStore.getAll(project))
+    return getEffectsOfType(EffectStore.getAll(project), EffectType.Keystroke, false)
   }, [project])
 
   const hasEnabledKeystrokes = React.useMemo(() => {

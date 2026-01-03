@@ -3,7 +3,7 @@
 import * as React from "react"
 import { type LucideIcon } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/shared/utils/utils"
 import { motion, type HTMLMotionProps } from "framer-motion"
 import { type VariantProps } from "class-variance-authority"
@@ -55,19 +55,17 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
         }
 
         return (
-            <TooltipProvider delayDuration={400}>
-                <Tooltip>
-                    <TooltipTrigger asChild>{button}</TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs flex items-center gap-2">
-                        <span>{tooltip}</span>
-                        {shortcut && (
-                            <span className="ml-1 text-3xs text-muted-foreground font-sans bg-muted/20 px-1 py-0.5 rounded">
-                                {shortcut}
-                            </span>
-                        )}
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs flex items-center gap-2">
+                    <span>{tooltip}</span>
+                    {shortcut && (
+                        <span className="ml-1 text-3xs text-muted-foreground font-sans bg-muted/20 px-1 py-0.5 rounded">
+                            {shortcut}
+                        </span>
+                    )}
+                </TooltipContent>
+            </Tooltip>
         )
     }
 )

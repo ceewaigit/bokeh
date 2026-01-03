@@ -7,9 +7,9 @@
  * Core algorithms are extracted to @/lib/core/camera for reuse.
  */
 
-import type { CursorEffectData, Effect, MouseEvent, Recording, RecordingMetadata, CameraDynamics } from '@/types/project'
+import type { CursorEffectData, Effect, MouseEvent, Recording, RecordingMetadata, CameraDynamics, CropEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { getActiveCropEffect, getCropData } from '@/features/effects/core/filters'
+import { getActiveCropEffect, getDataOfType } from '@/features/effects/core/filters'
 import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 import { calculateZoomScale } from '@/features/canvas/math/transforms/zoom-transform'
 import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/features/cursor/store/cursor-types'
@@ -490,7 +490,7 @@ export function computeCameraState({
 
   // 1. Resolve Content Constraints (Wallpaper fix/Clamping)
   const activeCrop = getActiveCropEffect(effects, timelineMs)
-  const activeCropData = activeCrop ? getCropData(activeCrop) : null
+  const activeCropData = activeCrop ? getDataOfType<CropEffectData>(activeCrop, EffectType.Crop) : null
   const contentBounds = activeCropData ? {
     minX: activeCropData.x, maxX: activeCropData.x + activeCropData.width,
     minY: activeCropData.y, maxY: activeCropData.y + activeCropData.height

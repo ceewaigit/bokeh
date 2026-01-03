@@ -8,7 +8,12 @@
  */
 
 import { playbackService } from '@/features/timeline/playback/playback-service'
-import type { CreatePlaybackSlice } from './types'
+import type { CreatePlaybackSlice, ProjectStore } from './types'
+
+const seekTo = (state: Pick<ProjectStore, 'currentProject'>, time: number): number => {
+  const duration = state.currentProject?.timeline?.duration || 0
+  return playbackService.seek(time, duration)
+}
 
 export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
   // State
@@ -32,7 +37,7 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
         set((s) => {
           s.currentTime = 0
           // Notify observer of reset
-          playbackService.seek(0, state.currentProject?.timeline?.duration || 0)
+          seekTo(state, 0)
         })
       }
     )
@@ -48,18 +53,16 @@ export const createPlaybackSlice: CreatePlaybackSlice = (set, get) => ({
 
   seek: (time) => {
     set((state) => {
-      const duration = state.currentProject?.timeline?.duration || 0
-      state.currentTime = playbackService.seek(time, duration)
+      state.currentTime = seekTo(state, time)
     })
   },
 
   seekFromPlayer: (time) => {
     set((state) => {
-      const duration = state.currentProject?.timeline?.duration || 0
       // During playback, we update the store but don't need to push back to observer
       // because the observer (via RAF) is the one calling this.
       // However, calling playbackService.seek is safe as pushTime has a guard.
-      state.currentTime = playbackService.seek(time, duration)
+      state.currentTime = seekTo(state, time)
     })
   },
 

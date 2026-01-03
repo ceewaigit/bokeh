@@ -21,7 +21,7 @@ export default function LayoutClient({
 
   return (
     <ThemeProvider>
-      <TooltipProvider>
+      <TooltipProvider delayDuration={300}>
         <ErrorBoundary>
           <div className="h-screen w-screen overflow-hidden">
             {children}

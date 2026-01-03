@@ -22,7 +22,6 @@ export {
   type MouseTrackingOptions,
   type MouseTrackingResult,
   type PermissionResult,
-  ElectronRecordingBridge,
   getRecordingBridge,
   setRecordingBridge,
   resetRecordingBridge

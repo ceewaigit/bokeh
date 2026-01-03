@@ -9,8 +9,8 @@ import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { addClipToTrack } from '@/features/timeline/timeline-operations'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { addClipToTrack } from '@/features/timeline/clips/clip-crud'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 
 export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
   private clipOrRecordingId: Clip | string
@@ -79,7 +79,7 @@ export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
     const recording = project.recordings.find(r => r.id === recordingId)
 
     if (recording && (recording.metadata?.keyboardEvents?.length || 0) > 0) {
-      EffectsFactory.syncKeystrokeEffects(project)
+      EffectInitialization.syncKeystrokeEffects(project)
     }
 
     draft.selectedClips = [addedClip.id]

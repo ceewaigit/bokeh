@@ -1,5 +1,5 @@
 import type { Project, Track, Clip, Effect } from '@/types/project'
-import { reflowClips, calculateTimelineDuration } from './timeline-operations'
+import { reflowClips, calculateTimelineDuration } from './clips/clip-reflow'
 import { EffectStore } from '@/features/effects/core/store'
 
 /**

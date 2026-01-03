@@ -21,10 +21,11 @@ import { Button } from './ui/button'
 import { HeaderButton } from './ui/header-button'
 import { WindowHeader } from './ui/window-header'
 import { useRecordingSessionStore } from '@/features/recording/store/session-store'
-import { cn, formatTime } from '@/shared/utils/utils'
+import { cn } from '@/shared/utils/utils'
+import { formatTime } from '@/shared/utils/time'
 import type { Project } from '@/types/project'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { useProjectStore } from '@/features/stores/project-store'
 import { toast } from 'sonner'
@@ -77,9 +78,9 @@ export function Toolbar({
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo/Brand */}
-        <div className="flex items-center gap-1.5 px-2.5 h-8 bg-primary/8 rounded-lg">
+        <div className="flex items-center gap-2 px-2.5 h-6 bg-primary/15 rounded-xl">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-          <span className="font-semibold text-3xs text-primary uppercase tracking-wide whitespace-nowrap">
+          <span className="font-bold text-xs text-primary uppercase tracking-[0.1em] whitespace-nowrap">
             Studio
           </span>
         </div>
@@ -153,11 +154,11 @@ export function Toolbar({
         )}
 
         <HeaderButton
-          variant={hasUnsavedChanges ? "default" : "ghost"}
+          variant="ghost"
           onClick={onSaveProject}
           disabled={!project}
           className={cn(
-            hasUnsavedChanges ? "bg-primary/20 hover:bg-primary/30" : "hover:bg-muted/30"
+            hasUnsavedChanges ? "bg-primary/20 text-primary hover:bg-primary/30" : "hover:bg-muted/30"
           )}
           icon={Save}
           shortcut="⌘S"
@@ -173,39 +174,37 @@ export function Toolbar({
       <div className="flex-1 flex items-center justify-center gap-2 min-w-0 overflow-hidden">
         {/* Project Name with Metadata Tooltip */}
         {project && (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div
-                  className="flex items-center gap-1.5 px-2.5 h-8 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
-                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                >
-                  <span className="text-3xs font-medium text-foreground/90">{project.name}</span>
-                  <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" align="center" className="text-xs">
-                <div className="space-y-1">
-                  <div className="font-medium text-foreground">{project.name}</div>
-                  {project.timeline?.duration && project.timeline.duration > 0 && (
-                    <div className="text-muted-foreground">
-                      Duration: <span className="font-mono">{formatTime(project.timeline.duration)}</span>
-                    </div>
-                  )}
-                  {project.recordings?.[0]?.width && project.recordings?.[0]?.height && (
-                    <div className="text-muted-foreground">
-                      Resolution: <span className="font-mono">{project.recordings[0].width}×{project.recordings[0].height}</span>
-                    </div>
-                  )}
-                  {project.recordings && project.recordings.length > 0 && (
-                    <div className="text-muted-foreground">
-                      Recordings: <span className="font-mono">{project.recordings.length}</span>
-                    </div>
-                  )}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className="flex items-center gap-1.5 px-2.5 h-8 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              >
+                <span className="text-3xs font-medium text-foreground/90">{project.name}</span>
+                <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="center" className="text-xs">
+              <div className="space-y-1">
+                <div className="font-medium text-foreground">{project.name}</div>
+                {project.timeline?.duration && project.timeline.duration > 0 && (
+                  <div className="text-muted-foreground">
+                    Duration: <span className="font-mono">{formatTime(project.timeline.duration)}</span>
+                  </div>
+                )}
+                {project.recordings?.[0]?.width && project.recordings?.[0]?.height && (
+                  <div className="text-muted-foreground">
+                    Resolution: <span className="font-mono">{project.recordings[0].width}×{project.recordings[0].height}</span>
+                  </div>
+                )}
+                {project.recordings && project.recordings.length > 0 && (
+                  <div className="text-muted-foreground">
+                    Recordings: <span className="font-mono">{project.recordings.length}</span>
+                  </div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
         )}
 
         {/* Recording Status */}
@@ -248,7 +247,7 @@ export function Toolbar({
           variant="default"
           disabled={!project || !hasVideoClips}
           onClick={onExport}
-          className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
+          className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] hover:text-primary-foreground active:translate-y-[1px]"
           icon={Download}
         >
           Export

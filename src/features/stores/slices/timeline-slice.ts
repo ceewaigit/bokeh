@@ -9,25 +9,21 @@
  * - Undo/Redo restoration
  */
 
-import type { Clip, Recording, Effect } from '@/types/project'
+import type { Clip, Recording, Effect, Project } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
+import { findClipById, calculateTimelineDuration, reflowClips, syncCropEffectTimes } from '@/features/timeline/clips/clip-reflow'
+import { executeSplitClip } from '@/features/timeline/clips/clip-split'
+import { executeTrimClipStart, executeTrimClipEnd } from '@/features/timeline/clips/clip-trim'
 import {
-    findClipById,
-    executeSplitClip,
-    executeTrimClipStart,
-    executeTrimClipEnd,
     updateClipInTrack,
     addClipToTrack,
     removeClipFromTrack,
     duplicateClipInTrack,
     restoreClipToTrack,
-    restoreClipsToTrack,
-    calculateTimelineDuration,
-    reflowClips,
-    syncCropEffectTimes
-} from '@/features/timeline/timeline-operations'
+    restoreClipsToTrack
+} from '@/features/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
-import { EffectsFactory } from '@/features/effects/effects-factory'
+import { EffectInitialization } from '@/features/effects/core/initialization'
 import { SpeedUpApplicationService } from '@/features/timeline/speed-up-application'
 import { PlayheadService } from '@/features/timeline/playback/playhead-service'
 import { playbackService } from '@/features/timeline/playback/playback-service'
@@ -37,6 +33,11 @@ import { CursorReturnService } from '@/features/cursor/cursor-return-service'
 import { EffectStore } from '@/features/effects/core/store'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import type { CreateTimelineSlice } from './types'
+
+const reflowTimeline = (project: Project): void => {
+    EffectInitialization.syncKeystrokeEffects(project)
+    TimelineDataService.invalidateCache(project)
+}
 
 export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     // ===========================================================================
@@ -56,7 +57,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
                 // Only sync if strictly necessary - this prevents global scan lag on every paste
                 if (recording && (recording.metadata?.keyboardEvents?.length || 0) > 0) {
-                    EffectsFactory.syncKeystrokeEffects(state.currentProject)
+                    EffectInitialization.syncKeystrokeEffects(state.currentProject)
                 }
 
                 state.selectedClips = [clip.id]
@@ -117,7 +118,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             project.modifiedAt = new Date().toISOString()
 
 
-            EffectsFactory.syncKeystrokeEffects(project)
+            EffectInitialization.syncKeystrokeEffects(project)
 
             state.selectedClips = [clip.id]
         })
@@ -285,7 +286,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
 
             // Sync effects
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
+            EffectInitialization.syncKeystrokeEffects(state.currentProject)
         })
     },
 
@@ -298,8 +299,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             const recordingIdToCheck = clipInfo?.clip?.recordingId
 
             if (removeClipFromTrack(state.currentProject, clipId, clipInfo?.track)) {
-                // Clip removal changes layout; rebuild derived keystroke blocks.
-                EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
                 // Clear selection if removed clip was selected
                 state.selectedClips = state.selectedClips.filter(id => id !== clipId)
@@ -313,7 +312,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 ProjectCleanupService.cleanupClipResources(clipId)
 
                 // Clear render caches to prevent stale data after clip removal
-                TimelineDataService.invalidateCache(state.currentProject)
+                reflowTimeline(state.currentProject)
             }
         })
     },
@@ -333,7 +332,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Clip timing/position can change; keep derived keystroke blocks aligned.
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
+            EffectInitialization.syncKeystrokeEffects(state.currentProject)
 
 
             // Maintain playhead relative position inside the edited clip
@@ -367,10 +366,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Clip restoration changes layout; rebuild derived keystroke blocks.
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
-
-            // Clear render caches to ensure fresh lookups after restoration
-            TimelineDataService.invalidateCache(state.currentProject)
+            reflowTimeline(state.currentProject)
         })
     },
 
@@ -386,10 +382,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 return
             }
 
-            // Split changes clip boundaries; rebuild derived keystroke blocks.
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
-
-
             const { firstClip } = result
 
             // Select the left clip to keep focus at the split point
@@ -401,7 +393,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Clear render caches to prevent stale data after split
-            TimelineDataService.invalidateCache(state.currentProject)
+            reflowTimeline(state.currentProject)
         })
     },
 
@@ -414,10 +406,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
-
-            // Clear render caches after trim operation
-            TimelineDataService.invalidateCache(state.currentProject)
+            reflowTimeline(state.currentProject)
         })
     },
 
@@ -430,10 +419,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Trim changes clip boundaries; rebuild derived keystroke blocks.
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
-
-            // Clear render caches after trim operation
-            TimelineDataService.invalidateCache(state.currentProject)
+            reflowTimeline(state.currentProject)
         })
     },
 
@@ -449,7 +435,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             newClipId = newClip.id
 
             // Duplicated clips should get matching derived keystroke blocks.
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
+            EffectInitialization.syncKeystrokeEffects(state.currentProject)
 
 
             // Select the duplicated clip
@@ -538,7 +524,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                     syncCropEffectTimes(state.currentProject)
 
                     // Start times changed; rebuild derived keystroke blocks.
-                    EffectsFactory.syncKeystrokeEffects(state.currentProject)
+                    EffectInitialization.syncKeystrokeEffects(state.currentProject)
                 }
 
                 // Force new array reference
@@ -604,7 +590,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             )
 
             // Speed-up can change durations/time-remaps; rebuild derived keystroke blocks.
-            EffectsFactory.syncKeystrokeEffects(state.currentProject)
+            EffectInitialization.syncKeystrokeEffects(state.currentProject)
 
             // Update modified timestamp
             state.currentProject.modifiedAt = new Date().toISOString()
@@ -642,10 +628,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             if (restoreClipsToTrack(state.currentProject, trackId, clipIdsToRemove, clipsToRestore)) {
                 // Clip layout changed; rebuild derived keystroke blocks.
-                EffectsFactory.syncKeystrokeEffects(state.currentProject)
-
-                // Clear render caches after undo/redo
-                TimelineDataService.invalidateCache(state.currentProject)
+                reflowTimeline(state.currentProject)
             }
         })
     },
@@ -695,7 +678,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     getEffectsAtTimeRange: (clipId) => {
         const { currentProject } = get()
         if (!currentProject) return []
-        return EffectsFactory.getEffectsForClip(currentProject, clipId)
+        return EffectStore.getAll(currentProject).filter(effect => effect.clipId === clipId)
     },
 
     regenerateAllEffects: async (config) => {

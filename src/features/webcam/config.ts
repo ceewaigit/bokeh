@@ -10,7 +10,7 @@ export const DEFAULT_WEBCAM_DATA: WebcamEffectData = {
         anchor: 'bottom-right'
     },
     size: 18, // 18% of canvas width - compact but visible
-    padding: 24, // Edge padding in pixels
+    padding: 12, // Edge padding in pixels
 
     // Squircle shape for clean, modern Apple-esque look
     shape: 'squircle',
@@ -55,6 +55,9 @@ export const DEFAULT_WEBCAM_DATA: WebcamEffectData = {
 
     // Reduce opacity when zoomed in
     reduceOpacityOnZoom: false,
+
+    // How much to resist camera zoom (1 = full HUD behavior, 0 = scales with content)
+    zoomInfluence: 1,
 
     // No crop by default (full frame)
     sourceCrop: DEFAULT_CROP_DATA

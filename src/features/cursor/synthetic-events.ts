@@ -4,7 +4,7 @@
  */
 
 import type { MouseEvent } from '@/types/project'
-import { easeOutCubic } from '@/features/cursor/logic/cursor-logic'
+import { easeOutCubic } from '@/features/canvas/math'
 
 export interface CursorReturnConfig {
   startPosition: { x: number; y: number }

@@ -156,6 +156,22 @@ export class CommandExecutor {
   }
 
   /**
+   * Dispatch a simple store action without command history.
+   * Useful for mutations that do not require undo/redo.
+   */
+  dispatch<K extends keyof ProjectStore>(
+    type: K,
+    ...args: ProjectStore[K] extends (...a: infer A) => any ? A : never
+  ): ProjectStore[K] extends (...a: any[]) => infer R ? R : never {
+    const store = this.storeAccessor.getState()
+    const action = store[type]
+    if (typeof action !== 'function') {
+      throw new Error(`Unknown store action: ${String(type)}`)
+    }
+    return (action as (...a: unknown[]) => unknown)(...args) as any
+  }
+
+  /**
    * Get the underlying CommandManager (for advanced use cases).
    */
   getManager(): CommandManager {

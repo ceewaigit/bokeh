@@ -55,7 +55,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
                                     <motion.button
                                         onClick={() => setActiveUtilityTab(tab.id)}
                                         className={cn(
-                                            "group relative flex w-full items-center justify-center rounded-md p-2 transition-colors duration-150",
+                                            "group relative flex w-full aspect-square items-center justify-center rounded-xl p-2 transition-colors duration-150",
                                             activeUtilityTab === tab.id
                                                 ? "text-primary-foreground"
                                                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
@@ -66,7 +66,7 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
                                         <AnimatePresence>
                                             {activeUtilityTab === tab.id && (
                                                 <motion.div
-                                                    className="absolute inset-0 rounded-md bg-primary shadow-sm"
+                                                    className="absolute inset-0 rounded-xl bg-primary shadow-sm"
                                                     initial={{ opacity: 0, scale: 0.98 }}
                                                     animate={{ opacity: 1, scale: 1 }}
                                                     exit={{ opacity: 0, scale: 0.98 }}

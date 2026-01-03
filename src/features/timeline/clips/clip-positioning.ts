@@ -2,11 +2,6 @@ import type { Clip } from '@/types/project'
 import { TimelineConfig } from '@/features/timeline/config'
 import { findNearestAvailableStart } from '@/features/timeline/utils/nearest-gap'
 
-export interface OverlapCheckResult {
-  hasOverlap: boolean
-  overlappingClips?: Clip[]
-}
-
 export interface PositionValidation {
   isValid: boolean
   finalPosition: number  // The final validated position
@@ -32,36 +27,6 @@ export interface ContiguousPreviewResult {
 export class ClipPositioning {
   private static SNAP_THRESHOLD_MS = TimelineConfig.SNAP_INTERVAL_MS
   private static MIN_GAP_MS = 0 // No forced gaps by default
-
-  /**
-   * Check if a clip would overlap with others at a given position
-   */
-  static checkOverlap(
-    startTime: number,
-    duration: number,
-    otherClips: Clip[],
-    excludeClipId?: string
-  ): OverlapCheckResult {
-    const overlappingClips: Clip[] = []
-
-    for (const clip of otherClips) {
-      // Skip self
-      if (excludeClipId && clip.id === excludeClipId) continue
-
-      const clipEnd = clip.startTime + clip.duration
-      const proposedEnd = startTime + duration
-
-      // Check for overlap
-      if (startTime < clipEnd && proposedEnd > clip.startTime) {
-        overlappingClips.push(clip)
-      }
-    }
-
-    return {
-      hasOverlap: overlappingClips.length > 0,
-      overlappingClips
-    }
-  }
 
   /**
    * Find the nearest valid position for a clip (no overlaps)
@@ -307,14 +272,14 @@ export class ClipPositioning {
 
     // Check for overlaps unless explicitly allowed
     if (!options.allowOverlap) {
-      const overlapCheck = this.checkOverlap(
-        finalTime,
-        duration,
-        clips,
-        excludeClipId
-      )
+      const overlappingClips = clips.filter((clip) => {
+        if (excludeClipId && clip.id === excludeClipId) return false
+        const clipEnd = clip.startTime + clip.duration
+        const proposedEnd = finalTime + duration
+        return finalTime < clipEnd && proposedEnd > clip.startTime
+      })
 
-      if (overlapCheck.hasOverlap) {
+      if (overlappingClips.length > 0) {
         // Find next valid position
         const validPosition = this.findNextValidPosition(
           finalTime,

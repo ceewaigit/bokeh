@@ -228,9 +228,21 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             enabled={motionBlur?.enabled ?? false}
             velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
             intensity={motionBlur?.intensity ?? 1.0}
+            colorSpace={motionBlur?.colorSpace}
+            gamma={motionBlur?.gamma}
+            blackLevel={motionBlur?.blackLevel}
+            saturation={motionBlur?.saturation}
+            samples={motionBlur?.samples}
+            unpackPremultiplyAlpha={motionBlur?.unpackPremultiplyAlpha}
+            debugSplit={motionBlur?.debugSplit}
             drawWidth={useHighResSizing ? (recording?.width ?? drawWidth) : (motionBlur?.drawWidth ?? drawWidth)}
             drawHeight={useHighResSizing ? (recording?.height ?? drawHeight) : (motionBlur?.drawHeight ?? drawHeight)}
+            renderScale={currentZoomScale}
             videoFrame={videoFrame}
+            velocityThreshold={motionBlur?.velocityThreshold}
+            rampRange={motionBlur?.rampRange}
+            clampRadius={motionBlur?.clampRadius}
+            smoothWindow={motionBlur?.smoothWindow}
           >
             <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
               <VideoComponent

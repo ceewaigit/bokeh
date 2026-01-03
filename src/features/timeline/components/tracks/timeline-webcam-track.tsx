@@ -15,12 +15,13 @@ import { useTimelineLayout } from '../timeline-layout-provider'
 import { useProjectStore } from '@/features/stores/project-store'
 import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { EffectStore } from '@/features/effects/core/store'
-import { getWebcamEffects } from '@/features/effects/core/filters'
+import { getEffectsOfType } from '@/features/effects/core/filters'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { TimelineConfig, getClipInnerHeight } from '@/features/timeline/config'
 import { useTimelineColors } from '@/features/timeline/utils/colors'
 import { useShallow } from 'zustand/react/shallow'
 import { EffectLayerType } from '@/types/effects'
+import { EffectType } from '@/types/project'
 import { UpdateWebcamBlockCommand } from '@/features/commands/effects/UpdateWebcamBlockCommand'
 import { useCommandExecutor } from '@/shared/hooks/use-command-executor'
 
@@ -61,7 +62,7 @@ export function TimelineWebcamTrack() {
   )
 
   const webcamEffects = useMemo(
-    () => getWebcamEffects(timelineEffects),
+    () => getEffectsOfType(timelineEffects, EffectType.Webcam, false),
     [timelineEffects]
   )
 

@@ -11,12 +11,12 @@
  * PIVOT STANDARDIZATION: All coordinates use Top-Left (0,0) as origin.
  */
 
-import type { Effect, BackgroundEffect, DeviceMockupData, Recording } from '@/types/project'
-import { DeviceModel } from '@/types/project'
+import type { Effect, BackgroundEffect, DeviceMockupData, Recording, CropEffectData } from '@/types/project'
+import { DeviceModel, EffectType } from '@/types/project'
 import { resolveMockupMetadata } from '@/features/mockups/mockup-metadata'
 import { DEVICE_MOCKUPS } from '@/shared/constants/device-mockups'
 
-import { getActiveBackgroundEffect, getActiveCropEffect, getCropData } from '@/features/effects/core/filters'
+import { getActiveBackgroundEffect, getActiveCropEffect, getDataOfType } from '@/features/effects/core/filters'
 import { calculateCropTransform, getCropTransformString, combineCropAndZoomTransforms } from '@/features/canvas/math/transforms/crop-transform'
 import { calculateScreenTransform } from '@/features/canvas/math/transforms/screen-transform'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
@@ -553,7 +553,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     const cropEffect = getActiveCropEffect(resolvedEffects, currentTimeMs)
     const resolvedCropData = isEditingCrop || !cropEffect
         ? null
-        : getCropData(cropEffect)
+        : getDataOfType<CropEffectData>(cropEffect, EffectType.Crop)
 
     const cropBaseWidth = mockupEnabled && mockupPosition
         ? mockupPosition.videoWidth

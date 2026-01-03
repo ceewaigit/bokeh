@@ -19,8 +19,8 @@ import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 import { useShallow } from 'zustand/react/shallow'
 import { cn } from '@/shared/utils/utils'
 import type { Project, Clip } from '@/types/project'
-import { TrackType, TimelineTrackType } from '@/types/project'
-import { getZoomEffects } from '@/features/effects/core/filters'
+import { TrackType, TimelineTrackType, EffectType } from '@/types/project'
+import { getEffectsOfType } from '@/features/effects/core/filters'
 import { TimelineLayoutProvider, useTimelineLayout } from './timeline-layout-provider'
 import { useAssetLibraryStore } from '@/features/stores/asset-library-store'
 import { TimelineEffectTracks } from './tracks/timeline-effect-track'
@@ -237,7 +237,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // Zoom limits (adaptive based on content)
   // ─────────────────────────────────────────────────────────────────────────
   const timelineEffects = useTimelineEffects()
-  const allZoomEffects = useMemo(() => getZoomEffects(timelineEffects), [timelineEffects])
+  const allZoomEffects = useMemo(() => getEffectsOfType(timelineEffects, EffectType.Zoom), [timelineEffects])
   const adaptiveZoomLimits = useMemo(() => {
     const zoomBlocks = allZoomEffects.map(e => ({ startTime: e.startTime, endTime: e.endTime }))
     return TimeConverter.calculateAdaptiveZoomLimits(

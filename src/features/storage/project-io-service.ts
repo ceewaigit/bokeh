@@ -222,7 +222,7 @@ export class ProjectIOService {
     EffectStore.ensureArray(project)
 
     // Ensure global background/cursor effects exist
-    const { EffectsFactory } = await import('@/features/effects/effects-factory')
+    const { EffectInitialization } = await import('@/features/effects/core/initialization')
 
 
     // DEDUPLICATE CROP EFFECTS: Fix for multiple overlapping crop effects causing glitches
@@ -278,7 +278,7 @@ export class ProjectIOService {
       }
     }
 
-    EffectsFactory.ensureGlobalEffects(project)
+    EffectInitialization.ensureGlobalEffects(project)
 
     if (awaitPlaybackPreparation && pendingProxyTasks.length > 0) {
       onProgress?.('Loading...')

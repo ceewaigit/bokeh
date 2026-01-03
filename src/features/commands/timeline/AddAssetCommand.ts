@@ -1,9 +1,10 @@
 import { Command, CommandResult } from '../base/Command'
 import type { CommandContext } from '../base/CommandContext'
 import type { Clip, TrackType } from '@/types/project'
-import { addAssetRecording, AssetDetails } from '@/features/timeline/timeline-operations'
+import { addAssetRecording, AssetDetails } from '@/features/timeline/clips/clip-creation'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
-import { findClipById, removeClipFromTrack } from '@/features/timeline/timeline-operations'
+import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { removeClipFromTrack } from '@/features/timeline/clips/clip-crud'
 
 interface AddAssetPayload {
     asset: AssetDetails

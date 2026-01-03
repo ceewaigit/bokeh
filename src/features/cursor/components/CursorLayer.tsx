@@ -1,18 +1,19 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
+import { EffectType } from '@/types/project';
 import {
   CursorType,
   CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
   getCursorImagePath,
 } from '../store/cursor-types';
-import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig, type CursorState } from '../logic/cursor-logic';
+import { calculateCursorState, getClickTextStyle, resolveClickEffectConfig } from '../logic/cursor-logic';
 import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config';
 
 import { normalizeClickEvents, normalizeMouseEvents } from '@/features/renderer/compositions/utils/events/event-normalizer';
 import { useTimelineContext } from '@/features/renderer/context/TimelineContext';
-import { getCursorEffect } from '@/features/effects/core/filters';
+import { getEffectByType } from '@/features/effects/core/filters';
 import { applyCssTransformToPoint } from '@/features/canvas/math/transforms/transform-point';
 
 import { useRecordingMetadata } from '@/features/renderer/hooks/media/useRecordingMetadata';
@@ -90,7 +91,7 @@ class CursorImagePreloader {
 // This works with VideoPositionContext optimization to allow "static" cursor frames during video playback.
 export const CursorLayer = React.memo(() => {
   const { fps } = useVideoConfig();
-  const { compositionWidth, compositionHeight, videoWidth: baseVideoWidth, videoHeight: baseVideoHeight, resources } = useTimelineContext();
+  const { compositionWidth, compositionHeight, resources } = useTimelineContext();
   const metadataUrls = resources.metadataUrls;
 
   // Pull Context Data (SSOT)
@@ -115,24 +116,24 @@ export const CursorLayer = React.memo(() => {
   } = videoPosition;
 
   // Reconstruct layout object to match existing usage if needed, or just use variables
-  const layout = useMemo(() => ({
+  const layout = {
     offsetX,
     offsetY,
     drawWidth,
     drawHeight,
-  }), [offsetX, offsetY, drawWidth, drawHeight]);
+  };
 
   // Reconstruct mockup object to match existing usage
-  const mockup = useMemo(() => ({
+  const mockup = {
     enabled: mockupEnabled ?? false,
     position: mockupPosition ?? null,
     data: mockupData ?? null
-  }), [mockupEnabled, mockupPosition, mockupData]);
+  };
 
   // Reconstruct transforms object
-  const transforms = useMemo(() => ({
+  const transforms = {
     combined: contentTransform,
-  }), [contentTransform]);
+  };
 
   // Camera settings
   // zoomTransform is used elsewhere if needed, but not here via this variable
@@ -164,7 +165,7 @@ export const CursorLayer = React.memo(() => {
 
   const cursorEffect = useMemo(() => {
     const effectsToUse = activeClipData?.effects ?? [];
-    return activeClipData ? getCursorEffect(effectsToUse) : undefined;
+    return activeClipData ? getEffectByType(effectsToUse, EffectType.Cursor) : undefined;
   }, [activeClipData]);
 
   const cursorData = (cursorEffect?.data as CursorEffectData | undefined);
@@ -198,9 +199,6 @@ export const CursorLayer = React.memo(() => {
   const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents, cursorEvents), [rawClickEvents, cursorEvents]);
 
   const currentSourceTime = activeClipData?.sourceTimeMs ?? 0;
-  // Cache cursor states by SOURCE TIME (milliseconds, not frame numbers)
-  // This prevents cursor blinking during sped-up playback
-  const frameStateCacheRef = useRef<Map<number, CursorState>>(new Map());
 
   // SINGLETON: Pre-cache all cursor images once across all CursorLayer instances
   useEffect(() => {
@@ -224,48 +222,15 @@ export const CursorLayer = React.memo(() => {
   }, []);
 
   const cursorState = useMemo(() => {
-    const cache = frameStateCacheRef.current;
-
-    // LRU eviction - prevent unbounded cache growth during scrubbing
-    // Keep ~10 seconds of frames at 60fps
-    const MAX_CACHE_SIZE = 600;
-    if (cache.size >= MAX_CACHE_SIZE) {
-      // Remove oldest 1/3 of entries
-      const entriesToRemove = Math.floor(MAX_CACHE_SIZE / 3);
-      const keys = Array.from(cache.keys());
-      for (let i = 0; i < entriesToRemove && i < keys.length; i++) {
-        cache.delete(keys[i]);
-      }
-    }
-
-    // DETERMINISTIC CACHING: Use SOURCE TIME (ms) as cache key
-    // Use Math.round() for consistent rounding (matches lookup below)
-    const cacheKey = Number(currentSourceTime.toFixed(2));
-
-    // Check if already cached
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Deterministic cursor smoothing: use time-based history so preview/export align.
-    const newState = calculateCursorState(
+    return calculateCursorState(
       cursorData,
       cursorEvents,
       clickEvents,
       currentSourceTime,
       fps,
-      Boolean(isImageWithSyntheticEvents) // Disable smoothing for synthetic (already smooth) events to prevent filter overshoot
+      Boolean(isImageWithSyntheticEvents)
     );
-
-    cache.set(cacheKey, newState);
-    return newState;
   }, [clickEvents, cursorData, cursorEvents, currentSourceTime, fps, isImageWithSyntheticEvents]);
-
-
-  useEffect(() => {
-    frameStateCacheRef.current.clear();
-  }, [cursorData, cursorEvents, clickEvents, fps]); // Removed clip?.id to prevent cache clear on split clips
 
   // Extract values from cursor state
   const cursorType = cursorState.type;
@@ -301,21 +266,14 @@ export const CursorLayer = React.memo(() => {
 
   // Use SHARED video offset from Snapshot
   // This ensures cursor uses the EXACT SAME position as the video element
-  const videoOffset = useMemo(() => {
-    return {
-      x: layout.offsetX,
-      y: layout.offsetY,
-      width: layout.drawWidth,
-      height: layout.drawHeight,
-    };
-  }, [layout.offsetX, layout.offsetY, layout.drawWidth, layout.drawHeight]);
+  const videoOffset = {
+    x: layout.offsetX,
+    y: layout.offsetY,
+    width: layout.drawWidth,
+    height: layout.drawHeight,
+  };
 
   const isMockup = Boolean(mockup.enabled && mockup.position);
-
-  // Get capture dimensions from first event (preserved for reference even though coords are normalized)
-  const firstEvent = cursorEvents[0];
-  const captureWidth = firstEvent?.captureWidth ?? baseVideoWidth;
-  const captureHeight = firstEvent?.captureHeight ?? baseVideoHeight;
 
   // Cursor coordinates are PRE-NORMALIZED to 0-1 range by normalizeMouseEvents().
   // For mockups, clamp to keep the cursor inside the device screen.

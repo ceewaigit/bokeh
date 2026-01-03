@@ -1,13 +1,7 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
 import { initializeCursorDetector } from '../utils/cursor-detector'
 import type { MouseTrackingOptions } from '../../types/electron-shared'
-// Simple logger for production
-const logger = {
-  debug: (msg: string, ...args: any[]) => process.env.NODE_ENV === 'development' && console.log(msg, ...args),
-  info: (msg: string, ...args: any[]) => console.log(msg, ...args),
-  warn: (msg: string, ...args: any[]) => console.warn(msg, ...args),
-  error: (msg: string, ...args: any[]) => console.error(msg, ...args)
-}
+import { logger as Logger } from '../utils/logger'
 import { getUIohook, stopUIohook } from '../utils/uiohook-manager'
 import { startScrollDetection, stopScrollDetection } from './scroll-tracking'
 import { TIMING, MOUSE_BUTTONS } from '../utils/constants'
@@ -44,7 +38,7 @@ export function registerMouseTrackingHandlers(): void {
     try {
       // Check accessibility permissions when starting mouse tracking
       if (cursorDetector && !cursorDetector.hasAccessibilityPermissions()) {
-        logger.warn('⚠️ No accessibility permissions for cursor detection')
+        Logger.warn('⚠️ No accessibility permissions for cursor detection')
         // Request permissions
         const { dialog, shell, BrowserWindow } = require('electron')
         const win = BrowserWindow.getFocusedWindow()
@@ -163,13 +157,13 @@ export function registerMouseTrackingHandlers(): void {
 
           // Only log on stable changes
           if ((global as any).lastLoggedCursor !== finalCursorType) {
-            logger.debug(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${finalCursorType}`)
+            Logger.debug(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${finalCursorType}`)
               ; (global as any).lastLoggedCursor = finalCursorType
           }
 
           // Only log in development mode
           if (process.env.NODE_ENV === 'development' && mouseHistory.length % 500 === 0) {
-            logger.debug('Mouse tracking active')
+            Logger.debug('Mouse tracking active')
           }
 
           // Send enhanced mouse data with velocity for smooth interpolation
@@ -187,7 +181,7 @@ export function registerMouseTrackingHandlers(): void {
           } as MousePosition)
 
         } catch (error) {
-          logger.error('Error tracking mouse:', error)
+          Logger.error('Error tracking mouse:', error)
         }
       }, intervalMs)
 
@@ -198,7 +192,7 @@ export function registerMouseTrackingHandlers(): void {
         fps: Math.round(1000 / intervalMs)
       }
     } catch (error: any) {
-      logger.error('Error starting mouse tracking:', error)
+      Logger.error('Error starting mouse tracking:', error)
       return { success: false, error: error.message }
     }
   })
@@ -225,7 +219,7 @@ export function registerMouseTrackingHandlers(): void {
 
       return { success: true }
     } catch (error: any) {
-      logger.error('Error stopping mouse tracking:', error)
+      Logger.error('Error stopping mouse tracking:', error)
       return { success: false, error: error.message }
     }
   })
@@ -242,7 +236,7 @@ export function registerMouseTrackingHandlers(): void {
         }
       }
     } catch (error: any) {
-      logger.error('Error getting mouse position:', error)
+      Logger.error('Error getting mouse position:', error)
       return { success: false, error: error.message }
     }
   })
@@ -254,7 +248,7 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
 
   // Check if uiohook is available
   if (!uIOhook) {
-    logger.warn('uiohook-napi not available, click detection disabled')
+    Logger.warn('uiohook-napi not available, click detection disabled')
     return
   }
 
@@ -263,10 +257,10 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
   try {
     // Start uiohook if not already started
     if (!uiohookStarted) {
-      logger.info('Starting uiohook-napi...')
+      Logger.info('Starting uiohook-napi...')
       uIOhook.start()
       uiohookStarted = true
-      logger.info('uiohook-napi started successfully')
+      Logger.info('uiohook-napi started successfully')
     }
 
     // Register global mouse event handlers
@@ -304,13 +298,13 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       })
 
 
-      logger.debug(`Mouse down at (${event.x}, ${event.y})`)
+      Logger.debug(`Mouse down at (${event.x}, ${event.y})`)
     }
 
     const handleMouseUp = (event: any) => {
       if (!isMouseTracking) return
 
-      logger.debug(`Mouse up at (${event.x}, ${event.y})`)
+      Logger.debug(`Mouse up at (${event.x}, ${event.y})`)
     }
 
     // Register the mouse event listeners
@@ -321,10 +315,10 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       ; (global as any).uiohookMouseDownHandler = handleMouseDown
       ; (global as any).uiohookMouseUpHandler = handleMouseUp
 
-    logger.info('Mouse event handlers registered successfully')
+    Logger.info('Mouse event handlers registered successfully')
 
   } catch (error) {
-    logger.error('Failed to start global click detection:', error)
+    Logger.error('Failed to start global click detection:', error)
     clickDetectionActive = false
   }
 }
@@ -343,7 +337,7 @@ function stopClickDetection(): void {
       }
     }
   } catch (error) {
-    logger.error('Error stopping click detection:', error)
+    Logger.error('Error stopping click detection:', error)
   }
 }
 

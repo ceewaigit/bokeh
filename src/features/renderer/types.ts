@@ -4,8 +4,28 @@ import type { MockupPositionResult } from '@/features/renderer/engine/layout-eng
 import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout';
 import type { ParsedZoomBlock } from '@/features/editor/logic/viewport/logic/orchestrator';
 import type { VideoResources } from '@/features/recording/types/resources';
-import type { PlaybackSettings } from '@/features/timeline/types';
 import type { CropSettings } from '@/features/crop/types';
+
+export interface PlaybackSettings {
+    isPlaying: boolean;
+    isScrubbing: boolean;
+    isHighQualityPlaybackEnabled: boolean;
+    previewMuted: boolean;
+    previewVolume: number;
+}
+
+export interface FadeOpacityOptions {
+    localFrame: number;
+    durationFrames: number;
+    introFadeDuration: number;
+    outroFadeDuration: number;
+    minOpacity?: number;
+}
+
+export interface ClipFadeDurations {
+    introFadeDuration: number;
+    outroFadeDuration: number;
+}
 
 export interface RenderSettings {
     /** Whether we are in "glow" mode (ambient background blur) */
@@ -83,6 +103,28 @@ export interface VideoPositionContextValue {
         /** Draw dimensions for the blur effect */
         drawWidth: number;
         drawHeight: number;
+        /** Output color space for the motion blur layer */
+        colorSpace?: PredefinedColorSpace;
+        /** Gamma correction factor */
+        gamma?: number;
+        /** Manual black level adjustment */
+        blackLevel?: number;
+        /** Saturation adjustment */
+        saturation?: number;
+        /** Samples count (optional override) */
+        samples?: number;
+        /** Whether to premultiply alpha on upload */
+        unpackPremultiplyAlpha?: boolean;
+        /** Split-screen debug: hide left half of the motion blur canvas */
+        debugSplit?: boolean;
+        /** Velocity threshold in pixels/frame - blur only activates above this speed */
+        velocityThreshold?: number;
+        /** Soft knee ramp range (0-1) - controls transition smoothness */
+        rampRange?: number;
+        /** Maximum blur radius clamp */
+        clampRadius?: number;
+        /** Smoothing window in frames - higher = longer blur fade */
+        smoothWindow?: number;
     };
 
     // Mockup
