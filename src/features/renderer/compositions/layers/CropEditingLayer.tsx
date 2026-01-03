@@ -27,11 +27,13 @@ interface CropEditingLayerProps {
     onCropReset?: () => void
 }
 
-const HANDLE_SIZE = 12
-const OVERLAY_SHADE = 'rgba(0,0,0,0.55)'
+const HANDLE_SIZE = 10
+const OVERLAY_SHADE = 'rgba(0, 0, 0, 0.6)'
 const PRIMARY_COLOR = 'hsl(var(--primary))'
-const SURFACE_COLOR = 'hsl(var(--background))'
-const BORDER_COLOR = 'hsl(var(--border))'
+const ACCENT_COLOR = 'hsl(var(--accent))'
+
+// Shadow similar to SelectionOverlay but slightly elevated for crop context
+const HANDLE_SHADOW = '0 2px 5px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.1)'
 
 export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
     isEditingCrop,
@@ -187,12 +189,13 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                     top,
                     width: HANDLE_SIZE,
                     height: HANDLE_SIZE,
-                    backgroundColor: SURFACE_COLOR,
-                    border: `1.5px solid ${PRIMARY_COLOR}`,
-                    borderRadius: 6,
-                    boxShadow: '0 6px 14px rgba(0,0,0,0.18)',
+                    backgroundColor: 'white',
+                    border: `1px solid ${ACCENT_COLOR}`,
+                    borderRadius: '50%',
+                    boxShadow: HANDLE_SHADOW,
                     cursor: getHandleCursorStyle(position),
                     zIndex: 20,
+                    boxSizing: 'border-box',
                 }}
                 onMouseDown={(e) => handleMouseDown(e, position)}
             />
@@ -257,10 +260,10 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                     top: cropRect.y,
                     width: cropRect.width,
                     height: cropRect.height,
-                    border: `2px solid ${PRIMARY_COLOR}`,
+                    border: `1px solid ${ACCENT_COLOR}`,
                     cursor: 'move',
                     zIndex: 10,
-                    boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 10px 30px rgba(0,0,0,0.25)',
+                    boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
                 }}
                 onMouseDown={(e) => handleMouseDown(e, 'move')}
             >
@@ -272,7 +275,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                             top: 0,
                             bottom: 0,
                             left: '33.33%',
-                            borderLeft: '1px solid rgba(255,255,255,0.22)',
+                            borderLeft: '1px solid rgba(255,255,255,0.25)',
                         }}
                     />
                     <div
@@ -281,7 +284,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                             top: 0,
                             bottom: 0,
                             left: '66.67%',
-                            borderLeft: '1px solid rgba(255,255,255,0.22)',
+                            borderLeft: '1px solid rgba(255,255,255,0.25)',
                         }}
                     />
                     <div
@@ -290,7 +293,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                             left: 0,
                             right: 0,
                             top: '33.33%',
-                            borderTop: '1px solid rgba(255,255,255,0.22)',
+                            borderTop: '1px solid rgba(255,255,255,0.25)',
                         }}
                     />
                     <div
@@ -299,7 +302,7 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                             left: 0,
                             right: 0,
                             top: '66.67%',
-                            borderTop: '1px solid rgba(255,255,255,0.22)',
+                            borderTop: '1px solid rgba(255,255,255,0.25)',
                         }}
                     />
                 </div>
@@ -320,17 +323,20 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                 style={{
                     position: 'absolute',
                     left: cropRect.x + cropRect.width / 2,
-                    top: cropRect.y - 28,
+                    top: cropRect.y - 32,
                     transform: 'translateX(-50%)',
                     padding: '4px 8px',
-                    backgroundColor: 'rgba(0,0,0,0.75)',
-                    color: 'rgba(255,255,255,0.9)',
+                    backgroundColor: 'rgba(20,20,20,0.9)',
+                    color: 'rgba(255,255,255,0.95)',
                     fontSize: 12,
-                    fontFamily: 'monospace',
+                    fontWeight: 500,
+                    fontFamily: 'system-ui, sans-serif',
                     borderRadius: 6,
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    backdropFilter: 'blur(6px)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(8px)',
                     zIndex: 30,
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                 }}
             >
                 {Math.round(cropData.width * 100)}% x {Math.round(cropData.height * 100)}%
@@ -343,24 +349,26 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                         style={{
                             position: 'absolute',
                             left: cropRect.x + cropRect.width / 2,
-                            top: cropRect.y + cropRect.height + 8,
+                            top: cropRect.y + cropRect.height + 12,
                             transform: 'translateX(-50%)',
-                            padding: '4px 8px',
-                            backgroundColor: 'rgba(0,0,0,0.65)',
-                            color: 'rgba(255,255,255,0.92)',
-                            fontSize: 11,
+                            padding: '4px 10px',
+                            backgroundColor: 'rgba(20,20,20,0.85)',
+                            color: 'rgba(255,255,255,0.95)',
+                            fontSize: 12,
+                            fontWeight: 500,
                             fontFamily: 'system-ui, sans-serif',
                             borderRadius: 999,
-                            border: `1px solid ${BORDER_COLOR}`,
-                            backdropFilter: 'blur(6px)',
+                            border: `1px solid ${ACCENT_COLOR}`,
+                            backdropFilter: 'blur(8px)',
                             zIndex: 40,
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                         }}
                     >
-                        <span style={{ opacity: 0.7 }}>Live</span>
-                        <span>{cropTransform.scale.toFixed(2)}x zoom</span>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: ACCENT_COLOR, boxShadow: `0 0 6px ${ACCENT_COLOR}` }} />
+                        <span>Live Preview {cropTransform.scale.toFixed(1)}x</span>
                     </div>
                 )
             }
@@ -370,20 +378,22 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                 style={{
                     position: 'absolute',
                     left: '50%',
-                    bottom: 20,
+                    bottom: 24,
                     transform: 'translateX(-50%)',
                     display: 'flex',
                     gap: 8,
                     zIndex: 30,
                     padding: 6,
-                    borderRadius: 12,
-                    backgroundColor: 'rgba(0,0,0,0.45)',
+                    borderRadius: 14,
+                    backgroundColor: 'rgba(20,20,20,0.6)',
                     border: '1px solid rgba(255,255,255,0.08)',
-                    backdropFilter: 'blur(10px)',
+                    backdropFilter: 'blur(12px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                 }}
             >
                 <button
                     onClick={onCropConfirm}
+                    className="hover:brightness-110 active:scale-95 transition-all"
                     style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -392,32 +402,40 @@ export const CropEditingLayer: React.FC<CropEditingLayerProps> = ({
                         backgroundColor: PRIMARY_COLOR,
                         color: 'hsl(var(--primary-foreground))',
                         border: 'none',
-                        borderRadius: 8,
-                        fontSize: 14,
-                        fontWeight: 500,
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 600,
                         cursor: 'pointer',
-                        boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
                     }}
                 >
-                    ✓ Confirm
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Confirm
                 </button>
                 <button
                     onClick={onCropReset}
+                    className="hover:bg-white/10 active:scale-95 transition-all"
                     style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
                         padding: '8px 16px',
-                        backgroundColor: 'rgba(255,255,255,0.08)',
+                        backgroundColor: 'transparent',
                         color: 'rgba(255,255,255,0.9)',
-                        border: '1px solid rgba(255,255,255,0.14)',
-                        borderRadius: 8,
-                        fontSize: 14,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: 10,
+                        fontSize: 13,
                         fontWeight: 500,
                         cursor: 'pointer',
                     }}
                 >
-                    ↺ Reset crop
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                    </svg>
+                    Reset
                 </button>
             </div>
         </AbsoluteFill >

@@ -4,9 +4,7 @@ import { Button } from '@/components/ui/button'
 import { HeaderButton } from '@/components/ui/header-button'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
 import { WindowHeader } from '@/components/ui/window-header'
-import { type SortKey, type SortDirection } from '@/features/recording/store/library-store'
 import { LibrarySearch } from './library-search'
-import { LibrarySort } from './library-sort'
 
 interface LibraryHeaderProps {
   totalRecordings: number
@@ -21,9 +19,6 @@ interface LibraryHeaderProps {
   onOpenSettings: () => void
   searchQuery: string
   onSearchChange: (query: string) => void
-  sortKey: SortKey
-  sortDirection: SortDirection
-  onSortChange: (key: SortKey, direction: SortDirection) => void
 }
 
 export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
@@ -39,9 +34,6 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
   onOpenSettings,
   searchQuery,
   onSearchChange,
-  sortKey,
-  sortDirection,
-  onSortChange
 }, ref) => (
   <WindowHeader ref={ref} customDragRegions className="sticky top-0 z-30 relative">
     <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -67,8 +59,6 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
 
     <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <div className="flex items-center gap-1 mr-2">
-        <LibrarySort sortKey={sortKey} sortDirection={sortDirection} onSortChange={onSortChange} />
-        <div className="w-px h-4 bg-border/50 mx-2" />
         <Button
           size="sm"
           variant="ghost"

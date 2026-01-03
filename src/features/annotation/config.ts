@@ -5,10 +5,8 @@ export const DEFAULT_ANNOTATION_SIZES: Record<AnnotationType, { width?: number; 
   [AnnotationType.Text]: { width: 26, height: 10 },
   [AnnotationType.Arrow]: {},
   [AnnotationType.Highlight]: { width: 20, height: 12 },
-  [AnnotationType.Keyboard]: { width: 22, height: 9 },
+  [AnnotationType.Blur]: { width: 20, height: 12 },
 }
-
-export const DEFAULT_KEYBOARD_KEYS = ['Cmd', 'S']
 
 // Effect Track Configuration
 export const annotationTrackConfig = {

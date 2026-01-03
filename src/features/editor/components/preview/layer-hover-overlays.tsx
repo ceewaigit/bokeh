@@ -64,8 +64,8 @@ function getAnnotationLabel(type: AnnotationType): string {
     switch (type) {
         case AnnotationType.Text:
             return 'Text';
-        case AnnotationType.Keyboard:
-            return 'Keyboard';
+        case AnnotationType.Blur:
+            return 'Blur';
         case AnnotationType.Highlight:
             return 'Highlight';
         case AnnotationType.Arrow:
@@ -176,7 +176,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
             )}
 
             {/* Annotation layer hover hint - uses bounds from DOM query */}
-            {/* Hide when annotation is already selected (SelectionBox handles it) */}
+            {/* Hide when annotation is already selected (SelectionOverlay handles it) */}
             {hoveredLayer === 'annotation' && annotationOverlay && canSelectAnnotation &&
                 annotationOverlay.id !== selectedAnnotationId && (
                     <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">

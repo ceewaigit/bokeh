@@ -14,7 +14,6 @@ import React, { memo, useCallback, useRef, useEffect } from 'react'
 import { getRemotionEnvironment } from 'remotion'
 import { AnnotationType } from '@/types/project'
 import type { AnnotationData, AnnotationStyle } from '@/types/project'
-import { SelectionBox } from './SelectionBox'
 import type { AnnotationRenderContext } from './annotation-elements'
 
 interface AnnotationWrapperProps {
@@ -241,64 +240,6 @@ const EditableTextContent = memo(
 EditableTextContent.displayName = 'EditableTextContent'
 
 // ============================================================================
-// Keyboard Annotation Content
-// ============================================================================
-
-interface KeyboardContentProps {
-    data: AnnotationData
-    context: AnnotationRenderContext
-}
-
-const KeyboardContent: React.FC<KeyboardContentProps> = memo(({
-    data,
-    context,
-}) => {
-    const style = data.style ?? {}
-    const keys = data.keys ?? ['Cmd', 'S']
-    const displayLabel = keys.join(' + ')
-
-    const effectiveScale = context.scale ?? 1
-
-    const fontSize = (style.fontSize ?? 16) * effectiveScale
-    const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
-    const fontWeight = style.fontWeight ?? 600
-    const color = style.color ?? '#ffffff'
-    const bgColor = style.backgroundColor ?? 'rgba(0, 0, 0, 0.65)'
-    const borderColor = style.borderColor ?? 'rgba(255, 255, 255, 0.15)'
-    const padding = (resolvePadding(style.padding) || 10) * effectiveScale
-    const borderRadius = (style.borderRadius ?? 8) * effectiveScale
-    const gap = 4 * effectiveScale
-
-    return (
-        <div
-            data-annotation-content="true"
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap,
-                fontSize,
-                fontFamily,
-                fontWeight: fontWeight as React.CSSProperties['fontWeight'],
-                color,
-                backgroundColor: bgColor,
-                border: `1px solid ${borderColor}`,
-                padding: `${padding * 0.6}px ${padding}px`,
-                borderRadius,
-                whiteSpace: 'nowrap',
-                cursor: 'inherit',
-                outline: 'none',
-                contain: 'layout style paint',
-                willChange: 'transform',
-                userSelect: 'none',
-            }}
-        >
-            {displayLabel}
-        </div>
-    )
-})
-KeyboardContent.displayName = 'KeyboardContent'
-
-// ============================================================================
 // Highlight Annotation Content
 // ============================================================================
 
@@ -328,6 +269,41 @@ const HighlightContent: React.FC<HighlightContentProps> = memo(({
     )
 })
 HighlightContent.displayName = 'HighlightContent'
+
+// ============================================================================
+// Blur Annotation Content - Solid opaque mask for privacy
+// ============================================================================
+
+interface BlurContentProps {
+    data: AnnotationData
+    context: AnnotationRenderContext
+}
+
+const BlurContent: React.FC<BlurContentProps> = memo(({
+    data,
+    context,
+}) => {
+    // Width/height are percentages of video dimensions
+    const width = ((data.width ?? 20) / 100) * context.videoWidth
+    const height = ((data.height ?? 12) / 100) * context.videoHeight
+
+    return (
+        <div
+            data-annotation-content="true"
+            style={{
+                width,
+                height,
+                borderRadius: 8,
+                // Solid opaque background for masking sensitive content
+                background: '#888888',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                contain: 'layout style paint',
+                willChange: 'transform',
+            }}
+        />
+    )
+})
+BlurContent.displayName = 'BlurContent'
 
 // ============================================================================
 // Arrow Annotation Content
@@ -435,14 +411,14 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
     const position = getComputedPosition(data, context)
     const rotation = data.rotation ?? 0
     const constrainTextWidth =
-        (data.type === AnnotationType.Text || data.type === AnnotationType.Keyboard) && typeof data.width === 'number'
+        data.type === AnnotationType.Text && typeof data.width === 'number'
     const textWidthPx = constrainTextWidth ? (data.width! / 100) * context.videoWidth : undefined
 
     // Determine if this annotation type supports rotation handle
     const showRotation = data.type !== AnnotationType.Arrow
 
-    // Determine anchor type - Highlight is top-left, others are center
-    const isTopLeftAnchor = data.type === AnnotationType.Highlight
+    // Determine anchor type - Highlight and Blur are top-left, others are center
+    const isTopLeftAnchor = data.type === AnnotationType.Highlight || data.type === AnnotationType.Blur
 
     // For Arrow, position at the bounding box min
     let wrapperPosition = position
@@ -499,10 +475,10 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                         onEditComplete={onEditComplete}
                     />
                 )
-            case AnnotationType.Keyboard:
-                return <KeyboardContent data={data} context={context} />
             case AnnotationType.Highlight:
                 return <HighlightContent data={data} context={context} />
+            case AnnotationType.Blur:
+                return <BlurContent data={data} context={context} />
             case AnnotationType.Arrow:
                 return <ArrowContent id={id} data={data} context={context} />
             default:
@@ -534,14 +510,6 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
             {/* Annotation Content */}
             {renderContent()}
 
-            {/* Selection Box - only in preview mode, when selected (hidden during inline editing) */}
-            {isSelected && !isRendering && !isEditing && (
-                <SelectionBox
-                    showHandles={true}
-                    showRotation={showRotation}
-                    rotation={rotation}
-                />
-            )}
         </div>
     )
 })

@@ -6,6 +6,7 @@ import { useWorkspaceStore } from '@/features/stores/workspace-store'
 import { useCanvasDrag, type DragType, type CanvasDragDelta } from '@/features/editor/hooks/use-canvas-drag'
 import { hitTestEffects, type HandlePosition } from '@/features/editor/logic/hit-testing'
 import { hitTestAnnotationsFromPoint } from '@/features/editor/logic/dom-hit-testing'
+import { SelectionOverlay, SELECTION_HANDLE_SIZE } from '@/features/editor/components/SelectionOverlay'
 import {
     deltaToPercent,
     clampPosition,
@@ -81,6 +82,20 @@ interface InteractionLayerProps {
     currentTimeMs: number
 }
 
+interface SelectionBounds {
+    x: number
+    y: number
+    width: number
+    height: number
+}
+
+interface ClipRect {
+    x: number
+    y: number
+    width: number
+    height: number
+}
+
 export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     effects,
     snapshot,
@@ -147,6 +162,68 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     }, [selectedEffectLayer, effects, transientState])
 
     const canInteract = !isInlineEditing
+
+    const selectedAnnotation = selectedEffect?.type === EffectType.Annotation ? selectedEffect : null
+    const [selectionBounds, setSelectionBounds] = useState<SelectionBounds | null>(null)
+    const [clipRect, setClipRect] = useState<ClipRect | null>(null)
+
+    const updateSelectionBounds = useCallback(() => {
+        const overlayEl = overlayRef.current
+        if (!overlayEl || !selectedAnnotation) {
+            setSelectionBounds(null)
+            return
+        }
+
+        const candidates = Array.from(
+            document.querySelectorAll<HTMLElement>(`[data-annotation-id="${selectedAnnotation.id}"]`)
+        )
+        const annotationEl = candidates.find((el) => !overlayEl.contains(el)) ?? candidates[0]
+        if (!annotationEl) {
+            setSelectionBounds(null)
+            return
+        }
+
+        const contentEl =
+            annotationEl.querySelector<HTMLElement>('[data-annotation-content="true"]') ?? annotationEl
+        const overlayRect = overlayEl.getBoundingClientRect()
+        const rect = contentEl.getBoundingClientRect()
+
+        setSelectionBounds({
+            x: rect.left - overlayRect.left,
+            y: rect.top - overlayRect.top,
+            width: rect.width,
+            height: rect.height,
+        })
+
+        const videoEl = document.querySelector<HTMLElement>('[data-video-transform-container="true"]')
+        if (videoEl) {
+            const videoRect = videoEl.getBoundingClientRect()
+            setClipRect({
+                x: videoRect.left - overlayRect.left,
+                y: videoRect.top - overlayRect.top,
+                width: videoRect.width,
+                height: videoRect.height,
+            })
+        } else {
+            setClipRect(null)
+        }
+    }, [selectedAnnotation])
+
+    useEffect(() => {
+        if (!selectedAnnotation) {
+            setSelectionBounds(null)
+            return
+        }
+
+        let rafId = 0
+        const tick = () => {
+            updateSelectionBounds()
+            rafId = window.requestAnimationFrame(tick)
+        }
+
+        rafId = window.requestAnimationFrame(tick)
+        return () => window.cancelAnimationFrame(rafId)
+    }, [selectedAnnotation, updateSelectionBounds])
 
     // Force mode reset if selection cleared externally
     useEffect(() => {
@@ -303,8 +380,8 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 const safeWidth = base.width ?? 20
                 const safeHeight = base.height ?? 10
 
-                if (base.type === AnnotationType.Highlight) {
-                    // Highlight is Top-Left anchored
+                if (base.type === AnnotationType.Highlight || base.type === AnnotationType.Blur) {
+                    // Highlight/Blur are Top-Left anchored
                     // We need to handle this like a standard rect resize
                     let newPos = { ...base.position, width: safeWidth, height: safeHeight }
 
@@ -642,10 +719,10 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                         // Text/Keyboard are center-anchored, so pos IS the center
                         let annotationCenterPercent = { x: pos.x, y: pos.y }
 
-                        if (data.type === AnnotationType.Highlight) {
+                        if (data.type === AnnotationType.Highlight || data.type === AnnotationType.Blur) {
                             annotationCenterPercent = {
                                 x: pos.x + (data.width ?? 20) / 2,
-                                y: pos.y + (data.height ?? 10) / 2
+                                y: pos.y + (data.height ?? 12) / 2
                             }
                         } else if (data.type === AnnotationType.Arrow) {
                             // Arrow center is midpoint between start and end
@@ -848,8 +925,38 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 pointerEvents: isInlineEditing ? 'none' : 'auto'
             }}
         >
-            {/* Annotations, selection overlay, and editing are all handled inside AnnotationLayer */}
-            {/* InteractionLayer only provides hit-testing and event handling */}
+            {selectedAnnotation && selectionBounds && !isInlineEditing && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: clipRect ? clipRect.x - SELECTION_HANDLE_SIZE * 2 : 0,
+                        top: clipRect ? clipRect.y - SELECTION_HANDLE_SIZE * 2 : 0,
+                        width: clipRect ? clipRect.width + SELECTION_HANDLE_SIZE * 4 : '100%',
+                        height: clipRect ? clipRect.height + SELECTION_HANDLE_SIZE * 4 : '100%',
+                        overflow: clipRect ? 'hidden' : 'visible',
+                        pointerEvents: 'auto',
+                        zIndex: 2001,
+                    }}
+                >
+                    <SelectionOverlay
+                        annotationId={selectedAnnotation.id}
+                        annotationType={(selectedAnnotation.data as AnnotationData).type ?? AnnotationType.Text}
+                        bounds={{
+                            x: selectionBounds.x - (clipRect?.x ?? 0) + (clipRect ? SELECTION_HANDLE_SIZE * 2 : 0),
+                            y: selectionBounds.y - (clipRect?.y ?? 0) + (clipRect ? SELECTION_HANDLE_SIZE * 2 : 0),
+                            width: selectionBounds.width,
+                            height: selectionBounds.height,
+                        }}
+                        borderRadius={
+                            (selectedAnnotation.data as AnnotationData).type === AnnotationType.Blur
+                                ? 12
+                                : ((selectedAnnotation.data as AnnotationData).style?.borderRadius ?? 4)
+                        }
+                        showHandles={true}
+                        showRotation={(selectedAnnotation.data as AnnotationData).type !== AnnotationType.Arrow}
+                    />
+                </div>
+            )}
         </div>
     )
 }

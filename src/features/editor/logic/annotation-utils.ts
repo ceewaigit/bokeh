@@ -1,7 +1,7 @@
 import { AnnotationData, AnnotationType, AnnotationStyle } from '@/types/project'
 
 const DEFAULT_TEXT_BOX = { width: 160, height: 44 }
-const DEFAULT_KEYBOARD_BOX = { width: 180, height: 48 }
+const DEFAULT_BLUR_BOX = { width: 200, height: 120 }
 
 let textMeasureCtx: CanvasRenderingContext2D | null = null
 
@@ -21,8 +21,8 @@ export function resolvePadding(padding?: AnnotationStyle['padding']): number {
 }
 
 export function getAnnotationLabel(data: AnnotationData): string {
-    if (data.type === AnnotationType.Keyboard) {
-        return (data.keys ?? []).join(' + ')
+    if (data.type === AnnotationType.Blur) {
+        return '' // Blur has no text content
     }
     return data.content ?? ''
 }
@@ -33,11 +33,16 @@ export function measureAnnotationBox(data: AnnotationData): { width: number; hei
     const fontFamily = data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif'
     const fontWeight = data.style?.fontWeight ?? 'normal'
     // Add extra padding to match DOM rendering nuances
-    const padding = resolvePadding(data.style?.padding) + (data.type === AnnotationType.Keyboard ? 4 : 4)
+    const padding = resolvePadding(data.style?.padding) + 4
+
+    // Blur uses fixed dimensions based on width/height properties
+    if (data.type === AnnotationType.Blur) {
+        return DEFAULT_BLUR_BOX
+    }
 
     const ctx = getTextMeasureContext()
     if (!ctx || !label) {
-        return data.type === AnnotationType.Keyboard ? DEFAULT_KEYBOARD_BOX : DEFAULT_TEXT_BOX
+        return DEFAULT_TEXT_BOX
     }
 
     ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`

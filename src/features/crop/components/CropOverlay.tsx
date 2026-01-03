@@ -29,7 +29,12 @@ interface CropOverlayProps {
   showInfo?: boolean
 }
 
-const HANDLE_SIZE = 12
+const HANDLE_SIZE = 8
+const PRIMARY_COLOR = 'hsl(var(--primary))'
+const ACCENT_COLOR = 'hsl(var(--accent))'
+
+// Very crisp, subtle shadow
+const HANDLE_SHADOW = '0 1px 2px rgba(0,0,0,0.2)'
 
 export function CropOverlay({
   cropData,
@@ -164,12 +169,16 @@ export function CropOverlay({
     return (
       <div
         key={position}
-        className="absolute bg-white border-2 border-primary rounded-sm shadow-md z-20"
+        className="absolute z-20 transition-transform hover:scale-125"
         style={{
           left,
           top,
           width: HANDLE_SIZE,
           height: HANDLE_SIZE,
+          backgroundColor: 'white',
+          border: '1px solid rgba(0,0,0,0.15)',
+          borderRadius: '50%',
+          boxShadow: HANDLE_SHADOW,
           cursor: getHandleCursorStyle(position),
         }}
         onMouseDown={(e) => handleMouseDown(e, position)}
@@ -186,7 +195,7 @@ export function CropOverlay({
       {/* Darkened regions outside crop */}
       {/* Top */}
       <div
-        className="absolute bg-black/60"
+        className="absolute bg-black/50"
         style={{
           left: videoRect.x,
           top: videoRect.y,
@@ -196,7 +205,7 @@ export function CropOverlay({
       />
       {/* Bottom */}
       <div
-        className="absolute bg-black/60"
+        className="absolute bg-black/50"
         style={{
           left: videoRect.x,
           top: cropRect.y + cropRect.height,
@@ -206,7 +215,7 @@ export function CropOverlay({
       />
       {/* Left */}
       <div
-        className="absolute bg-black/60"
+        className="absolute bg-black/50"
         style={{
           left: videoRect.x,
           top: cropRect.y,
@@ -216,7 +225,7 @@ export function CropOverlay({
       />
       {/* Right */}
       <div
-        className="absolute bg-black/60"
+        className="absolute bg-black/50"
         style={{
           left: cropRect.x + cropRect.width,
           top: cropRect.y,
@@ -227,36 +236,23 @@ export function CropOverlay({
 
       {/* Crop region border */}
       <div
-        className="absolute border-2 border-primary z-10"
+        className="absolute z-10"
         style={{
           left: cropRect.x,
           top: cropRect.y,
           width: cropRect.width,
           height: cropRect.height,
+          boxShadow: `inset 0 0 0 1px ${PRIMARY_COLOR}, 0 0 0 1px rgba(255,255,255,0.15)`,
           cursor: 'move',
         }}
         onMouseDown={(e) => handleMouseDown(e, 'move')}
       >
-        {/* Grid lines for visual guidance */}
+        {/* Grid lines for visual guidance - minimal */}
         <div className="absolute inset-0 pointer-events-none">
-          {/* Vertical thirds */}
-          <div
-            className="absolute top-0 bottom-0 border-l border-white/30"
-            style={{ left: '33.33%' }}
-          />
-          <div
-            className="absolute top-0 bottom-0 border-l border-white/30"
-            style={{ left: '66.67%' }}
-          />
-          {/* Horizontal thirds */}
-          <div
-            className="absolute left-0 right-0 border-t border-white/30"
-            style={{ top: '33.33%' }}
-          />
-          <div
-            className="absolute left-0 right-0 border-t border-white/30"
-            style={{ top: '66.67%' }}
-          />
+          <div className="absolute top-0 bottom-0 border-l border-white/15" style={{ left: '33.33%' }} />
+          <div className="absolute top-0 bottom-0 border-l border-white/15" style={{ left: '66.67%' }} />
+          <div className="absolute left-0 right-0 border-t border-white/15" style={{ top: '33.33%' }} />
+          <div className="absolute left-0 right-0 border-t border-white/15" style={{ top: '66.67%' }} />
         </div>
       </div>
 
@@ -272,40 +268,43 @@ export function CropOverlay({
 
       {showInfo && (
         <div
-          className="absolute px-2 py-1 bg-black/80 text-white text-xs rounded font-mono z-30"
+          className="absolute px-1.5 py-0.5 text-white/95 text-[10px] rounded z-30 font-medium font-sans pointer-events-none"
           style={{
             left: cropRect.x + cropRect.width / 2,
-            top: cropRect.y - 28,
+            top: cropRect.y - 20,
             transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(4px)',
           }}
         >
-          {Math.round(cropData.width * 100)}% x {Math.round(cropData.height * 100)}%
+          {Math.round(cropData.width * 100)} × {Math.round(cropData.height * 100)}
         </div>
       )}
 
       {showActions && (
         <div
-          className="absolute flex gap-2 z-30"
+          className="absolute flex items-center gap-1 z-30 p-0.5 rounded-lg border bg-[#1c1c1c] border-white/10 shadow-lg"
           style={{
             left: '50%',
-            bottom: 20,
+            bottom: 24,
             transform: 'translateX(-50%)',
           }}
         >
           <Button
             onClick={onConfirm}
-            className="gap-2"
+            className="gap-2 h-6 text-[11px] font-semibold px-3 rounded-md shadow-sm hover:brightness-110 active:scale-95 transition-all text-white border-0"
+            style={{
+              backgroundColor: PRIMARY_COLOR,
+            }}
           >
-            <Check className="w-4 h-4" />
             Confirm
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={onReset}
-            className="gap-2 bg-background/80"
+            className="gap-2 h-6 text-[11px] font-medium px-2 rounded-md text-white/80 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
           >
-            <RotateCcw className="w-4 h-4" />
-            Reset crop
+            Reset
           </Button>
         </div>
       )}

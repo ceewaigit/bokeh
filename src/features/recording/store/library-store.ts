@@ -24,6 +24,7 @@ export interface LibraryRecordingHydration {
   // NOTE: Thumbnails are intentionally treated as volatile UI state to avoid
   // retaining large data URLs for the entire library in memory.
   thumbnailUrl?: string
+  thumbnailVariant?: 'default' | 'large'
 }
 
 export type LibraryRecordingView = LibraryRecording & LibraryRecordingHydration

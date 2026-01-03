@@ -270,7 +270,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       gamma: cameraSettings?.motionBlurGamma ?? 1.0,
       blackLevel: cameraSettings?.motionBlurBlackLevel ?? 0,
       saturation: cameraSettings?.motionBlurSaturation ?? 1.0,
-      useWebglVideo: cameraSettings?.motionBlurUseWebglVideo ?? true,
+      useWebglVideo: isMotionBlurActive ? (cameraSettings?.motionBlurUseWebglVideo ?? true) : false,
       samples: cameraSettings?.motionBlurSamples,
       unpackPremultiplyAlpha: cameraSettings?.motionBlurUnpackPremultiply ?? false,
       // Pass through settings that were previously ignored

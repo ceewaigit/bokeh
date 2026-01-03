@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import Image from 'next/image'
-import { Film, Info, Play, Trash2 } from 'lucide-react'
+import { Copy, Film, Info, PencilLine, Play, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { cn } from '@/shared/utils/utils'
 import { formatTime } from '@/shared/utils/time'
@@ -16,6 +16,8 @@ interface RecordingsGridProps {
   isExpandedLayout: boolean
   onSelect: (recording: LibraryRecordingView) => void
   onRequestDelete?: (recording: LibraryRecordingView) => void
+  onRequestRename?: (recording: LibraryRecordingView) => void
+  onRequestDuplicate?: (recording: LibraryRecordingView) => void
   showDeleteAction?: boolean
 }
 
@@ -25,6 +27,8 @@ export const RecordingsGrid = ({
   isExpandedLayout,
   onSelect,
   onRequestDelete,
+  onRequestRename,
+  onRequestDuplicate,
   showDeleteAction = true
 }: RecordingsGridProps) => {
   const placeholders = useMemo(() => {
@@ -32,6 +36,7 @@ export const RecordingsGrid = ({
       length: Math.max(0, Math.min(12, gridCapacity - recordings.length))
     })
   }, [gridCapacity, recordings.length])
+  const showActions = showDeleteAction || onRequestRename || onRequestDuplicate
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 gap-5">
@@ -147,11 +152,11 @@ export const RecordingsGrid = ({
 
                 {!isExpandedLayout && (
                   <div className="absolute inset-x-0 bottom-0">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
                     <div className="relative p-2.5">
                       <div className="flex items-end justify-between gap-2">
                         <div className="min-w-0">
-                          <h3 className="font-semibold text-xs text-white truncate drop-shadow-sm">
+                          <h3 className="font-[var(--font-display)] font-semibold tracking-tight text-xs text-white truncate drop-shadow-sm">
                             {displayName}
                           </h3>
                           <div className="mt-1 flex items-center gap-1.5 text-3xs text-white/70">
@@ -187,9 +192,9 @@ export const RecordingsGrid = ({
               {isExpandedLayout && (
                 <div className="flex items-start justify-between gap-3 px-3 pt-2.5 pb-3">
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-ui-sm text-foreground truncate">
-                      {displayName}
-                    </h3>
+                  <h3 className="font-[var(--font-display)] font-semibold tracking-tight text-ui-sm text-foreground truncate">
+                    {displayName}
+                  </h3>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-2xs text-muted-foreground">
                       <span className="truncate">{relativeTime}</span>
                       {resolutionLabel && (
@@ -216,20 +221,50 @@ export const RecordingsGrid = ({
                   'group-hover:opacity-100 group-hover:translate-y-0'
                 )}
               >
-                {showDeleteAction && (
+                {showActions && (
                   <div className="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-md p-0.5 shadow-sm border border-white/10">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="w-5 h-5 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onRequestDelete?.(recording)
-                      }}
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    {onRequestRename && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-5 h-5 p-0 hover:bg-white/10 hover:text-white text-white/80 rounded"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRequestRename(recording)
+                        }}
+                        title="Rename"
+                      >
+                        <PencilLine className="w-3 h-3" />
+                      </Button>
+                    )}
+                    {onRequestDuplicate && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-5 h-5 p-0 hover:bg-white/10 hover:text-white text-white/80 rounded"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRequestDuplicate(recording)
+                        }}
+                        title="Duplicate"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    )}
+                    {showDeleteAction && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-5 h-5 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRequestDelete?.(recording)
+                        }}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

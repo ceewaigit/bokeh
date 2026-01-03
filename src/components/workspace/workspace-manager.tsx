@@ -598,11 +598,11 @@ export function WorkspaceManager() {
 
               {/* Timeline Resize Divider */}
               <div
-                className="h-1 cursor-row-resize bg-transparent hover:bg-border/30 transition-all duration-150 flex-shrink-0 flex items-center justify-center group"
+                className="relative z-30 h-2 cursor-row-resize bg-border/10 hover:bg-border/30 transition-all duration-150 flex-shrink-0 flex items-center justify-center group"
                 onMouseDown={startResizingTimeline}
               >
                 {/* Subtle resize handle indicator */}
-                <div className="w-12 h-1 rounded-full bg-border/20 group-hover:bg-border/60 transition-colors" />
+                <div className="w-14 h-1.5 rounded-full bg-foreground/15 group-hover:bg-foreground/35 shadow-sm transition-colors" />
               </div>
 
               {/* Timeline Section - Full width at bottom */}

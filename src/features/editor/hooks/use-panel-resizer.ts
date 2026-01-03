@@ -65,11 +65,13 @@ export function usePanelResizer() {
 
         const handleMouseUp = () => {
             if (isResizingUtilitiesRef.current || isResizingPropertiesRef.current || isResizingTimelineRef.current) {
+                const wasResizingTimeline = isResizingTimelineRef.current
                 const utilitiesWidth = dragUtilitiesWidth ?? utilitiesPanelWidth
                 const propertiesWidth = dragPropertiesWidth ?? propertiesPanelWidth
                 const maxWidth = getPanelMaxWidth()
                 const utilMin = Math.min(UTIL_MIN, maxWidth)
                 const propsMin = Math.min(PROPS_MIN, maxWidth)
+                const nextTimelineHeight = dragTimelineHeight
 
                 isResizingUtilitiesRef.current = false
                 isResizingPropertiesRef.current = false
@@ -78,13 +80,13 @@ export function usePanelResizer() {
                 document.body.style.cursor = ''
                 document.body.style.userSelect = ''
 
+                if (wasResizingTimeline && nextTimelineHeight !== null) {
+                    setTimelineHeight(nextTimelineHeight)
+                }
+
                 setDragUtilitiesWidth(null)
                 setDragPropertiesWidth(null)
                 setDragTimelineHeight(null)
-
-                if (isResizingTimelineRef.current && dragTimelineHeight !== null) {
-                    setTimelineHeight(dragTimelineHeight)
-                }
 
                 if (isUtilitiesOpen) {
                     setUtilitiesPanelWidth(Math.min(Math.max(utilMin, utilitiesWidth), maxWidth))

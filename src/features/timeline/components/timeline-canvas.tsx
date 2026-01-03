@@ -24,6 +24,7 @@ import { getEffectsOfType } from '@/features/effects/core/filters'
 import { TimelineLayoutProvider, useTimelineLayout } from './timeline-layout-provider'
 import { useAssetLibraryStore } from '@/features/stores/asset-library-store'
 import { TimelineEffectTracks } from './tracks/timeline-effect-track'
+import { TimelineAnnotationTrack } from './tracks/timeline-annotation-track'
 import { TimelineWebcamTrack } from './tracks/timeline-webcam-track'
 import { TimelineUIProvider, useTimelineUI } from './timeline-ui-context'
 
@@ -122,7 +123,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   const {
     stageWidth,
-    stageHeight,
     totalContentHeight,
     timelineWidth,
     containerWidth,
@@ -134,6 +134,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     hasScreenTrack,
     hasKeystrokeTrack,
     hasPluginTrack,
+    hasAnnotationTrack,
     toggleEffectTrackExpanded,
     toggleVideoTrackExpanded,
     getTrackBounds,
@@ -550,13 +551,14 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
               WebkitUserSelect: 'none',
               MozUserSelect: 'none',
               msUserSelect: 'none',
-              outline: 'none'
+              outline: 'none',
+              maxHeight: '100%',
             }}
           >
             <Stage
               key={themeKey}
               width={stageWidth}
-              height={Math.max(stageHeight, totalContentHeight)}
+              height={totalContentHeight}
               onMouseDown={handleStageScrubStart}
               onTouchStart={handleStageScrubStart}
               onMouseUp={handleScrubEnd}
@@ -592,7 +594,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                   x={0}
                   y={0}
                   width={stageWidth}
-                  height={Math.max(stageHeight, totalContentHeight)} // Expand background to fit content
+                  height={totalContentHeight}
                   fill={colors.background}
                   opacity={0} // Using container bg instead
                   name="timeline-background"
@@ -667,6 +669,15 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                     onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
                   />
                 )}
+
+                {hasAnnotationTrack && (
+                  <TimelineTrack
+                    type={TimelineTrackType.Annotation}
+                    y={trackPositions.annotation}
+                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                    height={trackHeights.annotation}
+                  />
+                )}
               </Layer>
 
               {/* Clips Layer */}
@@ -682,6 +693,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                   />
                 ))}
 
+                <TimelineAnnotationTrack />
                 <TimelineEffectTracks />
                 <TimelineWebcamTrack />
 

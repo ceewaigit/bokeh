@@ -57,6 +57,9 @@ export function useEffectTrackExistence(): Record<EffectType, boolean> {
     for (const type of EFFECT_TRACK_TYPES) {
       existence[type] = effectsByType[type]?.length > 0
     }
+    // Annotation track is rendered with a custom component (not in registry),
+    // but still needs existence/visibility flags in layout + controls.
+    existence[EffectType.Annotation] = (effectsByType[EffectType.Annotation]?.length ?? 0) > 0
     return existence as Record<EffectType, boolean>
   }, [effectsByType])
 }

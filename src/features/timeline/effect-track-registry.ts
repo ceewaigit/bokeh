@@ -25,7 +25,6 @@ export interface EffectTrackConfig {
 }
 
 import { keystrokeTrackConfig } from '@/features/keystroke/config'
-import { annotationTrackConfig } from '@/features/annotation/config'
 
 /**
  * Registry of all effect types that should have timeline tracks.
@@ -45,8 +44,7 @@ export const EFFECT_TRACK_REGISTRY: Partial<Record<EffectType, EffectTrackConfig
       const plugin = data?.pluginId ? PluginRegistry.get(data.pluginId) : null
       return plugin?.name?.slice(0, 8) ?? 'Plugin'
     }
-  },
-  [EffectType.Annotation]: annotationTrackConfig
+  }
 }
 
 /** Effect types that have timeline tracks */

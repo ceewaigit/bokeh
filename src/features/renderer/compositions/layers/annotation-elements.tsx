@@ -154,72 +154,46 @@ const TextAnnotation = memo<BaseAnnotationProps>(({
 TextAnnotation.displayName = 'TextAnnotation'
 
 // ============================================================================
-// Keyboard Annotation
+// Blur Annotation - Solid opaque mask for privacy
 // ============================================================================
 
-const KeyboardAnnotation = memo<BaseAnnotationProps>(({
+const BlurAnnotation = memo<BaseAnnotationProps>(({
     id,
     data,
     context,
 }) => {
-    const style = data.style ?? {}
     const position = getComputedPosition(data, context)
     const rotation = data.rotation ?? 0
-    const keys = data.keys ?? ['Cmd', 'S']
-    const displayLabel = keys.join(' + ')
 
-    // Include camera scale in effective scale for proper zoom behavior
+    // Width/height are percentages of video dimensions - scales with camera
     const cameraScale = context.cameraTransform?.scale ?? 1
-    const effectiveScale = (context.scale ?? 1) * cameraScale
-    const fontSize = (style.fontSize ?? 16) * effectiveScale
-    const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
-    const fontWeight = style.fontWeight ?? 600
-    const fontStyle = style.fontStyle ?? 'normal'
-    const textDecoration = style.textDecoration ?? 'none'
-    const color = style.color ?? '#ffffff'
-    const bgColor = style.backgroundColor ?? 'rgba(0, 0, 0, 0.65)'
-    const borderColor = style.borderColor ?? 'rgba(255, 255, 255, 0.15)'
-    const padding = (resolvePadding(style.padding) || 10) * effectiveScale
-    const borderRadius = (style.borderRadius ?? 8) * effectiveScale
-    const gap = 4 * effectiveScale
+    const width = ((data.width ?? 20) / 100) * context.videoWidth * cameraScale
+    const height = ((data.height ?? 12) / 100) * context.videoHeight * cameraScale
 
     return (
         <div
             data-annotation-id={id}
-            data-annotation-type="keyboard"
+            data-annotation-type="blur"
             style={{
                 position: 'absolute',
                 left: position.x,
                 top: position.y,
+                width,
+                height,
                 transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                 transformOrigin: 'center center',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap,
-                fontSize,
-                fontFamily,
-                fontWeight: fontWeight as React.CSSProperties['fontWeight'],
-                fontStyle,
-                textDecoration,
-                color,
-                backgroundColor: bgColor,
-                border: `1px solid ${borderColor}`,
-                padding: `${padding * 0.6}px ${padding}px`,
-                borderRadius,
-                whiteSpace: 'nowrap',
-                cursor: 'inherit',
-                outline: 'none',
+                borderRadius: 8,
+                pointerEvents: 'auto',
                 contain: 'layout style paint',
                 willChange: 'transform',
-                userSelect: 'none',
-                pointerEvents: 'auto',
+                // Solid opaque background for masking sensitive content
+                background: '#888888',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
             }}
-        >
-            {displayLabel}
-        </div>
+        />
     )
 })
-KeyboardAnnotation.displayName = 'KeyboardAnnotation'
+BlurAnnotation.displayName = 'BlurAnnotation'
 
 // ============================================================================
 // Highlight Annotation
@@ -372,8 +346,8 @@ export const AnnotationElement = memo<AnnotationElementProps>((props) => {
     switch (data.type) {
         case AnnotationType.Text:
             return <TextAnnotation {...props} />
-        case AnnotationType.Keyboard:
-            return <KeyboardAnnotation {...props} />
+        case AnnotationType.Blur:
+            return <BlurAnnotation {...props} />
         case AnnotationType.Highlight:
             return <HighlightAnnotation {...props} />
         case AnnotationType.Arrow:

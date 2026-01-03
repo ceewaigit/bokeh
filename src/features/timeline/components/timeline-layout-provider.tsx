@@ -15,6 +15,7 @@ import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { EffectType } from '@/types/effects'
 import { TimelineTrackType, TrackType } from '@/types/project'
 import { EFFECT_TRACK_TYPES, getSortedTrackConfigs } from '@/features/timeline/effect-track-registry'
+import { EffectStore } from '@/features/effects/core/store'
 
 /** Track type that can be used for visibility/active state */
 export type TrackId = TimelineTrackType | EffectType
@@ -79,6 +80,8 @@ export interface TimelineLayoutContextValue {
   hasCropTrack: boolean
   hasWebcamTrack: boolean
   hasAnnotationTrack: boolean
+  isAnnotationExpanded: boolean
+  toggleAnnotationExpanded: () => void
   isScreenGroupCollapsed: boolean
   hasSpeedUpSuggestions: { typing: boolean; idle: boolean }
   showTypingSuggestions: boolean
@@ -137,7 +140,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     const set = new Set<TrackId>([
       TimelineTrackType.Video,
       TimelineTrackType.Audio,
-      TimelineTrackType.Webcam
+      TimelineTrackType.Webcam,
+      TimelineTrackType.Annotation
     ])
     EFFECT_TRACK_TYPES.forEach(t => set.add(t))
     return set
@@ -146,6 +150,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const [activeTrack, setActiveTrack] = useState<TrackId | null>(null)
   const [expandedEffectTrack, setExpandedEffectTrack] = useState<EffectType | null>(EffectType.Zoom)  // Zoom expanded by default
   const [isVideoTrackExpanded, setIsVideoTrackExpanded] = useState(false)
+  const [isAnnotationExpanded, setIsAnnotationExpanded] = useState(false)
 
   const zoom = useProjectStore((s) => s.zoom)
   const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
@@ -183,6 +188,10 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
   const toggleVideoTrackExpanded = useCallback(() => {
     setIsVideoTrackExpanded(prev => !prev)
+  }, [])
+
+  const toggleAnnotationExpanded = useCallback(() => {
+    setIsAnnotationExpanded(prev => !prev)
   }, [])
 
   const isTrackExpanded = useCallback((track: TrackId): boolean => {
@@ -243,6 +252,19 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     return heights as Record<EffectType, number>
   }, [effectTrackExistence, isScreenGroupCollapsed, visibleTracks, expandedEffectTrack])
 
+  const annotationCount = useMemo(() => {
+    if (!currentProject) return 0
+    return EffectStore.getAll(currentProject).filter(e => e.type === EffectType.Annotation).length
+  }, [currentProject])
+
+  const annotationTrackHeight = useMemo(() => {
+    const visible = (effectTrackExistence[EffectType.Annotation] ?? false) && !isScreenGroupCollapsed && visibleTracks.has(TimelineTrackType.Annotation)
+    if (!visible) return 0
+    if (!isAnnotationExpanded) return TRACK_HEIGHT_COLLAPSED
+    // Expanded shows 1 merged-summary row + N annotation rows.
+    return (Math.max(1, annotationCount) + 1) * TRACK_HEIGHT_COLLAPSED
+  }, [annotationCount, effectTrackExistence, isAnnotationExpanded, isScreenGroupCollapsed, visibleTracks])
+
   // Calculate fixed track positions
   const fixedTrackPositions = useMemo((): FixedTrackPositions => {
     let y = 0
@@ -275,7 +297,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
   // Calculate effect track positions dynamically
   // Also tracks total content height
-  const { positions: effectTrackPositions, totalContentHeight } = useMemo(() => {
+  const { positions: effectTrackPositions, annotationY, totalContentHeight } = useMemo(() => {
     let y = fixedTrackPositions.webcam + fixedTrackHeights.webcam
     const positions: Record<string, number> = {}
     const sortedConfigs = getSortedTrackConfigs()
@@ -287,14 +309,25 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
       }
     }
 
-    // Add some bottom padding for better UX
-    const bottomPadding = 100
+    const annotationTrackY = y
+    y += annotationTrackHeight
+
+    // Minimal bottom padding for better UX
+    const bottomPadding = 8
 
     return {
       positions: positions as Record<EffectType, number>,
+      annotationY: annotationTrackY,
       totalContentHeight: y + bottomPadding
     }
-  }, [fixedTrackPositions.webcam, fixedTrackHeights.webcam, effectTrackExistence, isScreenGroupCollapsed, effectTrackHeights])
+  }, [
+    fixedTrackPositions.webcam,
+    fixedTrackHeights.webcam,
+    effectTrackExistence,
+    isScreenGroupCollapsed,
+    effectTrackHeights,
+    annotationTrackHeight
+  ])
 
   // Backwards-compatible merged views
   const trackHeights = useMemo(() => ({
@@ -303,8 +336,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     screen: effectTrackHeights[EffectType.Screen] ?? 0,
     keystroke: effectTrackHeights[EffectType.Keystroke] ?? 0,
     plugin: effectTrackHeights[EffectType.Plugin] ?? 0,
-    annotation: effectTrackHeights[EffectType.Annotation] ?? 0
-  }), [fixedTrackHeights, effectTrackHeights])
+    annotation: annotationTrackHeight
+  }), [fixedTrackHeights, effectTrackHeights, annotationTrackHeight])
 
   const trackPositions = useMemo(() => ({
     ...fixedTrackPositions,
@@ -312,8 +345,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     screen: effectTrackPositions[EffectType.Screen] ?? 0,
     keystroke: effectTrackPositions[EffectType.Keystroke] ?? 0,
     plugin: effectTrackPositions[EffectType.Plugin] ?? 0,
-    annotation: effectTrackPositions[EffectType.Annotation] ?? 0
-  }), [fixedTrackPositions, effectTrackPositions])
+    annotation: annotationY
+  }), [fixedTrackPositions, effectTrackPositions, annotationY])
 
   // Centralized track bounds lookup - previously duplicated in timeline-canvas.tsx
   const getTrackBounds = useCallback((trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam): TrackBounds => {
@@ -391,6 +424,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     hasKeystrokeTrack: effectTrackExistence[EffectType.Keystroke] ?? false,
     hasPluginTrack: effectTrackExistence[EffectType.Plugin] ?? false,
     hasAnnotationTrack: effectTrackExistence[EffectType.Annotation] ?? false,
+    isAnnotationExpanded,
+    toggleAnnotationExpanded,
     hasCropTrack: mediaTrackExistence.hasCropTrack,
     hasWebcamTrack: mediaTrackExistence.hasWebcamTrack,
     isScreenGroupCollapsed,
@@ -412,6 +447,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     fixedTrackHeights, fixedTrackPositions, effectTrackHeights, effectTrackPositions,
     effectTrackExistence, trackHeights, trackPositions, mediaTrackExistence,
     isScreenGroupCollapsed, hasSpeedUpSuggestions, showTypingSuggestions,
+    isAnnotationExpanded, toggleAnnotationExpanded,
     toggleScreenGroupCollapsed, visibleTracks, activeTrack, toggleTrackVisibility,
     setActiveTrackWithMemory, isTrackExpanded, toggleEffectTrackExpanded,
     toggleVideoTrackExpanded, isVideoTrackExpanded, getTrackBounds

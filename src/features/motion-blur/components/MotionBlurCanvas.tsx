@@ -324,6 +324,10 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             // transferToImageBitmap is synchronous and preserves exact colors
             const bitmap = (resultCanvas as OffscreenCanvas).transferToImageBitmap();
             bitmapCtx.transferFromImageBitmap(bitmap);
+            const closable = (bitmap as { close?: () => void }).close;
+            if (typeof closable === 'function') {
+                closable.call(bitmap);
+            }
             if (onRender) onRender();
         }
     }, [

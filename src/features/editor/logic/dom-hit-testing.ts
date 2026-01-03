@@ -33,11 +33,17 @@ export function hitTestAnnotationsFromPoint(
 
   for (const element of elements) {
     if (!(element instanceof HTMLElement)) continue
-    if (ignore && ignore.contains(element)) continue
+    if (ignore && ignore.contains(element)) {
+      const allowSelectionOverlay = element.closest('[data-selection-overlay="true"]')
+      if (!allowSelectionOverlay) continue
+    }
 
     const handleElement = element.closest<HTMLElement>('[data-handle]')
     if (handleElement) {
-      if (ignore && ignore.contains(handleElement)) continue
+      if (ignore && ignore.contains(handleElement)) {
+        const allowSelectionOverlay = handleElement.closest('[data-selection-overlay="true"]')
+        if (!allowSelectionOverlay) continue
+      }
 
       const handle = handleElement.dataset.handle as HandlePosition | undefined
       const annotationElement = handleElement.closest<HTMLElement>('[data-annotation-id]')

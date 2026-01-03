@@ -105,6 +105,32 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Video frame for motion blur effect (populated by onVideoFrame callback)
   const [videoFrame, setVideoFrame] = useState<CanvasImageSource | null>(null);
+  const videoFrameRef = useRef<CanvasImageSource | null>(null);
+
+  const closeVideoFrame = useCallback((frame: CanvasImageSource | null) => {
+    if (!frame) return;
+    const closable = (frame as { close?: () => void }).close;
+    if (typeof closable === 'function') {
+      closable.call(frame);
+    }
+  }, []);
+
+  const handleVideoFrame = useCallback((frame: CanvasImageSource) => {
+    if (!isRendering) {
+      closeVideoFrame(frame);
+      return;
+    }
+    closeVideoFrame(videoFrameRef.current);
+    videoFrameRef.current = frame;
+    setVideoFrame(frame);
+  }, [isRendering, closeVideoFrame]);
+
+  useEffect(() => {
+    return () => {
+      closeVideoFrame(videoFrameRef.current);
+      videoFrameRef.current = null;
+    };
+  }, [closeVideoFrame]);
 
   // Find and expose video element when container mounts/updates
   useEffect(() => {
@@ -268,13 +294,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                 onLoadedMetadata={handleMetadataLoaded}
                 onCanPlay={handleLoaded}
                 onSeeked={isRendering ? handleVideoReady : undefined}
-                onVideoFrame={(frame: CanvasImageSource) => {
-                  // Debug: Log when onVideoFrame fires during export
-                  if (isRendering && currentFrame % 30 === 0) {
-                    console.log(`[MotionBlur] onVideoFrame fired at frame ${currentFrame}, frame type: ${frame?.constructor?.name}`);
-                  }
-                  setVideoFrame(frame);
-                }}
+                onVideoFrame={isRendering ? handleVideoFrame : undefined}
                 onError={(e: any) => {
                   // Self-healing: fallback to original source instead of crashing
                   if (!urlFailed) {

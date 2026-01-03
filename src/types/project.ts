@@ -557,7 +557,7 @@ export enum AnnotationType {
   Text = 'text',
   Arrow = 'arrow',
   Highlight = 'highlight',
-  Keyboard = 'keyboard'
+  Blur = 'blur'
 }
 
 // Cursor style enum

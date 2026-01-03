@@ -16,7 +16,7 @@ import { EffectStore } from '@/features/effects/core/store'
 import { TimeConverter } from '@/features/timeline/time/time-space-converter'
 import { TimelineConfig, getClipInnerHeight } from '@/features/timeline/config'
 import { EffectType } from '@/types/effects'
-import { getEffectTrackConfig } from '@/features/timeline/effect-track-registry'
+import { EFFECT_TRACK_TYPES, getEffectTrackConfig } from '@/features/timeline/effect-track-registry'
 import { useTimelineColors } from '@/features/timeline/utils/colors'
 import { useShallow } from 'zustand/react/shallow'
 import { useCommandExecutor } from '@/shared/hooks/use-command-executor'
@@ -174,8 +174,8 @@ export function TimelineEffectTracks() {
 
   return (
     <>
-      {Object.entries(effectTrackExistence).map(([type, exists]) =>
-        exists ? <TimelineEffectTrack key={type} effectType={type as EffectType} /> : null
+      {EFFECT_TRACK_TYPES.map((type) =>
+        effectTrackExistence[type] ? <TimelineEffectTrack key={type} effectType={type} /> : null
       )}
     </>
   )

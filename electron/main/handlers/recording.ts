@@ -7,6 +7,22 @@ import { getRecordingsDirectory } from '../config'
 // Active recording file handles for streaming
 const activeRecordings = new Map<string, fsSync.WriteStream>()
 
+const sanitizeName = (name: string): string =>
+  name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
+
+const ensureUniquePath = async (baseDir: string, baseName: string, extension: string): Promise<string> => {
+  let suffix = ''
+  let attempt = 0
+  while (true) {
+    const candidate = path.join(baseDir, `${baseName}${suffix}${extension}`)
+    if (!fsSync.existsSync(candidate)) {
+      return candidate
+    }
+    attempt += 1
+    suffix = `-${attempt}`
+  }
+}
+
 export function registerRecordingHandlers(): void {
   ipcMain.handle('start-recording', async () => {
     return { success: true, recordingsDir: getRecordingsDirectory() }
@@ -128,6 +144,68 @@ export function registerRecordingHandlers(): void {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.error('[Recording] Failed to delete project:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  ipcMain.handle('duplicate-recording-project', async (_event: IpcMainInvokeEvent, projectFilePath: string, newName?: string) => {
+    try {
+      if (!projectFilePath || typeof projectFilePath !== 'string') {
+        return { success: false, error: 'Invalid path' }
+      }
+
+      const recordingsDir = path.resolve(getRecordingsDirectory())
+      const resolvedProjectFile = path.resolve(projectFilePath)
+
+      if (!resolvedProjectFile.endsWith('.bokeh')) {
+        return { success: false, error: 'Not a project file' }
+      }
+
+      const within = (candidate: string, base: string) => {
+        const rel = path.relative(base, candidate)
+        return rel && !rel.startsWith('..') && !path.isAbsolute(rel)
+      }
+
+      if (!within(resolvedProjectFile, recordingsDir)) {
+        return { success: false, error: 'Path outside recordings directory' }
+      }
+
+      const stats = await fs.lstat(resolvedProjectFile)
+      const isDirectory = stats.isDirectory()
+      const sourceDir = isDirectory ? resolvedProjectFile : path.dirname(resolvedProjectFile)
+      const sourceBaseName = path.basename(sourceDir, '.bokeh')
+      const sanitized = sanitizeName(newName || `${sourceBaseName} Copy`) || `Recording_${Date.now()}`
+
+      const targetPath = await ensureUniquePath(recordingsDir, sanitized, '.bokeh')
+
+      if (isDirectory) {
+        await fs.cp(sourceDir, targetPath, { recursive: true })
+      } else {
+        await fs.copyFile(resolvedProjectFile, targetPath)
+      }
+
+      const projectJsonPath = isDirectory
+        ? path.join(targetPath, 'project.json')
+        : targetPath
+
+      if (fsSync.existsSync(projectJsonPath)) {
+        try {
+          const fileData = await fs.readFile(projectJsonPath, 'utf8')
+          const project = JSON.parse(fileData)
+          project.name = newName || project.name || sanitized
+          project.id = `project-${Date.now()}`
+          project.filePath = targetPath
+          project.modifiedAt = new Date().toISOString()
+          await fs.writeFile(projectJsonPath, JSON.stringify(project))
+        } catch (error) {
+          console.warn('[Recording] Failed to update duplicated project metadata:', error)
+        }
+      }
+
+      return { success: true, data: { path: targetPath } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to duplicate project:', errorMessage)
       return { success: false, error: errorMessage }
     }
   })

@@ -205,7 +205,7 @@ export class MotionBlurController {
 
         if (uniforms.colorSpace) {
             try {
-                gl.unpackColorSpace = uniforms.colorSpace;
+                (gl as any).unpackColorSpace = uniforms.colorSpace;
             } catch {
                 // Ignore if unsupported.
             }

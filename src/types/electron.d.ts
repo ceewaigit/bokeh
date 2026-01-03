@@ -70,6 +70,7 @@ export interface ElectronAPI {
     size?: number
   }>>
   deleteRecordingProject?: (projectFilePath: string) => Promise<{ success: boolean; error?: string }>
+  duplicateRecordingProject?: (projectFilePath: string, newName?: string) => Promise<{ success: boolean; data?: { path: string }; error?: string }>
   readLocalFile?: (absolutePath: string) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>
   getFileSize?: (filePath: string) => Promise<{ success: boolean; data?: { size: number }; error?: string }>
   listMetadataFiles?: (folderPath: string) => Promise<{ success: boolean; files?: string[]; error?: string }>

@@ -3,14 +3,13 @@
 import React, { useCallback } from 'react'
 import { cn } from '@/shared/utils/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { useProjectStore } from '@/features/stores/project-store'
 import { EffectStore } from '@/features/effects/core/store'
-import { DEFAULT_KEYBOARD_KEYS, getDefaultAnnotationSize } from '../config'
+import { getDefaultAnnotationSize } from '../config'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
-import { Type, ArrowRight, Highlighter, Keyboard, Trash2 } from 'lucide-react'
+import { Type, ArrowRight, Highlighter, Sparkles, Layers, Trash2 } from 'lucide-react'
 import { ColorPickerPopover } from '@/components/ui/color-picker'
 
 interface AnnotationsTabProps {
@@ -38,10 +37,10 @@ const ANNOTATION_TYPES = [
     icon: Highlighter,
   },
   {
-    type: AnnotationType.Keyboard,
-    label: 'Keyboard',
-    description: 'Show key combo',
-    icon: Keyboard,
+    type: AnnotationType.Blur,
+    label: 'Blur',
+    description: 'Mask sensitive info',
+    icon: Sparkles,
   },
 ] as const
 
@@ -83,9 +82,9 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
         endPosition: type === AnnotationType.Arrow ? { x: 60, y: 50 } : undefined, // Arrow endpoint
         width: defaultSize.width,
         height: defaultSize.height,
-        keys: type === AnnotationType.Keyboard ? DEFAULT_KEYBOARD_KEYS : undefined,
         style: {
-          color: '#ffffff',
+          // Fix: Default Highlight to yellow so it doesn't have a white border clash
+          color: type === AnnotationType.Highlight ? '#ffeb3b' : '#ffffff',
           fontSize: 18,
           textAlign: type === AnnotationType.Text ? 'center' : undefined,
         },
@@ -101,18 +100,6 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
     const currentData = selectedAnnotation.data as AnnotationData
     const newStyle = { ...currentData.style, color }
     updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
-  }, [selectedAnnotation, updateEffect])
-
-  // Update annotation position
-  const handleUpdatePosition = useCallback((axis: 'x' | 'y', value: number) => {
-    if (!selectedAnnotation) return
-    const currentData = selectedAnnotation.data as AnnotationData
-    const currentPos = currentData.position ?? { x: 50, y: 50 }
-    const newData: AnnotationData = {
-      ...currentData,
-      position: { ...currentPos, [axis]: value },
-    }
-    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
   }, [selectedAnnotation, updateEffect])
 
   const handleUpdateSize = useCallback((axis: 'width' | 'height', value: number) => {
@@ -136,17 +123,6 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
     updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
   }, [selectedAnnotation, updateEffect])
 
-  const handleUpdateKeys = useCallback((value: string) => {
-    if (!selectedAnnotation) return
-    const currentData = selectedAnnotation.data as AnnotationData
-    const keys = value
-      .split(/[,+]/g)
-      .map((part) => part.trim())
-      .filter(Boolean)
-    const newData: AnnotationData = { ...currentData, keys }
-    updateEffect(selectedAnnotation.id, { data: newData } as Partial<Effect>)
-  }, [selectedAnnotation, updateEffect])
-
   // Delete annotation
   const handleDelete = useCallback(() => {
     if (!selectedAnnotation) return
@@ -164,7 +140,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
               Overlays
             </div>
             <div className="mt-1 text-xs text-muted-foreground leading-snug">
-              Add text, arrows, and highlights
+              Add text, arrows, highlights and blurs
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground/70 tabular-nums">
               {annotationEffects.length} overlays
@@ -227,125 +203,11 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             </Button>
           </div>
           <div className="text-3xs text-muted-foreground/70">
-            Drag on canvas to move. Resize handles appear for highlights.
+            Drag on canvas to move. Resize handles appear for highlights and blurs.
           </div>
 
-          {/* Typography Settings */}
-          {selectedData.type === AnnotationType.Keyboard && (
-            <div className="space-y-3 pt-2 border-t border-border/50">
-              <div className="space-y-1.5">
-                <label className="text-2xs font-medium text-muted-foreground">
-                  Font Family
-                </label>
-                <select
-                  className="w-full h-8 text-xs bg-background border border-input rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                  value={selectedData.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif'}
-                  onChange={(e) => {
-                    if (!selectedAnnotation) return
-                    const currentData = selectedAnnotation.data as AnnotationData
-                    const newStyle = { ...currentData.style, fontFamily: e.target.value }
-                    updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
-                  }}
-                >
-                  <option value="system-ui, -apple-system, sans-serif">System UI</option>
-                  <option value="Inter, sans-serif">Inter</option>
-                  <option value="'Courier New', monospace">Monospace</option>
-                  <option value="Georgia, serif">Serif</option>
-                  <option value="'Comic Sans MS', cursive">Handwritten</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-2xs font-medium text-muted-foreground">
-                  Font Size
-                </label>
-                <div className="flex items-center gap-2">
-                  <Slider
-                    value={[selectedData.style?.fontSize ?? 18]}
-                    onValueChange={([v]) => {
-                      if (!selectedAnnotation) return
-                      const currentData = selectedAnnotation.data as AnnotationData
-                      const newStyle = { ...currentData.style, fontSize: v }
-                      updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
-                    }}
-                    min={8}
-                    max={120}
-                    step={1}
-                    className="flex-1"
-                  />
-                  <div className="text-3xs text-muted-foreground/70 tabular-nums w-8 text-right">
-                    {Math.round(selectedData.style?.fontSize ?? 18)}px
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-2xs font-medium text-muted-foreground">
-                  Text Color
-                </label>
-                <ColorPickerPopover
-                  value={selectedData.style?.color ?? '#ffffff'}
-                  onChange={handleUpdateTextColor}
-                  label="Pick color"
-                  className="w-full justify-between"
-                  swatchClassName="h-5 w-5"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Content editor for keyboard */}
-          {selectedData.type === AnnotationType.Keyboard && (
-            <div className="space-y-1.5">
-              <label className="text-2xs font-medium text-muted-foreground">
-                Keys
-              </label>
-              <Input
-                value={(selectedData.keys ?? []).join(' + ')}
-                onChange={(e) => handleUpdateKeys(e.target.value)}
-                placeholder="Cmd + S"
-                className="h-8 text-xs"
-              />
-            </div>
-          )}
-
-          {/* Position controls */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <label className="text-2xs font-medium text-muted-foreground">
-                X Position
-              </label>
-              <Slider
-                value={[selectedData.position?.x ?? 50]}
-                onValueChange={([v]) => handleUpdatePosition('x', v)}
-                min={0}
-                max={100}
-                step={1}
-                className="w-full"
-              />
-              <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
-                {Math.round(selectedData.position?.x ?? 50)}%
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-2xs font-medium text-muted-foreground">
-                Y Position
-              </label>
-              <Slider
-                value={[selectedData.position?.y ?? 50]}
-                onValueChange={([v]) => handleUpdatePosition('y', v)}
-                min={0}
-                max={100}
-                step={1}
-                className="w-full"
-              />
-              <div className="text-3xs text-muted-foreground/70 text-center tabular-nums">
-                {Math.round(selectedData.position?.y ?? 50)}%
-              </div>
-            </div>
-          </div>
-
-          {selectedData.type === AnnotationType.Highlight && (
+          {/* Size controls for Highlight and Blur */}
+          {(selectedData.type === AnnotationType.Highlight || selectedData.type === AnnotationType.Blur) && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
                 <label className="text-2xs font-medium text-muted-foreground">
@@ -354,8 +216,8 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                 <Slider
                   value={[selectedData.width ?? 20]}
                   onValueChange={([v]) => handleUpdateSize('width', v)}
-                  min={5}
-                  max={100}
+                  min={2}
+                  max={150}
                   step={1}
                   className="w-full"
                 />
@@ -370,8 +232,8 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                 <Slider
                   value={[selectedData.height ?? 10]}
                   onValueChange={([v]) => handleUpdateSize('height', v)}
-                  min={5}
-                  max={100}
+                  min={2}
+                  max={150}
                   step={1}
                   className="w-full"
                 />
