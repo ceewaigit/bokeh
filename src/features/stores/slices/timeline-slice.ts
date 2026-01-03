@@ -15,6 +15,7 @@ import { calculateTimelineDuration, reflowClips, syncCropEffectTimes } from '@/f
 import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { executeSplitClip } from '@/features/timeline/clips/clip-split'
 import { executeTrimClipStart, executeTrimClipEnd } from '@/features/timeline/clips/clip-trim'
+import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
 import {
     updateClipInTrack,
     addClipToTrack,

@@ -4,7 +4,8 @@ import { EffectStore } from '@/features/effects/core/store'
 import { getCropEffectForClip, getActiveCropEffect } from '@/features/effects/core/filters'
 import { captureLastFrame } from '@/shared/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/features/cursor/synthetic-events'
-import { resolveProjectRoot } from '@/features/storage/recording-storage'
+import { RecordingStorage, resolveProjectRoot } from '@/features/storage/recording-storage'
+import { metadataLoader } from '@/features/export/metadata-loader'
 import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 
 export interface CursorReturnData {
@@ -72,8 +73,21 @@ export class CursorReturnService {
             return null
         }
 
+        // Ensure metadata is available for cursor return generation
+        let effectiveMetadata = sourceRecording.metadata ?? RecordingStorage.getMetadata(sourceRecording.id)
+        if (!effectiveMetadata && sourceRecording.folderPath && sourceRecording.metadataChunks) {
+            try {
+                effectiveMetadata = await metadataLoader.loadRecordingMetadata(sourceRecording)
+            } catch (error) {
+                console.warn('CursorReturnService: Failed to load metadata for cursor return:', error)
+            }
+        }
+        if (effectiveMetadata && !sourceRecording.metadata) {
+            sourceRecording.metadata = effectiveMetadata
+        }
+
         // Get mouse events from source recording
-        const sourceEvents = sourceRecording.metadata?.mouseEvents ?? []
+        const sourceEvents = effectiveMetadata?.mouseEvents ?? []
 
         // Generate synthetic cursor return events
         const syntheticEvents = generateCursorReturnFromSource(
