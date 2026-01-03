@@ -23,6 +23,7 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
     motionBlurGamma: 1.0,
     motionBlurBlackLevel: 0,
     motionBlurSaturation: 1.0,
+    motionBlurUseWebglVideo: true,
     refocusBlurEnabled: true,
     refocusBlurIntensity: 50,
     cameraSmoothness: 48,
@@ -60,6 +61,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
     motionBlurGamma: 1.0,
     motionBlurBlackLevel: 0,
     motionBlurSaturation: 1.0,
+    motionBlurUseWebglVideo: true,
     refocusBlurEnabled: true,
     refocusBlurIntensity: 50,
     cameraDynamics: {

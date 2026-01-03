@@ -102,6 +102,7 @@ export class MotionBlurController {
             u_gamma: gl.getUniformLocation(program, 'u_gamma')!,
             u_blackLevel: gl.getUniformLocation(program, 'u_blackLevel')!,
             u_saturation: gl.getUniformLocation(program, 'u_saturation')!,
+            u_linearize: gl.getUniformLocation(program, 'u_linearize')!,
         };
 
         // 4. Buffers
@@ -125,9 +126,8 @@ export class MotionBlurController {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         // Standard pixel store
-        // IMPORTANT: Use browser-default color conversion so WebGL sampling matches native video rendering.
-        // Setting this to NONE can cause visible hue/saturation shifts for tagged (e.g. P3 / Rec.2020) sources.
-        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
+        // Disable implicit color conversion to preserve exact sRGB source values.
+        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
         this.texture = texture;
@@ -153,6 +153,7 @@ export class MotionBlurController {
             colorSpace?: PredefinedColorSpace;
             unpackPremultiplyAlpha?: boolean;
             pixelRatio?: number;
+            linearize?: boolean;
         }
     ): OffscreenCanvas | HTMLCanvasElement | null {
         if (!this.gl || this.gl.isContextLost()) {
@@ -202,8 +203,16 @@ export class MotionBlurController {
             }
         }
 
-        // Match browser color management for video sources to avoid left/right mismatch.
-        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
+        if (uniforms.colorSpace) {
+            try {
+                gl.unpackColorSpace = uniforms.colorSpace;
+            } catch {
+                // Ignore if unsupported.
+            }
+        }
+
+        // Disable implicit color conversion to preserve exact sRGB source values.
+        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, uniforms.unpackPremultiplyAlpha ? 1 : 0);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
 
@@ -218,6 +227,7 @@ export class MotionBlurController {
         gl.uniform1f(this.locations.u_gamma as WebGLUniformLocation, uniforms.gamma);
         gl.uniform1f(this.locations.u_blackLevel as WebGLUniformLocation, uniforms.blackLevel);
         gl.uniform1f(this.locations.u_saturation as WebGLUniformLocation, uniforms.saturation);
+        gl.uniform1i(this.locations.u_linearize as WebGLUniformLocation, uniforms.linearize ? 1 : 0);
 
         // 5. Draw
         // Bind attributes
@@ -234,4 +244,5 @@ export class MotionBlurController {
         // Return the canvas itself so caller can drawImage(this.canvas)
         return this.canvas;
     }
+
 }

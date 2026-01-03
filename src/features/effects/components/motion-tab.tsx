@@ -161,6 +161,14 @@ export function MotionTab() {
                     description="Adjust black point to match native video."
                   />
 
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-2xs font-medium text-muted-foreground">Use WebGL Video Pipeline</span>
+                    <Switch
+                      checked={camera.motionBlurUseWebglVideo ?? true}
+                      onCheckedChange={(checked) => setCameraSettings({ motionBlurUseWebglVideo: checked })}
+                    />
+                  </div>
+
                   <CompactSlider
                     label="Saturation"
                     value={Math.round((camera.motionBlurSaturation ?? 1.0) * 100)}
@@ -172,13 +180,6 @@ export function MotionTab() {
                     description="Match color saturation."
                   />
 
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-2xs font-medium text-muted-foreground">Debug View</span>
-                    <Switch
-                      checked={camera.motionBlurDebugSplit ?? false}
-                      onCheckedChange={(checked) => setCameraSettings({ motionBlurDebugSplit: checked })}
-                    />
-                  </div>
                 </div>
               </motion.div>
             )}

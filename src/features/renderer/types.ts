@@ -111,12 +111,12 @@ export interface VideoPositionContextValue {
         blackLevel?: number;
         /** Saturation adjustment */
         saturation?: number;
+        /** Render base video through WebGL for consistent pipeline */
+        useWebglVideo?: boolean;
         /** Samples count (optional override) */
         samples?: number;
         /** Whether to premultiply alpha on upload */
         unpackPremultiplyAlpha?: boolean;
-        /** Split-screen debug: hide left half of the motion blur canvas */
-        debugSplit?: boolean;
         /** Velocity threshold in pixels/frame - blur only activates above this speed */
         velocityThreshold?: number;
         /** Soft knee ramp range (0-1) - controls transition smoothness */

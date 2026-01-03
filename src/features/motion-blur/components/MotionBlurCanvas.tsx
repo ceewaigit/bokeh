@@ -33,10 +33,10 @@ export interface MotionBlurCanvasProps {
     blackLevel?: number;
     /** Saturation adjustment (0-2) */
     saturation?: number;
+    /** Force render even when blur is inactive */
+    forceRender?: boolean;
     /** Whether to premultiply alpha on upload (helps avoid dark fringes on transparent sources) */
     unpackPremultiplyAlpha?: boolean;
-    /** Split-screen debug: hide left half of the motion blur canvas */
-    debugSplit?: boolean;
     /** Video frame from onVideoFrame callback (export mode) */
     videoFrame?: CanvasImageSource | null;
     /** Container ref for DOM fallback (preview mode) */
@@ -57,6 +57,8 @@ export interface MotionBlurCanvasProps {
     clampRadius?: number;
     /** Smoothing window in frames - higher = longer blur fade */
     smoothWindow?: number;
+    /** Notify when a frame is rendered to the canvas */
+    onRender?: () => void;
 }
 
 export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
@@ -69,8 +71,9 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     gamma = 1.0,
     blackLevel = 0,
     saturation = 1.0,
+    forceRender = false,
+    onRender,
     unpackPremultiplyAlpha = false,
-    debugSplit = false,
     videoFrame,
     containerRef,
     drawWidth,
@@ -92,12 +95,14 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     // Velocity smoothing ref - persists across renders for fade effect
     const prevVelocityRef = useRef({ x: 0, y: 0 });
 
-    const enabled = enabledProp && intensity > 0;
+    const enabled = enabledProp && (intensity > 0 || forceRender);
     // Force sRGB to match video color space - P3 causes visible color mismatch
     const desiredColorSpace: PredefinedColorSpace = colorSpace ?? 'srgb';
 
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const bitmapCtxRef = useRef<ImageBitmapRenderingContext | null>(null);
+    const videoCanvasRef = useRef<OffscreenCanvas | HTMLCanvasElement | null>(null);
+    const videoCtxRef = useRef<CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null>(null);
     const frame = useCurrentFrame();
 
     // Render effect when the Remotion frame advances (preview/export) or when `videoFrame` changes (export mode).
@@ -121,9 +126,11 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         }
 
         if (!mediaSource) {
-            // If we can't resolve a media source (e.g. during a seek), ensure the overlay
-            // doesn't cover the underlying video with a stale/blank frame.
-            canvasEl.style.opacity = '0';
+            // If we can't resolve a media source (e.g. during a seek), avoid hiding when
+            // forcing WebGL video so the last good frame stays visible.
+            if (!forceRender) {
+                canvasEl.style.opacity = '0';
+            }
             return;
         }
 
@@ -221,16 +228,17 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const targetRadius = cinematicCurve * validIntensity * maxRadius;
         const effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
 
-        // Opacity modulation - increased threshold for better quality when blur is subtle
+        // Use the ramp to drive in-shader mix instead of CSS opacity to avoid dark overlay blending.
         const opacityRamp = clamp01(effectiveRadius / 2.0);
-        const canvasOpacity = debugSplit ? 1 : opacityRamp;
-        canvasEl.style.opacity = canvasOpacity.toFixed(3);
+        const mixRamp = clamp01((Number.isFinite(mix) ? mix : 1.0) * opacityRamp);
 
-        // If the blur is too subtle, skip rendering to avoid unnecessary work
-        if (!debugSplit && opacityRamp < 0.01) {
+        if (mixRamp < 0.001 && !forceRender) {
             canvasEl.style.visibility = 'hidden';
+            canvasEl.style.opacity = '0';
             return;
         }
+        canvasEl.style.visibility = 'visible';
+        canvasEl.style.opacity = '1';
 
         // Calculate blur direction
         let dirX = 0, dirY = 0;
@@ -247,8 +255,46 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
 
         // Render via WebGL controller
         const glPixelRatio = useSourceSize ? Math.max(1, sourceScale) : outputScale;
+
+        // Route video through a 2D canvas to match browser color-managed display.
+        let webglSource: TexImageSource = mediaSource as TexImageSource;
+        if (mediaSource && 'videoWidth' in mediaSource) {
+            const targetWidth = Math.max(1, Math.floor(sourceSize.width));
+            const targetHeight = Math.max(1, Math.floor(sourceSize.height));
+            if (!videoCanvasRef.current) {
+                if (typeof OffscreenCanvas !== 'undefined') {
+                    videoCanvasRef.current = new OffscreenCanvas(targetWidth, targetHeight);
+                } else if (typeof document !== 'undefined') {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+                    videoCanvasRef.current = canvas;
+                }
+            }
+            if (videoCanvasRef.current) {
+                if (
+                    (videoCanvasRef.current as OffscreenCanvas).width !== targetWidth ||
+                    (videoCanvasRef.current as OffscreenCanvas).height !== targetHeight
+                ) {
+                    (videoCanvasRef.current as OffscreenCanvas).width = targetWidth;
+                    (videoCanvasRef.current as OffscreenCanvas).height = targetHeight;
+                    videoCtxRef.current = null;
+                }
+                if (!videoCtxRef.current) {
+                    videoCtxRef.current = (videoCanvasRef.current as any).getContext('2d', {
+                        alpha: true,
+                        colorSpace: 'srgb',
+                    });
+                }
+                if (videoCtxRef.current) {
+                    videoCtxRef.current.drawImage(mediaSource, 0, 0, targetWidth, targetHeight);
+                    webglSource = videoCanvasRef.current as TexImageSource;
+                }
+            }
+        }
+
         const resultCanvas = MotionBlurController.instance.render(
-            mediaSource as TexImageSource,
+            webglSource,
             sourceSize.width,
             sourceSize.height,
             {
@@ -256,12 +302,13 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 uvVelocityY: Number.isFinite(uvVelocityY) ? uvVelocityY : 0,
                 intensity: 1.0,
                 samples: finalSamples,
-                mix: Number.isFinite(mix) ? mix : 1.0,
+                mix: mixRamp,
                 gamma: Number.isFinite(gamma) ? gamma : 1.0,
                 blackLevel: Math.max(-0.02, Math.min(0.99, blackLevel)),
                 saturation: Number.isFinite(saturation) ? saturation : 1.0,
                 colorSpace: actualColorSpace,
                 unpackPremultiplyAlpha,
+                linearize: actualColorSpace === 'srgb',
                 pixelRatio: glPixelRatio,
             }
         );
@@ -277,6 +324,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             // transferToImageBitmap is synchronous and preserves exact colors
             const bitmap = (resultCanvas as OffscreenCanvas).transferToImageBitmap();
             bitmapCtx.transferFromImageBitmap(bitmap);
+            if (onRender) onRender();
         }
     }, [
         frame,
@@ -289,12 +337,13 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         gamma,
         blackLevel,
         saturation,
+        forceRender,
+        onRender,
         unpackPremultiplyAlpha,
         drawWidth,
         drawHeight,
         renderScale,
         containerRef,
-        debugSplit,
         maxBlurRadius,
         velocityThreshold,
         rampRange,
@@ -319,7 +368,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 pointerEvents: 'none',
                 zIndex: 50,  // Below AnnotationLayer (z-index 100) - annotations should always be visible
                 opacity: 0,
-                clipPath: debugSplit ? 'inset(0 0 0 50%)' : undefined,
+                clipPath: undefined,
             }}
         />
     );

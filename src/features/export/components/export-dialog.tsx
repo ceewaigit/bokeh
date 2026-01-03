@@ -5,9 +5,7 @@ import { useExportStore } from '@/features/stores/export-store'
 import { useProjectStore } from '@/features/stores/project-store'
 import { Button } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
-import {
-  Tooltip,
-} from '@/components/ui/tooltip'
+
 import {
   Download,
   Play,

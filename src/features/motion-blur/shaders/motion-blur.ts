@@ -37,6 +37,7 @@ uniform float u_mix;         // Blend between original and blurred result (0..1)
 uniform float u_gamma;       // Gamma correction factor
 uniform float u_blackLevel;  // Manual Black Level (0.0 - 0.2)
 uniform float u_saturation;  // Saturation (0.0 - 2.0)
+uniform int u_linearize;     // 1 = do sRGB <-> linear conversion for blur math
 
 float shutterWeight(float t) {
     // Cinematic shutter: bell-shaped exposure with soft edges.
@@ -45,19 +46,40 @@ float shutterWeight(float t) {
     return pow(core, 1.6);
 }
 
+// sRGB transfer helpers (approximate spec)
+vec3 toLinear(vec3 c) {
+    vec3 lo = c / 12.92;
+    vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4));
+    return mix(lo, hi, step(vec3(0.04045), c));
+}
+
+vec3 toSrgb(vec3 c) {
+    vec3 lo = c * 12.92;
+    vec3 hi = 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055;
+    return mix(lo, hi, step(vec3(0.0031308), c));
+}
+
 void main() {
-
-
     // Calculate blur magnitude
     float blurMagnitude = length(u_velocity) * u_intensity;
     
     vec4 blurredColor = vec4(0.0);
     
     vec4 baseSample = texture(u_image, v_texCoord);
+    vec3 baseRgb = baseSample.rgb;
+    if (u_linearize == 1) {
+        baseRgb = toLinear(baseRgb);
+    }
 
     // Lower threshold (0.0001 vs 0.0005) to allow more subtle blur effects
     if (blurMagnitude < 0.0001) {
-        outColor = baseSample;
+        vec3 outRgb = (u_linearize == 1) ? toSrgb(baseRgb) : baseRgb;
+        outRgb = clamp(outRgb, 0.0, 1.0);
+        if (u_gamma != 1.0) {
+            outRgb = pow(outRgb, vec3(1.0 / u_gamma));
+        }
+        outRgb = clamp(outRgb, 0.0, 1.0);
+        outColor = vec4(outRgb, baseSample.a);
         return;
     }
 
@@ -81,12 +103,16 @@ void main() {
         sampleCoord = clamp(sampleCoord, margin, 1.0 - margin);
 
         vec4 sampleColor = texture(u_image, sampleCoord);
-        accumulatedColor += sampleColor * weight;
+        vec3 sampleRgb = sampleColor.rgb;
+        if (u_linearize == 1) {
+            sampleRgb = toLinear(sampleRgb);
+        }
+        accumulatedColor += vec4(sampleRgb, sampleColor.a) * weight;
         totalWeight += weight;
     }
     
     vec4 blurred = accumulatedColor / totalWeight;
-    vec3 corrected = mix(baseSample.rgb, blurred.rgb, u_mix);
+    vec3 corrected = mix(baseRgb, blurred.rgb, u_mix);
 
     if (u_blackLevel != 0.0) {
         corrected = max(vec3(0.0), corrected - u_blackLevel) / (1.0 - u_blackLevel);
@@ -99,6 +125,10 @@ void main() {
         corrected = mix(vec3(luma), corrected, u_saturation);
     }
 
+    corrected = clamp(corrected, 0.0, 1.0);
+    if (u_linearize == 1) {
+        corrected = toSrgb(corrected);
+    }
     if (u_gamma != 1.0) {
         corrected = pow(corrected, vec3(1.0 / u_gamma));
     }

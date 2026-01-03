@@ -224,7 +224,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           {/* Motion blur dimensions must match video render dimensions:
               - Export: video renders at native res, scaled via CSS -> use native dims
               - Preview: video renders at display size -> use drawWidth/Height */}
-          <MotionBlurWrapper
+            <MotionBlurWrapper
             enabled={motionBlur?.enabled ?? false}
             velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
             intensity={motionBlur?.intensity ?? 1.0}
@@ -232,9 +232,9 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             gamma={motionBlur?.gamma}
             blackLevel={motionBlur?.blackLevel}
             saturation={motionBlur?.saturation}
+            useWebglVideo={motionBlur?.useWebglVideo}
             samples={motionBlur?.samples}
             unpackPremultiplyAlpha={motionBlur?.unpackPremultiplyAlpha}
-            debugSplit={motionBlur?.debugSplit}
             drawWidth={useHighResSizing ? (recording?.width ?? drawWidth) : (motionBlur?.drawWidth ?? drawWidth)}
             drawHeight={useHighResSizing ? (recording?.height ?? drawHeight) : (motionBlur?.drawHeight ?? drawHeight)}
             renderScale={currentZoomScale}

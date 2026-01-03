@@ -901,12 +901,12 @@ export interface ProjectSettings {
     motionBlurUnpackPremultiply?: boolean
     /** Manual Black Level (0.0 - 0.2). Default 0.0. */
     motionBlurBlackLevel?: number
-    /** Show Split-Screen Debug View. Default false. */
-    motionBlurDebugSplit?: boolean
     /** Force enable blur for debugging (ignores velocity). Default false. */
     motionBlurForce?: boolean
     /** Saturation adjustment (0.0 - 2.0). Default 1.0. */
     motionBlurSaturation?: number
+    /** Render base video through WebGL for consistent color pipeline. */
+    motionBlurUseWebglVideo?: boolean
     /** Cameraman style smoothness (0-100). Controls how floaty camera panning feels. Default 48. */
     cameraSmoothness?: number
     /** Physics-based camera dynamics configuration */

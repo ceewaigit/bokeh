@@ -26,7 +26,6 @@ import { ImageClipRenderer } from './renderers/ImageClipRenderer';
 import { MockupLayer } from './layers/MockupLayer';
 import { AnnotationLayer } from './layers/AnnotationLayer';
 
-import { MotionBlurDebugLayer } from '@/features/motion-blur/components/MotionBlurDebugLayer';
 import { PreviewGuides } from '@/components/preview-guides';
 import { getMotionBlurConfig } from '@/features/canvas/math/transforms/zoom-transform';
 
@@ -271,9 +270,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       gamma: cameraSettings?.motionBlurGamma ?? 1.0,
       blackLevel: cameraSettings?.motionBlurBlackLevel ?? 0,
       saturation: cameraSettings?.motionBlurSaturation ?? 1.0,
+      useWebglVideo: cameraSettings?.motionBlurUseWebglVideo ?? true,
       samples: cameraSettings?.motionBlurSamples,
       unpackPremultiplyAlpha: cameraSettings?.motionBlurUnpackPremultiply ?? false,
-      debugSplit: cameraSettings?.motionBlurDebugSplit ?? false,
       // Pass through settings that were previously ignored
       velocityThreshold: motionBlurConfig.velocityThreshold,
       rampRange: cameraSettings?.motionBlurRampRange ?? 0.5,
@@ -339,9 +338,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             </div>
 
             {/* Debug Overlay - Independent visual guide if needed */}
-            {isPreview && (cameraSettings?.motionBlurDebugSplit ?? false) && (
-              <MotionBlurDebugLayer enabled={true} />
-            )}
 
             {/* Annotations render INSIDE, inheriting CSS transform. TransformControls measures these DOM elements. */}
             {/* Skip annotations in glow mode to prevent duplicate DOM elements causing hover detection issues */}

@@ -11,7 +11,7 @@
  * - Preview: falls back to DOM discovery + requestVideoFrameCallback
  */
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MotionBlurCanvas } from './MotionBlurCanvas';
 
 export interface MotionBlurWrapperProps {
@@ -29,12 +29,12 @@ export interface MotionBlurWrapperProps {
     blackLevel?: number;
     /** Saturation adjustment */
     saturation?: number;
+    /** Render base video through WebGL for consistent pipeline */
+    useWebglVideo?: boolean;
     /** Samples count (optional override) */
     samples?: number;
     /** Whether to premultiply alpha on upload */
     unpackPremultiplyAlpha?: boolean;
-    /** Split-screen debug: hide left half of the motion blur canvas */
-    debugSplit?: boolean;
     /** Draw dimensions */
     drawWidth: number;
     drawHeight: number;
@@ -66,9 +66,9 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     gamma,
     blackLevel,
     saturation,
+    useWebglVideo,
     samples,
     unpackPremultiplyAlpha,
-    debugSplit,
     drawWidth,
     drawHeight,
     videoFrame,
@@ -80,6 +80,13 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     smoothWindow,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [webglReady, setWebglReady] = useState(false);
+
+    useEffect(() => {
+        if (!useWebglVideo) {
+            setWebglReady(false);
+        }
+    }, [useWebglVideo]);
 
     return (
         <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -88,14 +95,14 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                 style={{
                     width: '100%',
                     height: '100%',
-                    clipPath: debugSplit ? 'inset(0 50% 0 0)' : undefined,
+                    opacity: useWebglVideo ? (webglReady ? 0 : 1) : 1,
                 }}
             >
                 {children}
             </div>
 
-            {/* Motion blur canvas overlays when active */}
-            {enabled && (
+            {/* Motion blur canvas overlays when active or when WebGL video is forced */}
+            {(enabled || useWebglVideo) && (
                 <MotionBlurCanvas
                     enabled={true}
                     velocity={velocity}
@@ -105,8 +112,9 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                     gamma={gamma}
                     blackLevel={blackLevel}
                     saturation={saturation}
+                    forceRender={useWebglVideo}
+                    onRender={() => setWebglReady(true)}
                     unpackPremultiplyAlpha={unpackPremultiplyAlpha}
-                    debugSplit={debugSplit}
                     videoFrame={videoFrame}
                     containerRef={containerRef}
                     drawWidth={drawWidth}
