@@ -14,7 +14,7 @@ import type { CommandContext } from '../base/CommandContext'
 import type { Clip, Recording, CanvasSettings } from '@/types/project'
 import { AspectRatioPreset, TrackType } from '@/types/project'
 import { addRecordingToProject } from '@/features/timeline/clips/clip-creation'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { removeClipFromTrack } from '@/features/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
 import { createRecording } from '@/features/timeline/clips/recording-factory'
@@ -195,7 +195,7 @@ export class ImportMediaCommand extends Command<{ clipId: string; recordingId: s
 
         this.context.getStore().updateProjectData((draft) => {
             // Remove clip
-            const clipInfo = findClipById(draft, clipId)
+            const clipInfo = ClipLookup.byId(draft, clipId)
             if (clipInfo) {
                 removeClipFromTrack(draft, clipId, clipInfo.track)
             }

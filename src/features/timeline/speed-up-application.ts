@@ -1,4 +1,5 @@
-import type { Project, Track, Clip, Effect } from '@/types/project'
+import type { Project, Clip, Effect } from '@/types/project'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { reflowClips, calculateTimelineDuration } from './clips/clip-reflow'
 import { EffectStore } from '@/features/effects/core/store'
 
@@ -26,25 +27,14 @@ export class SpeedUpApplicationService {
         const affectedClips: string[] = []
         const originalClips: Clip[] = []
 
-        // Find the source clip and track
-        let sourceClip: Clip | null = null
-        let track: Track | null = null
-        let clipIndex = -1
-
-        for (const t of project.timeline.tracks) {
-            const index = t.clips.findIndex(c => c.id === clipId)
-            if (index !== -1) {
-                sourceClip = t.clips[index]
-                track = t
-                clipIndex = index
-                break
-            }
-        }
-
-        if (!sourceClip || !track) {
+        const result = ClipLookup.byId(project, clipId)
+        if (!result) {
             console.error('applySpeedUpToClip: Clip not found:', clipId)
             return { affectedClips: [], originalClips }
         }
+
+        const { clip: sourceClip, track } = result
+        const clipIndex = track.clips.findIndex(c => c.id === clipId)
 
         // Save original clip state for undo
         originalClips.push({ ...sourceClip })

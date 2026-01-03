@@ -16,7 +16,7 @@ import { Command, CommandResult } from '../base/Command'
 import type { CommandContext } from '../base/CommandContext'
 import type { Clip, Effect, Project, Recording } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { removeClipFromTrack } from '@/features/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
 import { RecordingStorage } from '@/features/storage/recording-storage'
@@ -244,7 +244,7 @@ export class MergeProjectCommand extends Command<{ importedClipIds: string[] }> 
 
             // Remove clips
             for (const clipItem of clips) {
-                const clipInfo = findClipById(draft, clipItem.id)
+                const clipInfo = ClipLookup.byId(draft, clipItem.id)
                 if (clipInfo) {
                     removeClipFromTrack(draft, clipItem.id, clipInfo.track)
                     clipIds.push(clipItem.id)

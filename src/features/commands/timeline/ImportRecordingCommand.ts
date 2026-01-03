@@ -3,7 +3,7 @@ import type { CommandContext } from '../base/CommandContext'
 import type { Clip, Effect, Recording } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
 import { addRecordingToProject } from '@/features/timeline/clips/clip-creation'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { removeClipFromTrack } from '@/features/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
 
@@ -121,7 +121,7 @@ export class ImportRecordingCommand extends Command<{ clipId: string }> {
         draft.timeline.effects = draft.timeline.effects.filter(effect => !addedEffectIds.has(effect.id))
       }
 
-      const clipInfo = findClipById(draft, clipId)
+      const clipInfo = ClipLookup.byId(draft, clipId)
       if (clipInfo) {
         removeClipFromTrack(draft, clipId, clipInfo.track)
       }

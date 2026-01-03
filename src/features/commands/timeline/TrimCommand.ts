@@ -8,7 +8,7 @@ import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { executeTrimClipStart, executeTrimClipEnd } from '@/features/timeline/clips/clip-trim'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
@@ -53,7 +53,7 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
       throw new Error('No active project')
     }
 
-    const result = findClipById(draft.currentProject, this.clipId)
+    const result = ClipLookup.byId(draft.currentProject, this.clipId)
     if (!result) {
       throw new Error(`Clip ${this.clipId} not found`)
     }

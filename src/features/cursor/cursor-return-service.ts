@@ -5,7 +5,7 @@ import { getCropEffectForClip, getActiveCropEffect } from '@/features/effects/co
 import { captureLastFrame } from '@/shared/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/features/cursor/synthetic-events'
 import { resolveProjectRoot } from '@/features/storage/recording-storage'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 
 export interface CursorReturnData {
     imagePath: string
@@ -38,7 +38,7 @@ export class CursorReturnService {
         let sourceRecording: Recording | null = null
 
         if (sourceClipId) {
-            const result = findClipById(project, sourceClipId)
+            const result = ClipLookup.byId(project, sourceClipId)
             if (result) {
                 sourceClip = result.clip
                 sourceRecording = project.recordings.find(r => r.id === sourceClip!.recordingId) ?? null

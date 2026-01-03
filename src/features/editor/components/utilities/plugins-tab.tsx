@@ -14,7 +14,7 @@ import { getDataOfType } from '@/features/effects/core/filters'
 import { getPluginDefaults } from '@/features/effects/config/plugin-sdk'
 import { EffectStore } from '@/features/effects/core/store'
 import { useProjectStore, useSelectedClipId } from '@/features/stores/project-store'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import type { ParamDef, NumberParam, EnumParam, StringParam } from '@/features/effects/config/plugin-sdk'
 import type { PluginDefinition } from '@/features/effects/config/plugin-sdk'
 import { EffectLayerType } from '@/types/effects'
@@ -99,7 +99,7 @@ export function PluginsTab() {
 
     const selectedGeneratedClip = React.useMemo(() => {
         if (!currentProject || !selectedClipId) return null
-        const result = findClipById(currentProject, selectedClipId)
+        const result = ClipLookup.byId(currentProject, selectedClipId)
         if (!result) return null
         const recording = currentProject.recordings.find(r => r.id === result.clip.recordingId)
         if (!recording || recording.sourceType !== 'generated' || !recording.generatedSource?.pluginId) return null

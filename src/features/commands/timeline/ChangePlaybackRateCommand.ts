@@ -9,7 +9,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
 import { computeEffectiveDuration } from '@/features/timeline/time/time-space-converter'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { updateClipInTrack } from '@/features/timeline/clips/clip-crud'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { PlayheadService } from '@/features/timeline/playback/playhead-service'
@@ -44,7 +44,7 @@ export class ChangePlaybackRateCommand extends PatchedCommand<{ clipId: string; 
       throw new Error('No active project')
     }
 
-    const result = findClipById(draft.currentProject, this.clipId)
+    const result = ClipLookup.byId(draft.currentProject, this.clipId)
     if (!result) {
       throw new Error(`Clip ${this.clipId} not found`)
     }
@@ -72,7 +72,7 @@ export class ChangePlaybackRateCommand extends PatchedCommand<{ clipId: string; 
     EffectInitialization.syncKeystrokeEffects(draft.currentProject)
 
     // Maintain playhead relative position inside the edited clip
-    const updatedResult = findClipById(draft.currentProject, this.clipId)
+    const updatedResult = ClipLookup.byId(draft.currentProject, this.clipId)
     if (updatedResult) {
       const newTime = PlayheadService.trackPlayheadDuringClipEdit(
         draft.currentTime,

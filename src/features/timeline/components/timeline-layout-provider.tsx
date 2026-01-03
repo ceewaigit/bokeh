@@ -20,9 +20,7 @@ import { EffectStore } from '@/features/effects/core/store'
 /** Track type that can be used for visibility/active state */
 export type TrackId = TimelineTrackType | EffectType
 
-// Track height constants
-const TRACK_HEIGHT_COLLAPSED = 28
-const TRACK_HEIGHT_EXPANDED = 45
+const ANNOTATION_HEADER_HEIGHT = 20
 
 /** Fixed track heights (non-effect tracks) */
 export interface FixedTrackHeights {
@@ -226,9 +224,9 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     const webcamVisible = visibleTracks.has(TimelineTrackType.Webcam) && mediaTrackExistence.hasWebcamTrack
 
     // Use fixed heights instead of scaling to container - enables vertical scrolling
-    const videoHeight = videoVisible ? 50 : 0
-    const audioHeight = audioVisible ? 32 : 0
-    const webcamHeight = webcamVisible ? TRACK_HEIGHT_COLLAPSED : 0
+    const videoHeight = videoVisible ? TimelineConfig.TRACK.VIDEO_HEIGHT : 0
+    const audioHeight = audioVisible ? TimelineConfig.TRACK.AUDIO_HEIGHT : 0
+    const webcamHeight = webcamVisible ? TimelineConfig.TRACK.WEBCAM_HEIGHT : 0
 
     return {
       ruler: rulerHeight,
@@ -246,7 +244,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     for (const type of EFFECT_TRACK_TYPES) {
       const visible = effectTrackExistence[type] && !isScreenGroupCollapsed && visibleTracks.has(type)
       heights[type] = visible
-        ? (expandedEffectTrack === type ? TRACK_HEIGHT_EXPANDED : TRACK_HEIGHT_COLLAPSED)
+        ? (expandedEffectTrack === type ? TimelineConfig.TRACK.EFFECT_EXPANDED : TimelineConfig.TRACK.EFFECT_COLLAPSED)
         : 0
     }
     return heights as Record<EffectType, number>
@@ -260,9 +258,9 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const annotationTrackHeight = useMemo(() => {
     const visible = (effectTrackExistence[EffectType.Annotation] ?? false) && !isScreenGroupCollapsed && visibleTracks.has(TimelineTrackType.Annotation)
     if (!visible) return 0
-    if (!isAnnotationExpanded) return TRACK_HEIGHT_COLLAPSED
-    // Expanded shows 1 merged-summary row + N annotation rows.
-    return (Math.max(1, annotationCount) + 1) * TRACK_HEIGHT_COLLAPSED
+    if (!isAnnotationExpanded) return ANNOTATION_HEADER_HEIGHT + TimelineConfig.TRACK.EFFECT_COLLAPSED
+    // Expanded shows header + N annotation rows.
+    return ANNOTATION_HEADER_HEIGHT + Math.max(1, annotationCount) * TimelineConfig.TRACK.EFFECT_COLLAPSED
   }, [annotationCount, effectTrackExistence, isAnnotationExpanded, isScreenGroupCollapsed, visibleTracks])
 
   // Calculate fixed track positions
@@ -313,7 +311,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     y += annotationTrackHeight
 
     // Minimal bottom padding for better UX
-    const bottomPadding = 8
+    const bottomPadding = TimelineConfig.SCROLL.BOTTOM_PADDING
 
     return {
       positions: positions as Record<EffectType, number>,

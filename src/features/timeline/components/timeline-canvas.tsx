@@ -552,7 +552,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
               MozUserSelect: 'none',
               msUserSelect: 'none',
               outline: 'none',
-              maxHeight: '100%',
             }}
           >
             <Stage

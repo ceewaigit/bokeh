@@ -285,11 +285,11 @@ export function PreviewAreaRemotion({
     cropData,
     onCropChange,
     onCropConfirm,
-            onCropReset,
-            zoomSettings,
-            glowPortalRoot,
-            glowPortalStyle,
-          ]);
+    onCropReset,
+    zoomSettings,
+    glowPortalRoot,
+    glowPortalStyle,
+  ]);
   if (!project) return null;
 
   return (

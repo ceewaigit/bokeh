@@ -8,7 +8,7 @@ import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/stores/project-store'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { removeClipFromTrack } from '@/features/timeline/clips/clip-crud'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
@@ -41,7 +41,7 @@ export class RemoveClipCommand extends PatchedCommand<{ clipId: string }> {
     const project = draft.currentProject
     
     // We need to find the clip on the DRAFT project
-    const result = findClipById(project, this.clipId)
+    const result = ClipLookup.byId(project, this.clipId)
 
     if (!result) {
       throw new Error(`Clip ${this.clipId} not found`)

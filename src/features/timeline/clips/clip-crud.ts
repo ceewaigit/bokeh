@@ -8,7 +8,8 @@
 import type { Project, Track, Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { ClipPositioning } from '@/features/timeline/clips/clip-positioning'
-import { findClipById, reflowClips, calculateTimelineDuration, syncCropEffectTimes } from './clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
+import { withMutation } from '@/features/timeline/clips/clip-mutation'
 
 /**
  * Add clip to track at specified position.
@@ -44,13 +45,10 @@ export function addClipToTrack(
     const proposedTime = startTime ?? project.timeline.duration
     const { insertIndex } = ClipPositioning.getReorderTarget(proposedTime, targetTrack.clips)
 
-    targetTrack.clips.splice(insertIndex, 0, clip)
-    reflowClips(targetTrack, Math.max(0, insertIndex - 1))
-    syncCropEffectTimes(project)
-
-    project.timeline.duration = calculateTimelineDuration(project)
-    project.modifiedAt = new Date().toISOString()
-    return clip
+    return withMutation(project, () => {
+        targetTrack.clips.splice(insertIndex, 0, clip)
+        return clip
+    }, targetTrack)
 }
 
 /**
@@ -64,12 +62,11 @@ export function removeClipFromTrack(
     if (knownTrack) {
         const index = knownTrack.clips.findIndex(c => c.id === clipId)
         if (index !== -1) {
-            knownTrack.clips.splice(index, 1)
-            reflowClips(knownTrack, 0)
-            knownTrack.clips = [...knownTrack.clips]
-            project.timeline.duration = calculateTimelineDuration(project)
-            project.modifiedAt = new Date().toISOString()
-            return true
+            return withMutation(project, () => {
+                knownTrack.clips.splice(index, 1)
+                knownTrack.clips = [...knownTrack.clips]
+                return true
+            }, knownTrack)
         }
         return false
     }
@@ -77,12 +74,11 @@ export function removeClipFromTrack(
     for (const track of project.timeline.tracks) {
         const index = track.clips.findIndex(c => c.id === clipId)
         if (index !== -1) {
-            track.clips.splice(index, 1)
-            reflowClips(track, 0)
-            track.clips = [...track.clips]
-            project.timeline.duration = calculateTimelineDuration(project)
-            project.modifiedAt = new Date().toISOString()
-            return true
+            return withMutation(project, () => {
+                track.clips.splice(index, 1)
+                track.clips = [...track.clips]
+                return true
+            }, track)
         }
     }
     return false
@@ -95,7 +91,7 @@ export function duplicateClipInTrack(
     project: Project,
     clipId: string
 ): Clip | null {
-    const result = findClipById(project, clipId)
+    const result = ClipLookup.byId(project, clipId)
     if (!result) return null
 
     const { clip, track } = result
@@ -107,13 +103,10 @@ export function duplicateClipInTrack(
         startTime: clip.startTime + clip.duration,
     }
 
-    track.clips.splice(clipIndex + 1, 0, newClip)
-    reflowClips(track, clipIndex)
-    syncCropEffectTimes(project)
-
-    project.timeline.duration = calculateTimelineDuration(project)
-    project.modifiedAt = new Date().toISOString()
-    return newClip
+    return withMutation(project, () => {
+        track.clips.splice(clipIndex + 1, 0, newClip)
+        return newClip
+    }, track)
 }
 
 /**
@@ -134,13 +127,10 @@ export function restoreClipToTrack(
     }
 
     const safeIndex = Math.max(0, Math.min(atIndex, track.clips.length))
-    track.clips.splice(safeIndex, 0, clip)
-    reflowClips(track, Math.max(0, safeIndex - 1))
-    syncCropEffectTimes(project)
-
-    project.timeline.duration = calculateTimelineDuration(project)
-    project.modifiedAt = new Date().toISOString()
-    return true
+    return withMutation(project, () => {
+        track.clips.splice(safeIndex, 0, clip)
+        return true
+    }, track)
 }
 
 /**
@@ -165,14 +155,11 @@ export function restoreClipsToTrack(
         }
     }
 
-    // Sort and reflow
-    track.clips.sort((a, b) => a.startTime - b.startTime)
-    reflowClips(track, 0)
-    syncCropEffectTimes(project)
-
-    project.timeline.duration = calculateTimelineDuration(project)
-    project.modifiedAt = new Date().toISOString()
-    return true
+    return withMutation(project, () => {
+        // Sort and reflow
+        track.clips.sort((a, b) => a.startTime - b.startTime)
+        return true
+    }, track)
 }
 
 /**
@@ -194,21 +181,16 @@ export function updateClipInTrack(
         clip = foundClip
         track = knownTrack
     } else {
-        const result = findClipById(project, clipId)
+        const result = ClipLookup.byId(project, clipId)
         if (!result) return false
         clip = result.clip
         track = result.track
     }
 
-    Object.assign(clip, updates)
+    const shouldReflow = options?.maintainContiguous !== false
 
-    if (options?.maintainContiguous !== false) {
-        reflowClips(track, 0)
-    }
-
-    project.timeline.duration = calculateTimelineDuration(project)
-    project.modifiedAt = new Date().toISOString()
-    syncCropEffectTimes(project)
-
-    return true
+    return withMutation(project, () => {
+        Object.assign(clip, updates)
+        return true
+    }, shouldReflow ? track : undefined)
 }

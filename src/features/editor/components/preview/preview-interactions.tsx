@@ -14,6 +14,10 @@ import { PlayerRef } from '@remotion/player';
 import type { TimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata';
 import { usePreviewHover } from '@/features/editor/hooks/use-preview-hover';
 import { useEditorFrameSnapshot } from '@/features/renderer/hooks/use-frame-snapshot';
+import { useSelectedClipId } from '@/features/stores/project-store';
+import { CropOverlay } from '@/features/crop/components/CropOverlay';
+import { useCropManager } from '@/features/crop/hooks/use-crop-manager';
+import { getVideoRectFromSnapshot } from '@/features/editor/logic/preview-point-transforms';
 
 // ------------------------------------------------------------------
 // Main Component: PreviewInteractions
@@ -242,6 +246,31 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     const isInteractive = !isPlaying;
     const showOverlays = isInteractive;
 
+    // --- Crop Management ---
+    const selectedClipId = useSelectedClipId()
+    const selectedClip = useProjectStore((s) =>
+        s.currentProject?.timeline.tracks.flatMap(t => t.clips).find(c => c.id === selectedClipId)
+    )
+
+    const {
+        editingCropData,
+        handleCropChange,
+        handleCropConfirm,
+        handleCropReset
+    } = useCropManager(selectedClip)
+
+    // Calculate video rect for the DOM overlay
+    const videoRect = useMemo(() => {
+        if (snapshot) {
+            return getVideoRectFromSnapshot(snapshot)
+        }
+        if (aspectContainerRef.current) {
+            const rect = aspectContainerRef.current.getBoundingClientRect()
+            return { x: 0, y: 0, width: rect.width, height: rect.height }
+        }
+        return { x: 0, y: 0, width: 0, height: 0 }
+    }, [aspectContainerRef, snapshot])
+
     return (
         <AnnotationEditProvider>
             <div
@@ -266,6 +295,19 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
                 }}
             >
                 {children}
+
+                {/* DOM-based Crop Overlay (Scale Invariant) */}
+                {isEditingCrop && editingCropData && (
+                    <CropOverlay
+                        cropData={editingCropData}
+                        onCropChange={handleCropChange}
+                        onConfirm={handleCropConfirm}
+                        onReset={handleCropReset}
+                        videoRect={videoRect}
+                        showActions={true}
+                        showInfo={true}
+                    />
+                )}
 
                 {showOverlays && (
                     <LayerHoverOverlays

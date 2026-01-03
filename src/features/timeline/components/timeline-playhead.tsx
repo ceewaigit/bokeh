@@ -15,7 +15,7 @@ import { timeObserver } from '@/features/timeline/time/time-observer'
 
 export const TimelinePlayhead = React.memo(() => {
   const {
-    stageHeight: totalHeight,
+    totalContentHeight: totalHeight,
     pixelsPerMs,
     timelineWidth,
     duration: maxTime

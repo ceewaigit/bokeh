@@ -6,7 +6,8 @@
  */
 
 import type { Project, Clip } from '@/types/project'
-import { findClipById, reflowClips, calculateTimelineDuration } from './clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
+import { withMutation } from '@/features/timeline/clips/clip-mutation'
 
 // Minimum clip duration (1 second) - matches UI constraint
 export const MIN_CLIP_DURATION_MS = 1000
@@ -97,7 +98,7 @@ export function executeTrimClipStart(
     clipId: string,
     newStartTime: number
 ): boolean {
-    const result = findClipById(project, clipId)
+    const result = ClipLookup.byId(project, clipId)
     if (!result) return false
 
     const { clip, track } = result
@@ -105,18 +106,12 @@ export function executeTrimClipStart(
     const trimResult = trimClipStart(clip, newStartTime)
     if (!trimResult) return false
 
-    Object.assign(clip, trimResult)
+    const shouldReflow = newStartTime > oldStartTime
 
-    // Reflow behavior based on direction
-    if (newStartTime > oldStartTime) {
-        // Shrinking - close the gap
-        reflowClips(track, 0)
-    }
-    // Expanding doesn't trigger reflow (extends into empty space)
-
-    project.timeline.duration = calculateTimelineDuration(project)
-    project.modifiedAt = new Date().toISOString()
-    return true
+    return withMutation(project, () => {
+        Object.assign(clip, trimResult)
+        return true
+    }, shouldReflow ? track : undefined)
 }
 
 /**
@@ -127,7 +122,7 @@ export function executeTrimClipEnd(
     clipId: string,
     newEndTime: number
 ): boolean {
-    const result = findClipById(project, clipId)
+    const result = ClipLookup.byId(project, clipId)
     if (!result) return false
 
     const { clip, track } = result
@@ -135,21 +130,20 @@ export function executeTrimClipEnd(
     const trimResult = trimClipEnd(clip, newEndTime)
     if (!trimResult) return false
 
-    Object.assign(clip, trimResult)
+    const shouldReflow = newEndTime <= oldEndTime
 
-    if (newEndTime > oldEndTime) {
-        // Expanding - push subsequent clips
-        const expansion = newEndTime - oldEndTime
-        const clipIndex = track.clips.findIndex(c => c.id === clipId)
-        for (let i = clipIndex + 1; i < track.clips.length; i++) {
-            track.clips[i] = { ...track.clips[i], startTime: track.clips[i].startTime + expansion }
+    return withMutation(project, () => {
+        Object.assign(clip, trimResult)
+
+        if (newEndTime > oldEndTime) {
+            // Expanding - push subsequent clips
+            const expansion = newEndTime - oldEndTime
+            const clipIndex = track.clips.findIndex(c => c.id === clipId)
+            for (let i = clipIndex + 1; i < track.clips.length; i++) {
+                track.clips[i] = { ...track.clips[i], startTime: track.clips[i].startTime + expansion }
+            }
         }
-    } else {
-        // Shrinking - close the gap
-        reflowClips(track, 0)
-    }
 
-    project.timeline.duration = calculateTimelineDuration(project)
-    project.modifiedAt = new Date().toISOString()
-    return true
+        return true
+    }, shouldReflow ? track : undefined)
 }

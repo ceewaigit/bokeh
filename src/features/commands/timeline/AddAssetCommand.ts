@@ -3,7 +3,7 @@ import type { CommandContext } from '../base/CommandContext'
 import type { Clip, TrackType } from '@/types/project'
 import { addAssetRecording, AssetDetails } from '@/features/timeline/clips/clip-creation'
 import { ProjectCleanupService } from '@/features/timeline/project-cleanup'
-import { findClipById } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { removeClipFromTrack } from '@/features/timeline/clips/clip-crud'
 
 interface AddAssetPayload {
@@ -74,7 +74,7 @@ export class AddAssetCommand extends Command<{ clipId: string }> {
         const recordingId = this.recordingId
 
         this.context.getStore().updateProjectData((draft) => {
-            const clipInfo = findClipById(draft, clipId)
+            const clipInfo = ClipLookup.byId(draft, clipId)
             if (clipInfo) {
                 removeClipFromTrack(draft, clipId, clipInfo.track)
             }

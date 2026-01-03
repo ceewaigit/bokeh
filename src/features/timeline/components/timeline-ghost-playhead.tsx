@@ -9,7 +9,7 @@ import { useTimelineLayout } from './timeline-layout-provider'
 import { TimelineDataService } from '@/features/timeline/timeline-data-service'
 
 export const TimelineGhostPlayhead = React.memo(() => {
-  const { stageHeight: totalHeight, pixelsPerMs, duration: maxTime } = useTimelineLayout()
+  const { totalContentHeight: totalHeight, pixelsPerMs, duration: maxTime } = useTimelineLayout()
   const hoverTime = useProjectStore((s) => s.hoverTime)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
   const isPlaying = useProjectStore((s) => s.isPlaying)

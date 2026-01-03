@@ -17,6 +17,22 @@ export const TimelineConfig = {
   MIN_AUDIO_TRACK_HEIGHT: 80,
   MIN_EFFECT_TRACK_HEIGHT: 50,
 
+  TRACK: {
+    VIDEO_HEIGHT: 50,
+    AUDIO_HEIGHT: 32,
+    WEBCAM_HEIGHT: 28,
+    EFFECT_COLLAPSED: 28,
+    EFFECT_EXPANDED: 45,
+  },
+
+  SCROLL: {
+    BOTTOM_PADDING: 24,
+  },
+
+  LAYOUT: {
+    TOGGLE_LEFT_MARGIN: 12,
+  },
+
   // Snapping behavior
   SNAP_THRESHOLD_MS: 200,
   SNAP_THRESHOLD_PX: 15,

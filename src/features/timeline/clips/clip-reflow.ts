@@ -76,17 +76,6 @@ export function syncCropEffectTimes(project: Project): void {
 }
 
 /**
- * Find clip by ID across all tracks.
- */
-export function findClipById(project: Project, clipId: string): { clip: Clip; track: Track } | null {
-    for (const track of project.timeline.tracks) {
-        const clip = track.clips.find(c => c.id === clipId)
-        if (clip) return { clip, track }
-    }
-    return null
-}
-
-/**
  * Sort clips by their current startTime.
  */
 export function sortClipsByTime(track: Track): void {

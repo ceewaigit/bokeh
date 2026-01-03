@@ -10,7 +10,8 @@ import { EffectCreation } from '@/features/effects/core/creation'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getCropEffectForClip } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/store'
-import { findClipById, syncCropEffectTimes } from './clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
+import { withMutation } from '@/features/timeline/clips/clip-mutation'
 
 /**
  * Split a single clip into two at the specified relative time.
@@ -101,7 +102,7 @@ export function executeSplitClip(
     clipId: string,
     splitTime: number  // Timeline space
 ): { firstClip: Clip; secondClip: Clip } | null {
-    const result = findClipById(project, clipId)
+    const result = ClipLookup.byId(project, clipId)
     if (!result) return null
 
     const { clip, track } = result
@@ -117,31 +118,35 @@ export function executeSplitClip(
     if (!splitResult) return null
 
     const clipIndex = track.clips.findIndex(c => c.id === clipId)
-    track.clips.splice(clipIndex, 1, splitResult.firstClip, splitResult.secondClip)
+    const mutationResult = withMutation(project, () => {
+        track.clips.splice(clipIndex, 1, splitResult.firstClip, splitResult.secondClip)
 
-    // Handle crop effect: copy to both new clips
-    if (originalCropEffect && originalCropEffect.data) {
-        const firstCropEffect = EffectCreation.createCropEffect({
-            clipId: splitResult.firstClip.id,
-            startTime: splitResult.firstClip.startTime,
-            endTime: splitResult.firstClip.startTime + splitResult.firstClip.duration,
-            cropData: originalCropEffect.data as any
-        })
-        EffectStore.add(project, firstCropEffect)
+        // Handle crop effect: copy to both new clips
+        if (originalCropEffect && originalCropEffect.data) {
+            const firstCropEffect = EffectCreation.createCropEffect({
+                clipId: splitResult.firstClip.id,
+                startTime: splitResult.firstClip.startTime,
+                endTime: splitResult.firstClip.startTime + splitResult.firstClip.duration,
+                cropData: originalCropEffect.data as any
+            })
+            EffectStore.add(project, firstCropEffect)
 
-        const secondCropEffect = EffectCreation.createCropEffect({
-            clipId: splitResult.secondClip.id,
-            startTime: splitResult.secondClip.startTime,
-            endTime: splitResult.secondClip.startTime + splitResult.secondClip.duration,
-            cropData: originalCropEffect.data as any
-        })
-        EffectStore.add(project, secondCropEffect)
+            const secondCropEffect = EffectCreation.createCropEffect({
+                clipId: splitResult.secondClip.id,
+                startTime: splitResult.secondClip.startTime,
+                endTime: splitResult.secondClip.startTime + splitResult.secondClip.duration,
+                cropData: originalCropEffect.data as any
+            })
+            EffectStore.add(project, secondCropEffect)
 
-        EffectStore.remove(project, originalCropEffect.id)
-    }
+            EffectStore.remove(project, originalCropEffect.id)
+        }
 
-    project.modifiedAt = new Date().toISOString()
-    syncCropEffectTimes(project)
+        return {
+            firstClip: splitResult.firstClip,
+            secondClip: splitResult.secondClip
+        }
+    })
 
     // Sync keystroke effects
     try {
@@ -150,8 +155,5 @@ export function executeSplitClip(
         console.error('Failed to sync keystroke effects during split', e)
     }
 
-    return {
-        firstClip: splitResult.firstClip,
-        secondClip: splitResult.secondClip
-    }
+    return mutationResult
 }

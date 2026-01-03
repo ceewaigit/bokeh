@@ -11,7 +11,8 @@
 
 import type { Clip, Recording, Effect, Project } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
-import { findClipById, calculateTimelineDuration, reflowClips, syncCropEffectTimes } from '@/features/timeline/clips/clip-reflow'
+import { calculateTimelineDuration, reflowClips, syncCropEffectTimes } from '@/features/timeline/clips/clip-reflow'
+import { ClipLookup } from '@/features/timeline/clips/clip-lookup'
 import { executeSplitClip } from '@/features/timeline/clips/clip-split'
 import { executeTrimClipStart, executeTrimClipEnd } from '@/features/timeline/clips/clip-trim'
 import {
@@ -254,7 +255,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         set((state) => {
             if (!state.currentProject) return
 
-            const result = findClipById(state.currentProject, clipId)
+            const result = ClipLookup.byId(state.currentProject, clipId)
             if (!result) return
 
             const { clip, track } = result
@@ -295,7 +296,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (!state.currentProject) return
 
             // Get clip info BEFORE removal to check recording reference
-            const clipInfo = findClipById(state.currentProject, clipId)
+            const clipInfo = ClipLookup.byId(state.currentProject, clipId)
             const recordingIdToCheck = clipInfo?.clip?.recordingId
 
             if (removeClipFromTrack(state.currentProject, clipId, clipInfo?.track)) {
@@ -322,7 +323,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (!state.currentProject) return
 
             // Get clip info before update for playhead tracking
-            const result = findClipById(state.currentProject, clipId)
+            const result = ClipLookup.byId(state.currentProject, clipId)
             if (!result) return
 
             // Use the service to update the clip
@@ -336,7 +337,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
 
             // Maintain playhead relative position inside the edited clip
-            const updatedResult = findClipById(state.currentProject, clipId)
+            const updatedResult = ClipLookup.byId(state.currentProject, clipId)
             if (updatedResult) {
                 const newTime = PlayheadService.trackPlayheadDuringClipEdit(
                     state.currentTime,
@@ -575,7 +576,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Verify clip exists
-            const clipBefore = findClipById(state.currentProject, clipId)
+            const clipBefore = ClipLookup.byId(state.currentProject, clipId)
             if (!clipBefore) {
                 console.error('applySpeedUpToClip: Clip not found:', clipId)
                 return

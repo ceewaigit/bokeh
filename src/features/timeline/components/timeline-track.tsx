@@ -40,11 +40,6 @@ const AnimatedGroup = ({ y, children }: { y: number; children: React.ReactNode }
     }
   }, [y])
 
-  // Initialize position immediately on mount to prevent jumping
-  useEffect(() => {
-    if (groupRef.current) groupRef.current.y(y)
-  }, [y])
-
   return <Group ref={groupRef}>{children}</Group>
 }
 
@@ -79,14 +74,6 @@ const AnimatedRect = ({
       duration: TRACK_ANIMATION_DURATION,
       easing: TRACK_ANIMATION_EASING,
     })
-  }, [height, width])
-
-  // Initialize immediately
-  useEffect(() => {
-    if (rectRef.current) {
-      rectRef.current.height(height)
-      rectRef.current.width(width)
-    }
   }, [height, width])
 
   return (
@@ -125,13 +112,6 @@ const AnimatedSeparator = ({ width, height, fill, opacity }: { width: number; he
       easing: TRACK_ANIMATION_EASING,
     })
   }, [height, width])
-
-  // Initialize immediately
-  useEffect(() => {
-    if (rectRef.current) {
-      rectRef.current.y(height - 1)
-    }
-  }, [height])
 
   return (
     <Rect
