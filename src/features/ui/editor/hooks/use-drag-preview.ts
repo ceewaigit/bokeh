@@ -9,7 +9,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { TrackType, type Clip } from '@/types/project'
-import { ClipPositioning } from '@/features/ui/timeline/clips/clip-positioning'
+import { computeContiguousPreview } from '@/features/ui/timeline/utils/drag-positioning'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { ReorderClipCommand, UpdateClipCommand } from '@/features/core/commands'
 
@@ -47,7 +47,10 @@ export function useDragPreview({ getClipsForTrack }: UseDragPreviewOptions): Use
         clipId: string,
         proposedTime: number
     ) => {
-        return ClipPositioning.computeContiguousPreview(clips, proposedTime, { clipId })
+        const clip = clips.find(c => c.id === clipId)
+        const duration = clip ? clip.duration : 0
+        const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+        return computeContiguousPreview(blocks, proposedTime, duration, clipId)
     }, [])
 
     const schedulePreviewUpdate = useCallback((

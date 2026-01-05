@@ -1,7 +1,7 @@
 
 import { useCallback, useState } from 'react'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { ClipReorderService } from '@/features/ui/timeline/clips/clip-reorder-service'
+import { computeContiguousSnapPositions, findNearestContiguousSnap } from '@/features/ui/timeline/utils/drag-positioning'
 import type { Project } from '@/types/project'
 
 interface UseTimelineSnappingProps {
@@ -21,11 +21,12 @@ export const useTimelineSnapping = ({ pixelsPerMs, project }: UseTimelineSnappin
 
         // Use the service to compute snap positions
         // This includes start/end of clips, and 0
-        return ClipReorderService.computeSnapPositions(allClips, excludeClipId || '')
+        const blocks = allClips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+        return computeContiguousSnapPositions(blocks, excludeClipId)
     }, [project])
 
     const snapTime = useCallback((time: number, snapPoints: number[]) => {
-        const { position } = ClipReorderService.findNearestSnapPosition(time, snapPoints)
+        const { position } = findNearestContiguousSnap(time, snapPoints)
         // Manually determine snapping state based on distance or change
         const isSnapped = Math.abs(time - position) > 0.001
         setIsSnapping(isSnapped)

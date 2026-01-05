@@ -135,7 +135,6 @@ export function getEffectBounds(
         const end = percentToPixels(rawEnd.x, rawEnd.y, videoRect)
         const strokeWidth = annotationData.style?.strokeWidth ?? 3
         const arrowHead = annotationData.style?.arrowHeadSize ?? 10
-        // Padding doesn't technically scale but for hit-test safety maybe should? Leave for now.
         const padding = Math.max(strokeWidth, arrowHead) + 6
 
         const minX = Math.min(start.x, end.x) - padding

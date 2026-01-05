@@ -3,7 +3,7 @@ import { Rect, Text, Transformer, Line, Group } from 'react-konva'
 import { TimelineConfig } from '@/features/ui/timeline/config'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { useTimelineColors, withAlpha } from '@/features/ui/timeline/utils/colors'
-import { getNearestAvailableDragX } from '@/features/ui/timeline/utils/drag-positioning'
+import { getNearestAvailableDragX, validatePosition } from '@/features/ui/timeline/utils/drag-positioning'
 import { EffectType } from '@/types/project'
 import Konva from 'konva'
 
@@ -538,11 +538,16 @@ export const TimelineEffectBlock = React.memo(({
           const duration = TimeConverter.pixelsToMs(finalWidth, pixelsPerMs)
           const newEndTime = newStartTime + duration
 
-          const wouldOverlap = allBlocks
-            .filter(b => b.id !== blockId)
-            .some(block =>
-              (newStartTime < block.endTime && newEndTime > block.startTime)
-            )
+
+          const validation = validatePosition(
+            newStartTime,
+            duration,
+            allBlocks,
+            blockId,
+            { allowOverlap: false }
+          )
+
+          const wouldOverlap = !validation.isValid
 
           // Always reset rect position to origin within the group
           rect.x(0)

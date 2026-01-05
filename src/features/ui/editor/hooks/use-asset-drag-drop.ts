@@ -13,8 +13,7 @@ import { TrackType, type Clip } from '@/types/project'
 import { useAssetLibraryStore } from '@/features/core/stores/asset-library-store'
 import { TimelineConfig } from '@/features/ui/timeline/config'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { ClipPositioning } from '@/features/ui/timeline/clips/clip-positioning'
-import { getSnappedDragX } from '@/features/ui/timeline/utils/drag-positioning'
+import { getSnappedDragX, computeContiguousPreview } from '@/features/ui/timeline/utils/drag-positioning'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { AddAssetCommand } from '@/features/core/commands'
 
@@ -176,10 +175,12 @@ export function useAssetDragDrop({
             return
         }
 
-        const preview = ClipPositioning.computeContiguousPreview(
-            getClipsForTrack(targetTrack),
+        const clips = getClipsForTrack(targetTrack)
+        const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+        const preview = computeContiguousPreview(
+            blocks,
             proposedTime,
-            { durationMs: assetDuration }
+            assetDuration
         )
 
         if (preview) {
@@ -250,19 +251,14 @@ export function useAssetDragDrop({
                 // Webcam: Explicit start time, no insert index
                 startTime = proposedTime
             } else {
-                const preview = ClipPositioning.computeContiguousPreview(
-                    getClipsForTrack(targetTrack),
+                const clips = getClipsForTrack(targetTrack)
+                const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+                const preview = computeContiguousPreview(
+                    blocks,
                     proposedTime,
-                    { durationMs: assetDuration }
+                    assetDuration
                 )
                 insertIndex = preview?.insertIndex
-                // If preview exists, startTime is handled by contiguous logic (usually 0 offset from prev clip)
-                // but AddAssetCommand logic will need to know if it's contiguous or not.
-                // Actually, for contiguous tracks, we rely on insertIndex.
-                // However, AddAssetCommand might interpret options differently.
-                // Let's check AddAssetCommand usage again... it takes options.
-                // If insertIndex is provided, it tries to insert at that index (contiguous).
-                // If startTime is provided, it puts it there.
                 if (!preview) {
                     startTime = proposedTime
                 }

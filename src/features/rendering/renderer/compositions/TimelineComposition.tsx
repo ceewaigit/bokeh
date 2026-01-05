@@ -85,6 +85,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   sourceVideoHeight,
   globalSkipRanges = [],
 }) => {
+  const isScrubbing = useProjectStore((s) => s.isScrubbing);
   const frame = useCurrentFrame();
   const { frameLayout, getActiveLayoutItems, getRecording } = useTimelineContext(); // Remove fps from here
   const currentTimeMs = (frame / fps) * 1000;
@@ -163,16 +164,19 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     const targetSize = Math.max(1, Math.round(size * maxScale));
     return { width: targetSize, height: targetSize };
   }, [activeWebcamClip?.layout, isRendering, videoWidth, videoHeight]);
+  // Skip webcam URL resolution entirely in glow mode (webcam won't render)
+  const shouldRenderWebcam = !renderSettings.isGlowMode;
+
   const forceWebcamProxy = React.useMemo(() => {
-    if (isRendering || !activeWebcamRecording?.previewProxyUrl) return false;
+    if (isRendering || !activeWebcamRecording?.previewProxyUrl || !shouldRenderWebcam) return false;
     return isProxySufficientForTarget(
       webcamTargetSize.width,
       webcamTargetSize.height,
       1
     );
-  }, [isRendering, activeWebcamRecording?.previewProxyUrl, webcamTargetSize.width, webcamTargetSize.height]);
+  }, [isRendering, activeWebcamRecording?.previewProxyUrl, webcamTargetSize.width, webcamTargetSize.height, shouldRenderWebcam]);
   const webcamVideoUrl = useVideoUrl({
-    recording: activeWebcamRecording,
+    recording: shouldRenderWebcam ? activeWebcamRecording : undefined,
     resources,
     clipId: activeWebcamClip?.id,
     targetWidth: webcamTargetSize.width,
@@ -180,6 +184,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     isHighQualityPlaybackEnabled: playback.isHighQualityPlaybackEnabled,
     forceProxy: forceWebcamProxy,
     isPlaying: playback.isPlaying,
+    isScrubbing,
   });
 
 
@@ -319,13 +324,16 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
             })}
 
             {/* Webcam uses clip.layout for styling, visibilityOpacity for ghosting protection */}
-            <WebcamLayer
-              webcamVideoUrl={webcamVideoUrl}
-              webcamClip={activeWebcamClip ?? undefined}
-              webcamRecording={activeWebcamRecording ?? undefined}
-              opacity={visibilityOpacity}
-              isSkipped={isSkipped}
-            />
+            {/* In glow mode, skip webcam to only show main video for ambient light calculation */}
+            {!renderSettings.isGlowMode && (
+              <WebcamLayer
+                webcamVideoUrl={webcamVideoUrl}
+                webcamClip={activeWebcamClip ?? undefined}
+                webcamRecording={activeWebcamRecording ?? undefined}
+                opacity={visibilityOpacity}
+                isSkipped={isSkipped}
+              />
+            )}
 
             {/* Glue player is an ambient blur; skip extra overlays to keep preview smooth. */}
             {!renderSettings.isGlowMode && (

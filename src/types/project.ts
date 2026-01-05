@@ -58,6 +58,12 @@ import {
   Transition
 } from '@/features/ui/timeline/types';
 
+export interface TimelineBlockRange {
+  id: string
+  startTime: number
+  endTime: number
+}
+
 
 // --- Re-exports (Strictly Types or Enums from Features) ---
 export {

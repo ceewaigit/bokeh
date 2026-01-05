@@ -119,6 +119,7 @@ export function SettingsDialog() {
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow)
   const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity)
   const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
+  const scrubOnHover = usePreviewSettingsStore((s) => s.scrubOnHover)
   const setPreviewSettings = usePreviewSettingsStore((s) => s.setPreviewSettings)
 
   const recordingSettings = useProjectStore((s) => s.settings.recording)
@@ -269,6 +270,13 @@ export function SettingsDialog() {
                         tooltip="Disabling improves scrolling performance on large projects."
                         checked={showTimelineThumbnails}
                         onChange={(c) => setPreviewSettings({ showTimelineThumbnails: c })}
+                      />
+                      <SettingRow
+                        label="Scrub on Hover"
+                        description="Preview video when hovering timeline."
+                        tooltip="Shows ghost playhead and scrubs preview during timeline hover. Disable for better performance."
+                        checked={scrubOnHover}
+                        onChange={(c) => setPreviewSettings({ scrubOnHover: c })}
                       />
                       <SettingRow
                         label="Ambient Glow"

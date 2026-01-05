@@ -716,7 +716,7 @@ export function TranscriptTab() {
   const hasSubtitles = subtitleEffects.size > 0
 
   return (
-    <div className="flex flex-col gap-6 p-5">
+    <div className="flex flex-col gap-4 p-5">
       {/* Whisper Install Prompt - Subtle */}
       {whisperAvailable === false && (
         <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-500/5 px-3 py-2.5">

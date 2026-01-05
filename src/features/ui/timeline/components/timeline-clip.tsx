@@ -6,8 +6,7 @@ import type { Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
 import { getSourceDuration, TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { ClipPositioning } from '@/features/ui/timeline/clips/clip-positioning'
-import { getNearestAvailableDragX } from '@/features/ui/timeline/utils/drag-positioning'
+import { getNearestAvailableDragX, computeContiguousPreview } from '@/features/ui/timeline/utils/drag-positioning'
 import { useTimelineColors, withAlpha } from '@/features/ui/timeline/utils/colors'
 import { useRecordingMetadata } from '@/features/rendering/renderer/hooks/media/useRecordingMetadata'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
@@ -217,7 +216,8 @@ const TimelineClipComponent = ({
             }
           }
 
-          const preview = ClipPositioning.computeContiguousPreview(otherClipsInTrack, proposedTime, { clipId: clip.id })
+          const blocks = otherClipsInTrack.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+          const preview = computeContiguousPreview(blocks, proposedTime, clip.duration, clip.id)
           const insertTime = preview?.insertTime ?? proposedTime
           const snappedX = TimeConverter.msToPixels(insertTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
           return {

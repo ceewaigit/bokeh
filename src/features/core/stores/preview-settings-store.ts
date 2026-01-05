@@ -12,6 +12,8 @@ export type PreviewSettings = {
   showGlow: boolean
   glowIntensity: number
   showTimelineThumbnails: boolean
+  /** When enabled, hovering over timeline shows ghost playhead and scrubs preview */
+  scrubOnHover: boolean
 }
 
 type PreviewSettingsStore = PreviewSettings & {
@@ -29,6 +31,7 @@ const defaultPreviewSettings: PreviewSettings = {
   showGlow: false,
   glowIntensity: 0.3,
   showTimelineThumbnails: true,
+  scrubOnHover: true,
 }
 
 export const usePreviewSettingsStore = create<PreviewSettingsStore>()(
@@ -75,6 +78,7 @@ export const usePreviewSettingsStore = create<PreviewSettingsStore>()(
         showGlow: state.showGlow,
         glowIntensity: state.glowIntensity,
         showTimelineThumbnails: state.showTimelineThumbnails,
+        scrubOnHover: state.scrubOnHover,
       }),
     }
   )

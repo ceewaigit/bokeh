@@ -15,7 +15,7 @@ import { calculateTimelineDuration, reflowClips, syncCropEffectTimes } from '@/f
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { executeSplitClip } from '@/features/ui/timeline/clips/clip-split'
 import { executeTrimClipStart, executeTrimClipEnd } from '@/features/ui/timeline/clips/clip-trim'
-import { ClipPositioning } from '@/features/ui/timeline/clips/clip-positioning'
+import { getReorderTarget } from '@/features/ui/timeline/utils/drag-positioning'
 import {
     updateClipInTrack,
     addClipToTrack,
@@ -200,7 +200,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             project.recordings.push(recording)
 
             const insertTime = startTime ?? state.currentTime
-            const { insertIndex } = ClipPositioning.getReorderTarget(insertTime, videoTrack.clips)
+            const blocks = videoTrack.clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+            const { insertIndex } = getReorderTarget(insertTime, blocks)
 
             const clip: Clip = {
                 id: clipId,

@@ -9,7 +9,7 @@ import type { Project, Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { withMutation } from '@/features/ui/timeline/clips/clip-mutation'
-import { ClipPositioning } from '@/features/ui/timeline/clips/clip-positioning'
+import { validatePosition } from '@/features/ui/timeline/utils/drag-positioning'
 
 // Minimum clip duration (1 second) - matches UI constraint
 export const MIN_CLIP_DURATION_MS = 1000
@@ -109,11 +109,19 @@ export function executeTrimClipStart(
     // ENFORCE: Webcam track collision detection during trim start
     if (track.type === TrackType.Webcam) {
         const proposedDuration = clip.startTime + clip.duration - newStartTime
+
+        // Convert clips to generic blocks
+        const blocks = track.clips.map(c => ({
+            id: c.id,
+            startTime: c.startTime,
+            endTime: c.startTime + c.duration
+        }))
+
         // Validate the NEW position and duration
-        const validation = ClipPositioning.validatePosition(
+        const validation = validatePosition(
             newStartTime,
             proposedDuration,
-            track.clips,
+            blocks,
             clip.id,
             { findAlternativeIfInvalid: true }
         )
@@ -155,11 +163,19 @@ export function executeTrimClipEnd(
     // ENFORCE: Webcam track collision detection during trim end
     if (track.type === TrackType.Webcam) {
         const proposedDuration = newEndTime - clip.startTime
+
+        // Convert clips to generic blocks
+        const blocks = track.clips.map(c => ({
+            id: c.id,
+            startTime: c.startTime,
+            endTime: c.startTime + c.duration
+        }))
+
         // Validate the position with NEW duration
-        const validation = ClipPositioning.validatePosition(
+        const validation = validatePosition(
             clip.startTime,
             proposedDuration,
-            track.clips,
+            blocks,
             clip.id,
             { findAlternativeIfInvalid: true }
         )

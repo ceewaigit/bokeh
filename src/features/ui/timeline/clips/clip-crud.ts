@@ -7,7 +7,7 @@
 
 import type { Project, Track, Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
-import { ClipPositioning } from '@/features/ui/timeline/clips/clip-positioning'
+import { validatePosition, getReorderTarget } from '@/features/ui/timeline/utils/drag-positioning'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { withMutation } from '@/features/ui/timeline/clips/clip-mutation'
 
@@ -49,10 +49,16 @@ export function addClipToTrack(
         insertIndex = options.insertIndex
     } else if (targetTrackType === TrackType.Webcam) {
         // Webcam track: Ensure no collision by validating position
-        const validation = ClipPositioning.validatePosition(
+        const blocks = targetTrack.clips.map(c => ({
+            id: c.id,
+            startTime: c.startTime,
+            endTime: c.startTime + c.duration
+        }))
+
+        const validation = validatePosition(
             proposedTime,
             clip.duration,
-            targetTrack.clips,
+            blocks,
             undefined, // no excludeClipId
             { findAlternativeIfInvalid: true }
         )
@@ -65,7 +71,8 @@ export function addClipToTrack(
         const sortedIndex = targetTrack.clips.findIndex(c => c.startTime > clip.startTime)
         insertIndex = sortedIndex === -1 ? targetTrack.clips.length : sortedIndex
     } else {
-        const result = ClipPositioning.getReorderTarget(proposedTime, targetTrack.clips)
+        const blocks = targetTrack.clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+        const result = getReorderTarget(proposedTime, blocks)
         insertIndex = result.insertIndex
     }
 
@@ -223,10 +230,16 @@ export function updateClipInTrack(
                 const proposedTime = updates.startTime ?? clip.startTime
                 const proposedDuration = updates.duration ?? clip.duration
 
-                const validation = ClipPositioning.validatePosition(
+                const blocks = track.clips.map(c => ({
+                    id: c.id,
+                    startTime: c.startTime,
+                    endTime: c.startTime + c.duration
+                }))
+
+                const validation = validatePosition(
                     proposedTime,
                     proposedDuration,
-                    track.clips,
+                    blocks,
                     clip.id, // exclude self
                     { findAlternativeIfInvalid: true }
                 )

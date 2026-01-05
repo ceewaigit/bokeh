@@ -253,7 +253,10 @@ export const WebcamLayer = React.memo(({
       >
         <div style={sourceStyle} ref={webcamContainerRef}>
           {/* Wrap Video in Sequence so it has its own frame context starting from 0 */}
-          <Sequence from={effectStartFrame} durationInFrames={durationFrames} layout="none">
+          {/* premountFor/postmountFor: Pre-load video 30 frames before/after visibility
+              This fixes the scrubbing issue where webcam disappears when seeking to middle of clip */}
+          {/* @ts-expect-error - Remotion types might be missing these props but they are supported and required for scrubbing */}
+          <Sequence from={effectStartFrame} durationInFrames={durationFrames} layout="none" premountFor={30} postmountFor={30}>
             <Video
               src={webcamVideoUrl}
               style={webcamStyle}

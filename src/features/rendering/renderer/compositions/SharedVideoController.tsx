@@ -325,6 +325,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     );
   }
 
+  // Check if 3D screen transform is active (for GPU optimization hints)
+  const has3DTransform = Boolean(snapshotTransforms.screen3D);
+
   return (
     <AbsoluteFill>
       <VideoPositionProvider value={videoPositionContextValue}>
@@ -346,6 +349,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               filter: effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : undefined,
               willChange: isRendering ? undefined : 'transform',
               zIndex: 1,
+              // GPU OPTIMIZATION: These hints help browser allocate proper GPU textures
+              // for 3D-transformed elements, preventing blur/quality degradation
+              transformStyle: has3DTransform ? 'preserve-3d' : undefined,
+              backfaceVisibility: has3DTransform ? 'hidden' : undefined,
             }}
           >
             {/* INNER CONTAINER: Handles CLIPPING (Border Radius, Crop) */}

@@ -15,7 +15,7 @@ export const TimelineGhostPlayhead = React.memo(() => {
   const isPlaying = useProjectStore((s) => s.isPlaying)
   const currentProject = useProjectStore((s) => s.currentProject)
   const colors = useTimelineColors()
-  // Hide ghost playhead during playback - only show when paused
+  // Hide ghost playhead during playback or scrubbing - always show on hover
   if (hoverTime === null || isScrubbing || isPlaying) return null
   // Clamp to safe end time (center of last frame) to prevent empty video
   const fps = currentProject ? TimelineDataService.getFps(currentProject) : 30

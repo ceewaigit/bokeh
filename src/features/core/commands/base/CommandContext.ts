@@ -1,5 +1,5 @@
 import type { Project, Clip, Track, Recording, TrackType, EffectType } from '@/types/project'
-import { ClipPositioning } from '@/features/ui/timeline/clips/clip-positioning'
+import { findNextValidPosition as findNextValidPos } from '@/features/ui/timeline/utils/drag-positioning'
 import type { SelectedEffectLayer } from '@/features/effects/types'
 import type { ProjectStore, ClipboardEffect } from '@/features/core/stores/slices/types'
 
@@ -94,7 +94,8 @@ export function findNextValidPosition(
   desiredStart: number,
   duration: number
 ): number {
-  return ClipPositioning.findNextValidPosition(desiredStart, duration, track.clips, clipId)
+  const blocks = track.clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+  return findNextValidPos(desiredStart, duration, blocks, clipId)
 }
 
 // Re-export calculateTimelineDuration from clip-reflow for backward compatibility

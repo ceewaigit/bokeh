@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { PlayerRef } from '@remotion/player';
 import { useProjectStore } from '@/features/core/stores/project-store';
+import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store';
 import { timeObserver } from '@/features/ui/timeline/time/time-observer';
 import { useThrottledSeek } from '@/features/ui/timeline/hooks/use-throttled-seek';
 import { msToFrame, frameToMs } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
@@ -58,13 +59,17 @@ export function usePlayerSync({
         }
     }, []);
 
-    // Hover preview sync
+    // Hover preview sync - respects scrubOnHover setting
     useEffect(() => {
         if (!playerRef.current) return;
 
         let prevHoverTime = useProjectStore.getState().hoverTime;
         const unsubscribe = useProjectStore.subscribe((state) => {
             if (state.isPlaying || state.isScrubbing || isExporting) return;
+
+            // Check scrubOnHover reactively on each hover change
+            const scrubOnHover = usePreviewSettingsStore.getState().scrubOnHover;
+            if (!scrubOnHover) return;
 
             const nextHoverTime = state.hoverTime;
             if (nextHoverTime === prevHoverTime) return;
