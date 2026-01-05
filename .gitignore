@@ -151,3 +151,7 @@ temp/
 .spotlight-V100
 .Trashes
 Icon?
+
+# Whisper binaries and models (downloaded during build)
+resources/bin/whisper/
+resources/models/whisper/

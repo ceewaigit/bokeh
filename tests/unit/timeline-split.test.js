@@ -1,4 +1,4 @@
-const { splitClipAtTime } = require('@/features/timeline/clips/clip-split')
+const { splitClipAtTime } = require('@/features/ui/timeline/clips/clip-split')
 
 describe('splitClipAtTime source bounds', () => {
   it('safely defaults missing sourceIn/sourceOut when splitting', () => {

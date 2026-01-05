@@ -7,7 +7,7 @@ import { ThemeProvider } from './shared/contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { PermissionGuard } from './components/permission-guard';
 import { WindowSurfaceProvider } from './components/window-surface-provider';
-import { SettingsDialog } from '@/features/settings/components/settings-dialog';
+import { SettingsDialog } from '@/features/core/settings/components/settings-dialog';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import './app/globals.css';

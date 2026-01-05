@@ -5,4 +5,4 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export { clamp } from '@/features/canvas/math/clamp'
+export { clamp } from '@/features/rendering/canvas/math/clamp'

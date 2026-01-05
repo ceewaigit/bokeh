@@ -155,7 +155,7 @@ export class EffectGenerationService {
         metadataByRecordingId?: Map<string, RecordingMetadata>
     ): void {
         // Import idle detector dynamically to avoid circular deps
-        const { IdleActivityDetector } = require('@/features/timeline/activity-detection/idle-detector')
+        const { IdleActivityDetector } = require('@/features/ui/timeline/activity-detection/idle-detector')
 
         // Clear existing auto-generated effects using EffectStore
         EffectStore.ensureArray(project)
@@ -164,9 +164,6 @@ export class EffectGenerationService {
         // Check if there's a valid webcam clip with a valid recording
         const webcamTrack = project.timeline.tracks.find(t => t.type === 'webcam')
         const webcamClips = webcamTrack?.clips || []
-        const hasValidWebcam = webcamClips.some(clip =>
-            project.recordings.some(r => r.id === clip.recordingId)
-        )
 
         // Clean up orphaned webcam clips (clips without valid recordings)
         if (webcamTrack) {
@@ -179,10 +176,7 @@ export class EffectGenerationService {
         project.timeline.effects = allEffects.filter(e => {
             // Keep background and cursor effects
             if (e.type === EffectType.Background || e.type === EffectType.Cursor) return true
-            // Remove webcam effects if no valid webcam recording exists
-            if (e.type === EffectType.Webcam && !hasValidWebcam) return false
-            // Keep webcam effects if valid
-            if (e.type === EffectType.Webcam) return true
+            // NOTE: Webcam effects removed - webcam styling now lives on clip.layout
             // Remove screen effects that were auto-generated (have 'screen-auto-' prefix)
             if (e.type === EffectType.Screen && e.id.startsWith('screen-auto-')) return false
             // Keep manually created screen effects

@@ -1,52 +1,31 @@
-import type { WebcamEffectData } from '@/types/project'
+import type { WebcamLayoutData } from '@/types/project'
 
 export function getWebcamLayout(
-  data: WebcamEffectData,
+  data: WebcamLayoutData,
   containerWidth: number,
   containerHeight: number
 ): { x: number; y: number; size: number } {
   const size = (data.size / 100) * containerWidth
+  const padding = data.padding ?? 0
+  
   let x = (data.position.x / 100) * containerWidth
   let y = (data.position.y / 100) * containerHeight
-  const padding = data.padding ?? 0
+  const anchor = data.position.anchor
 
-  switch (data.position.anchor) {
-    case 'top-left':
-      x += padding
-      y += padding
-      break
-    case 'top-center':
-      x -= size / 2
-      y += padding
-      break
-    case 'top-right':
-      x -= size + padding
-      y += padding
-      break
-    case 'center-left':
-      x += padding
-      y -= size / 2
-      break
-    case 'center':
-      x -= size / 2
-      y -= size / 2
-      break
-    case 'center-right':
-      x -= size + padding
-      y -= size / 2
-      break
-    case 'bottom-left':
-      x += padding
-      y -= size + padding
-      break
-    case 'bottom-center':
-      x -= size / 2
-      y -= size + padding
-      break
-    case 'bottom-right':
-      x -= size + padding
-      y -= size + padding
-      break
+  if (anchor.includes('left')) {
+    x += padding
+  } else if (anchor.includes('right')) {
+    x -= size + padding
+  } else {
+    x -= size / 2
+  }
+
+  if (anchor.includes('top')) {
+    y += padding
+  } else if (anchor.includes('bottom')) {
+    y -= size + padding
+  } else {
+    y -= size / 2
   }
 
   return { x, y, size }
@@ -54,7 +33,7 @@ export function getWebcamLayout(
 
 export function getWebcamAnchorPoint(
   layout: { x: number; y: number; size: number },
-  anchor: WebcamEffectData['position']['anchor']
+  anchor: WebcamLayoutData['position']['anchor']
 ): { x: number; y: number } {
   const { x, y, size } = layout;
   switch (anchor) {

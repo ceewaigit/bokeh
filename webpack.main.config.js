@@ -5,7 +5,7 @@ module.exports = {
   mode: 'development',
   entry: {
     index: './electron/main/index.ts',
-    'export-worker': './electron/main/export-worker.ts'
+    'export-worker': './electron/main/export/worker-process.ts'
   },
   module: {
     rules: [

@@ -1,5 +1,5 @@
-import { TrackingService } from '@/features/recording/services/tracking-service'
-import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/features/bridges/recording-ipc-bridge'
+import { TrackingService } from '@/features/media/recording/services/tracking-service'
+import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/features/core/bridges/recording-ipc-bridge'
 
 const createBridge = () => {
   const mouseListeners: Array<(data: unknown) => void> = []

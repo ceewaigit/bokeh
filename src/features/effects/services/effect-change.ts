@@ -1,7 +1,7 @@
 import type { Clip, Effect, Project, Recording } from '@/types/project'
 import { EffectType } from '@/types/project'
-import type { SelectedEffectLayer } from '@/types/effects'
-import { EffectLayerType } from '@/types/effects'
+import type { SelectedEffectLayer } from '@/features/effects/types'
+import { EffectLayerType } from '@/features/effects/types'
 import { resolveEffectIdForType } from '@/features/effects/core/selection'
 
 type ExecuteCommand = (commandName: string, ...args: any[]) => void
@@ -70,28 +70,6 @@ function updateSelectedBlock(
 
   updateEffectData(context.executeCommand, selectedId, data)
   return true
-}
-
-function updateSelectedWebcam(
-  context: EffectChangeContext,
-  data: Record<string, unknown>,
-  enabled?: boolean
-): void {
-  const selectedId = resolveEffectIdForType(context.effects, context.selectedEffectLayer, EffectType.Webcam)
-  if (!selectedId) {
-    const webcamEffects = context.effects.filter(effect => effect.type === EffectType.Webcam)
-    if (webcamEffects.length === 0) {
-      console.error('[EffectChange] No webcam effect found. Add a webcam block on the timeline to edit settings.')
-      return
-    }
-    console.error('[EffectChange] Webcam updates require a selected webcam block.')
-    return
-  }
-
-  const effect = context.effects.find(item => item.id === selectedId)
-  if (!effect) return
-
-  updateEffectData(context.executeCommand, effect.id, data, enabled ?? effect.enabled)
 }
 
 async function maybeGenerateZoomEffects(
@@ -229,11 +207,8 @@ export async function applyEffectChange(
     return
   }
 
-  if (type === EffectType.Webcam) {
-    const { enabled, ...effectData } = data ?? {}
-    updateSelectedWebcam(context, effectData, enabled)
-    return
-  }
+  // NOTE: EffectType.Webcam is no longer handled here.
+  // Webcam styling lives on clip.layout and is updated via WebcamTab -> UpdateClipLayout command
 
   if (type === EffectType.Annotation) {
     updateAnnotationEffect(context, data)

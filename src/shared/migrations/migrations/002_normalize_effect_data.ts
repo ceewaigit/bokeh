@@ -5,7 +5,7 @@
 import type { Migration } from '../index'
 import type { BackgroundEffectData, Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
+import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 
 function mergeBackgroundData(data?: BackgroundEffectData): BackgroundEffectData {
   const base = DEFAULT_BACKGROUND_DATA

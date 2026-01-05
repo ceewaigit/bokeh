@@ -4,16 +4,16 @@
 // Please import directly from the respective feature directories.
 
 // Renderer
-export * from '@/features/renderer/types';
+export * from '@/features/rendering/renderer/types';
 
 // Crop
-export * from '@/features/crop/types';
+export * from '@/features/effects/crop/types';
 
 // Motion Blur
-export * from '@/features/motion-blur/types';
+export * from '@/features/rendering/motion-blur/types';
 
 // Recording
-export * from '@/features/recording/types/resources';
+export * from '@/features/media/recording/types/resources';
 
 // Editor
-export * from '@/features/editor/types';
+export * from '@/features/ui/editor/types';

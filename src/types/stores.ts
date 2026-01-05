@@ -7,8 +7,8 @@ import type {
   Clip,
   Effect
 } from './project'
-import type { SelectedEffectLayer } from './effects'
-import { EffectType } from './effects'
+import type { SelectedEffectLayer } from '@/features/effects/types'
+import { EffectType } from '@/features/effects/types'
 
 // Clipboard effect type with proper union typing for data
 export interface ClipboardEffect {
@@ -17,6 +17,7 @@ export interface ClipboardEffect {
   sourceClipId: string
   startTime?: number
   endTime?: number
+  clipId?: string // Source clip ID for clip-bound effects (e.g., webcam)
 }
 
 // ProjectStore interface extracted from CommandContext to avoid circular dependency

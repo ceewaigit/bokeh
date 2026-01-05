@@ -8,8 +8,8 @@ import type { BackgroundEffectData, DeviceMockupData, CanvasSettings } from '@/t
 import { AspectRatioPreset, DeviceType, DeviceModel } from '@/types/project'
 import { ASPECT_RATIO_PRESETS, DEFAULT_CANVAS_SETTINGS } from '@/shared/constants/aspect-ratio-presets'
 import { DEVICE_MOCKUPS, getMockupsByType, DEFAULT_MOCKUP_DATA, DEFAULT_MOCKUP_BY_TYPE } from '@/shared/constants/device-mockups'
-import { useAvailableMockups, type MockupFrame, type MockupVariant } from '@/features/background/hooks/use-available-mockups'
-import { useProjectStore } from '@/features/stores/project-store'
+import { useAvailableMockups, type MockupFrame, type MockupVariant } from '@/features/effects/background/hooks/use-available-mockups'
+import { useProjectStore } from '@/features/core/stores/project-store'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Smartphone,

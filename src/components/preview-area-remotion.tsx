@@ -11,25 +11,25 @@
 
 import React, { useRef, useEffect, useMemo, useLayoutEffect, useState } from 'react';
 import { PlayerRef } from '@remotion/player';
-import { useProjectStore } from '@/features/stores/project-store';
-import { DEFAULT_PROJECT_SETTINGS } from '@/features/settings/defaults';
-import { usePreviewSettingsStore } from '@/features/stores/preview-settings-store';
-import { useTimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata';
-import { usePlayerConfiguration } from '@/shared/hooks/use-player-configuration';
+import { useProjectStore } from '@/features/core/stores/project-store';
+import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults';
+import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store';
+import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
+import { usePlayerConfiguration } from '@/features/rendering/renderer/hooks/use-player-configuration';
 import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
 import type { CropEffectData } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
 import { assertDefined } from '@/shared/errors';
-import { useWorkspaceStore } from '@/features/stores/workspace-store';
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
 import { EffectStore } from '@/features/effects/core/store';
-import { usePlayerSync } from '@/features/editor/components/preview/use-player-sync';
-import { usePreviewVisibility, usePreviewResize, useVideoPreloader } from '@/features/editor/components/preview/use-preview-lifecycle';
-import { PlayerContainer } from '@/features/editor/components/preview/player-container';
-import { PreviewInteractions } from '@/features/editor/components/preview/preview-interactions';
-import { TimelineProvider } from '@/features/renderer/context/TimelineContext';
-import { PlaybackSettingsProvider } from '@/features/renderer/context/playback/PlaybackSettingsContext';
-import { msToFrame } from '@/features/renderer/compositions/utils/time/frame-time';
-import { AnnotationDock } from '@/features/annotation/ui/AnnotationDock';
+import { usePlayerSync } from '@/features/ui/editor/components/preview/use-player-sync';
+import { usePreviewVisibility, usePreviewResize, useVideoPreloader } from '@/features/ui/editor/components/preview/use-preview-lifecycle';
+import { PlayerContainer } from '@/features/ui/editor/components/preview/player-container';
+import { PreviewInteractions } from '@/features/ui/editor/components/preview/preview-interactions';
+import { TimelineProvider } from '@/features/rendering/renderer/context/TimelineContext';
+import { PlaybackSettingsProvider } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
+import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
+import { AnnotationDock } from '@/features/effects/annotation/ui/AnnotationDock';
 
 interface PreviewAreaRemotionProps {
   // Crop editing props

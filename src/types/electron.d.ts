@@ -1,3 +1,5 @@
+import type { TranscriptionStatus } from './project'
+
 export interface ElectronAPI {
   // Desktop capture
   getDesktopSources: (options: any) => Promise<Array<{
@@ -76,6 +78,55 @@ export interface ElectronAPI {
   listMetadataFiles?: (folderPath: string) => Promise<{ success: boolean; files?: string[]; error?: string }>
   getVideoUrl?: (filePath: string) => Promise<string | null>
   fileExists?: (filePath: string) => Promise<boolean>
+
+  // Transcription
+  transcription?: {
+    start: (options: { recordingId: string; filePath: string; folderPath?: string; modelName?: string; language?: string }) => Promise<{
+      success: boolean
+      transcript?: {
+        id: string
+        recordingId: string
+        language: string
+        modelUsed: string
+        generatedAt: string
+        words: Array<{
+          id: string
+          text: string
+          startTime: number
+          endTime: number
+          confidence: number
+        }>
+      }
+      error?: string
+    }>
+    cancel: (recordingId: string) => Promise<{ success: boolean; error?: string }>
+    listModels: () => Promise<{
+      available: string[]
+      downloaded: Array<{ name: string; filePath: string; sizeBytes: number }>
+    }>
+    downloadModel: (modelName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
+    recommendModel: () => Promise<string>
+    whisperStatus: () => Promise<{
+      available: boolean
+      path?: string
+      platform: string
+      arch: string
+      canAutoInstall: boolean
+    }>
+    installWhisper: () => Promise<{ success: boolean; path?: string; error?: string }>
+    onProgress: (callback: (event: any, data: {
+      recordingId: string
+      stage: 'extract' | 'transcribe' | 'parse' | 'download' | 'install'
+      progress?: number
+      message?: string
+      modelName?: string
+    }) => void) => () => void
+    onStatus: (callback: (event: any, data: {
+      recordingId: string
+      status: TranscriptionStatus
+      message?: string
+    }) => void) => () => void
+  }
 
   // Preview proxy generation for large source videos
   generatePreviewProxy?: (filePath: string) => Promise<{

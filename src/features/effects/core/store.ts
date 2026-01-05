@@ -7,14 +7,14 @@
 
 import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { findNearestAvailableStart } from '@/features/timeline/utils/nearest-gap'
+import { findNearestAvailableStart } from '@/features/ui/timeline/utils/nearest-gap'
 
 export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
   EffectType.Plugin,
   EffectType.Zoom,
   EffectType.Screen,
   EffectType.Keystroke,
-  EffectType.Webcam,
+  // NOTE: Webcam removed - now handled via clip.layout
 ])
 
 export function isValidEffectTiming(effect: Effect): boolean {

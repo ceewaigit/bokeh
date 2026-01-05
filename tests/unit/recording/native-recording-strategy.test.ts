@@ -1,6 +1,6 @@
-import { NativeRecordingStrategy } from '@/features/recording/strategies/native-recording-strategy'
-import type { RecordingConfig } from '@/features/recording/types/recording-strategy'
-import { type RecordingIpcBridge } from '@/features/bridges/recording-ipc-bridge'
+import { NativeRecordingStrategy } from '@/features/media/recording/strategies/native-recording-strategy'
+import type { RecordingConfig } from '@/features/media/recording/types/recording-strategy'
+import { type RecordingIpcBridge } from '@/features/core/bridges/recording-ipc-bridge'
 
 const createBridge = (overrides: Partial<RecordingIpcBridge> = {}): RecordingIpcBridge => ({
   nativeRecorderAvailable: jest.fn().mockResolvedValue(true),

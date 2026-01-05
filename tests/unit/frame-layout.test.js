@@ -3,7 +3,7 @@ import { describe, it, expect } from '@jest/globals';
 
 describe('buildFrameLayout', () => {
   it('eliminates 1-frame gaps between adjacent clips', () => {
-    const { buildFrameLayout } = require('../../src/features/timeline/utils/frame-layout');
+    const { findActiveFrameLayoutItems, buildFrameLayout } = require('../../src/features/ui/timeline/utils/frame-layout');
 
     const fps = 30;
 

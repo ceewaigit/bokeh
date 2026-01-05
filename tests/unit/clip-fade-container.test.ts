@@ -1,4 +1,4 @@
-import { resolveClipFade } from '@/features/renderer/compositions/utils/effects/clip-fade'
+import { resolveClipFade } from '@/features/rendering/renderer/compositions/utils/effects/clip-fade'
 
 describe('resolveClipFade', () => {
   it('returns no parent fade when no fades are set', () => {

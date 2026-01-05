@@ -14,7 +14,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/shared/contexts/theme-context"
-import { useWindowSurfaceStore, type WindowSurfaceMode } from "@/features/stores/window-surface-store"
+import { useWindowSurfaceStore, type WindowSurfaceMode } from "@/features/core/stores/window-surface-store"
 import { WINDOW_SURFACE_PRESETS } from "@/shared/appearance/window-surface"
 import { cn, clamp } from "@/shared/utils/utils"
 

@@ -3,35 +3,36 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 
 import { cn } from '@/shared/utils/utils'
-import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamEffectData, Effect } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamLayoutData, Effect } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
-import { EffectLayerType } from '@/types/effects'
+import { EffectLayerType } from '@/features/effects/types'
 import { getBackgroundEffect, getCropEffectForClip, getEffectByType, getEffectsOfType } from '@/features/effects/core/filters'
 import { resolveEffectIdForType } from '@/features/effects/core/selection'
-import { DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
+import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
 import { TrackType } from '@/types/project'
-import { useTrackExistence } from '@/features/stores/selectors/timeline-selectors'
+import { useTrackExistence } from '@/features/core/stores/selectors/timeline-selectors'
 
-import { BackgroundTab } from '@/features/background'
-import { CursorTab } from '@/features/cursor/ui/CursorTab'
-import { KeystrokeTab } from '@/features/keystroke'
-import { ZoomTab } from '@/features/editor/logic/viewport/zoom'
+import { BackgroundTab } from '@/features/effects/background'
+import { CursorTab } from '@/features/effects/cursor/ui/CursorTab'
+import { KeystrokeTab } from '@/features/effects/keystroke'
+import { ZoomTab } from '@/features/ui/editor/logic/viewport/zoom'
 import { ShapeTab } from './shape-tab'
-import { ScreenTab } from '@/features/screen'
+import { ScreenTab } from '@/features/effects/screen'
 import { CropTab } from './crop-tab'
 import { ClipTab } from './clip-tab'
 import { MotionTab } from './motion-tab'
 import { CanvasTab } from './canvas-tab'
-import { WebcamTab } from '@/features/webcam'
-import { AnnotationsTab } from '@/features/annotation'
+import { WebcamTab } from '@/features/media/webcam'
+import { AnnotationsTab } from '@/features/effects/annotation'
+import { TranscriptTab } from '@/features/ui/transcript/components/TranscriptTab'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useProjectStore } from '@/features/stores/project-store'
-import { useSelectedClip } from '@/features/stores/selectors/clip-selectors'
+import { useProjectStore } from '@/features/core/stores/project-store'
+import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 import { useEffectsSidebarContext } from './EffectsSidebarContext'
-import { useWorkspaceStore } from '@/features/stores/workspace-store'
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 
 const tabMotion = { type: "tween", duration: 0.12, ease: [0.2, 0.8, 0.2, 1] } as const
 
@@ -46,7 +47,7 @@ type FramingSubTabId = 'zoom' | 'crop'
 const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Background]: 'Backdrop',
   [EffectLayerType.Screen]: 'Depth',
-  [EffectLayerType.Webcam]: 'Camera',
+  // NOTE: Webcam removed - webcam styling now on clip.layout
   [EffectLayerType.Cursor]: 'Pointer',
   [EffectLayerType.Keystroke]: 'Typing',
   [EffectLayerType.Zoom]: 'Focus',
@@ -55,6 +56,7 @@ const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Annotation]: 'Overlay',
   [EffectLayerType.Frame]: 'Window',
   [EffectLayerType.Video]: 'Video',
+  [EffectLayerType.Subtitle]: 'Subtitle',
 }
 
 function SubTabs<T extends string>({
@@ -162,11 +164,6 @@ export function EffectsSidebar({
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
   const cursorEffect = effects ? getEffectByType(effects, EffectType.Cursor) : undefined
   const keystrokeEffect = effects ? getEffectByType(effects, EffectType.Keystroke) : undefined
-  const webcamEffects = effects ? getEffectsOfType(effects, EffectType.Webcam, false) : []
-  const webcamEffectId = resolveEffectIdForType(webcamEffects, selectedEffectLayer, EffectType.Webcam, false)
-  const webcamEffect = webcamEffectId
-    ? webcamEffects.find(effect => effect.id === webcamEffectId)
-    : undefined
   const selectedAnnotation = React.useMemo(() => {
     if (selectedEffectLayer?.type !== EffectLayerType.Annotation || !selectedEffectLayer.id) {
       return null
@@ -248,9 +245,7 @@ export function EffectsSidebar({
         setActiveTab(SidebarTabId.Style)
         setStyleSubTab('frame')
         return
-      case EffectLayerType.Webcam:
-        setActiveTab(SidebarTabId.Webcam)
-        return
+      // NOTE: Webcam case removed - webcam is now handled via clip selection
       case EffectLayerType.Cursor:
         setActiveTab(SidebarTabId.Pointer)
         setPointerSubTab('cursor')
@@ -277,6 +272,9 @@ export function EffectsSidebar({
         setActiveTab(SidebarTabId.Framing)
         setFramingSubTab('zoom')
         return
+      case EffectLayerType.Subtitle:
+        setActiveTab(SidebarTabId.Transcript)
+        return
       default:
         setActiveTab(SidebarTabId.Advanced)
     }
@@ -299,7 +297,13 @@ export function EffectsSidebar({
       const currentClipId = selectedClip?.id || null
       if (currentClipId !== lastClipIdRef.current) {
         lastClipIdRef.current = currentClipId
-        if (currentClipId) setActiveTab(SidebarTabId.Clip)
+        if (currentClipId) {
+          if (selectedTrackType === TrackType.Webcam) {
+            setActiveTab(SidebarTabId.Webcam)
+          } else {
+            setActiveTab(SidebarTabId.Clip)
+          }
+        }
       }
     }
 
@@ -337,14 +341,6 @@ export function EffectsSidebar({
       setActiveTab(SidebarTabId.Style)
     }
   }, [activeTab, selectedClip, hasWebcamContent, setActiveTab])
-
-  useEffect(() => {
-    if (activeTab !== SidebarTabId.Webcam) return
-    if (selectedEffectLayer && selectedEffectLayer.type !== EffectLayerType.Webcam) return
-    if (selectedEffectLayer?.type === EffectLayerType.Webcam && selectedEffectLayer?.id) return
-    if (!webcamEffectId) return
-    selectEffectLayer(EffectLayerType.Webcam, webcamEffectId)
-  }, [activeTab, selectedEffectLayer, webcamEffectId, selectEffectLayer])
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = useCallback((updates: Partial<BackgroundEffectData>) => {
@@ -658,16 +654,7 @@ export function EffectsSidebar({
                     exit="exit"
                     className="space-y-3"
                   >
-                    <WebcamTab
-                      webcamEffect={webcamEffect}
-                      onUpdateWebcam={(updates) => {
-                        const current = webcamEffect?.data as WebcamEffectData | undefined
-                        if (current) {
-                          onEffectChange(EffectType.Webcam, { ...current, ...updates })
-                        }
-                      }}
-                      onEffectChange={onEffectChange}
-                    />
+                    <WebcamTab />
                   </motion.div>
                 )}
 
@@ -700,6 +687,19 @@ export function EffectsSidebar({
                       backgroundData={backgroundEffect?.data as BackgroundEffectData | undefined}
                       onBackgroundChange={scheduleBackgroundUpdate}
                     />
+                  </motion.div>
+                )}
+
+                {activeTab === SidebarTabId.Transcript && (
+                  <motion.div
+                    key={SidebarTabId.Transcript}
+                    variants={tabVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="space-y-3"
+                  >
+                    <TranscriptTab />
                   </motion.div>
                 )}
 

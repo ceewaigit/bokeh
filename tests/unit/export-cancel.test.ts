@@ -1,10 +1,10 @@
 
-import { RemotionExportService } from '@/features/export/remotion-export-service'
-import { MockIpcBridge } from '@/features/bridges/mock-ipc-bridge'
-import { resetIpcBridge, setIpcBridge } from '@/features/bridges'
+import { RemotionExportService } from '@/features/core/export/remotion-export-service'
+import { MockIpcBridge } from '@/features/core/bridges/mock-ipc-bridge'
+import { resetIpcBridge, setIpcBridge } from '@/features/core/bridges'
 
-jest.mock('@/features/bridges', () => ({
-  ...jest.requireActual('@/features/bridges'),
+jest.mock('@/features/core/bridges', () => ({
+  ...jest.requireActual('@/features/core/bridges'),
   isIpcAvailable: jest.fn().mockReturnValue(true)
 }))
 

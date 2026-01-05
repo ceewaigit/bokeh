@@ -1,9 +1,9 @@
 import { produce } from 'immer'
-import { createTimelineSlice } from '@/features/stores/slices/timeline-slice'
+import { createTimelineSlice } from '@/features/core/stores/slices/timeline-slice'
 import type { Project } from '@/types/project'
 import { TrackType } from '@/types/project'
-import { DEFAULT_STORE_SETTINGS } from '@/features/settings/defaults'
-import { normalizeProjectSettings } from '@/features/settings/normalize-project-settings'
+import { DEFAULT_STORE_SETTINGS } from '@/features/core/settings/defaults'
+import { normalizeProjectSettings } from '@/features/core/settings/normalize-project-settings'
 
 function createProject(): Project {
   const createdAt = new Date(0).toISOString()
@@ -83,13 +83,13 @@ function createTimelineStore(project: Project) {
   const get = () => state
   const set = (updater: any) => {
     state = typeof updater === 'function'
-      ? produce(state, (draft) => updater(draft))
+      ? produce(state, (draft: any) => updater(draft))
       : { ...state, ...updater }
   }
 
   return {
     getState: () => state,
-    ...createTimelineSlice(set as any, get as any)
+    ...createTimelineSlice(set as any, get as any, {} as any)
   }
 }
 

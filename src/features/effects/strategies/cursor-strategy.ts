@@ -6,7 +6,7 @@ import type { Effect, CursorEffectData } from '@/types/project'
 import { EffectType, CursorStyle } from '@/types/project'
 import type { EffectRenderContext } from '../rendering/renderer'
 import type { IEffectStrategy } from './index'
-import { calculateCursorState, getClickTextStyle, getCursorPath, resolveClickEffectConfig } from '@/features/cursor/logic/cursor-logic'
+import { calculateCursorState, getClickTextStyle, getCursorPath, resolveClickEffectConfig } from '@/features/effects/cursor/logic/cursor-logic'
 
 export class CursorEffectStrategy implements IEffectStrategy {
   readonly effectType = EffectType.Cursor

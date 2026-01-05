@@ -5,7 +5,7 @@
 
 import { logger } from '@/shared/utils/logger'
 import { MemoryError } from '@/shared/errors'
-import { RecordingStorage } from '@/features/storage/recording-storage'
+import { RecordingStorage } from '@/features/core/storage/recording-storage'
 
 interface BlobEntry {
   url: string

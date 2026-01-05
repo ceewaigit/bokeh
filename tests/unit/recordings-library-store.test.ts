@@ -1,4 +1,4 @@
-import { useRecordingsLibraryStore, type LibraryRecording } from '@/features/recording/store/library-store'
+import { useRecordingsLibraryStore, type LibraryRecording } from '@/features/media/recording/store/library-store'
 
 describe('recordings-library-store', () => {
   afterEach(() => {

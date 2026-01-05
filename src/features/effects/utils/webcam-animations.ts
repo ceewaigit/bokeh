@@ -1,12 +1,12 @@
 import { interpolate, spring } from 'remotion';
-import type { WebcamEffectData } from '@/types/project';
+import type { WebcamLayoutData } from '@/types/project';
 
 /**
  * Calculate animation values for webcam (scale, opacity, translate)
  * Shared between WebcamLayer (rendering) and PreviewInteractions (hit testing)
  */
 export function calculateWebcamAnimations(
-    data: WebcamEffectData,
+    data: WebcamLayoutData,
     frame: number,
     fps: number,
     startFrame: number,

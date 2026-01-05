@@ -5,7 +5,7 @@
 import type { Migration } from '../index'
 import type { Effect, Project, Recording, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
-import { normalizeProjectSettings } from '@/features/settings/normalize-project-settings'
+import { normalizeProjectSettings } from '@/features/core/settings/normalize-project-settings'
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif'])
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 
 describe('Trim reflow contiguity', () => {
   it('executeTrimClipEnd reflows subsequent clips to prevent gaps', () => {
-    const { executeTrimClipEnd } = require('../../src/features/timeline/clips/clip-trim');
+    const { trimClipStart, trimClipEnd, executeTrimClipEnd } = require('../../src/features/ui/timeline/clips/clip-trim');
 
     const clip1 = {
       id: 'clip-1',

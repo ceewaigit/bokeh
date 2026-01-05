@@ -1,5 +1,5 @@
 
-import { calculateClipFadeOpacity } from '@/features/renderer/compositions/utils/effects/clip-fade'
+import { calculateClipFadeOpacity } from '@/features/rendering/renderer/compositions/utils/effects/clip-fade'
 
 describe('Annotation Rendering Logic', () => {
     describe('calculateClipFadeOpacity', () => {
@@ -48,7 +48,6 @@ describe('Annotation Rendering Logic', () => {
             // 30 frame fade out, duration 100
             const outroDuration = 30
             const totalDuration = 100
-            const outroStart = 70
 
             // Frame 70: 1 opacity (just starting fade)
             expect(calculateClipFadeOpacity({

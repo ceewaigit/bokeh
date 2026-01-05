@@ -4,14 +4,14 @@
  * Handles inheritance of effects from video clips to generated/image clips.
  */
 
-import { type PersistedVideoState } from '@/features/timeline/utils/frame-layout'
+import { type PersistedVideoState } from '@/features/ui/timeline/utils/frame-layout'
 import type { ActiveClipDataAtFrame } from '@/types'
 import type { Effect, Recording } from '@/types/project'
-import type { FrameLayoutItem } from '@/features/timeline/utils/frame-layout'
-import { resolveClipDataForLayoutItem } from '@/features/renderer/utils/get-active-clip-data-at-frame'
+import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
+import { resolveClipDataForLayoutItem } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame'
 import { EffectType } from '@/types/project'
 
-export type { PersistedVideoState } from '@/features/timeline/utils/frame-layout'
+export type { PersistedVideoState } from '@/features/ui/timeline/utils/frame-layout'
 
 interface ApplyInheritanceArgs {
   clipData: ActiveClipDataAtFrame

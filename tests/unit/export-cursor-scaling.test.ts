@@ -1,5 +1,5 @@
 
-import { mapRecordingEffectsToTimeline } from '../../electron/main/handlers/export/utils/effect-mapper';
+import { mapRecordingEffectsToTimeline } from '../../electron/main/export/utils/effect-mapper';
 
 describe('Export Effect Mapping (Cursor Scaling Regression)', () => {
   it('correctly maps recording-scoped cursor effects to timeline-scoped effects', () => {

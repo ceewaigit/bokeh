@@ -390,6 +390,42 @@ const electronAPI = {
   listMetadataFiles: (folderPath: string) =>
     ipcRenderer.invoke('list-metadata-files', folderPath),
 
+  // Transcription
+  transcription: {
+    start: (options: { recordingId: string; filePath: string; folderPath?: string; modelName?: string; language?: string }) =>
+      ipcRenderer.invoke('transcription:start', options),
+    cancel: (recordingId: string) =>
+      ipcRenderer.invoke('transcription:cancel', recordingId),
+    listModels: () =>
+      ipcRenderer.invoke('transcription:list-models'),
+    downloadModel: (modelName: string) =>
+      ipcRenderer.invoke('transcription:download-model', modelName),
+    recommendModel: () =>
+      ipcRenderer.invoke('transcription:recommend-model'),
+    whisperStatus: () =>
+      ipcRenderer.invoke('transcription:whisper-status'),
+    installWhisper: () =>
+      ipcRenderer.invoke('transcription:install-whisper'),
+    onProgress: (callback: (event: IpcRendererEvent, data: any) => void) => {
+      const wrapped = (event: IpcRendererEvent, data: any) => {
+        if (data && typeof data === 'object') {
+          callback(event, data)
+        }
+      }
+      ipcRenderer.on('transcription:progress', wrapped)
+      return () => ipcRenderer.removeListener('transcription:progress', wrapped)
+    },
+    onStatus: (callback: (event: IpcRendererEvent, data: any) => void) => {
+      const wrapped = (event: IpcRendererEvent, data: any) => {
+        if (data && typeof data === 'object') {
+          callback(event, data)
+        }
+      }
+      ipcRenderer.on('transcription:status', wrapped)
+      return () => ipcRenderer.removeListener('transcription:status', wrapped)
+    }
+  },
+
   // Get a URL that can be used to stream video files
   getVideoUrl: (filePath: string) =>
     ipcRenderer.invoke('get-video-url', filePath),

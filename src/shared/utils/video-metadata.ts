@@ -1,5 +1,5 @@
 // Cache for video durations to prevent repeated metadata loads
-import { createVideoStreamUrl } from '@/features/recording/components/library/utils/recording-paths';
+import { createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths';
 const durationCache = new Map<string, Promise<number>>()
 
 // Global semaphore to limit concurrent video decoder operations

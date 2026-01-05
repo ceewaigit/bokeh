@@ -1,4 +1,4 @@
-import { parseZoomBlocks } from '@/features/editor/logic/viewport/logic/orchestrator'
+import { parseZoomBlocks } from '@/features/ui/editor/logic/viewport/logic/orchestrator'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 
 describe('zoom-blocks validation', () => {

@@ -1,6 +1,7 @@
 import type { Effect, KeyboardEvent, KeystrokeEffectData } from '@/types/project'
 import { EffectType, KeystrokePosition } from '@/types/project'
-import { DEFAULT_KEYSTROKE_DATA } from '@/features/keystroke/config'
+import { OverlayAnchor } from '@/types/overlays'
+import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config'
 import type { EffectRenderContext } from '../rendering/renderer'
 import {
   computeKeystrokeSegments,
@@ -11,6 +12,8 @@ import {
   type KeystrokeSegment,
   type KeystrokeStylePreset,
 } from './utils'
+
+import { getOverlayAnchorPosition } from '@/features/rendering/overlays/anchor-utils'
 
 export type KeystrokeDrawRect = { x: number; y: number; width: number; height: number }
 
@@ -98,15 +101,24 @@ export class KeystrokeRenderer {
   private calculatePosition(videoWidth: number, videoHeight: number): { x: number; y: number } {
     const scale = this.options.scale || 1
     const margin = 48 * scale
+    const anchor = this.resolveAnchor()
+    const offsetX = this.options.offsetX ?? 0
+    const offsetY = this.options.offsetY ?? 0
 
+    const pos = getOverlayAnchorPosition(anchor, videoWidth, videoHeight, margin)
+    return { x: pos.x + offsetX, y: pos.y + offsetY }
+  }
+
+  private resolveAnchor(): OverlayAnchor {
+    if (this.options.anchor) return this.options.anchor
     switch (this.options.position) {
-      case KeystrokePosition.BottomRight:
-        return { x: videoWidth - margin, y: videoHeight - margin }
       case KeystrokePosition.TopCenter:
-        return { x: videoWidth / 2, y: margin }
+        return OverlayAnchor.TopCenter
+      case KeystrokePosition.BottomRight:
+        return OverlayAnchor.BottomRight
       case KeystrokePosition.BottomCenter:
       default:
-        return { x: videoWidth / 2, y: videoHeight - margin }
+        return OverlayAnchor.BottomCenter
     }
   }
 
@@ -136,17 +148,42 @@ export class KeystrokeRenderer {
 
     let boxX = 0
     let boxY = 0
+    const anchor = this.resolveAnchor()
 
-    switch (this.options.position) {
-      case KeystrokePosition.BottomRight:
-        boxX = x - boxWidth
-        boxY = y - boxHeight
+    switch (anchor) {
+      case OverlayAnchor.TopLeft:
+        boxX = x
+        boxY = y
         break
-      case KeystrokePosition.TopCenter:
+      case OverlayAnchor.TopCenter:
         boxX = x - boxWidth / 2
         boxY = y
         break
-      case KeystrokePosition.BottomCenter:
+      case OverlayAnchor.TopRight:
+        boxX = x - boxWidth
+        boxY = y
+        break
+      case OverlayAnchor.CenterLeft:
+        boxX = x
+        boxY = y - boxHeight / 2
+        break
+      case OverlayAnchor.Center:
+        boxX = x - boxWidth / 2
+        boxY = y - boxHeight / 2
+        break
+      case OverlayAnchor.CenterRight:
+        boxX = x - boxWidth
+        boxY = y - boxHeight / 2
+        break
+      case OverlayAnchor.BottomLeft:
+        boxX = x
+        boxY = y - boxHeight
+        break
+      case OverlayAnchor.BottomRight:
+        boxX = x - boxWidth
+        boxY = y - boxHeight
+        break
+      case OverlayAnchor.BottomCenter:
       default:
         boxX = x - boxWidth / 2
         boxY = y - boxHeight

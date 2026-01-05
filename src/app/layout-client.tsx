@@ -4,9 +4,9 @@ import { useEffect } from "react"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { RecordingStorage } from "@/features/storage/recording-storage"
+import { RecordingStorage } from "@/features/core/storage/recording-storage"
 import { ThemeProvider } from "@/shared/contexts/theme-context"
-import { SettingsDialog } from "@/features/settings/components/settings-dialog"
+import { SettingsDialog } from "@/features/core/settings/components/settings-dialog"
 
 export default function LayoutClient({
   children,

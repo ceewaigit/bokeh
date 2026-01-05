@@ -1,4 +1,4 @@
-import { getPrintableCharFromKey, isLikelyKeyboardKey } from '@/features/keyboard/keyboard-utils'
+import { getPrintableCharFromKey, isLikelyKeyboardKey } from '@/features/core/keyboard/keyboard-utils'
 
 describe('keyboard-utils getPrintableCharFromKey', () => {
   it('handles uiohook KeyA/Digit1 patterns', () => {

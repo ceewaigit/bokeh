@@ -12,25 +12,26 @@ import { isDev, getRecordingsDirectory } from './config'
 import { makeVideoSrc } from './utils/video-url-factory'
 import { createRecordButton, setupRecordButton } from './windows/record-button'
 import { PermissionService } from './services/permission-service'
-import { registerRecordingHandlers } from './handlers/recording'
-import { registerSourceHandlers } from './handlers/sources'
-import { registerAreaSelectionHandlers } from './handlers/area-selection-handler'
-import { registerPermissionHandlers } from './handlers/permissions'
-import { registerMouseTrackingHandlers, cleanupMouseTracking } from './handlers/mouse-tracking'
-import { registerKeyboardTrackingHandlers, cleanupKeyboardTracking } from './handlers/keyboard-tracking'
-import { registerFileOperationHandlers } from './handlers/file-operations'
-import { registerDialogHandlers } from './handlers/dialogs'
-import { registerWindowControlHandlers } from './handlers/window-controls'
-import { registerWindowSurfaceHandlers } from './handlers/window-surface'
-import { setupNativeRecorder } from './handlers/native-recorder'
-import { setupExportHandler, cleanupBundleCache } from './handlers/export'
-import { setupThumbnailHandler } from './handlers/thumbnail'
+import { registerRecordingHandlers } from './ipc/recording'
+import { registerSourceHandlers } from './ipc/sources'
+import { registerAreaSelectionHandlers } from './ipc/area-selection'
+import { registerPermissionHandlers } from './ipc/permissions'
+import { registerMouseTrackingHandlers, cleanupMouseTracking } from './ipc/mouse-tracking'
+import { registerKeyboardTrackingHandlers, cleanupKeyboardTracking } from './ipc/keyboard-tracking'
+import { registerFileOperationHandlers } from './ipc/file-operations'
+import { registerDialogHandlers } from './ipc/dialogs'
+import { registerWindowControlHandlers } from './ipc/window-controls'
+import { registerWindowSurfaceHandlers } from './ipc/window-surface'
+import { setupNativeRecorder } from './ipc/native-recorder'
+import { setupExportHandler, cleanupBundleCache } from './export'
+import { setupThumbnailHandler } from './ipc/thumbnail'
 import { killRemotionChromiumProcesses } from './utils/remotion-chromium-cleanup'
-import { registerAssetHandlers } from './handlers/assets'
-import { registerBokehProcessHandlers } from './handlers/system-stats'
+import { registerAssetHandlers } from './ipc/assets'
+import { registerBokehProcessHandlers } from './ipc/system-stats'
 import { enableCaptureProtection } from './windows/capture-protection'
-import { registerProtocol } from './handlers/protocol-handler'
+import { registerProtocol } from './ipc/protocol-handler'
 import { resolveRecordingFilePath } from './utils/file-resolution'
+import { registerTranscriptionHandlers } from './ipc/transcription'
 
 app.on('browser-window-created', (_event, window) => {
   enableCaptureProtection(window, `window-${window.id}`)
@@ -78,6 +79,7 @@ function registerAllHandlers(): void {
   registerWindowSurfaceHandlers()
   registerAssetHandlers()
   registerBokehProcessHandlers()
+  registerTranscriptionHandlers()
   setupNativeRecorder()
   setupExportHandler()
   setupThumbnailHandler()

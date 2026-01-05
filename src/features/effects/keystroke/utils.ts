@@ -1,6 +1,6 @@
 import type { KeyboardEvent, KeystrokeEffectData } from '@/types/project'
 import { KEYSTROKE_CONFIG } from '@/shared/config/physics-config'
-import { getPrintableCharFromKey, isShortcutModifier, isStandaloneModifierKey } from '@/features/keyboard/keyboard-utils'
+import { getPrintableCharFromKey, isShortcutModifier, isStandaloneModifierKey } from '@/features/core/keyboard/keyboard-utils'
 
 export type KeystrokeStylePreset = 'default' | 'glass' | 'minimal' | 'terminal' | 'outline'
 
@@ -34,6 +34,7 @@ export function computeKeystrokeSegments(events: KeyboardEvent[], options: Requi
   const bufferTimeoutMs = KEYSTROKE_CONFIG.bufferTimeout
   const shortcutCombineThresholdMs = 1000
   const displayDuration = options.displayDuration || KEYSTROKE_CONFIG.defaultDisplayDuration
+  const allowShortcuts = options.showShortcuts !== false
 
   let currentBuffer: { text: string; startTime: number; lastKeyTime: number; charTimestamps: number[] } | null = null
 
@@ -81,7 +82,8 @@ export function computeKeystrokeSegments(events: KeyboardEvent[], options: Requi
     const key = event.key
     if (isStandaloneModifierKey(key)) continue
 
-    const shortcut = isShortcutModifier(event.modifiers || [])
+    const modifiers = event.modifiers || []
+    const shortcut = allowShortcuts && isShortcutModifier(modifiers)
     const isSpecialKey = key === 'Enter' || key === 'Tab' || key === 'Escape'
     const isTimeGap = currentBuffer && event.timestamp - currentBuffer.lastKeyTime > bufferTimeoutMs
 
@@ -89,7 +91,7 @@ export function computeKeystrokeSegments(events: KeyboardEvent[], options: Requi
     if ((isSpecialKey || shortcut) && currentBuffer) flushBuffer()
 
     if (shortcut) {
-      addShortcut(formatModifierKey(key, event.modifiers, options.showModifierSymbols !== false), event.timestamp)
+      addShortcut(formatModifierKey(key, modifiers, options.showModifierSymbols !== false), event.timestamp)
     } else if (isSpecialKey) {
       addShortcut(formatSpecialKey(key), event.timestamp)
     } else if (key === 'Backspace' || key === 'Delete') {
@@ -100,7 +102,10 @@ export function computeKeystrokeSegments(events: KeyboardEvent[], options: Requi
         if (currentBuffer.text.length === 0) currentBuffer = null
       }
     } else {
-      const printable = getPrintableCharFromKey(key, event.modifiers)
+      const printableModifiers = allowShortcuts
+        ? modifiers
+        : modifiers.filter(m => m.toLowerCase() === 'shift')
+      const printable = getPrintableCharFromKey(key, printableModifiers)
       if (printable) {
         if (!currentBuffer) currentBuffer = { text: '', startTime: event.timestamp, lastKeyTime: event.timestamp, charTimestamps: [] }
         currentBuffer.text += printable
@@ -233,4 +238,3 @@ function formatSpecialKey(key: string): string {
       return normalizeKey(key)
   }
 }
-

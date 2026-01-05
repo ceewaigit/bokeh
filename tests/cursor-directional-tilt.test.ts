@@ -1,5 +1,5 @@
-import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
-import { calculateCursorState } from '@/features/cursor/logic/cursor-logic'
+import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
+import { calculateCursorState } from '@/features/effects/cursor/logic/cursor-logic'
 import type { MouseEvent } from '@/types/project'
 
 describe('cursor directional tilt', () => {

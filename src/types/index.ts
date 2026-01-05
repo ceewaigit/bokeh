@@ -76,19 +76,28 @@ export type {
   ZoomEffectData,
   CursorEffectData,
   KeystrokeEffectData,
+  SubtitleEffectData,
+  SubtitleHighlightStyle,
+  SubtitleEffect,
   BackgroundEffectData,
   ParallaxLayer,
   AnnotationData,
   ScreenEffectData,
   CaptureArea,
   TimeRemapPeriod,
-  ImageSourceData
+  ImageSourceData,
+  Transcript,
+  TranscriptWord,
+  TranscriptionStatus,
+  SourceTimeRange,
+  TranscriptEditState
 } from './project'
 
 // Re-export enums
 export {
   TrackType,
   TimelineTrackType,
+  TimelineItemType,
   TransitionType,
   RecordingSourceType,
   ExportFormat,
@@ -103,7 +112,9 @@ export {
 } from './project'
 
 // Re-export effect types
-export { EffectType } from './effects'
+export { EffectType } from '@/features/effects/types'
+export { OverlayAnchor } from './overlays'
+export type { BaseOverlayConfig } from './overlays'
 
 // Keyframe interface for animations
 export interface KeyframeData {

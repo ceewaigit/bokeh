@@ -23,7 +23,8 @@
     "forge:package": "electron-forge package",
     "forge:make": "electron-forge make",
     "forge:publish": "electron-forge publish",
-    "build-electron": "npm run build && npm run build:electron && electron-builder",
+    "setup:whisper": "node scripts/setup-whisper.js",
+    "build-electron": "npm run setup:whisper && npm run build && npm run build:electron && electron-builder",
     "type-check": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -158,6 +159,10 @@
       {
         "from": "resources/bin",
         "to": "bin"
+      },
+      {
+        "from": "resources/models",
+        "to": "models"
       },
       {
         "from": "public",

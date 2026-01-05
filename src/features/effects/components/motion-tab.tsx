@@ -3,13 +3,13 @@
 import React from 'react'
 import { Wind, ChevronRight, Activity } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
-import { useProjectStore } from '@/features/stores/project-store'
+import { useProjectStore } from '@/features/core/stores/project-store'
 import { Switch } from '@/components/ui/switch'
-import { DEFAULT_PROJECT_SETTINGS } from '@/features/settings/defaults'
+import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CompactSlider, SegmentedControl, SectionHeader, springConfig } from './motion-controls'
 
-import { useWorkspaceStore } from '@/features/stores/workspace-store'
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 
 export function MotionTab() {
   const camera = useProjectStore((s) => s.currentProject?.settings.camera ?? DEFAULT_PROJECT_SETTINGS.camera)

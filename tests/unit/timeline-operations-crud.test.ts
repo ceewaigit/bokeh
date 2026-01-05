@@ -71,7 +71,7 @@ function createTestClip(overrides: Partial<Clip> = {}): Clip {
 describe('Timeline Operations CRUD', () => {
     describe('findClipById', () => {
         it('finds a clip in the video track', () => {
-            const { ClipLookup } = require('../../src/features/timeline/clips/clip-lookup')
+            const { ClipLookup } = require('../../src/features/ui/timeline/clips/clip-lookup')
             const findClipById = ClipLookup.byId
 
             const clip = createTestClip({ id: 'test-clip-1' })
@@ -85,7 +85,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('returns null for non-existent clip', () => {
-            const { ClipLookup } = require('../../src/features/timeline/clips/clip-lookup')
+            const { ClipLookup } = require('../../src/features/ui/timeline/clips/clip-lookup')
             const findClipById = ClipLookup.byId
 
             const project = createTestProject([])
@@ -98,7 +98,7 @@ describe('Timeline Operations CRUD', () => {
 
     describe('addClipToTrack', () => {
         it('adds a clip object to an empty track', () => {
-            const { addClipToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { addClipToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const project = createTestProject([])
             const clip = createTestClip({ id: 'new-clip', startTime: 0, duration: 3000, sourceIn: 0, sourceOut: 3000 })
@@ -112,7 +112,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('appends clip to end of existing clips', () => {
-            const { addClipToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { addClipToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const existingClip = createTestClip({
                 id: 'existing',
@@ -133,7 +133,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('inserts clip at specified startTime', () => {
-            const { addClipToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { addClipToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip1 = createTestClip({ id: 'clip-1', startTime: 0, duration: 2000 })
             const clip2 = createTestClip({ id: 'clip-2', startTime: 2000, duration: 2000 })
@@ -149,7 +149,7 @@ describe('Timeline Operations CRUD', () => {
 
     describe('removeClipFromTrack', () => {
         it('removes a clip and reflows remaining clips', () => {
-            const { removeClipFromTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { removeClipFromTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip1 = createTestClip({ id: 'clip-1', startTime: 0, duration: 2000 })
             const clip2 = createTestClip({ id: 'clip-2', startTime: 2000, duration: 2000 })
@@ -167,7 +167,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('returns false for non-existent clip', () => {
-            const { removeClipFromTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { removeClipFromTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const project = createTestProject([])
 
@@ -177,7 +177,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('removes clip using knownTrack optimization', () => {
-            const { removeClipFromTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { removeClipFromTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip = createTestClip({ id: 'clip-1' })
             const project = createTestProject([clip])
@@ -192,7 +192,7 @@ describe('Timeline Operations CRUD', () => {
 
     describe('duplicateClipInTrack', () => {
         it('duplicates a clip and inserts after original', () => {
-            const { duplicateClipInTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { duplicateClipInTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const originalClip = createTestClip({
                 id: 'original',
@@ -216,7 +216,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('returns null for non-existent clip', () => {
-            const { duplicateClipInTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { duplicateClipInTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const project = createTestProject([])
 
@@ -226,7 +226,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('duplicates clip in middle of timeline correctly', () => {
-            const { duplicateClipInTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { duplicateClipInTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip1 = createTestClip({ id: 'clip-1', startTime: 0, duration: 2000 })
             const clip2 = createTestClip({ id: 'clip-2', startTime: 2000, duration: 2000 })
@@ -247,7 +247,7 @@ describe('Timeline Operations CRUD', () => {
 
     describe('restoreClipToTrack', () => {
         it('restores a deleted clip at specific index', () => {
-            const { restoreClipToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { restoreClipToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip1 = createTestClip({ id: 'clip-1', startTime: 0, duration: 2000 })
             const clip2 = createTestClip({ id: 'clip-2', startTime: 2000, duration: 2000 })
@@ -267,7 +267,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('prevents duplicate restoration (idempotency)', () => {
-            const { restoreClipToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { restoreClipToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip = createTestClip({ id: 'existing-clip' })
             const project = createTestProject([clip])
@@ -281,7 +281,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('returns false for non-existent track', () => {
-            const { restoreClipToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { restoreClipToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const project = createTestProject([])
             const clip = createTestClip({ id: 'new-clip' })
@@ -294,7 +294,7 @@ describe('Timeline Operations CRUD', () => {
 
     describe('restoreClipsToTrack', () => {
         it('atomically removes and restores clips for undo', () => {
-            const { restoreClipsToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { restoreClipsToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             // Setup: 3 clips that were split from 1 original
             const splitClip1 = createTestClip({ id: 'split-1', startTime: 0, duration: 1000 })
@@ -318,7 +318,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('returns false for non-existent track', () => {
-            const { restoreClipsToTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { restoreClipsToTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const project = createTestProject([])
 
@@ -335,7 +335,7 @@ describe('Timeline Operations CRUD', () => {
 
     describe('updateClipInTrack', () => {
         it('updates clip properties and reflows', () => {
-            const { updateClipInTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { updateClipInTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip1 = createTestClip({ id: 'clip-1', startTime: 0, duration: 2000 })
             const clip2 = createTestClip({ id: 'clip-2', startTime: 2000, duration: 2000 })
@@ -350,7 +350,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('skips reflow when maintainContiguous is false', () => {
-            const { updateClipInTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { updateClipInTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const clip1 = createTestClip({ id: 'clip-1', startTime: 0, duration: 2000 })
             const clip2 = createTestClip({ id: 'clip-2', startTime: 2000, duration: 2000 })
@@ -370,7 +370,7 @@ describe('Timeline Operations CRUD', () => {
         })
 
         it('returns false for non-existent clip', () => {
-            const { updateClipInTrack } = require('../../src/features/timeline/clips/clip-crud')
+            const { updateClipInTrack } = require('../../src/features/ui/timeline/clips/clip-crud')
 
             const project = createTestProject([])
 
@@ -383,7 +383,7 @@ describe('Timeline Operations CRUD', () => {
 
 describe('reflowClips', () => {
     it('maintains contiguous layout starting from index 0', () => {
-        const { reflowClips } = require('../../src/features/timeline/clips/clip-reflow')
+        const { reflowClips } = require('../../src/features/ui/timeline/clips/clip-reflow')
 
         const track: Track = {
             id: 'track-1',
@@ -406,7 +406,7 @@ describe('reflowClips', () => {
     })
 
     it('only reflows from specified startFromIndex', () => {
-        const { reflowClips } = require('../../src/features/timeline/clips/clip-reflow')
+        const { reflowClips } = require('../../src/features/ui/timeline/clips/clip-reflow')
 
         const track: Track = {
             id: 'track-1',
@@ -433,7 +433,7 @@ describe('reflowClips', () => {
 
 describe('sortClipsByTime', () => {
     it('sorts clips by startTime', () => {
-        const { sortClipsByTime } = require('../../src/features/timeline/clips/clip-reflow')
+        const { sortClipsByTime } = require('../../src/features/ui/timeline/clips/clip-reflow')
 
         const track: Track = {
             id: 'track-1',

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from 'react'
-import { useWindowSurfaceStore } from '@/features/stores/window-surface-store'
+import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-store'
 import { useTheme } from '@/shared/contexts/theme-context'
 import { resolveWindowSurfaceTokens } from '@/shared/appearance/window-surface'
 

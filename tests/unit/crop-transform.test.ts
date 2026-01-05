@@ -1,5 +1,5 @@
 
-import { calculateCropTransform, isFullFrameCrop, clampCropData } from '@/features/canvas/math/transforms/crop-transform'
+import { calculateCropTransform, isFullFrameCrop, clampCropData } from '@/features/rendering/canvas/math/transforms/crop-transform'
 
 describe('crop-transform', () => {
   describe('calculateCropTransform', () => {

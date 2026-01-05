@@ -11,8 +11,8 @@
  */
 import type { Effect, Project, KeystrokeEffectData, RecordingMetadata } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { sourceToTimeline, getSourceDuration } from '@/features/timeline/time/time-space-converter'
-import { DEFAULT_KEYSTROKE_DATA } from '@/features/keystroke/config'
+import { sourceToTimeline, getSourceDuration } from '@/features/ui/timeline/time/time-space-converter'
+import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config'
 import { EffectStore } from '@/features/effects/core/store'
 
 // Configuration

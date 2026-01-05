@@ -1,5 +1,4 @@
-
-import { TimeConverter } from '@/features/timeline/time/time-space-converter'
+const { calculateOptimalZoom, calculateTimelineWidth } = require('../../src/features/ui/timeline/time/time-space-converter')
 
 describe('Timeline Automatic Zoom', () => {
   describe('calculateOptimalZoom', () => {
@@ -7,7 +6,7 @@ describe('Timeline Automatic Zoom', () => {
       // 5 second video
       const duration = 5000
       const viewportWidth = 1200
-      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+      const zoom = calculateOptimalZoom(duration, viewportWidth)
 
       // Should zoom in to fit the 5 second video
       expect(zoom).toBeGreaterThan(1)
@@ -18,7 +17,7 @@ describe('Timeline Automatic Zoom', () => {
       // 30 second video
       const duration = 30000
       const viewportWidth = 1200
-      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+      const zoom = calculateOptimalZoom(duration, viewportWidth)
 
       // Should zoom out to fit the 30 second video
       expect(zoom).toBeLessThan(0.5)
@@ -29,7 +28,7 @@ describe('Timeline Automatic Zoom', () => {
       // 5 minute video
       const duration = 300000
       const viewportWidth = 1200
-      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+      const zoom = calculateOptimalZoom(duration, viewportWidth)
 
       // Should be at minimum zoom
       expect(zoom).toBe(0.1)
@@ -38,7 +37,7 @@ describe('Timeline Automatic Zoom', () => {
     it('should round zoom to nearest 0.05', () => {
       const duration = 8000
       const viewportWidth = 1200
-      const zoom = TimeConverter.calculateOptimalZoom(duration, viewportWidth)
+      const zoom = calculateOptimalZoom(duration, viewportWidth)
 
       // Check that zoom is rounded to 0.05 increments
       // Account for floating point precision
@@ -54,7 +53,7 @@ describe('Timeline Automatic Zoom', () => {
       const pixelsPerMs = 0.1
       const minWidth = 800
 
-      const width = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
+      const width = calculateTimelineWidth(duration, pixelsPerMs, minWidth)
 
       // Should be duration * pixelsPerMs (no extra padding in updated logic)
       const expectedWidth = Math.max(duration * pixelsPerMs, minWidth)
@@ -66,7 +65,7 @@ describe('Timeline Automatic Zoom', () => {
       const pixelsPerMs = 0.1
       const minWidth = 800
 
-      const width = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
+      const width = calculateTimelineWidth(duration, pixelsPerMs, minWidth)
 
       expect(width).toBeGreaterThanOrEqual(minWidth)
     })
@@ -76,7 +75,7 @@ describe('Timeline Automatic Zoom', () => {
       const pixelsPerMs = 0.1
       const minWidth = 800
 
-      const width = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, minWidth)
+      const width = calculateTimelineWidth(duration, pixelsPerMs, minWidth)
       const baseWidth = duration * pixelsPerMs
 
       // Width should be at least buffer

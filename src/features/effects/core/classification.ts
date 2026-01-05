@@ -3,7 +3,7 @@ import { EffectType } from '@/types/project'
 const BLOCK_EFFECT_DEFAULT_DURATION: Partial<Record<EffectType, number>> = {
   [EffectType.Keystroke]: 5000,
   [EffectType.Screen]: 3000,
-  [EffectType.Webcam]: 5000,
+  // NOTE: Webcam removed - now handled via clip.layout
 }
 
 export function isGlobalEffectType(type: EffectType): boolean {

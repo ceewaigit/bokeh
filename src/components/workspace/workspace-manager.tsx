@@ -7,7 +7,7 @@ import { PreviewAreaRemotion } from '../preview-area-remotion'
 import dynamic from 'next/dynamic'
 
 const TimelineCanvas = dynamic(
-  () => import('@/features/timeline/components/timeline-canvas').then(mod => mod.TimelineCanvas),
+  () => import('@/features/ui/timeline/components/timeline-canvas').then(mod => mod.TimelineCanvas),
   { ssr: false }
 )
 const PluginCreator = dynamic(
@@ -16,32 +16,32 @@ const PluginCreator = dynamic(
 )
 import { EffectsSidebar } from '@/features/effects/components'
 import { EffectsSidebarProvider } from '@/features/effects/components/EffectsSidebarContext'
-import { ExportDialog } from '@/features/export/components/export-dialog'
-import { RecordingsLibrary } from '@/features/recording/components/library/recordings-library'
-import { UtilitiesSidebar } from '@/features/editor/components/utilities'
-import { useProjectStore } from '@/features/stores/project-store'
-import { useWorkspaceStore } from '@/features/stores/workspace-store'
+import { ExportDialog } from '@/features/core/export/components/export-dialog'
+import { RecordingsLibrary } from '@/features/media/recording/components/library/recordings-library'
+import { UtilitiesSidebar } from '@/features/ui/editor/components/utilities'
+import { useProjectStore } from '@/features/core/stores/project-store'
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { ZoomBlock, ZoomEffectData } from '@/types/project'
-import { useCropManager } from '@/features/crop/hooks/use-crop-manager'
-import { useCommandExecutor } from '@/shared/hooks/use-command-executor'
-import { PlayheadService, type PlayheadState } from '@/features/timeline/playback/playhead-service'
-import { useTimelineMetadata } from '@/features/timeline/hooks/use-timeline-metadata'
+import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager'
+import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
+import { PlayheadService, type PlayheadState } from '@/features/ui/timeline/playback/playhead-service'
+import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
-import { timelineToSource, getSourceDuration } from '@/features/timeline/time/time-space-converter'
-import { useCommandKeyboard } from '@/shared/hooks/use-command-keyboard'
-import { TimelineDataService } from '@/features/timeline/timeline-data-service'
-import { calculateFullCameraPath } from '@/features/editor/logic/viewport/logic/path-calculator'
-import { initializeDefaultWallpaper } from '@/features/background'
-import { EffectLayerType } from '@/types/effects'
+import { timelineToSource, getSourceDuration } from '@/features/ui/timeline/time/time-space-converter'
+import { useCommandKeyboard } from '@/features/core/commands/hooks/use-command-keyboard'
+import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
+import { calculateFullCameraPath } from '@/features/ui/editor/logic/viewport/logic/path-calculator'
+import { initializeDefaultWallpaper } from '@/features/effects/background'
+import { EffectLayerType } from '@/features/effects/types'
 import { EffectStore } from '@/features/effects/core/store'
 import { applyEffectChange } from '@/features/effects/services/effect-change'
-import { RecordingStorage } from '@/features/storage/recording-storage'
-import { UpdateZoomBlockCommand } from '@/features/commands'
+import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { UpdateZoomBlockCommand } from '@/features/core/commands'
 import { toast } from 'sonner'
-import { useSelectedClip } from '@/features/stores/selectors/clip-selectors'
-import { useProjectLoader } from '@/shared/hooks/use-project-loader'
-import { usePanelResizer } from '@/features/editor/hooks/use-panel-resizer'
+import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
+import { useProjectLoader } from '@/features/core/storage/hooks/use-project-loader'
+import { usePanelResizer } from '@/features/ui/editor/hooks/use-panel-resizer'
 
 
 
@@ -176,7 +176,13 @@ export function WorkspaceManager() {
     const timeoutId = setTimeout(() => {
       const fps = TimelineDataService.getFps(currentProject)
       const recordingsMap = TimelineDataService.getRecordingsMap(currentProject)
-      const frameLayout = TimelineDataService.getFrameLayout(currentProject, fps)
+      // Timeline-Centric: use raw video clips (no slicing)
+      const videoClips = TimelineDataService.getVideoClips(currentProject)
+      const frameLayout = TimelineDataService.getFrameLayout(
+        currentProject,
+        fps,
+        videoClips
+      )
 
       const newCameraPath = calculateFullCameraPath({
         frameLayout,
@@ -456,8 +462,8 @@ export function WorkspaceManager() {
                   resetWorkspace()
 
                   // Clear all rendering caches to free memory
-                  import('@/features/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
-                  import('@/features/cursor/logic/cursor-logic').then(m => m.clearCursorCalculatorCache())
+                  import('@/features/media/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
+                  import('@/features/effects/cursor/logic/cursor-logic').then(m => m.clearCursorCalculatorCache())
                   import('@/shared/utils/video-metadata').then(m => m.clearDurationCache())
 
                   // Hide record button when returning to library (main window visible)

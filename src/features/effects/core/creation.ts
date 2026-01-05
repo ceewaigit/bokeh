@@ -5,14 +5,14 @@
  * Purely focused on object creation, not state management.
  */
 
-import type { Effect, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData, WebcamEffectData } from '@/types/project'
+import type { Effect, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { getPluginDefaults, getDefaultZIndexForCategory } from '@/features/effects/config/plugin-sdk'
-import { getDefaultWallpaper } from '@/features/background'
-import { DEFAULT_CURSOR_DATA } from '@/features/cursor/config'
-import { DEFAULT_BACKGROUND_DATA } from '@/features/background/config'
-import { DEFAULT_WEBCAM_DATA } from '@/features/webcam/config'
+import { getDefaultWallpaper } from '@/features/effects/background'
+import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
+import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
+// NOTE: DEFAULT_WEBCAM_DATA removed - webcam styling now lives on clip.layout
 
 export const EffectCreation = {
   createDefaultBackgroundEffect(): Effect {
@@ -39,19 +39,6 @@ export const EffectCreation = {
       data: {
         ...DEFAULT_CURSOR_DATA,
       } as CursorEffectData,
-      enabled: true,
-    }
-  },
-
-  createDefaultWebcamEffect(): Effect {
-    return {
-      id: `webcam-global`,
-      type: EffectType.Webcam,
-      startTime: 0,
-      endTime: Number.MAX_SAFE_INTEGER,
-      data: {
-        ...DEFAULT_WEBCAM_DATA,
-      } as WebcamEffectData,
       enabled: true,
     }
   },

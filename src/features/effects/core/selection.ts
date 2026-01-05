@@ -1,5 +1,5 @@
 import type { Effect } from '@/types/project'
-import type { SelectedEffectLayer } from '@/types/effects'
+import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectType } from '@/types/project'
 
 export function resolveEffectIdForType(

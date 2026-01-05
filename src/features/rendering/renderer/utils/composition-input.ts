@@ -1,0 +1,78 @@
+import type {
+  CropSettings,
+  PlaybackSettings,
+  RenderSettings,
+  TimelineCompositionProps,
+  VideoResources,
+  ZoomSettings
+} from '@/types'
+
+type CompositionBaseProps = Omit<
+  TimelineCompositionProps,
+  'playback' | 'renderSettings' | 'cropSettings' | 'zoomSettings' | 'resources' | 'globalSkipRanges'
+> & {
+  enhanceAudio?: boolean
+  globalSkipRanges?: TimelineCompositionProps['globalSkipRanges']
+}
+
+const DEFAULT_RENDER_SETTINGS: RenderSettings = {
+  isGlowMode: false,
+  glowCrossfade: true,
+  preferOffthreadVideo: false,
+  enhanceAudio: false,
+  isEditingCrop: false
+}
+
+const DEFAULT_CROP_SETTINGS: CropSettings = {
+  cropData: null,
+  onCropChange: undefined,
+  onCropConfirm: undefined,
+  onCropReset: undefined
+}
+
+const DEFAULT_ZOOM_SETTINGS: ZoomSettings = {
+  isEditing: false,
+  zoomData: null
+}
+
+const DEFAULT_RESOURCES: VideoResources = {
+  videoUrls: undefined,
+  videoUrlsHighRes: undefined,
+  videoFilePaths: undefined,
+  metadataUrls: undefined
+}
+
+export function buildTimelineCompositionInput(
+  base: CompositionBaseProps,
+  options: {
+    playback: PlaybackSettings
+    renderSettings?: Partial<RenderSettings>
+    cropSettings?: CropSettings
+    zoomSettings?: ZoomSettings
+    resources?: VideoResources
+  }
+): TimelineCompositionProps {
+  const renderSettings: RenderSettings = {
+    ...DEFAULT_RENDER_SETTINGS,
+    ...options.renderSettings,
+    enhanceAudio:
+      options.renderSettings?.enhanceAudio ??
+      base.enhanceAudio ??
+      DEFAULT_RENDER_SETTINGS.enhanceAudio
+  }
+
+  return {
+    ...base,
+    // Ensure globalSkipRanges defaults to empty array if not provided
+    globalSkipRanges: base.globalSkipRanges ?? [],
+    playback: options.playback,
+    renderSettings,
+    cropSettings: options.cropSettings ?? DEFAULT_CROP_SETTINGS,
+    zoomSettings: options.zoomSettings ?? DEFAULT_ZOOM_SETTINGS,
+    resources: {
+      ...DEFAULT_RESOURCES,
+      ...options.resources
+    }
+  } as TimelineCompositionProps
+}
+

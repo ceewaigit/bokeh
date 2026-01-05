@@ -30,6 +30,7 @@ import {
   Video,
   StickyNote,
   Wind,
+  FileText,
 } from 'lucide-react'
 
 export enum SidebarTabId {
@@ -39,6 +40,7 @@ export enum SidebarTabId {
   Framing = 'framing',
   Webcam = 'webcam',
   Annotation = 'annotation',
+  Transcript = 'transcript',
   Canvas = 'canvas',
   Advanced = 'advanced',
 }
@@ -50,6 +52,7 @@ export const SIDEBAR_TABS = [
   { id: SidebarTabId.Framing, icon: Crop, label: 'Focus & Frame' },
   { id: SidebarTabId.Webcam, icon: Video, label: 'Webcam' },
   { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Overlay' },
+  { id: SidebarTabId.Transcript, icon: FileText, label: 'Transcript' },
   { id: SidebarTabId.Advanced, icon: Wind, label: 'Motion' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Stage' },
 ] as const

@@ -1,5 +1,5 @@
-import { MediaRecorderStrategy } from '@/features/recording/strategies/media-recorder-strategy'
-import { type RecordingIpcBridge } from '@/features/bridges/recording-ipc-bridge'
+import { MediaRecorderStrategy } from '@/features/media/recording/strategies/media-recorder-strategy'
+import { type RecordingIpcBridge } from '@/features/core/bridges/recording-ipc-bridge'
 
 const createBridge = (overrides: Partial<RecordingIpcBridge> = {}): RecordingIpcBridge => ({
   nativeRecorderAvailable: jest.fn(),

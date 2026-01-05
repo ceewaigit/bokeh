@@ -20,18 +20,18 @@ import {
 import { Button } from './ui/button'
 import { HeaderButton } from './ui/header-button'
 import { WindowHeader } from './ui/window-header'
-import { useRecordingSessionStore } from '@/features/recording/store/session-store'
+import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'
 import { cn } from '@/shared/utils/utils'
 import { formatTime } from '@/shared/utils/time'
 import type { Project } from '@/types/project'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useWorkspaceStore } from '@/features/stores/workspace-store'
-import { useProjectStore } from '@/features/stores/project-store'
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
+import { useProjectStore } from '@/features/core/stores/project-store'
 import { toast } from 'sonner'
-import { getActiveClipDataAtFrame } from '@/features/renderer/utils/get-active-clip-data-at-frame'
+import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame'
 import { EffectStore } from '@/features/effects/core/store'
-import { TimelineDataService } from '@/features/timeline/timeline-data-service'
+import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
 interface ToolbarProps {
   project: Project | null
@@ -66,7 +66,10 @@ export function Toolbar({
   const [isSnapshotting, setIsSnapshotting] = useState(false)
 
   const { isUtilitiesOpen, toggleUtilities, setSettingsOpen } = useWorkspaceStore()
-  const hasVideoClips = project ? TimelineDataService.getVideoClips(project).length > 0 : false
+  // Timeline-Centric: clips are not sliced, use raw video clips
+  const hasVideoClips = project
+    ? TimelineDataService.getVideoClips(project).length > 0
+    : false
 
   const handleToggleProperties = () => {
     setPropertiesOpen(!propertiesOpen)
@@ -199,7 +202,7 @@ export function Toolbar({
                 )}
                 {project.recordings && project.recordings.length > 0 && (
                   <div className="text-muted-foreground">
-                    Recordings: <span className="font-mono">{project.recordings.length}</span>
+                    Clips: <span className="font-mono">{project.recordings.length}</span>
                   </div>
                 )}
               </div>
@@ -262,6 +265,7 @@ export function Toolbar({
             // Pause playback first
             useProjectStore.getState().pause()
 
+            // Timeline-Centric: use raw video clips
             const videoClips = TimelineDataService.getVideoClips(project)
             if (!videoClips.length) {
               toast.error('No video clips to snapshot')
@@ -291,7 +295,7 @@ export function Toolbar({
 
             try {
               const recordingsMap = TimelineDataService.getRecordingsMap(project)
-              const frameLayout = TimelineDataService.getFrameLayout(project, fps)
+              const frameLayout = TimelineDataService.getFrameLayout(project, fps, videoClips)
 
               // Get all effects using EffectStore (the SSOT)
               const allEffects = EffectStore.getAll(project)

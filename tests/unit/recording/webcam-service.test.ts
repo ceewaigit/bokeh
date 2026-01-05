@@ -1,5 +1,5 @@
-import { WebcamService } from '@/features/recording/services/webcam-service'
-import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/features/bridges/recording-ipc-bridge'
+import { WebcamService } from '@/features/media/recording/services/webcam-service'
+import { resetRecordingBridge, setRecordingBridge, type RecordingIpcBridge } from '@/features/core/bridges/recording-ipc-bridge'
 
 // Mock MediaRecorder
 class MockMediaRecorder {

@@ -10,7 +10,7 @@
  * Community plugins will use the same format via definePlugin().
  */
 
-import { EffectType } from '@/types/effects'
+import { EffectType } from '@/features/effects/types'
 import { CursorStyle, KeystrokePosition, BackgroundType, ScreenEffectPreset } from '@/types/project'
 
 // =============================================================================

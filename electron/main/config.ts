@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
-import { getNextJsPort } from './port-detector'
+import { getNextJsPort } from './utils/port-detector'
 
 // export const isDev = process.env.NODE_ENV === 'development'
 export const isDev = true
