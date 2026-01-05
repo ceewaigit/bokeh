@@ -44,8 +44,7 @@ import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-sto
 import { ApplySpeedUpCommand } from '@/features/core/commands/timeline/ApplySpeedUpCommand'
 import { timeObserver } from '@/features/ui/timeline/time/time-observer'
 import { ApplyAllSpeedUpsCommand } from '@/features/core/commands/timeline/ApplyAllSpeedUpsCommand'
-import { TimelineAssetGhost } from './timeline-asset-ghost'
-import { TimelineDropTarget } from './timeline-drop-target'
+import { TimelineAssetDropOverlay } from './timeline-asset-drop-overlay'
 import { useTimelineEffects } from '@/features/core/stores/selectors/timeline-selectors'
 
 // Utilities
@@ -107,7 +106,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const isPlaying = useProjectStore((s) => s.isPlaying)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
   const setHoverTime = useProjectStore((s) => s.setHoverTime)
-  const draggingAsset = useAssetLibraryStore((s) => s.draggingAsset)
+  // Note: draggingAsset subscription moved to TimelineAssetDropOverlay to isolate re-renders
 
   const { selectedClips, selectClip, clearEffectSelection, clearSelection } = useProjectStore(
     useShallow((s) => ({
@@ -304,8 +303,9 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const globalSkipRanges = useMemo(() => {
     if (!currentProject) return []
 
-    // If not dragging, use the cached service call
-    if (!dragPreview) {
+    // If not dragging, or if it's an asset drag (not a clip move), use cached service call.
+    // Asset drags don't need hazard zones to move, only clip drags do.
+    if (!dragPreview || dragPreview.clipId === '__asset__') {
       return TimelineDataService.getGlobalTimelineSkips(currentProject)
     }
 
@@ -837,20 +837,11 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
               />
             )}
 
-            {/* Asset drop target highlight */}
-            <TimelineDropTarget
-              visible={!!draggingAsset && !!(assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview.trackType : null))}
-              trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
+            {/* Asset drop overlays - isolated component to prevent full re-renders */}
+            <TimelineAssetDropOverlay
+              assetDragDrop={assetDragDrop}
               getTrackBounds={safeGetTrackBounds}
               timelineWidth={timelineWidth}
-            />
-
-            {/* Drag Preview Overlay (Ghost Clip) */}
-            <TimelineAssetGhost
-              draggingAsset={draggingAsset}
-              dragTime={assetDragDrop.dragTime}
-              trackType={assetDragDrop.dragAssetTrackType ?? (assetDragDrop.dragPreview?.clipId === '__asset__' ? assetDragDrop.dragPreview?.trackType : null)}
-              getTrackBounds={safeGetTrackBounds}
               pixelsPerMs={pixelsPerMs}
             />
 

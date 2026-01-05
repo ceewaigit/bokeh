@@ -14,13 +14,13 @@ interface TimelineAssetGhostProps {
     pixelsPerMs: number
 }
 
-export const TimelineAssetGhost = ({
+export const TimelineAssetGhost = React.memo(function TimelineAssetGhost({
     draggingAsset,
     dragTime,
     trackType,
     getTrackBounds,
     pixelsPerMs
-}: TimelineAssetGhostProps) => {
+}: TimelineAssetGhostProps) {
     if (!draggingAsset || dragTime === null || !trackType) return null
 
     const bounds = getTrackBounds(trackType)
@@ -59,4 +59,4 @@ export const TimelineAssetGhost = ({
             )}
         </div>
     )
-}
+})

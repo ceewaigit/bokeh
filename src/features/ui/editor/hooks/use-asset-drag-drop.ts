@@ -8,7 +8,7 @@
  *   <div {...handlers} />
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { TrackType, type Clip } from '@/types/project'
 import { useAssetLibraryStore } from '@/features/core/stores/asset-library-store'
 import { TimelineConfig } from '@/features/ui/timeline/config'
@@ -50,6 +50,15 @@ export interface UseAssetDragDropReturn {
     }
 }
 
+// Raw drag input for RAF-deferred computation
+interface PendingDragInput {
+    stageX: number
+    stageY: number
+    assetDuration: number
+    assetType: 'video' | 'audio' | 'image'
+    assetName?: string
+}
+
 export function useAssetDragDrop({
     pixelsPerMs,
     getTrackBounds,
@@ -62,7 +71,21 @@ export function useAssetDragDrop({
     const [dragAssetTrackType, setDragAssetTrackType] = useState<TrackType.Video | TrackType.Audio | TrackType.Webcam | null>(null)
     const [dragPreview, setDragPreview] = useState<DragPreviewForAsset | null>(null)
 
+    // RAF throttling refs - store raw input, compute in RAF
+    const rafRef = useRef<number | null>(null)
+    const pendingInputRef = useRef<PendingDragInput | null>(null)
+
     const executorRef = useCommandExecutor()
+
+    // Cleanup RAF on unmount
+    useEffect(() => {
+        return () => {
+            if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current)
+                rafRef.current = null
+            }
+        }
+    }, [])
 
     const getAssetDropTrackType = useCallback((
         asset: { type: 'video' | 'audio' | 'image'; name?: string },
@@ -141,61 +164,80 @@ export function useAssetDragDrop({
 
         if (!draggingAsset) return
 
+        // Only capture raw coordinates - expensive computation deferred to RAF
         const { stageX, stageY } = getStagePoint(e)
-        const assetDuration = draggingAsset.metadata?.duration || 5000
-        const targetTrack = getAssetDropTrackType({ type: draggingAsset.type, name: draggingAsset.name }, stageY)
-
-        if (!targetTrack) {
-            setDragTime(null)
-            setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
-            return
+        pendingInputRef.current = {
+            stageX,
+            stageY,
+            assetDuration: draggingAsset.metadata?.duration || 5000,
+            assetType: draggingAsset.type,
+            assetName: draggingAsset.name
         }
 
-        const snappedX = getSnappedDragX({
-            proposedX: stageX,
-            blockWidth: TimeConverter.msToPixels(assetDuration, pixelsPerMs),
-            blocks: getClipBlocksForTrack(targetTrack),
-            pixelsPerMs
-        })
-        const proposedTime = Math.max(
-            0,
-            TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-        )
+        // Schedule RAF to compute and apply state updates (throttles to ~60fps)
+        if (rafRef.current === null) {
+            rafRef.current = requestAnimationFrame(() => {
+                rafRef.current = null
+                const input = pendingInputRef.current
+                if (!input) return
 
-        // Webcam track: No contiguous/ripple logic. Just overlay/replace.
-        if (targetTrack === TrackType.Webcam) {
-            setDragPreview({
-                clipId: '__asset__',
-                trackType: targetTrack,
-                startTimes: {}, // No other clips move
-                insertIndex: -1 // Not used for placement
+                // Now do the expensive computation (once per frame, not per event)
+                const targetTrack = getAssetDropTrackType(
+                    { type: input.assetType, name: input.assetName },
+                    input.stageY
+                )
+
+                if (!targetTrack) {
+                    setDragTime(null)
+                    setDragAssetTrackType(null)
+                    setDragPreview(null)
+                    return
+                }
+
+                const snappedX = getSnappedDragX({
+                    proposedX: input.stageX,
+                    blockWidth: TimeConverter.msToPixels(input.assetDuration, pixelsPerMs),
+                    blocks: getClipBlocksForTrack(targetTrack),
+                    pixelsPerMs
+                })
+                const proposedTime = Math.max(
+                    0,
+                    TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+                )
+
+                // Webcam track: No contiguous/ripple logic
+                if (targetTrack === TrackType.Webcam) {
+                    setDragTime(proposedTime)
+                    setDragAssetTrackType(targetTrack)
+                    setDragPreview({
+                        clipId: '__asset__',
+                        trackType: targetTrack,
+                        startTimes: {},
+                        insertIndex: -1
+                    })
+                    return
+                }
+
+                // Video/Audio track: Compute contiguous preview
+                const clips = getClipsForTrack(targetTrack)
+                const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+                const preview = computeContiguousPreview(blocks, proposedTime, input.assetDuration)
+
+                if (preview) {
+                    setDragTime(preview.insertTime)
+                    setDragAssetTrackType(targetTrack)
+                    setDragPreview({
+                        clipId: '__asset__',
+                        trackType: targetTrack,
+                        startTimes: preview.startTimes,
+                        insertIndex: preview.insertIndex
+                    })
+                } else {
+                    setDragTime(proposedTime)
+                    setDragAssetTrackType(targetTrack)
+                    setDragPreview(null)
+                }
             })
-            setDragTime(proposedTime)
-            setDragAssetTrackType(targetTrack)
-            return
-        }
-
-        const clips = getClipsForTrack(targetTrack)
-        const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
-        const preview = computeContiguousPreview(
-            blocks,
-            proposedTime,
-            assetDuration
-        )
-
-        if (preview) {
-            setDragPreview({
-                clipId: '__asset__',
-                trackType: targetTrack,
-                startTimes: preview.startTimes,
-                insertIndex: preview.insertIndex
-            })
-            setDragTime(preview.insertTime)
-            setDragAssetTrackType(targetTrack)
-        } else {
-            setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
-            setDragTime(proposedTime)
-            setDragAssetTrackType(targetTrack)
         }
     }, [draggingAsset, getStagePoint, getAssetDropTrackType, pixelsPerMs, getClipBlocksForTrack, getClipsForTrack])
 

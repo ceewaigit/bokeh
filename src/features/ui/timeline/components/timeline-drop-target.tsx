@@ -9,12 +9,12 @@ interface TimelineDropTargetProps {
     timelineWidth: number
 }
 
-export const TimelineDropTarget = ({
+export const TimelineDropTarget = React.memo(function TimelineDropTarget({
     visible,
     trackType,
     getTrackBounds,
     timelineWidth
-}: TimelineDropTargetProps) => {
+}: TimelineDropTargetProps) {
     if (!visible || !trackType) return null
 
     const bounds = getTrackBounds(trackType)
@@ -30,4 +30,4 @@ export const TimelineDropTarget = ({
             }}
         />
     )
-}
+})
