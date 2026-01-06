@@ -56,8 +56,10 @@ export interface StoreSettings {
     motionBlurBlackLevel: number
     motionBlurSaturation: number
     motionBlurUseWebglVideo?: boolean
+    motionBlurSamples?: number
     refocusBlurEnabled: boolean
     refocusBlurIntensity: number
+    cameraSmoothness?: number
     cameraDynamics?: CameraDynamics
   }
   recording: {

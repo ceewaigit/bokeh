@@ -4,6 +4,7 @@
  */
 
 import type { ElectronMetadata } from '@/types/recording'
+import { RecordingSourceType } from '@/types/project'
 import { RecordingIpcBridge, getRecordingBridge } from '@/features/core/bridges'
 import { logger } from '@/shared/utils/logger'
 import { isLikelyKeyboardKey } from '@/features/core/keyboard/keyboard-utils'
@@ -341,7 +342,7 @@ export class TrackingService {
     })
 
     // Start tracking in main process
-    const sourceType = sourceId.startsWith('screen:') ? 'screen' : sourceId.startsWith('area:') ? 'area' : 'window'
+    const sourceType = (sourceId.startsWith('screen:') ? 'screen' : sourceId.startsWith('area:') ? 'area' : 'window') as RecordingSourceType
     const result = await this.bridge.startMouseTracking({
       // Higher sampling reduces visible cursor stepping/jitter, especially on high-DPI displays.
       intervalMs: 16,

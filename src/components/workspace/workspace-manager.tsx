@@ -47,8 +47,6 @@ import { usePanelResizer } from '@/features/ui/editor/hooks/use-panel-resizer'
 
 export function WorkspaceManager() {
   // Store hooks - using reactive state from single source of truth
-  // NOTE: currentTime and isPlaying are NOT subscribed here - children (PreviewAreaRemotion,
-  // TimelineCanvas) subscribe directly to avoid re-rendering entire workspace every frame
   const {
     currentProject,
     setCameraPathCache,

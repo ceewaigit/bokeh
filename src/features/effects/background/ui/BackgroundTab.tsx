@@ -76,6 +76,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
 
     // Sort macOS wallpapers with default first
     const macOS = [...macOSWallpapers.wallpapers]
+
     const defaultIndex = macOS.findIndex(w => w.name === DEFAULT_WALLPAPER_NAME)
     if (defaultIndex > 0) {
       const defaultWallpaper = macOS.splice(defaultIndex, 1)[0]

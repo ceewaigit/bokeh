@@ -9,10 +9,12 @@ export function SectionHeader({
   icon: Icon,
   title,
   subtitle,
+  action,
 }: {
   icon: React.ElementType
   title: string
   subtitle?: string
+  action?: React.ReactNode
 }) {
   return (
     <div className="flex items-start gap-3 pb-2">
@@ -20,7 +22,10 @@ export function SectionHeader({
         <Icon className="w-4 h-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-ui-sm font-semibold tracking-tight text-foreground">{title}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-ui-sm font-semibold tracking-tight text-foreground">{title}</div>
+          {action && <div className="mt-0.5">{action}</div>}
+        </div>
         {subtitle && (
           <div className="text-2xs text-muted-foreground leading-snug mt-0.5 font-medium">
             {subtitle}

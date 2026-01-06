@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useCallback } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import Konva from 'konva'
 

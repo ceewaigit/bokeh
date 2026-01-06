@@ -29,7 +29,6 @@ import {
   LayoutGrid,
   Video,
   StickyNote,
-  Activity,
   FileText,
 } from 'lucide-react'
 
@@ -38,7 +37,7 @@ export enum SidebarTabId {
   Backdrop = 'backdrop',
   Pointer = 'pointer',
   Camera = 'camera',
-  Motion = 'motion',
+  // Motion = 'motion', // Removed
   Webcam = 'webcam',
   Annotation = 'annotation',
   Transcript = 'transcript',
@@ -50,7 +49,6 @@ export const SIDEBAR_TABS = [
   { id: SidebarTabId.Backdrop, icon: Palette, label: 'Backdrop' },
   { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Pointer & Typing' },
   { id: SidebarTabId.Camera, icon: Aperture, label: 'Camera' },
-  { id: SidebarTabId.Motion, icon: Activity, label: 'Motion' },
   { id: SidebarTabId.Webcam, icon: Video, label: 'Webcam' },
   { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Overlay' },
   { id: SidebarTabId.Transcript, icon: FileText, label: 'Transcript' },

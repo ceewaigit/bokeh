@@ -10,7 +10,6 @@
  */
 
 import React, { useRef } from 'react';
-import { useCurrentFrame } from 'remotion';
 import { clamp01, smootherStep } from '@/features/rendering/canvas/math';
 import { MotionBlurController } from '../logic/MotionBlurController';
 
@@ -103,7 +102,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     const bitmapCtxRef = useRef<ImageBitmapRenderingContext | null>(null);
     const videoCanvasRef = useRef<OffscreenCanvas | HTMLCanvasElement | null>(null);
     const videoCtxRef = useRef<CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null>(null);
-    const frame = useCurrentFrame();
+
 
     // Render effect when the Remotion frame advances (preview/export) or when `videoFrame` changes (export mode).
     React.useLayoutEffect(() => {
@@ -360,15 +359,16 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
 
     // Cleanup GPU resources only on unmount
     React.useEffect(() => {
+        const currentCanvas = canvasRef.current;
+        const currentVideoCanvas = videoCanvasRef.current;
         return () => {
-            const canvasEl = canvasRef.current;
-            if (canvasEl) {
-                canvasEl.width = 0;
-                canvasEl.height = 0;
+            if (currentCanvas) {
+                currentCanvas.width = 0;
+                currentCanvas.height = 0;
             }
-            if (videoCanvasRef.current) {
-                videoCanvasRef.current.width = 0;
-                videoCanvasRef.current.height = 0;
+            if (currentVideoCanvas) {
+                currentVideoCanvas.width = 0;
+                currentVideoCanvas.height = 0;
                 videoCanvasRef.current = null;
                 videoCtxRef.current = null;
             }

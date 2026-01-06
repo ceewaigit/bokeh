@@ -741,14 +741,17 @@ export function TranscriptTab() {
             </SelectValue>
           </SelectTrigger>
           <SelectContent align="start" className="min-w-[180px]">
-            {(modelList?.available ?? []).map(modelName => {
+            {((modelList?.available ?? []).sort((a, b) => {
+              const order = ['base', 'small', 'medium']
+              return order.indexOf(a) - order.indexOf(b)
+            })).map(modelName => {
               const label = modelLabels[modelName]
               return (
                 <SelectItem key={modelName} value={modelName} className="text-xs">
                   {label ? (
                     <div className="flex items-center justify-between gap-4">
                       <span className="font-medium">{label.name}</span>
-                      <span className="text-muted-foreground">{label.desc}</span>
+                      <span className="opacity-60">{label.desc}</span>
                     </div>
                   ) : modelName}
                 </SelectItem>

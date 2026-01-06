@@ -31,8 +31,6 @@ import { calculateCursorPreviewConfig, type PreviewMotionOverride } from '../log
 export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: CursorTabProps) {
   const cursorData = cursorEffect?.data as CursorEffectData | undefined
 
-  /* REMOVED CursorLocalState and associated logic */
-
   // Derived state from props (Single Source of Truth)
   // This eliminates "Split Brain" by relying entirely on passed cursorData (which comes from the store)
   const defaults = DEFAULT_CURSOR_DATA
@@ -273,6 +271,13 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <div className="mt-1 text-xs text-muted-foreground leading-snug">
               Display and style the cursor
             </div>
+            <button
+              onClick={() => onUpdateCursor(DEFAULT_CURSOR_DATA)}
+              className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset to default</span>
+            </button>
           </div>
           <Switch
             aria-label="Show cursor"

@@ -53,42 +53,13 @@ function DeviceTypeIcon({ type }: { type: DeviceType }) {
   }
 }
 
-// Sub-tabs component
-function SubTabs<T extends string>({
-  value,
-  onChange,
-  tabs,
-}: {
-  value: T
-  onChange: (next: T) => void
-  tabs: { id: T; label: string }[]
-}) {
-  return (
-    <div className="flex gap-0.5 rounded-2xl bg-muted/50 p-0.5 overflow-hidden">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onChange(tab.id)}
-          className={cn(
-            "flex-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-            value === tab.id
-              ? "bg-background/80 text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  )
-}
+
 
 export function CanvasTab({
   backgroundData,
   onBackgroundChange,
 }: CanvasTabProps) {
-  const [subTab, setSubTab] = useState<CanvasSubTabId>('aspect')
+  const [subTab] = useState<CanvasSubTabId>('aspect')
 
   // Get canvas settings from project store
   const { canvasSettings, updateProjectData } = useProjectStore(
@@ -245,13 +216,13 @@ export function CanvasTab({
 
   return (
     <div className="space-y-3">
-      <SubTabs
+      {/* <SubTabs
         value={subTab}
         onChange={setSubTab}
         tabs={[
           { id: 'aspect', label: 'Aspect Ratio' },
         ]}
-      />
+      /> */}
 
       {subTab === 'aspect' && (
         <AspectRatioSection

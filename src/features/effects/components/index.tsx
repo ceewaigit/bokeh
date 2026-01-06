@@ -6,7 +6,7 @@ import { cn } from '@/shared/utils/utils'
 import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, Effect } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
 import { EffectLayerType } from '@/features/effects/types'
-import { getBackgroundEffect, getCropEffectForClip, getEffectByType } from '@/features/effects/core/filters'
+import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -19,8 +19,6 @@ import { CursorTab } from '@/features/effects/cursor/ui/CursorTab'
 import { KeystrokeTab } from '@/features/effects/keystroke'
 import { ZoomTab } from '@/features/ui/editor/logic/viewport/zoom'
 import { ScreenTab as ScreenEffectsTab } from '@/features/effects/screen'
-import { ScreenTab } from './screen-tab'
-import { MotionTab } from './motion-tab'
 import { CanvasTab } from './canvas-tab'
 import { WebcamTab } from '@/features/media/webcam'
 import { AnnotationsTab } from '@/features/effects/annotation'
@@ -30,6 +28,7 @@ import { useProjectStore } from '@/features/core/stores/project-store'
 import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 import { useEffectsSidebarContext } from './EffectsSidebarContext'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
+import { ScreenTab } from './screen-tab'
 
 const tabMotion = { type: "tween", duration: 0.12, ease: [0.2, 0.8, 0.2, 1] } as const
 
@@ -39,7 +38,6 @@ interface EffectsSidebarProps {
 
 type BackdropSubTabId = 'background' | 'depth'
 type PointerSubTabId = 'cursor' | 'keystrokes'
-type CameraSubTabId = 'auto' | 'manual'
 
 const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Background]: 'Backdrop',
@@ -151,7 +149,7 @@ export function EffectsSidebar({
 
   const [backdropSubTab, setBackdropSubTab] = useState<BackdropSubTabId>('background')
   const [pointerSubTab, setPointerSubTab] = useState<PointerSubTabId>('cursor')
-  const [cameraSubTab, setCameraSubTab] = useState<CameraSubTabId>('auto')
+
   const tooltipRef = useRef<HTMLDivElement | null>(null)
 
   // Check if webcam/annotation tracks have content
@@ -178,7 +176,7 @@ export function EffectsSidebar({
   }, [clearEffectSelection, selectEffectLayer, startEditingOverlay, stopEditingOverlay])
 
   // Track last selected clip id and previous effect layer type to control auto-tab switching
-  const lastClipIdRef = React.useRef<string | null>(null)
+
   const prevEffectTypeRef = React.useRef<EffectLayerType | undefined>(undefined)
 
   const isVideoClipSelected = !!selectedClip && selectedTrackType === TrackType.Video
@@ -233,11 +231,8 @@ export function EffectsSidebar({
         return
       case EffectLayerType.Zoom:
       case EffectLayerType.Video:
-        setActiveTab(SidebarTabId.Camera)
-        setCameraSubTab('auto')
-        return
       case EffectLayerType.Plugin:
-        setActiveTab(SidebarTabId.Motion)
+        setActiveTab(SidebarTabId.Camera)
         return
       case EffectLayerType.Annotation:
         setActiveTab(SidebarTabId.Annotation)
@@ -602,18 +597,7 @@ export function EffectsSidebar({
                   </motion.div>
                 )}
 
-                {activeTab === SidebarTabId.Motion && (
-                  <motion.div
-                    key="motion"
-                    variants={tabVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    className="space-y-4"
-                  >
-                    <MotionTab />
-                  </motion.div>
-                )}
+
               </AnimatePresence>
             </div>
           </div>

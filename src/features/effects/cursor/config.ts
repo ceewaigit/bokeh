@@ -54,7 +54,7 @@ export const CURSOR_THEMES: Record<CursorTheme, CursorThemeConfig> = {
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     style: CursorStyle.MacOS,
     theme: CursorTheme.Default,
-    size: 1,
+    size: 5,
     color: '#ffffff',
     speed: 0.25,
     smoothness: 0.25,
