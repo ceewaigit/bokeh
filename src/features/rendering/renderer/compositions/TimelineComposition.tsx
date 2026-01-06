@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
-import type { Recording, WebcamLayoutData } from '@/types/project';
+import type { Recording } from '@/types/project';
 import { EffectType } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
 import { PlaybackSettingsProvider } from '../context/playback/PlaybackSettingsContext';
@@ -22,16 +22,13 @@ import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
 import { CursorLayer } from '@/features/effects/cursor/components/CursorLayer';
 import { PluginLayer } from './layers/PluginLayer';
-import { WebcamLayer } from './layers/WebcamLayer';
+import { WebcamClipRenderer } from './renderers/WebcamClipRenderer';
 import { SubtitleLayer } from './layers/SubtitleLayer';
 
 import { RecordingStorage } from '@/features/core/storage/recording-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths';
 import { useTimelineContext } from '../context/TimelineContext';
-import { useVideoUrl } from '../hooks/media/useVideoUrl';
 import { findActiveFrameLayoutItems } from '@/features/ui/timeline/utils/frame-layout';
-import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
-import { isProxySufficientForTarget } from '@/shared/utils/resolution-utils';
 import { TimelineProvider } from '../context/TimelineContext';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { calculateFullCameraPath } from '@/features/ui/editor/logic/viewport/logic/path-calculator';
@@ -85,7 +82,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   sourceVideoHeight,
   globalSkipRanges = [],
 }) => {
-  const isScrubbing = useProjectStore((s) => s.isScrubbing);
   const frame = useCurrentFrame();
   const { frameLayout, getActiveLayoutItems, getRecording } = useTimelineContext(); // Remove fps from here
   const currentTimeMs = (frame / fps) * 1000;
@@ -114,6 +110,9 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
 
   // Get webcam clip that is active at the current time
   // This uses the "Virtual Clips" (transcript-aware) passed from usePlayerConfiguration
+  // NOTE: Use precise currentTimeMs (not quantizedTimeMs) to prevent edge-case disappearances
+  // at clip boundaries. Quantization is fine for overlay conflict resolution but webcam
+  // visibility requires frame-accurate timing.
   const activeWebcamClip = React.useMemo(() => {
     if (!webcamClips.length) return null;
 
@@ -121,9 +120,9 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     return webcamClips.find(clip => {
       const clipStart = clip.startTime;
       const clipEnd = clip.startTime + clip.duration;
-      return quantizedTimeMs >= clipStart && quantizedTimeMs < clipEnd;
+      return currentTimeMs >= clipStart && currentTimeMs < clipEnd;
     }) ?? null;
-  }, [webcamClips, quantizedTimeMs]);
+  }, [webcamClips, currentTimeMs]);
 
   const { displacedEffectIds, resolvedAnchors } = React.useMemo(
     () => resolveOverlayConflicts(effects, quantizedTimeMs, {
@@ -137,9 +136,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   // Webcam styling comes from clip.layout (set at import time)
   // No need to lookup webcam effects - the clip IS the source of truth
 
-  const activeWebcamRecording = activeWebcamClip
-    ? getRecording(activeWebcamClip.recordingId)
-    : undefined;
   const { isRendering } = getRemotionEnvironment();
   const visibleAudioClips = React.useMemo(() => {
     if (isRendering || audioClips.length === 0) {
@@ -153,39 +149,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
       return frame >= startFrame - paddingFrames && frame < endFrame + paddingFrames;
     });
   }, [audioClips, frame, fps, isRendering]);
-  // Calculate webcam target size from clip.layout (Timeline-Centric)
-  const webcamTargetSize = React.useMemo(() => {
-    if (isRendering || !activeWebcamClip?.layout) {
-      return { width: videoWidth, height: videoHeight };
-    }
-    const data = activeWebcamClip.layout as WebcamLayoutData;
-    const { size } = getWebcamLayout(data, videoWidth, videoHeight);
-    const maxScale = 1.2;
-    const targetSize = Math.max(1, Math.round(size * maxScale));
-    return { width: targetSize, height: targetSize };
-  }, [activeWebcamClip?.layout, isRendering, videoWidth, videoHeight]);
-  // Skip webcam URL resolution entirely in glow mode (webcam won't render)
-  const shouldRenderWebcam = !renderSettings.isGlowMode;
-
-  const forceWebcamProxy = React.useMemo(() => {
-    if (isRendering || !activeWebcamRecording?.previewProxyUrl || !shouldRenderWebcam) return false;
-    return isProxySufficientForTarget(
-      webcamTargetSize.width,
-      webcamTargetSize.height,
-      1
-    );
-  }, [isRendering, activeWebcamRecording?.previewProxyUrl, webcamTargetSize.width, webcamTargetSize.height, shouldRenderWebcam]);
-  const webcamVideoUrl = useVideoUrl({
-    recording: shouldRenderWebcam ? activeWebcamRecording : undefined,
-    resources,
-    clipId: activeWebcamClip?.id,
-    targetWidth: webcamTargetSize.width,
-    targetHeight: webcamTargetSize.height,
-    isHighQualityPlaybackEnabled: playback.isHighQualityPlaybackEnabled,
-    forceProxy: forceWebcamProxy,
-    isPlaying: playback.isPlaying,
-    isScrubbing,
-  });
 
 
   // STABILITY: Track previous visible items to prevent unnecessary remounts
@@ -295,7 +258,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
         })}
       </AbsoluteFill>
 
-      <OverlayProvider value={{ displacedEffectIds, resolvedAnchors }}>
+      <OverlayProvider value={React.useMemo(() => ({ displacedEffectIds, resolvedAnchors }), [displacedEffectIds, resolvedAnchors])}>
         <SharedVideoController
           videoWidth={videoWidth}
           videoHeight={videoHeight}
@@ -323,17 +286,24 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
               );
             })}
 
-            {/* Webcam uses clip.layout for styling, visibilityOpacity for ghosting protection */}
-            {/* In glow mode, skip webcam to only show main video for ambient light calculation */}
-            {!renderSettings.isGlowMode && (
-              <WebcamLayer
-                webcamVideoUrl={webcamVideoUrl}
-                webcamClip={activeWebcamClip ?? undefined}
-                webcamRecording={activeWebcamRecording ?? undefined}
-                opacity={visibilityOpacity}
-                isSkipped={isSkipped}
-              />
-            )}
+            {/* Webcam clips: Per-clip rendering with stable Sequences
+                Each clip gets its own Video element with stable timing, matching VideoClipRenderer architecture.
+                This prevents unmount/remount issues when switching between clips. */}
+            {!renderSettings.isGlowMode && webcamClips.map((clip) => {
+              const recording = getRecording(clip.recordingId);
+              if (!recording) return null;
+              return (
+                <WebcamClipRenderer
+                  key={clip.id}
+                  clip={clip}
+                  recording={recording}
+                  resources={resources}
+                  playback={playback}
+                  fps={fps}
+                  globalOpacity={visibilityOpacity}
+                />
+              );
+            })}
 
             {/* Glue player is an ambient blur; skip extra overlays to keep preview smooth. */}
             {!renderSettings.isGlowMode && (

@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react'
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion'
+import type { Effect, Clip, Recording } from '@/types/project'
 import type { SubtitleEffectData, TranscriptWord } from '@/types/project'
+import type { OverlayAnchor } from '@/types/overlays'
 import { EffectType } from '@/types/project'
 import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context'
@@ -87,11 +89,7 @@ export function SubtitleLayer() {
   const currentTimeMs = (frame / fps) * 1000
   const project = useProjectStore((s) => s.currentProject)
 
-  // Key for memoization of hidden regions
-  const transcriptEditsKey = project?.timeline.transcriptEdits
-    ? JSON.stringify(Object.keys(project.timeline.transcriptEdits))
-    : ''
-
+  // 1. Efficiently derive active subtitle effects
   const activeSubtitleEffects = useMemo(() => {
     return effects.filter(e =>
       e.type === EffectType.Subtitle &&
@@ -99,135 +97,194 @@ export function SubtitleLayer() {
     )
   }, [effects])
 
-  // PERF: Pre-compute hidden regions for all recordings used by subtitle effects
-  // This avoids calling getHiddenRegionsForRecording inside the map() loop
+  // 2. Pre-compute hidden regions (Memoized per project structure, not frame)
+  // Logic: Only re-calc when transcript edits in project actually change.
   const hiddenRegionsMap = useMemo(() => {
     if (!project) return new Map<string, SourceTimeRange[]>()
     const map = new Map<string, SourceTimeRange[]>()
+
+    // Scan all active subtitle effects to determine which recordings need region maps
     for (const effect of activeSubtitleEffects) {
       const data = effect.data as SubtitleEffectData
       if (!map.has(data.recordingId)) {
-        map.set(data.recordingId, TimelineDataService.getHiddenRegionsForRecording(project, data.recordingId))
+        map.set(
+          data.recordingId,
+          TimelineDataService.getHiddenRegionsForRecording(project, data.recordingId)
+        )
       }
     }
     return map
-  }, [project, activeSubtitleEffects, transcriptEditsKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [project, activeSubtitleEffects])
 
-  // Only check if we have active effects - per-effect hidden region filtering handles skip ranges
-  if (activeSubtitleEffects.length === 0) return null
+  // 3. Pre-compute Clip Lookup Map (Memoized per project structure)
+  // Optimization: Instead of flatMap every frame, build a Map<RecordingId, Clip[]> once
+  const clipsByRecordingId = useMemo(() => {
+    const map = new Map<string, Clip[]>()
+    if (!project) return map
 
-  // Helper function defined outside render loop
-  const isSourceTimeInHiddenRegion = (time: number, regions: SourceTimeRange[]) => {
-    for (const region of regions) {
-      if (time >= region.startTime && time < region.endTime) return true
+    for (const track of project.timeline.tracks) {
+      for (const clip of track.clips) {
+        const list = map.get(clip.recordingId) ?? []
+        list.push(clip)
+        map.set(clip.recordingId, list)
+      }
     }
-    return false
-  }
+    return map
+  }, [project]) // Re-run only when project changes (which includes tracks)
+
+  // Only check if we have active effects
+  if (activeSubtitleEffects.length === 0) return null
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', zIndex: 60 }}>
-      {activeSubtitleEffects.map(effect => {
-        const data = effect.data as SubtitleEffectData
-        const recording = getRecording(data.recordingId)
-        const transcript = recording?.metadata?.transcript
-        if (!transcript || transcript.words.length === 0) return null
-
-        // PERF: Use pre-computed hidden regions from map
-        const hiddenRegions = hiddenRegionsMap.get(data.recordingId) ?? []
-
-        const visibleWords = hiddenRegions.length > 0
-          ? transcript.words.filter(word =>
-            !isSourceTimeInHiddenRegion(word.startTime, hiddenRegions) ||
-            !isSourceTimeInHiddenRegion(word.endTime - 1, hiddenRegions)
-          )
-          : transcript.words
-
-        // Find active clip using intact clips (no slicing)
-        const matchingClips = project?.timeline.tracks
-          .flatMap(track => track.clips)
-          .filter(clip => clip.recordingId === data.recordingId) ?? []
-
-        const activeClip = matchingClips.find(clip => {
-          const clipStart = clip.startTime
-          const clipEnd = clip.startTime + clip.duration
-          return currentTimeMs >= clipStart && currentTimeMs < clipEnd
-        })
-        if (!activeClip) return null
-
-        const sourceTimeMs = timelineToSource(currentTimeMs, activeClip)
-        const currentIndex = findWordIndex(visibleWords, sourceTimeMs)
-        if (currentIndex === -1) return null
-
-        const wordsPerLine = data.wordsPerLine ?? 8
-        const lineHeight = data.lineHeight ?? Math.round((data.fontSize ?? 32) * 1.4)
-        const transitionMs = data.transitionMs ?? 140
-        const highlightStyle = data.highlightStyle ?? 'color'
-        const { start, end, highlightIndex } = getWordWindow(
-          visibleWords,
-          currentIndex,
-          wordsPerLine
-        )
-        const windowWords = visibleWords.slice(start, end)
-
-        const anchor = resolvedAnchors.get(effect.id) ?? data.anchor
-        const anchorStyle = getOverlayAnchorStyle(anchor, data, 36)
-        const maxWidthPercent = data.maxWidth ?? 80
-        const maxWidthPx = Math.round((maxWidthPercent / 100) * width)
-
-        const textColor = data.textColor ?? '#ffffff'
-        const highlightColor = data.highlightColor ?? '#FFD166'
-        const padding = data.padding ?? 4
-        const borderRadius = data.borderRadius ?? 12
-
-        return (
-          <div
-            key={effect.id}
-            data-subtitle-layer="true"
-            data-effect-id={effect.id}
-            style={{
-              position: 'absolute',
-              maxWidth: maxWidthPx,
-              lineHeight: `${lineHeight}px`,
-              fontSize: `${data.fontSize ?? 32}px`,
-              fontFamily: data.fontFamily ?? 'SF Pro Display, system-ui, -apple-system, sans-serif',
-              color: textColor,
-              textAlign: 'center',
-              padding: `${padding}px ${padding * 2}px`,
-              borderRadius: borderRadius,
-              backgroundColor: data.backgroundColor
-                ? applyOpacity(data.backgroundColor, data.backgroundOpacity)
-                : 'transparent',
-              ...anchorStyle
-            }}
-          >
-            {windowWords.map((word, index) => {
-              const isActive = index === highlightIndex
-              const style: React.CSSProperties = {
-                color: isActive ? highlightColor : textColor,
-                transition: `color ${transitionMs}ms, transform ${transitionMs}ms`
-              }
-              if (isActive && highlightStyle === 'underline') {
-                style.textDecoration = 'underline'
-              }
-              if (isActive && highlightStyle === 'background') {
-                style.backgroundColor = highlightColor
-                style.color = '#000000'
-                style.padding = '0 4px'
-                style.borderRadius = 6
-              }
-              if (isActive && highlightStyle === 'scale') {
-                style.display = 'inline-block'
-                style.transform = 'scale(1.08)'
-              }
-              return (
-                <span key={word.id} style={style}>
-                  {word.text}{' '}
-                </span>
-              )
-            })}
-          </div>
-        )
-      })}
+      {activeSubtitleEffects.map(effect => (
+        <SubtitleEffectRenderer
+          key={effect.id}
+          effect={effect}
+          currentTimeMs={currentTimeMs}
+          width={width}
+          getRecording={getRecording}
+          hiddenRegionsMap={hiddenRegionsMap}
+          clipsByRecordingId={clipsByRecordingId}
+          resolvedAnchors={resolvedAnchors}
+        />
+      ))}
     </AbsoluteFill>
   )
 }
+
+// Sub-component to process individual effects - keeps main loop clean
+const SubtitleEffectRenderer = React.memo<{
+  effect: Effect
+  currentTimeMs: number
+  width: number
+  getRecording: (id: string) => Recording | undefined
+  hiddenRegionsMap: Map<string, SourceTimeRange[]>
+  clipsByRecordingId: Map<string, Clip[]>
+  resolvedAnchors: Map<string, OverlayAnchor>
+}>(({
+  effect,
+  currentTimeMs,
+  width,
+  getRecording,
+  hiddenRegionsMap,
+  clipsByRecordingId,
+  resolvedAnchors
+}) => {
+  const data = effect.data as SubtitleEffectData
+  const recording = getRecording(data.recordingId)
+  
+  // HOOKS MOVED UP
+  const transcript = recording?.metadata?.transcript
+
+  // Optimization: Filter once per hiddenRegions change.
+  const visibleWords = useMemo(() => {
+    const hiddenRegions = hiddenRegionsMap.get(data.recordingId) ?? []
+    if (!transcript || hiddenRegions.length === 0) return transcript?.words ?? []
+
+    const isSourceTimeInHiddenRegion = (time: number, regions: SourceTimeRange[]) => {
+      for (const region of regions) {
+        if (time >= region.startTime && time < region.endTime) return true
+      }
+      return false
+    }
+
+    return transcript.words.filter(word =>
+      !isSourceTimeInHiddenRegion(word.startTime, hiddenRegions) ||
+      !isSourceTimeInHiddenRegion(word.endTime - 1, hiddenRegions)
+    )
+  }, [transcript, hiddenRegionsMap, data.recordingId])
+
+  // Fast exit if data missing
+  if (!recording?.metadata?.transcript?.words.length) return null
+
+  // 4. Resolve Active Clip (Fast Lookup)
+  const candidates = clipsByRecordingId.get(data.recordingId) ?? []
+  // Intentionally simple find. For very complex timelines, we could use binary search,
+  // but N is usually small (<100 clips per recording).
+  const activeClip = candidates.find(clip => {
+    const start = clip.startTime
+    const end = start + clip.duration
+    return currentTimeMs >= start && currentTimeMs < end
+  })
+
+  if (!activeClip) return null
+
+  // 6. Source Time Calculation
+  const sourceTimeMs = timelineToSource(currentTimeMs, activeClip)
+
+  const currentIndex = findWordIndex(visibleWords, sourceTimeMs)
+  if (currentIndex === -1) return null
+
+  // 8. Render Logic (Lightweight)
+  const wordsPerLine = data.wordsPerLine ?? 8
+  const lineHeight = data.lineHeight ?? Math.round((data.fontSize ?? 32) * 1.4)
+  const transitionMs = data.transitionMs ?? 140
+  const highlightStyle = data.highlightStyle ?? 'color'
+  const { start, end, highlightIndex } = getWordWindow(
+    visibleWords,
+    currentIndex,
+    wordsPerLine
+  )
+  const windowWords = visibleWords.slice(start, end)
+
+  const anchor = resolvedAnchors.get(effect.id) ?? data.anchor
+  const anchorStyle = getOverlayAnchorStyle(anchor, data, 36)
+  const maxWidthPercent = data.maxWidth ?? 80
+  const maxWidthPx = Math.round((maxWidthPercent / 100) * width)
+
+  const textColor = data.textColor ?? '#ffffff'
+  const highlightColor = data.highlightColor ?? '#FFD166'
+  const padding = data.padding ?? 4
+  const borderRadius = data.borderRadius ?? 12
+
+  return (
+    <div
+      data-subtitle-layer="true"
+      data-effect-id={effect.id}
+      style={{
+        position: 'absolute',
+        maxWidth: maxWidthPx,
+        lineHeight: `${lineHeight}px`,
+        fontSize: `${data.fontSize ?? 32}px`,
+        fontFamily: data.fontFamily ?? 'SF Pro Display, system-ui, -apple-system, sans-serif',
+        color: textColor,
+        textAlign: 'center',
+        padding: `${padding}px ${padding * 2}px`,
+        borderRadius: borderRadius,
+        backgroundColor: data.backgroundColor
+          ? applyOpacity(data.backgroundColor, data.backgroundOpacity)
+          : 'transparent',
+        ...anchorStyle
+      }}
+    >
+      {windowWords.map((word, index) => {
+        const isActive = index === highlightIndex
+        const style: React.CSSProperties = {
+          color: isActive ? highlightColor : textColor,
+          transition: `color ${transitionMs}ms, transform ${transitionMs}ms`
+        }
+        if (isActive && highlightStyle === 'underline') {
+          style.textDecoration = 'underline'
+        }
+        if (isActive && highlightStyle === 'background') {
+          style.backgroundColor = highlightColor
+          style.color = '#000000'
+          style.padding = '0 4px'
+          style.borderRadius = 6
+        }
+        if (isActive && highlightStyle === 'scale') {
+          style.display = 'inline-block'
+          style.transform = 'scale(1.08)'
+        }
+        return (
+          <span key={word.id} style={style}>
+            {word.text}{' '}
+          </span>
+        )
+      })}
+    </div>
+  )
+})
+
+SubtitleEffectRenderer.displayName = 'SubtitleEffectRenderer'

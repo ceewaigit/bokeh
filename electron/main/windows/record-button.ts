@@ -13,13 +13,13 @@ export function createRecordButton(): BrowserWindow {
 
   const recordButton = new BrowserWindow({
     width: 180,
-    height: 72,
+    height: 56,
     minWidth: 140,
     minHeight: 56,
     maxWidth: 500,  // Allow expansion for source picker
     maxHeight: 500, // Allow expansion for source picker
     x: Math.floor(display.workAreaSize.width / 2 - 90),
-    y: display.workAreaSize.height - 72 - 24, // Position at bottom, 24px from edge
+    y: display.workAreaSize.height - 56 - 24, // Position at bottom, 24px from edge
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',

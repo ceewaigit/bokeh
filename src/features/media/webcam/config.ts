@@ -49,7 +49,7 @@ export const DEFAULT_WEBCAM_DATA: WebcamLayoutData = {
     },
 
     // Mirror by default (natural for webcam)
-    mirror: true,
+    mirror: false,
 
     // Full opacity
     opacity: 1.0,

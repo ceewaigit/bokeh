@@ -173,10 +173,11 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       state.isPlaying = false
       state.selectedClips = []
       state.selectedEffectLayer = null
-      // Clear ephemeral proxy URLs
-      state.proxyUrls = {}
       // playhead state is computed, no need to clear
     })
+
+    // Clear ephemeral proxy URLs (now in dedicated proxy store)
+    import('@/features/proxy').then(({ ProxyService }) => ProxyService.clear())
 
     // Use ProjectIOService to clean up resources
     ProjectIOService.cleanupProjectResources()

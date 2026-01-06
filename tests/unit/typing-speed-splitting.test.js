@@ -1,6 +1,6 @@
 
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
-import { normalizeProjectSettings } from '@/features/settings/normalize-project-settings'
+import { normalizeProjectSettings } from '@/features/core/settings/normalize-project-settings'
 
 // Mock dependencies
 jest.mock('@/features/ui/timeline/clips/clip-reflow', () => ({

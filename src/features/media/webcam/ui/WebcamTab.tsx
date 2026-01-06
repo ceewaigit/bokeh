@@ -4,9 +4,9 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { Video, ChevronRight } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Switch } from '@/components/ui/switch'
-import type { WebcamLayoutData, WebcamShape, WebcamAnchor, CropEffectData, Recording } from '@/types/project'
+import type { WebcamLayoutData, WebcamShape, WebcamAnchor, CropEffectData } from '@/types/project'
 import { DEFAULT_WEBCAM_DATA, WEBCAM_SHAPE_PRESETS } from '../config'
-import { DEFAULT_CROP_DATA, clampCropData } from '@/features/rendering/canvas/math/transforms/crop-transform'
+import { DEFAULT_CROP_DATA, clampCropData, isFullFrameCrop } from '@/features/rendering/canvas/math/transforms/crop-transform'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { resolveRecordingPath, createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths'
@@ -161,9 +161,37 @@ export function WebcamTab() {
       x: 1 - crop.x - crop.width
     })
   }, [])
+
+  const smartSourceCrop = useMemo(() => {
+    let crop = sourceCrop;
+
+    // Smart Center Crop Logic (Sync with WebcamClipRenderer.tsx)
+    // If full frame default, present a center square crop in the UI
+    if (isFullFrameCrop(crop) && hasWebcamFootage && webcamAspectRatio > 0) {
+      if (Math.abs(webcamAspectRatio - 1) > 0.01) {
+        let cropW = 1;
+        let cropH = 1;
+        if (webcamAspectRatio > 1) {
+          cropW = 1 / webcamAspectRatio;
+          cropH = 1;
+        } else {
+          cropW = 1;
+          cropH = webcamAspectRatio;
+        }
+        crop = {
+          width: cropW,
+          height: cropH,
+          x: (1 - cropW) / 2,
+          y: (1 - cropH) / 2
+        };
+      }
+    }
+    return crop;
+  }, [sourceCrop, webcamAspectRatio, hasWebcamFootage]);
+
   const displayCrop = useMemo(() => (
-    mirror ? flipCropX(sourceCrop) : sourceCrop
-  ), [flipCropX, mirror, sourceCrop])
+    mirror ? flipCropX(smartSourceCrop) : smartSourceCrop
+  ), [flipCropX, mirror, smartSourceCrop])
 
   const constrainCropToSquare = useCallback((crop: CropEffectData) => {
     const centerX = crop.x + crop.width / 2

@@ -88,6 +88,14 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
         }
     }, [useWebglVideo]);
 
+    const speed = Math.hypot(velocity.x, velocity.y);
+    const effectiveThreshold = velocityThreshold ?? 0;
+    // Only mount the heavy canvas if we are moving faster than threshold, OR if forced (renderScale/useWebglVideo)
+    // Note: unmounting destroys the smoothing tail state in MotionBlurCanvas,
+    // but preventing idle GPU memory leak is more important.
+    // We add a tiny epsilon to threshold to avoid flickering at exactly 0.
+    const isActive = speed > effectiveThreshold + 0.001 || useWebglVideo;
+
     return (
         <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
             {/* Video always renders */}
@@ -102,7 +110,7 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
             </div>
 
             {/* Motion blur canvas overlays when active or when WebGL video is forced */}
-            {(enabled || useWebglVideo) && (
+            {(enabled && isActive) && (
                 <MotionBlurCanvas
                     enabled={true}
                     velocity={velocity}

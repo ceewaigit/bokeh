@@ -88,7 +88,7 @@ export function useAssetDragDrop({
     }, [])
 
     const getAssetDropTrackType = useCallback((
-        asset: { type: 'video' | 'audio' | 'image'; name?: string },
+        asset: { type: 'video' | 'audio' | 'image'; name?: string; path?: string },
         stageY: number
     ): TrackType.Video | TrackType.Audio | TrackType.Webcam | null => {
         const hitSlop = TimelineConfig.TRACK_PADDING
@@ -104,29 +104,10 @@ export function useAssetDragDrop({
         }
 
         // 2. Video / Webcam / Image
+        // Track is determined by WHERE the user drops the asset:
+        // - Drop on Webcam track → Webcam track
+        // - Drop on Video track → Video track
         if (asset.type === 'video' || asset.type === 'image') {
-            // WEBCAM OVERRIDE:
-            // If the asset is a webcam recording (via name convention), FORCE it to be
-            // on the webcam track or nothing. It should NOT land on the video track.
-            const isWebcamAsset = asset.name?.toLowerCase().includes('webcam')
-
-            if (isWebcamAsset) {
-                // If it's a webcam asset, we theoretically allow dropping ANYWHERE to mean "add to webcam track".
-                // But for good UX, let's keep it somewhat contextual or just default to Webcam track
-                // if it's generally over the timeline area.
-                // For now, let's prioritize the Webcam track specifically if dragged there,
-                // OR if dragged over Video track, stick to Webcam track (overlay behavior).
-                const webcamBounds = boundsFor(TrackType.Webcam)
-                const videoBounds = boundsFor(TrackType.Video)
-
-                // If hovering webcam OR video track, return Webcam track.
-                if (isWithin(webcamBounds) || isWithin(videoBounds)) {
-                    return TrackType.Webcam
-                }
-                return null
-            }
-
-            // Normal Video/Image Logic
             const webcamBounds = boundsFor(TrackType.Webcam)
             if (isWithin(webcamBounds)) return TrackType.Webcam
 
@@ -183,7 +164,7 @@ export function useAssetDragDrop({
 
                 // Now do the expensive computation (once per frame, not per event)
                 const targetTrack = getAssetDropTrackType(
-                    { type: input.assetType, name: input.assetName },
+                    { type: input.assetType, name: input.assetName, path: draggingAsset.path },
                     input.stageY
                 )
 

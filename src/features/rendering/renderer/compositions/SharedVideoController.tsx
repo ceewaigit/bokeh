@@ -191,7 +191,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     // The Sequence will handle visibility internally without needing dynamic premount
     const preloadFrames = !isRendering ? 30 : 0;
     return renderableItems.map((item) => {
-      // Filter out webcam/PIP clips that are rendered by WebcamLayer
+      // Filter out webcam/PIP clips that are rendered by WebcamClipRenderer
       // These clips have a 'layout' property
       if (item.clip.layout) return null;
 
@@ -273,7 +273,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ==========================================================================
 
   // Prepare context value
-  const videoPositionContextValue = {
+  const videoPositionContextValue = useMemo(() => ({
     ...layout,
     zoomTransform: (zoomTransform as any) ?? null,
     contentTransform: outerTransform,
@@ -311,7 +311,30 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     boundaryState,
     clipFadeOpacity,
     useParentFade,
-  };
+  }), [
+    layout,
+    zoomTransform,
+    outerTransform,
+    effectiveBlurPx,
+    isMotionBlurActive,
+    snapshotCamera.velocity,
+    motionBlurIntensity,
+    cameraSettings,
+    motionBlurConfig.velocityThreshold,
+    activeClipData,
+    resolvedClipData,
+    prevFrameClipData,
+    frameLayout,
+    activeLayoutItem,
+    prevLayoutItem,
+    nextLayoutItem,
+    videoWidth,
+    videoHeight,
+    effects,
+    boundaryState,
+    clipFadeOpacity,
+    useParentFade
+  ]);
 
   // If no active content, render children (overlays) or empty container
   if (!resolvedClipData && !shouldHoldPrevFrame) {

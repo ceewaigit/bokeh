@@ -8,16 +8,16 @@
  * throughout playback - no switching means no blink.
  * 
  * PROXY URL RESOLUTION:
- * Proxy URLs are stored in an ephemeral store (cache-slice.proxyUrls) to avoid
- * triggering cache invalidation when proxies complete. This hook checks the
- * ephemeral store first, then falls back to recording properties for backward
- * compatibility with projects that have proxy URLs baked in.
+ * Proxy URLs are stored in the dedicated proxy store (src/features/proxy/store)
+ * to avoid triggering cache invalidation when proxies complete. This hook checks
+ * the proxy store first, then falls back to recording properties for backward
+ * compatibility.
  */
 
 import { useMemo, useRef } from 'react';
 import { getRemotionEnvironment } from 'remotion';
 import { RecordingStorage } from '@/features/core/storage/recording-storage';
-import { useProjectStore } from '@/features/core/stores/project-store';
+import { useProxyStore } from '@/features/proxy';
 import type { UseVideoUrlProps } from '@/types';
 
 // Re-export shared utilities for backwards compatibility
@@ -57,17 +57,20 @@ export function useVideoUrl({
   const { isRendering } = getRemotionEnvironment();
   const { videoUrls, videoUrlsHighRes, videoFilePaths } = resources || {};
 
-  // Get proxy URLs from ephemeral store (first priority) with recording fallback
-  const ephemeralProxyUrls = useProjectStore((s) => recording ? s.proxyUrls[recording.id] : undefined);
+  // Get proxy URLs from dedicated proxy store (first priority) with recording fallback
+  const ephemeralProxyUrls = useProxyStore((s) => recording ? s.urls[recording.id] : undefined);
 
   const computedUrl = useMemo(() => {
     if (!recording) return undefined;
     if (recording.sourceType === 'generated') return undefined;
 
-    // Resolve proxy URLs: ephemeral store first, then recording property fallback
+    // Resolve proxy URLs: proxy store first, then recording property fallback
     const previewProxyUrl = ephemeralProxyUrls?.previewProxyUrl || recording.previewProxyUrl;
     const glowProxyUrl = ephemeralProxyUrls?.glowProxyUrl || recording.glowProxyUrl;
     const scrubProxyUrl = ephemeralProxyUrls?.scrubProxyUrl || recording.scrubProxyUrl;
+
+    // DEBUG: Log proxy URL resolution
+    // console.log(`[useVideoUrl] Recording ${recording.id} - ephemeral:`, ephemeralProxyUrls, 'previewProxy:', previewProxyUrl);
 
     // Use maxZoomScale (stable) instead of currentZoomScale (frame-varying)
     // to prevent URL switching during zoom animations which causes VTDecoder churn

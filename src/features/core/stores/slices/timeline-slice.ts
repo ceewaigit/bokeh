@@ -49,21 +49,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         set((state) => {
             if (!state.currentProject) return
 
-            // Auto-detect webcam recordings if track not specified
-            const recordingId = typeof clipOrRecordingId === 'string' ? clipOrRecordingId : clipOrRecordingId.recordingId
-            const recording = state.currentProject.recordings.find(r => r.id === recordingId)
-
-            let targetTrackType = options?.trackType
-
-            // Heuristic: If recording ID or path indicates webcam/camera, default to Webcam track
-            if (!targetTrackType && recording && (
-                recording.id.toLowerCase().includes('webcam') ||
-                recording.id.toLowerCase().includes('camera') ||
-                recording.filePath?.toLowerCase().includes('webcam') ||
-                recording.filePath?.toLowerCase().includes('camera')
-            )) {
-                targetTrackType = TrackType.Webcam
-            }
+            // Track type should be explicitly provided by caller
+            const targetTrackType = options?.trackType
 
             // Ensure Webcam track exists if we are targeting it
             if (targetTrackType === TrackType.Webcam) {
@@ -529,7 +516,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                     const shiftableTypes = new Set<EffectType>([
                         EffectType.Zoom,
                         EffectType.Screen,
-                        EffectType.Plugin
+                        EffectType.Plugin,
+                        EffectType.Keystroke
                     ])
 
                     for (const effect of effects) {

@@ -163,7 +163,6 @@ export class EffectGenerationService {
 
         // Check if there's a valid webcam clip with a valid recording
         const webcamTrack = project.timeline.tracks.find(t => t.type === 'webcam')
-        const webcamClips = webcamTrack?.clips || []
 
         // Clean up orphaned webcam clips (clips without valid recordings)
         if (webcamTrack) {

@@ -3,7 +3,7 @@ import type { WebcamLayoutData } from '@/types/project';
 
 /**
  * Calculate animation values for webcam (scale, opacity, translate)
- * Shared between WebcamLayer (rendering) and PreviewInteractions (hit testing)
+ * Shared between WebcamClipRenderer (rendering) and PreviewInteractions (hit testing)
  */
 export function calculateWebcamAnimations(
     data: WebcamLayoutData,

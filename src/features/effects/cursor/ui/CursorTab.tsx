@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 
 import { ChevronRight, RotateCcw, Plus, Minus, Wind, Gauge, Zap, CircleOff, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
@@ -338,7 +339,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 <ChevronRight className="w-4 h-4 rotate-180" />
               </button>
               <div className="flex-1 flex items-center justify-center h-12 rounded-lg border border-border/40 bg-background/60">
-                <img
+                <Image
                   src={getCursorImagePath(CursorType.ARROW, currentTheme)}
                   alt={CURSOR_THEMES[currentTheme]?.name}
                   width={32}
@@ -346,6 +347,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   className="w-8 h-8 object-contain"
                   style={{ imageRendering: 'auto' }}
                   draggable={false}
+                  unoptimized
                 />
               </div>
               <button

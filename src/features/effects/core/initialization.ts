@@ -5,7 +5,7 @@
  */
 
 import type { Project } from '@/types/project'
-import { EffectType, type Effect } from '@/types/project';
+import { EffectType } from '@/types/project';
 import { EffectStore } from './store'
 import { EffectCreation } from './creation'
 import { syncKeystrokeEffects } from '../services/keystroke-sync-service'

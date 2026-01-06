@@ -23,6 +23,7 @@ import { createVideoStreamUrl } from '@/features/media/recording/components/libr
 import { ProjectIOService } from '@/features/core/storage/project-io-service'
 import { CommandExecutor } from '@/features/core/commands/base/CommandExecutor'
 import { MergeProjectCommand } from '@/features/core/commands/timeline/MergeProjectCommand'
+import { AddAssetCommand } from '@/features/core/commands/timeline/AddAssetCommand'
 
 // --- Metadata Helpers ---
 
@@ -85,12 +86,16 @@ interface AssetItemProps {
     onAdd: (asset: Asset, trackType?: TrackType.Video | TrackType.Webcam) => void
     onRemove: (id: string) => void
     setDraggingAsset: (asset: Asset | null) => void
+    hoveredAssetId: string | null
+    onHover: (id: string) => void
+    onLeave: (id: string) => void
 }
 
-const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: AssetItemProps) => {
+const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset, hoveredAssetId, onHover, onLeave }: AssetItemProps) => {
     const [thumbnail, setThumbnail] = useState<string | null>(null)
-    const [isHovered, setIsHovered] = useState(false)
     const [isLoadingThumb, setIsLoadingThumb] = useState(false)
+
+    const isHovered = hoveredAssetId === asset.id
 
     // Load thumbnail for video
     useEffect(() => {
@@ -146,8 +151,8 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
             draggable={true}
             onDragStart={handleDragStart}
             onDragEnd={() => setDraggingAsset(null)}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onMouseEnter={() => onHover(asset.id)}
+            onMouseLeave={() => onLeave(asset.id)}
             className="group relative aspect-square rounded-md overflow-hidden border border-border/40 bg-muted/10 hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing"
             onClick={() => onAdd(asset)}
         >
@@ -165,7 +170,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
                     {isHovered ? (
                         <video
                             src={createVideoStreamUrl(asset.path) || asset.path}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover pointer-events-none"
                             autoPlay
                             muted
                             loop
@@ -277,6 +282,15 @@ export function ImportMediaSection() {
     const [ingestQueue, setIngestQueue] = useState<IngestQueueItem[]>([])
     const [isLibraryDialogOpen, setIsLibraryDialogOpen] = useState(false)
     const ingestCleanupTimeoutRef = useRef<number | null>(null)
+    const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null)
+
+    const handleAssetHover = useCallback((id: string) => {
+        setHoveredAssetId(id)
+    }, [])
+
+    const handleAssetLeave = useCallback((id: string) => {
+        setHoveredAssetId(prev => (prev === id ? null : prev))
+    }, [])
 
     // Asset Library Store
     const assets = useAssetLibraryStore((s) => s.assets)
@@ -465,6 +479,8 @@ export function ImportMediaSection() {
 
     // --- Add Asset To Project Logic ---
 
+    // Updated to use AddAssetCommand to ensure consistent logic (including webcam track enforcement)
+    // regardless of whether added via click or drag-drop.
     const addAssetToProject = useCallback(async (asset: Asset, trackType?: TrackType.Video | TrackType.Webcam) => {
         if (!currentProject) {
             toast.error('Open a project to add media')
@@ -479,19 +495,37 @@ export function ImportMediaSection() {
             }
         }
 
-        updateProjectData((project: Project) => {
-            const updatedProject = { ...project }
-            const targetTrackType = asset.type === 'video' ? trackType : undefined
-            addAssetRecording(updatedProject, {
+        if (!CommandExecutor.isInitialized()) {
+            // Fallback if no executor (should rarely happen in editor)
+            updateProjectData((project: Project) => {
+                const updatedProject = { ...project }
+                const targetTrackType = asset.type === 'video' ? trackType : undefined
+                addAssetRecording(updatedProject, {
+                    path: asset.path,
+                    duration: asset.metadata.duration || 0,
+                    width: asset.metadata.width || 0,
+                    height: asset.metadata.height || 0,
+                    type: asset.type as 'video' | 'audio' | 'image',
+                    name: asset.name
+                }, targetTrackType ? { trackType: targetTrackType } : undefined)
+                return updatedProject
+            })
+            return
+        }
+
+        const executor = CommandExecutor.getInstance()
+        await executor.execute(AddAssetCommand, {
+            asset: {
                 path: asset.path,
                 duration: asset.metadata.duration || 0,
                 width: asset.metadata.width || 0,
                 height: asset.metadata.height || 0,
                 type: asset.type as 'video' | 'audio' | 'image',
                 name: asset.name
-            }, targetTrackType ? { trackType: targetTrackType } : undefined)
-            return updatedProject
+            },
+            options: { trackType }
         })
+
     }, [currentProject, updateProjectData])
 
 
@@ -731,6 +765,9 @@ export function ImportMediaSection() {
                                             onAdd={addAssetToProject}
                                             onRemove={removeAsset}
                                             setDraggingAsset={setDraggingAsset}
+                                            hoveredAssetId={hoveredAssetId}
+                                            onHover={handleAssetHover}
+                                            onLeave={handleAssetLeave}
                                         />
                                     ))}
                                 </div>

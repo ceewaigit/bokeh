@@ -33,6 +33,14 @@ export function usePlayerConfiguration(
 ) {
   const windowSurfaceMode = useWindowSurfaceStore((s) => s.mode)
 
+  // OPTIMIZE: Memoize the deep clone of recordings to prevent referential instability
+  // when other parts of the project change (like settings or cursor position).
+  // This prevents the entire TimelineContext from invalidating downstream.
+  const clonedRecordings = useMemo(() => {
+    if (!project?.recordings) return [];
+    return JSON.parse(JSON.stringify(project.recordings));
+  }, [project?.recordings]);
+
   return useMemo(() => {
     if (!project?.timeline.tracks || !project.recordings) {
       return null;
@@ -55,7 +63,7 @@ export function usePlayerConfiguration(
     // Since Remotion might render a frame with stale context, we must ensure
     // we never expose a revoked proxy to the render tree.
     // JSON clone is fast enough for recordings metadata (typically < 1MB).
-    const recordings = JSON.parse(JSON.stringify(project.recordings || []));
+    // MOVED: Deep copy is now handled by clonedRecordings memo above.
 
     // Collect all effects from timeline.effects (the single source of truth)
     const effects = EffectStore.getAll(project);
@@ -67,7 +75,7 @@ export function usePlayerConfiguration(
       clips: videoClips,      // Intact video clips (no slicing)
       audioClips,             // Intact audio clips
       webcamClips,            // Intact webcam clips
-      recordings,
+      recordings: clonedRecordings,
       effects,
       globalSkipRanges,       // NEW: Skip ranges for playback and rendering
       videoWidth,
@@ -83,6 +91,7 @@ export function usePlayerConfiguration(
     videoHeight,
     fps,
     cameraSettingsOverride,
-    windowSurfaceMode
+    windowSurfaceMode,
+    clonedRecordings
   ]);
 }

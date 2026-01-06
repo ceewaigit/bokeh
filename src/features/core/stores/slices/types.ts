@@ -21,7 +21,6 @@ import type { SelectedEffectLayer, EffectLayerType } from '@/features/effects/ty
 import type { CameraPathFrame } from '@/types/remotion'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import type { EffectGenerationConfig } from '@/features/effects/services/effect-generation-service'
-import type { ProxyUrlEntry } from './cache-slice'
 import type { Patch } from 'immer'
 import type { WritableDraft } from 'immer'
 
@@ -124,11 +123,7 @@ export interface CacheSliceState {
   frameLayoutCache: FrameLayoutItem[] | null
   timelineMutationCounter: number
   previewReady: boolean
-  /**
-   * Ephemeral proxy URL storage - stored separately from project data
-   * to avoid triggering cache invalidation when proxies complete.
-   */
-  proxyUrls: Record<string, ProxyUrlEntry>
+  // NOTE: Proxy URL storage has been moved to src/features/proxy/store/proxy-store.ts
 }
 
 export interface ProgressState {
@@ -277,10 +272,7 @@ export interface CacheSliceActions {
   setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
   setPreviewReady: (ready: boolean) => void
   invalidateAllCaches: () => void
-  // Proxy URL actions (ephemeral, don't trigger cache invalidation)
-  setProxyUrl: (recordingId: string, proxyType: 'preview' | 'glow' | 'scrub', url: string) => void
-  getProxyUrl: (recordingId: string, proxyType: 'preview' | 'glow' | 'scrub') => string | undefined
-  clearProxyUrls: () => void
+  // NOTE: Proxy URL actions have been moved to src/features/proxy/store/proxy-store.ts
 }
 
 export interface SettingsSliceActions {

@@ -3,11 +3,10 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 
 import { cn } from '@/shared/utils/utils'
-import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, WebcamLayoutData, Effect } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, Effect } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
 import { EffectLayerType } from '@/features/effects/types'
-import { getBackgroundEffect, getCropEffectForClip, getEffectByType, getEffectsOfType } from '@/features/effects/core/filters'
-import { resolveEffectIdForType } from '@/features/effects/core/selection'
+import { getBackgroundEffect, getCropEffectForClip, getEffectByType } from '@/features/effects/core/filters'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -309,7 +308,7 @@ export function EffectsSidebar({
 
     // Remember last effect type
     prevEffectTypeRef.current = currentEffectType
-  }, [routeToEffect, selectedEffectLayer, selectedClip, setActiveTab])
+  }, [routeToEffect, selectedEffectLayer, selectedClip, setActiveTab, selectedTrackType])
 
   const updateEffect = useCallback((category: EffectType.Cursor | EffectType.Keystroke, updates: Partial<CursorEffectData | KeystrokeEffectData>) => {
     const effect = category === EffectType.Cursor ? cursorEffect : keystrokeEffect

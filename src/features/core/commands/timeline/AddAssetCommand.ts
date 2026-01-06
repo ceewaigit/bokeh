@@ -43,29 +43,11 @@ export class AddAssetCommand extends Command<{ clipId: string }> {
 
         // Use updateProjectData to ensure persistence and reactivity
         this.context.getStore().updateProjectData((draft) => {
-            // ROBUSTNESS: If the asset seems to be a webcam recording, force Webcam track
-            // This prevents "Double Click to Add" or generic imports from landing on Video track
-            // and displacing/rippling existing clips.
             let options = this.payload.options
 
             // Normalize options if it's just a number (startTime)
             if (typeof options === 'number') {
                 options = { startTime: options }
-            }
-
-            const isWebcamAsset = this.payload.asset.name?.toLowerCase().includes('webcam')
-            if (isWebcamAsset) {
-                // Ensure options is an object
-                options = options || {}
-                // Force track type ONLY if not already set (e.g. by drag-drop logic)
-                // This allows drag-drop to explicitly place on Video track if desired,
-                // but defaults to Webcam track if adding via double-click / generic add.
-                if (!options.trackType) {
-                    options = {
-                        ...options,
-                        trackType: 'webcam' as TrackType
-                    }
-                }
             }
 
             newClip = addAssetRecording(draft, this.payload.asset, options)

@@ -330,6 +330,24 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             }
             if (onRender) onRender();
         }
+        return () => {
+            // Aggressive cleanup to help GC reclaim GPU memory
+            if (canvasEl) {
+                // Clear the canvas to release backing store?
+                // Setting to 0x0 helps some browsers release texture memory immediately
+                canvasEl.width = 0;
+                canvasEl.height = 0;
+            }
+            if (videoCanvasRef.current) {
+                // videoCanvasRef can be OffscreenCanvas or HTMLCanvasElement
+                const vc = videoCanvasRef.current;
+                vc.width = 0;
+                vc.height = 0;
+                videoCanvasRef.current = null;
+                videoCtxRef.current = null;
+            }
+            bitmapCtxRef.current = null;
+        };
     }, [
         frame,
         videoFrame,

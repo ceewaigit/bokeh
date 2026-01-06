@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Captions, CaptionsOff, RotateCcw, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import { Captions, CaptionsOff, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Recording, SourceTimeRange, Transcript, TranscriptWord, SubtitleEffect } from '@/types/project'
 import { TranscriptionStatus } from '@/types/project'
 import type { TranscriptionProgress } from '@/types/transcription'

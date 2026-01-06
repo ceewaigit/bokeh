@@ -5,8 +5,7 @@ import {
     computeContiguousPreview,
     computeContiguousSnapPositions,
     findNearestContiguousSnap,
-    type TimelineBlockRange,
-    getLeftmostBlockEnd
+    type TimelineBlockRange
 } from '@/features/ui/timeline/utils/drag-positioning'
 
 describe('drag-positioning utils', () => {

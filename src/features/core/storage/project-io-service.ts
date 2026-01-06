@@ -5,6 +5,7 @@ import { migrationRunner } from '@/shared/migrations'
 import { getVideoMetadata } from '@/shared/utils/video-metadata'
 import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE, buildProjectFilePath } from '@/features/core/storage/recording-storage'
 import { precomputeCursorSmoothingCache } from '@/features/effects/cursor/logic/cursor-logic'
+import { ProxyService } from '@/features/proxy'
 
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config';
 import { EffectStore } from '@/features/effects/core/store'
@@ -205,11 +206,9 @@ export class ProjectIOService {
         // SKIP for image clips - static images don't need video proxy conversion
         if (rec.sourceType !== 'image') {
           if (awaitPlaybackPreparation) {
-            pendingProxyTasks.push(this.ensurePreviewProxy(rec, onProgress))
-            pendingProxyTasks.push(this.ensureGlowProxy(rec))
+            pendingProxyTasks.push(ProxyService.ensureProxiesForRecording(rec, { onProgress, background: false }))
           } else {
-            void this.ensurePreviewProxy(rec, onProgress)
-            void this.ensureGlowProxy(rec)
+            void ProxyService.ensureProxiesForRecording(rec, { onProgress, background: true })
           }
         }
       }
@@ -288,107 +287,6 @@ export class ProjectIOService {
     return project
   }
 
-  /**
-   * Generate a preview proxy for large source videos
-   * This reduces memory usage by decoding 1080p instead of 5K+ during preview
-   * 
-   * IMPORTANT: Uses setProxyUrl instead of updateProjectData to avoid
-   * triggering cache invalidation when proxy completes.
-   */
-  private static async ensurePreviewProxy(
-    recording: Recording,
-    onProgress?: (message: string) => void
-  ): Promise<void> {
-
-    if (!recording.filePath || !window.electronAPI?.checkPreviewProxy) {
-      return
-    }
-
-    try {
-      // First check if proxy exists or is needed
-      const checkResult = await window.electronAPI.checkPreviewProxy(recording.filePath)
-
-      if (checkResult.existingProxyUrl) {
-        // Use existing proxy - store in ephemeral state (doesn't trigger cache invalidation)
-        try {
-          (recording as any).previewProxyUrl = checkResult.existingProxyUrl
-        } catch {
-          // Object is frozen - use ephemeral proxy URL store instead
-        }
-        // Always update ephemeral store for consistent access
-        import('@/features/core/stores/project-store').then(({ useProjectStore }) => {
-          useProjectStore.getState().setProxyUrl(recording.id, 'preview', checkResult.existingProxyUrl!)
-        })
-        return
-      }
-
-      if (!checkResult.needsProxy) {
-        // Fallback: ffprobe can fail; use known recording dimensions if available.
-        const needsProxyByMetadata =
-          typeof recording.width === 'number' &&
-          recording.width > 2560;
-        if (!needsProxyByMetadata) {
-          // Video is small enough, no proxy needed
-          return
-        }
-      }
-
-      // Generate proxy
-      onProgress?.('Generating preview for faster playback...')
-
-      if (window.electronAPI.generatePreviewProxy) {
-        const result = await window.electronAPI.generatePreviewProxy(recording.filePath)
-
-        if (result.success && result.proxyUrl) {
-          try {
-            (recording as any).previewProxyUrl = result.proxyUrl
-          } catch {
-            // Object is frozen - that's fine, we use ephemeral store
-          }          // Store in ephemeral proxy URL store (doesn't trigger cache invalidation)
-          import('@/features/core/stores/project-store').then(({ useProjectStore }) => {
-            useProjectStore.getState().setProxyUrl(recording.id, 'preview', result.proxyUrl!)
-          })
-        } else if (result.error) {
-          console.warn(`[ProjectIO] ❌ Proxy generation failed: ${result.error}`)
-        }
-      }
-    } catch (error) {
-      console.warn('[ProjectIO] ❌ Failed to check/generate preview proxy:', error)
-      // Don't fail the load - just use original video
-    }
-  }
-
-  /**
-   * Generate a glow proxy for the ambient glow player
-   * This keeps glow decoding ultra-lightweight regardless of source size
-   * 
-   * IMPORTANT: Uses setProxyUrl instead of updateProjectData to avoid
-   * triggering cache invalidation when proxy completes.
-   */
-  private static async ensureGlowProxy(recording: Recording): Promise<void> {
-    if (!recording.filePath || !window.electronAPI?.generateGlowProxy) {
-      return
-    }
-
-    try {
-      const result = await window.electronAPI.generateGlowProxy(recording.filePath)
-      if (result.success && result.proxyUrl) {
-        try {
-          (recording as any).glowProxyUrl = result.proxyUrl
-        } catch {
-          // Object is frozen - that's fine, we use ephemeral store
-        }
-        // Store in ephemeral proxy URL store (doesn't trigger cache invalidation)
-        import('@/features/core/stores/project-store').then(({ useProjectStore }) => {
-          useProjectStore.getState().setProxyUrl(recording.id, 'glow', result.proxyUrl!)
-        })
-      } else if (result.error) {
-        console.warn(`[ProjectIO] ❌ Glow proxy failed: ${result.error}`)
-      }
-    } catch (error) {
-      console.warn('[ProjectIO] ❌ Failed to generate glow proxy:', error)
-    }
-  }
 
   /**
    * Validate and fix recording properties (duration, dimensions)
