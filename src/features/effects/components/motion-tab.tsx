@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Wind, ChevronRight, Activity } from 'lucide-react'
+import { Wind, ChevronRight, Activity, Video } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { Switch } from '@/components/ui/switch'
@@ -9,19 +9,64 @@ import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CompactSlider, SegmentedControl, SectionHeader, springConfig } from './motion-controls'
 
-import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
-
 export function MotionTab() {
   const camera = useProjectStore((s) => s.currentProject?.settings.camera ?? DEFAULT_PROJECT_SETTINGS.camera)
   const setCameraSettings = useProjectStore((s) => s.setCameraSettings)
 
-  const [motionBlurPreset, setMotionBlurPreset] = React.useState<'subtle' | 'balanced' | 'dynamic' | 'custom'>('balanced')
+  // --- Camera Movement State ---
+  const [cameraStylePreset, setCameraStylePreset] = React.useState<'tight' | 'balanced' | 'steady' | 'cinematic' | 'floaty' | 'custom'>('cinematic')
 
-  const isAdvancedOpen = useWorkspaceStore((s) => s.motionTabAdvancedOpen)
-  const setIsAdvancedOpen = useWorkspaceStore((s) => s.setMotionTabAdvancedOpen)
+  const cameraStylePresets = React.useMemo(() => ([
+    // Tight: k=300, c=35 (zeta=1.0) -> Snappy, instant verification
+    { id: 'tight', label: 'Tight', stiffness: 300, damping: 35, mass: 1, value: 8 },
+    // Balanced: k=180, c=27 (zeta=1.0) -> Good balance of smoothness and tracking
+    { id: 'balanced', label: 'Balanced', stiffness: 180, damping: 27, mass: 1, value: 24 },
+    // Steady: k=100, c=20 (zeta=1.0) -> Smoother, absorbs jitters
+    { id: 'steady', label: 'Steady', stiffness: 100, damping: 20, mass: 1, value: 36 },
+    // Cinematic: k=60, c=15 (zeta=1.0) -> Slow, deliberate pans
+    { id: 'cinematic', label: 'Cinematic', stiffness: 60, damping: 15, mass: 1, value: 48 },
+    // Floaty: k=30, c=6 (zeta=0.55) -> Slight overshoot, very fluid
+    { id: 'floaty', label: 'Floaty', stiffness: 30, damping: 6, mass: 1, value: 72 },
+    { id: 'custom', label: 'Custom', stiffness: null, damping: null, mass: null, value: null },
+  ] as const), [])
+
+  const resolveCameraStylePreset = React.useCallback((settings: typeof camera) => {
+    if (settings.cameraDynamics) {
+      const { stiffness, damping } = settings.cameraDynamics
+      const match = cameraStylePresets.find(p =>
+        p.stiffness === stiffness && p.damping === damping
+      )
+      return (match?.id ?? 'custom') as typeof cameraStylePreset
+    }
+    const effectiveSmoothing = settings.cameraSmoothness ?? 48
+    const match = cameraStylePresets.find(p => p.value === effectiveSmoothing)
+    return (match?.id ?? 'custom') as typeof cameraStylePreset
+  }, [cameraStylePresets])
+
+  React.useEffect(() => {
+    setCameraStylePreset(resolveCameraStylePreset(camera))
+  }, [camera, resolveCameraStylePreset])
+
+  const applyCameraStylePreset = (preset: typeof cameraStylePreset) => {
+    setCameraStylePreset(preset)
+    const presetData = cameraStylePresets.find((item) => item.id === preset)
+    if (!presetData || presetData.id === 'custom') return
+
+    setCameraSettings({
+      cameraDynamics: {
+        stiffness: presetData.stiffness!,
+        damping: presetData.damping!,
+        mass: presetData.mass!
+      },
+      cameraSmoothness: presetData.value
+    })
+  }
+
+  // --- Motion Blur State (Existing) ---
+  const [motionBlurPreset, setMotionBlurPreset] = React.useState<'subtle' | 'balanced' | 'dynamic' | 'custom'>('balanced')
+  const [isAdvancedBlurOpen, setIsAdvancedBlurOpen] = React.useState(false)
 
   const motionBlurPresets = React.useMemo(() => ([
-    // Color-neutral presets to prevent color mismatch between blur and original
     { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: 0, saturation: 1.0, samples: 16 } },
     { id: 'balanced', label: 'Balanced', values: { intensity: 100, threshold: 70, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60, black: 0, saturation: 1.0, samples: 32 } },
     { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100, black: 0, saturation: 1.0, samples: 48 } },
@@ -59,12 +104,48 @@ export function MotionTab() {
   }
 
   return (
-    <div className="space-y-4 px-1">
+    <div className="space-y-6 px-1">
       <div className="flex items-center gap-2 mb-4 opacity-80">
         <Wind className="w-4 h-4 text-muted-foreground" />
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Motion & Blur</span>
       </div>
 
+      {/* --- Camera Movement Section --- */}
+      <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30 overflow-hidden">
+        <SectionHeader
+          icon={Video}
+          title="Camera Movement"
+          subtitle="Viewport smoothing"
+        />
+
+        <SegmentedControl
+          options={[
+            { id: 'tight', label: 'Tight' },
+            { id: 'balanced', label: 'Balanced' },
+            { id: 'steady', label: 'Steady' },
+            { id: 'cinematic', label: 'Cinematic' },
+            // { id: 'floaty', label: 'Floaty' }, // Optional, leaving out if too many options or keep consistent with ZoomTab
+            { id: 'custom', label: 'Custom' }
+          ]}
+          value={cameraStylePreset === 'floaty' ? 'cinematic' : cameraStylePreset} // Map floaty to cinematic visually or just show custom? Fallback to custom if not in list.
+          onChange={(id) => applyCameraStylePreset(id as any)}
+          namespace="camera-motion"
+        />
+
+        {/* Helper text for current preset */}
+        {cameraStylePreset !== 'custom' && (
+          <p className="text-xs text-muted-foreground/70 px-1">
+            {cameraStylePreset === 'tight' && "Snappy, instant verification."}
+            {cameraStylePreset === 'balanced' && "Good balance of smoothness and tracking."}
+            {cameraStylePreset === 'steady' && "Smoother, absorbs jitters."}
+            {cameraStylePreset === 'cinematic' && "Slow, deliberate pans."}
+            {cameraStylePreset === 'floaty' && "Slight overshoot, very fluid."}
+          </p>
+        )}
+      </div>
+
+
+      {/* --- Motion Blur Section (Existing) --- */}
       <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm transition-all hover:bg-background/30 overflow-hidden">
         <div className="flex items-center justify-between">
           <SectionHeader
@@ -96,15 +177,15 @@ export function MotionTab() {
 
         <div className="pt-1">
           <button
-            onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+            onClick={() => setIsAdvancedBlurOpen(!isAdvancedBlurOpen)}
             className="flex items-center gap-1.5 text-3xs font-semibold text-muted-foreground hover:text-primary transition-colors select-none mb-2"
           >
-            <ChevronRight className={cn("w-3 h-3 transition-transform duration-200", isAdvancedOpen && "rotate-90")} />
+            <ChevronRight className={cn("w-3 h-3 transition-transform duration-200", isAdvancedBlurOpen && "rotate-90")} />
             ADVANCED SETTINGS
           </button>
 
           <AnimatePresence>
-            {isAdvancedOpen && (
+            {isAdvancedBlurOpen && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}

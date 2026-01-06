@@ -10,6 +10,7 @@ export interface EffectsSidebarContextValue {
   onRemoveCrop?: (effectId: string) => void
   onUpdateCrop?: (effectId: string, updates: Partial<CropEffectData>) => void
   onStartEditCrop?: () => void
+  onStopEditCrop?: () => void
 }
 
 const EffectsSidebarContext = createContext<EffectsSidebarContextValue | null>(null)

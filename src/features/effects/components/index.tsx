@@ -18,10 +18,8 @@ import { BackgroundTab } from '@/features/effects/background'
 import { CursorTab } from '@/features/effects/cursor/ui/CursorTab'
 import { KeystrokeTab } from '@/features/effects/keystroke'
 import { ZoomTab } from '@/features/ui/editor/logic/viewport/zoom'
-import { ShapeTab } from './shape-tab'
-import { ScreenTab } from '@/features/effects/screen'
-import { CropTab } from './crop-tab'
-import { ClipTab } from './clip-tab'
+import { ScreenTab as ScreenEffectsTab } from '@/features/effects/screen'
+import { ScreenTab } from './screen-tab'
 import { MotionTab } from './motion-tab'
 import { CanvasTab } from './canvas-tab'
 import { WebcamTab } from '@/features/media/webcam'
@@ -39,21 +37,21 @@ interface EffectsSidebarProps {
   className?: string
 }
 
-type StyleSubTabId = 'background' | 'frame' | 'screen'
+type BackdropSubTabId = 'background' | 'depth'
 type PointerSubTabId = 'cursor' | 'keystrokes'
-type FramingSubTabId = 'zoom' | 'crop'
+type CameraSubTabId = 'auto' | 'manual'
 
 const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Background]: 'Backdrop',
-  [EffectLayerType.Screen]: 'Depth',
+  [EffectLayerType.Screen]: 'Screen',
   // NOTE: Webcam removed - webcam styling now on clip.layout
   [EffectLayerType.Cursor]: 'Pointer',
   [EffectLayerType.Keystroke]: 'Typing',
-  [EffectLayerType.Zoom]: 'Focus',
-  [EffectLayerType.Crop]: 'Frame',
+  [EffectLayerType.Zoom]: 'Camera',
+  [EffectLayerType.Crop]: 'Screen',
   [EffectLayerType.Plugin]: 'Tools',
   [EffectLayerType.Annotation]: 'Overlay',
-  [EffectLayerType.Frame]: 'Window',
+  [EffectLayerType.Frame]: 'Screen',
   [EffectLayerType.Video]: 'Video',
   [EffectLayerType.Subtitle]: 'Subtitle',
 }
@@ -133,7 +131,8 @@ export function EffectsSidebar({
     onAddCrop,
     onRemoveCrop,
     onUpdateCrop,
-    onStartEditCrop
+    onStartEditCrop,
+    onStopEditCrop
   } = useEffectsSidebarContext()
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer)
   const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection)
@@ -150,11 +149,10 @@ export function EffectsSidebar({
   const activeTab = useWorkspaceStore((s) => s.activeSidebarTab)
   const setActiveTab = useWorkspaceStore((s) => s.setActiveSidebarTab)
 
-  const [styleSubTab, setStyleSubTab] = useState<StyleSubTabId>('background')
+  const [backdropSubTab, setBackdropSubTab] = useState<BackdropSubTabId>('background')
   const [pointerSubTab, setPointerSubTab] = useState<PointerSubTabId>('cursor')
-  const [framingSubTab, setFramingSubTab] = useState<FramingSubTabId>('zoom')
+  const [cameraSubTab, setCameraSubTab] = useState<CameraSubTabId>('auto')
   const tooltipRef = useRef<HTMLDivElement | null>(null)
-  const lastAutoOpenedCropClipRef = useRef<string | null>(null)
 
   // Check if webcam/annotation tracks have content
   const { hasWebcamContent } = useTrackExistence()
@@ -185,64 +183,44 @@ export function EffectsSidebar({
 
   const isVideoClipSelected = !!selectedClip && selectedTrackType === TrackType.Video
 
+  // Cleanup crop editing when leaving Screen tab or when clip deselects
   useEffect(() => {
-    const isInCropTab =
-      activeTab === SidebarTabId.Framing &&
-      framingSubTab === 'crop'
+    const shouldStopEditing = activeTab !== SidebarTabId.Screen || !isVideoClipSelected
+    if (shouldStopEditing && isEditingCrop && onStopEditCrop) {
+      onStopEditCrop()
+    }
+  }, [activeTab, isVideoClipSelected, isEditingCrop, onStopEditCrop])
 
-    if (!isInCropTab || !isVideoClipSelected) {
-      lastAutoOpenedCropClipRef.current = null
-      return
+  // Handle Escape key to close crop editing
+  useEffect(() => {
+    if (!isEditingCrop) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onStopEditCrop) {
+        e.preventDefault()
+        e.stopPropagation()
+        onStopEditCrop()
+      }
     }
 
-    const clipId = selectedClip?.id ?? null
-    if (!clipId || lastAutoOpenedCropClipRef.current === clipId) {
-      return
-    }
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [isEditingCrop, onStopEditCrop])
 
-    if (isEditingCrop) {
-      lastAutoOpenedCropClipRef.current = clipId
-      return
-    }
-
-    const cropEffect = selectedClip && effects
-      ? getCropEffectForClip(effects, selectedClip)
-      : undefined
-
-    if (cropEffect && onStartEditCrop) {
-      onStartEditCrop()
-      lastAutoOpenedCropClipRef.current = clipId
-      return
-    }
-
-    if (!cropEffect && onAddCrop) {
-      onAddCrop()
-      lastAutoOpenedCropClipRef.current = clipId
-    }
-  }, [
-    activeTab,
-    framingSubTab,
-    isVideoClipSelected,
-    isEditingCrop,
-    effects,
-    selectedClip,
-    onAddCrop,
-    onStartEditCrop,
-  ])
 
   const routeToEffect = useCallback((type: EffectLayerType) => {
     switch (type) {
       case EffectLayerType.Background:
-        setActiveTab(SidebarTabId.Style)
-        setStyleSubTab('background')
+        setActiveTab(SidebarTabId.Backdrop)
+        setBackdropSubTab('background')
         return
       case EffectLayerType.Screen:
-        setActiveTab(SidebarTabId.Style)
-        setStyleSubTab('screen')
+        setActiveTab(SidebarTabId.Backdrop)
+        setBackdropSubTab('depth')
         return
       case EffectLayerType.Frame:
-        setActiveTab(SidebarTabId.Style)
-        setStyleSubTab('frame')
+      case EffectLayerType.Crop:
+        setActiveTab(SidebarTabId.Screen)
         return
       // NOTE: Webcam case removed - webcam is now handled via clip selection
       case EffectLayerType.Cursor:
@@ -254,28 +232,21 @@ export function EffectsSidebar({
         setPointerSubTab('keystrokes')
         return
       case EffectLayerType.Zoom:
-        setActiveTab(SidebarTabId.Framing)
-        setFramingSubTab('zoom')
-        return
-      case EffectLayerType.Crop:
-        setActiveTab(SidebarTabId.Framing)
-        setFramingSubTab('crop')
+      case EffectLayerType.Video:
+        setActiveTab(SidebarTabId.Camera)
+        setCameraSubTab('auto')
         return
       case EffectLayerType.Plugin:
-        setActiveTab(SidebarTabId.Advanced)
+        setActiveTab(SidebarTabId.Motion)
         return
       case EffectLayerType.Annotation:
         setActiveTab(SidebarTabId.Annotation)
-        return
-      case EffectLayerType.Video:
-        setActiveTab(SidebarTabId.Framing)
-        setFramingSubTab('zoom')
         return
       case EffectLayerType.Subtitle:
         setActiveTab(SidebarTabId.Transcript)
         return
       default:
-        setActiveTab(SidebarTabId.Advanced)
+        setActiveTab(SidebarTabId.Screen)
     }
   }, [setActiveTab])
 
@@ -286,29 +257,12 @@ export function EffectsSidebar({
     // If an effect layer is explicitly selected, always show its tab
     if (currentEffectType) {
       routeToEffect(currentEffectType)
-    } else {
-      // If effect selection was cleared (transition from some type to none), go to clip tab once
-      if (prevEffectTypeRef.current) {
-        if (selectedClip) setActiveTab(SidebarTabId.Clip)
-      }
-
-      // If a new clip was selected, go to clip tab once
-      const currentClipId = selectedClip?.id || null
-      if (currentClipId !== lastClipIdRef.current) {
-        lastClipIdRef.current = currentClipId
-        if (currentClipId) {
-          if (selectedTrackType === TrackType.Webcam) {
-            setActiveTab(SidebarTabId.Webcam)
-          } else {
-            setActiveTab(SidebarTabId.Clip)
-          }
-        }
-      }
     }
+    // NOTE: Removed clip auto-switch behavior - users now stay on their current tab
 
     // Remember last effect type
     prevEffectTypeRef.current = currentEffectType
-  }, [routeToEffect, selectedEffectLayer, selectedClip, setActiveTab, selectedTrackType])
+  }, [routeToEffect, selectedEffectLayer])
 
   const updateEffect = useCallback((category: EffectType.Cursor | EffectType.Keystroke, updates: Partial<CursorEffectData | KeystrokeEffectData>) => {
     const effect = category === EffectType.Cursor ? cursorEffect : keystrokeEffect
@@ -321,25 +275,31 @@ export function EffectsSidebar({
     }
   }, [cursorEffect, keystrokeEffect, onEffectChange])
 
+  // Map tabs to include disabled state instead of filtering
   const visibleTabs = React.useMemo(() => {
-    return SIDEBAR_TABS.filter((tab) => {
-      // Only show Clip tab when a clip is selected
-      if (tab.id === SidebarTabId.Clip) return !!selectedClip
-      // Only show Webcam tab when there's webcam content on the timeline
-      if (tab.id === SidebarTabId.Webcam) return hasWebcamContent
-      return true
+    return SIDEBAR_TABS.map((tab) => {
+      // Disable Webcam tab when there's no webcam content instead of hiding it
+      if (tab.id === SidebarTabId.Webcam) {
+        return {
+          ...tab,
+          disabled: !hasWebcamContent,
+          tooltip: !hasWebcamContent ? "No webcam clips on the timeline" : tab.label
+        }
+      }
+      return {
+        ...tab,
+        disabled: false,
+        tooltip: tab.label
+      }
     })
-  }, [selectedClip, hasWebcamContent])
+  }, [hasWebcamContent])
 
   useEffect(() => {
-    if (!selectedClip && activeTab === SidebarTabId.Clip) {
-      setActiveTab(SidebarTabId.Style)
-    }
     // Switch away from Webcam tab if webcam content is removed
     if (!hasWebcamContent && activeTab === SidebarTabId.Webcam) {
-      setActiveTab(SidebarTabId.Style)
+      setActiveTab(SidebarTabId.Screen)
     }
-  }, [activeTab, selectedClip, hasWebcamContent, setActiveTab])
+  }, [activeTab, hasWebcamContent, setActiveTab])
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = useCallback((updates: Partial<BackgroundEffectData>) => {
@@ -373,12 +333,15 @@ export function EffectsSidebar({
               <Tooltip key={tab.id} delayDuration={200}>
                 <TooltipTrigger asChild>
                   <motion.button
-                    onClick={() => setActiveTab(tab.id as SidebarTabId)}
+                    onClick={tab.disabled ? undefined : () => setActiveTab(tab.id as SidebarTabId)}
+                    disabled={tab.disabled}
                     className={cn(
                       "group relative flex w-full aspect-square items-center justify-center p-2 rounded-xl transition-colors duration-150",
                       activeTab === tab.id
                         ? "text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
+                        : tab.disabled
+                          ? "text-muted-foreground/30 cursor-not-allowed"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
                     )}
                     aria-label={tab.label}
                     transition={tabMotion}
@@ -399,7 +362,7 @@ export function EffectsSidebar({
                   </motion.button>
                 </TooltipTrigger>
                 <TooltipContent side="right" align="center" sideOffset={8} className="text-xs">
-                  {tab.label}
+                  {tab.tooltip}
                 </TooltipContent>
               </Tooltip>
             ))}
@@ -433,22 +396,31 @@ export function EffectsSidebar({
           <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-3">
             <div className="w-full relative">
               <AnimatePresence mode="wait" initial={false}>
-                {activeTab === SidebarTabId.Clip && (
+                {activeTab === SidebarTabId.Screen && (
                   <motion.div
-                    key="clip"
+                    key="screen"
                     variants={tabVariants}
                     initial="initial"
                     animate="animate"
                     exit="exit"
                     className="space-y-3"
                   >
-                    <ClipTab selectedClip={selectedClip} />
+                    <ScreenTab
+                      backgroundEffect={backgroundEffect}
+                      effects={effects}
+                      onUpdateBackground={scheduleBackgroundUpdate}
+                      onAddCrop={onAddCrop}
+                      onRemoveCrop={onRemoveCrop}
+                      onUpdateCrop={onUpdateCrop}
+                      onStartEditCrop={onStartEditCrop}
+                      isEditingCrop={isEditingCrop}
+                    />
                   </motion.div>
                 )}
 
-                {activeTab === SidebarTabId.Style && (
+                {activeTab === SidebarTabId.Backdrop && (
                   <motion.div
-                    key="style"
+                    key="backdrop"
                     variants={tabVariants}
                     initial="initial"
                     animate="animate"
@@ -456,17 +428,16 @@ export function EffectsSidebar({
                     className="space-y-3"
                   >
                     <SubTabs
-                      value={styleSubTab}
-                      onChange={setStyleSubTab}
+                      value={backdropSubTab}
+                      onChange={setBackdropSubTab}
                       tabs={[
-                        { id: 'background', label: 'Backdrop' },
-                        { id: 'frame', label: 'Window' },
-                        { id: 'screen', label: 'Depth' },
+                        { id: 'background', label: 'Background' },
+                        { id: 'depth', label: 'Depth' },
                       ]}
                     />
 
                     <AnimatePresence mode="wait">
-                      {styleSubTab === 'background' && (
+                      {backdropSubTab === 'background' && (
                         <motion.div
                           key="background"
                           initial={{ opacity: 0, scale: 0.98 }}
@@ -481,37 +452,21 @@ export function EffectsSidebar({
                         </motion.div>
                       )}
 
-                      {styleSubTab === 'frame' && (
+                      {backdropSubTab === 'depth' && (
                         <motion.div
-                          key="frame"
+                          key="depth"
                           initial={{ opacity: 0, scale: 0.98 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.98 }}
                           transition={{ duration: 0.15 }}
                         >
-                          <ShapeTab
-                            backgroundEffect={backgroundEffect}
-                            onUpdateBackground={scheduleBackgroundUpdate}
-                          />
-                        </motion.div>
-                      )}
-
-                      {styleSubTab === 'screen' && (
-                        <motion.div
-                          key="screen"
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <ScreenTab
+                          <ScreenEffectsTab
                             selectedClip={selectedClip}
                             selectedEffectLayer={selectedEffectLayer}
-                            onEffectChange={(_type, data) => onEffectChange(EffectType.Screen, data)}
+                            onEffectChange={onEffectChange}
                           />
                         </motion.div>
                       )}
-
                     </AnimatePresence>
                   </motion.div>
                 )}
@@ -571,76 +526,21 @@ export function EffectsSidebar({
                   </motion.div>
                 )}
 
-                {activeTab === SidebarTabId.Framing && (
+                {activeTab === SidebarTabId.Camera && (
                   <motion.div
-                    key="framing"
+                    key="camera"
                     variants={tabVariants}
                     initial="initial"
                     animate="animate"
                     exit="exit"
                     className="space-y-3"
                   >
-                    <SubTabs
-                      value={framingSubTab}
-                      onChange={setFramingSubTab}
-                      tabs={[
-                        { id: 'zoom', label: 'Focus' },
-                        { id: 'crop', label: 'Frame', disabled: !isVideoClipSelected },
-                      ]}
+                    <ZoomTab
+                      effects={effects}
+                      selectedEffectLayer={selectedEffectLayer}
+                      selectedClip={selectedClip}
+                      onZoomBlockUpdate={onZoomBlockUpdate}
                     />
-
-                    <AnimatePresence mode="wait">
-                      {framingSubTab === 'zoom' && (
-                        <motion.div
-                          key="zoom"
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <ZoomTab
-                            effects={effects}
-                            selectedEffectLayer={selectedEffectLayer}
-                            selectedClip={selectedClip}
-                            onZoomBlockUpdate={onZoomBlockUpdate}
-                          />
-                        </motion.div>
-                      )}
-
-                      {framingSubTab === 'crop' && isVideoClipSelected && (
-                        <motion.div
-                          key="crop"
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <CropTab
-                            effects={effects}
-                            selectedClip={selectedClip}
-                            onAddCrop={onAddCrop ?? (() => { })}
-                            onRemoveCrop={onRemoveCrop ?? (() => { })}
-                            onUpdateCrop={onUpdateCrop ?? (() => { })}
-                            onStartEditCrop={onStartEditCrop ?? (() => { })}
-                            isEditingCrop={isEditingCrop}
-                          />
-                        </motion.div>
-                      )}
-
-                      {framingSubTab === 'crop' && !isVideoClipSelected && (
-                        <motion.div
-                          key="crop-disabled"
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <div className="p-4 bg-background/40 rounded-xl text-xs text-muted-foreground">
-                            Select a clip to adjust the frame.
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </motion.div>
                 )}
 
@@ -702,9 +602,9 @@ export function EffectsSidebar({
                   </motion.div>
                 )}
 
-                {activeTab === SidebarTabId.Advanced && (
+                {activeTab === SidebarTabId.Motion && (
                   <motion.div
-                    key="advanced"
+                    key="motion"
                     variants={tabVariants}
                     initial="initial"
                     animate="animate"

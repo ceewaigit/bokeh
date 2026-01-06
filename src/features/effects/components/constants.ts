@@ -24,35 +24,35 @@ export const COLOR_PRESETS = [
 import {
   Palette,
   MousePointer,
-  Crop,
-  SlidersHorizontal,
+  Aperture,
+  Monitor,
   LayoutGrid,
   Video,
   StickyNote,
-  Wind,
+  Activity,
   FileText,
 } from 'lucide-react'
 
 export enum SidebarTabId {
-  Clip = 'clip',
-  Style = 'style',
+  Screen = 'screen',
+  Backdrop = 'backdrop',
   Pointer = 'pointer',
-  Framing = 'framing',
+  Camera = 'camera',
+  Motion = 'motion',
   Webcam = 'webcam',
   Annotation = 'annotation',
   Transcript = 'transcript',
   Canvas = 'canvas',
-  Advanced = 'advanced',
 }
 
 export const SIDEBAR_TABS = [
-  { id: SidebarTabId.Clip, icon: SlidersHorizontal, label: 'Clip' },
-  { id: SidebarTabId.Style, icon: Palette, label: 'Look' },
+  { id: SidebarTabId.Screen, icon: Monitor, label: 'Screen' },
+  { id: SidebarTabId.Backdrop, icon: Palette, label: 'Backdrop' },
   { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Pointer & Typing' },
-  { id: SidebarTabId.Framing, icon: Crop, label: 'Focus & Frame' },
+  { id: SidebarTabId.Camera, icon: Aperture, label: 'Camera' },
+  { id: SidebarTabId.Motion, icon: Activity, label: 'Motion' },
   { id: SidebarTabId.Webcam, icon: Video, label: 'Webcam' },
   { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Overlay' },
   { id: SidebarTabId.Transcript, icon: FileText, label: 'Transcript' },
-  { id: SidebarTabId.Advanced, icon: Wind, label: 'Motion' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Stage' },
 ] as const

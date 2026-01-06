@@ -86,16 +86,12 @@ interface AssetItemProps {
     onAdd: (asset: Asset, trackType?: TrackType.Video | TrackType.Webcam) => void
     onRemove: (id: string) => void
     setDraggingAsset: (asset: Asset | null) => void
-    hoveredAssetId: string | null
-    onHover: (id: string) => void
-    onLeave: (id: string) => void
 }
 
-const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset, hoveredAssetId, onHover, onLeave }: AssetItemProps) => {
+const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: AssetItemProps) => {
     const [thumbnail, setThumbnail] = useState<string | null>(null)
     const [isLoadingThumb, setIsLoadingThumb] = useState(false)
-
-    const isHovered = hoveredAssetId === asset.id
+    const [isHovered, setIsHovered] = useState(false)
 
     // Load thumbnail for video
     useEffect(() => {
@@ -123,6 +119,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset, hovere
     }, [asset.id, asset.path, asset.type])
 
     const handleDragStart = (e: React.DragEvent) => {
+        setIsHovered(false)
         setDraggingAsset(asset);
         const assetData = {
             path: asset.path,
@@ -151,8 +148,8 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset, hovere
             draggable={true}
             onDragStart={handleDragStart}
             onDragEnd={() => setDraggingAsset(null)}
-            onMouseEnter={() => onHover(asset.id)}
-            onMouseLeave={() => onLeave(asset.id)}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             className="group relative aspect-square rounded-md overflow-hidden border border-border/40 bg-muted/10 hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing"
             onClick={() => onAdd(asset)}
         >
@@ -282,15 +279,6 @@ export function ImportMediaSection() {
     const [ingestQueue, setIngestQueue] = useState<IngestQueueItem[]>([])
     const [isLibraryDialogOpen, setIsLibraryDialogOpen] = useState(false)
     const ingestCleanupTimeoutRef = useRef<number | null>(null)
-    const [hoveredAssetId, setHoveredAssetId] = useState<string | null>(null)
-
-    const handleAssetHover = useCallback((id: string) => {
-        setHoveredAssetId(id)
-    }, [])
-
-    const handleAssetLeave = useCallback((id: string) => {
-        setHoveredAssetId(prev => (prev === id ? null : prev))
-    }, [])
 
     // Asset Library Store
     const assets = useAssetLibraryStore((s) => s.assets)
@@ -765,9 +753,6 @@ export function ImportMediaSection() {
                                             onAdd={addAssetToProject}
                                             onRemove={removeAsset}
                                             setDraggingAsset={setDraggingAsset}
-                                            hoveredAssetId={hoveredAssetId}
-                                            onHover={handleAssetHover}
-                                            onLeave={handleAssetLeave}
                                         />
                                     ))}
                                 </div>

@@ -5,6 +5,8 @@ import { ChevronRight } from 'lucide-react'
 
 import { cn } from '@/shared/utils/utils'
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+
 type AccordionSectionProps = {
   title: React.ReactNode
   defaultOpen?: boolean
@@ -15,6 +17,8 @@ type AccordionSectionProps = {
   headerClassName?: string
   contentClassName?: string
   children: React.ReactNode
+  disabled?: boolean
+  disabledTooltip?: string
 }
 
 export function AccordionSection({
@@ -27,6 +31,8 @@ export function AccordionSection({
   headerClassName,
   contentClassName,
   children,
+  disabled,
+  disabledTooltip
 }: AccordionSectionProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
   const isControlled = typeof open === 'boolean'
@@ -38,20 +44,23 @@ export function AccordionSection({
     onOpenChange?.(next)
   }, [isControlled, onOpenChange])
 
-  return (
+  const content = (
     <div
       className={cn(
         'rounded-2xl border border-border/20 bg-background/50 shadow-sm transition-shadow duration-150 overflow-hidden',
-        className
+        className,
+        disabled && "opacity-60"
       )}
     >
       <button
         type="button"
         aria-expanded={isOpen}
         aria-controls={contentId}
+        disabled={disabled}
         onClick={() => setOpen(!isOpen)}
         className={cn(
           'w-full flex items-center justify-between gap-3 px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground transition-colors duration-150 hover:text-foreground/80',
+          disabled ? "cursor-not-allowed" : "hover:text-foreground/80",
           headerClassName
         )}
         data-springy
@@ -72,7 +81,7 @@ export function AccordionSection({
         ) : null}
       </button>
 
-      {isOpen ? (
+      {isOpen && !disabled ? (
         <div
           id={contentId}
           className={cn(
@@ -85,4 +94,21 @@ export function AccordionSection({
       ) : null}
     </div>
   )
+
+  if (disabled && disabledTooltip) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>{content}</div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs max-w-[200px]">
+            {disabledTooltip}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  return content
 }

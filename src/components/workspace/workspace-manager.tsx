@@ -611,7 +611,8 @@ export function WorkspaceManager() {
                                 onAddCrop: handleAddCrop,
                                 onRemoveCrop: handleRemoveCrop,
                                 onUpdateCrop: handleUpdateCrop,
-                                onStartEditCrop: handleStartEditCrop
+                                onStartEditCrop: handleStartEditCrop,
+                                onStopEditCrop: handleCropConfirm
                               }}
                             >
                               <EffectsSidebar className="h-full w-full" />

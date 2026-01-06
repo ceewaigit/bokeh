@@ -77,7 +77,7 @@ const defaultWorkspaceState = {
   previewScale: 1,
   currentView: 'library' as WorkspaceView,
   activeUtilityTab: 'import' as UtilityTabId,
-  activeSidebarTab: SidebarTabId.Style,
+  activeSidebarTab: SidebarTabId.Screen,
   clipTabSpeedAdvancedOpen: false,
   clipTabFadeAdvancedOpen: false,
   cursorTabFineTuneOpen: false,
@@ -215,7 +215,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         if (version < 6) {
           state = {
             ...state,
-            activeSidebarTab: SidebarTabId.Style,
+            activeSidebarTab: SidebarTabId.Screen,
             motionTabAdvancedOpen: false
           }
         }

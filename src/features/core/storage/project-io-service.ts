@@ -81,6 +81,26 @@ export class ProjectIOService {
 
     project.filePath = projectPath
 
+    // Resolve relative paths to absolute (same logic as loadProjectFromRecording)
+    // This is critical for loadProjectAssets to correctly load metadata chunks
+    const resolvedPath = await this.resolveProjectFilePath(projectPath)
+    const projectDir = this.getProjectRootFromPaths(projectPath, resolvedPath)
+
+    for (const rec of project.recordings) {
+      // Resolve folderPath
+      if (rec.folderPath && !rec.folderPath.startsWith('/')) {
+        rec.folderPath = `${projectDir}/${rec.folderPath}`
+      }
+      // Resolve filePath
+      if (rec.filePath && !rec.filePath.startsWith('/')) {
+        rec.filePath = `${projectDir}/${rec.filePath}`
+      }
+      // Resolve imageSource.imagePath if present (for image clips)
+      if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
+        rec.imageSource.imagePath = `${projectDir}/${rec.imageSource.imagePath}`
+      }
+    }
+
     // Apply migrations
     project = await this.migrateProject(project)
 
