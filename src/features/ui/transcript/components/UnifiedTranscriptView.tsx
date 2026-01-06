@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Captions, CaptionsOff, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Captions, CaptionsOff, RotateCcw, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import type { Recording, SourceTimeRange, Transcript, TranscriptWord, SubtitleEffect } from '@/types/project'
 import { TranscriptionStatus } from '@/types/project'
 import type { TranscriptionProgress } from '@/types/transcription'
@@ -65,6 +65,10 @@ function TranscriptSourceList({
     s => s.transcriptionStatus === TranscriptionStatus.Processing || s.transcriptionStatus === TranscriptionStatus.Pending
   ).length
 
+  const needsTranscriptionCount = sections.filter(
+    s => !s.transcript?.words?.length && s.transcriptionStatus === TranscriptionStatus.None
+  ).length
+
   if (sections.length === 0) return null
 
   // Compact View (Face Pile)
@@ -103,6 +107,11 @@ function TranscriptSourceList({
                 Processing {activeProcessingCount}...
               </span>
             )}
+            {activeProcessingCount === 0 && needsTranscriptionCount > 0 && (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                {needsTranscriptionCount} needs transcription
+              </span>
+            )}
           </div>
         </div>
         <button
@@ -129,6 +138,7 @@ function TranscriptSourceList({
         const hasTranscript = Boolean(section.transcript?.words?.length)
         const isProcessing = section.transcriptionStatus === TranscriptionStatus.Processing
           || section.transcriptionStatus === TranscriptionStatus.Pending
+        const needsTranscription = !hasTranscript && section.transcriptionStatus === TranscriptionStatus.None
         const rangeLabel = section.timelineRange
           ? `${formatTime(section.timelineRange.start, true)} – ${formatTime(section.timelineRange.end, true)}`
           : ''
@@ -150,6 +160,11 @@ function TranscriptSourceList({
                   {section.label}
                 </span>
                 {section.isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                {needsTranscription && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-[9px] font-medium text-amber-600 dark:text-amber-400 animate-pulse">
+                    <span>Needs Transcription</span>
+                  </span>
+                )}
               </div>
               {rangeLabel && (
                 <span className="text-[10px] text-muted-foreground tabular-nums">{rangeLabel}</span>
@@ -477,8 +492,31 @@ function UnifiedTranscriptStream({
 
   if (words.length === 0) {
     return (
-      <div className="py-8 text-center text-xs text-muted-foreground">
-        No transcript yet. Choose a model and transcribe to start editing.
+      <div className="py-6 px-2 space-y-4">
+        {/* Skeleton placeholder rows */}
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="flex gap-4 animate-pulse" style={{ animationDelay: `${row * 150}ms` }}>
+            {/* Gutter skeleton */}
+            <div className="flex-shrink-0 w-12 pt-1">
+              <div className="h-3 w-10 bg-muted rounded ml-auto" />
+            </div>
+            {/* Words skeleton */}
+            <div className="flex-1 flex flex-wrap gap-x-1.5 gap-y-1">
+              {Array.from({ length: 6 + row * 2 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-5 rounded bg-muted"
+                  style={{ width: `${40 + Math.random() * 50}px` }}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+        {/* Call to action */}
+        <div className="flex items-center justify-center gap-2 pt-4 text-xs text-muted-foreground">
+          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+          <span>Choose a model and transcribe to start editing</span>
+        </div>
       </div>
     )
   }

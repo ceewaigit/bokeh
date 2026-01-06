@@ -330,26 +330,11 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             }
             if (onRender) onRender();
         }
-        return () => {
-            // Aggressive cleanup to help GC reclaim GPU memory
-            if (canvasEl) {
-                // Clear the canvas to release backing store?
-                // Setting to 0x0 helps some browsers release texture memory immediately
-                canvasEl.width = 0;
-                canvasEl.height = 0;
-            }
-            if (videoCanvasRef.current) {
-                // videoCanvasRef can be OffscreenCanvas or HTMLCanvasElement
-                const vc = videoCanvasRef.current;
-                vc.width = 0;
-                vc.height = 0;
-                videoCanvasRef.current = null;
-                videoCtxRef.current = null;
-            }
-            bitmapCtxRef.current = null;
-        };
+        // No per-frame cleanup - let resources persist across frames for performance.
+        // Cleanup only happens on unmount (separate effect below).
     }, [
-        frame,
+        // REMOVED: frame - useLayoutEffect runs after every render anyway,
+        // and having it here caused cleanup to run per-frame
         videoFrame,
         velocity,
         intensity,
@@ -372,6 +357,24 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         clampRadius,
         smoothWindowProp,
     ]);
+
+    // Cleanup GPU resources only on unmount
+    React.useEffect(() => {
+        return () => {
+            const canvasEl = canvasRef.current;
+            if (canvasEl) {
+                canvasEl.width = 0;
+                canvasEl.height = 0;
+            }
+            if (videoCanvasRef.current) {
+                videoCanvasRef.current.width = 0;
+                videoCanvasRef.current.height = 0;
+                videoCanvasRef.current = null;
+                videoCtxRef.current = null;
+            }
+            bitmapCtxRef.current = null;
+        };
+    }, []);
 
     if (!enabled) return null;
 

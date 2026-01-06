@@ -5,6 +5,7 @@
  */
 
 import type { IpcBridge } from './ipc-bridge'
+import { RecordingSourceType } from '@/types'
 
 // ============================================================================
 // Types
@@ -37,7 +38,7 @@ export interface DisplayInfo {
 export interface MouseTrackingOptions {
     intervalMs?: number
     sourceId?: string
-    sourceType?: 'screen' | 'window' | 'area'
+    sourceType?: RecordingSourceType
 }
 
 export interface MouseTrackingResult {

@@ -2,7 +2,16 @@
  * Data Validation - Simple security fixes
  */
 
-import type { Project, ProjectSettings, RecordingSettings, TimelineClip } from '@/types'
+import {
+  RecordingArea,
+  AudioInput,
+  QualityLevel,
+  ExportFormat,
+  type Project,
+  type ProjectSettings,
+  type RecordingSettings,
+  type TimelineClip
+} from '@/types'
 
 export function validateProject(project: any): project is Project {
   if (!project || typeof project !== 'object') {
@@ -33,11 +42,11 @@ export function parseProjectData(data: string): Project[] {
 
 export function validateRecordingSettings(settings: any): settings is RecordingSettings {
   if (!settings) return false
-  return ['fullscreen', 'window', 'region'].includes(settings.area) &&
-    ['system', 'microphone', 'both', 'none'].includes(settings.audioInput) &&
-    ['high', 'medium', 'low'].includes(settings.quality) &&
+  return Object.values(RecordingArea).includes(settings.area) &&
+    Object.values(AudioInput).includes(settings.audioInput) &&
+    [QualityLevel.High, QualityLevel.Medium, QualityLevel.Low].includes(settings.quality) &&
     [30, 60].includes(settings.framerate) &&
-    ['mp4', 'mov', 'webm'].includes(settings.format)
+    [ExportFormat.MP4, ExportFormat.MOV, ExportFormat.WEBM].includes(settings.format)
 }
 
 export function validateProjectSettings(settings: any): settings is ProjectSettings {

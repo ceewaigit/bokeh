@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { BaseOverlayConfig, OverlayAnchor } from '@/types/overlays'
+import { OverlayAnchor, type BaseOverlayConfig } from '@/types/overlays'
 
 export function getOverlayAnchorPosition(
   anchor: OverlayAnchor,
@@ -8,23 +8,23 @@ export function getOverlayAnchorPosition(
   margin = 0
 ): { x: number; y: number } {
   switch (anchor) {
-    case 'top-left':
+    case OverlayAnchor.TopLeft:
       return { x: margin, y: margin }
-    case 'top-center':
+    case OverlayAnchor.TopCenter:
       return { x: containerWidth / 2, y: margin }
-    case 'top-right':
+    case OverlayAnchor.TopRight:
       return { x: containerWidth - margin, y: margin }
-    case 'center-left':
+    case OverlayAnchor.CenterLeft:
       return { x: margin, y: containerHeight / 2 }
-    case 'center':
+    case OverlayAnchor.Center:
       return { x: containerWidth / 2, y: containerHeight / 2 }
-    case 'center-right':
+    case OverlayAnchor.CenterRight:
       return { x: containerWidth - margin, y: containerHeight / 2 }
-    case 'bottom-left':
+    case OverlayAnchor.BottomLeft:
       return { x: margin, y: containerHeight - margin }
-    case 'bottom-center':
+    case OverlayAnchor.BottomCenter:
       return { x: containerWidth / 2, y: containerHeight - margin }
-    case 'bottom-right':
+    case OverlayAnchor.BottomRight:
       return { x: containerWidth - margin, y: containerHeight - margin }
     default:
       return { x: containerWidth / 2, y: containerHeight - margin }
@@ -43,23 +43,23 @@ export function getOverlayAnchorStyle(
     : ''
 
   switch (anchor) {
-    case 'top-left':
+    case OverlayAnchor.TopLeft:
       return { top: margin, left: margin, transform: `translate(0, 0)${offsetTransform}` }
-    case 'top-center':
+    case OverlayAnchor.TopCenter:
       return { top: margin, left: '50%', transform: `translate(-50%, 0)${offsetTransform}` }
-    case 'top-right':
+    case OverlayAnchor.TopRight:
       return { top: margin, right: margin, transform: `translate(0, 0)${offsetTransform}` }
-    case 'center-left':
+    case OverlayAnchor.CenterLeft:
       return { top: '50%', left: margin, transform: `translate(0, -50%)${offsetTransform}` }
-    case 'center':
+    case OverlayAnchor.Center:
       return { top: '50%', left: '50%', transform: `translate(-50%, -50%)${offsetTransform}` }
-    case 'center-right':
+    case OverlayAnchor.CenterRight:
       return { top: '50%', right: margin, transform: `translate(0, -50%)${offsetTransform}` }
-    case 'bottom-left':
+    case OverlayAnchor.BottomLeft:
       return { bottom: margin, left: margin, transform: `translate(0, 0)${offsetTransform}` }
-    case 'bottom-center':
+    case OverlayAnchor.BottomCenter:
       return { bottom: margin, left: '50%', transform: `translate(-50%, 0)${offsetTransform}` }
-    case 'bottom-right':
+    case OverlayAnchor.BottomRight:
       return { bottom: margin, right: margin, transform: `translate(0, 0)${offsetTransform}` }
     default:
       return { bottom: margin, left: '50%', transform: `translate(-50%, 0)${offsetTransform}` }

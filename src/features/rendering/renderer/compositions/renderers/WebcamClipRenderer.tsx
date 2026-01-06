@@ -14,6 +14,7 @@ import React, { useMemo } from 'react';
 import { Video, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { WebcamLayoutData, Clip, Recording } from '@/types/project';
 import type { VideoResources } from '@/types';
+import { OverlayAnchor } from '@/types/overlays';
 import type { PlaybackSettings } from '@/features/rendering/renderer/types';
 import { DEFAULT_WEBCAM_DATA, WEBCAM_POSITION_PRESETS } from '@/features/media/webcam/config';
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
@@ -41,15 +42,15 @@ interface WebcamClipRendererProps {
  */
 function getTransformOrigin(anchor: WebcamLayoutData['position']['anchor']): string {
     switch (anchor) {
-        case 'top-left': return 'top left';
-        case 'top-center': return 'top center';
-        case 'top-right': return 'top right';
-        case 'center-left': return 'center left';
-        case 'center': return 'center center';
-        case 'center-right': return 'center right';
-        case 'bottom-left': return 'bottom left';
-        case 'bottom-center': return 'bottom center';
-        case 'bottom-right': return 'bottom right';
+        case OverlayAnchor.TopLeft: return 'top left';
+        case OverlayAnchor.TopCenter: return 'top center';
+        case OverlayAnchor.TopRight: return 'top right';
+        case OverlayAnchor.CenterLeft: return 'center left';
+        case OverlayAnchor.Center: return 'center center';
+        case OverlayAnchor.CenterRight: return 'center right';
+        case OverlayAnchor.BottomLeft: return 'bottom left';
+        case OverlayAnchor.BottomCenter: return 'bottom center';
+        case OverlayAnchor.BottomRight: return 'bottom right';
         default: return 'center center';
     }
 }

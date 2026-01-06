@@ -4,6 +4,7 @@
  */
 
 import { RecordingStrategy, RecordingConfig, RecordingResult } from '../types/recording-strategy'
+import { RecordingSourceType } from '@/types'
 import { parseAreaSourceId, parseWindowId, parseScreenDisplayId } from '@/features/media/recording/logic/area-source-parser'
 import { RecordingIpcBridge, getRecordingBridge } from '@/features/core/bridges'
 import { logger } from '@/shared/utils/logger'
@@ -41,7 +42,7 @@ export class NativeRecordingStrategy implements RecordingStrategy {
 
     let result: { outputPath: string }
 
-    if (config.sourceType === 'window') {
+    if (config.sourceType === RecordingSourceType.Window) {
       const windowId = parseWindowId(config.sourceId)
       if (windowId <= 0) {
         throw new Error('Invalid window ID')
@@ -59,7 +60,7 @@ export class NativeRecordingStrategy implements RecordingStrategy {
 
       // For area selection, parse the bounds
       let cropBounds = config.bounds
-      if (config.sourceType === 'area' && !cropBounds) {
+      if (config.sourceType === RecordingSourceType.Area && !cropBounds) {
         const areaBounds = parseAreaSourceId(config.sourceId)
         if (areaBounds) {
           cropBounds = {

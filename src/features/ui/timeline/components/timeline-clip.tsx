@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState, useCallback } from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import Konva from 'konva'
 
@@ -59,9 +59,12 @@ const TimelineClipComponent = ({
   const recording = useRecordingById(clip.recordingId)
 
   /* ---------------- STATE & REFS ---------------- */
-  const [isDragging, setIsDragging] = useState(false)
-  const [isValidPosition, setIsValidPosition] = useState(true)
-  const [isHovering, setIsHovering] = useState(false)
+  // PERFORMANCE: Use refs for interaction state to avoid re-renders
+  const isDraggingRef = useRef(false)
+  const isValidPositionRef = useRef(true)
+  const isHoveringRef = useRef(false)
+  // Only use state for trim handles visibility (requires DOM update)
+  const [showTrimHandles, setShowTrimHandles] = useState(false)
   /* ---------------- INTERACTION HOOKS ---------------- */
   const interactionClip = useMemo(() =>
     clipIdOverride ? { ...clip, id: clipIdOverride } : clip
@@ -226,8 +229,10 @@ const TimelineClipComponent = ({
           }
         }}
         onDragStart={() => {
-          setIsDragging(true)
-          setIsValidPosition(true)
+          isDraggingRef.current = true
+          isValidPositionRef.current = true
+          // Update opacity directly via Konva API
+          groupRef.current?.opacity(0.95)
         }}
         onDragMove={(e) => {
           const draggedX = e.target.x()
@@ -238,7 +243,7 @@ const TimelineClipComponent = ({
           onDragPreview(actionClipId, trackType, proposedStartTime)
         }}
         onDragEnd={(e) => {
-          setIsDragging(false)
+          isDraggingRef.current = false
 
           const finalX = e.target.x()
           const proposedStartTime = Math.max(
@@ -246,7 +251,9 @@ const TimelineClipComponent = ({
             TimeConverter.pixelsToMs(finalX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
           )
           onDragCommit(actionClipId, trackType, proposedStartTime)
-          setIsValidPosition(true)
+          isValidPositionRef.current = true
+          // Restore opacity directly via Konva API
+          groupRef.current?.opacity(1)
         }}
         onClick={() => {
           // Simple click handler - just select the clip
@@ -267,15 +274,17 @@ const TimelineClipComponent = ({
           if (!trimEdge) {
             document.body.style.cursor = 'grab'
           }
-          setIsHovering(true)
+          isHoveringRef.current = true
+          setShowTrimHandles(true)
         }}
         onMouseLeave={() => {
           if (!trimEdge) {
             document.body.style.cursor = 'default'
           }
-          setIsHovering(false)
+          isHoveringRef.current = false
+          setShowTrimHandles(false)
         }}
-        opacity={isDragging ? (isValidPosition ? 0.95 : 0.7) : 1}
+        opacity={1}
       >
 
         <TimelineClipBackground
@@ -283,8 +292,8 @@ const TimelineClipComponent = ({
           width={clipWidth}
           height={clipInnerHeight}
           isSelected={isSelected}
-          isDragging={isDragging}
-          isValidPosition={isValidPosition}
+          isDragging={isDraggingRef.current}
+          isValidPosition={isValidPositionRef.current}
           isGeneratedClip={isGeneratedClip}
           generatedLabel={generatedLabel}
           showMissingThumb={showMissingThumb}
@@ -448,7 +457,7 @@ const TimelineClipComponent = ({
         })()}
 
         {/* Trim handles (invisible hover targets) */}
-        {!isDragging && isHovering && (
+        {!isDraggingRef.current && showTrimHandles && (
           <>
             {/* Left handle */}
             <Rect

@@ -67,9 +67,12 @@ export function useAssetDragDrop({
     getStagePoint
 }: UseAssetDragDropOptions): UseAssetDragDropReturn {
     const draggingAsset = useAssetLibraryStore((s) => s.draggingAsset)
-    const [dragTime, setDragTime] = useState<number | null>(null)
-    const [dragAssetTrackType, setDragAssetTrackType] = useState<TrackType.Video | TrackType.Audio | TrackType.Webcam | null>(null)
-    const [dragPreview, setDragPreview] = useState<DragPreviewForAsset | null>(null)
+    // PERFORMANCE: Batch all drag state into single object to reduce render cycles
+    const [dragState, setDragState] = useState<{
+        time: number | null
+        trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam | null
+        preview: DragPreviewForAsset | null
+    }>({ time: null, trackType: null, preview: null })
 
     // RAF throttling refs - store raw input, compute in RAF
     const rafRef = useRef<number | null>(null)
@@ -119,9 +122,7 @@ export function useAssetDragDrop({
     }, [getTrackBounds])
 
     const resetAssetDragState = useCallback((clearDraggingAsset: boolean) => {
-        setDragTime(null)
-        setDragAssetTrackType(null)
-        setDragPreview((prev) => (prev?.clipId === '__asset__' ? null : prev))
+        setDragState({ time: null, trackType: null, preview: null })
         if (clearDraggingAsset) {
             useAssetLibraryStore.getState().setDraggingAsset(null)
         }
@@ -169,9 +170,7 @@ export function useAssetDragDrop({
                 )
 
                 if (!targetTrack) {
-                    setDragTime(null)
-                    setDragAssetTrackType(null)
-                    setDragPreview(null)
+                    setDragState({ time: null, trackType: null, preview: null })
                     return
                 }
 
@@ -188,13 +187,15 @@ export function useAssetDragDrop({
 
                 // Webcam track: No contiguous/ripple logic
                 if (targetTrack === TrackType.Webcam) {
-                    setDragTime(proposedTime)
-                    setDragAssetTrackType(targetTrack)
-                    setDragPreview({
-                        clipId: '__asset__',
+                    setDragState({
+                        time: proposedTime,
                         trackType: targetTrack,
-                        startTimes: {},
-                        insertIndex: -1
+                        preview: {
+                            clipId: '__asset__',
+                            trackType: targetTrack,
+                            startTimes: {},
+                            insertIndex: -1
+                        }
                     })
                     return
                 }
@@ -205,18 +206,22 @@ export function useAssetDragDrop({
                 const preview = computeContiguousPreview(blocks, proposedTime, input.assetDuration)
 
                 if (preview) {
-                    setDragTime(preview.insertTime)
-                    setDragAssetTrackType(targetTrack)
-                    setDragPreview({
-                        clipId: '__asset__',
+                    setDragState({
+                        time: preview.insertTime,
                         trackType: targetTrack,
-                        startTimes: preview.startTimes,
-                        insertIndex: preview.insertIndex
+                        preview: {
+                            clipId: '__asset__',
+                            trackType: targetTrack,
+                            startTimes: preview.startTimes,
+                            insertIndex: preview.insertIndex
+                        }
                     })
                 } else {
-                    setDragTime(proposedTime)
-                    setDragAssetTrackType(targetTrack)
-                    setDragPreview(null)
+                    setDragState({
+                        time: proposedTime,
+                        trackType: targetTrack,
+                        preview: null
+                    })
                 }
             })
         }
@@ -249,10 +254,10 @@ export function useAssetDragDrop({
 
             const { stageX, stageY } = getStagePoint(e)
             const assetDuration = asset.duration || 5000
-            const targetTrack = getAssetDropTrackType(asset, stageY) ?? dragAssetTrackType
+            const targetTrack = getAssetDropTrackType(asset, stageY) ?? dragState.trackType
 
             if (!targetTrack) {
-                setDragAssetTrackType(null)
+                setDragState(prev => ({ ...prev, trackType: null }))
                 return
             }
 
@@ -298,19 +303,19 @@ export function useAssetDragDrop({
                 })
             }
 
-            setDragAssetTrackType(null)
+            setDragState(prev => ({ ...prev, trackType: null }))
         } catch (err) {
             console.error('Failed to parse asset data on drop', err)
         } finally {
             resetAssetDragState(true)
         }
-    }, [draggingAsset, getStagePoint, getAssetDropTrackType, dragAssetTrackType, pixelsPerMs, getClipBlocksForTrack, getClipsForTrack, resetAssetDragState, executorRef])
+    }, [draggingAsset, getStagePoint, getAssetDropTrackType, dragState.trackType, pixelsPerMs, getClipBlocksForTrack, getClipsForTrack, resetAssetDragState, executorRef])
 
     return {
         isDragging: !!draggingAsset,
-        dragTime,
-        dragAssetTrackType,
-        dragPreview,
+        dragTime: dragState.time,
+        dragAssetTrackType: dragState.trackType,
+        dragPreview: dragState.preview,
         handlers: {
             onDragOver,
             onDragLeave,

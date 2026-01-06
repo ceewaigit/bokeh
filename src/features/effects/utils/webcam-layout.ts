@@ -1,4 +1,5 @@
 import type { WebcamLayoutData } from '@/types/project'
+import { OverlayAnchor } from '@/types/overlays'
 
 export function getWebcamLayout(
   data: WebcamLayoutData,
@@ -37,15 +38,15 @@ export function getWebcamAnchorPoint(
 ): { x: number; y: number } {
   const { x, y, size } = layout;
   switch (anchor) {
-    case 'top-left': return { x, y };
-    case 'top-center': return { x: x + size / 2, y };
-    case 'top-right': return { x: x + size, y };
-    case 'center-left': return { x, y: y + size / 2 };
-    case 'center': return { x: x + size / 2, y: y + size / 2 };
-    case 'center-right': return { x: x + size, y: y + size / 2 };
-    case 'bottom-left': return { x, y: y + size };
-    case 'bottom-center': return { x: x + size / 2, y: y + size };
-    case 'bottom-right': return { x: x + size, y: y + size };
+    case OverlayAnchor.TopLeft: return { x, y };
+    case OverlayAnchor.TopCenter: return { x: x + size / 2, y };
+    case OverlayAnchor.TopRight: return { x: x + size, y };
+    case OverlayAnchor.CenterLeft: return { x, y: y + size / 2 };
+    case OverlayAnchor.Center: return { x: x + size / 2, y: y + size / 2 };
+    case OverlayAnchor.CenterRight: return { x: x + size, y: y + size / 2 };
+    case OverlayAnchor.BottomLeft: return { x, y: y + size };
+    case OverlayAnchor.BottomCenter: return { x: x + size / 2, y: y + size };
+    case OverlayAnchor.BottomRight: return { x: x + size, y: y + size };
     default: return { x: x + size / 2, y: y + size / 2 };
   }
 }

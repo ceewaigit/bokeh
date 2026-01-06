@@ -10,7 +10,7 @@
 
 import type { RecordingSettings } from '@/types'
 import type { ElectronRecordingResult, ElectronMetadata } from '@/types/recording'
-import { RecordingSourceType } from '@/types'
+import { RecordingSourceType, RecordingArea, AudioInput } from '@/types'
 import { RecordingStrategy, RecordingConfig, RecordingResult, RecordingSourceType as StrategySourceType } from '../types/recording-strategy'
 import { NativeRecordingStrategy } from '../strategies/native-recording-strategy'
 import { MediaRecorderStrategy } from '../strategies/media-recorder-strategy'
@@ -381,7 +381,7 @@ export class RecordingService {
 
     if (!primarySource) {
       // Auto-select screen for fullscreen/region recording
-      if (settings.area !== 'window') {
+      if (settings.area !== RecordingArea.Window) {
         primarySource = sources.find(s => s.id.startsWith('screen:'))
       }
 
@@ -527,12 +527,12 @@ export class RecordingService {
    */
   private parseConfig(settings: RecordingSettings, sourceInfo: { sourceId: string; displayId?: number }): RecordingConfig {
     const resolvedSourceId = sourceInfo.sourceId || settings.sourceId || ''
-    let sourceType: StrategySourceType = 'screen'
+    let sourceType: StrategySourceType = RecordingSourceType.Screen
     let bounds: RecordingConfig['bounds']
     let displayId = sourceInfo.displayId
 
     if (isAreaSource(resolvedSourceId)) {
-      sourceType = 'area'
+      sourceType = RecordingSourceType.Area
       const areaBounds = parseAreaSourceId(resolvedSourceId)
       if (areaBounds) {
         bounds = {
@@ -546,13 +546,13 @@ export class RecordingService {
         }
       }
     } else if (isWindowSource(resolvedSourceId)) {
-      sourceType = 'window'
+      sourceType = RecordingSourceType.Window
     }
 
     return {
       sourceId: resolvedSourceId,
       sourceType,
-      hasAudio: settings.audioInput !== 'none',
+      hasAudio: settings.audioInput !== AudioInput.None,
       bounds,
       displayId,
       onlySelf: settings.onlySelf,
