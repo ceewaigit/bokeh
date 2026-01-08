@@ -22,6 +22,7 @@ interface WorkspaceStore {
   propertiesPanelWidth: number
   utilitiesPanelWidth: number  // Left sidebar width
   timelineHeight: number
+  isTimelineHeightAuto: boolean  // Auto-fit to content when true
   previewScale: number
 
   // Navigation
@@ -48,6 +49,7 @@ interface WorkspaceStore {
   setPropertiesPanelWidth: (width: number) => void
   setUtilitiesPanelWidth: (width: number) => void
   setTimelineHeight: (height: number) => void
+  setTimelineHeightAuto: (auto: boolean) => void
   setPreviewScale: (scale: number) => void
   setActiveUtilityTab: (tab: UtilityTabId) => void
   setActiveSidebarTab: (tab: SidebarTabId) => void
@@ -73,7 +75,8 @@ const defaultWorkspaceState = {
   isSettingsOpen: false,
   propertiesPanelWidth: 400,
   utilitiesPanelWidth: 400,  // Default open width
-  timelineHeight: 165,  // Shows clip, webcam, zoom tracks - scroll for others
+  timelineHeight: 165,  // Fallback when auto mode is off
+  isTimelineHeightAuto: true,  // Auto-fit enabled by default
   previewScale: 1,
   currentView: 'library' as WorkspaceView,
   activeUtilityTab: 'import' as UtilityTabId,
@@ -129,7 +132,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         // Min 60px (ultra compact), max 50vh (~400px)
         const minHeight = 60
         const maxHeight = window.innerHeight * 0.5
-        set({ timelineHeight: Math.max(minHeight, Math.min(maxHeight, height)) })
+        set({
+          timelineHeight: Math.max(minHeight, Math.min(maxHeight, height)),
+          isTimelineHeightAuto: false  // Disable auto when user manually resizes
+        })
+      },
+
+      setTimelineHeightAuto: (auto: boolean) => {
+        set({ isTimelineHeightAuto: auto })
       },
 
       setPreviewScale: (scale: number) => {
@@ -260,6 +270,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         propertiesPanelWidth: state.propertiesPanelWidth,
         utilitiesPanelWidth: state.utilitiesPanelWidth,
         timelineHeight: state.timelineHeight,
+        isTimelineHeightAuto: state.isTimelineHeightAuto,
         previewScale: state.previewScale,
         activeUtilityTab: state.activeUtilityTab,
         activeSidebarTab: state.activeSidebarTab,

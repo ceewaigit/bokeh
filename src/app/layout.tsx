@@ -1,22 +1,26 @@
 import type { Metadata } from "next"
-import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google"
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google"
 import LayoutClient from "./layout-client"
 import "./globals.css"
 
-const instrumentSans = Instrument_Sans({
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
-  variable: "--font-ui",
-})
+  display: 'swap',
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  display: 'swap',
+});
 
 const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
   variable: "--font-display",
-})
-
-const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
+  style: ["normal", "italic"],
+  weight: "400",
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
@@ -41,7 +45,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning className="h-full">
-      <body className={`${instrumentSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased h-full overflow-hidden`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${geistSans.className} antialiased h-full overflow-hidden`}>
         <LayoutClient>
           {children}
         </LayoutClient>

@@ -29,6 +29,13 @@ export const TimelineConfig = {
     BOTTOM_PADDING: 24,
   },
 
+  // Timeline container constraints
+  TIMELINE: {
+    MIN_HEIGHT: 100,          // Minimum timeline height in pixels
+    MAX_HEIGHT_VH: 0.5,       // Maximum as fraction of viewport height (50%)
+    DEFAULT_HEIGHT: 165,      // Default height matching workspace store
+  },
+
   LAYOUT: {
     TOGGLE_LEFT_MARGIN: 12,
   },

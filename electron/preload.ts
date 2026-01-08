@@ -92,6 +92,9 @@ const electronAPI = {
   requestCameraPermission: () =>
     ipcRenderer.invoke('request-camera-permission'),
 
+  openMediaPrivacySettings: (type: 'screen' | 'microphone' | 'camera') =>
+    ipcRenderer.invoke('open-media-privacy-settings', type),
+
   setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean; camera?: boolean }) =>
     ipcRenderer.invoke('set-mock-permissions', permissions),
 
@@ -281,6 +284,9 @@ const electronAPI = {
 
   showRecordButton: (options?: { hideMainWindow?: boolean }) =>
     ipcRenderer.invoke('show-record-button', options),
+
+  setRecordingState: (isRecording: boolean) =>
+    ipcRenderer.invoke('set-recording-state', isRecording),
 
   setWindowContentSize: (dimensions: { width: number; height: number }) =>
     ipcRenderer.invoke('set-window-content-size', dimensions),

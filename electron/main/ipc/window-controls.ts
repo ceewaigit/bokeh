@@ -127,14 +127,22 @@ export function registerWindowControlHandlers(): void {
     openWorkspaceWindow({ openSettings: true })
   })
 
+  // Set recording state - called by renderer when recording starts/stops
+  ipcMain.handle('set-recording-state', (_event, isRecording: boolean) => {
+    global.isRecordingActive = isRecording
+    console.log('[WindowControls] Recording state set to:', isRecording)
+    return { success: true }
+  })
+
   ipcMain.handle('minimize-record-button', () => {
     // Hide any overlay when minimizing record button
     hideMonitorOverlay()
-    // Hide record button and show main window
+    // Hide record button
     if (global.recordButton) {
       global.recordButton.hide()
     }
-    if (global.mainWindow) {
+    // Only show main window if NOT actively recording
+    if (global.mainWindow && !global.isRecordingActive) {
       global.mainWindow.show()
       global.mainWindow.focus()
     }

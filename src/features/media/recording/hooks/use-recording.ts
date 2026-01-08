@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import { ElectronRecorder } from '@/features/media/recording'
 import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
@@ -13,6 +13,7 @@ import { useTimer } from '@/features/ui/timeline/hooks/use-timeline-timer'
 
 export function useRecording() {
   const recorderRef = useRef<ElectronRecorder | null>(null)
+  const [isStartingRecording, setIsStartingRecording] = useState(false)
 
   const {
     isRecording,
@@ -76,12 +77,17 @@ export function useRecording() {
   }, [])
 
   const startRecording = useCallback(async () => {
-    if (!recorderRef.current || isRecording) {
+    if (!recorderRef.current || isRecording || isStartingRecording) {
       if (isRecording) {
         logger.debug('Recording already in progress')
       }
+      if (isStartingRecording) {
+        logger.debug('Recording is starting, please wait')
+      }
       return
     }
+
+    setIsStartingRecording(true)
 
     try {
       // Get settings from both stores
@@ -92,13 +98,13 @@ export function useRecording() {
 
       const recordingSettings = buildRecordingSettings(sessionSettings, projectSettings, uiSettings)
 
-      // Optimistic UI: enter recording mode immediately
+      // Start recording - wait for native module confirmation
+      await recorderRef.current.startRecording(recordingSettings)
+
+      // Only update UI state AFTER native module confirms recording started
       setRecording(true)
       setDuration(0)
       timer.start(0)
-
-      // Start recording
-      await recorderRef.current.startRecording(recordingSettings)
 
       // Mark recording as globally active
       if (typeof window !== 'undefined') {
@@ -109,15 +115,14 @@ export function useRecording() {
 
     } catch (error) {
       handleRecordingError(error)
-      setRecording(false)
-      timer.stop()
-      setDuration(0)
       // Clear global recording flag on error
       if (typeof window !== 'undefined') {
         (window as any).__screenRecorderActive = false
       }
+    } finally {
+      setIsStartingRecording(false)
     }
-  }, [isRecording, setRecording, handleRecordingError, setDuration, timer])
+  }, [isRecording, isStartingRecording, setRecording, handleRecordingError, setDuration, timer])
 
   const stopRecording = useCallback(async () => {
     logger.debug('useRecording.stopRecording called')
@@ -297,6 +302,7 @@ export function useRecording() {
     screenRecorder: recorderRef.current,
     isRecording,
     isPaused,
+    isStartingRecording,
     isSupported: typeof navigator !== 'undefined' &&
       typeof navigator.mediaDevices !== 'undefined' &&
       typeof navigator.mediaDevices.getDisplayMedia === 'function',

@@ -1,8 +1,10 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { WelcomeScreen } from './welcome-screen'
 import { usePermissions } from '@/shared/hooks/use-permissions'
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 
 interface PermissionGuardProps {
   children: React.ReactNode
@@ -25,14 +27,15 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
     requestCamera
   } = usePermissions()
 
+  const showWelcomeScreenStore = useWorkspaceStore(state => state.showWelcomeScreen)
   const [showWelcome, setShowWelcome] = useState(false)
 
-  // Show welcome screen if required permissions are missing
+  // Show welcome screen if required permissions are missing or forced by store
   useEffect(() => {
     if (!isLoading) {
-      setShowWelcome(!allRequiredGranted)
+      setShowWelcome(!allRequiredGranted || showWelcomeScreenStore)
     }
-  }, [isLoading, allRequiredGranted])
+  }, [isLoading, allRequiredGranted, showWelcomeScreenStore])
 
   // Poll for permission changes while welcome screen is visible
   useEffect(() => {
@@ -51,18 +54,40 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
     return null
   }
 
-  // Welcome screen
-  if (showWelcome) {
-    return (
-      <WelcomeScreen
-        permissions={{ screenRecording, microphone, camera }}
-        onGrantScreenRecording={requestScreenRecording}
-        onGrantMicrophone={requestMicrophone}
-        onGrantCamera={requestCamera}
-        onContinue={handleContinue}
-      />
-    )
-  }
+  return (
+    <>
+      <motion.div 
+        className="relative z-0 h-full w-full will-change-opacity"
+        initial={false}
+        animate={showWelcome ? { opacity: 0.4, filter: "grayscale(100%)" } : { opacity: 1, filter: "grayscale(0%)" }}
+        transition={{ duration: 0.5, ease: "easeInOut" }}
+      >
+        {children}
+      </motion.div>
 
-  return <>{children}</>
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div
+            key="welcome-modal"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{
+              opacity: 0,
+              scale: 0.98,
+              transition: { duration: 0.3, ease: "easeOut" }
+            }}
+          >
+            <WelcomeScreen
+              permissions={{ screenRecording, microphone, camera }}
+              onGrantScreenRecording={requestScreenRecording}
+              onGrantMicrophone={requestMicrophone}
+              onGrantCamera={requestCamera}
+              onContinue={handleContinue}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  )
 }

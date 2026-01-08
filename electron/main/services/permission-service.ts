@@ -268,6 +268,22 @@ export class PermissionService {
         }
     }
 
+    public openMediaPrivacySettings(type: 'screen' | 'microphone' | 'camera') {
+        if (process.platform !== 'darwin') return
+
+        const urls = {
+            screen: 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+            microphone: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+            camera: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Camera'
+        }
+
+        const url = urls[type]
+        if (url) {
+            console.log(`🔐 Opening System Preferences for ${type} permission`)
+            exec(`open "${url}"`)
+        }
+    }
+
     public startMonitoring(sender: Electron.WebContents) {
         if (process.platform !== 'darwin') return
 

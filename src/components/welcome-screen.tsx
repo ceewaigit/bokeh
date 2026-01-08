@@ -1,113 +1,102 @@
 'use client'
 
-import React from 'react'
-import { motion } from 'framer-motion'
-import { Monitor, Mic, Camera, Check, ArrowRight, Lock } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Monitor, Mic, Camera, Check, ArrowRight, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import { cn } from '@/shared/utils/utils'
+import { useTheme, type ColorPreset, type Theme } from '@/shared/contexts/theme-context'
+import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-store'
+import { PRESET_DETAILS } from '@/shared/constants/appearance'
+import Image from 'next/image'
 
-// Apple-esque animation curves
-const spring = { type: 'spring', stiffness: 400, damping: 30 }
-const ease = [0.25, 0.1, 0.25, 1]
+// Snappy, Apple-like animations
+const transition = { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { duration: 0.4, ease, staggerChildren: 0.06, delayChildren: 0.1 }
-  }
+const fadeUp = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 }
 }
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease } }
-}
-
-interface PermissionCardProps {
-  icon: React.ReactNode
-  title: string
-  description: string
-  isGranted: boolean
-  onGrant: () => void
-  isOptional?: boolean
-}
-
-function PermissionCard({
-  icon,
-  title,
-  description,
-  isGranted,
-  onGrant,
-  isOptional = false
-}: PermissionCardProps) {
+// Simple dot progress indicator
+function ProgressDots({ step }: { step: 1 | 2 }) {
   return (
-    <motion.button
-      type="button"
-      variants={itemVariants}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
-      transition={spring}
-      onClick={isGranted ? undefined : onGrant}
-      disabled={isGranted}
+    <div className="flex items-center justify-center gap-2 mb-10">
+      <div className={cn(
+        "w-2 h-2 rounded-full transition-all duration-300",
+        step === 1 ? "bg-foreground scale-100" : "bg-muted-foreground/30 scale-75"
+      )} />
+      <div className={cn(
+        "w-2 h-2 rounded-full transition-all duration-300",
+        step === 2 ? "bg-foreground scale-100" : "bg-muted-foreground/30 scale-75"
+      )} />
+    </div>
+  )
+}
+
+// Compact permission item
+interface PermissionItemProps {
+  icon: React.ReactNode
+  label: string
+  isGranted: boolean
+  isOptional?: boolean
+  onAction: () => void
+}
+
+function PermissionItem({ icon, label, isGranted, isOptional, onAction }: PermissionItemProps) {
+  return (
+    <button
+      onClick={onAction}
       className={cn(
-        "w-full flex items-center gap-4 p-4 rounded-2xl text-left",
-        "border transition-all duration-200",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-        isGranted
-          ? "bg-primary/[0.06] border-primary/20 cursor-default"
-          : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] hover:border-white/[0.1] cursor-pointer"
+        "group flex flex-col items-center gap-2 p-4 rounded-xl transition-all duration-200",
+        "hover:bg-muted/50 active:scale-[0.98]",
+        isGranted && "cursor-pointer"
       )}
     >
-      {/* Icon */}
       <div className={cn(
-        "flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center",
-        "transition-colors duration-200",
+        "w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200",
         isGranted
-          ? "bg-primary/15 text-primary"
-          : "bg-white/[0.06] text-white/50"
+          ? "bg-foreground/10"
+          : "bg-muted border border-border/50 group-hover:border-border"
       )}>
-        {icon}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn(
-            "text-ui-base font-medium tracking-[-0.01em]",
-            isGranted ? "text-foreground" : "text-foreground/90"
-          )}>
-            {title}
-          </span>
-          {isOptional && (
-            <span className="text-4xs uppercase tracking-[0.1em] font-semibold text-muted-foreground/60 px-1.5 py-0.5 rounded bg-white/[0.04]">
-              Optional
-            </span>
+        <AnimatePresence mode="wait">
+          {isGranted ? (
+            <motion.div
+              key="check"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+            >
+              <Check size={18} strokeWidth={2.5} className="text-foreground" />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="icon"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-muted-foreground"
+            >
+              {icon}
+            </motion.div>
           )}
-        </div>
-        <p className="text-ui-sm text-muted-foreground/70 leading-relaxed mt-0.5">
-          {description}
-        </p>
+        </AnimatePresence>
       </div>
-
-      {/* Status */}
-      <div className="flex-shrink-0">
-        {isGranted ? (
-          <div className="flex items-center gap-1.5 text-primary text-2xs font-medium px-2.5 py-1.5 rounded-full bg-primary/10">
-            <Check size={12} strokeWidth={2.5} />
-            <span>Granted</span>
-          </div>
-        ) : (
-          <div className={cn(
-            "text-2xs font-medium px-3 py-1.5 rounded-full",
-            "bg-white/[0.06] text-white/60",
-            "group-hover:bg-white/[0.1] group-hover:text-white/80",
-            "transition-colors duration-150"
-          )}>
-            Grant
-          </div>
+      <div className="flex items-center gap-1.5">
+        <span className={cn(
+          "text-xs font-medium transition-colors",
+          isGranted ? "text-muted-foreground" : "text-foreground"
+        )}>
+          {label}
+        </span>
+        {isOptional && (
+          <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wide">
+            opt
+          </span>
         )}
       </div>
-    </motion.button>
+    </button>
   )
 }
 
@@ -130,119 +119,228 @@ export function WelcomeScreen({
   onGrantCamera,
   onContinue
 }: WelcomeScreenProps) {
-  // Screen + Mic are required, Camera is optional
+  const [step, setStep] = useState<1 | 2>(1)
+
+  // Theme State
+  const { theme, setTheme, colorPreset, setColorPreset } = useTheme()
+
+  // Window Surface State
+  const surfaceMode = useWindowSurfaceStore((s) => s.mode)
+  const applyPreset = useWindowSurfaceStore((s) => s.applyPreset)
+
+  const uiSurface = (surfaceMode === 'clear' || surfaceMode === 'solid' || surfaceMode === 'frosted') ? surfaceMode : 'frosted'
+
+  const handleSurfaceChange = (val: string) => {
+    if (val === 'clear') applyPreset('clear')
+    else if (val === 'solid') applyPreset('solid')
+    else applyPreset('frosted')
+  }
+
   const requiredGranted = permissions.screenRecording && permissions.microphone
-  const grantedCount = [permissions.screenRecording, permissions.microphone, permissions.camera].filter(Boolean).length
-  const totalRequired = 2
+
+  const openSettings = (type: 'screen' | 'microphone' | 'camera') => {
+    window.electronAPI?.openMediaPrivacySettings?.(type)
+  }
+
+  const currentPresetDetails = useMemo(() => PRESET_DETAILS[colorPreset] || PRESET_DETAILS.default, [colorPreset])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden">
-      {/* Subtle gradient background */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[37.5rem] h-[37.5rem] rounded-full bg-primary/[0.04] blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[31.25rem] h-[31.25rem] rounded-full bg-accent/[0.03] blur-[100px]" />
-      </div>
+    <AnimatePresence mode="wait">
+      {step === 1 ? (
+        <motion.div
+          key="permissions"
+          {...fadeUp}
+          transition={transition}
+          className="relative w-full max-w-sm p-8 bg-background/95 backdrop-blur-xl border border-border/20 shadow-2xl rounded-2xl"
+        >
+          <ProgressDots step={1} />
 
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="relative z-10 w-full max-w-md px-6"
-      >
-        {/* Header */}
-        <motion.div variants={itemVariants} className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 text-3xs uppercase tracking-[0.2em] text-muted-foreground/50 mb-4">
-            <Lock size={10} />
-            <span>Privacy First</span>
+          {/* Header */}
+          <div className="text-center mb-4">
+            <div className="w-14 h-14 mx-auto mb-5 rounded-2xl overflow-hidden bg-foreground/5 flex items-center justify-center">
+              <Image
+                src="/public/brand/bokeh_icon.svg"
+                alt="Bokeh"
+                className="rounded-xl"
+                width={40}
+                height={40}
+              />
+            </div>
+            <h1 className="text-2xl font-medium tracking-tight text-foreground mb-2">
+              Let's get you <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>set up</span>
+            </h1>
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-[260px] mx-auto">
+              A few quick permissions to record your screen and audio.
+            </p>
           </div>
 
-          <h1 className="text-3xl font-semibold tracking-[-0.02em] text-foreground mb-2">
-            Quick Setup
-          </h1>
-
-          <p className="text-ui-base text-muted-foreground/70 leading-relaxed">
-            Grant permissions to start recording.
-            <br />
-            <span className="text-muted-foreground/50">Your data never leaves your device.</span>
-          </p>
-        </motion.div>
-
-        {/* Progress indicator */}
-        <motion.div variants={itemVariants} className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-2xs font-medium text-muted-foreground/60">
-              {grantedCount} of {totalRequired} required
-            </span>
-            {requiredGranted && (
-              <span className="text-2xs font-medium text-primary">Ready to go</span>
-            )}
-          </div>
-          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
-            <motion.div
-              className="h-full bg-primary rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${(Math.min(grantedCount, totalRequired) / totalRequired) * 100}%` }}
-              transition={{ duration: 0.4, ease }}
+          {/* Permission Row */}
+          <div className="flex justify-center gap-1 mb-8">
+            <PermissionItem
+              icon={<Monitor size={18} />}
+              label="Screen"
+              isGranted={permissions.screenRecording}
+              onAction={() => permissions.screenRecording ? openSettings('screen') : onGrantScreenRecording()}
+            />
+            <PermissionItem
+              icon={<Mic size={18} />}
+              label="Mic"
+              isGranted={permissions.microphone}
+              onAction={() => permissions.microphone ? openSettings('microphone') : onGrantMicrophone()}
+            />
+            <PermissionItem
+              icon={<Camera size={18} />}
+              label="Camera"
+              isGranted={permissions.camera}
+              isOptional
+              onAction={() => permissions.camera ? openSettings('camera') : onGrantCamera()}
             />
           </div>
+
+          {/* Continue */}
+          <Button
+            size="lg"
+            onClick={() => requiredGranted && setStep(2)}
+            disabled={!requiredGranted}
+            className={cn(
+              "w-full h-11 rounded-xl text-sm font-medium transition-all",
+              !requiredGranted && "opacity-40"
+            )}
+          >
+            <span className="flex items-center gap-2">
+              Continue
+              <ArrowRight size={15} />
+            </span>
+          </Button>
+
+          <button
+            onClick={() => openSettings('screen')}
+            className="flex items-center justify-center gap-1.5 mx-auto mt-4 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          >
+            <Settings size={11} />
+            System Settings
+          </button>
         </motion.div>
+      ) : (
+        <motion.div
+          key="theme"
+          {...fadeUp}
+          transition={transition}
+          className="relative w-full max-w-md p-8 bg-background/95 backdrop-blur-xl border border-border/20 shadow-2xl rounded-2xl"
+        >
+          <ProgressDots step={2} />
 
-        {/* Permission cards */}
-        <div className="space-y-2.5 mb-8">
-          <PermissionCard
-            icon={<Monitor size={20} strokeWidth={1.5} />}
-            title="Screen Recording"
-            description="Capture your display and windows"
-            isGranted={permissions.screenRecording}
-            onGrant={onGrantScreenRecording}
-          />
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-medium tracking-tight text-foreground mb-2">
+              Choose your <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>aesthetic</span>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Make it yours.
+            </p>
+          </div>
 
-          <PermissionCard
-            icon={<Mic size={20} strokeWidth={1.5} />}
-            title="Microphone"
-            description="Record audio with your captures"
-            isGranted={permissions.microphone}
-            onGrant={onGrantMicrophone}
-          />
+          {/* Controls */}
+          <div className="space-y-5 mb-8">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider ml-1">
+                Appearance
+              </label>
+              <SegmentedControl
+                value={theme}
+                onChange={(v) => setTheme(v as Theme)}
+                options={[
+                  { value: 'system', label: 'Auto' },
+                  { value: 'light', label: 'Light' },
+                  { value: 'dark', label: 'Dark' },
+                ]}
+              />
+            </div>
 
-          <PermissionCard
-            icon={<Camera size={20} strokeWidth={1.5} />}
-            title="Camera"
-            description="Add webcam overlay to recordings"
-            isGranted={permissions.camera}
-            onGrant={onGrantCamera}
-            isOptional
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider ml-1">
+                Window
+              </label>
+              <SegmentedControl
+                value={uiSurface}
+                onChange={handleSurfaceChange}
+                options={[
+                  { value: 'solid', label: 'Solid' },
+                  { value: 'frosted', label: 'Frosted' },
+                  { value: 'clear', label: 'Clear' },
+                ]}
+              />
+            </div>
 
-        {/* Continue button */}
-        <motion.div variants={itemVariants}>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider ml-1">
+                Accent
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {(Object.keys(PRESET_DETAILS) as ColorPreset[]).map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setColorPreset(preset)}
+                    className={cn(
+                      "group flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all duration-150",
+                      colorPreset === preset
+                        ? "bg-muted ring-1 ring-border"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-5 h-5 rounded-full transition-transform group-hover:scale-110",
+                      PRESET_DETAILS[preset].accent
+                    )} />
+                    <span className={cn(
+                      "text-[10px] font-medium transition-colors",
+                      colorPreset === preset ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {PRESET_DETAILS[preset].label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className={cn(
+            "relative overflow-hidden rounded-xl mb-6 p-4 h-20",
+            "bg-gradient-to-br", currentPresetDetails.gradient
+          )}>
+            <div className="flex items-center justify-between h-full">
+              <div>
+                <div className="text-sm font-semibold text-foreground">
+                  {currentPresetDetails.label}
+                </div>
+                <div className="text-[11px] text-foreground/70 mt-0.5">
+                  {currentPresetDetails.description}
+                </div>
+              </div>
+              <div className="flex gap-1">
+                {currentPresetDetails.adjectives.slice(0, 2).map(adj => (
+                  <span key={adj} className="px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-background/30 backdrop-blur text-foreground/80">
+                    {adj}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Continue */}
           <Button
             size="lg"
             onClick={onContinue}
-            disabled={!requiredGranted}
-            className={cn(
-              "w-full h-12 rounded-xl text-sm font-medium",
-              "transition-all duration-200",
-              requiredGranted
-                ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                : "bg-white/[0.04] text-muted-foreground/40 cursor-not-allowed"
-            )}
+            className="w-full h-11 rounded-xl text-sm font-medium"
           >
-            {requiredGranted ? (
-              <span className="flex items-center gap-2">
-                Continue <ArrowRight size={16} />
-              </span>
-            ) : (
-              <span>Grant required permissions</span>
-            )}
+            <span className="flex items-center gap-2">
+              Get Started
+              <ArrowRight size={15} />
+            </span>
           </Button>
-
-          <p className="text-center text-2xs text-muted-foreground/40 mt-4">
-            You can change permissions anytime in System Settings
-          </p>
         </motion.div>
-      </motion.div>
-    </div>
+      )}
+    </AnimatePresence>
   )
 }

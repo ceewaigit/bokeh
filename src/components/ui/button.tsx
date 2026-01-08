@@ -4,20 +4,20 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/shared/utils/utils"
 
 const buttonVariants = cva(
-  "btn-bubble inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-[transform,box-shadow,background-color,color,border-color] duration-150 ease-out active:scale-98 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 ease-out active:scale-[0.97] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow hover:bg-primary/90 [--bubble-color:hsl(var(--primary-foreground)/0.35)]",
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/95 hover:shadow-md hover:shadow-primary/20 hover:-translate-y-0.5 hover:scale-[1.01]",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 [--bubble-color:hsl(var(--destructive-foreground)/0.35)]",
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:-translate-y-0.5 hover:scale-[1.01]",
         outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground [--bubble-color:hsl(var(--accent)/0.18)]",
+          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-accent hover:-translate-y-0.5",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 [--bubble-color:hsl(var(--foreground)/0.12)]",
-        ghost: "hover:bg-accent hover:text-accent-foreground [--bubble-color:hsl(var(--accent)/0.16)]",
-        link: "btn-bubble-none text-primary underline-offset-4 hover:underline",
+          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 hover:-translate-y-0.5",
+        ghost: "hover:bg-accent/50 hover:text-accent-foreground hover:scale-[1.02]",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2",

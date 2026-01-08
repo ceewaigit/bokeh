@@ -173,3 +173,56 @@ export function useEffectCounts(): Record<EffectType, number> {
     return counts as Record<EffectType, number>
   }, [effects])
 }
+
+/**
+ * Calculate the total content height for the timeline based on visible tracks.
+ * Used by workspace-manager for auto-fit height calculation.
+ * 
+ * This mirrors the logic in timeline-layout-provider.tsx but can be consumed
+ * at any level of the component tree.
+ */
+export function useTimelineContentHeight(): number {
+  const effectTrackExistence = useEffectTrackExistence()
+  const mediaTrackExistence = useMediaTrackExistence()
+  const effectCounts = useEffectCounts()
+  const { TimelineConfig } = require('@/features/ui/timeline/config')
+
+  return useMemo(() => {
+    // Import config lazily to avoid circular dependency at module level
+    let height = 0
+
+    // Ruler
+    height += TimelineConfig.RULER_HEIGHT
+
+    // Video track (always visible when project exists)
+    height += TimelineConfig.TRACK.VIDEO_HEIGHT
+
+    // Audio track (nested under video, visible when video expanded - we assume expanded for max height)
+    height += TimelineConfig.TRACK.AUDIO_HEIGHT
+
+    // Webcam track
+    if (mediaTrackExistence.hasWebcamTrack) {
+      height += TimelineConfig.TRACK.WEBCAM_HEIGHT
+    }
+
+    // Effect tracks - use collapsed height for each present track
+    for (const type of EFFECT_TRACK_TYPES) {
+      if (effectTrackExistence[type]) {
+        height += TimelineConfig.TRACK.EFFECT_COLLAPSED
+      }
+    }
+
+    // Annotation track gets special treatment - header + rows
+    if (effectTrackExistence[EffectType.Annotation]) {
+      const annotationCount = effectCounts[EffectType.Annotation] ?? 0
+      // Header (20) + collapsed row height
+      height += 20 + TimelineConfig.TRACK.EFFECT_COLLAPSED * Math.max(1, annotationCount > 1 ? 1 : 1)
+    }
+
+    // Bottom padding
+    height += TimelineConfig.SCROLL.BOTTOM_PADDING
+
+    return height
+  }, [effectTrackExistence, mediaTrackExistence, effectCounts, TimelineConfig])
+}
+

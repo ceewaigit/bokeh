@@ -19,11 +19,15 @@ export async function initializeDefaultWallpaper() {
     if (wallpaperInitialized) return
 
     try {
-        // If running in Electron, try to load the default wallpaper
-        if (typeof window !== 'undefined' && window.electronAPI?.loadWallpaperImage) {
-            const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
-            if (dataUrl) {
-                setDefaultWallpaper(dataUrl)
+        // If running in Electron, try to load the default wallpaper from preinstalled wallpapers
+        if (typeof window !== 'undefined' && window.electronAPI?.listPreinstalledWallpapers && window.electronAPI?.loadImageAsDataUrl) {
+            const wallpapers = await window.electronAPI.listPreinstalledWallpapers()
+            const wallpaper1 = wallpapers.find(w => w.name === 'Wallpaper 1')
+            if (wallpaper1?.absolutePath) {
+                const dataUrl = await window.electronAPI.loadImageAsDataUrl(wallpaper1.absolutePath)
+                if (dataUrl) {
+                    setDefaultWallpaper(dataUrl)
+                }
             }
             wallpaperInitialized = true
         }

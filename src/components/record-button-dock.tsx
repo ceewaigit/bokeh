@@ -33,6 +33,7 @@ import {
   NotebookText
 } from 'lucide-react'
 
+
 interface Source {
   id: string
   name: string
@@ -73,10 +74,19 @@ export function RecordButtonDock() {
     screenRecording,
     camera: cameraPermission,
     microphone: microphonePermission,
+    isLoading: isPermissionsLoading,
     requestScreenRecording,
     requestCamera,
     requestMicrophone
   } = usePermissions()
+
+  // Auto-open workspace if permissions are missing (Screen Recording is critical)
+  useEffect(() => {
+    if (!isPermissionsLoading && !screenRecording) {
+      logger.info('[RecordButtonDock] Missing permissions, opening workspace setup')
+      window.electronAPI?.openWorkspace?.()
+    }
+  }, [isPermissionsLoading, screenRecording])
 
   const { startRecording, stopRecording } = useRecording()
   const { isRecording, isPaused, duration, updateSettings, startCountdown, prepareRecording } = useRecordingSessionStore()
@@ -181,6 +191,8 @@ export function RecordButtonDock() {
     }
   }, [devicesInitialized, initializeDevices])
 
+  // Single ResizeObserver that persists for the component lifetime
+  // NO dependencies - this prevents re-creation during state changes which caused jank
   useEffect(() => {
     const container = containerRef.current
     if (!container || !window.electronAPI?.setWindowContentSize) return
@@ -193,17 +205,21 @@ export function RecordButtonDock() {
       })
     }
 
-    // Small delay to ensure DOM is settled
+    // Debounce updates to prevent rapid-fire during animations
     const scheduleUpdate = () => {
       if (resizeTimeoutRef.current !== null) {
         window.clearTimeout(resizeTimeoutRef.current)
       }
-      resizeTimeoutRef.current = window.setTimeout(updateSize, 16)
+      resizeTimeoutRef.current = window.setTimeout(updateSize, 32) // ~2 frames
     }
 
-    scheduleUpdate()
+    // Initial size
+    updateSize()
+
+    // Observe for size changes
     const observer = new ResizeObserver(() => scheduleUpdate())
     observer.observe(container)
+
     return () => {
       if (resizeTimeoutRef.current !== null) {
         window.clearTimeout(resizeTimeoutRef.current)
@@ -211,7 +227,12 @@ export function RecordButtonDock() {
       }
       observer.disconnect()
     }
-  }, [isRecording, showWindowPicker, showDevicePicker])
+  }, []) // Empty deps - observer persists, doesn't re-create on state changes
+
+  // Notify main process of recording state for window management guards
+  useEffect(() => {
+    window.electronAPI?.setRecordingState?.(isRecording)
+  }, [isRecording])
 
   useEffect(() => {
     if (showWindowPicker && searchInputRef.current) {
@@ -445,11 +466,11 @@ export function RecordButtonDock() {
       : "text-muted-foreground/60 hover:text-muted-foreground"
   )
 
-  // Skeleton matches horizontal button layout
+  // Skeleton matches horizontal button layout - width matches actual source buttons
   const SkeletonButton = () => (
     <div className="flex items-center gap-1.5 h-9 px-3">
-      <div className="w-4 h-4 rounded-sm bg-muted/20" />
-      <div className="w-10 h-2.5 rounded-sm bg-muted/20" />
+      <div className="w-4 h-4 rounded-sm bg-muted/20 animate-pulse" />
+      <div className="w-12 h-2.5 rounded-sm bg-muted/20 animate-pulse" />
     </div>
   )
 

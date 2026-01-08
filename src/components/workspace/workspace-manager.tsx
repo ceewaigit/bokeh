@@ -41,6 +41,7 @@ import { toast } from 'sonner'
 import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 import { useProjectLoader } from '@/features/core/storage/hooks/use-project-loader'
 import { usePanelResizer } from '@/features/ui/editor/hooks/use-panel-resizer'
+import { useTimelineAutoHeight } from '@/features/ui/timeline/hooks/use-timeline-auto-height'
 import { ProxyProgressContainer } from '@/features/proxy'
 
 export function WorkspaceManager() {
@@ -93,7 +94,6 @@ export function WorkspaceManager() {
     isExportOpen,
     propertiesPanelWidth,
     utilitiesPanelWidth,
-    timelineHeight,
     toggleProperties,
     setExportOpen,
     currentView,
@@ -106,7 +106,6 @@ export function WorkspaceManager() {
       isExportOpen: s.isExportOpen,
       propertiesPanelWidth: s.propertiesPanelWidth,
       utilitiesPanelWidth: s.utilitiesPanelWidth,
-      timelineHeight: s.timelineHeight,
       toggleProperties: s.toggleProperties,
       setExportOpen: s.setExportOpen,
       currentView: s.currentView,
@@ -114,6 +113,9 @@ export function WorkspaceManager() {
       resetWorkspace: s.resetWorkspace
     }))
   )
+
+  // Auto-fit timeline height based on visible tracks
+  const { height: autoTimelineHeight } = useTimelineAutoHeight()
 
   const isExporting = useProjectStore((s) => s.progress.isProcessing)
   const previewReady = useProjectStore((s) => s.previewReady)
@@ -620,10 +622,10 @@ export function WorkspaceManager() {
                 <div className="w-14 h-1.5 rounded-full bg-foreground/15 group-hover:bg-foreground/35 shadow-sm transition-colors" />
               </div>
 
-              {/* Timeline Section - Full width at bottom */}
+              {/* Timeline Section - Full width at bottom, auto-fit height */}
               <div
                 className="bg-transparent overflow-hidden flex-shrink-0"
-                style={{ height: `${dragTimelineHeight ?? timelineHeight}px`, minHeight: '15vh', width: '100vw' }}
+                style={{ height: `${dragTimelineHeight ?? autoTimelineHeight}px`, minHeight: '100px', width: '100vw' }}
               >
                 <TimelineCanvas
                   className="h-full w-full pt-1 px-4 pb-3"

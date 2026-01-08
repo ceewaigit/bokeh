@@ -115,9 +115,11 @@ declare global {
   var recordingsDirectory: string
   var mainWindow: BrowserWindow | null
   var recordButton: BrowserWindow | null
+  var isRecordingActive: boolean
 }
 
 global.recordingsDirectory = getRecordingsDirectory()
+global.isRecordingActive = false
 
 async function initializeApp(): Promise<void> {
   console.log(`🚀 App ready - Electron version: ${process.versions.electron}`)

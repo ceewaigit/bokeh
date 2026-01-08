@@ -34,6 +34,7 @@ export interface ElectronAPI {
   requestMicrophonePermission: () => Promise<{ status: string; granted: boolean }>
   checkCameraPermission?: () => Promise<{ status: string; granted: boolean }>
   requestCameraPermission?: () => Promise<{ status: string; granted: boolean }>
+  openMediaPrivacySettings?: (type: 'screen' | 'microphone' | 'camera') => Promise<void>
   setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean; camera?: boolean }) => Promise<void>
   startPermissionMonitoring?: () => Promise<void>
   stopPermissionMonitoring?: () => Promise<void>
@@ -238,6 +239,7 @@ export interface ElectronAPI {
   quit: () => void
   minimizeRecordButton?: () => void
   showRecordButton?: (options?: { hideMainWindow?: boolean }) => Promise<void>
+  setRecordingState?: (isRecording: boolean) => Promise<{ success: boolean }>
   openWorkspace?: () => void
   setWindowContentSize?: (dimensions: { width: number; height: number }) => Promise<{ success: boolean }>
   setWindowVibrancy?: (vibrancy: string | null) => Promise<{ success: boolean }>

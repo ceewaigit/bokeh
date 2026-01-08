@@ -1,9 +1,10 @@
 import type { Project, RecordingMetadata, Clip } from '@/types/project'
-import { EffectType } from '@/types/project'
+import { EffectType, BackgroundType } from '@/types/project'
 import { EffectStore } from '@/features/effects/core/store'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { DEFAULT_MOCKUP_DATA } from '@/shared/constants/device-mockups'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
+import { getDefaultWallpaper } from '@/features/effects/background'
 import { detectZoomEffects, DEFAULT_EFFECT_GENERATION_CONFIG, type EffectGenerationConfig } from './effect-detector'
 
 /** Result of regeneration with detected trim opportunities */
@@ -51,12 +52,18 @@ export function regenerateProjectEffects(
         return true
     })
 
-    // Reset device mockup framing back to defaults
+    // Reset device mockup framing and wallpaper back to defaults
     const backgroundEffect = project.timeline.effects!.find(e => e.type === EffectType.Background)
     if (backgroundEffect?.data) {
+        const defaultWallpaper = getDefaultWallpaper()
         backgroundEffect.data = {
             ...(backgroundEffect.data as unknown as Record<string, unknown>),
-            mockup: { ...DEFAULT_MOCKUP_DATA }
+            mockup: { ...DEFAULT_MOCKUP_DATA },
+            // Reset to default wallpaper (Wallpaper 1) if available
+            ...(defaultWallpaper ? {
+                type: BackgroundType.Wallpaper,
+                wallpaper: defaultWallpaper
+            } : {})
         } as any
     }
 

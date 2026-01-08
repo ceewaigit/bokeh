@@ -39,4 +39,8 @@ export function registerPermissionHandlers(): void {
   ipcMain.handle('set-mock-permissions', async (_, permissions: { screen?: boolean; microphone?: boolean; camera?: boolean }) => {
     permissionService.setMockPermissions(permissions)
   })
+
+  ipcMain.handle('open-media-privacy-settings', async (_, type: 'screen' | 'microphone' | 'camera') => {
+    permissionService.openMediaPrivacySettings(type)
+  })
 }
