@@ -111,10 +111,13 @@ export const WebcamClipRenderer = React.memo(({
     }, [data, videoWidth, videoHeight]);
 
     // Video URL resolution with proxy logic
+    // Note: Proxy availability is determined by useVideoUrl internally via the proxy store
+    // The forceProxy flag is used to hint that proxy should be preferred for small target sizes
     const forceProxy = useMemo(() => {
-        if (!recording.previewProxyUrl) return false;
+        // For webcam overlays, proxy is almost always sufficient since they're small on screen
+        // Let useVideoUrl resolve the actual proxy URL from the store
         return isProxySufficientForTarget(webcamTargetSize.width, webcamTargetSize.height, 1);
-    }, [recording.previewProxyUrl, webcamTargetSize.width, webcamTargetSize.height]);
+    }, [webcamTargetSize.width, webcamTargetSize.height]);
 
     const videoUrl = useVideoUrl({
         recording,
@@ -201,7 +204,7 @@ export const WebcamClipRenderer = React.memo(({
         width: webcamSize,
         height: webcamSize,
         transformOrigin: getTransformOrigin(data.position.anchor),
-        borderRadius: data.shape === 'circle' ? '50%' : (data.shape === 'squircle' ? '20%' : data.cornerRadius),
+        borderRadius: data.shape === 'circle' ? '50%' : data.cornerRadius,
         overflow: 'hidden',
         backgroundColor: 'transparent',
         backfaceVisibility: 'hidden',

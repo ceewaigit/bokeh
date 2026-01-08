@@ -11,7 +11,7 @@ import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
-import { timeObserver } from '@/features/ui/timeline/time/time-observer'
+import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
 
 export const TimelinePlayhead = React.memo(() => {
   const {
@@ -22,13 +22,9 @@ export const TimelinePlayhead = React.memo(() => {
   } = useTimelineLayout()
   const { onSeek } = useTimelineContext()
 
-  // DECOUPLED: Use timeObserver instead of store subscription
+  // DECOUPLED: Use useTimeStore hook which subscribes to transient updates
   // This prevents playhead freezing during heavy store operations
-  const [currentTime, setCurrentTime] = useState(() => timeObserver.getTime())
-
-  useEffect(() => {
-    return timeObserver.subscribe(setCurrentTime)
-  }, [])
+  const currentTime = useTimeStore((s) => s.currentTime)
 
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)
@@ -199,7 +195,7 @@ export const TimelinePlayhead = React.memo(() => {
         const clampedTime = clamp(time, 0, safeEndTime)
 
         // Push to observer immediately for visual feedback
-        timeObserver.pushTime(clampedTime)
+        useTimeStore.getState().setTime(clampedTime)
         // Also update store via onSeek for persistence
         onSeek(clampedTime)
       }}

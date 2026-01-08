@@ -20,7 +20,7 @@ import type { EffectType, TrackType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/features/effects/types'
 import type { CameraPathFrame } from '@/types/remotion'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
-import type { EffectGenerationConfig } from '@/features/effects/services/effect-generation-service'
+import type { EffectGenerationConfig } from '@/features/effects/logic/effect-detector'
 import type { Patch } from 'immer'
 import type { WritableDraft } from 'immer'
 
@@ -261,7 +261,14 @@ export interface EffectsSliceActions {
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<Effect>) => void
   getEffectsAtTimeRange: (clipId: string) => Effect[]
-  regenerateAllEffects: (config?: EffectGenerationConfig) => Promise<void>
+  regenerateAllEffects: (config?: EffectGenerationConfig) => Promise<{
+    trimSuggestions: Array<{
+      recordingId: string
+      startSavedMs: number
+      endSavedMs: number
+      totalSavedMs: number
+    }>
+  }>
 }
 
 export interface TimelineSliceActions extends ClipSliceActions, EffectsSliceActions { }

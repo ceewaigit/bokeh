@@ -1,4 +1,5 @@
 import type { Project, Clip, Effect } from '@/types/project'
+import { EffectType } from '@/types/project'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { reflowClips, calculateTimelineDuration } from './clips/clip-reflow'
 import { EffectStore } from '@/features/effects/core/store'
@@ -23,14 +24,15 @@ export class SpeedUpApplicationService {
         clipId: string,
         periods: Array<{ startTime: number; endTime: number; suggestedSpeedMultiplier: number }>,
         speedUpTypes: Array<'typing' | 'idle'> = ['typing']
-    ): { affectedClips: string[]; originalClips: Clip[] } {
+    ): { affectedClips: string[]; originalClips: Clip[]; modifiedEffects: Effect[] } {
         const affectedClips: string[] = []
         const originalClips: Clip[] = []
+        const modifiedEffects: Effect[] = []
 
         const result = ClipLookup.byId(project, clipId)
         if (!result) {
             console.error('applySpeedUpToClip: Clip not found:', clipId)
-            return { affectedClips: [], originalClips }
+            return { affectedClips: [], originalClips, modifiedEffects: [] }
         }
 
         const { clip: sourceClip, track } = result
@@ -42,6 +44,20 @@ export class SpeedUpApplicationService {
         // 1. Capture existing clip-bound effects (e.g. Crop) BEFORE we remove the clip
         const allEffects = EffectStore.getAll(project)
         const clipBoundEffects = allEffects.filter(e => e.clipId === clipId)
+
+        // Capture overlapping "unbound" effects (like Zoom) that should move with the content
+        // These are effects that are NOT clip-bound but spatially overlap the clip's timeline range
+        const overlappingEffects = allEffects.filter(e =>
+            !e.clipId && // Not bound to any specific clip
+            e.type !== EffectType.Background && // Backgrounds don't move
+            e.startTime < (sourceClip.startTime + sourceClip.duration) &&
+            e.endTime > sourceClip.startTime
+        )
+
+        // Save initial state of effects that will be modified
+        for (const effect of overlappingEffects) {
+            modifiedEffects.push({ ...effect })
+        }
 
         // Get clip's source range and base playback rate
         const sourceIn = sourceClip.sourceIn || 0
@@ -59,7 +75,7 @@ export class SpeedUpApplicationService {
             .sort((a, b) => a.start - b.start)
 
         if (validPeriods.length === 0) {
-            return { affectedClips: [clipId], originalClips }
+            return { affectedClips: [clipId], originalClips, modifiedEffects: [] }
         }
 
         // Get FPS from project settings or default to 60
@@ -121,11 +137,6 @@ export class SpeedUpApplicationService {
                     // Note: We keep the speed of the previous segment. 
                     // This effectively "eats" the small segment into the previous one.
                 } else {
-                    // If it's the very first segment and too small, we can't merge backwards.
-                    // We'll add it for now, and hope the next one merges backwards into it?
-                    // Or we just drop it? No, dropping changes sourceIn.
-                    // We must keep it or merge forward.
-                    // Let's add it, but check next time.
                     mergedSegments.push(segment)
                 }
             } else {
@@ -242,6 +253,91 @@ export class SpeedUpApplicationService {
         project.timeline.duration = calculateTimelineDuration(project)
         project.modifiedAt = new Date().toISOString()
 
-        return { affectedClips, originalClips }
+        // 5. Shift generic effects that are AFTER the modified clip
+        // When we speed up a clip, it shortens. We must pull following effects back by the delta.
+        // newClips contains the new segments.
+        const newTotalDuration = newClips.reduce((sum, c) => sum + c.duration, 0)
+        const oldDuration = sourceClip.duration
+        const delta = newTotalDuration - oldDuration
+        const originalEnd = sourceClip.startTime + oldDuration
+
+        // Helper to map a timeline position (relative to original clip start) to new timeline position
+        const mapTimelinePositionToNew = (originalTimelinePos: number): number | null => {
+            // 1. Convert to source time
+            // sourceTime = sourceIn + (dt * baseRate)
+            const dt = originalTimelinePos - sourceClip.startTime
+            const sourceTime = sourceIn + (dt * baseRate)
+
+            // 2. Find which segment this source time falls into
+            let timeSoFar = 0
+            for (const segment of mergedSegments) {
+                // Check inclusion with small epsilon for float errors
+                if (sourceTime >= segment.start - 0.001 && sourceTime <= segment.end + 0.001) {
+                    // Found the segment
+                    const offsetInSegment = Math.max(0, sourceTime - segment.start)
+
+                    // effectiveRate = baseRate * multiplier
+                    const effectiveRate = baseRate * segment.speedMultiplier
+
+                    // duration = offset / rate
+                    const newDt = timeSoFar + (offsetInSegment / effectiveRate)
+
+                    return sourceClip.startTime + newDt
+                }
+
+                // Add full duration of this segment to timeSoFar
+                const segmentSourceDuration = segment.end - segment.start
+                const segmentEffectiveRate = baseRate * segment.speedMultiplier
+                timeSoFar += segmentSourceDuration / segmentEffectiveRate
+            }
+
+            return null
+        }
+
+        // 6. Update overlapping effects (Zoom, etc.)
+        for (const effect of overlappingEffects) {
+            // Case 1: Start is inside
+            if (effect.startTime >= sourceClip.startTime && effect.startTime <= originalEnd) {
+                const newStart = mapTimelinePositionToNew(effect.startTime)
+                if (newStart !== null) {
+                    effect.startTime = newStart
+                }
+            } else if (effect.startTime > originalEnd) {
+                // Starts after -> shift by total delta
+                effect.startTime += delta
+            }
+
+            // Case 2: End is inside
+            if (effect.endTime >= sourceClip.startTime && effect.endTime <= originalEnd) {
+                const newEnd = mapTimelinePositionToNew(effect.endTime)
+                if (newEnd !== null) {
+                    effect.endTime = newEnd
+                }
+            } else if (effect.endTime > originalEnd) {
+                // Ends after -> shift by total delta
+                effect.endTime += delta
+            }
+        }
+
+        // 7. Shift remaining independent effects that start strictly AFTER the original clip
+        for (const effect of allEffects) {
+            // Skip effects we just added or modified
+            if (effectsToAdd.some(e => e.id === effect.id)) continue
+            if (overlappingEffects.some(e => e.id === effect.id)) continue
+            if (effect.type === EffectType.Background) continue
+
+            // If effect starts at or after the point where the timeline shifted (original clip end),
+            // shift it by delta.
+            if (effect.startTime >= originalEnd - 0.01) {
+                // Save original state before modification if not already saved
+                if (!modifiedEffects.some(e => e.id === effect.id)) {
+                    modifiedEffects.push({ ...effect })
+                }
+                effect.startTime += delta
+                effect.endTime += delta
+            }
+        }
+
+        return { affectedClips, originalClips, modifiedEffects }
     }
 }

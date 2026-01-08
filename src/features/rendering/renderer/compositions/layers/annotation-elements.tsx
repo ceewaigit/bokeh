@@ -1,15 +1,8 @@
-/**
- * DOM-based annotation rendering components
- *
- * Replaces Canvas 2D rendering with performant DOM elements that support:
- * - GPU-accelerated CSS transforms
- * - Proper hit testing via data attributes
- * - Isolated updates without affecting video
- */
-
 import React, { memo } from 'react'
 import { AnnotationType } from '@/types/project'
 import type { AnnotationData, AnnotationStyle } from '@/types/project'
+import { useCoordinateMapping } from '@/features/rendering/renderer/hooks/layout/useCoordinateMapping'
+import { RedactionPattern } from '@/features/effects/annotation/types'
 
 // ============================================================================
 // Types
@@ -34,23 +27,11 @@ interface BaseAnnotationProps {
     id: string
     data: AnnotationData
     context: AnnotationRenderContext
-    // isSelected/isEditing props removed/ignored as they are handled by InteractionLayer now
 }
 
 // ============================================================================
 // Utility Functions
 // ============================================================================
-
-/**
- * Convert percentage position to pixel position
- */
-function percentToPixel(
-    percent: number,
-    containerSize: number,
-    offset: number
-): number {
-    return offset + (percent / 100) * containerSize
-}
 
 /**
  * Resolve padding from style, handling both number and object formats
@@ -62,35 +43,6 @@ function resolvePadding(padding?: AnnotationStyle['padding']): number {
     return Math.max(p.top, p.right, p.bottom, p.left)
 }
 
-/**
- * Get computed position for an annotation in pixels.
- * Applies camera transform for proper zoom behavior in preview mode.
- */
-function getComputedPosition(
-    data: AnnotationData,
-    context: AnnotationRenderContext
-): { x: number; y: number } {
-    const pos = data.position ?? { x: 50, y: 50 }
-    const rawPos = {
-        x: percentToPixel(pos.x, context.videoWidth, context.offsetX),
-        y: percentToPixel(pos.y, context.videoHeight, context.offsetY),
-    }
-
-    // Apply camera transform if provided (for preview mode zooming)
-    if (context.cameraTransform && context.cameraTransform.scale !== 1) {
-        const centerX = context.offsetX + context.videoWidth / 2
-        const centerY = context.offsetY + context.videoHeight / 2
-        const { scale, panX, panY } = context.cameraTransform
-
-        return {
-            x: centerX + (rawPos.x - centerX) * scale + panX,
-            y: centerY + (rawPos.y - centerY) * scale + panY
-        }
-    }
-
-    return rawPos
-}
-
 // ============================================================================
 // Text Annotation
 // ============================================================================
@@ -100,13 +52,13 @@ const TextAnnotation = memo<BaseAnnotationProps>(({
     data,
     context,
 }) => {
+    const { mapPercentPoint } = useCoordinateMapping()
     const style = data.style ?? {}
-    const position = getComputedPosition(data, context)
+    const position = mapPercentPoint(data.position ?? { x: 50, y: 50 })
     const rotation = data.rotation ?? 0
 
-    // Include camera scale in effective scale for proper zoom behavior
-    const cameraScale = context.cameraTransform?.scale ?? 1
-    const effectiveScale = (context.scale ?? 1) * cameraScale
+    // Hook provides transformed pixel coordinates, so we don't need manual cameraScale math
+    const effectiveScale = context.scale ?? 1
     const fontSize = (style.fontSize ?? 18) * effectiveScale
     const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
     const fontWeight = style.fontWeight ?? 'normal'
@@ -160,15 +112,13 @@ TextAnnotation.displayName = 'TextAnnotation'
 const BlurAnnotation = memo<BaseAnnotationProps>(({
     id,
     data,
-    context,
 }) => {
-    const position = getComputedPosition(data, context)
+    const { mapPercentPoint, videoPosition } = useCoordinateMapping()
+    const position = mapPercentPoint(data.position ?? { x: 50, y: 50 })
     const rotation = data.rotation ?? 0
 
-    // Width/height are percentages of video dimensions - scales with camera
-    const cameraScale = context.cameraTransform?.scale ?? 1
-    const width = ((data.width ?? 20) / 100) * context.videoWidth * cameraScale
-    const height = ((data.height ?? 12) / 100) * context.videoHeight * cameraScale
+    const width = ((data.width ?? 20) / 100) * videoPosition.drawWidth
+    const height = ((data.height ?? 12) / 100) * videoPosition.drawHeight
 
     return (
         <div
@@ -186,7 +136,6 @@ const BlurAnnotation = memo<BaseAnnotationProps>(({
                 pointerEvents: 'auto',
                 contain: 'layout style paint',
                 willChange: 'transform',
-                // Solid opaque background for masking sensitive content
                 background: '#888888',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
             }}
@@ -202,15 +151,14 @@ BlurAnnotation.displayName = 'BlurAnnotation'
 const HighlightAnnotation = memo<BaseAnnotationProps>(({
     id,
     data,
-    context,
 }) => {
+    const { mapPercentPoint, videoPosition } = useCoordinateMapping()
     const style = data.style ?? {}
-    const position = getComputedPosition(data, context)
+    const position = mapPercentPoint(data.position ?? { x: 50, y: 50 })
     const rotation = data.rotation ?? 0
 
-    // Width/height are percentages of video dimensions
-    const width = ((data.width ?? 20) / 100) * context.videoWidth
-    const height = ((data.height ?? 10) / 100) * context.videoHeight
+    const width = ((data.width ?? 20) / 100) * videoPosition.drawWidth
+    const height = ((data.height ?? 10) / 100) * videoPosition.drawHeight
 
     const bgColor = style.backgroundColor ?? 'rgba(255, 255, 0, 0.3)'
     const borderColor = style.borderColor
@@ -247,23 +195,22 @@ HighlightAnnotation.displayName = 'HighlightAnnotation'
 const ArrowAnnotation = memo<BaseAnnotationProps>(({
     id,
     data,
-    context,
 }) => {
+    const { mapPercentPoint } = useCoordinateMapping()
     const style = data.style ?? {}
     const rotation = data.rotation ?? 0
 
-    const start = getComputedPosition(data, context)
-    const rawEnd = data.endPosition ?? { x: (data.position?.x ?? 50) + 10, y: (data.position?.y ?? 50) + 10 }
-    const end = {
-        x: percentToPixel(rawEnd.x, context.videoWidth, context.offsetX),
-        y: percentToPixel(rawEnd.y, context.videoHeight, context.offsetY),
-    }
+    const pos = data.position ?? { x: 50, y: 50 }
+    const rawEnd = data.endPosition ?? { x: pos.x + 10, y: pos.y + 10 }
+
+    // Map to relative pixels for inner SVG math
+    const start = mapPercentPoint(pos, { applyTransform: false })
+    const end = mapPercentPoint(rawEnd, { applyTransform: false })
 
     const color = style.color ?? '#ff0000'
     const strokeWidth = style.strokeWidth ?? 3
     const arrowHeadSize = style.arrowHeadSize ?? 10
 
-    // Calculate bounding box for the arrow (instead of 100% width/height)
     const padding = Math.max(strokeWidth, arrowHeadSize) + 4
     const minX = Math.min(start.x, end.x) - padding
     const minY = Math.min(start.y, end.y) - padding
@@ -272,13 +219,11 @@ const ArrowAnnotation = memo<BaseAnnotationProps>(({
     const boxWidth = maxX - minX
     const boxHeight = maxY - minY
 
-    // Coordinates relative to the bounding box
     const svgStartX = start.x - minX
     const svgStartY = start.y - minY
     const svgEndX = end.x - minX
     const svgEndY = end.y - minY
 
-    // Calculate midpoint for rotation origin (relative to the box)
     const midX = boxWidth / 2
     const midY = boxHeight / 2
 
@@ -331,26 +276,216 @@ const ArrowAnnotation = memo<BaseAnnotationProps>(({
 ArrowAnnotation.displayName = 'ArrowAnnotation'
 
 // ============================================================================
-// Redaction Annotation - Solid block for hiding content
+// Redaction Annotation - Stylized block with multiple pattern options
 // ============================================================================
+
+/**
+ * Generates inline SVG pattern for different redaction styles.
+ * Returns either a background style object or JSX for SVG overlay.
+ */
+export function getRedactionPatternStyle(
+    pattern: RedactionPattern,
+    bgColor: string,
+    width: number,
+    height: number,
+    id: string
+): { background?: string; svgOverlay?: React.ReactNode } {
+    switch (pattern) {
+        case RedactionPattern.Noise: {
+            // Film grain texture using feTurbulence
+            return {
+                svgOverlay: (
+                    <svg
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            width: '100%',
+                            height: '100%',
+                            pointerEvents: 'none',
+                        }}
+                    >
+                        <defs>
+                            <filter id={`noise-${id}`}>
+                                <feTurbulence
+                                    type="fractalNoise"
+                                    baseFrequency="0.9"
+                                    numOctaves="4"
+                                    seed={42}
+                                    result="noise"
+                                />
+                                <feColorMatrix
+                                    type="matrix"
+                                    values="0.15 0 0 0 0
+                                            0 0.15 0 0 0
+                                            0 0 0.15 0 0
+                                            0 0 0 0.35 0"
+                                />
+                            </filter>
+                        </defs>
+                        <rect
+                            width="100%"
+                            height="100%"
+                            fill={bgColor}
+                        />
+                        <rect
+                            width="100%"
+                            height="100%"
+                            filter={`url(#noise-${id})`}
+                        />
+                    </svg>
+                ),
+            }
+        }
+
+        case RedactionPattern.Diagonal: {
+            // Diagonal line hatching pattern
+            const lineSpacing = 8
+            const lineWidth = 2
+            return {
+                svgOverlay: (
+                    <svg
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            width: '100%',
+                            height: '100%',
+                            pointerEvents: 'none',
+                        }}
+                    >
+                        <defs>
+                            <pattern
+                                id={`diagonal-${id}`}
+                                patternUnits="userSpaceOnUse"
+                                width={lineSpacing}
+                                height={lineSpacing}
+                                patternTransform="rotate(45)"
+                            >
+                                <line
+                                    x1="0"
+                                    y1="0"
+                                    x2="0"
+                                    y2={lineSpacing}
+                                    stroke="rgba(255,255,255,0.15)"
+                                    strokeWidth={lineWidth}
+                                />
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill={bgColor} />
+                        <rect width="100%" height="100%" fill={`url(#diagonal-${id})`} />
+                    </svg>
+                ),
+            }
+        }
+
+        case RedactionPattern.Mosaic: {
+            // Pixelated/blocky pattern
+            const cellSize = 12
+            return {
+                svgOverlay: (
+                    <svg
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            width: '100%',
+                            height: '100%',
+                            pointerEvents: 'none',
+                        }}
+                    >
+                        <defs>
+                            <pattern
+                                id={`mosaic-${id}`}
+                                patternUnits="userSpaceOnUse"
+                                width={cellSize * 2}
+                                height={cellSize * 2}
+                            >
+                                <rect x="0" y="0" width={cellSize} height={cellSize} fill={bgColor} />
+                                <rect x={cellSize} y="0" width={cellSize} height={cellSize} fill="rgba(255,255,255,0.08)" />
+                                <rect x="0" y={cellSize} width={cellSize} height={cellSize} fill="rgba(255,255,255,0.05)" />
+                                <rect x={cellSize} y={cellSize} width={cellSize} height={cellSize} fill={bgColor} />
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill={bgColor} />
+                        <rect width="100%" height="100%" fill={`url(#mosaic-${id})`} />
+                    </svg>
+                ),
+            }
+        }
+
+        case RedactionPattern.Marker: {
+            // Hand-drawn marker/brush effect with irregular edges
+            const wobble = Math.min(width, height) * 0.03
+            return {
+                svgOverlay: (
+                    <svg
+                        style={{
+                            position: 'absolute',
+                            inset: -wobble,
+                            width: `calc(100% + ${wobble * 2}px)`,
+                            height: `calc(100% + ${wobble * 2}px)`,
+                            pointerEvents: 'none',
+                        }}
+                        viewBox={`0 0 ${width + wobble * 2} ${height + wobble * 2}`}
+                        preserveAspectRatio="none"
+                    >
+                        <defs>
+                            <filter id={`marker-rough-${id}`}>
+                                <feTurbulence
+                                    type="turbulence"
+                                    baseFrequency="0.03"
+                                    numOctaves="2"
+                                    seed={17}
+                                    result="turbulence"
+                                />
+                                <feDisplacementMap
+                                    in="SourceGraphic"
+                                    in2="turbulence"
+                                    scale={wobble * 1.5}
+                                    xChannelSelector="R"
+                                    yChannelSelector="G"
+                                />
+                            </filter>
+                        </defs>
+                        <rect
+                            x={wobble}
+                            y={wobble}
+                            width={width}
+                            height={height}
+                            fill={bgColor}
+                            filter={`url(#marker-rough-${id})`}
+                            rx={4}
+                            ry={4}
+                        />
+                    </svg>
+                ),
+            }
+        }
+
+        case RedactionPattern.Solid:
+        default:
+            // Plain solid fill (current behavior)
+            return { background: bgColor }
+    }
+}
 
 const RedactionAnnotation = memo<BaseAnnotationProps>(({
     id,
     data,
-    context,
 }) => {
+    const { mapPercentPoint, videoPosition } = useCoordinateMapping()
     const style = data.style ?? {}
-    const position = getComputedPosition(data, context)
+    const position = mapPercentPoint(data.position ?? { x: 50, y: 50 })
     const rotation = data.rotation ?? 0
 
-    // Width/height are percentages of video dimensions
-    const width = ((data.width ?? 20) / 100) * context.videoWidth
-    const height = ((data.height ?? 10) / 100) * context.videoHeight
+    const width = ((data.width ?? 20) / 100) * videoPosition.drawWidth
+    const height = ((data.height ?? 10) / 100) * videoPosition.drawHeight
 
     const bgColor = style.backgroundColor ?? '#000000'
     const borderColor = style.borderColor
     const borderWidth = style.borderWidth ?? 0
     const borderRadius = style.borderRadius ?? 0
+    const pattern = style.redactionPattern ?? RedactionPattern.Solid
+
+    const patternStyle = getRedactionPatternStyle(pattern, bgColor, width, height, id)
 
     return (
         <div
@@ -364,14 +499,17 @@ const RedactionAnnotation = memo<BaseAnnotationProps>(({
                 height,
                 transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
                 transformOrigin: 'center center',
-                backgroundColor: bgColor,
+                backgroundColor: patternStyle.background,
                 border: borderColor && borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
                 borderRadius,
                 pointerEvents: 'auto',
                 contain: 'layout style paint',
                 willChange: 'transform',
+                overflow: 'hidden',
             }}
-        />
+        >
+            {patternStyle.svgOverlay}
+        </div>
     )
 })
 RedactionAnnotation.displayName = 'RedactionAnnotation'
@@ -401,7 +539,6 @@ export const AnnotationElement = memo<AnnotationElementProps>((props) => {
         case AnnotationType.Redaction:
             return <RedactionAnnotation {...props} />
         default:
-            // Fallback to text for unknown types
             return <TextAnnotation {...props} />
     }
 })

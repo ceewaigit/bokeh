@@ -1,26 +1,36 @@
 /**
  * Generic command to apply speed-up suggestions to clips
  * Works with any SpeedUpPeriod type (typing, idle, etc.)
+ * 
+ * Uses PatchedCommand for automatic undo/redo via Immer patches.
+ * This eliminates the need for manual state tracking and restoration.
  */
 
-import { Command, CommandResult } from '../base/Command'
+import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
-import type { Clip } from '@/types/project'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/features/core/stores/project-store'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
+import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
+import { EffectInitialization } from '@/features/effects/core/initialization'
+import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
+import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
+import { playbackService } from '@/features/ui/timeline/playback/playback-service'
 
-export class ApplySpeedUpCommand extends Command<{
+export class ApplySpeedUpCommand extends PatchedCommand<{
   applied: number // number of clips affected
 }> {
-  private originalClips: Clip[] = []
-  private affectedClips: string[] = []
-  private trackId: string = ''
+  private sourceClipId: string
+  private periods: SpeedUpPeriod[]
+  private speedUpTypes: SpeedUpType[]
+  private affectedClipIds: string[] = []
 
   constructor(
-    private context: CommandContext,
-    private sourceClipId: string,
-    private periods: SpeedUpPeriod[],
-    private speedUpTypes: SpeedUpType[] = [] // Which types are being applied
+    context: CommandContext,
+    sourceClipId: string,
+    periods: SpeedUpPeriod[],
+    speedUpTypes: SpeedUpType[] = []
   ) {
     // Determine types from periods if not provided
     if (speedUpTypes.length === 0) {
@@ -30,12 +40,14 @@ export class ApplySpeedUpCommand extends Command<{
 
     const typeNames = speedUpTypes.map(t => t === SpeedUpType.Typing ? 'typing' : 'idle').join(' & ')
 
-    super({
+    super(context, {
       name: 'ApplySpeedUp',
       description: `Apply ${typeNames} speed-up`,
       category: 'timeline'
     })
 
+    this.sourceClipId = sourceClipId
+    this.periods = periods
     this.speedUpTypes = speedUpTypes
   }
 
@@ -44,75 +56,60 @@ export class ApplySpeedUpCommand extends Command<{
     return !!result && this.periods.length > 0
   }
 
-  doExecute(): CommandResult<{ applied: number }> {
-    const store = this.context.getStore()
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    if (!draft.currentProject) {
+      throw new Error('No project found')
+    }
 
-    // Find and save track ID for undo
-    const sourceResult = this.context.findClip(this.sourceClipId)
+    // Verify clip exists
+    const sourceResult = ClipLookup.byId(draft.currentProject, this.sourceClipId)
     if (!sourceResult) {
-      return { success: false, error: `Clip ${this.sourceClipId} not found` }
-    }
-    this.trackId = sourceResult.track.id
-
-    try {
-      // Use the store method - it accepts any period with startTime, endTime, suggestedSpeedMultiplier
-      const result = (store as any).applySpeedUpToClip(
-        this.sourceClipId,
-        this.periods,
-        this.speedUpTypes
-      )
-
-      // Save state for undo
-      this.originalClips = result.originalClips
-      this.affectedClips = result.affectedClips
-
-      return {
-        success: true,
-        data: { applied: this.affectedClips.length }
-      }
-    } catch (error) {
-      console.error('[ApplySpeedUpCommand] Failed:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to apply speed-up'
-      }
-    }
-  }
-
-  doUndo(): CommandResult<{ applied: number }> {
-    const store = this.context.getStore()
-    const project = store.currentProject
-    if (!project) {
-      return { success: false, error: 'No project found' }
+      throw new Error(`Clip ${this.sourceClipId} not found`)
     }
 
-    if (this.originalClips.length === 0 || !this.trackId) {
-      return { success: false, error: 'Cannot undo: missing original state or trackId' }
-    }
-
-    // Use atomic restore to avoid intermediate reflow issues
-    store.restoreClipsFromUndo(
-      this.trackId,
-      this.affectedClips,
-      this.originalClips
+    // Convert SpeedUpType to legacy string format for the service
+    const legacyTypes = this.speedUpTypes.map(t =>
+      t === SpeedUpType.Typing ? 'typing' as const : 'idle' as const
     )
 
-    return {
-      success: true,
-      data: { applied: 0 }
+    // Apply speed-up using the unified service
+    // The service modifies the project in place, which Immer will capture as patches
+    const result = SpeedUpApplicationService.applySpeedUpToClip(
+      draft.currentProject,
+      this.sourceClipId,
+      this.periods,
+      legacyTypes
+    )
+
+    // Track affected clips for composite commands
+    this.affectedClipIds = result.affectedClips
+
+    // Speed-up can change durations/time-remaps; rebuild derived keystroke blocks
+    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
+
+    // Update modified timestamp
+    draft.currentProject.modifiedAt = new Date().toISOString()
+
+    // Ensure playhead is within valid range after timeline changes
+    const newTimelineDuration = calculateTimelineDuration(draft.currentProject)
+    if (draft.currentTime >= newTimelineDuration) {
+      draft.currentTime = playbackService.seek(
+        Math.max(0, newTimelineDuration - 1),
+        newTimelineDuration
+      )
     }
-  }
 
-  doRedo(): CommandResult<{ applied: number }> {
-    // Re-execute with the same parameters
-    return this.doExecute()
-  }
-
-  getAffectedClips(): string[] {
-    return this.affectedClips
+    this.setResult({
+      success: true,
+      data: { applied: result.affectedClips.length }
+    })
   }
 
   getSpeedUpTypes(): SpeedUpType[] {
     return this.speedUpTypes
+  }
+
+  getAffectedClips(): string[] {
+    return this.affectedClipIds
   }
 }

@@ -26,7 +26,7 @@ import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata'
 import { useSelectedClipIds } from '@/features/core/stores/selectors/clip-selectors'
-import { timeObserver } from '@/features/ui/timeline/time/time-observer'
+import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
 import { useTimelinePlayback } from '@/features/ui/timeline/hooks/use-timeline-playback'
 import {
   Scissors,
@@ -154,11 +154,8 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
     jumpForward1s
   } = useTimelinePlayback({ enabled: false })
 
-  // DECOUPLED: Use timeObserver for timecode display (updates at 60fps)
-  const [displayTime, setDisplayTime] = React.useState(() => timeObserver.getTime())
-  React.useEffect(() => {
-    return timeObserver.subscribe(setDisplayTime)
-  }, [])
+  // DECOUPLED: Use timeStore for timecode display (updates at 60fps)
+  const displayTime = useTimeStore((s) => s.currentTime)
 
   const isPlaying = useProjectStore((s) => s.isPlaying)
   const selectedClips = useSelectedClipIds()

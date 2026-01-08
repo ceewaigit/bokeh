@@ -8,6 +8,12 @@ import React from 'react'
 import { Loader2, X, Check } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { useProxyStore } from '../store/proxy-store'
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface ProxyProgressProps {
     /** Recording ID to show progress for */
@@ -38,40 +44,52 @@ export function ProxyProgress({
     const percentage = progress ?? 0
 
     return (
-        <div
-            className={cn(
-                "flex items-center gap-2 rounded-full px-3 py-1.5",
-                "bg-background/80 backdrop-blur-md border border-border/50 shadow-lg",
-                "text-sm",
-                isComplete && "border-green-500/30 bg-green-500/5",
-                className
-            )}
-        >
-            {isComplete ? (
-                <Check className="h-3.5 w-3.5 text-green-500" />
-            ) : (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            )}
+        <TooltipProvider>
+            <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                    <div
+                        className={cn(
+                            "flex items-center gap-2 rounded-full px-3 py-1.5",
+                            "bg-background/80 backdrop-blur-md border border-border/50 shadow-lg",
+                            "text-sm cursor-default",
+                            isComplete && "border-green-500/30 bg-green-500/5",
+                            className
+                        )}
+                    >
+                        {isComplete ? (
+                            <Check className="h-3.5 w-3.5 text-green-500" />
+                        ) : (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        )}
 
-            <span className="text-xs text-muted-foreground max-w-32 truncate">
-                {name || 'Video'}
-            </span>
+                        <span className="text-xs text-muted-foreground max-w-32 truncate">
+                            {name || 'Video'}
+                        </span>
 
-            {!isComplete && (
-                <span className="text-xs font-mono text-muted-foreground">
-                    {Math.round(percentage)}%
-                </span>
-            )}
+                        {!isComplete && (
+                            <span className="text-xs font-mono text-muted-foreground">
+                                {Math.round(percentage)}%
+                            </span>
+                        )}
 
-            {onDismiss && isComplete && (
-                <button
-                    onClick={onDismiss}
-                    className="ml-1 rounded-full p-0.5 hover:bg-muted/50 transition-colors"
-                >
-                    <X className="h-3 w-3 text-muted-foreground" />
-                </button>
-            )}
-        </div>
+                        {onDismiss && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onDismiss()
+                                }}
+                                className="ml-1 rounded-full p-0.5 hover:bg-muted/50 transition-colors"
+                            >
+                                <X className="h-3 w-3 text-muted-foreground" />
+                            </button>
+                        )}
+                    </div>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-[200px]">
+                    <p>Generating optimized proxy media for smoother editing.</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }
 

@@ -5,6 +5,7 @@ import { createMainWindow } from '../windows/main-window'
 import { getAppURL } from '../config'
 import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
 import { showMonitorOverlay, hideMonitorOverlay, showRecordingOverlay, hideRecordingOverlay } from '../windows/monitor-overlay'
+import { showTeleprompterWindow, hideTeleprompterWindow, toggleTeleprompterWindow } from '../windows/teleprompter-window'
 
 const execAsync = promisify(exec)
 let countdownWindow: BrowserWindow | null = null
@@ -309,14 +310,14 @@ export function registerWindowControlHandlers(): void {
       label?: string,
       options?: { displayId?: number; relativeToDisplay?: boolean }
     ) => {
-    try {
-      showRecordingOverlay(bounds, label, options)
-      return { success: true }
-    } catch (error) {
-      console.error('[WindowControls] Failed to show recording overlay:', error)
-      return { success: false, error: (error as Error).message }
+      try {
+        showRecordingOverlay(bounds, label, options)
+        return { success: true }
+      } catch (error) {
+        console.error('[WindowControls] Failed to show recording overlay:', error)
+        return { success: false, error: (error as Error).message }
+      }
     }
-  }
   )
 
   ipcMain.handle('hide-recording-overlay', async () => {
@@ -325,6 +326,37 @@ export function registerWindowControlHandlers(): void {
       return { success: true }
     } catch (error) {
       console.error('[WindowControls] Failed to hide recording overlay:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Teleprompter window handlers
+  ipcMain.handle('toggle-teleprompter-window', async () => {
+    try {
+      const isVisible = toggleTeleprompterWindow()
+      return { success: true, isVisible }
+    } catch (error) {
+      console.error('[WindowControls] Failed to toggle teleprompter:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('show-teleprompter-window', async () => {
+    try {
+      showTeleprompterWindow()
+      return { success: true }
+    } catch (error) {
+      console.error('[WindowControls] Failed to show teleprompter:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('hide-teleprompter-window', async () => {
+    try {
+      hideTeleprompterWindow()
+      return { success: true }
+    } catch (error) {
+      console.error('[WindowControls] Failed to hide teleprompter:', error)
       return { success: false, error: (error as Error).message }
     }
   })

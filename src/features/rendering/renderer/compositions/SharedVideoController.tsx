@@ -173,14 +173,12 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   }, [isRendering, motionBlurEnabled, setPreviewReady]);
 
   // ==========================================================================
-  // RENDERABLE ITEMS
+  // RENDERABLE ITEMS - Video Readiness
   // ==========================================================================
 
-  useEffect(() => {
-    if (!isRendering && renderableItems.length === 0) {
-      setPreviewReady(true);
-    }
-  }, [isRendering, renderableItems.length, setPreviewReady]);
+  // Note: Video elements are keyed by groupId and persist across seek operations.
+  // They only remount when the underlying clips change, at which point 
+  // VideoClipRenderer's onLoadedData will fire and set previewReady(true).
 
   // ==========================================================================
   // RENDER CONTENT
@@ -386,7 +384,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 height: '100%',
                 clipPath: layout.mockupEnabled ? undefined : cropClipPath,
                 borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
-                overflow: cropClipPath ? 'hidden' : undefined,
+                overflow: (cropClipPath || layout.cornerRadius > 0) ? 'hidden' : undefined,
                 // Ensure border-radius clips children (like video)
                 isolation: 'isolate',
                 // PERF: Use box-shadow instead of filter: drop-shadow for significantly better performance

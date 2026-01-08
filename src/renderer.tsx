@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { RecordButtonDock } from './components/record-button-dock';
 import { WorkspaceManager } from './components/workspace/workspace-manager';
 import AreaSelectionPage from './app/area-selection/page';
+import TeleprompterPage from './app/teleprompter/page';
 import { ThemeProvider } from './shared/contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { PermissionGuard } from './components/permission-guard';
@@ -17,6 +18,7 @@ import './app/globals.css';
 const hash = window.location.hash;
 const isRecordButton = hash === '#/record-button';
 const isAreaSelection = hash === '#/area-selection';
+const isTeleprompter = hash === '#/teleprompter';
 
 const App = () => {
   if (isRecordButton) {
@@ -34,6 +36,15 @@ const App = () => {
     // Area selection is a fullscreen transparent overlay
     // No ThemeProvider needed as it uses inline styles
     return <AreaSelectionPage />;
+  }
+
+  if (isTeleprompter) {
+    // Teleprompter floating notes window
+    return (
+      <ThemeProvider>
+        <TeleprompterPage />
+      </ThemeProvider>
+    );
   }
 
   // Main app UI needs ThemeProvider

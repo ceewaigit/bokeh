@@ -42,7 +42,7 @@ export function registerProtocol(): void {
       // Handle static assets (cursors, images, etc.)
       if (url.host === 'assets') {
         const assetPath = decodeURIComponent(url.pathname.slice(1)) // Remove leading slash and decode
-        const publicPath = isDev
+        const publicPath = !app.isPackaged
           ? path.join(app.getAppPath(), 'public', assetPath)
           : path.join(process.resourcesPath, 'public', assetPath)
 

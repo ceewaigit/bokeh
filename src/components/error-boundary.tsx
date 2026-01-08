@@ -47,7 +47,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 }
 
 function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => void }) {
-  const [copied, setCopied] = React.useState(false)
   const copyTimeoutRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
@@ -61,16 +60,6 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
 
   const handleReload = () => {
     window.location.reload()
-  }
-
-  const handleCopyError = () => {
-    const text = `${error.message}\n\n${error.stack || ''}`
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    if (copyTimeoutRef.current !== null) {
-      window.clearTimeout(copyTimeoutRef.current)
-    }
-    copyTimeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -100,12 +89,6 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
           <div className="w-full rounded-xl bg-muted/30 border border-border/50 overflow-hidden text-left">
             <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-muted/20">
               <span className="text-xs font-medium text-muted-foreground">Error Details</span>
-              <button
-                onClick={handleCopyError}
-                className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-              >
-                {copied ? 'Copied' : 'Copy Log'}
-              </button>
             </div>
             <div className="p-4 max-h-32 overflow-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
               <pre className="text-3xs leading-relaxed font-mono text-muted-foreground whitespace-pre-wrap break-all">

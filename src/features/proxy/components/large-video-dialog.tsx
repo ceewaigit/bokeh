@@ -1,11 +1,12 @@
 /**
  * Large Video Dialog
  * 
- * Prompts user when adding a large video that would benefit from proxy generation.
+ * Simple, friendly prompt when a large video is detected.
+ * Offers a single CTA to optimize for editing, with dismiss option.
  */
 
 import React from 'react'
-import { Loader2, Zap, Clock, X } from 'lucide-react'
+import { Loader2, Gauge } from 'lucide-react'
 import {
     Dialog,
     DialogContent,
@@ -39,85 +40,70 @@ export function LargeVideoDialog({
     const progress = useProxyProgress(recording?.id)
     const isGenerating = status === 'generating'
 
-    const formatResolution = (width?: number, height?: number) => {
-        if (!width || !height) return 'Unknown resolution'
-        return `${width}×${height}`
+    const getResolutionLabel = (width?: number) => {
+        if (!width) return 'high-resolution'
+        if (width >= 3840) return '4K'
+        if (width >= 2560) return '1440p'
+        if (width >= 1920) return '1080p'
+        return 'high-resolution'
     }
 
-    const handleDismiss = () => {
-        onChoice('dismiss')
-    }
-
-    const handleBackground = () => {
+    const handleOptimize = () => {
+        // Always use background generation for better UX
         onChoice('background')
     }
 
-    const handleNow = () => {
-        onChoice('now')
+    const handleSkip = () => {
+        onChoice('dismiss')
     }
 
     return (
         <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-sm">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
-                            <Zap className="h-4 w-4" />
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <Gauge className="h-4 w-4" />
                         </div>
-                        Large Video Detected
+                        {getResolutionLabel(recording?.width)} Video
                     </DialogTitle>
-                    <DialogDescription>
-                        This video is high-resolution ({formatResolution(recording?.width, recording?.height)})
-                        and may cause playback lag on some machines.
+                    <DialogDescription className="text-base">
+                        Your video is quite large! Would you like to optimize it for smoother editing?
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-3 pt-2">
-                    <p className="text-sm text-muted-foreground">
-                        You can generate a lower-resolution preview for smoother editing.
-                        The original quality is preserved for export.
-                    </p>
-
-                    {isGenerating && (
-                        <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                            <span className="text-sm text-muted-foreground">
-                                Generating preview... {progress !== undefined ? `${Math.round(progress)}%` : ''}
-                            </span>
+                <div className="space-y-4 pt-2">
+                    {isGenerating ? (
+                        <div className="flex items-center gap-3 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
+                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                            <div className="flex-1">
+                                <p className="text-sm font-medium">Optimizing...</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {progress !== undefined ? `${Math.round(progress)}% complete` : 'Starting up...'}
+                                </p>
+                            </div>
                         </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">
+                            This creates a preview copy for editing. Your original quality is preserved for export.
+                        </p>
                     )}
 
-                    <div className="flex flex-col gap-2 pt-2">
+                    <div className="flex gap-2">
                         <Button
-                            onClick={handleBackground}
-                            className="w-full justify-start gap-2"
+                            onClick={handleOptimize}
+                            className="flex-1"
                             disabled={isGenerating}
                         >
-                            <Clock className="h-4 w-4" />
-                            Generate in Background
-                            <span className="ml-auto text-xs text-muted-foreground">Recommended</span>
+                            <Gauge className="h-4 w-4 mr-2" />
+                            Optimize
                         </Button>
-
-                        <Button
-                            variant="secondary"
-                            onClick={handleNow}
-                            className="w-full justify-start gap-2"
-                            disabled={isGenerating}
-                        >
-                            <Zap className="h-4 w-4" />
-                            Generate Now
-                            <span className="ml-auto text-xs text-muted-foreground">Wait for completion</span>
-                        </Button>
-
                         <Button
                             variant="ghost"
-                            onClick={handleDismiss}
-                            className="w-full justify-start gap-2 text-muted-foreground"
+                            onClick={handleSkip}
                             disabled={isGenerating}
                         >
-                            <X className="h-4 w-4" />
-                            Use Original
-                            <span className="ml-auto text-xs">May be laggy</span>
+                            Skip
                         </Button>
                     </div>
                 </div>

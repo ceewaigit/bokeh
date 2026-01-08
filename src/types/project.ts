@@ -210,9 +210,8 @@ interface RecordingBase {
   isExternal?: boolean;
   isMissing?: boolean;
   capabilities?: RecordingCapabilities;
-  previewProxyUrl?: string;
-  glowProxyUrl?: string;
-  scrubProxyUrl?: string;
+  // NOTE: Proxy URLs are stored ONLY in the proxy zustand store (src/features/proxy/store)
+  // Do NOT add previewProxyUrl/glowProxyUrl/scrubProxyUrl here - that caused race conditions
   captureArea?: CaptureArea;
   metadata?: RecordingMetadata;
 

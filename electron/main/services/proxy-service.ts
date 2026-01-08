@@ -83,7 +83,7 @@ const GLOW_DEFAULTS: Required<Pick<ProxyOptions, 'targetWidth' | 'targetHeight' 
     crf: 32,
     maintainAspectRatio: true,
     proxyType: 'glow',
-    fps: 15,
+    fps: 5, // Low FPS is fine for blurred background glow
 }
 
 // Default settings for scrub (low latency, fast seek)
@@ -593,9 +593,32 @@ export async function needsPreviewProxy(inputPath: string): Promise<boolean> {
 
 /**
  * Get preview proxy path if it exists, without generating
+ * 
+ * IMPORTANT: Must use same dimension scaling as ensurePreviewProxy
+ * to generate the correct cache key, otherwise lookup will miss.
  */
 export async function getExistingProxyPath(inputPath: string): Promise<string | null> {
-    return checkExistingProxy(path.resolve(inputPath), PREVIEW_DEFAULTS)
+    const normalizedPath = path.resolve(inputPath)
+
+    // Get source dimensions to calculate scaled proxy dimensions (same as ensurePreviewProxy)
+    const dimensions = await getVideoDimensions(normalizedPath)
+    if (!dimensions) return null
+
+    const options: ProxyOptions = { ...PREVIEW_DEFAULTS }
+
+    // Apply same scaling as ensurePreviewProxy to match the generated proxy's cache key
+    const scale = Math.min(
+        PREVIEW_DEFAULTS.targetWidth / dimensions.width,
+        PREVIEW_DEFAULTS.targetHeight / dimensions.height,
+        1
+    )
+    const scaledWidth = Math.max(1, Math.round(dimensions.width * scale))
+    const scaledHeight = Math.max(1, Math.round(dimensions.height * scale))
+    options.targetWidth = scaledWidth
+    options.targetHeight = scaledHeight
+    options.maintainAspectRatio = false
+
+    return checkExistingProxy(normalizedPath, options)
 }
 
 /**

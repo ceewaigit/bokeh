@@ -87,13 +87,13 @@ async function maybeGenerateZoomEffects(
   const recording = context.playheadRecording || project.recordings?.[0]
   if (!recording) return
 
-  const { EffectGenerationService } = await import('@/features/effects/services/effect-generation-service')
+  const { detectZoomEffects } = await import('@/features/effects/logic/effect-detector')
   const allClips = project.timeline.tracks.flatMap(t => t.clips)
   const clipForRecording = allClips.find(c => c.recordingId === recording.id)
 
   if (!clipForRecording) return
 
-  const { zoomEffects, screenEffects } = EffectGenerationService.generateZoomEffects(recording, clipForRecording)
+  const { zoomEffects, screenEffects } = detectZoomEffects(recording, clipForRecording)
   for (const effect of [...zoomEffects, ...screenEffects]) {
     context.executeCommand('AddEffect', effect)
   }

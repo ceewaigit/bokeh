@@ -11,7 +11,7 @@ import { useShallow } from 'zustand/react/shallow'
 export interface UseCropManagerReturn {
     isEditingCrop: boolean
     editingCropData: CropEffectData | null
-    handleAddCrop: () => void
+    handleAddCrop: () => Promise<void>
     handleRemoveCrop: (effectId: string) => void
     handleUpdateCrop: (effectId: string, updates: Partial<CropEffectData>) => void
     handleStartEditCrop: () => void
@@ -54,7 +54,7 @@ export function useCropManager(
         }
     }, [contextEffects, editingCropEffectId, stopEditingCrop])
 
-    const handleAddCrop = useCallback(() => {
+    const handleAddCrop = useCallback(async () => {
         if (!selectedClip || !currentProject) return
 
         const clipCrop = getCropEffectForClip(contextEffects, selectedClip)
@@ -71,9 +71,10 @@ export function useCropManager(
             cropData: { x: 0, y: 0, width: 1, height: 1 }, // Default to full-frame (no crop)
         })
 
-        CommandExecutor.getInstance().execute(AddEffectCommand, cropEffect)
+        // Wait for command to complete before starting edit mode
+        await CommandExecutor.getInstance().execute(AddEffectCommand, cropEffect)
 
-        // Start editing immediately
+        // Start editing immediately after effect is added
         startEditingCrop(cropEffect.id)
     }, [selectedClip, contextEffects, currentProject, startEditingCrop])
 

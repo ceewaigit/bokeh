@@ -4,33 +4,37 @@ import React from 'react'
 import { Crop, RotateCcw, Move, Maximize } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
-import type { Clip, Effect, CropEffectData } from '@/types/project'
+import type { Clip, CropEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { getCropEffectForClip, getDataOfType } from '@/features/effects/core/filters'
 import { InfoTooltip } from './info-tooltip'
 import { cn } from '@/shared/utils/utils'
+import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager'
+import { useProjectStore } from '@/features/core/stores/project-store'
+import { EffectStore } from '@/features/effects/core/store'
 
 interface CropTabProps {
-  effects: Effect[] | undefined
   selectedClip: Clip | null
-  onAddCrop: () => void
-  onRemoveCrop: (effectId: string) => void
-  onUpdateCrop: (effectId: string, updates: Partial<CropEffectData>) => void
-  onStartEditCrop: () => void
-  isEditingCrop?: boolean
 }
 
 export function CropTab({
-  effects,
   selectedClip,
-  onAddCrop,
-  onRemoveCrop,
-  onUpdateCrop,
-  onStartEditCrop,
-  isEditingCrop = false,
 }: CropTabProps) {
+  // Call the hook directly - single source of truth
+  const {
+    isEditingCrop,
+    handleAddCrop,
+    handleRemoveCrop,
+    handleUpdateCrop,
+    handleStartEditCrop,
+  } = useCropManager(selectedClip)
+
+  // Get effects from store
+  const currentProject = useProjectStore((s) => s.currentProject)
+  const effects = currentProject ? EffectStore.getAll(currentProject) : []
+
   // Get crop effect for the selected clip
-  const cropEffect = selectedClip && effects
+  const cropEffect = selectedClip
     ? getCropEffectForClip(effects, selectedClip)
     : undefined
   const cropData = cropEffect ? getDataOfType<CropEffectData>(cropEffect, EffectType.Crop) : null
@@ -103,7 +107,7 @@ export function CropTab({
             Crop to focus on the most important part of your recording.
           </p>
           <Button
-            onClick={onAddCrop}
+            onClick={handleAddCrop}
             className="gap-2"
           >
             <Crop className="w-4 h-4" />
@@ -137,7 +141,7 @@ export function CropTab({
 
       {/* Edit Crop Button */}
       <Button
-        onClick={onStartEditCrop}
+        onClick={handleStartEditCrop}
         variant={isEditingCrop ? "default" : "outline"}
         className="w-full gap-2"
       >
@@ -167,7 +171,7 @@ export function CropTab({
               value={[toPercent(localX ?? cropData.x)]}
               onValueChange={([value]) => setLocalX(fromPercent(value))}
               onValueCommit={([value]) => {
-                onUpdateCrop(cropEffect.id, { x: fromPercent(value) })
+                handleUpdateCrop(cropEffect.id, { x: fromPercent(value) })
                 scheduleReset(xResetTimeoutRef, () => setLocalX(null), 100)
               }}
               min={0}
@@ -189,7 +193,7 @@ export function CropTab({
               value={[toPercent(localY ?? cropData.y)]}
               onValueChange={([value]) => setLocalY(fromPercent(value))}
               onValueCommit={([value]) => {
-                onUpdateCrop(cropEffect.id, { y: fromPercent(value) })
+                handleUpdateCrop(cropEffect.id, { y: fromPercent(value) })
                 scheduleReset(yResetTimeoutRef, () => setLocalY(null), 100)
               }}
               min={0}
@@ -214,7 +218,7 @@ export function CropTab({
               value={[toPercent(localWidth ?? cropData.width)]}
               onValueChange={([value]) => setLocalWidth(fromPercent(value))}
               onValueCommit={([value]) => {
-                onUpdateCrop(cropEffect.id, { width: fromPercent(value) })
+                handleUpdateCrop(cropEffect.id, { width: fromPercent(value) })
                 scheduleReset(widthResetTimeoutRef, () => setLocalWidth(null), 100)
               }}
               min={10}
@@ -236,7 +240,7 @@ export function CropTab({
               value={[toPercent(localHeight ?? cropData.height)]}
               onValueChange={([value]) => setLocalHeight(fromPercent(value))}
               onValueCommit={([value]) => {
-                onUpdateCrop(cropEffect.id, { height: fromPercent(value) })
+                handleUpdateCrop(cropEffect.id, { height: fromPercent(value) })
                 scheduleReset(heightResetTimeoutRef, () => setLocalHeight(null), 100)
               }}
               min={10}
@@ -254,7 +258,7 @@ export function CropTab({
           variant="outline"
           size="sm"
           className="flex-1 gap-1.5"
-          onClick={() => onRemoveCrop(cropEffect.id)}
+          onClick={() => handleRemoveCrop(cropEffect.id)}
         >
           <RotateCcw className="w-3.5 h-3.5" />
           Reset Crop
@@ -263,7 +267,7 @@ export function CropTab({
           variant="outline"
           size="sm"
           className="flex-1 gap-1.5"
-          onClick={() => onUpdateCrop(cropEffect.id, { x: 0, y: 0, width: 1, height: 1 })}
+          onClick={() => handleUpdateCrop(cropEffect.id, { x: 0, y: 0, width: 1, height: 1 })}
         >
           <Maximize className="w-3.5 h-3.5" />
           Full Frame

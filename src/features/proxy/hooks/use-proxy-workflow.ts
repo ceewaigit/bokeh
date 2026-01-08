@@ -55,23 +55,22 @@ export function useProxyWorkflow(): UseProxyWorkflowReturn {
     }, [progress])
 
     const promptIfNeeded = useCallback(async (recording: Recording): Promise<boolean> => {
-        // Check if proxy already exists or is being generated
+        // First check store - if proxy URL already set or status is ready, no prompt needed
+        const store = useProxyStore.getState()
+        const existingUrl = store.urls[recording.id]?.previewProxyUrl
+        const existingStatus = store.status[recording.id]
+
+        if (existingUrl || existingStatus === 'ready' || existingStatus === 'generating') {
+            // Proxy already exists or is being generated - no prompt needed
+            return false
+        }
+
+        // Check if video is large enough to need a proxy
         if (!ProxyService.needsUserPrompt(recording)) {
             return false
         }
 
-        // Check if there's a cached proxy
-        if (recording.filePath) {
-            const cached = await ProxyService.getCachedProxy(recording.filePath)
-            if (cached) {
-                // Cached proxy exists - use it silently
-                useProxyStore.getState().setUrl(recording.id, 'preview', cached)
-                useProxyStore.getState().setStatus(recording.id, 'ready')
-                return false
-            }
-        }
-
-        // Large video without cache - show dialog
+        // Large video without proxy - show dialog
         setPendingRecording(recording)
         setDialogOpen(true)
         return true

@@ -13,8 +13,10 @@
 import React, { memo, useCallback, useRef, useEffect } from 'react'
 import { AnnotationType } from '@/types/project'
 import type { AnnotationData, AnnotationStyle } from '@/types/project'
-import type { AnnotationRenderContext } from './annotation-elements'
+import { type AnnotationRenderContext, getRedactionPatternStyle } from './annotation-elements'
+import { RedactionPattern } from '@/features/effects/annotation/types'
 import { clamp01 } from '@/features/rendering/canvas/math/clamp'
+import { useCoordinateMapping } from '@/features/rendering/renderer/hooks/layout/useCoordinateMapping'
 
 interface AnnotationWrapperProps {
     id: string
@@ -28,17 +30,6 @@ interface AnnotationWrapperProps {
 }
 
 /**
- * Convert percentage position to pixel position
- */
-function percentToPixel(
-    percent: number,
-    containerSize: number,
-    offset: number
-): number {
-    return offset + (percent / 100) * containerSize
-}
-
-/**
  * Resolve padding from style
  */
 function resolvePadding(padding?: AnnotationStyle['padding']): number {
@@ -46,20 +37,6 @@ function resolvePadding(padding?: AnnotationStyle['padding']): number {
     if (!padding || typeof padding !== 'object') return 12
     const p = padding as { top: number; right: number; bottom: number; left: number }
     return Math.max(p.top, p.right, p.bottom, p.left)
-}
-
-/**
- * Get computed position for annotation
- */
-function getComputedPosition(
-    data: AnnotationData,
-    context: AnnotationRenderContext
-): { x: number; y: number } {
-    const pos = data.position ?? { x: 50, y: 50 }
-    return {
-        x: percentToPixel(pos.x, context.videoWidth, context.offsetX),
-        y: percentToPixel(pos.y, context.videoHeight, context.offsetY),
-    }
 }
 
 // ============================================================================
@@ -245,16 +222,18 @@ EditableTextContent.displayName = 'EditableTextContent'
 
 interface HighlightContentProps {
     data: AnnotationData
-    context: AnnotationRenderContext
+    videoWidth: number
+    videoHeight: number
 }
 
 const HighlightContent: React.FC<HighlightContentProps> = memo(({
     data,
-    context,
+    videoWidth,
+    videoHeight
 }) => {
     // Width/height are percentages of video dimensions
-    const width = ((data.width ?? 20) / 100) * context.videoWidth
-    const height = ((data.height ?? 10) / 100) * context.videoHeight
+    const width = ((data.width ?? 20) / 100) * videoWidth
+    const height = ((data.height ?? 10) / 100) * videoHeight
 
     return (
         <div
@@ -275,22 +254,25 @@ HighlightContent.displayName = 'HighlightContent'
 
 interface BlurContentProps {
     data: AnnotationData
-    context: AnnotationRenderContext
+    videoWidth: number
+    videoHeight: number
+    scale?: number
 }
 
 const BlurContent: React.FC<BlurContentProps> = memo(({
     data,
-    context,
+    videoWidth,
+    videoHeight,
+    scale = 1
 }) => {
     // Width/height are percentages of video dimensions
-    const width = ((data.width ?? 20) / 100) * context.videoWidth
-    const height = ((data.height ?? 12) / 100) * context.videoHeight
-    const effectiveScale = context.scale ?? 1
+    const width = ((data.width ?? 20) / 100) * videoWidth
+    const height = ((data.height ?? 12) / 100) * videoHeight
     const style = data.style ?? {}
-    const radius = (style.borderRadius ?? 20) * effectiveScale
+    const radius = (style.borderRadius ?? 20) * scale
 
-    const tintPercent = typeof style.opacity === 'number' ? style.opacity : 20
-    const tintAlpha = clamp01(tintPercent / 100) * 0.35
+    // Opacity is 0-1 (renderer SSOT)
+    const tintAlpha = clamp01(style.opacity ?? 0.2) * 0.35
 
     return (
         <div
@@ -346,24 +328,28 @@ BlurContent.displayName = 'BlurContent'
 interface RedactionContentProps {
     id: string
     data: AnnotationData
-    context: AnnotationRenderContext
+    videoWidth: number
+    videoHeight: number
+    scale?: number
 }
 
 const RedactionContent: React.FC<RedactionContentProps> = memo(({
+    id,
     data,
-    context,
+    videoWidth,
+    videoHeight,
+    scale = 1
 }) => {
-    // Redaction is privacy material (strong blur + obscure)
-    // We used to have a flickering grid, but user requested a static blur.
-
-    const width = ((data.width ?? 20) / 100) * context.videoWidth
-    const height = ((data.height ?? 12) / 100) * context.videoHeight
-    const effectiveScale = context.scale ?? 1
+    const width = ((data.width ?? 20) / 100) * videoWidth
+    const height = ((data.height ?? 12) / 100) * videoHeight
     const style = data.style ?? {}
-    const radius = (style.borderRadius ?? 2) * effectiveScale
+    const radius = (style.borderRadius ?? 2) * scale
     const bgColor = style.backgroundColor ?? '#000000'
     const borderColor = style.borderColor
-    const borderWidth = (style.borderWidth ?? 0) * effectiveScale
+    const borderWidth = (style.borderWidth ?? 0) * scale
+
+    const pattern = style.redactionPattern ?? RedactionPattern.Solid
+    const patternStyle = getRedactionPatternStyle(pattern, bgColor, width, height, id)
 
     return (
         <div
@@ -374,16 +360,15 @@ const RedactionContent: React.FC<RedactionContentProps> = memo(({
                 position: 'relative',
                 borderRadius: radius,
                 overflow: 'hidden',
-                // Solid background to fully obscure text
-                background: bgColor,
+                background: patternStyle.background,
                 border: borderColor && borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                backdropFilter: 'none',
-                WebkitBackdropFilter: 'none',
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
                 isolation: 'isolate',
                 contain: 'layout style paint',
             }}
-        />
+        >
+            {patternStyle.svgOverlay}
+        </div>
     )
 })
 RedactionContent.displayName = 'RedactionContent'
@@ -395,28 +380,23 @@ RedactionContent.displayName = 'RedactionContent'
 interface ArrowContentProps {
     id: string
     data: AnnotationData
-    context: AnnotationRenderContext
     isSelected: boolean
+    mapPercentPoint: (p: { x: number; y: number }, o?: { applyTransform: boolean }) => { x: number; y: number }
 }
 
 const ArrowContent: React.FC<ArrowContentProps> = memo(({
     id,
     data,
-    context,
     isSelected,
+    mapPercentPoint,
 }) => {
     const style = data.style ?? {}
     const pos = data.position ?? { x: 50, y: 50 }
-
-    // Arrow goes from start to end position
     const rawEnd = data.endPosition ?? { x: pos.x + 10, y: pos.y + 10 }
 
-    // Calculate positions relative to the wrapper (which is at start position)
-    // For arrows, the wrapper is positioned at the bounding box min
-    const startX = percentToPixel(pos.x, context.videoWidth, context.offsetX)
-    const startY = percentToPixel(pos.y, context.videoHeight, context.offsetY)
-    const endX = percentToPixel(rawEnd.x, context.videoWidth, context.offsetX)
-    const endY = percentToPixel(rawEnd.y, context.videoHeight, context.offsetY)
+    // Map coordinates to pixels (without transforms for the inner SVG relative math)
+    const start = mapPercentPoint(pos, { applyTransform: false })
+    const end = mapPercentPoint(rawEnd, { applyTransform: false })
 
     const color = style.color ?? '#ff0000'
     const strokeWidth = style.strokeWidth ?? 1
@@ -424,18 +404,18 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
 
     // Calculate bounds
     const padding = Math.max(strokeWidth, arrowHeadSize) + 4
-    const minX = Math.min(startX, endX) - padding
-    const minY = Math.min(startY, endY) - padding
-    const maxX = Math.max(startX, endX) + padding
-    const maxY = Math.max(startY, endY) + padding
+    const minX = Math.min(start.x, end.x) - padding
+    const minY = Math.min(start.y, end.y) - padding
+    const maxX = Math.max(start.x, end.x) + padding
+    const maxY = Math.max(start.y, end.y) + padding
     const boxW = maxX - minX
     const boxH = maxY - minY
 
     // Coordinates relative to SVG viewBox (and now wrapper div)
-    const svgStartX = startX - minX
-    const svgStartY = startY - minY
-    const svgEndX = endX - minX
-    const svgEndY = endY - minY
+    const svgStartX = start.x - minX
+    const svgStartY = start.y - minY
+    const svgEndX = end.x - minX
+    const svgEndY = end.y - minY
 
     // Styles matching standard SelectionOverlay
     const SELECTION_HANDLE_SIZE = 8
@@ -449,7 +429,6 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
                 width: boxW,
                 height: boxH,
                 position: 'relative',
-                // Important: allow pointer events on handles
             }}
         >
             <svg
@@ -467,7 +446,6 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
                         id={`arrowhead-${id}`}
                         markerWidth={arrowHeadSize}
                         markerHeight={arrowHeadSize}
-                        // Shift tip slightly forward to cover line end (prevent round cap protrusion)
                         refX={arrowHeadSize - 1}
                         refY={arrowHeadSize / 2}
                         markerUnits="userSpaceOnUse"
@@ -494,7 +472,6 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
 
             {isSelected && (
                 <>
-                    {/* Start Handle */}
                     <div
                         data-handle="arrow-start"
                         style={{
@@ -514,7 +491,6 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
                             zIndex: 10,
                         }}
                     />
-                    {/* End Handle */}
                     <div
                         data-handle="arrow-end"
                         style={{
@@ -555,31 +531,34 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
     onEditComplete,
     fadeOpacity = 1,
 }) => {
-    const position = getComputedPosition(data, context)
+    // Disable transform application because AnnotationLayer is inside the CSS-transformed container
+    const { mapPercentPoint, videoPosition } = useCoordinateMapping()
+    const mappingOptions = { applyTransform: false }
+    
+    const pos = data.position ?? { x: 50, y: 50 }
     const rotation = data.rotation ?? 0
-    const constrainTextWidth =
-        data.type === AnnotationType.Text && typeof data.width === 'number'
-    const textWidthPx = constrainTextWidth ? (data.width! / 100) * context.videoWidth : undefined
+    const constrainTextWidth = data.type === AnnotationType.Text && typeof data.width === 'number'
+    const textWidthPx = constrainTextWidth ? (data.width! / 100) * videoPosition.drawWidth : undefined
 
-    // Determine anchor type - Highlight, Glass and Redaction are top-left, others are center
+    // Determine anchor type
     const isTopLeftAnchor = data.type === AnnotationType.Highlight ||
         data.type === AnnotationType.Blur ||
         data.type === AnnotationType.Redaction
 
     // For Arrow, position at the bounding box min
-    let wrapperPosition = position
+    let wrapperPosition: { x: number; y: number }
     if (data.type === AnnotationType.Arrow) {
-        const pos = data.position ?? { x: 50, y: 50 }
         const rawEnd = data.endPosition ?? { x: pos.x + 10, y: pos.y + 10 }
-        const startX = percentToPixel(pos.x, context.videoWidth, context.offsetX)
-        const startY = percentToPixel(pos.y, context.videoHeight, context.offsetY)
-        const endX = percentToPixel(rawEnd.x, context.videoWidth, context.offsetX)
-        const endY = percentToPixel(rawEnd.y, context.videoHeight, context.offsetY)
+        const start = mapPercentPoint(pos, mappingOptions)
+        const end = mapPercentPoint(rawEnd, mappingOptions)
+        
         const padding = Math.max((data.style?.strokeWidth ?? 3), (data.style?.arrowHeadSize ?? 10)) + 4
         wrapperPosition = {
-            x: Math.min(startX, endX) - padding,
-            y: Math.min(startY, endY) - padding,
+            x: Math.min(start.x, end.x) - padding,
+            y: Math.min(start.y, end.y) - padding,
         }
+    } else {
+        wrapperPosition = mapPercentPoint(pos, mappingOptions)
     }
 
     // Shadow logic
@@ -592,10 +571,9 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
         filterStyle = `drop-shadow(0px ${dist}px ${blur}px rgba(0,0,0,${alpha}))`
     }
 
-    // Position styles based on anchor type
-    const positionStyles: React.CSSProperties = isTopLeftAnchor
+    // Position styles
+    const positionStyles: React.CSSProperties = (isTopLeftAnchor || data.type === AnnotationType.Arrow)
         ? {
-            // Highlight: position is top-left corner
             left: wrapperPosition.x,
             top: wrapperPosition.y,
             transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
@@ -603,27 +581,16 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
             opacity: fadeOpacity,
             filter: filterStyle || undefined
         }
-        : data.type === AnnotationType.Arrow
-            ? {
-                // Arrow: position at bounding box min (top-left)
-                left: wrapperPosition.x,
-                top: wrapperPosition.y,
-                transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
-                transformOrigin: 'center center',
-                opacity: fadeOpacity,
-                filter: filterStyle || undefined
-            }
-            : {
-                // Center anchor (Text, Keyboard)
-                left: wrapperPosition.x,
-                top: wrapperPosition.y,
-                transform: `translate(-50%, -50%)${rotation !== 0 ? ` rotate(${rotation}deg)` : ''}`,
-                transformOrigin: 'center center',
-                opacity: fadeOpacity,
-                filter: filterStyle || undefined
-            }
+        : {
+            left: wrapperPosition.x,
+            top: wrapperPosition.y,
+            transform: `translate(-50%, -50%)${rotation !== 0 ? ` rotate(${rotation}deg)` : ''}`,
+            transformOrigin: 'center center',
+            opacity: fadeOpacity,
+            filter: filterStyle || undefined
+        }
 
-    // Render the appropriate content based on type
+    // Render dispatcher
     const renderContent = () => {
         switch (data.type) {
             case AnnotationType.Text:
@@ -638,13 +605,13 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                     />
                 )
             case AnnotationType.Highlight:
-                return <HighlightContent data={data} context={context} />
+                return <HighlightContent data={data} videoWidth={videoPosition.drawWidth} videoHeight={videoPosition.drawHeight} />
             case AnnotationType.Blur:
-                return <BlurContent data={data} context={context} />
+                return <BlurContent data={data} videoWidth={videoPosition.drawWidth} videoHeight={videoPosition.drawHeight} scale={context.scale} />
             case AnnotationType.Redaction:
-                return <RedactionContent id={id} data={data} context={context} />
+                return <RedactionContent id={id} data={data} videoWidth={videoPosition.drawWidth} videoHeight={videoPosition.drawHeight} scale={context.scale} />
             case AnnotationType.Arrow:
-                return <ArrowContent id={id} data={data} context={context} isSelected={isSelected} />
+                return <ArrowContent id={id} data={data} isSelected={isSelected} mapPercentPoint={mapPercentPoint} />
             default:
                 return (
                     <EditableTextContent
@@ -671,9 +638,7 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
                 pointerEvents: 'auto',
             }}
         >
-            {/* Annotation Content */}
             {renderContent()}
-
         </div>
     )
 })

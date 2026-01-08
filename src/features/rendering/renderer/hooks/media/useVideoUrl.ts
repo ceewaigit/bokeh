@@ -8,10 +8,8 @@
  * throughout playback - no switching means no blink.
  * 
  * PROXY URL RESOLUTION:
- * Proxy URLs are stored in the dedicated proxy store (src/features/proxy/store)
- * to avoid triggering cache invalidation when proxies complete. This hook checks
- * the proxy store first, then falls back to recording properties for backward
- * compatibility.
+ * Proxy URLs are stored ONLY in the dedicated proxy store (src/features/proxy/store).
+ * This is the single source of truth - there is no fallback to recording properties.
  */
 
 import { useMemo, useRef } from 'react';
@@ -57,20 +55,18 @@ export function useVideoUrl({
   const { isRendering } = getRemotionEnvironment();
   const { videoUrls, videoUrlsHighRes, videoFilePaths } = resources || {};
 
-  // Get proxy URLs from dedicated proxy store (first priority) with recording fallback
+  // Get proxy URLs from dedicated proxy store (SINGLE SOURCE OF TRUTH)
+  // NOTE: Do NOT fall back to recording properties - that caused race conditions
   const ephemeralProxyUrls = useProxyStore((s) => recording ? s.urls[recording.id] : undefined);
 
   const computedUrl = useMemo(() => {
     if (!recording) return undefined;
     if (recording.sourceType === 'generated') return undefined;
 
-    // Resolve proxy URLs: proxy store first, then recording property fallback
-    const previewProxyUrl = ephemeralProxyUrls?.previewProxyUrl || recording.previewProxyUrl;
-    const glowProxyUrl = ephemeralProxyUrls?.glowProxyUrl || recording.glowProxyUrl;
-    const scrubProxyUrl = ephemeralProxyUrls?.scrubProxyUrl || recording.scrubProxyUrl;
-
-    // DEBUG: Log proxy URL resolution
-    // console.log(`[useVideoUrl] Recording ${recording.id} - ephemeral:`, ephemeralProxyUrls, 'previewProxy:', previewProxyUrl);
+    // Proxy URLs come ONLY from the store (no recording fallback)
+    const previewProxyUrl = ephemeralProxyUrls?.previewProxyUrl;
+    const glowProxyUrl = ephemeralProxyUrls?.glowProxyUrl;
+    const scrubProxyUrl = ephemeralProxyUrls?.scrubProxyUrl;
 
     // Use maxZoomScale (stable) instead of currentZoomScale (frame-varying)
     // to prevent URL switching during zoom animations which causes VTDecoder churn

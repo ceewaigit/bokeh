@@ -36,3 +36,4 @@ describe('interpolateMousePosition', () => {
     expect(result!.x).toBe(20)
   })
 })
+

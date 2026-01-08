@@ -591,7 +591,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     },
 
     applySpeedUpToClip: (clipId, periods, speedUpTypes) => {
-        let result = { affectedClips: [] as string[], originalClips: [] as Clip[] }
+        let result = { affectedClips: [] as string[], originalClips: [] as Clip[], modifiedEffects: [] as Effect[] }
 
         set((state) => {
             if (!state.currentProject) {
@@ -700,6 +700,16 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         })
     },
 
+    restoreEffect: (effect: Effect) => {
+        set((state) => {
+            if (!state.currentProject) return
+            // Use force=true to bypass overlap checks during restore
+            EffectStore.update(state.currentProject, effect.id, effect, true)
+            state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+            state.currentProject.modifiedAt = new Date().toISOString()
+        })
+    },
+
     getEffectsAtTimeRange: (clipId) => {
         const { currentProject } = get()
         if (!currentProject) return []
@@ -708,11 +718,16 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
     regenerateAllEffects: async (config) => {
         const projectSnapshot = get().currentProject
-        if (!projectSnapshot) return
+        if (!projectSnapshot) return { trimSuggestions: [] }
 
-        const [{ EffectGenerationService }, { metadataLoader }] = await Promise.all([
-            import('@/features/effects/services/effect-generation-service'),
+        const [
+            { regenerateProjectEffects },
+            { metadataLoader },
+            { IdleActivityDetector }
+        ] = await Promise.all([
+            import('@/features/effects/logic/effect-applier'),
             import('@/features/core/export/metadata-loader'),
+            import('@/features/ui/timeline/activity-detection/idle-detector'),
         ])
 
         let metadataByRecordingId: Map<string, import('@/types/project').RecordingMetadata> | undefined
@@ -722,12 +737,19 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             console.warn('[TimelineSlice] Failed to load metadata for effect regeneration:', error)
         }
 
+        let result: { trimSuggestions: any[] } = { trimSuggestions: [] }
+
         set((state) => {
             if (state.currentProject) {
-                EffectGenerationService.regenerateAllEffects(state.currentProject, config, metadataByRecordingId)
-                // playhead state computed via hook
-
+                result = regenerateProjectEffects(
+                    state.currentProject,
+                    IdleActivityDetector,
+                    config,
+                    metadataByRecordingId
+                )
             }
         })
+
+        return result
     }
 })

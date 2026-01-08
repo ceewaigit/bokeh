@@ -8,9 +8,20 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { persist } from 'zustand/middleware'
-import type { MediaDeviceInfo, DeviceState } from '@/features/media/recording/services/device-manager'
-import { getDeviceManager } from '@/features/media/recording/services/device-manager'
 import { logger } from '@/shared/utils/logger'
+
+export interface MediaDeviceInfo {
+  deviceId: string
+  label: string
+  kind: 'videoinput' | 'audioinput' | 'audiooutput'
+  groupId: string
+}
+
+export interface DeviceState {
+  webcams: MediaDeviceInfo[]
+  microphones: MediaDeviceInfo[]
+  speakers: MediaDeviceInfo[]
+}
 
 export interface DeviceSettings {
   webcam: {
@@ -33,6 +44,7 @@ interface DeviceStoreState {
   speakers: MediaDeviceInfo[]
   settings: DeviceSettings
   isPreviewActive: boolean
+  previewStream: MediaStream | null
   isInitialized: boolean
   isLoading: boolean
   error: string | null
@@ -70,6 +82,50 @@ const DEFAULT_SETTINGS: DeviceSettings = {
   }
 }
 
+// Helper to enumerate devices
+const enumerateDevicesInternal = async (): Promise<DeviceState> => {
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    logger.warn('[DeviceStore] enumerateDevices not supported')
+    return { webcams: [], microphones: [], speakers: [] }
+  }
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+
+    const webcams = devices
+      .filter(d => d.kind === 'videoinput')
+      .map((d, i) => ({
+        deviceId: d.deviceId,
+        label: d.label || `Camera ${i + 1}`,
+        kind: d.kind as 'videoinput',
+        groupId: d.groupId
+      }))
+
+    const microphones = devices
+      .filter(d => d.kind === 'audioinput')
+      .map((d, i) => ({
+        deviceId: d.deviceId,
+        label: d.label || `Microphone ${i + 1}`,
+        kind: d.kind as 'audioinput',
+        groupId: d.groupId
+      }))
+
+    const speakers = devices
+      .filter(d => d.kind === 'audiooutput')
+      .map((d, i) => ({
+        deviceId: d.deviceId,
+        label: d.label || `Speaker ${i + 1}`,
+        kind: d.kind as 'audiooutput',
+        groupId: d.groupId
+      }))
+
+    return { webcams, microphones, speakers }
+  } catch (error) {
+    logger.error('[DeviceStore] Device enumeration failed:', error)
+    throw error
+  }
+}
+
 export const useDeviceStore = create<DeviceStore>()(
   persist(
     immer((set, get) => ({
@@ -78,6 +134,7 @@ export const useDeviceStore = create<DeviceStore>()(
       speakers: [],
       settings: DEFAULT_SETTINGS,
       isPreviewActive: false,
+      previewStream: null,
       isInitialized: false,
       isLoading: false,
       error: null,
@@ -91,17 +148,16 @@ export const useDeviceStore = create<DeviceStore>()(
         })
 
         try {
-          const manager = getDeviceManager()
-          await manager.initialize()
-
-          manager.onDevicesChanged((deviceState) => {
-            get().setDevices(deviceState)
-          })
-
-          const deviceState = manager.getDeviceState()
+          const deviceState = await enumerateDevicesInternal()
           get().setDevices(deviceState)
 
-          // Auto-select defaults if none selected
+          if (navigator.mediaDevices?.addEventListener) {
+            navigator.mediaDevices.addEventListener('devicechange', async () => {
+              logger.info('[DeviceStore] Device change detected')
+              await get().refreshDevices()
+            })
+          }
+
           const currentSettings = get().settings
           if (!currentSettings.webcam.deviceId && deviceState.webcams.length > 0) {
             set(state => {
@@ -131,12 +187,11 @@ export const useDeviceStore = create<DeviceStore>()(
       },
 
       refreshDevices: async () => {
-        set(state => { state.isLoading = true })
         try {
-          const manager = getDeviceManager()
-          await manager.enumerateDevices()
-        } finally {
-          set(state => { state.isLoading = false })
+          const deviceState = await enumerateDevicesInternal()
+          get().setDevices(deviceState)
+        } catch (error) {
+          logger.error('[DeviceStore] Refresh failed', error)
         }
       },
 
@@ -146,7 +201,6 @@ export const useDeviceStore = create<DeviceStore>()(
           state.microphones = deviceState.microphones
           state.speakers = deviceState.speakers
 
-          // Validate selected devices still exist
           const webcamExists = deviceState.webcams.some(w => w.deviceId === state.settings.webcam.deviceId)
           if (state.settings.webcam.deviceId && !webcamExists) {
             state.settings.webcam.deviceId = deviceState.webcams[0]?.deviceId ?? null
@@ -185,24 +239,38 @@ export const useDeviceStore = create<DeviceStore>()(
       },
 
       startPreview: async (deviceId) => {
-        const manager = getDeviceManager()
-        const targetDeviceId = deviceId ?? get().settings.webcam.deviceId
+        get().stopPreview()
 
+        const targetDeviceId = deviceId ?? get().settings.webcam.deviceId
         if (!targetDeviceId) {
           logger.warn('[DeviceStore] No webcam device selected for preview')
           return null
         }
 
-        try {
-          const resolution = get().settings.webcam.resolution
-          const dimensions = {
-            '720p': { width: 1280, height: 720 },
-            '1080p': { width: 1920, height: 1080 },
-            '4k': { width: 3840, height: 2160 }
-          }[resolution]
+        const resolution = get().settings.webcam.resolution
+        const dimensions = {
+          '720p': { width: 1280, height: 720 },
+          '1080p': { width: 1920, height: 1080 },
+          '4k': { width: 3840, height: 2160 }
+        }[resolution]
 
-          const stream = await manager.startPreview(targetDeviceId, dimensions)
-          set(state => { state.isPreviewActive = true })
+        const constraints: MediaStreamConstraints = {
+          video: {
+            deviceId: { exact: targetDeviceId },
+            width: dimensions?.width ? { ideal: dimensions.width } : { ideal: 1280 },
+            height: dimensions?.height ? { ideal: dimensions.height } : { ideal: 720 }
+          },
+          audio: false
+        }
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints)
+          logger.info('[DeviceStore] Preview started for device:', targetDeviceId)
+          
+          set(state => { 
+            state.isPreviewActive = true
+            state.previewStream = stream 
+          })
           return stream
         } catch (error) {
           logger.error('[DeviceStore] Failed to start preview:', error)
@@ -211,17 +279,20 @@ export const useDeviceStore = create<DeviceStore>()(
       },
 
       stopPreview: () => {
-        const manager = getDeviceManager()
-        manager.stopPreview()
-        set(state => { state.isPreviewActive = false })
+        const stream = get().previewStream
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop())
+        }
+        set(state => { 
+          state.isPreviewActive = false 
+          state.previewStream = null
+        })
       },
 
       cleanup: () => {
-        const manager = getDeviceManager()
-        manager.destroy()
+        get().stopPreview()
         set(state => {
           state.isInitialized = false
-          state.isPreviewActive = false
         })
       }
     })),

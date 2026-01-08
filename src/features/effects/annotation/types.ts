@@ -7,6 +7,15 @@ export enum AnnotationType {
   Redaction = 'redaction'
 }
 
+// Redaction pattern styles
+export enum RedactionPattern {
+  Solid = 'solid',      // Plain solid fill (default)
+  Noise = 'noise',      // Film grain texture
+  Diagonal = 'diagonal', // Diagonal line hatching
+  Mosaic = 'mosaic',    // Pixelated/blocky pattern
+  Marker = 'marker',    // Brush stroke effect
+}
+
 // Annotation style definition
 export interface AnnotationStyle {
   color?: string;
@@ -27,6 +36,8 @@ export interface AnnotationStyle {
   arrowHeadSize?: number;
   /** Redaction-only: number of mosaic cells across (lower = chunkier). */
   mosaicDetail?: number;
+  /** Redaction-only: pattern style for the redaction. */
+  redactionPattern?: RedactionPattern;
 }
 
 export interface AnnotationData {

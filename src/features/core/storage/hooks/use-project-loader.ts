@@ -8,7 +8,6 @@ import { EffectStore } from '@/features/effects/core/store'
 import { getEffectsOfType } from '@/features/effects/core/filters'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { TimelineConfig } from '@/features/ui/timeline/config'
-import { useRecordingsLibraryStore } from '@/features/media/recording/store/library-store'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { calculateCanvasDimensions } from '@/shared/constants/aspect-ratio-presets'
 import { AspectRatioPreset, EffectType } from '@/types/project'
@@ -29,7 +28,6 @@ export function useProjectLoader() {
     const setCameraPathCache = useProjectStore((s) => s.setCameraPathCache)
     const setAutoZoom = useProjectStore((s) => s.setAutoZoom)
     const setPreviewReady = useProjectStore((s) => s.setPreviewReady)
-    const clearLibrary = useRecordingsLibraryStore((s) => s.clearLibrary)
 
     const loadRecording = useCallback(async (
         recording: any,
@@ -44,8 +42,10 @@ export function useProjectLoader() {
             await initializeDefaultWallpaper()
 
             // Use centralized ProjectIOService for project loading
+            // awaitPlaybackPreparation: true ensures loading blocks until proxy is ready
             const project = await ProjectIOService.loadProjectFromRecording(recording, {
-                onProgress: setLoadingMessage
+                onProgress: setLoadingMessage,
+                awaitPlaybackPreparation: true
             })
 
             // Create project in store
@@ -122,8 +122,8 @@ export function useProjectLoader() {
             const clampedZoom = Math.max(adaptiveLimits.min, Math.min(adaptiveLimits.max, optimalZoom))
             setAutoZoom(clampedZoom)
 
-            // Clear library data to free memory once the workspace is ready
-            clearLibrary()
+            // NOTE: Library thumbnails are NOT cleared - they persist for instant
+            // navigation back to the library. Only the generator cache is cleared.
             ThumbnailGenerator.clearAllCache()
 
             // Hide record button when entering workspace
@@ -142,11 +142,11 @@ export function useProjectLoader() {
             setPreviewReady(false)
             return false
         }
-    }, [newProject, setProject, setCameraPathCache, setAutoZoom, setPreviewReady, clearLibrary])
+    }, [newProject, setProject, setCameraPathCache, setAutoZoom, setPreviewReady])
 
     return {
         isLoading,
         loadingMessage,
-        loadRecording
+        loadRecording,
     }
 }

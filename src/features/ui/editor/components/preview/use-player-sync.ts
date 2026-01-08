@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { PlayerRef } from '@remotion/player';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store';
-import { timeObserver } from '@/features/ui/timeline/time/time-observer';
+import { useTimeStore } from '@/features/ui/timeline/stores/time-store';
 import { useThrottledSeek } from '@/features/ui/timeline/hooks/use-throttled-seek';
 import { msToFrame, frameToMs } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
 import { assertDefined } from '@/shared/errors';
@@ -83,14 +83,6 @@ export function usePlayerSync({
         return () => unsubscribe();
     }, [timelineMetadata, throttledSeek, isExporting, clampFrame, timeToFrame, playerRef]);
 
-    // Connect timeObserver to the player ref
-    useEffect(() => {
-        timeObserver.connect(playerRef, timelineMetadata.fps);
-        return () => {
-            timeObserver.stopPolling();
-        };
-    }, [timelineMetadata.fps, playerRef]);
-
     // Subscribe to project changes to update skip ranges
     const skipRangesRef = useRef<GlobalSkipRange[]>([]);
     useEffect(() => {
@@ -109,14 +101,40 @@ export function usePlayerSync({
         return () => unsubscribe();
     }, []);
 
-    // Start/stop RAF polling
+    // RAF Polling: Sync Player -> Stores
     useEffect(() => {
-        if (isPlaying && !isScrubbing && !isExporting) {
-            timeObserver.startPolling(storeSeekFromPlayer);
-        } else {
-            timeObserver.stopPolling();
-        }
-    }, [isPlaying, isScrubbing, isExporting, storeSeekFromPlayer]);
+        if (!isPlaying || isScrubbing || isExporting) return;
+        if (!playerRef.current) return;
+
+        let rafId: number;
+        let lastStoreUpdate = 0;
+
+        const poll = () => {
+             const player = playerRef.current;
+             if (!player) return;
+
+             const frame = player.getCurrentFrame();
+             const timeMs = (frame / timelineMetadata.fps) * 1000;
+
+             // 1. Update transient store (60fps) - UI Sync
+             const current = useTimeStore.getState().currentTime;
+             if (Math.abs(current - timeMs) >= 0.5) {
+                 useTimeStore.getState().setTime(timeMs);
+             }
+
+             // 2. Throttle update to persistent store (30fps) - Persistence/Other Sync
+             const now = performance.now();
+             if (now - lastStoreUpdate >= 33) { // ~30fps
+                 lastStoreUpdate = now;
+                 storeSeekFromPlayer(timeMs);
+             }
+
+             rafId = requestAnimationFrame(poll);
+        };
+
+        rafId = requestAnimationFrame(poll);
+        return () => cancelAnimationFrame(rafId);
+    }, [isPlaying, isScrubbing, isExporting, timelineMetadata.fps, storeSeekFromPlayer, playerRef]);
 
     // Skip range detection during playback
     // Polls at animation frame rate and skips past hidden regions
@@ -283,6 +301,8 @@ export function usePlayerSync({
             const pausedFrame = clampFrame(playerRef.current.getCurrentFrame());
             const pausedTimeMs = (pausedFrame / timelineMetadata.fps) * 1000;
             storeSeekFromPlayer(pausedTimeMs);
+            // Also sync transient store
+            useTimeStore.getState().setTime(pausedTimeMs);
         }
 
         let prevTime = useProjectStore.getState().currentTime;

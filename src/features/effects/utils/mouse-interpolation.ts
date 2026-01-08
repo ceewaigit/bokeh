@@ -85,21 +85,3 @@ export function interpolateMousePosition(
   return { x, y }
 }
 
-export function interpolateMousePositionNormalized(
-  mouseEvents: MouseEvent[],
-  timeMs: number
-): { x: number; y: number } | null {
-  const pos = interpolateMousePosition(mouseEvents, timeMs)
-  if (!pos) return null
-
-  // Prefer capture size if available; fallback to screen size; then to a sensible default
-  const baseWidth = mouseEvents[0]?.captureWidth || mouseEvents[0]?.screenWidth || 1920
-  const baseHeight = mouseEvents[0]?.captureHeight || mouseEvents[0]?.screenHeight || 1080
-
-  if (!baseWidth || !baseHeight) return null
-
-  return {
-    x: Math.max(0, Math.min(1, pos.x / baseWidth)),
-    y: Math.max(0, Math.min(1, pos.y / baseHeight))
-  }
-}

@@ -12,19 +12,33 @@ import { CursorStyle } from '@/types/project'
 import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 import { CursorType, electronToCustomCursor } from '../store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
+import { CURSOR_CONSTANTS } from '@/features/effects/cursor/constants'
 import { clamp01, lerp, easeOutCubic, clamp } from '@/features/rendering/canvas/math'
-import { CameraDataService } from '@/features/ui/editor/logic/viewport/services/camera-data-service'
 
 // Reference width for converting normalized velocities to pixel-equivalent units.
 // This ensures velocity thresholds continue to work correctly with normalized coordinates.
-const VELOCITY_REFERENCE_WIDTH = 1920
+const REFERENCE_WIDTH = CURSOR_CONSTANTS.REFERENCE_WIDTH
+
+// Local smoothing cache
+type SmoothedPosition = { x: number; y: number }
+const MAX_SMOOTHING_CACHE_SIZE = 300
+const smoothingCache = new Map<string, SmoothedPosition>()
+
+function getSmoothingCacheKey(
+  timestamp: number,
+  smoothness: number,
+  speed: number,
+  glide: number,
+  jumpThreshold: number
+): string {
+  return `${timestamp.toFixed(2)}-${smoothness.toFixed(2)}-${speed.toFixed(2)}-${glide.toFixed(2)}-${jumpThreshold.toFixed(2)}`
+}
 
 /**
  * Clear the smoothing cache - call when switching projects or recordings
- * @deprecated Use CameraDataService.invalidateCache() instead.
  */
 export function clearCursorCalculatorCache(): void {
-  CameraDataService.invalidateCache()
+  smoothingCache.clear()
 }
 
 /**
@@ -250,12 +264,16 @@ export function calculateCursorState(
 
   if (cursorData.hideOnIdle) {
     const idleTimeout = cursorData.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout
+    // Hysteresis margin to prevent oscillation during sped-up playback
+    // Only used for "wake" detection - prevents rapid show/hide at boundaries
+    const STABILITY_MARGIN = 100 // ms
     const lastMovement = findLastMovement(mouseEvents, timestamp)
     if (lastMovement) {
       const idleTime = timestamp - lastMovement.timestamp
       const fadeOnIdle = cursorData.fadeOnIdle ?? DEFAULT_CURSOR_DATA.fadeOnIdle
 
       if (!fadeOnIdle) {
+        // Simple hide/show without fade
         if (idleTime > idleTimeout) {
           visible = false
           opacity = 0
@@ -272,11 +290,13 @@ export function calculateCursorState(
         }
 
         // Fade in on "wake" movement after being idle long enough to hide
+        // Use stability margin to prevent rapid oscillation on wake detection
         const previousMovement = findLastMovement(mouseEvents, lastMovement.timestamp - 1)
         const idleGap = previousMovement ? (lastMovement.timestamp - previousMovement.timestamp) : 0
+        // Require clear exit from hidden state with margin buffer
         const resumedAfterHide = previousMovement
-          ? idleGap > idleTimeout
-          : lastMovement.timestamp >= idleTimeout
+          ? idleGap > idleTimeout + STABILITY_MARGIN
+          : lastMovement.timestamp >= idleTimeout + STABILITY_MARGIN
         if (resumedAfterHide) {
           const sinceWake = timestamp - lastMovement.timestamp
           if (sinceWake >= 0 && sinceWake < FADE_IN_DURATION) {
@@ -306,13 +326,16 @@ export function calculateCursorState(
     // Scale normalized distance to pixel-equivalent for threshold comparison
     // This preserves the intuitive meaning of threshold values (6px, 50px, etc.)
     const velocityNormalized = Math.sqrt(dx * dx + dy * dy)
-    const velocity = velocityNormalized * VELOCITY_REFERENCE_WIDTH
+    
+    // Thresholds using 1080p reference width (1920)
+    const THRESHOLD = 6 / REFERENCE_WIDTH
+    const CAP = 50 / REFERENCE_WIDTH
 
-    if (velocity > 6) { // Only show blur for significant movement (6px equivalent)
+    if (velocityNormalized > THRESHOLD) { // Only show blur for significant movement (6px equivalent)
       motionBlur = {
         previousX: referencePosition.x,
         previousY: referencePosition.y,
-        velocity: Math.min(velocity, 50) * (motionBlurIntensity / 100) // Cap velocity for reasonable blur
+        velocity: Math.min(velocityNormalized, CAP) * (motionBlurIntensity / 100) // Cap velocity for reasonable blur
       }
     }
   }
@@ -413,7 +436,6 @@ function calculateDirectionalTilt(options: {
   const vyHat = sumVy / sumW
   // Scale velocity to pixel-equivalent for threshold comparison
   const speedNormalized = Math.sqrt(vxHat * vxHat + vyHat * vyHat)
-  const speedPxPerSec = speedNormalized * VELOCITY_REFERENCE_WIDTH
 
   const lastMoveTimeMs = (() => {
     let lastIndex = -1
@@ -445,7 +467,12 @@ function calculateDirectionalTilt(options: {
 
   // REFINED: Higher deadzone to ignore micro-movements, gentler ramp for polished feel
   // subtle at low speed, natural at medium, capped at high
-  const speed01Raw = clamp01((speedPxPerSec - 80) / 900)  // was 60/700 - higher deadzone, gentler ramp
+  
+  // Use 1080p reference width for thresholds
+  const DEADZONE = 80 / REFERENCE_WIDTH
+  const RANGE = 900 / REFERENCE_WIDTH
+  
+  const speed01Raw = clamp01((speedNormalized - DEADZONE) / RANGE)
   const speed01Smooth = speed01Raw * speed01Raw * (3 - 2 * speed01Raw) // smoothstep
   let speed01 = clamp01(speed01Smooth)
   const idleMs = Math.max(0, timestamp - lastMoveTimeMs)
@@ -454,11 +481,11 @@ function calculateDirectionalTilt(options: {
 
   // Smooth direction mapping; avoids sign flip jitter on tiny vx
   // Scale vx to pixel-equivalent for consistent threshold behavior
-  const vxPx = vxHat * VELOCITY_REFERENCE_WIDTH
-  const direction = Math.tanh(vxPx / 1000) // was 900 - smoother direction response
+  const SCALE = 1000 / REFERENCE_WIDTH
+  const direction = Math.tanh(vxHat / SCALE)
 
   // Normalize for 360° tilt direction (all angles).
-  const invSpeed = speedPxPerSec > 1e-6 ? (1 / speedPxPerSec) : 0
+  const invSpeed = speedNormalized > 1e-9 ? (1 / speedNormalized) : 0
   const ux = vxHat * invSpeed
   const uy = vyHat * invSpeed
 
@@ -511,14 +538,14 @@ function smoothPositionWithHistory(
   }
 
   // PERF: Check cache first - key includes timestamp and smoothing params
-  const cacheKey = CameraDataService.getSmoothingCacheKey(
+  const cacheKey = getSmoothingCacheKey(
     timestamp,
     cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness,
     cursorData.speed ?? DEFAULT_CURSOR_DATA.speed,
     cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75,
     cursorData.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9
   )
-  const cached = CameraDataService.getSmoothingPosition(cacheKey)
+  const cached = smoothingCache.get(cacheKey)
   if (cached) {
     return { position: cached }
   }
@@ -538,7 +565,13 @@ function smoothPositionWithHistory(
     tauMs,
     cursorData
   )
-  CameraDataService.setSmoothingPosition(cacheKey, smoothed)
+
+  // LRU eviction
+  if (smoothingCache.size >= MAX_SMOOTHING_CACHE_SIZE) {
+    const firstKey = smoothingCache.keys().next().value
+    if (firstKey) smoothingCache.delete(firstKey)
+  }
+  smoothingCache.set(cacheKey, smoothed)
 
   return { position: smoothed }
 }

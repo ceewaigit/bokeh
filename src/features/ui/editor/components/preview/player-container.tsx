@@ -24,10 +24,6 @@ interface PlayerContainerProps {
     isPlaying: boolean;
     isScrubbing: boolean;
     isEditingCrop: boolean;
-    cropData: CropEffectData | null;
-    onCropChange?: (cropData: CropEffectData) => void;
-    onCropConfirm?: () => void;
-    onCropReset?: () => void;
     zoomSettings?: ZoomSettings;
     glowPortalRoot?: HTMLElement | null;
     glowPortalStyle?: {
@@ -54,10 +50,6 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     isPlaying,
     isScrubbing,
     isEditingCrop,
-    cropData,
-    onCropChange,
-    onCropConfirm,
-    onCropReset,
     zoomSettings,
     glowPortalRoot,
     glowPortalStyle,
@@ -103,21 +95,11 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
                 preferOffthreadVideo: false,
                 isEditingCrop: Boolean(isEditingCrop),
             },
-            cropSettings: {
-                cropData: cropData ?? null,
-                onCropChange,
-                onCropConfirm,
-                onCropReset,
-            },
             zoomSettings,
         });
     }, [
         playerConfig,
         isEditingCrop,
-        cropData,
-        onCropChange,
-        onCropConfirm,
-        onCropReset,
         zoomSettings,
         isHighQualityPlaybackEnabled,
         muted,

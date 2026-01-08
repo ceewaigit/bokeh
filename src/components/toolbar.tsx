@@ -83,8 +83,8 @@ export function Toolbar({
         {/* Logo/Brand */}
         <div className="flex items-center gap-2 px-2.5 h-6 bg-primary/15 rounded-xl">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-          <span className="font-bold text-xs text-primary uppercase tracking-[0.1em] whitespace-nowrap">
-            Studio
+          <span className="font-bold text-xs text-primary tracking-[0.1em] whitespace-nowrap">
+            bokeh studio
           </span>
         </div>
 

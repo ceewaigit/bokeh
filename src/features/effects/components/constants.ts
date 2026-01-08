@@ -50,7 +50,7 @@ export const SIDEBAR_TABS = [
   { id: SidebarTabId.Pointer, icon: MousePointer, label: 'Pointer & Typing' },
   { id: SidebarTabId.Camera, icon: Aperture, label: 'Camera' },
   { id: SidebarTabId.Webcam, icon: Video, label: 'Webcam' },
-  { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Overlay' },
   { id: SidebarTabId.Transcript, icon: FileText, label: 'Transcript' },
+  { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Overlay' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Stage' },
 ] as const

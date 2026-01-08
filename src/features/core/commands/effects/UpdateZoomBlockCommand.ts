@@ -1,30 +1,28 @@
-import { Command, CommandResult } from '../base/Command'
+/**
+ * UpdateZoomBlockCommand - Update zoom effects in timeline.effects[]
+ * 
+ * Uses PatchedCommand for automatic undo/redo via Immer patches.
+ */
+
+import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
-import type { Effect, Project, ZoomBlock } from '@/types/project'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/features/core/stores/project-store'
+import type { ZoomBlock } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { EffectStore } from '@/features/effects/core/store'
 import { TimelineConfig } from '@/features/ui/timeline/config'
 
-/**
- * Find zoom effect in the project using EffectStore
- */
-function findZoomEffect(project: Project | null, effectId: string): Effect | null {
-  if (!project) return null
-  const effect = EffectStore.get(project, effectId)
-  return effect?.type === EffectType.Zoom ? effect : null
-}
-
-export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
-  private originalBlock?: ZoomBlock
+export class UpdateZoomBlockCommand extends PatchedCommand<{ blockId: string }> {
   private blockId: string
   private updates: Partial<ZoomBlock>
 
   constructor(
-    private context: CommandContext,
+    context: CommandContext,
     blockId: string,
     updates: Partial<ZoomBlock>
   ) {
-    super({
+    super(context, {
       name: 'UpdateZoomBlock',
       description: `Update zoom block ${blockId}`,
       category: 'effects'
@@ -35,180 +33,57 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
 
   canExecute(): boolean {
     const project = this.context.getProject()
-    return findZoomEffect(project, this.blockId) !== null
+    if (!project) return false
+    const effect = EffectStore.get(project, this.blockId)
+    return effect?.type === EffectType.Zoom
   }
 
-  doExecute(): CommandResult<{ blockId: string }> {
-    const store = this.context.getStore()
-    const project = this.context.getProject()
-    const effect = findZoomEffect(project, this.blockId)
-
-    if (!effect) {
-      return {
-        success: false,
-        error: `Zoom effect ${this.blockId} not found`
-      }
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    if (!draft.currentProject) {
+      throw new Error('No active project')
     }
 
-    // Store original state
-    const zoomData = effect.data as any
-    this.originalBlock = {
-      id: effect.id,
-      startTime: effect.startTime,
-      endTime: effect.endTime,
-      origin: zoomData.origin ?? 'manual',
-      scale: zoomData.scale,
-      targetX: zoomData.targetX,
-      targetY: zoomData.targetY,
-      screenWidth: zoomData.screenWidth,
-      screenHeight: zoomData.screenHeight,
-      introMs: zoomData.introMs,
-      outroMs: zoomData.outroMs,
-      smoothing: zoomData.smoothing,
-      followStrategy: zoomData.followStrategy,
-      autoScale: zoomData.autoScale,
-      mouseIdlePx: zoomData.mouseIdlePx
+    const effect = EffectStore.get(draft.currentProject, this.blockId)
+    if (!effect || effect.type !== EffectType.Zoom) {
+      throw new Error(`Zoom effect ${this.blockId} not found`)
     }
 
+    // Validate timing
     const nextStartTime = this.updates.startTime ?? effect.startTime
     const nextEndTime = this.updates.endTime ?? effect.endTime
+
     if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime)) {
-      return {
-        success: false,
-        error: `Invalid zoom timing for ${this.blockId}`
-      }
+      throw new Error(`Invalid zoom timing for ${this.blockId}`)
     }
     if (nextEndTime <= nextStartTime) {
-      return {
-        success: false,
-        error: `Zoom block ${this.blockId} must have positive duration`
-      }
+      throw new Error(`Zoom block ${this.blockId} must have positive duration`)
     }
     if (nextEndTime - nextStartTime < TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS) {
-      return {
-        success: false,
-        error: `Zoom block ${this.blockId} is shorter than minimum duration`
-      }
+      throw new Error(`Zoom block ${this.blockId} is shorter than minimum duration`)
     }
 
-    // Update the effect with new zoom data
-    const updatedData = {
-      ...zoomData,
-      origin: 'origin' in this.updates ? this.updates.origin : zoomData.origin,
-      scale: this.updates.scale ?? zoomData.scale,
-      targetX: 'targetX' in this.updates ? this.updates.targetX : zoomData.targetX,
-      targetY: 'targetY' in this.updates ? this.updates.targetY : zoomData.targetY,
-      screenWidth: 'screenWidth' in this.updates ? this.updates.screenWidth : zoomData.screenWidth,
-      screenHeight: 'screenHeight' in this.updates ? this.updates.screenHeight : zoomData.screenHeight,
-      introMs: this.updates.introMs ?? zoomData.introMs,
-      outroMs: this.updates.outroMs ?? zoomData.outroMs,
-      smoothing: this.updates.smoothing ?? zoomData.smoothing,
-      followStrategy: 'followStrategy' in this.updates ? this.updates.followStrategy : zoomData.followStrategy,
-      autoScale: 'autoScale' in this.updates ? this.updates.autoScale : zoomData.autoScale,
-      mouseIdlePx: 'mouseIdlePx' in this.updates ? this.updates.mouseIdlePx : zoomData.mouseIdlePx
-    }
+    // Update effect times
+    effect.startTime = nextStartTime
+    effect.endTime = nextEndTime
 
-    store.updateEffect(this.blockId, {
-      startTime: nextStartTime,
-      endTime: nextEndTime,
-      data: updatedData
-    })
+    // Update effect data
+    const zoomData = effect.data as any
 
-    return {
-      success: true,
-      data: { blockId: this.blockId }
-    }
-  }
+    if ('origin' in this.updates) zoomData.origin = this.updates.origin
+    if (this.updates.scale !== undefined) zoomData.scale = this.updates.scale
+    if ('targetX' in this.updates) zoomData.targetX = this.updates.targetX
+    if ('targetY' in this.updates) zoomData.targetY = this.updates.targetY
+    if ('screenWidth' in this.updates) zoomData.screenWidth = this.updates.screenWidth
+    if ('screenHeight' in this.updates) zoomData.screenHeight = this.updates.screenHeight
+    if (this.updates.introMs !== undefined) zoomData.introMs = this.updates.introMs
+    if (this.updates.outroMs !== undefined) zoomData.outroMs = this.updates.outroMs
+    if (this.updates.smoothing !== undefined) zoomData.smoothing = this.updates.smoothing
+    if ('followStrategy' in this.updates) zoomData.followStrategy = this.updates.followStrategy
+    if ('autoScale' in this.updates) zoomData.autoScale = this.updates.autoScale
+    if ('mouseIdlePx' in this.updates) zoomData.mouseIdlePx = this.updates.mouseIdlePx
 
-  doUndo(): CommandResult<{ blockId: string }> {
-    if (!this.originalBlock) {
-      return {
-        success: false,
-        error: 'No original block data to restore'
-      }
-    }
+    draft.currentProject.modifiedAt = new Date().toISOString()
 
-    const store = this.context.getStore()
-
-    store.updateEffect(this.blockId, {
-      startTime: this.originalBlock.startTime,
-      endTime: this.originalBlock.endTime,
-      data: {
-        origin: this.originalBlock.origin,
-        scale: this.originalBlock.scale || 2,
-        targetX: this.originalBlock.targetX,
-        targetY: this.originalBlock.targetY,
-        screenWidth: this.originalBlock.screenWidth,
-        screenHeight: this.originalBlock.screenHeight,
-        introMs: this.originalBlock.introMs || 300,
-        outroMs: this.originalBlock.outroMs || 300,
-        smoothing: this.originalBlock.smoothing ?? 50,
-        followStrategy: this.originalBlock.followStrategy,
-        autoScale: this.originalBlock.autoScale,
-        mouseIdlePx: this.originalBlock.mouseIdlePx
-      }
-    })
-
-    return {
-      success: true,
-      data: { blockId: this.blockId }
-    }
-  }
-
-  doRedo(): CommandResult<{ blockId: string }> {
-    const store = this.context.getStore()
-    const project = this.context.getProject()
-    const effect = findZoomEffect(project, this.blockId)
-
-    if (effect) {
-      const zoomData = effect.data as any
-      const updatedData = {
-        ...zoomData,
-        origin: 'origin' in this.updates ? this.updates.origin : zoomData.origin,
-        scale: this.updates.scale ?? zoomData.scale,
-        targetX: 'targetX' in this.updates ? this.updates.targetX : zoomData.targetX,
-        targetY: 'targetY' in this.updates ? this.updates.targetY : zoomData.targetY,
-        screenWidth: 'screenWidth' in this.updates ? this.updates.screenWidth : zoomData.screenWidth,
-        screenHeight: 'screenHeight' in this.updates ? this.updates.screenHeight : zoomData.screenHeight,
-        introMs: this.updates.introMs ?? zoomData.introMs,
-        outroMs: this.updates.outroMs ?? zoomData.outroMs,
-        smoothing: this.updates.smoothing ?? zoomData.smoothing,
-        followStrategy: 'followStrategy' in this.updates ? this.updates.followStrategy : zoomData.followStrategy,
-        autoScale: 'autoScale' in this.updates ? this.updates.autoScale : zoomData.autoScale,
-        mouseIdlePx: 'mouseIdlePx' in this.updates ? this.updates.mouseIdlePx : zoomData.mouseIdlePx
-      }
-
-      const nextStartTime = this.updates.startTime ?? effect.startTime
-      const nextEndTime = this.updates.endTime ?? effect.endTime
-      if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime)) {
-        return {
-          success: false,
-          error: `Invalid zoom timing for ${this.blockId}`
-        }
-      }
-      if (nextEndTime <= nextStartTime) {
-        return {
-          success: false,
-          error: `Zoom block ${this.blockId} must have positive duration`
-        }
-      }
-      if (nextEndTime - nextStartTime < TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS) {
-        return {
-          success: false,
-          error: `Zoom block ${this.blockId} is shorter than minimum duration`
-        }
-      }
-
-      store.updateEffect(this.blockId, {
-        startTime: nextStartTime,
-        endTime: nextEndTime,
-        data: updatedData
-      })
-    }
-
-    return {
-      success: true,
-      data: { blockId: this.blockId }
-    }
+    this.setResult({ success: true, data: { blockId: this.blockId } })
   }
 }

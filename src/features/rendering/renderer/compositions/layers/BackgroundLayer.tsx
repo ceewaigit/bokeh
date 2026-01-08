@@ -5,7 +5,7 @@ import type { BackgroundEffectData } from '@/types/project';
 import { BackgroundType } from '@/types/project';
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
-import { interpolateMousePositionNormalized } from '@/features/effects/utils/mouse-interpolation';
+import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation';
 import { ParallaxBackgroundLayer } from './ParallaxBackgroundLayer';
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config';
 import { calculateBackgroundStyle } from '@/features/effects/background/logic/calculator';
@@ -56,7 +56,7 @@ const ParallaxBackgroundWrapper: React.FC<{
   const sourceTimeMs = useSourceTime();
 
   // Get normalized mouse position (0-1)
-  const mousePos = interpolateMousePositionNormalized(cursorEvents, sourceTimeMs);
+  const mousePos = interpolateMousePosition(cursorEvents, sourceTimeMs);
   const mouseX = mousePos?.x ?? 0.5;
   const mouseY = mousePos?.y ?? 0.5;
 

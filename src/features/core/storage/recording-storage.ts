@@ -9,7 +9,7 @@ import type { Project, Recording, Clip, CaptureArea, RecordingMetadata } from '@
 import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, EffectType } from '@/types/project'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getEffectsOfType } from '@/features/effects/core/filters'
-import { EffectGenerationService } from '@/features/effects/services/effect-generation-service'
+import { regenerateProjectEffects } from '@/features/effects/logic/effect-applier'
 import { EffectStore } from '@/features/effects/core/store'
 import { isLikelyKeyboardKey, isStandaloneModifierKey } from '@/features/core/keyboard/keyboard-utils'
 import { getVideoMetadataFromPath } from '@/shared/utils/video-metadata'
@@ -966,9 +966,14 @@ export class RecordingStorage {
 
       // Ensure global effects exist (background, cursor, and per-typing-period keystroke effects)
       EffectInitialization.ensureGlobalEffects(project)
+
+      // Dynamically load IdleActivityDetector to avoid circular dependencies
+      const { IdleActivityDetector } = require('@/features/ui/timeline/activity-detection/idle-detector')
+
       // Regenerate all auto effects and default framing for new recordings.
-      EffectGenerationService.regenerateAllEffects(
+      regenerateProjectEffects(
         project,
+        IdleActivityDetector,
         undefined,
         new Map([[recording.id, recording.metadata!]])
       )

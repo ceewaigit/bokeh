@@ -1,6 +1,6 @@
 import { BrowserWindow, screen } from 'electron'
 import * as path from 'path'
-import { getAppURL } from '../config'
+import { getAppURL, isDev } from '../config'
 import { applyContentSecurityPolicy } from './content-security-policy'
 
 // Webpack entry points are set as environment variables by electron-forge
@@ -8,8 +8,6 @@ import { applyContentSecurityPolicy } from './content-security-policy'
 export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   console.log('🖥️ Creating record button overlay for display:', display.bounds)
-
-  const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
     width: 180,
@@ -70,10 +68,6 @@ export function createRecordButton(): BrowserWindow {
   // Apply CSP so blob: media URLs are allowed
   applyContentSecurityPolicy(recordButton)
 
-  if (isDev) {
-    recordButton.webContents.openDevTools({ mode: 'detach' })
-  }
-
   recordButton.on('unresponsive', () => {
     console.error('❌ Record button window became unresponsive')
   })
@@ -116,7 +110,7 @@ export function setupRecordButton(recordButton: BrowserWindow): void {
   recordButton.webContents.on('will-navigate', (event, url) => {
     const allowedPrefixes = ['file://', 'app://', 'data:']
     // Allow localhost in development
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       allowedPrefixes.push('http://localhost:', 'http://127.0.0.1:')
     }
     if (!allowedPrefixes.some(prefix => url.startsWith(prefix))) {

@@ -16,24 +16,13 @@ import { EffectType, AnnotationType } from '@/types/project'
 import { EffectLayerType } from '@/features/effects/types'
 import type { Effect, AnnotationData } from '@/types/project'
 import { AnnotationWrapper } from './AnnotationWrapper'
-import type { AnnotationRenderContext } from './annotation-elements'
+import { useCoordinateMapping } from '@/features/rendering/renderer/hooks/layout/useCoordinateMapping'
 
 const HIGHLIGHT_FADE_MS = 220
 const DEFAULT_DIM_OPACITY = 0.55
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v))
-}
-
-function percentToPixel(percent: number, containerSize: number): number {
-  return (percent / 100) * containerSize
-}
-
-function toUnitOpacity(opacity: unknown): number | null {
-  if (typeof opacity !== 'number' || Number.isNaN(opacity)) return null
-  if (opacity > 1) return clamp01(opacity / 100)
-  if (opacity < 0) return 0
-  return clamp01(opacity)
 }
 
 function getHighlightOpacity(currentTimeMs: number, startTime: number, endTime: number, frameMs: number): number {
@@ -70,6 +59,11 @@ export const AnnotationLayer: React.FC = memo(() => {
   const frame = useCurrentFrame()
   const { fps } = useVideoConfig()
   const videoPosition = useVideoPosition()
+  
+  // Use the coordinate mapping hook (SSOT)
+  // Disable transforms since we are inside the transform container
+  const { mapPercentPoint } = useCoordinateMapping()
+  const mappingOptions = { applyTransform: false }
 
   // Get selection state (only used in preview mode)
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
@@ -83,26 +77,14 @@ export const AnnotationLayer: React.FC = memo(() => {
   const currentTimeMs = useMemo(() => (frame / fps) * 1000, [frame, fps])
   const activeAnnotations = useActiveAnnotations(currentTimeMs)
 
-  // Render inside video transform - offsets are 0 because we're positioned relative to transform container
-  // Pass cameraTransform for font sizing and other scale-dependent calculations
-  const renderContext: AnnotationRenderContext = useMemo(() => {
-    // Extract camera transform properties from zoomTransform if available
-    const cameraTransform = videoPosition.zoomTransform
-      ? {
-        scale: (videoPosition.zoomTransform as any).scale ?? 1,
-        panX: (videoPosition.zoomTransform as any).panX ?? 0,
-        panY: (videoPosition.zoomTransform as any).panY ?? 0,
-      }
-      : undefined
-
-    return {
-      videoWidth: videoPosition.drawWidth,
-      videoHeight: videoPosition.drawHeight,
-      offsetX: 0, // Inside transform container - no offset needed
-      offsetY: 0,
-      cameraTransform,
-    }
-  }, [videoPosition.drawWidth, videoPosition.drawHeight, videoPosition.zoomTransform])
+  // Render context is legacy - but we still pass it to wrapper for now (wrapper ignores it for positioning)
+  // We can eventually remove it once we clean up the wrapper types
+  const renderContext = useMemo(() => ({
+    videoWidth: videoPosition.drawWidth,
+    videoHeight: videoPosition.drawHeight,
+    offsetX: 0,
+    offsetY: 0,
+  }), [videoPosition.drawWidth, videoPosition.drawHeight])
 
   // Get the ID of the annotation currently being edited
   // Note: Use selected annotation ID when inline editing, not transientState
@@ -179,16 +161,20 @@ export const AnnotationLayer: React.FC = memo(() => {
           {activeHighlightEffects.map((effect) => {
             const data = effect.data as AnnotationData
             const pos = data.position ?? { x: 50, y: 50 }
-            const width = ((data.width ?? 20) / 100) * renderContext.videoWidth
-            const height = ((data.height ?? 10) / 100) * renderContext.videoHeight
-            const x = percentToPixel(pos.x, renderContext.videoWidth)
-            const y = percentToPixel(pos.y, renderContext.videoHeight)
+            
+            // Use the hook to map coordinates (without transforms)
+            const mappedPos = mapPercentPoint(pos, mappingOptions)
+            const width = ((data.width ?? 20) / 100) * videoPosition.drawWidth
+            const height = ((data.height ?? 10) / 100) * videoPosition.drawHeight
+            const x = mappedPos.x
+            const y = mappedPos.y
+            
             const rotation = data.rotation ?? 0
             const cx = x + width / 2
             const cy = y + height / 2
 
             const anim = getHighlightOpacity(currentTimeMs, effect.startTime, effect.endTime, 1000 / fps)
-            const dim = toUnitOpacity((data.style as any)?.opacity) ?? DEFAULT_DIM_OPACITY
+            const dim = clamp01((data.style as any)?.opacity ?? DEFAULT_DIM_OPACITY)
             const dimOpacity = dim * anim
 
             if (dimOpacity <= 0) return null
@@ -201,7 +187,7 @@ export const AnnotationLayer: React.FC = memo(() => {
                 key={`spotlight-${effect.id}`}
                 width="100%"
                 height="100%"
-                viewBox={`0 0 ${renderContext.videoWidth} ${renderContext.videoHeight}`}
+                viewBox={`0 0 ${videoPosition.drawWidth} ${videoPosition.drawHeight}`}
                 preserveAspectRatio="none"
                 style={{
                   position: 'absolute',
@@ -213,8 +199,8 @@ export const AnnotationLayer: React.FC = memo(() => {
                     <rect
                       x={0}
                       y={0}
-                      width={renderContext.videoWidth}
-                      height={renderContext.videoHeight}
+                      width={videoPosition.drawWidth}
+                      height={videoPosition.drawHeight}
                       fill="white"
                     />
                     <rect
@@ -232,8 +218,8 @@ export const AnnotationLayer: React.FC = memo(() => {
                 <rect
                   x={0}
                   y={0}
-                  width={renderContext.videoWidth}
-                  height={renderContext.videoHeight}
+                  width={videoPosition.drawWidth}
+                  height={videoPosition.drawHeight}
                   mask={`url(#${maskId})`}
                   fill={`rgba(0, 0, 0, ${dimOpacity})`}
                 />

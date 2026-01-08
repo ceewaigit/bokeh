@@ -1,11 +1,14 @@
 /**
  * Activity Detection Service
- * Unified entry point for all activity detection (typing, idle, etc.)
- * Eliminates duplicated detection/filtering logic across components
+ * Unified entry point for all activity detection (typing, idle)
+ * 
+ * Edge idle periods (at clip start/end) are derived from idle detection
+ * and marked as TrimStart/TrimEnd - users can choose to speed up OR trim.
  */
 
 import type { Recording, Clip, RecordingMetadata } from '@/types/project'
 import type { SpeedUpPeriod, SpeedUpSuggestions } from '@/types/speed-up'
+import { SpeedUpType } from '@/types/speed-up'
 import { filterPeriodsForClip, calculateOverallSuggestion } from './index'
 import { TypingActivityDetector } from './typing-detector'
 import { IdleActivityDetector } from './idle-detector'
@@ -28,17 +31,16 @@ export interface RecordingAnalysis {
 export interface ClipSuggestions {
   typing: SpeedUpPeriod[]
   idle: SpeedUpPeriod[]
+  edgeIdle: SpeedUpPeriod[] // Idle at clip edges - can be trimmed or sped up
   all: SpeedUpPeriod[]
 }
 
 /**
  * Unified service for all activity detection
- * Single entry point for components - eliminates duplicated logic
  */
 export class ActivityDetectionService {
   /**
    * Get all speed-up suggestions for a recording
-   * Results are automatically cached
    */
   static analyzeRecording(recording: Recording, metadata?: RecordingMetadata): RecordingAnalysis {
     return {
@@ -49,7 +51,7 @@ export class ActivityDetectionService {
 
   /**
    * Get suggestions filtered for a specific clip
-   * Respects already-applied flags on the clip
+   * Edge idle periods are automatically identified and marked
    */
   static getSuggestionsForClip(
     recording: Recording,
@@ -59,18 +61,69 @@ export class ActivityDetectionService {
     const analysis = this.analyzeRecording(recording, metadata)
 
     // Filter to clip's source range, skip if already applied
-    const typing = clip.typingSpeedApplied
+    const allTyping = clip.typingSpeedApplied
       ? []
       : filterPeriodsForClip(analysis.typing.periods, clip)
 
-    const idle = clip.idleSpeedApplied
+    const allIdle = clip.idleSpeedApplied
       ? []
       : filterPeriodsForClip(analysis.idle.periods, clip)
 
-    // Combine and sort by start time
-    const all = [...typing, ...idle].sort((a, b) => a.startTime - b.startTime)
+    // Separate edge idle from mid-clip idle
+    const sourceIn = clip.sourceIn || 0
+    const sourceOut = clip.sourceOut || recording.duration
+    const edgeThresholdMs = 500 // Consider idle as "edge" if within 500ms of clip boundary
 
-    return { typing, idle, all }
+    const edgeIdle: SpeedUpPeriod[] = []
+    const midIdle: SpeedUpPeriod[] = []
+
+    for (const period of allIdle) {
+      // Skip periods that have been "trimmed out" - no longer in clip source range
+      // This prevents stale overlay suggestions after a clip has been trimmed
+      if (period.endTime <= sourceIn || period.startTime >= sourceOut) continue
+
+      const isNearStart = period.startTime <= sourceIn + edgeThresholdMs
+      const isNearEnd = period.endTime >= sourceOut - edgeThresholdMs
+
+      if (isNearStart && period.startTime <= sourceIn + edgeThresholdMs) {
+        // Idle at clip start - mark as TrimStart
+        edgeIdle.push({
+          ...period,
+          type: SpeedUpType.TrimStart,
+          metadata: {
+            ...period.metadata,
+            trimSavedMs: period.endTime - period.startTime,
+            newSourceIn: period.endTime
+          }
+        })
+      } else if (isNearEnd && period.endTime >= sourceOut - edgeThresholdMs) {
+        // Idle at clip end - mark as TrimEnd
+        edgeIdle.push({
+          ...period,
+          type: SpeedUpType.TrimEnd,
+          metadata: {
+            ...period.metadata,
+            trimSavedMs: period.endTime - period.startTime,
+            newSourceOut: period.startTime
+          }
+        })
+      } else {
+        // Mid-clip idle - keep as regular idle
+        midIdle.push(period)
+      }
+    }
+
+    // Combine all periods
+    const all = [...allTyping, ...midIdle, ...edgeIdle].sort((a, b) => a.startTime - b.startTime)
+
+    return {
+      typing: allTyping,
+      idle: midIdle,
+      edgeIdle,
+      // Keep 'trim' for backward compatibility with overlay
+      get trim() { return edgeIdle },
+      all
+    } as ClipSuggestions & { trim: SpeedUpPeriod[] }
   }
 
   /**
@@ -93,7 +146,7 @@ export class ActivityDetectionService {
   }
 
   /**
-   * Count total suggestions across all clips in a project
+   * Count total suggestions across all clips
    */
   static countAllSuggestions(
     recordings: Recording[],
@@ -108,7 +161,7 @@ export class ActivityDetectionService {
 
       const suggestions = this.getSuggestionsForClip(recording, clip)
       typing += suggestions.typing.length
-      idle += suggestions.idle.length
+      idle += suggestions.idle.length + suggestions.edgeIdle.length
     }
 
     return { typing, idle, total: typing + idle }
@@ -116,31 +169,23 @@ export class ActivityDetectionService {
 
   /**
    * Resolve overlapping periods by preferring the faster multiplier
-   * Used when applying both typing and idle speed-ups
    */
   static resolveOverlaps(periods: SpeedUpPeriod[]): SpeedUpPeriod[] {
     if (periods.length <= 1) return periods
 
-    // Sort by start time
     const sorted = [...periods].sort((a, b) => a.startTime - b.startTime)
     const resolved: SpeedUpPeriod[] = []
 
     for (const period of sorted) {
-      // Check if this period overlaps with any existing resolved period
       let handled = false
 
       for (let i = 0; i < resolved.length; i++) {
         const existing = resolved[i]
 
-        // Check for overlap
         if (period.startTime < existing.endTime && period.endTime > existing.startTime) {
-          // Overlapping - keep the one with higher speed multiplier
           if (period.suggestedSpeedMultiplier > existing.suggestedSpeedMultiplier) {
-            // Split/merge logic: prefer faster period
-            // For simplicity, just replace if the new one is faster
             resolved[i] = {
               ...period,
-              // Expand to cover both ranges
               startTime: Math.min(period.startTime, existing.startTime),
               endTime: Math.max(period.endTime, existing.endTime)
             }
@@ -159,7 +204,7 @@ export class ActivityDetectionService {
   }
 }
 
-// Also export individual detectors for direct use if needed
+// Export individual detectors
 export { typingDetector, idleDetector }
 export { TypingActivityDetector } from './typing-detector'
 export { IdleActivityDetector } from './idle-detector'

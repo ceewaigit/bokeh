@@ -825,7 +825,6 @@ function calculateRenderableItems(options: FrameSnapshotOptions): FrameLayoutIte
         currentFrame,
         fps,
         isRendering,
-        recordingsMap,
         boundaryState,
         prevRenderableItems = []
     } = options
@@ -858,27 +857,6 @@ function calculateRenderableItems(options: FrameSnapshotOptions): FrameLayoutIte
     let sortedItems = Array.from(uniqueItems.values()).sort(
         (a, b) => a.startFrame - b.startFrame
     );
-
-    // MEMORY CAP: Maximum 3 video clips mounted at once to prevent VTDecoder exhaustion
-    const MAX_VIDEO_CLIPS = 3;
-    const videoItems = sortedItems.filter(
-        (item) => recordingsMap.get(item.clip.recordingId)?.sourceType === 'video'
-    );
-    if (videoItems.length > MAX_VIDEO_CLIPS) {
-        // Keep closest to currentFrame
-        const byDistance = videoItems
-            .map((item) => ({ item, dist: Math.abs(item.startFrame - currentFrame) }))
-            .sort((a, b) => a.dist - b.dist)
-            .slice(0, MAX_VIDEO_CLIPS)
-            .map(({ item }) => item);
-
-        const nonVideoItems = sortedItems.filter(
-            (item) => recordingsMap.get(item.clip.recordingId)?.sourceType !== 'video'
-        );
-        sortedItems = [...nonVideoItems, ...byDistance].sort(
-            (a, b) => a.startFrame - b.startFrame
-        );
-    }
 
     // STABILITY FIX: Return previous array reference if groupIds haven't changed
     const currentIds = sortedItems.map((i) => i.groupId).join(',');

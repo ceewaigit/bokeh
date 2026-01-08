@@ -29,7 +29,8 @@ import {
   X,
   Camera,
   CameraOff,
-  Volume2
+  Volume2,
+  NotebookText
 } from 'lucide-react'
 
 interface Source {
@@ -62,6 +63,11 @@ export function RecordButtonDock() {
   const [windowSearch, setWindowSearch] = useState('')
   const [showDevicePicker, setShowDevicePicker] = useState(false)
 
+  // Local timer state for recording dock (independent of main window store)
+  const [localDuration, setLocalDuration] = useState(0)
+  const startTimeRef = useRef<number | null>(null)
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
   // Centralized permissions
   const {
     screenRecording,
@@ -72,7 +78,7 @@ export function RecordButtonDock() {
     requestMicrophone
   } = usePermissions()
 
-  const { startRecording, stopRecording, pauseRecording, resumeRecording, canPause, canResume } = useRecording()
+  const { startRecording, stopRecording } = useRecording()
   const { isRecording, isPaused, duration, updateSettings, startCountdown, prepareRecording } = useRecordingSessionStore()
   const setRecordingSettings = useProjectStore((s) => s.setRecordingSettings)
 
@@ -115,8 +121,56 @@ export function RecordButtonDock() {
         useRecordingSessionStore.getState().setRecording(false)
         useRecordingSessionStore.getState().setPaused(false)
       }
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+      }
     }
   }, [])
+
+  // Local timer logic
+  useEffect(() => {
+    if (isRecording && !isPaused) {
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now() - duration // Resume from current duration
+      }
+
+      timerIntervalRef.current = setInterval(() => {
+        if (startTimeRef.current) {
+          setLocalDuration(Date.now() - startTimeRef.current)
+        }
+      }, 100)
+    } else {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
+      }
+      if (!isRecording) {
+        setLocalDuration(0)
+        startTimeRef.current = null
+      } else if (isPaused) {
+        // Keep current duration but stop updating
+        // Adjust start time so resuming works correctly
+        // (Handled by calculating start time on resume)
+      }
+    }
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
+      }
+    }
+  }, [isRecording, isPaused, duration])
+
+  // Sync initial duration if needed
+  useEffect(() => {
+    if (duration > localDuration && Math.abs(duration - localDuration) > 1000) {
+      setLocalDuration(duration)
+      if (isRecording && !isPaused) {
+        startTimeRef.current = Date.now() - duration
+      }
+    }
+  }, [duration, isRecording, isPaused, localDuration])
 
   useEffect(() => { initializeDefaultWallpaper() }, [])
 
@@ -314,6 +368,14 @@ export function RecordButtonDock() {
     window.electronAPI?.openWorkspace?.()
   }
 
+  const handleToggleRecord = async () => {
+    if (isPaused) {
+      await window.electronAPI?.resumeRecording?.()
+    } else {
+      await window.electronAPI?.pauseRecording?.()
+    }
+  }
+
   // Device toggle handlers - use centralized permissions
   const handleToggleWebcam = async () => {
     if (!deviceSettings.webcam.enabled && !cameraPermission) {
@@ -406,25 +468,77 @@ export function RecordButtonDock() {
             </span>
             {/* Timer - fixed width to prevent layout shift */}
             <span className="text-foreground/90 text-ui-sm font-mono font-medium tabular-nums tracking-tight min-w-[52px]">
-              {formatTime(duration)}
+              {formatTime(localDuration)}
             </span>
           </div>
 
           <div className="w-px h-6 bg-border/50" />
 
-          {(canPause() || canResume()) && (
+          <motion.button
+            type="button"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+            onClick={handleToggleRecord}
+            className={cn(
+              "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+              "text-foreground hover:bg-accent/50"
+            )}
+            title={isPaused ? "Resume Recording" : "Pause Recording"}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {isPaused ? <Play className="w-3.5 h-3.5 fill-current" /> : <Pause className="w-3.5 h-3.5" />}
+          </motion.button>
+
+          <div className="w-px h-6 bg-border/50" />
+
+          {/* Recording Controls (Mic/Cam) */}
+          <div className="flex items-center gap-1">
+            {/* Mic Toggle */}
             <motion.button
               type="button"
               style={{ WebkitAppRegion: 'no-drag' } as any}
-              onClick={isPaused ? resumeRecording : pauseRecording}
-              className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-100"
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
-              transition={springConfig}
+              onClick={handleToggleMicrophone}
+              className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+                deviceSettings.microphone.enabled
+                  ? "text-foreground hover:bg-accent/50"
+                  : "text-destructive hover:bg-destructive/10"
+              )}
+              title={deviceSettings.microphone.enabled ? 'Mute Microphone' : 'Unmute Microphone'}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              {isPaused ? <Play className="w-3.5 h-3.5 fill-current" /> : <Pause className="w-3.5 h-3.5" />}
+              {deviceSettings.microphone.enabled ? (
+                <Mic className="w-4 h-4" />
+              ) : (
+                <MicOff className="w-4 h-4" />
+              )}
             </motion.button>
-          )}
+
+            {/* Camera Toggle */}
+            <motion.button
+              type="button"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+              onClick={handleToggleWebcam}
+              className={cn(
+                "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+                deviceSettings.webcam.enabled
+                  ? "text-foreground hover:bg-accent/50"
+                  : "text-destructive hover:bg-destructive/10"
+              )}
+              title={deviceSettings.webcam.enabled ? 'Turn Camera Off' : 'Turn Camera On'}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {deviceSettings.webcam.enabled ? (
+                <Camera className="w-4 h-4" />
+              ) : (
+                <CameraOff className="w-4 h-4" />
+              )}
+            </motion.button>
+          </div>
+
+          <div className="w-px h-6 bg-border/50" />
 
           <motion.button
             type="button"
@@ -879,6 +993,20 @@ export function RecordButtonDock() {
         </div>
 
         <div className="w-px h-6 bg-border/50 mx-1" />
+
+        {/* Notes Button */}
+        <motion.button
+          type="button"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+          onClick={() => window.electronAPI?.toggleTeleprompterWindow?.()}
+          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground/50 hover:text-foreground hover:bg-accent/50 transition-all duration-100"
+          title="Recording Notes"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={springConfig}
+        >
+          <NotebookText className="w-4 h-4" strokeWidth={1.75} />
+        </motion.button>
 
         {/* Library */}
         <motion.button

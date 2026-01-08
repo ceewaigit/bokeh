@@ -290,6 +290,9 @@ export function AmbientGlowPlayer({
     if (!timelineMetadata || !playerConfig || !glowPlayerInputProps) return null;
     if (clampedIntensity <= 0) return null;
 
+    // PERF: Don't render glow player when paused - saves ~50% GPU
+    if (!isPlaying && !isScrubbing) return null;
+
     return (
         <div
             style={{

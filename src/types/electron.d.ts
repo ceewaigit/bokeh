@@ -62,6 +62,8 @@ export interface ElectronAPI {
   openWorkspaceSettings?: () => Promise<void>
   startRecording?: () => Promise<any>
   stopRecording?: () => Promise<any>
+  pauseRecording?: () => Promise<any>
+  resumeRecording?: () => Promise<any>
   getRecordingsDirectory?: () => Promise<string>
   resolveRecordingPath?: (filePath: string, folderPath?: string) => Promise<string>
   saveRecording?: (filePath: string, buffer: ArrayBuffer) => Promise<any>
@@ -321,6 +323,11 @@ export interface ElectronAPI {
     isRecording: () => Promise<boolean>
     readVideo: (filePath: string) => Promise<ArrayBuffer>
   }
+
+  // Teleprompter window
+  toggleTeleprompterWindow?: () => Promise<{ success: boolean; isVisible?: boolean }>
+  showTeleprompterWindow?: () => Promise<{ success: boolean }>
+  hideTeleprompterWindow?: () => Promise<{ success: boolean }>
 }
 
 declare global {

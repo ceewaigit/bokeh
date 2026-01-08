@@ -11,6 +11,9 @@ import { useProxyStore } from '../store/proxy-store'
 
 const MIN_WIDTH_FOR_PREVIEW_PROXY = 2560
 
+// Active checks to prevent redundant concurrent calls
+const activeChecks = new Map<string, Promise<void>>()
+
 /**
  * ProxyService - Single entry point for all proxy operations
  */
@@ -89,13 +92,7 @@ export const ProxyService = {
                 store.setUrl(recording.id, 'preview', result.proxyUrl)
                 store.setStatus(recording.id, 'ready')
                 store.setProgress(recording.id, 100)
-
-                // Also set on recording object for backward compat
-                try {
-                    (recording as any).previewProxyUrl = result.proxyUrl
-                } catch {
-                    // Object may be frozen
-                }
+                // NOTE: Proxy URLs are stored ONLY in the zustand store - not on recording objects
 
                 return {
                     success: true,
@@ -135,13 +132,7 @@ export const ProxyService = {
 
             if (result.success && result.proxyUrl) {
                 useProxyStore.getState().setUrl(recording.id, 'glow', result.proxyUrl)
-
-                // Also set on recording object for backward compat
-                try {
-                    (recording as any).glowProxyUrl = result.proxyUrl
-                } catch {
-                    // Object may be frozen
-                }
+                // NOTE: Proxy URLs are stored ONLY in the zustand store - not on recording objects
 
                 return {
                     success: true,
@@ -178,58 +169,67 @@ export const ProxyService = {
         const { onProgress, background = true } = options
         const store = useProxyStore.getState()
 
-        if (!recording.filePath) {
+        const filePath = recording.filePath
+        if (!filePath) {
             return
         }
 
-        // Set initial status
-        store.setStatus(recording.id, 'checking')
+        // Prevent concurrent checks for the same recording
+        const existingCheck = activeChecks.get(recording.id)
+        if (existingCheck) {
+            return existingCheck
+        }
 
-        try {
-            // 1. Check for existing preview proxy first
-            const checkResult = await this.checkNeedsProxy(recording.filePath)
+        const checkPromise = (async () => {
+            // Set initial status
+            store.setStatus(recording.id, 'checking')
 
-            if (checkResult.existingProxyUrl) {
-                // CACHE HIT - immediately mark as ready (fixes loading state bug)
-                console.log(`[ProxyService] Using cached preview proxy for ${recording.id}`)
-                store.setUrl(recording.id, 'preview', checkResult.existingProxyUrl)
-                store.setStatus(recording.id, 'ready')
+            try {
+                // 1. Check for existing preview proxy first
+                const checkResult = await this.checkNeedsProxy(filePath)
 
-                try {
-                    (recording as any).previewProxyUrl = checkResult.existingProxyUrl
-                } catch {
-                    // Object frozen
+                if (checkResult.existingProxyUrl) {
+                    // CACHE HIT - immediately mark as ready and store URL
+                    console.log(`[ProxyService] ✅ Using cached preview proxy for ${recording.id}:`, checkResult.existingProxyUrl)
+                    store.setUrl(recording.id, 'preview', checkResult.existingProxyUrl)
+                    store.setStatus(recording.id, 'ready')
+                    // NOTE: Proxy URLs are stored ONLY in the zustand store - not on recording objects
+
+                    // Still generate glow proxy in background
+                    void this.generateGlowProxy(recording)
+                    return
                 }
 
-                // Still generate glow proxy in background
-                void this.generateGlowProxy(recording)
-                return
-            }
+                // 2. Determine if proxy is needed
+                const needsProxy = checkResult.needsProxy ||
+                    (typeof recording.width === 'number' && recording.width > MIN_WIDTH_FOR_PREVIEW_PROXY)
 
-            // 2. Determine if proxy is needed
-            const needsProxy = checkResult.needsProxy ||
-                (typeof recording.width === 'number' && recording.width > MIN_WIDTH_FOR_PREVIEW_PROXY)
+                if (!needsProxy) {
+                    // Small video - no proxy needed
+                    store.setStatus(recording.id, 'idle')
+                    return
+                }
 
-            if (!needsProxy) {
-                // Small video - no proxy needed
-                store.setStatus(recording.id, 'idle')
-                return
+                // 3. Generate proxies
+                if (background) {
+                    // Non-blocking - fire and forget
+                    void this.generatePreviewProxy(recording, onProgress)
+                    void this.generateGlowProxy(recording)
+                } else {
+                    // Blocking - await completion
+                    await this.generatePreviewProxy(recording, onProgress)
+                    await this.generateGlowProxy(recording)
+                }
+            } catch (error) {
+                console.warn('[ProxyService] ensureProxiesForRecording failed:', error)
+                store.setStatus(recording.id, 'error')
+            } finally {
+                activeChecks.delete(recording.id)
             }
+        })()
 
-            // 3. Generate proxies
-            if (background) {
-                // Non-blocking - fire and forget
-                void this.generatePreviewProxy(recording, onProgress)
-                void this.generateGlowProxy(recording)
-            } else {
-                // Blocking - await completion
-                await this.generatePreviewProxy(recording, onProgress)
-                await this.generateGlowProxy(recording)
-            }
-        } catch (error) {
-            console.warn('[ProxyService] ensureProxiesForRecording failed:', error)
-            store.setStatus(recording.id, 'error')
-        }
+        activeChecks.set(recording.id, checkPromise)
+        return checkPromise
     },
 
     /**

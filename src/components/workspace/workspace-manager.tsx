@@ -23,7 +23,6 @@ import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { ZoomBlock, ZoomEffectData } from '@/types/project'
-import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { PlayheadService, type PlayheadState } from '@/features/ui/timeline/playback/playhead-service'
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata'
@@ -42,8 +41,7 @@ import { toast } from 'sonner'
 import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 import { useProjectLoader } from '@/features/core/storage/hooks/use-project-loader'
 import { usePanelResizer } from '@/features/ui/editor/hooks/use-panel-resizer'
-
-
+import { ProxyProgressContainer } from '@/features/proxy'
 
 export function WorkspaceManager() {
   // Store hooks - using reactive state from single source of truth
@@ -138,12 +136,23 @@ export function WorkspaceManager() {
   // Command executor for undo/redo support
   const executorRef = useCommandExecutor()
 
+  // Reset preview state when project changes, safety timeout for edge cases
   useEffect(() => {
     if (!currentProject) {
       setPreviewReady(false)
       return
     }
-  }, [currentProject, setPreviewReady])
+
+    // Safety timeout: if somehow video doesn't fire ready after 10s, proceed anyway
+    if (!previewReady && !isLoading) {
+      const timeout = setTimeout(() => {
+        console.log('[WorkspaceManager] Preview ready timeout (10s) - forcing ready state')
+        setPreviewReady(true)
+      }, 10000)
+
+      return () => clearTimeout(timeout)
+    }
+  }, [currentProject, previewReady, isLoading, setPreviewReady])
 
   // Subscribe to cache invalidation to trigger recalculation
   const cameraPathCache = useProjectStore((s) => s.cameraPathCache)
@@ -207,8 +216,6 @@ export function WorkspaceManager() {
     timelineMutationCounter,
     setCameraPathCache
   ])
-
-
 
   const timelineEffects = useProjectStore((s) => s.currentProject?.timeline?.effects)
   const contextEffects = useMemo(() => timelineEffects ?? [], [timelineEffects])
@@ -356,18 +363,8 @@ export function WorkspaceManager() {
     })
   }, [contextEffects, executorRef])
 
-  // Crop editing state managed by hook
-  const {
-    isEditingCrop,
-    editingCropData,
-    handleAddCrop,
-    handleRemoveCrop,
-    handleUpdateCrop,
-    handleStartEditCrop,
-    handleCropConfirm,
-    handleCropReset,
-    handleCropChange
-  } = useCropManager(selectedClip)
+  // Track crop editing state for preview interactions
+  const isEditingCrop = useProjectStore((s) => s.isEditingCrop)
 
   const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
     executorRef.current?.execute(UpdateZoomBlockCommand, blockId, updates)
@@ -550,10 +547,6 @@ export function WorkspaceManager() {
                     {timelineMetadata ? (
                       <PreviewAreaRemotion
                         isEditingCrop={isEditingCrop}
-                        cropData={editingCropData}
-                        onCropChange={handleCropChange}
-                        onCropConfirm={handleCropConfirm}
-                        onCropReset={handleCropReset}
                         zoomSettings={zoomSettings}
                         glowPortalRootRef={glowPortalRef}
                       />
@@ -606,11 +599,6 @@ export function WorkspaceManager() {
                                 onEffectChange: handleEffectChange,
                                 onZoomBlockUpdate: handleZoomBlockUpdate,
                                 onBulkToggleKeystrokes: handleBulkToggleKeystrokes,
-                                onAddCrop: handleAddCrop,
-                                onRemoveCrop: handleRemoveCrop,
-                                onUpdateCrop: handleUpdateCrop,
-                                onStartEditCrop: handleStartEditCrop,
-                                onStopEditCrop: handleCropConfirm
                               }}
                             >
                               <EffectsSidebar className="h-full w-full" />
@@ -670,6 +658,9 @@ export function WorkspaceManager() {
     <>
       {content}
       {loadingOverlay}
+
+      {/* Proxy progress indicator - shows during background generation */}
+      <ProxyProgressContainer />
     </>
   )
 }

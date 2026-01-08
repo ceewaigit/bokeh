@@ -181,6 +181,11 @@ export const getTimelineColors = () => {
       base: getCSSVar('--info') || '#6366f1',
       glow: isDark ? 'hsl(217, 91%, 70%)' : '#818cf8'
     },
+    // Trim suggestion colors - coral/red-orange for cut actions
+    trim: {
+      base: getCSSVar('--destructive') || '#ef4444',
+      glow: isDark ? 'hsl(0, 72%, 60%)' : '#f87171'
+    },
   }
 }
 
@@ -225,6 +230,7 @@ const getDefaultColors = () => ({
   clipSelected: 'hsl(263, 70%, 50%)',
   speedUpTyping: { base: 'hsl(38, 92%, 50%)', glow: 'hsl(38, 92%, 60%)' },
   speedUpIdle: { base: 'hsl(217, 91%, 60%)', glow: 'hsl(217, 91%, 70%)' },
+  trim: { base: 'hsl(0, 72%, 51%)', glow: 'hsl(0, 72%, 60%)' },
 })
 
 // Hook for React components that updates when theme changes

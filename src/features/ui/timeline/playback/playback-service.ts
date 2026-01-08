@@ -6,7 +6,7 @@
  * This service now only manages play/pause state and time clamping.
  */
 
-import { timeObserver } from '../time/time-observer'
+import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
 
 export class PlaybackService {
   private isPlaying = false
@@ -43,7 +43,7 @@ export class PlaybackService {
    */
   seek(time: number, duration: number): number {
     const clamped = Math.max(0, Math.min(duration, time))
-    timeObserver.pushTime(clamped)
+    useTimeStore.getState().setTime(clamped)
     return clamped
   }
 

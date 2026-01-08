@@ -150,12 +150,8 @@ export class ProjectIOService {
     project = structuredClone(project)
     project.filePath = recording.path
 
-    // Clear stale temp proxy URLs that won't exist after restarts
-    // The proxy service will regenerate them fresh during load
-    for (const rec of project.recordings) {
-      delete (rec as any).previewProxyUrl
-      delete (rec as any).glowProxyUrl
-    }
+    // NOTE: Proxy URLs are stored in the proxy zustand store, not on recording objects
+    // No need to clean them here anymore
 
     // Apply migrations
     onProgress?.('Applying migrations...')
@@ -225,10 +221,13 @@ export class ProjectIOService {
         // Once proxy is ready, future loads will use it instantly
         // SKIP for image clips - static images don't need video proxy conversion
         if (rec.sourceType !== 'image') {
+          const proxyPromise = ProxyService.ensureProxiesForRecording(rec, {
+            onProgress,
+            background: !awaitPlaybackPreparation
+          })
+
           if (awaitPlaybackPreparation) {
-            pendingProxyTasks.push(ProxyService.ensureProxiesForRecording(rec, { onProgress, background: false }))
-          } else {
-            void ProxyService.ensureProxiesForRecording(rec, { onProgress, background: true })
+            pendingProxyTasks.push(proxyPromise)
           }
         }
       }
@@ -300,7 +299,7 @@ export class ProjectIOService {
     EffectInitialization.ensureGlobalEffects(project)
 
     if (awaitPlaybackPreparation && pendingProxyTasks.length > 0) {
-      onProgress?.('Loading...')
+      onProgress?.('Optimizing video for smooth playback...')
       await Promise.all(pendingProxyTasks)
     }
 
@@ -373,13 +372,13 @@ export class ProjectIOService {
   static async saveProject(project: Project): Promise<string | null> {
     // Deep copy to avoid mutating frozen Immer objects.
     // All effects now live in timeline.effects (the SSOT)
-    // Strip temp proxy URLs (they live in /tmp and won't exist after restarts)
+    // NOTE: Proxy URLs are in zustand store, not on recordings, so no need to strip them
     const projectToSave: Project = this.relativizePaths({
       ...project,
       recordings: project.recordings.map(r => {
-        // Destructure to omit temp proxy URLs and deprecated effects array from saved project
+        // Destructure to omit deprecated effects array from saved project
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { previewProxyUrl, glowProxyUrl, effects, ...rest } = r as any
+        const { effects, ...rest } = r as any
         return rest
       }),
       timeline: {

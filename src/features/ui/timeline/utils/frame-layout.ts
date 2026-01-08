@@ -162,8 +162,10 @@ export function buildFrameLayout(
       const lastSourceOut = lastClip.sourceOut ?? (lastClip.sourceIn + lastClip.duration);
       const sourceGap = Math.abs(lastSourceOut - clip.sourceIn);
       const hasTransition = !!lastClip.transitionOut || !!clip.transitionIn;
+      // Clips with different playback rates should NOT be grouped - timing formula breaks across rate changes
+      const samePlaybackRate = (lastClip.playbackRate || 1) === (clip.playbackRate || 1);
 
-      if (timelineGap <= 1 && sourceGap <= 50 && !hasTransition) {
+      if (timelineGap <= 1 && sourceGap <= 50 && !hasTransition && samePlaybackRate) {
         isContiguous = true;
       }
     }

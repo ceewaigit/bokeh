@@ -39,8 +39,8 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
     <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <div className="flex items-center gap-2 px-2.5 h-6 bg-accent/15 rounded-xl">
         <Film className="w-3.5 h-3.5 text-accent flex-shrink-0" />
-        <span className="font-bold text-xs text-accent uppercase tracking-[0.1em] whitespace-nowrap">
-          Library
+        <span className="font-bold text-xs text-accent tracking-[0.1em] whitespace-nowrap">
+          bokeh library
         </span>
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/80 backdrop-blur-md px-2.5 h-6 rounded-full border border-border/60 shadow-sm">

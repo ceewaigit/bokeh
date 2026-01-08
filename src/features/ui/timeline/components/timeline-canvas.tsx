@@ -33,16 +33,17 @@ import { TimelineClip } from './timeline-clip'
 import { TimelineTrack } from './timeline-track'
 import { TimelinePlayhead } from './timeline-playhead'
 import { TimelineGhostPlayhead } from './timeline-ghost-playhead'
-import { TimelineSpeedUpOverlays } from './timeline-speed-up-overlays'
-import { SpeedUpSuggestionPopover } from './speed-up-suggestion-popover'
+import { TimelineActivityOverlays } from './timeline-activity-overlays'
+import { ActivitySuggestionPopover } from './activity-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
 import { TimelineContextProvider } from './TimelineContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
+import { SpeedUpType } from '@/types/speed-up'
 import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-store'
 import { ApplySpeedUpCommand } from '@/features/core/commands/timeline/ApplySpeedUpCommand'
-import { timeObserver } from '@/features/ui/timeline/time/time-observer'
 import { ApplyAllSpeedUpsCommand } from '@/features/core/commands/timeline/ApplyAllSpeedUpsCommand'
+import { ApplyAutoTrimCommand } from '@/features/core/commands/timeline/ApplyAutoTrimCommand'
 import { TimelineAssetDropOverlay } from './timeline-asset-drop-overlay'
 import { useTimelineEffects } from '@/features/core/stores/selectors/timeline-selectors'
 
@@ -62,6 +63,7 @@ import { useAssetDragDrop } from '@/features/ui/editor/hooks/use-asset-drag-drop
 
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { KonvaEventObject } from 'konva/lib/Node'
+import { useTimeStore } from '../stores/time-store'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Build time blocks from clips (for snapping)
@@ -408,7 +410,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
       const container = scrollContainerRef.current
       if (!container) return
 
-      const time = timeObserver.getTime()
+      const time = useTimeStore.getState().currentTime
       const playheadX = TimeConverter.msToPixels(time, pixelsPerMs)
       const scrollWidth = container.scrollWidth - container.clientWidth
       const currentScrollLeft = container.scrollLeft
@@ -505,6 +507,16 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const handleApplyAllSpeedUps = useCallback(async () => {
     if (!executorRef.current) return
     await executorRef.current.execute(ApplyAllSpeedUpsCommand, { applyTyping: true, applyIdle: true })
+    setSpeedUpPopover(null)
+  }, [executorRef])
+
+  const handleApplyTrim = useCallback(async (period: SpeedUpPeriod, clipId: string) => {
+    if (!executorRef.current) return
+    const options = {
+      trimStart: period.type === SpeedUpType.TrimStart,
+      trimEnd: period.type === SpeedUpType.TrimEnd
+    }
+    await executorRef.current.execute(ApplyAutoTrimCommand, clipId, options)
     setSpeedUpPopover(null)
   }, [executorRef])
 
@@ -814,15 +826,15 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                 <TimelineRuler />
               </Layer>
 
-              {/* Speed-up Overlay Layer */}
-              <Layer>
-                <TimelineSpeedUpOverlays />
-              </Layer>
-
               {/* Playhead Layer */}
               <Layer>
                 <TimelineGhostPlayhead />
                 <TimelinePlayhead />
+              </Layer>
+
+              {/* Activity Overlay Layer - Rendered last to ensure it captures clicks */}
+              <Layer>
+                <TimelineActivityOverlays />
               </Layer>
             </Stage>
 
@@ -844,15 +856,16 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
               pixelsPerMs={pixelsPerMs}
             />
 
-            {/* Speed-up suggestion popover */}
+            {/* Activity suggestion popover */}
             {speedUpPopover && (
-              <SpeedUpSuggestionPopover
+              <ActivitySuggestionPopover
                 x={speedUpPopover.x}
                 y={speedUpPopover.y}
                 period={speedUpPopover.period}
                 allTypingPeriods={speedUpPopover.allTypingPeriods}
                 allIdlePeriods={speedUpPopover.allIdlePeriods}
-                onApply={(p) => handleApplySpeedUp(p, speedUpPopover.clipId)}
+                onApply={(p: SpeedUpPeriod) => handleApplySpeedUp(p, speedUpPopover.clipId)}
+                onTrim={(p: SpeedUpPeriod) => handleApplyTrim(p, speedUpPopover.clipId)}
                 onApplyAll={handleApplyAllSpeedUps}
                 onClose={() => setSpeedUpPopover(null)}
               />

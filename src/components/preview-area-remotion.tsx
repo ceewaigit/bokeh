@@ -34,10 +34,6 @@ import { AnnotationDock } from '@/features/effects/annotation/ui/AnnotationDock'
 interface PreviewAreaRemotionProps {
   // Crop editing props
   isEditingCrop?: boolean;
-  cropData?: CropEffectData | null;
-  onCropChange?: (cropData: CropEffectData) => void;
-  onCropConfirm?: () => void;
-  onCropReset?: () => void;
   zoomSettings?: ZoomSettings;
   glowPortalRootRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -45,10 +41,6 @@ interface PreviewAreaRemotionProps {
 
 export function PreviewAreaRemotion({
   isEditingCrop,
-  cropData,
-  onCropChange,
-  onCropConfirm,
-  onCropReset,
   zoomSettings,
   glowPortalRootRef,
 }: PreviewAreaRemotionProps) {
@@ -258,10 +250,6 @@ export function PreviewAreaRemotion({
         isPlaying={isPlaying}
         isScrubbing={isScrubbing}
         isEditingCrop={Boolean(isEditingCrop)}
-        cropData={cropData || null}
-        onCropChange={onCropChange}
-        onCropConfirm={onCropConfirm}
-        onCropReset={onCropReset}
         zoomSettings={zoomSettings}
         glowPortalRoot={glowPortalRoot}
         glowPortalStyle={glowPortalStyle}
@@ -282,10 +270,6 @@ export function PreviewAreaRemotion({
     isPlaying,
     isScrubbing,
     isEditingCrop,
-    cropData,
-    onCropChange,
-    onCropConfirm,
-    onCropReset,
     zoomSettings,
     glowPortalRoot,
     glowPortalStyle,

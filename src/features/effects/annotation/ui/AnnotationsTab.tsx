@@ -9,6 +9,7 @@ import { getDefaultAnnotationSize } from '../config'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
 import { Type, ArrowRight, Highlighter, EyeOff, Trash2 } from 'lucide-react'
+import { AnnotationDragPreview, useAnnotationDragSource } from './AnnotationDragPreview'
 import {
   Dialog,
   DialogContent,
@@ -56,6 +57,41 @@ function getAnnotationTypeLabel(type?: AnnotationType): string {
   if (type === AnnotationType.Blur) return 'Blur (legacy)'
   const meta = ANNOTATION_TYPES.find((t) => t.type === type)
   return meta?.label ?? (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Unknown')
+}
+
+// Button component that uses the drag source hook
+interface AnnotationTypeButtonProps {
+  type: AnnotationType
+  label: string
+  description: string
+  icon: React.ComponentType<{ className?: string }>
+  onAdd: (type: AnnotationType) => void
+}
+
+function AnnotationTypeButton({ type, label, description, icon: Icon, onAdd }: AnnotationTypeButtonProps) {
+  const dragProps = useAnnotationDragSource(type)
+
+  return (
+    <button
+      {...dragProps}
+      onClick={() => onAdd(type)}
+      className={cn(
+        'group flex flex-col items-start gap-1 rounded-md p-2.5 text-left',
+        'border border-border/50 bg-background/40',
+        'hover:bg-background/80 hover:border-border',
+        'transition-colors duration-100',
+        'cursor-grab active:cursor-grabbing'
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" />
+        <span className="text-2xs font-medium">{label}</span>
+      </div>
+      <span className="text-3xs text-muted-foreground/80 leading-snug">
+        {description}
+      </span>
+    </button>
+  )
 }
 
 export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: AnnotationsTabProps) {
@@ -179,31 +215,22 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             Create overlay
           </div>
           <div className="text-3xs text-muted-foreground/70">
-            Click a type to place it
+            Click or drag to add
           </div>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-1.5">
           {ANNOTATION_TYPES.map(({ type, label, description, icon: Icon }) => (
-            <button
+            <AnnotationTypeButton
               key={type}
-              onClick={() => handleAddAnnotation(type)}
-              className={cn(
-                'group flex flex-col items-start gap-1 rounded-md p-2.5 text-left',
-                'border border-border/50 bg-background/40',
-                'hover:bg-background/80 hover:border-border',
-                'transition-colors duration-100'
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <Icon className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground" />
-                <span className="text-2xs font-medium">{label}</span>
-              </div>
-              <span className="text-3xs text-muted-foreground/80 leading-snug">
-                {description}
-              </span>
-            </button>
+              type={type}
+              label={label}
+              description={description}
+              icon={Icon}
+              onAdd={handleAddAnnotation}
+            />
           ))}
         </div>
+        <AnnotationDragPreview />
       </div>
 
       {/* Selected annotation editor */}

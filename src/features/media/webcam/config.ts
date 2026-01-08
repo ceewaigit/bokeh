@@ -4,18 +4,18 @@ import { OverlayAnchor } from '@/types/overlays'
 
 // Default webcam effect data - Apple-quality PiP styling
 export const DEFAULT_WEBCAM_DATA: WebcamLayoutData = {
-    // Position anchored to bottom-right, padding controls edge distance
+    // Position anchored to bottom-left, padding controls edge distance
     position: {
-        x: 100,
+        x: 0,
         y: 100,
-        anchor: OverlayAnchor.BottomRight as any // Cast for now to fix circularity or mismatch
+        anchor: OverlayAnchor.BottomLeft as any
     },
     size: 18, // 18% of canvas width - compact but visible
     padding: 12, // Edge padding in pixels
 
-    // Squircle shape for clean, modern Apple-esque look
-    shape: 'squircle',
-    cornerRadius: 40, // Larger radius for smoother squircle
+    // Rounded rectangle shape for clean, modern look
+    shape: 'rounded-rect',
+    cornerRadius: 16, // Default radius for rounded-rect
 
     // No border by default for cleaner appearance
     borderEnabled: false,

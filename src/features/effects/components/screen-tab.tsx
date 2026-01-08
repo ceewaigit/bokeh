@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { BackgroundEffectData, Effect, CropEffectData } from '@/types/project'
+import type { BackgroundEffectData, Effect } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { ShapeTab } from './shape-tab'
 import { ClipTab } from './clip-tab'
@@ -12,16 +12,12 @@ import { CropTab } from './crop-tab'
 import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
+import { useProjectStore } from '@/features/core/stores/project-store'
 
 interface ScreenTabProps {
     backgroundEffect: Effect | undefined
     effects: Effect[]
     onUpdateBackground: (updates: Partial<BackgroundEffectData>) => void
-    onAddCrop?: () => void
-    onRemoveCrop?: (effectId: string) => void
-    onUpdateCrop?: (effectId: string, updates: Partial<CropEffectData>) => void
-    onStartEditCrop?: () => void
-    isEditingCrop?: boolean
 }
 
 interface CollapsibleSectionProps {
@@ -104,16 +100,12 @@ export function ScreenTab({
     backgroundEffect,
     effects,
     onUpdateBackground,
-    onAddCrop,
-    onRemoveCrop,
-    onUpdateCrop,
-    onStartEditCrop,
-    isEditingCrop = false,
 }: ScreenTabProps) {
     const selectedClipResult = useSelectedClip()
     const selectedClip = selectedClipResult?.clip ?? null
     const selectedTrackType = selectedClipResult?.track.type
     const isVideoClipSelected = !!selectedClip && selectedTrackType === TrackType.Video
+    const isEditingCrop = useProjectStore((s) => s.isEditingCrop)
 
     const [speedFadeOpen, setSpeedFadeOpen] = useState(false)
     const [cropOpen, setCropOpen] = useState(false)
@@ -168,7 +160,7 @@ export function ScreenTab({
                 onToggle={() => setSpeedFadeOpen(!speedFadeOpen)}
                 disabled={!selectedClip}
                 disabledTooltip="Select a clip on the timeline to adjust speed and fade settings"
-                badge={selectedClip ? 'Clip Selected' : undefined}
+                badge={selectedClip ? 'Selected' : undefined}
             >
                 {selectedClip && <ClipTab selectedClip={selectedClip} />}
             </CollapsibleSection>
@@ -184,13 +176,7 @@ export function ScreenTab({
             >
                 {isVideoClipSelected && (
                     <CropTab
-                        effects={effects}
                         selectedClip={selectedClip}
-                        onAddCrop={onAddCrop ?? (() => { })}
-                        onRemoveCrop={onRemoveCrop ?? (() => { })}
-                        onUpdateCrop={onUpdateCrop ?? (() => { })}
-                        onStartEditCrop={onStartEditCrop ?? (() => { })}
-                        isEditingCrop={isEditingCrop}
                     />
                 )}
             </CollapsibleSection>

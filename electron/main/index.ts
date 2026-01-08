@@ -130,7 +130,7 @@ async function initializeApp(): Promise<void> {
 
   // Explicitly set dock icon on macOS (especially needed for dev mode)
   if (process.platform === 'darwin' && app.dock) {
-    const iconPath = isDev
+    const iconPath = !app.isPackaged
       ? path.join(__dirname, '../../../public/brand/icon.png')
       : path.join(process.resourcesPath, 'public/brand/icon.png')
 

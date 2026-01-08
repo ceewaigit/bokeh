@@ -499,7 +499,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             </div>
             <div
               ref={parallaxPreviewRef}
-              className="relative aspect-video rounded-lg overflow-hidden border border-border/20 bg-gradient-to-b from-sky-400 to-sky-600"
+              className="relative aspect-video rounded-lg overflow-hidden bg-gradient-to-b from-sky-400 to-sky-600"
               onMouseEnter={() => setParallaxPreviewMouse(m => ({ ...m, active: true }))}
               onMouseLeave={() => {
                 if (parallaxPreviewRafRef.current !== null) {

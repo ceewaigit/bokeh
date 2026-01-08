@@ -1,15 +1,18 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { AbsoluteFill, useVideoConfig, useCurrentFrame, getRemotionEnvironment } from 'remotion';
 import { KeystrokeRenderer, type KeystrokeDrawRect } from '@/features/effects/keystroke/renderer';
-import type { KeystrokeEffectData } from '@/types/project';
+import { EffectType, type KeystrokeEffectData, type Effect, type KeyboardEvent } from '@/types/project';
 
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
 import { useComposition } from '../../context/CompositionContext';
+import { useTimelineContext } from '../../context/TimelineContext';
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config';
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context';
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext';
 import { KeystrokePreviewOverlay } from '@/features/effects/keystroke/components/keystroke-preview-overlay';
+import { calculateVideoPosition } from '@/features/rendering/renderer/engine/layout-engine';
+import { OverlayAnchor } from '@/types/overlays';
 
 export const KeystrokeLayer: React.FC = () => {
   const sourceTimeMs = useSourceTime();
@@ -19,42 +22,84 @@ export const KeystrokeLayer: React.FC = () => {
   const frame = useCurrentFrame();
   const { resolvedAnchors } = useOverlayContext();
   const videoPosition = useVideoPosition();
-  const { isRendering } = getRemotionEnvironment();
+  const { getRecording } = useTimelineContext();
 
-  const keystrokeEffects = useMemo(() => {
-    return effects.filter(e => e.type === 'keystroke');
-  }, [effects]);
+  // Calculate dimensions for THIS clip's recording (architectural fix)
+  // Previously used global VideoPositionContext which could have dimensions for a different clip
+  const clipLayout = useMemo(() => {
+    const recording = getRecording(clip.recordingId);
+    if (!recording) {
+      return { drawWidth: width, drawHeight: height, offsetX: 0, offsetY: 0 };
+    }
+    const padding = videoPosition.paddingScaled ?? 0;
+    return calculateVideoPosition(width, height, recording.width, recording.height, padding);
+  }, [clip.recordingId, getRecording, width, height, videoPosition.paddingScaled]);
 
-  const frameDurationMs = useMemo(() => 1000 / fps, [fps]);
 
-  const timelineTimeMs = useMemo(() => {
-    return clip.startTime + ((frame + 0.5) / fps) * 1000;
-  }, [clip.startTime, frame, fps]);
-
-  const sortedKeystrokeEffects = useMemo(() => {
-    return [...keystrokeEffects].sort((a, b) => a.startTime - b.startTime);
-  }, [keystrokeEffects]);
-
-  const activeEffect = useMemo(() => {
+  const activeKeystrokeEffects = useMemo(() => {
+    const frameDurationMs = 1000 / fps;
+    const timelineTimeMs = clip.startTime + ((frame + 0.5) / fps) * 1000;
     const tolerance = frameDurationMs;
-    return sortedKeystrokeEffects.find(
-      (e) =>
-        e.enabled &&
-        timelineTimeMs + tolerance >= e.startTime &&
-        timelineTimeMs <= e.endTime + tolerance
+
+    return effects.filter(e =>
+      e.type === EffectType.Keystroke &&
+      e.enabled &&
+      timelineTimeMs + tolerance >= e.startTime &&
+      timelineTimeMs <= e.endTime + tolerance
     );
-  }, [sortedKeystrokeEffects, timelineTimeMs, frameDurationMs]);
+  }, [effects, clip.startTime, frame, fps]);
+
+  if (activeKeystrokeEffects.length === 0) {
+    return null;
+  }
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none', zIndex: 150 }}>
+      {activeKeystrokeEffects.map(effect => (
+        <KeystrokeEffectRenderer
+          key={effect.id}
+          effect={effect}
+          sourceTimeMs={sourceTimeMs}
+          keystrokeEvents={keystrokeEvents}
+          clipLayout={clipLayout}
+          resolvedAnchor={resolvedAnchors.get(effect.id)}
+        />
+      ))}
+    </AbsoluteFill>
+  );
+};
+
+interface KeystrokeEffectRendererProps {
+  effect: Effect;
+  sourceTimeMs: number;
+  keystrokeEvents: KeyboardEvent[];
+  clipLayout: {
+    drawWidth: number;
+    drawHeight: number;
+    offsetX: number;
+    offsetY: number;
+  };
+  resolvedAnchor?: OverlayAnchor;
+}
+
+const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
+  effect,
+  sourceTimeMs,
+  keystrokeEvents,
+  clipLayout,
+  resolvedAnchor
+}) => {
+  const { isRendering } = getRemotionEnvironment();
 
   // Merge effect data with defaults - pass ALL settings
   const settings = useMemo<KeystrokeEffectData>(() => {
-    const data = activeEffect?.data as KeystrokeEffectData | undefined;
-    const resolvedAnchor = activeEffect ? resolvedAnchors.get(activeEffect.id) : undefined;
+    const data = effect.data as KeystrokeEffectData | undefined;
     return {
       ...DEFAULT_KEYSTROKE_DATA,
       ...data,
       ...(resolvedAnchor ? { anchor: resolvedAnchor } : {})
     };
-  }, [activeEffect, resolvedAnchors]);
+  }, [effect.data, resolvedAnchor]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<KeystrokeRenderer | null>(null);
@@ -63,8 +108,7 @@ export const KeystrokeLayer: React.FC = () => {
   const settingsVersionRef = useRef(0);
   const dpr = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
 
-  const shouldRender = !!activeEffect &&
-    keystrokeEvents.length > 0;
+  const shouldRender = keystrokeEvents.length > 0;
 
   // Create/update renderer when settings change
   useEffect(() => {
@@ -85,9 +129,9 @@ export const KeystrokeLayer: React.FC = () => {
     rendererRef.current.setKeyboardEvents(keystrokeEvents);
   }, [shouldRender, settings, keystrokeEvents, dpr]);
 
-  // Render keystrokes
+  // Render keystrokes (Canvas Path)
   useEffect(() => {
-    if (!shouldRender) return;
+    if (!shouldRender || !isRendering) return;
     if (!canvasRef.current || !rendererRef.current) return;
 
     const ctx = canvasRef.current.getContext('2d');
@@ -100,65 +144,66 @@ export const KeystrokeLayer: React.FC = () => {
       lastDrawRectRef.current = null;
     }
 
-    const drawWidth = videoPosition.drawWidth || width;
-    const drawHeight = videoPosition.drawHeight || height;
-    const rect = rendererRef.current.render(sourceTimeMs, drawWidth, drawHeight);
+    // Use clip-specific dimensions for rendering
+    const rect = rendererRef.current.render(sourceTimeMs, clipLayout.drawWidth, clipLayout.drawHeight);
     if (rect) {
       lastDrawRectRef.current = rect;
     }
-  }, [shouldRender, sourceTimeMs, width, height, videoPosition.drawWidth, videoPosition.drawHeight, settings]);
+  }, [shouldRender, isRendering, sourceTimeMs, clipLayout.drawWidth, clipLayout.drawHeight, settings]);
 
   if (!shouldRender) {
     return null;
   }
 
+  // Use clip-specific dimensions (architectural fix: dimensions from this clip's recording)
+  const effectiveWidth = clipLayout.drawWidth;
+  const effectiveHeight = clipLayout.drawHeight;
+  const effectiveOffsetX = clipLayout.offsetX;
+  const effectiveOffsetY = clipLayout.offsetY;
+
   if (!isRendering) {
     return (
-      <AbsoluteFill style={{ pointerEvents: 'none', zIndex: 150 }}>
-        <div
+      <div
+        style={{
+          position: 'absolute',
+          left: effectiveOffsetX,
+          top: effectiveOffsetY,
+          width: effectiveWidth,
+          height: effectiveHeight,
+          pointerEvents: 'none',
+        }}
+      >
+        <KeystrokePreviewOverlay
           data-keystroke-layer="true"
-          data-effect-id={activeEffect.id}
-          style={{
-            position: 'absolute',
-            left: videoPosition.offsetX || 0,
-            top: videoPosition.offsetY || 0,
-            width: videoPosition.drawWidth || '100%',
-            height: videoPosition.drawHeight || '100%',
-            pointerEvents: 'none',
-          }}
-        >
-          <KeystrokePreviewOverlay
-            currentTimeMs={sourceTimeMs}
-            keystrokeEvents={keystrokeEvents}
-            settings={settings}
-            enabled
-          />
-        </div>
-      </AbsoluteFill>
+          data-effect-id={effect.id}
+          currentTimeMs={sourceTimeMs}
+          keystrokeEvents={keystrokeEvents}
+          settings={settings}
+          enabled
+        />
+      </div>
     );
   }
 
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none', zIndex: 150 }}>
-      <canvas
-        ref={canvasRef}
-        data-keystroke-layer="true"
-        data-effect-id={activeEffect.id}
-        width={(videoPosition.drawWidth || width) * dpr}
-        height={(videoPosition.drawHeight || height) * dpr}
-        style={{
-          position: 'absolute',
-          left: videoPosition.offsetX || 0,
-          top: videoPosition.offsetY || 0,
-          width: videoPosition.drawWidth || '100%',
-          height: videoPosition.drawHeight || '100%',
-          pointerEvents: 'none',
-          // Force GPU compositing for crisp rendering
-          transform: 'translateZ(0)',
-          willChange: 'transform',
-          backfaceVisibility: 'hidden',
-        }}
-      />
-    </AbsoluteFill>
+    <canvas
+      ref={canvasRef}
+      data-keystroke-layer="true"
+      data-effect-id={effect.id}
+      width={effectiveWidth * dpr}
+      height={effectiveHeight * dpr}
+      style={{
+        position: 'absolute',
+        left: effectiveOffsetX,
+        top: effectiveOffsetY,
+        width: effectiveWidth,
+        height: effectiveHeight,
+        pointerEvents: 'none',
+        // Force GPU compositing for crisp rendering
+        transform: 'translateZ(0)',
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
+      }}
+    />
   );
 };

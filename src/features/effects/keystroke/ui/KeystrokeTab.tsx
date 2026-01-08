@@ -6,6 +6,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AccordionSection } from '@/components/ui/accordion-section'
+import { RotateCcw } from 'lucide-react'
 import type { KeystrokeEffectData, Effect, KeyboardEvent } from '@/types/project'
 import { EffectType } from '@/types'
 import { OverlayAnchor } from '@/types/overlays'
@@ -151,6 +152,13 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             <div className="mt-1 text-xs text-muted-foreground leading-snug">
               Display key presses on screen
             </div>
+            <button
+              onClick={() => onUpdateKeystroke(DEFAULT_KEYSTROKE_DATA)}
+              className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset to default</span>
+            </button>
             <div className="mt-0.5 text-xs text-muted-foreground/70 tabular-nums">
               {keystrokeEffects.length > 0 ? `${keystrokeEffects.length} blocks` : `${keyboardEventCount} events`}
             </div>

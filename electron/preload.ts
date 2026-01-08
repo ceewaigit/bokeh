@@ -508,6 +508,16 @@ const electronAPI = {
     readVideo: (filePath: string) => ipcRenderer.invoke('native-recorder:read-video', filePath)
   },
 
+  // Teleprompter window
+  toggleTeleprompterWindow: () =>
+    ipcRenderer.invoke('toggle-teleprompter-window'),
+
+  showTeleprompterWindow: () =>
+    ipcRenderer.invoke('show-teleprompter-window'),
+
+  hideTeleprompterWindow: () =>
+    ipcRenderer.invoke('hide-teleprompter-window'),
+
   // Restricted IPC surface for export flows
   ipc: restrictedIpc
 }

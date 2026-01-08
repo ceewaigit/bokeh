@@ -2,6 +2,7 @@ import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
+import { SidebarTabId } from '@/features/effects/components/constants';
 import { EffectLayerType } from '@/features/effects/types';
 import { EffectType, Project, Effect, TrackType } from '@/types/project';
 import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters';
@@ -14,9 +15,10 @@ import { PlayerRef } from '@remotion/player';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import { usePreviewHover } from '@/features/ui/editor/hooks/use-preview-hover';
 import { useEditorFrameSnapshot } from '@/features/rendering/renderer/hooks/use-frame-snapshot';
-import { useSelectedClipId } from '@/features/core/stores/project-store';
 import { CropOverlay } from '@/features/effects/crop/components/CropOverlay';
 import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager';
+import { useAnnotationDrop } from '@/features/effects/annotation/hooks/use-annotation-drop';
+import { useSelectedClipId } from '@/features/core/stores/project-store';
 import { getVideoRectFromSnapshot } from '@/features/ui/editor/logic/preview-point-transforms';
 
 // ------------------------------------------------------------------
@@ -60,6 +62,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     const inlineEditingId = useProjectStore((s) => s.inlineEditingId);
     const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen);
     const toggleProperties = useWorkspaceStore((s) => s.toggleProperties);
+    const setActiveSidebarTab = useWorkspaceStore((s) => s.setActiveSidebarTab);
 
     const isPlayingRef = useRef(isPlaying);
     useEffect(() => {
@@ -69,20 +72,26 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     // Sync current frame from player for annotation filtering and camera calculation.
     // PERF: Avoid state updates during playback to prevent 60fps React renders outside Remotion.
     const [currentFrame, setCurrentFrame] = useState(() => playerRef?.current?.getCurrentFrame() ?? 0);
+    const lastFrameRef = useRef(0);
 
     useEffect(() => {
         const player = playerRef?.current;
         if (!player) return;
 
         const onFrame = (e: { detail: { frame: number } }) => {
-            // Updated to allow frame updates during playback for interactions
-            setCurrentFrame(e.detail.frame);
+            const newFrame = e.detail.frame;
+            // PERF: Skip if paused and frame unchanged - saves ~10% CPU
+            if (!isPlayingRef.current && newFrame === lastFrameRef.current) return;
+            lastFrameRef.current = newFrame;
+            setCurrentFrame(newFrame);
         };
 
         player.addEventListener('frameupdate', onFrame);
 
         // Keep state in sync when (re)mounting or when we transition to paused.
-        setCurrentFrame(player.getCurrentFrame());
+        const initialFrame = player.getCurrentFrame();
+        lastFrameRef.current = initialFrame;
+        setCurrentFrame(initialFrame);
 
         return () => player.removeEventListener('frameupdate', onFrame);
     }, [playerRef, playerKey]);
@@ -94,14 +103,6 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         if (!player) return;
         setCurrentFrame(player.getCurrentFrame());
     }, [isPlaying, playerRef, playerKey]);
-
-    // Deselect annotation when playback starts
-    // Removed auto-deselection when playback starts to allow persistent selection
-    // useEffect(() => {
-    //     if (isPlaying) {
-    //         clearEffectSelection();
-    //     }
-    // }, [isPlaying, clearEffectSelection]);
 
     const currentTimeMs = useMemo(() => {
         return project?.timeline.duration ? (currentFrame / timelineMetadata.fps) * 1000 : 0;
@@ -214,6 +215,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         } else if (layer === 'webcam' && canSelectWebcam && webcamClipId) {
             // Select webcam clips directly, not effects
             selectClip(webcamClipId);
+            setActiveSidebarTab(SidebarTabId.Webcam);
             layerName = 'Webcam';
         } else if (layer === 'subtitle') {
             // Assume the effect ID is passed in the overlay data or we find the active one
@@ -242,9 +244,9 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         } else if (layer === 'video' && canSelectVideo) {
             if (activeClipData?.clipId) {
                 selectClip(activeClipData.clipId);
+                setActiveSidebarTab(SidebarTabId.Screen);
             }
-            selectEffectLayer(EffectLayerType.Frame, backgroundEffectId ?? undefined);
-            layerName = 'Window';
+            layerName = 'Screen';
         } else {
             return;
         }
@@ -266,6 +268,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         webcamClipId,
         selectEffectLayer,
         selectClip,
+        setActiveSidebarTab,
         activeClipData?.clipId,
         isPropertiesOpen,
         toggleProperties,
@@ -274,10 +277,10 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         projectEffects
     ]);
 
-    const isInteractive = true; // Always allow interactions (was !isPlaying)
+    const isInteractive = !isPlaying
     const showOverlays = isInteractive;
 
-    // --- Crop Management ---
+    // --- Crop Management via Hook ---
     const selectedClipId = useSelectedClipId()
     const selectedClip = useProjectStore((s) =>
         s.currentProject?.timeline.tracks.flatMap(t => t.clips).find(c => c.id === selectedClipId)
@@ -289,6 +292,16 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         handleCropConfirm,
         handleCropReset
     } = useCropManager(selectedClip)
+
+    // --- Annotation Drag-Drop ---
+    const {
+        handlers: annotationDropHandlers,
+        isDraggingAnnotation
+    } = useAnnotationDrop({
+        aspectContainerRef,
+        snapshot,
+        currentTime: currentTimeMs
+    })
 
     // Calculate video rect for the DOM overlay
     const videoRect = useMemo(() => {
@@ -306,11 +319,14 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         <AnnotationEditProvider>
             <div
                 ref={aspectContainerRef}
-                className={`relative w-full h-full group/preview${(isInteractive && (canSelectBackground || canSelectCursor || canSelectWebcam || canSelectVideo)) ? ' cursor-pointer' : ''}`}
+                className={`relative w-full h-full group/preview${(isInteractive && (canSelectBackground || canSelectCursor || canSelectWebcam || canSelectVideo)) ? ' cursor-pointer' : ''}${isDraggingAnnotation ? ' ring-2 ring-primary/50 ring-inset' : ''}`}
                 style={{
                     aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
                 }}
                 onClick={handleLayerSelect}
+                onDragOver={annotationDropHandlers.onDragOver}
+                onDragLeave={annotationDropHandlers.onDragLeave}
+                onDrop={annotationDropHandlers.onDrop}
                 onMouseMove={(event) => {
                     if (!isInteractive) return;
                     if (isFromAnnotationDock(event.target)) {

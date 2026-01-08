@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useCallback } from 'react'
+import React, { useRef, useCallback, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import type { CropEffectData } from '@/types/project'
 import { clampCropData } from '@/features/rendering/canvas/math/transforms/crop-transform'
@@ -9,7 +9,7 @@ import { useCanvasDrag, type DragType, type CanvasDragDelta, type HandlePosition
 interface CropOverlayProps {
   /** Current crop data (0-1 normalized) */
   cropData: CropEffectData
-  /** Called when crop changes during drag */
+  /** Called when crop changes - only called on drag end for performance */
   onCropChange: (cropData: CropEffectData) => void
   /** Called when user confirms the crop */
   onConfirm: () => void
@@ -45,17 +45,35 @@ export function CropOverlay({
 }: CropOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  // PERFORMANCE: Local transient state during drag operations
+  // This prevents expensive store updates on every mouse move
+  const [localCropData, setLocalCropData] = useState<CropEffectData>(cropData)
+  const [isDragging, setIsDragging] = useState(false)
+  const pendingCropRef = useRef<CropEffectData | null>(null)
+
+  // Sync local state with prop when not dragging
+  useEffect(() => {
+    if (!isDragging) {
+      setLocalCropData(cropData)
+    }
+  }, [cropData, isDragging])
+
+  // Use local state for visual rendering (smooth during drag)
+  const displayCropData = localCropData
+
   // Convert crop data to pixel coordinates
   const cropRect = {
-    x: videoRect.x + cropData.x * videoRect.width,
-    y: videoRect.y + cropData.y * videoRect.height,
-    width: cropData.width * videoRect.width,
-    height: cropData.height * videoRect.height,
+    x: videoRect.x + displayCropData.x * videoRect.width,
+    y: videoRect.y + displayCropData.y * videoRect.height,
+    width: displayCropData.width * videoRect.width,
+    height: displayCropData.height * videoRect.height,
   }
 
   const handleDrag = useCallback(
     (delta: CanvasDragDelta, dragType: DragType, initialCrop: CropEffectData | null) => {
       if (!initialCrop) return
+
+      setIsDragging(true)
 
       const deltaX = delta.x / videoRect.width
       const deltaY = delta.y / videoRect.height
@@ -105,13 +123,25 @@ export function CropOverlay({
       }
 
       newCrop = clampCropData(newCrop)
-      onCropChange(newCrop)
+      // PERFORMANCE: Update local state only (no store update during drag)
+      setLocalCropData(newCrop)
+      pendingCropRef.current = newCrop
     },
-    [videoRect, onCropChange]
+    [videoRect]
   )
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+    // Commit to store only once when drag ends
+    if (pendingCropRef.current) {
+      onCropChange(pendingCropRef.current)
+      pendingCropRef.current = null
+    }
+  }, [onCropChange])
 
   const { startDrag } = useCanvasDrag<CropEffectData>({
     onDrag: handleDrag,
+    onDragEnd: handleDragEnd,
   })
 
   const handleMouseDown = (e: React.MouseEvent, type: DragType) => {
@@ -275,7 +305,7 @@ export function CropOverlay({
             backdropFilter: 'blur(4px)',
           }}
         >
-          {Math.round(cropData.width * 100)} × {Math.round(cropData.height * 100)}
+          {Math.round(displayCropData.width * 100)} × {Math.round(displayCropData.height * 100)}
         </div>
       )}
 

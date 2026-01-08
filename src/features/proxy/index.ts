@@ -24,7 +24,7 @@ export { useProxyWorkflow } from './hooks/use-proxy-workflow'
 
 // Components
 export { LargeVideoDialog } from './components/large-video-dialog'
-export { ProxyProgress } from './components/proxy-progress'
+export { ProxyProgress, ProxyProgressContainer } from './components/proxy-progress'
 
 // Types
 export type {

@@ -51,12 +51,14 @@ export const CURSOR_THEMES: Record<CursorTheme, CursorThemeConfig> = {
     }
 }
 
+import { CURSOR_CONSTANTS } from './constants'
+
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     style: CursorStyle.MacOS,
     theme: CursorTheme.Default,
-    size: 5,
+    size: CURSOR_CONSTANTS.DEFAULT_SIZE,
     color: '#ffffff',
-    speed: 0.25,
+    speed: 0.01,
     smoothness: 0.25,
     glide: 0.15,
     gliding: true,
@@ -64,7 +66,7 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     motionBlurIntensity: 40,
     idleTimeout: 3000,
     clickEffects: true,
-    clickEffectStyle: 'ripple',
+    clickEffectStyle: 'none',
     hideOnIdle: true, // Default to hiding on idle for cleaner look
     fadeOnIdle: true,
     motionPreset: 'cinematic',
@@ -77,8 +79,8 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
 
 // Cursor motion presets - maps preset name to speed/smoothness/glide values
 export const CURSOR_MOTION_PRESETS: Record<Exclude<CursorMotionPreset, 'custom'>, { speed: number; smoothness: number; glide: number }> = {
-    cinematic: { speed: 0.25, smoothness: 0.7, glide: 0.65 },
+    cinematic: { speed: 0.01, smoothness: 0.7, glide: 0.65 },
     balanced: { speed: 0.5, smoothness: 0.45, glide: 0.4 },
-    smooth: { speed: 0.25, smoothness: 0.7, glide: 0.65 }, // Alias for cinematic if needed or duplicate
+    smooth: { speed: 0.01, smoothness: 0.7, glide: 0.65 }, // Alias for cinematic if needed or duplicate
     responsive: { speed: 0.8, smoothness: 0.15, glide: 0.15 } // Gaming/Fast
 }

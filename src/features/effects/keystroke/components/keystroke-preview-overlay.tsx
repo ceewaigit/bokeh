@@ -12,7 +12,7 @@ import {
     type KeystrokeStylePreset,
 } from '@/features/effects/keystroke/utils';
 
-interface KeystrokePreviewOverlayProps {
+interface KeystrokePreviewOverlayProps extends React.HTMLAttributes<HTMLDivElement> {
     currentTimeMs: number;
     keystrokeEvents: KeyboardEvent[];
     settings?: Partial<KeystrokeEffectData>;
@@ -30,6 +30,7 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
     settings: userSettings,
     enabled = true,
     centered = false,
+    ...props
 }) => {
     const settings = useMemo<Required<KeystrokeEffectData>>(() => {
         // Filter out undefined values from userSettings to avoid overriding defaults
@@ -90,6 +91,7 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
 
     return (
         <div
+            {...props}
             style={{
                 position: 'absolute',
                 ...positionStyle,

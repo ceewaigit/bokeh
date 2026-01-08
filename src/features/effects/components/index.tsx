@@ -18,7 +18,6 @@ import { BackgroundTab } from '@/features/effects/background'
 import { CursorTab } from '@/features/effects/cursor/ui/CursorTab'
 import { KeystrokeTab } from '@/features/effects/keystroke'
 import { ZoomTab } from '@/features/ui/editor/logic/viewport/zoom'
-import { ScreenTab as ScreenEffectsTab } from '@/features/effects/screen'
 import { CanvasTab } from './canvas-tab'
 import { WebcamTab } from '@/features/media/webcam'
 import { AnnotationsTab } from '@/features/effects/annotation'
@@ -28,6 +27,7 @@ import { useProjectStore } from '@/features/core/stores/project-store'
 import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 import { useEffectsSidebarContext } from './EffectsSidebarContext'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
+import { ScreenTab as DepthTab } from '@/features/effects/screen'
 import { ScreenTab } from './screen-tab'
 
 const tabMotion = { type: "tween", duration: 0.12, ease: [0.2, 0.8, 0.2, 1] } as const
@@ -42,7 +42,6 @@ type PointerSubTabId = 'cursor' | 'keystrokes'
 const EFFECT_LABELS: Partial<Record<EffectLayerType, string>> = {
   [EffectLayerType.Background]: 'Backdrop',
   [EffectLayerType.Screen]: 'Screen',
-  // NOTE: Webcam removed - webcam styling now on clip.layout
   [EffectLayerType.Cursor]: 'Pointer',
   [EffectLayerType.Keystroke]: 'Typing',
   [EffectLayerType.Zoom]: 'Camera',
@@ -126,11 +125,6 @@ export function EffectsSidebar({
     onEffectChange,
     onZoomBlockUpdate,
     onBulkToggleKeystrokes,
-    onAddCrop,
-    onRemoveCrop,
-    onUpdateCrop,
-    onStartEditCrop,
-    onStopEditCrop
   } = useEffectsSidebarContext()
   const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer)
   const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection)
@@ -184,26 +178,27 @@ export function EffectsSidebar({
   // Cleanup crop editing when leaving Screen tab or when clip deselects
   useEffect(() => {
     const shouldStopEditing = activeTab !== SidebarTabId.Screen || !isVideoClipSelected
-    if (shouldStopEditing && isEditingCrop && onStopEditCrop) {
-      onStopEditCrop()
+    if (shouldStopEditing && isEditingCrop) {
+      // Stop editing crop via store directly
+      useProjectStore.getState().stopEditingCrop()
     }
-  }, [activeTab, isVideoClipSelected, isEditingCrop, onStopEditCrop])
+  }, [activeTab, isVideoClipSelected, isEditingCrop])
 
   // Handle Escape key to close crop editing
   useEffect(() => {
     if (!isEditingCrop) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && onStopEditCrop) {
+      if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
-        onStopEditCrop()
+        useProjectStore.getState().stopEditingCrop()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [isEditingCrop, onStopEditCrop])
+  }, [isEditingCrop])
 
 
   const routeToEffect = useCallback((type: EffectLayerType) => {
@@ -252,12 +247,18 @@ export function EffectsSidebar({
     // If an effect layer is explicitly selected, always show its tab
     if (currentEffectType) {
       routeToEffect(currentEffectType)
+    } else if (selectedClip) {
+      // Auto-switch tab based on clip type when no effect is selected
+      if (selectedTrackType === TrackType.Webcam) {
+        setActiveTab(SidebarTabId.Webcam)
+      } else if (selectedTrackType === TrackType.Video) {
+        setActiveTab(SidebarTabId.Screen)
+      }
     }
-    // NOTE: Removed clip auto-switch behavior - users now stay on their current tab
 
     // Remember last effect type
     prevEffectTypeRef.current = currentEffectType
-  }, [routeToEffect, selectedEffectLayer])
+  }, [routeToEffect, selectedEffectLayer, selectedClip, selectedTrackType, setActiveTab])
 
   const updateEffect = useCallback((category: EffectType.Cursor | EffectType.Keystroke, updates: Partial<CursorEffectData | KeystrokeEffectData>) => {
     const effect = category === EffectType.Cursor ? cursorEffect : keystrokeEffect
@@ -281,6 +282,16 @@ export function EffectsSidebar({
           tooltip: !hasWebcamContent ? "No webcam clips on the timeline" : tab.label
         }
       }
+
+      // Disable Transcript tab when there's no webcam content (since it depends on webcam recording)
+      if (tab.id === SidebarTabId.Transcript) {
+        return {
+          ...tab,
+          disabled: !hasWebcamContent,
+          tooltip: !hasWebcamContent ? "No webcam recordings to transcribe" : tab.label
+        }
+      }
+
       return {
         ...tab,
         disabled: false,
@@ -292,6 +303,10 @@ export function EffectsSidebar({
   useEffect(() => {
     // Switch away from Webcam tab if webcam content is removed
     if (!hasWebcamContent && activeTab === SidebarTabId.Webcam) {
+      setActiveTab(SidebarTabId.Screen)
+    }
+    // Switch away from Transcript tab if webcam content is removed
+    if (!hasWebcamContent && activeTab === SidebarTabId.Transcript) {
       setActiveTab(SidebarTabId.Screen)
     }
   }, [activeTab, hasWebcamContent, setActiveTab])
@@ -404,11 +419,6 @@ export function EffectsSidebar({
                       backgroundEffect={backgroundEffect}
                       effects={effects}
                       onUpdateBackground={scheduleBackgroundUpdate}
-                      onAddCrop={onAddCrop}
-                      onRemoveCrop={onRemoveCrop}
-                      onUpdateCrop={onUpdateCrop}
-                      onStartEditCrop={onStartEditCrop}
-                      isEditingCrop={isEditingCrop}
                     />
                   </motion.div>
                 )}
@@ -455,7 +465,7 @@ export function EffectsSidebar({
                           exit={{ opacity: 0, scale: 0.98 }}
                           transition={{ duration: 0.15 }}
                         >
-                          <ScreenEffectsTab
+                          <DepthTab
                             selectedClip={selectedClip}
                             selectedEffectLayer={selectedEffectLayer}
                             onEffectChange={onEffectChange}

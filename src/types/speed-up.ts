@@ -5,7 +5,9 @@
 
 export enum SpeedUpType {
   Typing = 'typing',
-  Idle = 'idle'
+  Idle = 'idle',
+  TrimStart = 'trim-start',  // Idle time at clip start (can be trimmed off)
+  TrimEnd = 'trim-end'       // Idle time at clip end (can be trimmed off)
 }
 
 /**
@@ -30,6 +32,11 @@ export interface SpeedUpMetadata {
 
   // Idle-specific
   idleDurationMs?: number
+
+  // Trim-specific
+  trimSavedMs?: number        // Time that would be saved by trimming
+  newSourceIn?: number        // New sourceIn after trim (for TrimStart)
+  newSourceOut?: number       // New sourceOut after trim (for TrimEnd)
 }
 
 export interface SpeedUpSuggestions {

@@ -7,6 +7,7 @@ import { Slider } from '@/components/ui/slider'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/shared/utils/utils'
+import { toast } from 'sonner'
 import {
     Dialog,
     DialogContent,
@@ -17,7 +18,7 @@ import {
     DialogTrigger,
     DialogClose
 } from '@/components/ui/dialog'
-import { DEFAULT_EFFECT_GENERATION_CONFIG, type EffectGenerationConfig } from '@/features/effects/services/effect-generation-service'
+import { DEFAULT_EFFECT_GENERATION_CONFIG, type EffectGenerationConfig } from '@/features/effects/logic/effect-detector'
 
 export function EditingSection() {
     const editing = useProjectStore((s) => s.settings.editing)
@@ -39,9 +40,25 @@ export function EditingSection() {
         })
     }
 
-    const handleRegenerateConfirm = () => {
-        regenerateAllEffects(config)
+    const handleRegenerateConfirm = async () => {
         setIsRegenerateDialogOpen(false)
+
+        try {
+            const result = await regenerateAllEffects(config)
+
+            // Show summary of what was regenerated
+            // Note: Trim suggestions now appear as visual overlays on the timeline (like speed-up bars)
+            const trimCount = result.trimSuggestions.length
+            if (trimCount > 0) {
+                toast.success('Effects regenerated', {
+                    description: `${trimCount} trim suggestion${trimCount > 1 ? 's' : ''} now visible on timeline`
+                })
+            } else {
+                toast.success('Effects regenerated')
+            }
+        } catch {
+            toast.error('Failed to regenerate effects')
+        }
     }
 
     const resetToDefaults = () => {
@@ -121,18 +138,18 @@ export function EditingSection() {
             {/* Regenerate All Effects */}
             <div className="space-y-2">
                 <Dialog open={isRegenerateDialogOpen} onOpenChange={setIsRegenerateDialogOpen}>
-                <DialogTrigger asChild>
-                    <button
-                        className="w-full flex items-center justify-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-all group hover:bg-destructive/20"
-                    >
-                        <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-[-180deg] transition-transform duration-500" />
-                        Regenerate Effects
-                    </button>
-                </DialogTrigger>
-                <DialogContent className="max-w-sm">
-                    <DialogHeader>
-                        <div className="flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                    <DialogTrigger asChild>
+                        <button
+                            className="w-full flex items-center justify-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-all group hover:bg-destructive/20"
+                        >
+                            <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-[-180deg] transition-transform duration-500" />
+                            Regenerate Effects
+                        </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-sm">
+                        <DialogHeader>
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-destructive" />
                                 <DialogTitle>Regenerate All Effects?</DialogTitle>
                             </div>
                             <DialogDescription className="pt-2">
@@ -140,28 +157,28 @@ export function EditingSection() {
                             </DialogDescription>
                         </DialogHeader>
 
-                    {/* Advanced Settings Toggle */}
-                    <button
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="w-full flex items-center justify-between rounded-md bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                    >
-                        <span>Advanced Settings</span>
-                        <ChevronRight className={cn("w-4 h-4 transition-transform duration-200", showAdvanced && "rotate-90")} />
-                    </button>
+                        {/* Advanced Settings Toggle */}
+                        <button
+                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            className="w-full flex items-center justify-between rounded-md bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                        >
+                            <span>Advanced Settings</span>
+                            <ChevronRight className={cn("w-4 h-4 transition-transform duration-200", showAdvanced && "rotate-90")} />
+                        </button>
 
-                    {showAdvanced && (
-                        <div className="space-y-3 rounded-md bg-muted/20 p-3 animate-in fade-in slide-in-from-top-1 duration-150">
-                            {/* Min Idle Duration */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-2xs text-muted-foreground">Min Idle Duration</span>
-                                    <span className="text-2xs font-mono text-muted-foreground tabular-nums">
-                                        {(config.minIdleDurationMs / 1000).toFixed(1)}s
-                                    </span>
-                                </div>
+                        {showAdvanced && (
+                            <div className="space-y-3 rounded-md bg-muted/20 p-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                                {/* Min Idle Duration */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-2xs text-muted-foreground">Min Idle Duration</span>
+                                        <span className="text-2xs font-mono text-muted-foreground tabular-nums">
+                                            {(config.minIdleDurationMs / 1000).toFixed(1)}s
+                                        </span>
+                                    </div>
                                     <Slider
                                         value={[config.minIdleDurationMs]}
-                                        onValueChange={([value]) => setConfig(prev => ({ ...prev, minIdleDurationMs: value }))}
+                                        onValueChange={([value]) => setConfig((prev: EffectGenerationConfig) => ({ ...prev, minIdleDurationMs: value }))}
                                         min={1000}
                                         max={10000}
                                         step={500}
@@ -180,7 +197,7 @@ export function EditingSection() {
                                     </div>
                                     <Slider
                                         value={[config.auto3DThreshold]}
-                                        onValueChange={([value]) => setConfig(prev => ({ ...prev, auto3DThreshold: value }))}
+                                        onValueChange={([value]) => setConfig((prev: EffectGenerationConfig) => ({ ...prev, auto3DThreshold: value }))}
                                         min={1.5}
                                         max={3.5}
                                         step={0.1}
@@ -199,7 +216,7 @@ export function EditingSection() {
                                     </div>
                                     <Slider
                                         value={[config.maxZoomsPerMinute ?? 4]}
-                                        onValueChange={([value]) => setConfig(prev => ({ ...prev, maxZoomsPerMinute: value }))}
+                                        onValueChange={([value]) => setConfig((prev: EffectGenerationConfig) => ({ ...prev, maxZoomsPerMinute: value }))}
                                         min={1}
                                         max={10}
                                         step={1}
@@ -218,7 +235,7 @@ export function EditingSection() {
                                     </div>
                                     <Slider
                                         value={[config.minZoomGapMs ?? 6000]}
-                                        onValueChange={([value]) => setConfig(prev => ({ ...prev, minZoomGapMs: value }))}
+                                        onValueChange={([value]) => setConfig((prev: EffectGenerationConfig) => ({ ...prev, minZoomGapMs: value }))}
                                         min={2000}
                                         max={15000}
                                         step={1000}
@@ -240,7 +257,7 @@ export function EditingSection() {
                                             </div>
                                             <Slider
                                                 value={[config.defaultIntroMs]}
-                                                onValueChange={([value]) => setConfig(prev => ({ ...prev, defaultIntroMs: value }))}
+                                                onValueChange={([value]) => setConfig((prev: EffectGenerationConfig) => ({ ...prev, defaultIntroMs: value }))}
                                                 min={100}
                                                 max={1000}
                                                 step={50}
@@ -256,7 +273,7 @@ export function EditingSection() {
                                             </div>
                                             <Slider
                                                 value={[config.defaultOutroMs]}
-                                                onValueChange={([value]) => setConfig(prev => ({ ...prev, defaultOutroMs: value }))}
+                                                onValueChange={([value]) => setConfig((prev: EffectGenerationConfig) => ({ ...prev, defaultOutroMs: value }))}
                                                 min={100}
                                                 max={1000}
                                                 step={50}
@@ -288,13 +305,13 @@ export function EditingSection() {
                                 Regenerate
                             </Button>
                         </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            <p className="text-2xs text-muted-foreground/70 text-center leading-snug">
-                Restore auto-detected defaults
-            </p>
-        </div>
+                    </DialogContent>
+                </Dialog>
+                <p className="text-2xs text-muted-foreground/70 text-center leading-snug">
+                    Restore auto-detected defaults
+                </p>
+            </div>
 
-    </div>
+        </div>
     )
 }

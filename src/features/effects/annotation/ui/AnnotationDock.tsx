@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Slider } from '@/components/ui/slider'
 import { AnnotationType, EffectType } from '@/types/project'
 import { EffectLayerType } from '@/features/effects/types'
+import { RedactionPattern } from '@/features/effects/annotation/types'
 import type { AnnotationData, AnnotationStyle, Effect } from '@/types/project'
 import { cn } from '@/shared/utils/utils'
 
@@ -20,6 +21,15 @@ const FONT_FAMILIES = [
     { label: 'Mono', value: "'Courier New', monospace" },
     { label: 'Serif', value: 'Georgia, serif' },
     { label: 'Hand', value: "'Comic Sans MS', cursive" },
+] as const
+
+// Redaction pattern options with visual icons
+const REDACTION_PATTERNS = [
+    { value: RedactionPattern.Solid, label: 'Solid', icon: '█' },
+    { value: RedactionPattern.Noise, label: 'Grain', icon: '░' },
+    { value: RedactionPattern.Diagonal, label: 'Lines', icon: '╱' },
+    { value: RedactionPattern.Mosaic, label: 'Mosaic', icon: '▓' },
+    { value: RedactionPattern.Marker, label: 'Marker', icon: '▌' },
 ] as const
 
 export function AnnotationDock() {
@@ -347,6 +357,22 @@ export function AnnotationDock() {
 
                             {showRedactionControls && (
                                 <>
+                                    <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
+                                        <span className="text-3xs text-muted-foreground/80">Style</span>
+                                        {REDACTION_PATTERNS.map((pattern) => (
+                                            <Button
+                                                key={pattern.value}
+                                                type="button"
+                                                size="icon"
+                                                variant={(style.redactionPattern ?? RedactionPattern.Solid) === pattern.value ? 'secondary' : 'ghost'}
+                                                className="h-7 w-7 text-xs font-medium"
+                                                title={pattern.label}
+                                                onClick={() => updateStyle({ redactionPattern: pattern.value })}
+                                            >
+                                                {pattern.icon}
+                                            </Button>
+                                        ))}
+                                    </div>
                                     <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
                                         <span className="text-3xs text-muted-foreground/80">Color</span>
                                         <ColorPickerPopover

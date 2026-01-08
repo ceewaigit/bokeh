@@ -56,9 +56,6 @@ interface RecordingsStore {
   setSort: (key: SortKey, direction: SortDirection) => void
 
   reset: () => void
-
-  // Memory management
-  clearLibrary: () => void
 }
 
 export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
@@ -97,17 +94,6 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
   setSort: (key, direction) => set({ sortKey: key, sortDirection: direction, currentPage: 1 }),
 
   reset: () => set({
-    recordings: [],
-    hydrationByPath: {},
-    currentPage: 1,
-    isHydrated: false,
-    searchQuery: '',
-    sortKey: 'date',
-    sortDirection: 'desc'
-  }),
-
-  // Memory management: completely clear library data
-  clearLibrary: () => set({
     recordings: [],
     hydrationByPath: {},
     currentPage: 1,

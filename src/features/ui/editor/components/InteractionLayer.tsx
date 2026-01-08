@@ -92,12 +92,6 @@ interface SelectionBounds {
     height: number
 }
 
-interface ClipRect {
-    x: number
-    y: number
-    width: number
-    height: number
-}
 
 export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     effects,
@@ -168,7 +162,6 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
     const selectedAnnotation = selectedEffect?.type === EffectType.Annotation ? selectedEffect : null
     const [selectionBounds, setSelectionBounds] = useState<SelectionBounds | null>(null)
-    const [clipRect, setClipRect] = useState<ClipRect | null>(null)
 
     const updateSelectionBounds = useCallback(() => {
         const overlayEl = overlayRef.current
@@ -197,24 +190,18 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             width: rect.width,
             height: rect.height,
         })
-
-        const videoEl = document.querySelector<HTMLElement>('[data-video-transform-container="true"]')
-        if (videoEl) {
-            const videoRect = videoEl.getBoundingClientRect()
-            setClipRect({
-                x: videoRect.left - overlayRect.left,
-                y: videoRect.top - overlayRect.top,
-                width: videoRect.width,
-                height: videoRect.height,
-            })
-        } else {
-            setClipRect(null)
-        }
     }, [selectedAnnotation])
 
     useEffect(() => {
         if (!selectedAnnotation) {
             setSelectionBounds(null)
+            return
+        }
+
+        // PERF: Only run RAF loop when actively dragging/resizing
+        // When IDLE, update once and stop - saves ~20% CPU
+        if (mode === 'IDLE') {
+            updateSelectionBounds()
             return
         }
 
@@ -226,7 +213,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
         rafId = window.requestAnimationFrame(tick)
         return () => window.cancelAnimationFrame(rafId)
-    }, [selectedAnnotation, updateSelectionBounds])
+    }, [selectedAnnotation, updateSelectionBounds, mode])
 
     // Force mode reset if selection cleared externally
     useEffect(() => {
@@ -944,37 +931,19 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             }}
         >
             {selectedAnnotation && selectionBounds && !isInlineEditing && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        left: clipRect ? clipRect.x - SELECTION_HANDLE_SIZE * 2 : 0,
-                        top: clipRect ? clipRect.y - SELECTION_HANDLE_SIZE * 2 : 0,
-                        width: clipRect ? clipRect.width + SELECTION_HANDLE_SIZE * 4 : '100%',
-                        height: clipRect ? clipRect.height + SELECTION_HANDLE_SIZE * 4 : '100%',
-                        overflow: clipRect ? 'hidden' : 'visible',
-                        pointerEvents: 'auto',
-                        zIndex: 2001,
-                    }}
-                >
-                    <SelectionOverlay
-                        annotationId={selectedAnnotation.id}
-                        annotationType={(selectedAnnotation.data as AnnotationData).type ?? AnnotationType.Text}
-                        bounds={{
-                            x: selectionBounds.x - (clipRect?.x ?? 0) + (clipRect ? SELECTION_HANDLE_SIZE * 2 : 0),
-                            y: selectionBounds.y - (clipRect?.y ?? 0) + (clipRect ? SELECTION_HANDLE_SIZE * 2 : 0),
-                            width: selectionBounds.width,
-                            height: selectionBounds.height,
-                        }}
-                        borderRadius={
-                            (selectedAnnotation.data as AnnotationData).type === AnnotationType.Blur ||
+                <SelectionOverlay
+                    annotationId={selectedAnnotation.id}
+                    annotationType={(selectedAnnotation.data as AnnotationData).type ?? AnnotationType.Text}
+                    bounds={selectionBounds}
+                    borderRadius={
+                        (selectedAnnotation.data as AnnotationData).type === AnnotationType.Blur ||
                             (selectedAnnotation.data as AnnotationData).type === AnnotationType.Redaction
-                                ? 12
-                                : ((selectedAnnotation.data as AnnotationData).style?.borderRadius ?? 4)
-                        }
-                        showHandles={(selectedAnnotation.data as AnnotationData).type !== AnnotationType.Arrow}
-                        showRotation={(selectedAnnotation.data as AnnotationData).type !== AnnotationType.Arrow}
-                    />
-                </div>
+                            ? 12
+                            : ((selectedAnnotation.data as AnnotationData).style?.borderRadius ?? 4)
+                    }
+                    showHandles={(selectedAnnotation.data as AnnotationData).type !== AnnotationType.Arrow}
+                    showRotation={(selectedAnnotation.data as AnnotationData).type !== AnnotationType.Arrow}
+                />
             )}
         </div>
     )

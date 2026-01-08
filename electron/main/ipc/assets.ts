@@ -1,8 +1,7 @@
-import { ipcMain, nativeImage } from 'electron'
+import { ipcMain, nativeImage, app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { makeVideoSrc } from '../utils/video-url-factory'
-import { isDev } from '../config'
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'])
 const ALPHA_THRESHOLD = 8
@@ -390,21 +389,21 @@ function findTransparentScreenRegion(imagePath: string): { dimensions: { width: 
 }
 
 function getParallaxRootDir(): string {
-  return isDev
-    ? path.join(process.cwd(), 'public', 'parallax')
-    : path.join(process.resourcesPath, 'public', 'parallax')
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'public', 'parallax')
+    : path.join(process.cwd(), 'public', 'parallax')
 }
 
 function getWallpapersRootDir(): string {
-  return isDev
-    ? path.join(process.cwd(), 'public', 'wallpapers')
-    : path.join(process.resourcesPath, 'public', 'wallpapers')
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'public', 'wallpapers')
+    : path.join(process.cwd(), 'public', 'wallpapers')
 }
 
 function getMockupsRootDir(): string {
-  return isDev
-    ? path.join(process.cwd(), 'public', 'mockups')
-    : path.join(process.resourcesPath, 'public', 'mockups')
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'public', 'mockups')
+    : path.join(process.cwd(), 'public', 'mockups')
 }
 
 function numericSortKey(filename: string): number {

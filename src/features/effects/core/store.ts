@@ -81,7 +81,7 @@ export const EffectStore = {
     return false
   },
 
-  update(project: Project, effectId: string, updates: Partial<Effect>): boolean {
+  update(project: Project, effectId: string, updates: Partial<Effect>, force: boolean = false): boolean {
     const effects = project.timeline.effects ?? []
     const index = effects.findIndex(e => e.id === effectId)
     if (index === -1) return false
@@ -98,7 +98,8 @@ export const EffectStore = {
     }
 
     const isTimeUpdate = updates.startTime !== undefined || updates.endTime !== undefined
-    if (isTimeUpdate && NON_OVERLAPPING_EFFECT_TYPES.has(effect.type)) {
+    // Only check overlap if NOT forced
+    if (isTimeUpdate && NON_OVERLAPPING_EFFECT_TYPES.has(effect.type) && !force) {
       const tempEffect = { ...effect, startTime: nextStartTime, endTime: nextEndTime }
       const sameTypeEffects = effects.filter(e => e.type === effect.type)
       const { startTime, endTime } = findNearestNonOverlappingPosition(tempEffect, sameTypeEffects, effectId)
