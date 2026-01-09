@@ -167,7 +167,7 @@ export function WelcomeScreen({
               />
             </div>
             <h1 className="text-2xl font-medium tracking-tight text-foreground mb-2">
-              Let's get you <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>set up</span>
+              Let&apos;s get you <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>set up</span>
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-[260px] mx-auto">
               A few quick permissions to record your screen and audio.

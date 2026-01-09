@@ -1,8 +1,14 @@
 import type { Project, Clip, Effect } from '@/types/project'
-import { EffectType } from '@/types/project'
+import { EffectType, TrackType } from '@/types/project'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { reflowClips, calculateTimelineDuration } from './clips/clip-reflow'
 import { EffectStore } from '@/features/effects/core/store'
+import { TimeRange } from './time/time-range'
+
+interface SpeedUpApplyOptions {
+    syncLinkedTracks?: boolean
+    updateEffects?: boolean
+}
 
 /**
  * Service for applying speed-up suggestions to clips by splitting them
@@ -23,11 +29,14 @@ export class SpeedUpApplicationService {
         project: Project,
         clipId: string,
         periods: Array<{ startTime: number; endTime: number; suggestedSpeedMultiplier: number }>,
-        speedUpTypes: Array<'typing' | 'idle'> = ['typing']
+        speedUpTypes: Array<'typing' | 'idle'> = ['typing'],
+        options: SpeedUpApplyOptions = {}
     ): { affectedClips: string[]; originalClips: Clip[]; modifiedEffects: Effect[] } {
         const affectedClips: string[] = []
         const originalClips: Clip[] = []
         const modifiedEffects: Effect[] = []
+        const syncLinkedTracks = options.syncLinkedTracks ?? true
+        const updateEffects = options.updateEffects ?? true
 
         const result = ClipLookup.byId(project, clipId)
         if (!result) {
@@ -38,25 +47,29 @@ export class SpeedUpApplicationService {
         const { clip: sourceClip, track } = result
         const clipIndex = track.clips.findIndex(c => c.id === clipId)
 
-        // Save original clip state for undo
-        originalClips.push({ ...sourceClip })
+        const originalClip = { ...sourceClip }
+        originalClips.push(originalClip)
+
+        const shouldUpdateEffects = updateEffects && track.type === TrackType.Video
 
         // 1. Capture existing clip-bound effects (e.g. Crop) BEFORE we remove the clip
-        const allEffects = EffectStore.getAll(project)
-        const clipBoundEffects = allEffects.filter(e => e.clipId === clipId)
+        const allEffects = shouldUpdateEffects ? EffectStore.getAll(project) : []
+        const clipBoundEffects = shouldUpdateEffects ? allEffects.filter(e => e.clipId === clipId) : []
 
         // Capture overlapping "unbound" effects (like Zoom) that should move with the content
         // These are effects that are NOT clip-bound but spatially overlap the clip's timeline range
-        const overlappingEffects = allEffects.filter(e =>
+        const overlappingEffects = shouldUpdateEffects ? allEffects.filter(e =>
             !e.clipId && // Not bound to any specific clip
             e.type !== EffectType.Background && // Backgrounds don't move
             e.startTime < (sourceClip.startTime + sourceClip.duration) &&
             e.endTime > sourceClip.startTime
-        )
+        ) : []
 
         // Save initial state of effects that will be modified
-        for (const effect of overlappingEffects) {
-            modifiedEffects.push({ ...effect })
+        if (shouldUpdateEffects) {
+            for (const effect of overlappingEffects) {
+                modifiedEffects.push({ ...effect })
+            }
         }
 
         // Get clip's source range and base playback rate
@@ -214,17 +227,19 @@ export class SpeedUpApplicationService {
             affectedClips.push(newClip.id)
 
             // Re-apply original clip-bound effects to this new clip segment
-            for (const originalEffect of clipBoundEffects) {
-                const clonedEffect = {
-                    ...originalEffect,
-                    id: crypto.randomUUID(), // New unique ID
-                    clipId: newClip.id,      // Bind to new clip
-                    startTime: timelinePosition,
-                    endTime: timelinePosition + clipDuration,
-                    // Note: We copy 'data' and other props directly.
-                    // For Crop, Screen, etc., the data is spatial and applies to the whole clip.
+            if (shouldUpdateEffects) {
+                for (const originalEffect of clipBoundEffects) {
+                    const clonedEffect = {
+                        ...originalEffect,
+                        id: crypto.randomUUID(), // New unique ID
+                        clipId: newClip.id,      // Bind to new clip
+                        startTime: timelinePosition,
+                        endTime: timelinePosition + clipDuration,
+                        // Note: We copy 'data' and other props directly.
+                        // For Crop, Screen, etc., the data is spatial and applies to the whole clip.
+                    }
+                    effectsToAdd.push(clonedEffect)
                 }
-                effectsToAdd.push(clonedEffect)
             }
 
             timelinePosition += clipDuration
@@ -236,14 +251,16 @@ export class SpeedUpApplicationService {
         // NO SORTING - array order IS the source of truth
         // New clips are already at the correct array index via splice()
 
-        // 4. Update Project Effects
-        // Remove old effects bound to the deleted clip
-        for (const effect of clipBoundEffects) {
-            EffectStore.remove(project, effect.id)
-        }
-        // Add new migrated effects
-        if (effectsToAdd.length > 0) {
-            EffectStore.addMany(project, effectsToAdd)
+        if (shouldUpdateEffects) {
+            // 4. Update Project Effects
+            // Remove old effects bound to the deleted clip
+            for (const effect of clipBoundEffects) {
+                EffectStore.remove(project, effect.id)
+            }
+            // Add new migrated effects
+            if (effectsToAdd.length > 0) {
+                EffectStore.addMany(project, effectsToAdd)
+            }
         }
 
         // Reflow to ensure all clips are contiguous
@@ -259,7 +276,7 @@ export class SpeedUpApplicationService {
         const newTotalDuration = newClips.reduce((sum, c) => sum + c.duration, 0)
         const oldDuration = sourceClip.duration
         const delta = newTotalDuration - oldDuration
-        const originalEnd = sourceClip.startTime + oldDuration
+        const originalEnd = originalClip.startTime + oldDuration
 
         // Helper to map a timeline position (relative to original clip start) to new timeline position
         const mapTimelinePositionToNew = (originalTimelinePos: number): number | null => {
@@ -294,50 +311,108 @@ export class SpeedUpApplicationService {
             return null
         }
 
-        // 6. Update overlapping effects (Zoom, etc.)
-        for (const effect of overlappingEffects) {
-            // Case 1: Start is inside
-            if (effect.startTime >= sourceClip.startTime && effect.startTime <= originalEnd) {
-                const newStart = mapTimelinePositionToNew(effect.startTime)
-                if (newStart !== null) {
-                    effect.startTime = newStart
+        if (shouldUpdateEffects) {
+            // 6. Update overlapping effects (Zoom, etc.)
+            for (const effect of overlappingEffects) {
+                // Case 1: Start is inside
+                if (effect.startTime >= sourceClip.startTime && effect.startTime <= originalEnd) {
+                    const newStart = mapTimelinePositionToNew(effect.startTime)
+                    if (newStart !== null) {
+                        effect.startTime = newStart
+                    }
+                } else if (effect.startTime > originalEnd) {
+                    // Starts after -> shift by total delta
+                    effect.startTime += delta
                 }
-            } else if (effect.startTime > originalEnd) {
-                // Starts after -> shift by total delta
-                effect.startTime += delta
+
+                // Case 2: End is inside
+                if (effect.endTime >= sourceClip.startTime && effect.endTime <= originalEnd) {
+                    const newEnd = mapTimelinePositionToNew(effect.endTime)
+                    if (newEnd !== null) {
+                        effect.endTime = newEnd
+                    }
+                } else if (effect.endTime > originalEnd) {
+                    // Ends after -> shift by total delta
+                    effect.endTime += delta
+                }
             }
 
-            // Case 2: End is inside
-            if (effect.endTime >= sourceClip.startTime && effect.endTime <= originalEnd) {
-                const newEnd = mapTimelinePositionToNew(effect.endTime)
-                if (newEnd !== null) {
-                    effect.endTime = newEnd
+            // 7. Shift remaining independent effects that start strictly AFTER the original clip
+            for (const effect of allEffects) {
+                // Skip effects we just added or modified
+                if (effectsToAdd.some(e => e.id === effect.id)) continue
+                if (overlappingEffects.some(e => e.id === effect.id)) continue
+                if (effect.type === EffectType.Background) continue
+
+                // If effect starts at or after the point where the timeline shifted (original clip end),
+                // shift it by delta.
+                if (effect.startTime >= originalEnd - 0.01) {
+                    // Save original state before modification if not already saved
+                    if (!modifiedEffects.some(e => e.id === effect.id)) {
+                        modifiedEffects.push({ ...effect })
+                    }
+                    effect.startTime += delta
+                    effect.endTime += delta
                 }
-            } else if (effect.endTime > originalEnd) {
-                // Ends after -> shift by total delta
-                effect.endTime += delta
             }
         }
 
-        // 7. Shift remaining independent effects that start strictly AFTER the original clip
-        for (const effect of allEffects) {
-            // Skip effects we just added or modified
-            if (effectsToAdd.some(e => e.id === effect.id)) continue
-            if (overlappingEffects.some(e => e.id === effect.id)) continue
-            if (effect.type === EffectType.Background) continue
-
-            // If effect starts at or after the point where the timeline shifted (original clip end),
-            // shift it by delta.
-            if (effect.startTime >= originalEnd - 0.01) {
-                // Save original state before modification if not already saved
-                if (!modifiedEffects.some(e => e.id === effect.id)) {
-                    modifiedEffects.push({ ...effect })
-                }
-                effect.startTime += delta
-                effect.endTime += delta
-            }
+        if (syncLinkedTracks && track.type === TrackType.Video) {
+            this.syncWebcamClips(project, originalClip, periods, speedUpTypes, delta)
         }
 
         return { affectedClips, originalClips, modifiedEffects }
+    }
+
+    private static syncWebcamClips(
+        project: Project,
+        sourceClip: Clip,
+        periods: Array<{ startTime: number; endTime: number; suggestedSpeedMultiplier: number }>,
+        speedUpTypes: Array<'typing' | 'idle'>,
+        delta: number
+    ): void {
+        const webcamTracks = project.timeline.tracks.filter(track => track.type === TrackType.Webcam)
+        if (webcamTracks.length === 0) return
+
+        const sourceRange = TimeRange.fromClip(sourceClip)
+        const epsilon = 0.001
+        const hasShift = Math.abs(delta) > epsilon
+
+        let shifted = false
+
+        for (const webcamTrack of webcamTracks) {
+            const overlapping = webcamTrack.clips.filter(clip =>
+                TimeRange.overlaps(sourceRange, TimeRange.fromClip(clip))
+            )
+
+            const syncedClipIds = new Set<string>()
+            for (const clip of overlapping) {
+                const result = SpeedUpApplicationService.applySpeedUpToClip(
+                    project,
+                    clip.id,
+                    periods,
+                    speedUpTypes,
+                    { syncLinkedTracks: false, updateEffects: false }
+                )
+                for (const clipId of result.affectedClips) {
+                    syncedClipIds.add(clipId)
+                }
+            }
+
+            if (!hasShift) continue
+
+            for (const clip of webcamTrack.clips) {
+                if (syncedClipIds.has(clip.id)) continue
+                if (clip.startTime >= sourceRange.endTime - epsilon) {
+                    clip.startTime += delta
+                    shifted = true
+                }
+            }
+        }
+
+        if (shifted) {
+            project.timeline.duration = calculateTimelineDuration(project)
+            project.modifiedAt = new Date().toISOString()
+        }
     }
 }

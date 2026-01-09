@@ -79,6 +79,7 @@ export const WebcamClipRenderer = React.memo(({
     const endFrame = Math.ceil(((clip.startTime + clip.duration) / 1000) * fps);
     const durationFrames = Math.max(1, endFrame - startFrame);
     const sourceInFrame = Math.round(((clip.sourceIn ?? 0) / 1000) * fps);
+    const playbackRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1;
 
     // Layout data from clip
     const data: WebcamLayoutData = useMemo(() => {
@@ -158,11 +159,13 @@ export const WebcamClipRenderer = React.memo(({
     const sourceWidth = recording.width || 1280;
     const sourceHeight = recording.height || 720;
 
-    // Crop calculations
-    const cropData = useMemo(() => {
+    // Crop calculations - scale+translate approach to match sidebar exactly
+    // The sidebar uses objectFit:fill which stretches video to fill container 1:1
+    // We replicate this by scaling up so the crop region fills the 1:1 container
+    const cropStyle = useMemo(() => {
         let sourceCrop = clampCropData(data.sourceCrop ?? DEFAULT_CROP_DATA);
 
-        // Smart Center Crop for non-square sources
+        // Smart Center Crop for non-square sources (when no crop is set)
         if (isFullFrameCrop(sourceCrop) && sourceWidth > 0 && sourceHeight > 0) {
             const sourceAspect = sourceWidth / sourceHeight;
             if (Math.abs(sourceAspect - 1) > 0.01) {
@@ -181,8 +184,20 @@ export const WebcamClipRenderer = React.memo(({
             }
         }
 
+        // Scale = 1 / cropSize - makes video larger so crop region fills container
+        const scaleX = 1 / sourceCrop.width;
+        const scaleY = 1 / sourceCrop.height;
+
+        // Position so crop's top-left is at container's top-left (as percentages of container)
+        const translateX = -sourceCrop.x * scaleX * 100;
+        const translateY = -sourceCrop.y * scaleY * 100;
+
         return {
-            mirrorTransform: data.mirror ? 'scaleX(-1)' : 'none',
+            scaleX,
+            scaleY,
+            translateX,
+            translateY,
+            mirror: data.mirror,
         };
     }, [data.sourceCrop, data.mirror, sourceWidth, sourceHeight]);
 
@@ -220,17 +235,30 @@ export const WebcamClipRenderer = React.memo(({
         willChange: 'transform',
     }), []);
 
-    const webcamStyle = useMemo<React.CSSProperties>(() => ({
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        transform: cropData.mirrorTransform,
-        transformOrigin: 'center',
-        display: 'block',
-        backgroundColor: 'transparent',
-        backfaceVisibility: 'hidden',
-        outline: 'none',
-    }), [cropData.mirrorTransform]);
+    const webcamStyle = useMemo<React.CSSProperties>(() => {
+        const { scaleX, scaleY, translateX, translateY, mirror } = cropStyle;
+
+        // Build transform: translate first (in %), then scale, then mirror if needed
+        // translateX/Y are already in % of container
+        let transform = `translate(${translateX}%, ${translateY}%) scale(${scaleX}, ${scaleY})`;
+        if (mirror) {
+            // Mirror needs to be applied after scale, centered
+            transform += ' scaleX(-1)';
+        }
+
+        return {
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            objectFit: 'fill', // Fill exactly - transform handles the cropping
+            transform,
+            transformOrigin: mirror ? 'center' : 'top left',
+            display: 'block',
+            backgroundColor: 'transparent',
+            backfaceVisibility: 'hidden',
+            outline: 'none',
+        };
+    }, [cropStyle]);
 
     const borderStyle = useMemo<React.CSSProperties>(() =>
         data.borderEnabled ? {
@@ -278,6 +306,7 @@ export const WebcamClipRenderer = React.memo(({
                             src={videoUrl}
                             style={webcamStyle}
                             startFrom={sourceInFrame}
+                            playbackRate={playbackRate}
                             volume={effectiveVolume}
                             muted={shouldMuteAudio}
                             preload={preload}

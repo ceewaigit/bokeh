@@ -21,6 +21,22 @@ const PADDING_MS = 500  // Add padding before/after cluster
 const MIN_DURATION_MS = 100
 const MERGE_TOLERANCE_MS = 1
 
+const LEGACY_DEFAULT_KEYSTROKE_STYLE = {
+  fontSize: 18,
+  scale: 0.5,
+} as const
+
+function stripLegacyDefaultKeystrokeStyle(data?: KeystrokeEffectData): KeystrokeEffectData | undefined {
+  if (!data) return undefined
+
+  // If a project was created with older defaults, those values were persisted into effect.data.
+  // Strip them so the current DEFAULT_KEYSTROKE_DATA can take effect on rebuild/regeneration.
+  const next: KeystrokeEffectData = { ...data }
+  if (next.fontSize === LEGACY_DEFAULT_KEYSTROKE_STYLE.fontSize) delete next.fontSize
+  if (next.scale === LEGACY_DEFAULT_KEYSTROKE_STYLE.scale) delete next.scale
+  return next
+}
+
 /**
  * Create a keystroke effect with default data
  */
@@ -157,7 +173,7 @@ export function syncKeystrokeEffects(
   for (const e of existingKeystrokes) {
     if (!isManagedKeystrokeEffect(e)) continue
 
-    stateById.set(e.id, { enabled: e.enabled, data: e.data as KeystrokeEffectData })
+    stateById.set(e.id, { enabled: e.enabled, data: stripLegacyDefaultKeystrokeStyle(e.data as KeystrokeEffectData) })
 
     // Legacy format: keystroke-<recordingId>-<clusterIndex>
     const legacyMatch = /^keystroke-(.+)-(\d+)$/.exec(e.id)
@@ -167,7 +183,7 @@ export function syncKeystrokeEffects(
       if (Number.isFinite(clusterIndex)) {
         legacyStateByRecordingCluster.set(`${recordingId}::${clusterIndex}`, {
           enabled: e.enabled,
-          data: e.data as KeystrokeEffectData
+          data: stripLegacyDefaultKeystrokeStyle(e.data as KeystrokeEffectData)
         })
       }
     }
@@ -251,7 +267,7 @@ export function syncKeystrokeEffects(
           startTime: merged.start,
           endTime: merged.end,
           enabled: saved?.enabled ?? true,
-          data: (saved?.data ?? templateData) as KeystrokeEffectData | undefined
+          data: (saved?.data ?? stripLegacyDefaultKeystrokeStyle(templateData)) as KeystrokeEffectData | undefined
         }))
       }
     })

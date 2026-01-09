@@ -1,6 +1,7 @@
 import type { Effect, Recording, RecordingMetadata, Clip, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { ZoomDetector } from '@/features/effects/utils/zoom-detector'
+import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
 
 export interface EffectGenerationConfig {
     // Idle detection
@@ -25,8 +26,8 @@ export const DEFAULT_EFFECT_GENERATION_CONFIG: EffectGenerationConfig = {
     defaultZoomScale: 2.0,
     maxZoomsPerMinute: 5,            // Catches meaningful clicks
     minZoomGapMs: 5000,              // 5 seconds between zooms
-    defaultIntroMs: 800,
-    defaultOutroMs: 800
+    defaultIntroMs: ZOOM_TRANSITION_CONFIG.defaultIntroMs,
+    defaultOutroMs: ZOOM_TRANSITION_CONFIG.defaultOutroMs
 }
 
 export interface GeneratedEffects {
@@ -48,62 +49,68 @@ export function detectZoomEffects(
 
     const effectiveMetadata = metadata ?? recording.metadata
     const zoomDetector = new ZoomDetector()
-    const zoomBlocks = zoomDetector.detectZoomBlocks(
-        effectiveMetadata?.mouseEvents || [],
-        recording.width || 1920,
-        recording.height || 1080,
-        recording.duration,
-        // Pass additional events for action-based detection
-        effectiveMetadata?.clickEvents || [],
-        effectiveMetadata?.keyboardEvents || [],
-        effectiveMetadata?.scrollEvents || [],
-        // Pass runtime config from UI
-        {
-            maxZoomsPerMinute: config.maxZoomsPerMinute,
-            minZoomGapMs: config.minZoomGapMs
-        }
-    )
-
     const sourceIn = clip.sourceIn || 0
+    const sourceOut = clip.sourceOut ?? recording.duration
+    const clampedSourceOut = Math.min(recording.duration, Math.max(sourceIn, sourceOut))
+    const sourceWindowDuration = Math.max(0, clampedSourceOut - sourceIn)
+
+    const mouseEventsWindow = (effectiveMetadata?.mouseEvents || [])
+        .filter(e => e.timestamp >= sourceIn && e.timestamp <= clampedSourceOut)
+        .map(e => ({ ...e, timestamp: e.timestamp - sourceIn }))
+
+    const clickEventsWindow = (effectiveMetadata?.clickEvents || [])
+        .filter(e => e.timestamp >= sourceIn && e.timestamp <= clampedSourceOut)
+        .map(e => ({ ...e, timestamp: e.timestamp - sourceIn }))
+
+    const keyboardEventsWindow = (effectiveMetadata?.keyboardEvents || [])
+        .filter(e => e.timestamp >= sourceIn && e.timestamp <= clampedSourceOut)
+        .map(e => ({ ...e, timestamp: e.timestamp - sourceIn }))
+
+    const scrollEventsWindow = (effectiveMetadata?.scrollEvents || [])
+        .filter(e => e.timestamp >= sourceIn && e.timestamp <= clampedSourceOut)
+        .map(e => ({ ...e, timestamp: e.timestamp - sourceIn }))
+
+    const zoomBlocks = sourceWindowDuration > 0
+        ? zoomDetector.detectZoomBlocks(
+            mouseEventsWindow,
+            recording.width || 1920,
+            recording.height || 1080,
+            sourceWindowDuration,
+            // Pass additional events for action-based detection
+            clickEventsWindow,
+            keyboardEventsWindow,
+            scrollEventsWindow,
+            // Pass runtime config from UI
+            {
+                maxZoomsPerMinute: config.maxZoomsPerMinute,
+                minZoomGapMs: config.minZoomGapMs
+            }
+        )
+        : []
+
     const playbackRate = clip.playbackRate || 1
     const clipStart = clip.startTime
 
-    if (zoomBlocks.length === 0) {
-        const timelineStart = clip.startTime
-        const timelineEnd = clip.startTime + clip.duration
-        if (timelineEnd > timelineStart) {
-            const zoomEffect: Effect = {
-                id: `zoom-fill-${recording.id}-${Math.round(timelineStart)}`,
-                type: EffectType.Zoom,
-                startTime: Math.max(0, timelineStart),
-                endTime: Math.max(timelineStart + 100, timelineEnd),
-                data: {
-                    origin: 'auto',
-                    scale: 5,
-                    introMs: config.defaultIntroMs,
-                    outroMs: config.defaultOutroMs,
-                    smoothing: 50,
-                    followStrategy: ZoomFollowStrategy.Center,
-                    autoScale: 'fill'
-                } as ZoomEffectData,
-                enabled: true
-            }
-            zoomEffects.push(zoomEffect)
-        }
+    if (zoomBlocks.length === 0) return { zoomEffects, screenEffects }
 
-        return { zoomEffects, screenEffects }
-    }
+    const clipEnd = clipStart + clip.duration
 
     zoomBlocks.forEach((block, index) => {
-        const timelineStart = clipStart + (block.startTime - sourceIn) / playbackRate
-        const timelineEnd = clipStart + (block.endTime - sourceIn) / playbackRate
+        // Zoom blocks are generated in the clip's source-time window (0..sourceWindowDuration),
+        // so mapping to timeline is just a playbackRate conversion.
+        const timelineStart = clipStart + block.startTime / playbackRate
+        const timelineEnd = clipStart + block.endTime / playbackRate
 
         // Create zoom effect
+        const startTime = Math.max(clipStart, timelineStart)
+        const endTime = Math.min(clipEnd, timelineEnd)
+        if (endTime <= startTime) return
+
         const zoomEffect: Effect = {
             id: `zoom-timeline-${Date.now()}-${recording.id}-${index}`,
             type: EffectType.Zoom,
-            startTime: Math.max(0, timelineStart),
-            endTime: Math.max(timelineStart + 100, timelineEnd),
+            startTime,
+            endTime,
             data: {
                 origin: 'auto',
                 scale: block.scale || config.defaultZoomScale,
@@ -113,8 +120,9 @@ export function detectZoomEffects(
                 screenHeight: block.screenHeight,
                 introMs: block.introMs || config.defaultIntroMs,
                 outroMs: block.outroMs || config.defaultOutroMs,
-                smoothing: 0.1,
-                followStrategy: ZoomFollowStrategy.Mouse
+                smoothing: 50,
+                followStrategy: ZoomFollowStrategy.Mouse,
+                mouseIdlePx: 3
             } as ZoomEffectData,
             enabled: true
         }

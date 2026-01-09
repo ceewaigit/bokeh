@@ -202,7 +202,36 @@ export class IdleActivityDetector implements ActivityDetector {
       periods.push(this.createIdlePeriodWithConfig(lastActivity, recordingDuration, config))
     }
 
-    return periods
+    // Merge adjacent periods with same speed multiplier to avoid side-by-side blocks
+    return this.mergeAdjacentPeriods(periods)
+  }
+
+  /**
+   * Merge adjacent periods that have the same speed multiplier
+   * This prevents side-by-side blocks in the UI when tiny activity bursts
+   * create separate periods that would otherwise display as one
+   */
+  private mergeAdjacentPeriods(periods: SpeedUpPeriod[]): SpeedUpPeriod[] {
+    if (periods.length <= 1) return periods
+
+    const merged: SpeedUpPeriod[] = []
+    for (const period of periods) {
+      const last = merged[merged.length - 1]
+      if (last && last.suggestedSpeedMultiplier === period.suggestedSpeedMultiplier) {
+        // Same multiplier - extend the last period to include this one
+        last.endTime = period.endTime
+        // Recalculate metadata for merged duration
+        const mergedDuration = last.endTime - last.startTime
+        last.confidence = Math.min(1, 0.6 + (mergedDuration / 30000) * 0.4)
+        last.metadata = {
+          ...last.metadata,
+          idleDurationMs: mergedDuration
+        }
+      } else {
+        merged.push({ ...period })
+      }
+    }
+    return merged
   }
 
   /**

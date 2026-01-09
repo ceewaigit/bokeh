@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { CropOverlay } from '@/features/effects/crop/components/CropOverlay'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
@@ -27,12 +27,35 @@ export function WebcamPreview({
     const cropPreviewRef = useRef<HTMLDivElement>(null)
     const [cropPreviewSize, setCropPreviewSize] = useState({ width: 0, height: 0 })
 
+    // Local state for live preview during drag
+    const [previewCrop, setPreviewCrop] = useState<CropEffectData | null>(null)
+
+    // Use preview crop during drag, otherwise use committed displayCrop
+    const activeCrop = previewCrop ?? displayCrop
+
     const handleCropPreviewLoaded = (event: React.SyntheticEvent<HTMLVideoElement>) => {
         const video = event.currentTarget
         if (!Number.isFinite(video.duration)) return
         video.currentTime = 0
         video.pause()
     }
+
+    // Handle live preview during drag
+    const handleCropPreview = useCallback((crop: CropEffectData) => {
+        setPreviewCrop(crop)
+    }, [])
+
+    // Clear preview state on change commit
+    const handleCropChangeWithClear = useCallback((crop: CropEffectData) => {
+        setPreviewCrop(null)
+        onCropChange(crop)
+    }, [onCropChange])
+
+    // Clear preview state on reset
+    const handleResetWithClear = useCallback(() => {
+        setPreviewCrop(null)
+        onReset()
+    }, [onReset])
 
     useEffect(() => {
         const element = cropPreviewRef.current
@@ -47,6 +70,19 @@ export function WebcamPreview({
         return () => observer.disconnect()
     }, [])
 
+    // Sidebar video style - video fills container 1:1 so CropOverlay coordinates match exactly
+    // Use 'fill' not 'cover' so the normalized crop coordinates map directly to pixels
+    const videoStyle = useMemo<React.CSSProperties>(() => ({
+        position: 'absolute' as const,
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'fill' as const, // Fill exactly so overlay coords match 1:1
+        transform: mirror ? 'scaleX(-1)' : undefined,
+        transformOrigin: 'center',
+    }), [mirror])
+
     if (!previewSrc) return null
 
     return (
@@ -58,7 +94,7 @@ export function WebcamPreview({
                 </div>
                 <button
                     type="button"
-                    onClick={onReset}
+                    onClick={handleResetWithClear}
                     className="flex items-center gap-1 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-background"
                 >
                     <RotateCcw className="h-3 w-3" />
@@ -72,11 +108,7 @@ export function WebcamPreview({
             >
                 <video
                     src={previewSrc}
-                    className="absolute inset-0 h-full w-full object-cover"
-                    style={{
-                        transform: mirror ? 'scaleX(-1)' : undefined,
-                        transformOrigin: 'center'
-                    }}
+                    style={videoStyle}
                     muted
                     playsInline
                     preload="metadata"
@@ -85,10 +117,11 @@ export function WebcamPreview({
                 />
                 {cropPreviewSize.width > 0 && cropPreviewSize.height > 0 && (
                     <CropOverlay
-                        cropData={displayCrop}
-                        onCropChange={onCropChange}
+                        cropData={activeCrop}
+                        onCropChange={handleCropChangeWithClear}
+                        onCropPreview={handleCropPreview}
                         onConfirm={() => null}
-                        onReset={onReset}
+                        onReset={handleResetWithClear}
                         videoRect={{
                             x: 0,
                             y: 0,

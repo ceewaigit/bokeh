@@ -658,6 +658,39 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         })
     },
 
+    clearDetectionPeriods: (recordingIds) => {
+        set((state) => {
+            if (!state.currentProject) return
+
+            for (const recording of state.currentProject.recordings) {
+                // If specific recordingIds provided, only clear those
+                if (recordingIds && !recordingIds.includes(recording.id)) continue
+                if (!recording.metadata) continue
+
+                delete recording.metadata.detectedTypingPeriods
+                delete recording.metadata.detectedIdlePeriods
+            }
+        })
+    },
+
+    restoreDetectionPeriods: (periods) => {
+        set((state) => {
+            if (!state.currentProject) return
+
+            for (const [recordingId, saved] of periods) {
+                const recording = state.currentProject.recordings.find(r => r.id === recordingId)
+                if (!recording?.metadata) continue
+
+                if (saved.detectedTypingPeriods) {
+                    recording.metadata.detectedTypingPeriods = [...saved.detectedTypingPeriods]
+                }
+                if (saved.detectedIdlePeriods) {
+                    recording.metadata.detectedIdlePeriods = [...saved.detectedIdlePeriods]
+                }
+            }
+        })
+    },
+
     // ===========================================================================
     // EFFECT ACTIONS
     // ===========================================================================

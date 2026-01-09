@@ -7,18 +7,17 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { RotateCcw } from 'lucide-react'
-import type { KeystrokeEffectData, Effect, KeyboardEvent } from '@/types/project'
+import type { KeystrokeEffectData, Effect, KeyboardEvent, Recording } from '@/types/project'
 import { EffectType } from '@/types'
 import { OverlayAnchor } from '@/types/overlays'
 import { DEFAULT_KEYSTROKE_DATA } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { getEffectsOfType } from '@/features/effects/core/filters'
-import { EffectStore } from '@/features/effects/core/store'
 import { KeystrokePreviewOverlay } from '@/features/effects/keystroke/components/keystroke-preview-overlay'
 import { OverlayPositionControl } from '@/features/rendering/overlays/components/overlay-position-control'
 import { OverlayStyleControl } from '@/features/rendering/overlays/components/overlay-style-control'
-import { useOverlayState } from '@/features/rendering/overlays/hooks/use-overlay-state'
+import { useShallow } from 'zustand/react/shallow'
 
 interface KeystrokeTabProps {
   keystrokeEffect: Effect | undefined
@@ -41,6 +40,9 @@ const PREVIEW_TEXT = 'bokeh.'
 const PREVIEW_CHAR_INTERVAL_MS = 120
 const PREVIEW_PAUSE_MS = 900
 
+const EMPTY_EFFECTS: Effect[] = []
+const EMPTY_RECORDINGS: Recording[] = []
+
 const buildPreviewEvents = (text: string, intervalMs: number): KeyboardEvent[] => {
   let timestamp = 0
   return text.split('').map((char) => {
@@ -51,23 +53,86 @@ const buildPreviewEvents = (text: string, intervalMs: number): KeyboardEvent[] =
   })
 }
 
+const KeystrokeStylePreview = React.memo(function KeystrokeStylePreview({
+  enabled,
+  settings,
+}: {
+  enabled: boolean
+  settings: Partial<KeystrokeEffectData>
+}) {
+  const previewEvents = useMemo(
+    () => buildPreviewEvents(PREVIEW_TEXT, PREVIEW_CHAR_INTERVAL_MS),
+    []
+  )
+
+  const displayDuration = settings.displayDuration ?? DEFAULT_KEYSTROKE_DATA.displayDuration ?? 2000
+  const fadeOutDuration = settings.fadeOutDuration ?? DEFAULT_KEYSTROKE_DATA.fadeOutDuration ?? 400
+
+  const previewDurationMs = useMemo(() => {
+    const lastTimestamp = previewEvents[previewEvents.length - 1]?.timestamp ?? 0
+    return lastTimestamp + displayDuration + fadeOutDuration + PREVIEW_PAUSE_MS
+  }, [previewEvents, displayDuration, fadeOutDuration])
+
+  const [previewTimeMs, setPreviewTimeMs] = useState(0)
+
+  useEffect(() => {
+    if (!enabled || previewDurationMs <= 0) {
+      setPreviewTimeMs(0)
+      return
+    }
+
+    const interval = window.setInterval(() => {
+      setPreviewTimeMs((prev) => (prev + 50) % previewDurationMs)
+    }, 50)
+    return () => window.clearInterval(interval)
+  }, [enabled, previewDurationMs])
+
+  return (
+    <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm overflow-hidden">
+      <div className="px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground">
+        Preview
+      </div>
+      <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
+        <div className="space-y-2">
+          <div className="relative h-20 rounded-lg border border-border/50 bg-muted/30 shadow-inner overflow-hidden">
+            <KeystrokePreviewOverlay
+              currentTimeMs={previewTimeMs}
+              keystrokeEvents={previewEvents}
+              settings={settings}
+              enabled
+              centered
+            />
+          </div>
+          <div className="text-xs text-muted-foreground/60 italic">
+            Uses your current style settings
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+})
+
+KeystrokeStylePreview.displayName = 'KeystrokeStylePreview'
+
 export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChange, onBulkToggleKeystrokes }: KeystrokeTabProps) {
   const keystrokeData = keystrokeEffect?.data as KeystrokeEffectData | undefined
-  const project = useProjectStore((s) => s.currentProject)
+  const { effects, recordings } = useProjectStore(useShallow((s) => ({
+    effects: s.currentProject?.timeline.effects ?? EMPTY_EFFECTS,
+    recordings: s.currentProject?.recordings ?? EMPTY_RECORDINGS,
+  })))
 
-  const keystrokeEffects = React.useMemo(() => {
-    if (!project) return []
-    return getEffectsOfType(EffectStore.getAll(project), EffectType.Keystroke, false)
-  }, [project])
+  const keystrokeEffects = useMemo(() => {
+    return getEffectsOfType(effects, EffectType.Keystroke, false)
+  }, [effects])
 
   const hasEnabledKeystrokes = React.useMemo(() => {
     return keystrokeEffects.some(e => e.enabled)
   }, [keystrokeEffects])
 
   const keyboardEventCount = React.useMemo(() => {
-    if (!project?.recordings?.length) return 0
-    return project.recordings.reduce((sum, r) => sum + (r.metadata?.keyboardEvents?.length ?? 0), 0)
-  }, [project?.recordings])
+    if (!recordings.length) return 0
+    return recordings.reduce((sum, r) => sum + (r.metadata?.keyboardEvents?.length ?? 0), 0)
+  }, [recordings])
 
   // Current values with defaults
   const preset = keystrokeData?.stylePreset ?? DEFAULT_KEYSTROKE_DATA.stylePreset ?? 'glass'
@@ -87,7 +152,6 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
   const [localPadding, setLocalPadding] = useState(padding)
   const [localScale, setLocalScale] = useState(scale)
   const [localFadeOutDuration, setLocalFadeOutDuration] = useState(fadeOutDuration)
-  const [previewTimeMs, setPreviewTimeMs] = useState(0)
 
   useEffect(() => setLocalFontSize(fontSize), [fontSize])
   useEffect(() => setLocalDisplayDuration(displayDuration), [displayDuration])
@@ -95,26 +159,6 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
   useEffect(() => setLocalPadding(padding), [padding])
   useEffect(() => setLocalScale(scale), [scale])
   useEffect(() => setLocalFadeOutDuration(fadeOutDuration), [fadeOutDuration])
-
-  const previewEvents = useMemo(
-    () => buildPreviewEvents(PREVIEW_TEXT, PREVIEW_CHAR_INTERVAL_MS),
-    []
-  )
-  const previewDurationMs = useMemo(() => {
-    const lastTimestamp = previewEvents[previewEvents.length - 1]?.timestamp ?? 0
-    return lastTimestamp + localDisplayDuration + localFadeOutDuration + PREVIEW_PAUSE_MS
-  }, [previewEvents, localDisplayDuration, localFadeOutDuration])
-
-  useEffect(() => {
-    if (!hasEnabledKeystrokes || previewDurationMs <= 0) {
-      setPreviewTimeMs(0)
-      return
-    }
-    const interval = window.setInterval(() => {
-      setPreviewTimeMs((prev) => (prev + 50) % previewDurationMs)
-    }, 50)
-    return () => window.clearInterval(interval)
-  }, [hasEnabledKeystrokes, previewDurationMs])
 
   const previewSettings: Partial<KeystrokeEffectData> = {
     ...keystrokeData,
@@ -130,17 +174,17 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
     showShortcuts,
   }
 
-  const { resolvedAnchors } = useOverlayState()
   const occupiedAnchors = useMemo(() => {
     const occupied = new Set<OverlayAnchor>()
-    resolvedAnchors.forEach((anchor, effectId) => {
-      const isKeystroke = keystrokeEffects.some(e => e.id === effectId)
-      if (!isKeystroke) {
-        occupied.add(anchor)
-      }
-    })
+    for (const effect of effects) {
+      if (effect.enabled === false) continue
+      if (effect.type !== EffectType.Subtitle && effect.type !== EffectType.Keystroke) continue
+      if (effect.type === EffectType.Keystroke && effect.id === keystrokeEffect?.id) continue
+      const anchor = (effect.data as { anchor?: OverlayAnchor } | undefined)?.anchor
+      if (anchor) occupied.add(anchor)
+    }
     return occupied
-  }, [resolvedAnchors, keystrokeEffects])
+  }, [effects, keystrokeEffect?.id])
 
   return (
     <div className="space-y-2.5">
@@ -175,27 +219,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
 
       {hasEnabledKeystrokes && (
         <div className="rounded-md bg-background/40 p-2.5 space-y-3">
-          <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm overflow-hidden">
-            <div className="px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground">
-              Preview
-            </div>
-            <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
-              <div className="space-y-2">
-                <div className="relative h-20 rounded-lg border border-border/50 bg-muted/30 shadow-inner overflow-hidden">
-                  <KeystrokePreviewOverlay
-                    currentTimeMs={previewTimeMs}
-                    keystrokeEvents={previewEvents}
-                    settings={previewSettings}
-                    enabled
-                    centered
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground/60 italic">
-                  Uses your current style settings
-                </div>
-              </div>
-            </div>
-          </div>
+          <KeystrokeStylePreview enabled={hasEnabledKeystrokes} settings={previewSettings} />
 
           {/* Style */}
           <div className="space-y-1.5">
@@ -234,18 +258,18 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             fontSize={localFontSize}
             onFontSizeChange={(v) => {
               setLocalFontSize(v)
-              onUpdateKeystroke({ fontSize: v })
             }}
+            onFontSizeCommit={(v) => onUpdateKeystroke({ fontSize: v })}
             padding={localPadding}
             onPaddingChange={(v) => {
               setLocalPadding(v)
-              onUpdateKeystroke({ padding: v })
             }}
+            onPaddingCommit={(v) => onUpdateKeystroke({ padding: v })}
             borderRadius={localBorderRadius}
             onBorderRadiusChange={(v) => {
               setLocalBorderRadius(v)
-              onUpdateKeystroke({ borderRadius: v })
             }}
+            onBorderRadiusCommit={(v) => onUpdateKeystroke({ borderRadius: v })}
           />
 
           {/* Duration */}
@@ -277,7 +301,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
                   value={[localScale]}
                   onValueChange={([v]) => setLocalScale(v)}
                   onValueCommit={([v]) => onUpdateKeystroke({ scale: v })}
-                  min={0.5}
+                  min={0.25}
                   max={2}
                   step={0.1}
                   className="w-full"

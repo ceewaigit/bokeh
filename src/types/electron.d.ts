@@ -330,6 +330,10 @@ export interface ElectronAPI {
   toggleTeleprompterWindow?: () => Promise<{ success: boolean; isVisible?: boolean }>
   showTeleprompterWindow?: () => Promise<{ success: boolean }>
   hideTeleprompterWindow?: () => Promise<{ success: boolean }>
+
+  // Webcam preview window
+  showWebcamPreview?: (deviceId: string) => Promise<{ success: boolean; error?: string }>
+  hideWebcamPreview?: () => Promise<{ success: boolean; error?: string }>
 }
 
 declare global {

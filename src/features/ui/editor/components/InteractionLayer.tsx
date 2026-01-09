@@ -6,7 +6,7 @@ import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useCanvasDrag, type DragType, type CanvasDragDelta } from '@/features/ui/editor/hooks/use-canvas-drag'
 import { hitTestEffects, type HandlePosition } from '@/features/ui/editor/logic/hit-testing'
 import { hitTestAnnotationsFromPoint } from '@/features/ui/editor/logic/dom-hit-testing'
-import { SelectionOverlay, SELECTION_HANDLE_SIZE } from '@/features/ui/editor/components/SelectionOverlay'
+import { SelectionOverlay } from '@/features/ui/editor/components/SelectionOverlay'
 import {
     deltaToPercent,
     clampPosition,

@@ -260,8 +260,8 @@ export function ZoomTab({
     const [localStiffness, setLocalStiffness] = React.useState<number | null>(null)
     const [localDamping, setLocalDamping] = React.useState<number | null>(null)
     const [cameraStylePreset, setCameraStylePreset] = React.useState<string>('cinematic')
-    const [zoomBlurPreset] = React.useState<string>('balanced')
-    const [motionBlurPreset] = React.useState<string>('balanced')
+    const [zoomBlurPreset, setZoomBlurPreset] = React.useState<string>('balanced')
+    const [motionBlurPreset, setMotionBlurPreset] = React.useState<string>('balanced')
     const [isAdvancedBlurOpen, setIsAdvancedBlurOpen] = React.useState(false)
 
     const cameraStylePresets = React.useMemo(() => ([
@@ -293,6 +293,29 @@ export function ZoomTab({
             setCameraStylePreset(match?.id ?? 'custom')
         }
     }, [camera, cameraStylePresets])
+
+    React.useEffect(() => {
+        if (!camera.refocusBlurEnabled) {
+            setZoomBlurPreset('balanced') // Default visual state
+            return
+        }
+        const match = zoomBlurPresets.find(p => p.value === camera.refocusBlurIntensity)
+        setZoomBlurPreset(match?.id ?? 'custom')
+    }, [camera.refocusBlurEnabled, camera.refocusBlurIntensity, zoomBlurPresets])
+
+    React.useEffect(() => {
+        if (!camera.motionBlurEnabled) {
+            setMotionBlurPreset('balanced') // Default visual state
+            return
+        }
+        // Fuzzy match intensity and threshold
+        const match = motionBlurPresets.find(p =>
+            p.values &&
+            p.values.intensity === camera.motionBlurIntensity &&
+            p.values.threshold === camera.motionBlurThreshold
+        )
+        setMotionBlurPreset(match?.id ?? 'custom')
+    }, [camera.motionBlurEnabled, camera.motionBlurIntensity, camera.motionBlurThreshold, motionBlurPresets])
 
     const seedManualTargetFromLiveCamera = () => {
         if (!project || !timelineMetadata) return null

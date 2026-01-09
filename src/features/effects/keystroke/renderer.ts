@@ -14,6 +14,7 @@ import {
 } from './utils'
 
 import { getOverlayAnchorPosition } from '@/features/rendering/overlays/anchor-utils'
+import { getOverlaySafeMarginPx } from '@/features/rendering/overlays/overlay-metrics'
 
 export type KeystrokeDrawRect = { x: number; y: number; width: number; height: number }
 
@@ -24,6 +25,7 @@ export class KeystrokeRenderer {
   private segments: KeystrokeSegment[] = []
   private options: Required<KeystrokeEffectData>
   private dpr: number = 1
+  private displayScale: number = 1
   private lastKeyboardEvents: KeyboardEvent[] | undefined
   private lastCanvas: HTMLCanvasElement | undefined
 
@@ -46,6 +48,10 @@ export class KeystrokeRenderer {
 
   setDPR(dpr: number) {
     this.dpr = dpr
+  }
+
+  setDisplayScale(displayScale: number) {
+    this.displayScale = Number.isFinite(displayScale) && displayScale > 0 ? displayScale : 1
   }
 
   setKeyboardEvents(events: KeyboardEvent[]) {
@@ -94,13 +100,12 @@ export class KeystrokeRenderer {
     const displayState = getKeystrokeDisplayState(this.segments, timestamp, this.options)
     if (!displayState) return null
 
-    const position = this.calculatePosition(videoWidth, videoHeight)
-    return this.drawKeystroke(displayState.text, position.x, position.y, displayState.opacity)
+    const position = this.calculatePosition(videoWidth, videoHeight, this.displayScale)
+    return this.drawKeystroke(displayState.text, position.x, position.y, displayState.opacity, this.displayScale)
   }
 
-  private calculatePosition(videoWidth: number, videoHeight: number): { x: number; y: number } {
-    const scale = this.options.scale || 1
-    const margin = 48 * scale
+  private calculatePosition(videoWidth: number, videoHeight: number, displayScale: number): { x: number; y: number } {
+    const margin = getOverlaySafeMarginPx(displayScale)
     const anchor = this.resolveAnchor()
     const offsetX = this.options.offsetX ?? 0
     const offsetY = this.options.offsetY ?? 0
@@ -122,11 +127,11 @@ export class KeystrokeRenderer {
     }
   }
 
-  private drawKeystroke(text: string, x: number, y: number, opacity: number): KeystrokeDrawRect | null {
+  private drawKeystroke(text: string, x: number, y: number, opacity: number, displayScale: number): KeystrokeDrawRect | null {
     if (!this.ctx) return null
 
     const ctx = this.ctx
-    const scale = this.options.scale || 1
+    const scale = (this.options.scale || 1) * displayScale
     const fontSize = (this.options.fontSize || 14) * scale
     const padding = (this.options.padding || 12) * scale
     const borderRadius = (this.options.borderRadius || 8) * scale

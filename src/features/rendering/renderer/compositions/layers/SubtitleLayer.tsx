@@ -7,6 +7,7 @@ import { EffectType } from '@/types/project'
 import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context'
 import { getOverlayAnchorStyle } from '@/features/rendering/overlays/anchor-utils'
+import { getOverlayDisplayScale, getOverlaySafeMarginPx } from '@/features/rendering/overlays/overlay-metrics'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import type { SourceTimeRange } from '@/types/project'
@@ -228,15 +229,19 @@ const SubtitleEffectRenderer = React.memo<{
   )
   const windowWords = visibleWords.slice(start, end)
 
+  const displayScale = getOverlayDisplayScale(width)
+
   const anchor = resolvedAnchors.get(effect.id) ?? data.anchor
-  const anchorStyle = getOverlayAnchorStyle(anchor, data, 36)
+  const anchorStyle = getOverlayAnchorStyle(anchor, data, getOverlaySafeMarginPx(displayScale))
   const maxWidthPercent = data.maxWidth ?? 80
   const maxWidthPx = Math.round((maxWidthPercent / 100) * width)
 
   const textColor = data.textColor ?? '#ffffff'
   const highlightColor = data.highlightColor ?? '#FFD166'
-  const padding = data.padding ?? 4
-  const borderRadius = data.borderRadius ?? 12
+  const padding = Math.round((data.padding ?? 4) * displayScale)
+  const borderRadius = Math.round((data.borderRadius ?? 12) * displayScale)
+  const fontSizePx = Math.round((data.fontSize ?? 32) * displayScale)
+  const lineHeightPx = Math.round(lineHeight * displayScale)
 
   return (
     <div
@@ -245,8 +250,8 @@ const SubtitleEffectRenderer = React.memo<{
       style={{
         position: 'absolute',
         maxWidth: maxWidthPx,
-        lineHeight: `${lineHeight}px`,
-        fontSize: `${data.fontSize ?? 32}px`,
+        lineHeight: `${lineHeightPx}px`,
+        fontSize: `${fontSizePx}px`,
         fontFamily: data.fontFamily ?? 'SF Pro Display, system-ui, -apple-system, sans-serif',
         color: textColor,
         textAlign: 'center',
@@ -270,8 +275,8 @@ const SubtitleEffectRenderer = React.memo<{
         if (isActive && highlightStyle === 'background') {
           style.backgroundColor = highlightColor
           style.color = '#000000'
-          style.padding = '0 4px'
-          style.borderRadius = 6
+          style.padding = `0 ${Math.max(1, Math.round(4 * displayScale))}px`
+          style.borderRadius = Math.max(1, Math.round(6 * displayScale))
         }
         if (isActive && highlightStyle === 'scale') {
           style.display = 'inline-block'

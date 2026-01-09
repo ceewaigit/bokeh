@@ -15,9 +15,17 @@ export interface ApplyAllOptions {
   applyIdle: boolean
 }
 
+// Saved detection periods for undo/redo (recordingId -> original periods)
+interface SavedPeriods {
+  detectedTypingPeriods?: any[]
+  detectedIdlePeriods?: any[]
+}
+
 export class ApplyAllSpeedUpsCommand extends Command<{ affectedClips: string[] }> {
   private subCommands: ApplySpeedUpCommand[] = []
   private clipsProcessed: number = 0
+  // Store original detection periods before clearing (for undo)
+  private savedPeriodsByRecording: Map<string, SavedPeriods> = new Map()
 
   constructor(
     private context: CommandContext,
@@ -107,6 +115,11 @@ export class ApplyAllSpeedUpsCommand extends Command<{ affectedClips: string[] }
       }
     }
 
+    // After applying all speed-ups, clear detection periods from recordings
+    // This removes the speed-up bar space from the timeline UI
+    this.saveDetectionPeriods(project)
+    this.context.getStore().clearDetectionPeriods()
+
     return {
       success: true,
       data: { affectedClips: allAffectedClips }
@@ -125,6 +138,9 @@ export class ApplyAllSpeedUpsCommand extends Command<{ affectedClips: string[] }
       }
     }
 
+    // Restore detection periods so speed-up bar reappears
+    this.restoreDetectionPeriods()
+
     return { success: true }
   }
 
@@ -139,6 +155,9 @@ export class ApplyAllSpeedUpsCommand extends Command<{ affectedClips: string[] }
         }
       }
     }
+
+    // Re-clear detection periods using store action for reactive updates
+    this.context.getStore().clearDetectionPeriods()
 
     return { success: true }
   }
@@ -172,6 +191,34 @@ export class ApplyAllSpeedUpsCommand extends Command<{ affectedClips: string[] }
         suggestedSpeedMultiplier: p.suggestedSpeedMultiplier,
         confidence: p.confidence
       })))
+    }
+  }
+
+  /** Save detection periods from recordings for undo support */
+  private saveDetectionPeriods(project: any): void {
+    for (const recording of project.recordings) {
+      if (!recording.metadata) continue
+
+      const saved: SavedPeriods = {}
+
+      if (recording.metadata.detectedTypingPeriods?.length) {
+        saved.detectedTypingPeriods = [...recording.metadata.detectedTypingPeriods]
+      }
+      if (recording.metadata.detectedIdlePeriods?.length) {
+        saved.detectedIdlePeriods = [...recording.metadata.detectedIdlePeriods]
+      }
+
+      // Only save if there's something to save
+      if (saved.detectedTypingPeriods || saved.detectedIdlePeriods) {
+        this.savedPeriodsByRecording.set(recording.id, saved)
+      }
+    }
+  }
+
+  /** Restore saved detection periods to recordings (for undo) */
+  private restoreDetectionPeriods(): void {
+    if (this.savedPeriodsByRecording.size > 0) {
+      this.context.getStore().restoreDetectionPeriods(this.savedPeriodsByRecording)
     }
   }
 }

@@ -11,6 +11,8 @@ interface CropOverlayProps {
   cropData: CropEffectData
   /** Called when crop changes - only called on drag end for performance */
   onCropChange: (cropData: CropEffectData) => void
+  /** Called during drag for real-time preview (optional) */
+  onCropPreview?: (cropData: CropEffectData) => void
   /** Called when user confirms the crop */
   onConfirm: () => void
   /** Called when user resets/cancels the crop */
@@ -37,6 +39,7 @@ const HANDLE_SHADOW = '0 1px 2px rgba(0,0,0,0.2)'
 export function CropOverlay({
   cropData,
   onCropChange,
+  onCropPreview,
   onConfirm,
   onReset,
   videoRect,
@@ -126,8 +129,10 @@ export function CropOverlay({
       // PERFORMANCE: Update local state only (no store update during drag)
       setLocalCropData(newCrop)
       pendingCropRef.current = newCrop
+      // Fire preview callback for real-time visual feedback
+      onCropPreview?.(newCrop)
     },
-    [videoRect]
+    [videoRect, onCropPreview]
   )
 
   const handleDragEnd = useCallback(() => {

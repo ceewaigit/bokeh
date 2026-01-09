@@ -4,6 +4,7 @@ import { KeystrokePosition } from '@/types/project';
 import { OverlayAnchor } from '@/types/overlays';
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config';
 import { getOverlayAnchorStyle } from '@/features/rendering/overlays/anchor-utils';
+import { getOverlaySafeMarginPx } from '@/features/rendering/overlays/overlay-metrics'
 import {
     computeKeystrokeSegments,
     getKeystrokeDisplayState,
@@ -18,6 +19,7 @@ interface KeystrokePreviewOverlayProps extends React.HTMLAttributes<HTMLDivEleme
     settings?: Partial<KeystrokeEffectData>;
     enabled?: boolean;
     centered?: boolean;
+    displayScale?: number;
 }
 
 /**
@@ -30,6 +32,7 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
     settings: userSettings,
     enabled = true,
     centered = false,
+    displayScale: displayScaleProp,
     ...props
 }) => {
     const settings = useMemo<Required<KeystrokeEffectData>>(() => {
@@ -59,11 +62,12 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
         return null;
     }
 
-    const scale = settings.scale || 1;
+    const displayScale = displayScaleProp ?? 1;
+    const scale = (settings.scale || 1) * displayScale;
     const fontSize = (settings.fontSize || 18) * scale;
     const padding = (settings.padding || 12) * scale;
     const borderRadius = (settings.borderRadius || 15) * scale;
-    const margin = 48 * scale;
+    const margin = getOverlaySafeMarginPx(displayScale);
     const preset = (settings.stylePreset || 'glass') as KeystrokeStylePreset;
     const presetStyle = getKeystrokePresetStyle(preset, settings, scale);
     const fontFamily = getKeystrokeFontFamily(preset, settings.fontFamily);

@@ -1,5 +1,4 @@
 import { BrowserWindow, screen } from 'electron'
-import * as path from 'path'
 
 // Webpack entry points are set as environment variables by electron-forge
 
@@ -32,7 +31,6 @@ export function createCountdownWindow(displayId?: number): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
     }
   })
 
@@ -43,9 +41,11 @@ export function createCountdownWindow(displayId?: number): BrowserWindow {
   return countdownWindow
 }
 
-export function showCountdown(countdownWindow: BrowserWindow, number: number): void {
+const countdownLoadPromises = new WeakMap<BrowserWindow, Promise<void>>()
+
+function getCountdownHtml(): string {
   const csp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; script-src 'unsafe-inline'; connect-src 'none'; media-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
-  const html = `
+  return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -84,8 +84,11 @@ export function showCountdown(countdownWindow: BrowserWindow, number: number): v
           line-height: 1;
           color: white;
           text-shadow: 0 4px 30px rgba(0,0,0,0.3);
-          animation: numberReveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
           font-variant-numeric: tabular-nums;
+        }
+
+        .reveal {
+          animation: numberReveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         
         @keyframes numberReveal {
@@ -104,12 +107,49 @@ export function showCountdown(countdownWindow: BrowserWindow, number: number): v
     </head>
     <body>
       <div class="countdown-container">
-        <div class="countdown">${number || ''}</div>
+        <div id="countdown" class="countdown"></div>
       </div>
     </body>
     </html>
   `
+}
 
-  countdownWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
-  countdownWindow.show()
+async function ensureCountdownLoaded(countdownWindow: BrowserWindow): Promise<void> {
+  const existing = countdownLoadPromises.get(countdownWindow)
+  if (existing) return existing
+
+  const html = getCountdownHtml()
+  const loadPromise = countdownWindow
+    .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    .then(() => { })
+
+  countdownLoadPromises.set(countdownWindow, loadPromise)
+  return loadPromise
+}
+
+async function updateCountdownNumber(countdownWindow: BrowserWindow, number: number): Promise<void> {
+  const text = number > 0 ? String(number) : ''
+  const escaped = text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+
+  await countdownWindow.webContents.executeJavaScript(
+    `
+      (() => {
+        const el = document.getElementById('countdown');
+        if (!el) return;
+        el.textContent = '${escaped}';
+        el.classList.remove('reveal');
+        void el.offsetWidth;
+        if (el.textContent) el.classList.add('reveal');
+      })();
+    `,
+    true
+  )
+}
+
+export async function showCountdown(countdownWindow: BrowserWindow, number: number): Promise<void> {
+  await ensureCountdownLoaded(countdownWindow)
+  await updateCountdownNumber(countdownWindow, number)
+  if (!countdownWindow.isVisible()) {
+    countdownWindow.show()
+  }
 }

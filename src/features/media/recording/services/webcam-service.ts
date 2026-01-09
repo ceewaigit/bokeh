@@ -322,7 +322,13 @@ export class WebcamService {
   }
 
   private async finishRecording(): Promise<WebcamRecordingResult> {
-    const duration = this.getDuration()
+    // Capture duration BEFORE any async operations that might affect state
+    // Use wall-clock time as the source of truth
+    const calculatedDuration = this.getDuration()
+    const wallClockDuration = this.startTime > 0 ? Date.now() - this.startTime : 0
+
+    // Use wall-clock duration if calculated duration seems wrong (< 100ms for a real recording)
+    const duration = calculatedDuration > 100 ? calculatedDuration : wallClockDuration
 
     if (!this.recordingPath) {
       throw new Error('Webcam recording path not available')
@@ -333,7 +339,7 @@ export class WebcamService {
 
     const videoPath = this.recordingPath
 
-    logger.info(`[WebcamService] Recording stopped: ${duration}ms, path: ${videoPath}`)
+    logger.info(`[WebcamService] Recording stopped: ${duration}ms (calculated: ${calculatedDuration}ms, wall-clock: ${wallClockDuration}ms), path: ${videoPath}`)
 
     const result: WebcamRecordingResult = {
       videoPath,

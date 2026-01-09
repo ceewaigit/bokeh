@@ -4,6 +4,7 @@ import { RecordButtonDock } from './components/record-button-dock';
 import { WorkspaceManager } from './components/workspace/workspace-manager';
 import AreaSelectionPage from './app/area-selection/page';
 import TeleprompterPage from './app/teleprompter/page';
+import WebcamPreviewPage from './app/webcam-preview/page';
 import { ThemeProvider } from './shared/contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { PermissionGuard } from './components/permission-guard';
@@ -19,6 +20,7 @@ const hash = window.location.hash;
 const isRecordButton = hash === '#/record-button';
 const isAreaSelection = hash === '#/area-selection';
 const isTeleprompter = hash === '#/teleprompter';
+const isWebcamPreview = hash === '#/webcam-preview';
 
 const App = () => {
   if (isRecordButton) {
@@ -43,6 +45,15 @@ const App = () => {
     return (
       <ThemeProvider>
         <TeleprompterPage />
+      </ThemeProvider>
+    );
+  }
+
+  if (isWebcamPreview) {
+    // Webcam preview floating window during recording
+    return (
+      <ThemeProvider>
+        <WebcamPreviewPage />
       </ThemeProvider>
     );
   }

@@ -234,6 +234,7 @@ function isTimeInRanges(timeMs: number, ranges: SourceTimeRange[]): boolean {
 
 function UnifiedTranscriptStream({
   words,
+  sections,
   hiddenRegionsByRecording,
   showDeleted,
   currentTime,
@@ -242,6 +243,7 @@ function UnifiedTranscriptStream({
   onSeekWord
 }: {
   words: UnifiedTranscriptWord[]
+  sections: UnifiedTranscriptSection[]
   hiddenRegionsByRecording: Map<string, SourceTimeRange[]>
   showDeleted: boolean
   currentTime: number
@@ -491,32 +493,51 @@ function UnifiedTranscriptStream({
   }, [visibleWordStates])
 
   if (words.length === 0) {
-    return (
-      <div className="py-6 px-2 space-y-4">
-        {/* Skeleton placeholder rows */}
-        {[0, 1, 2].map((row) => (
-          <div key={row} className="flex gap-4 animate-pulse" style={{ animationDelay: `${row * 150}ms` }}>
-            {/* Gutter skeleton */}
-            <div className="flex-shrink-0 w-12 pt-1">
-              <div className="h-3 w-10 bg-muted rounded ml-auto" />
+    const isProcessing = sections.some(s => s.transcriptionStatus === TranscriptionStatus.Processing || s.transcriptionStatus === TranscriptionStatus.Pending)
+    const allComplete = sections.length > 0 && sections.every(s => s.transcriptionStatus === TranscriptionStatus.Complete || s.transcriptionStatus === TranscriptionStatus.Failed)
+
+    if (isProcessing) {
+      return (
+        <div className="py-6 px-2 space-y-4">
+          {/* Skeleton placeholder rows */}
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="flex gap-4 animate-pulse" style={{ animationDelay: `${row * 150}ms` }}>
+              {/* Gutter skeleton */}
+              <div className="flex-shrink-0 w-12 pt-1">
+                <div className="h-3 w-10 bg-muted rounded ml-auto" />
+              </div>
+              {/* Words skeleton */}
+              <div className="flex-1 flex flex-wrap gap-x-1.5 gap-y-1">
+                {Array.from({ length: 6 + row * 2 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-5 rounded bg-muted"
+                    style={{ width: `${40 + Math.random() * 50}px` }}
+                  />
+                ))}
+              </div>
             </div>
-            {/* Words skeleton */}
-            <div className="flex-1 flex flex-wrap gap-x-1.5 gap-y-1">
-              {Array.from({ length: 6 + row * 2 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-5 rounded bg-muted"
-                  style={{ width: `${40 + Math.random() * 50}px` }}
-                />
-              ))}
-            </div>
+          ))}
+          {/* Call to action */}
+          <div className="flex items-center justify-center gap-2 pt-4 text-xs text-muted-foreground animate-pulse">
+            <span>Transcribing...</span>
           </div>
-        ))}
-        {/* Call to action */}
-        <div className="flex items-center justify-center gap-2 pt-4 text-xs text-muted-foreground">
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          <span>Choose a model and transcribe to start editing</span>
         </div>
+      )
+    }
+
+    if (allComplete) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+          <CaptionsOff className="w-8 h-8 opacity-20" />
+          <span className="text-sm">No speech detected in this recording</span>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-center justify-center gap-2 py-6 text-muted">
+        <span className="text-sm">Choose a model and transcribe to start editing</span>
       </div>
     )
   }
@@ -646,6 +667,7 @@ export function UnifiedTranscriptView({
 
       <UnifiedTranscriptStream
         words={words}
+        sections={sections}
         hiddenRegionsByRecording={hiddenRegionsByRecording}
         showDeleted={showDeleted}
         currentTime={currentTime}

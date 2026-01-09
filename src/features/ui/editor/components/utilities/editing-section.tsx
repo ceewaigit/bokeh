@@ -143,17 +143,17 @@ export function EditingSection() {
                             className="w-full flex items-center justify-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-all group hover:bg-destructive/20"
                         >
                             <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-[-180deg] transition-transform duration-500" />
-                            Regenerate Effects
+                            Regenerate Recording
                         </button>
                     </DialogTrigger>
                     <DialogContent className="max-w-sm">
                         <DialogHeader>
                             <div className="flex items-center gap-2">
                                 <AlertTriangle className="w-5 h-5 text-destructive" />
-                                <DialogTitle>Regenerate All Effects?</DialogTitle>
+                                <DialogTitle>Regenerate?</DialogTitle>
                             </div>
                             <DialogDescription className="pt-2">
-                                This will reset zoom, keystroke, and auto-generated 3D effects to their auto-detected state, and restore framing (crop + mockups) to defaults.
+                                This will reset zoom, keystroke, reset clips to their original state, and restore framing (crop + mockups) to defaults.
                             </DialogDescription>
                         </DialogHeader>
 

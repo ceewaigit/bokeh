@@ -524,6 +524,13 @@ const electronAPI = {
   hideTeleprompterWindow: () =>
     ipcRenderer.invoke('hide-teleprompter-window'),
 
+  // Webcam preview window
+  showWebcamPreview: (deviceId: string) =>
+    ipcRenderer.invoke('show-webcam-preview', deviceId),
+
+  hideWebcamPreview: () =>
+    ipcRenderer.invoke('hide-webcam-preview'),
+
   // Restricted IPC surface for export flows
   ipc: restrictedIpc
 }

@@ -216,6 +216,10 @@ export interface ClipSliceActions {
     confidence: number
   }>) => void
   restoreClipsFromUndo: (trackId: string, clipIdsToRemove: string[], clipsToRestore: Clip[]) => void
+  // Clear detection periods from recordings (for speed-up bar removal after applying)
+  clearDetectionPeriods: (recordingIds?: string[]) => void
+  // Restore detection periods (for undo of speed-up apply)
+  restoreDetectionPeriods: (periods: Map<string, { detectedTypingPeriods?: any[]; detectedIdlePeriods?: any[] }>) => void
 }
 
 export interface SelectionSliceActions {

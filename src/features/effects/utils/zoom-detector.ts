@@ -5,7 +5,7 @@
  */
 
 import type { MouseEvent, ZoomBlock, ClickEvent, KeyboardEvent as ProjectKeyboardEvent, ScrollEvent } from '@/types/project'
-import { ACTION_ZOOM_CONFIG, ZOOM_DETECTION_CONFIG } from '@/shared/config/physics-config'
+import { ACTION_ZOOM_CONFIG, ZOOM_DETECTION_CONFIG, ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
 
 // Types for action-based detection
 interface ActionPoint {
@@ -22,6 +22,7 @@ interface ActionCluster {
   startTime: number
   endTime: number
   maxImportance: number
+  primary: ActionPoint
   center: { x: number; y: number }
 }
 
@@ -57,6 +58,8 @@ export class ZoomDetector {
 
   // Action-based zoom config
   private readonly ACTION = ACTION_ZOOM_CONFIG
+  private readonly TRANSITION = ZOOM_TRANSITION_CONFIG
+  private readonly END_GUARD_MS = 100
 
   /**
    * Main detection method - Action-Based Smart Zoom
@@ -364,13 +367,20 @@ export class ZoomDetector {
         // Can join if within time window and spatial proximity
         if (timeDiff <= this.ACTION.actionClusterWindowMs && spatialDist < 0.25) {
           cluster.actions.push(action)
-          cluster.endTime = action.timestamp
+          cluster.endTime = Math.max(cluster.endTime, action.timestamp + (action.duration || 0))
           cluster.maxImportance = Math.max(cluster.maxImportance, action.importance)
-          // Update center (weighted average)
-          cluster.center = {
-            x: (cluster.center.x * (cluster.actions.length - 1) + action.x) / cluster.actions.length,
-            y: (cluster.center.y * (cluster.actions.length - 1) + action.y) / cluster.actions.length
+
+          // Keep a stable target: pick the most important action in the cluster.
+          // This avoids "averaging" distinct UI targets into a meaningless midpoint.
+          const shouldPromotePrimary =
+            action.importance > cluster.primary.importance ||
+            (action.importance === cluster.primary.importance && action.timestamp < cluster.primary.timestamp)
+
+          if (shouldPromotePrimary) {
+            cluster.primary = action
           }
+
+          cluster.center = { x: cluster.primary.x, y: cluster.primary.y }
           addedToCluster = true
           break
         }
@@ -382,6 +392,7 @@ export class ZoomDetector {
           startTime: action.timestamp,
           endTime: action.timestamp + (action.duration || 0),
           maxImportance: action.importance,
+          primary: action,
           center: { x: action.x, y: action.y }
         })
       }
@@ -422,12 +433,13 @@ export class ZoomDetector {
       (1 - this.ACTION.minImportanceThreshold)
     const scale = this.ACTION.minZoomScale + (scaleRange * Math.min(1, normalizedImportance))
 
-    // Longer, smoother transitions for cinematic feel
-    const introMs = 800  // Slow ease in
-    const outroMs = 800  // Slow ease out
+    // Transitions should come from the central timing config (SSOT)
+    const introMs = this.TRANSITION.defaultIntroMs
+    const outroMs = this.TRANSITION.defaultOutroMs
 
-    // Calculate timing with anticipation
-    const startTime = Math.max(0, cluster.startTime - this.ACTION.anticipationMs)
+    // Calculate timing with anticipation (keep action within the intro window)
+    const focusTime = cluster.primary.timestamp
+    const anticipation = Math.min(this.ACTION.anticipationMs, introMs)
 
     // ACTIVITY-AWARE HOLD DURATION:
     // Extend the zoom if there's keyboard activity following the action cluster
@@ -467,10 +479,28 @@ export class ZoomDetector {
 
     const holdDuration = Math.max(baseHold, baseHold + activityExtension)
 
-    const endTime = Math.min(
-      duration - 100,
-      cluster.startTime + holdDuration + outroMs
-    )
+    // Guard against ultra-short windows: always produce a strictly-positive duration window.
+    const maxEndTime = Math.max(1, duration - this.END_GUARD_MS)
+    const desiredTotal = introMs + holdDuration + outroMs
+
+    // Prefer a start that lands the focus time during the intro.
+    // If we can't fit the full block near the end, shift it earlier instead of truncating.
+    let startTime = Math.max(0, focusTime - anticipation)
+    let endTime = startTime + desiredTotal
+
+    if (endTime > maxEndTime) {
+      endTime = maxEndTime
+      startTime = Math.max(0, endTime - desiredTotal)
+    }
+
+    // If we still can't fit the intended duration (very short clips), use the full available window.
+    if (endTime <= startTime) {
+      startTime = 0
+      endTime = maxEndTime
+    }
+
+    // Track the most meaningful action within the cluster as the camera target.
+    const target = cluster.primary
 
     return {
       id: `zoom-action-${cluster.startTime}`,
@@ -478,8 +508,8 @@ export class ZoomDetector {
       startTime,
       endTime,
       scale: Math.round(scale * 10) / 10,
-      targetX: cluster.center.x,
-      targetY: cluster.center.y,
+      targetX: target.x,
+      targetY: target.y,
       screenWidth,
       screenHeight,
       introMs,

@@ -4,6 +4,7 @@
  */
 
 import { logger } from '@/shared/utils/logger'
+import { current, isDraft } from 'immer'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import type { Project, Recording, Clip, CaptureArea, RecordingMetadata } from '@/types/project'
 import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, EffectType } from '@/types/project'
@@ -79,9 +80,11 @@ export class RecordingStorage {
     try {
       const safeMetadata = (() => {
         if (!metadata || typeof metadata !== 'object') return metadata
-        if (Object.isExtensible(metadata)) return metadata
-        if (Array.isArray(metadata)) return [...metadata]
-        return { ...(metadata as Record<string, unknown>) }
+        const resolved = isDraft(metadata) ? current(metadata) : metadata
+        if (!resolved || typeof resolved !== 'object') return resolved
+        if (Object.isExtensible(resolved)) return resolved
+        if (Array.isArray(resolved)) return [...resolved]
+        return { ...(resolved as Record<string, unknown>) }
       })()
 
       // LRU management
@@ -311,8 +314,7 @@ export class RecordingStorage {
   }
 
   // In-memory blob URL cache with LRU eviction to prevent memory leaks
-  // PERF: Limit to 5 recordings - covers typical multi-clip projects
-  private static readonly MAX_BLOB_CACHE_SIZE = 5
+  private static readonly MAX_BLOB_CACHE_SIZE = 50
   private static blobUrlCacheOrder: string[] = []
   private static blobUrlCache = new Map<string, string>()
 
@@ -855,13 +857,19 @@ export class RecordingStorage {
             // Get webcam video metadata
             let webcamWidth = 1920
             let webcamHeight = 1080
+            // Prefer wall-clock duration from WebcamService (reliable), fallback to main recording duration
+            // WebM files created by MediaRecorder streaming often have incorrect/missing duration metadata
             let webcamDuration = webcamResult.duration || duration
 
             try {
               const webcamMeta = await getVideoMetadataFromPath(webcamVideoFilePath)
               if (webcamMeta.width > 0) webcamWidth = webcamMeta.width
               if (webcamMeta.height > 0) webcamHeight = webcamMeta.height
-              if (webcamMeta.duration > 0) webcamDuration = webcamMeta.duration
+              // Only use file metadata duration if we don't have a valid duration from WebcamService
+              // and the metadata duration is reasonable (at least 100ms)
+              if (!webcamResult.duration && webcamMeta.duration > 100) {
+                webcamDuration = webcamMeta.duration
+              }
             } catch (_e) {
               logger.warn('[Recording Storage] Failed to read webcam metadata, using defaults')
             }

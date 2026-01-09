@@ -139,20 +139,26 @@ export function useRecordingMetadata(options: UseRecordingMetadataOptions): UseR
 
   // Helper to safely update metadata only if changed
   const safeSetMetadata = (newMetadata: RecordingMetadata) => {
-    const current = lastMetadataRef.current;
+    try {
+      const current = lastMetadataRef.current;
 
-    // Lightweight equality check using array lengths
-    const hasChanged = !current || (
-      (newMetadata.mouseEvents?.length ?? 0) !== (current.mouseEvents?.length ?? 0) ||
-      (newMetadata.keyboardEvents?.length ?? 0) !== (current.keyboardEvents?.length ?? 0) ||
-      (newMetadata.clickEvents?.length ?? 0) !== (current.clickEvents?.length ?? 0) ||
-      (newMetadata.scrollEvents?.length ?? 0) !== (current.scrollEvents?.length ?? 0) ||
-      (newMetadata.screenEvents?.length ?? 0) !== (current.screenEvents?.length ?? 0)
-    );
+      // Lightweight equality check using array lengths
+      const hasChanged = !current || (
+        (newMetadata.mouseEvents?.length ?? 0) !== (current.mouseEvents?.length ?? 0) ||
+        (newMetadata.keyboardEvents?.length ?? 0) !== (current.keyboardEvents?.length ?? 0) ||
+        (newMetadata.clickEvents?.length ?? 0) !== (current.clickEvents?.length ?? 0) ||
+        (newMetadata.scrollEvents?.length ?? 0) !== (current.scrollEvents?.length ?? 0) ||
+        (newMetadata.screenEvents?.length ?? 0) !== (current.screenEvents?.length ?? 0)
+      );
 
-    if (hasChanged) {
-      lastMetadataRef.current = newMetadata;
-      setMetadata(newMetadata);
+      if (hasChanged) {
+        lastMetadataRef.current = newMetadata;
+        setMetadata(newMetadata);
+      }
+    } catch (err) {
+      logger.warn('Failed to apply recording metadata, using empty fallback:', err);
+      lastMetadataRef.current = EMPTY_METADATA;
+      setMetadata(EMPTY_METADATA);
     }
   };
 

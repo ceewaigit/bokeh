@@ -98,7 +98,7 @@ function CollapsibleSection({ title, isOpen, onToggle, children, disabled, disab
 
 export function ScreenTab({
     backgroundEffect,
-    effects,
+    effects: _effects,
     onUpdateBackground,
 }: ScreenTabProps) {
     const selectedClipResult = useSelectedClip()

@@ -48,21 +48,38 @@ interface Source {
   }
 }
 
+type BodyStyleSnapshot = {
+  background: string
+  margin: string
+  padding: string
+  overflow: string
+  userSelect: string
+  display: string
+  justifyContent: string
+  alignItems: string
+  height: string
+}
+
+type DockPanel = 'windows' | 'devices'
+
 export function RecordButtonDock() {
   const containerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const resizeTimeoutRef = useRef<number | null>(null)
+  const lastRequestedWindowSizeRef = useRef<{ width: number; height: number } | null>(null)
+  const windowResizeInFlightRef = useRef(false)
   const focusTimeoutRef = useRef<number | null>(null)
-  const countdownTimeoutRef = useRef<number | null>(null)
+  const prevBodyStylesRef = useRef<BodyStyleSnapshot | null>(null)
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [sources, setSources] = useState<Source[]>([])
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
   const [hideDesktopIcons, setHideDesktopIcons] = useState(false)
   const [includeAppWindows] = useState(false)
   const [isLoadingSources, setIsLoadingSources] = useState(true)
-  const [showWindowPicker, setShowWindowPicker] = useState(false)
+  const [panel, setPanel] = useState<DockPanel | null>(null)
+  const [panelPhase, setPanelPhase] = useState<'closed' | 'opening' | 'open' | 'closing'>('closed')
   const [windowSearch, setWindowSearch] = useState('')
-  const [showDevicePicker, setShowDevicePicker] = useState(false)
+  const showWindowPicker = panel === 'windows'
+  const showDevicePicker = panel === 'devices'
 
   // Local timer state for recording dock (independent of main window store)
   const [localDuration, setLocalDuration] = useState(0)
@@ -88,18 +105,9 @@ export function RecordButtonDock() {
     }
   }, [isPermissionsLoading, screenRecording])
 
-  const { startRecording, stopRecording } = useRecording()
+  const { startRecording, stopRecording, isStartingRecording } = useRecording()
   const { isRecording, isPaused, duration, updateSettings, startCountdown, prepareRecording } = useRecordingSessionStore()
   const setRecordingSettings = useProjectStore((s) => s.setRecordingSettings)
-
-  useEffect(() => {
-    return () => {
-      if (countdownTimeoutRef.current !== null) {
-        window.clearTimeout(countdownTimeoutRef.current)
-        countdownTimeoutRef.current = null
-      }
-    }
-  }, [])
 
   // Device store - only for device enumeration, not permissions
   const {
@@ -115,12 +123,29 @@ export function RecordButtonDock() {
   } = useDeviceStore()
 
   useEffect(() => {
+    prevBodyStylesRef.current = {
+      background: document.body.style.background,
+      margin: document.body.style.margin,
+      padding: document.body.style.padding,
+      overflow: document.body.style.overflow,
+      userSelect: document.body.style.userSelect,
+      display: document.body.style.display,
+      justifyContent: document.body.style.justifyContent,
+      alignItems: document.body.style.alignItems,
+      height: document.body.style.height,
+    }
+
     document.documentElement.style.background = 'transparent'
     document.body.style.background = 'transparent'
     document.body.style.margin = '0'
     document.body.style.padding = '0'
     document.body.style.overflow = 'hidden'
     document.body.style.userSelect = 'none'
+    // Keep the dock visually anchored even if the BrowserWindow is briefly larger than content.
+    document.body.style.display = 'flex'
+    document.body.style.justifyContent = 'center'
+    document.body.style.alignItems = 'flex-end'
+    document.body.style.height = '100vh'
     const root = document.getElementById('root')
     if (root) root.style.background = 'transparent'
 
@@ -133,6 +158,19 @@ export function RecordButtonDock() {
       }
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
+      }
+
+      const prev = prevBodyStylesRef.current
+      if (prev) {
+        document.body.style.background = prev.background
+        document.body.style.margin = prev.margin
+        document.body.style.padding = prev.padding
+        document.body.style.overflow = prev.overflow
+        document.body.style.userSelect = prev.userSelect
+        document.body.style.display = prev.display
+        document.body.style.justifyContent = prev.justifyContent
+        document.body.style.alignItems = prev.alignItems
+        document.body.style.height = prev.height
       }
     }
   }, [])
@@ -191,43 +229,14 @@ export function RecordButtonDock() {
     }
   }, [devicesInitialized, initializeDevices])
 
-  // Single ResizeObserver that persists for the component lifetime
-  // NO dependencies - this prevents re-creation during state changes which caused jank
+  // Show webcam preview when recording with webcam enabled
   useEffect(() => {
-    const container = containerRef.current
-    if (!container || !window.electronAPI?.setWindowContentSize) return
-
-    const updateSize = () => {
-      const rect = container.getBoundingClientRect()
-      window.electronAPI?.setWindowContentSize?.({
-        width: Math.ceil(rect.width),
-        height: Math.ceil(rect.height)
-      })
+    if (isRecording && deviceSettings.webcam.enabled && deviceSettings.webcam.deviceId) {
+      window.electronAPI?.showWebcamPreview?.(deviceSettings.webcam.deviceId)
+    } else {
+      window.electronAPI?.hideWebcamPreview?.()
     }
-
-    // Debounce updates to prevent rapid-fire during animations
-    const scheduleUpdate = () => {
-      if (resizeTimeoutRef.current !== null) {
-        window.clearTimeout(resizeTimeoutRef.current)
-      }
-      resizeTimeoutRef.current = window.setTimeout(updateSize, 32) // ~2 frames
-    }
-
-    // Initial size
-    updateSize()
-
-    // Observe for size changes
-    const observer = new ResizeObserver(() => scheduleUpdate())
-    observer.observe(container)
-
-    return () => {
-      if (resizeTimeoutRef.current !== null) {
-        window.clearTimeout(resizeTimeoutRef.current)
-        resizeTimeoutRef.current = null
-      }
-      observer.disconnect()
-    }
-  }, []) // Empty deps - observer persists, doesn't re-create on state changes
+  }, [isRecording, deviceSettings.webcam.enabled, deviceSettings.webcam.deviceId])
 
   // Notify main process of recording state for window management guards
   useEffect(() => {
@@ -251,6 +260,78 @@ export function RecordButtonDock() {
       }
     }
   }, [showWindowPicker])
+
+  const measureContentSize = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return null
+    const rect = container.getBoundingClientRect()
+    return { width: Math.ceil(rect.width), height: Math.ceil(rect.height) }
+  }, [])
+
+  const setRecordButtonWindowSize = useCallback(async (size: { width: number; height: number }) => {
+    if (!window.electronAPI?.setWindowContentSize) return
+    const last = lastRequestedWindowSizeRef.current
+    if (last && last.width === size.width && last.height === size.height) return
+    lastRequestedWindowSizeRef.current = size
+    await window.electronAPI.setWindowContentSize(size)
+  }, [])
+
+  const fitWindowToCurrentContent = useCallback(async () => {
+    const size = measureContentSize()
+    if (!size) return
+    await setRecordButtonWindowSize(size)
+  }, [measureContentSize, setRecordButtonWindowSize])
+
+  // Keep the BrowserWindow sized to content for major state changes.
+  useEffect(() => {
+    if (panelPhase !== 'closed') return
+    if (windowResizeInFlightRef.current) return
+    void fitWindowToCurrentContent()
+  }, [panelPhase, isRecording, isLoadingSources, fitWindowToCurrentContent])
+
+  const openDockPanel = useCallback((nextPanel: DockPanel) => {
+    if (panelPhase === 'opening' || panelPhase === 'closing') return
+    if (panel === nextPanel && panelPhase === 'open') {
+      setPanelPhase('closing')
+      return
+    }
+    setPanel(nextPanel)
+    setPanelPhase('opening')
+  }, [panel, panelPhase])
+
+  const closeDockPanel = useCallback(() => {
+    if (panelPhase !== 'open') return
+    setPanelPhase('closing')
+  }, [panelPhase])
+
+  useEffect(() => {
+    if (panelPhase !== 'opening') return
+    if (windowResizeInFlightRef.current) return
+
+    const run = async () => {
+      windowResizeInFlightRef.current = true
+      try {
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+        await fitWindowToCurrentContent()
+        setPanelPhase('open')
+      } finally {
+        windowResizeInFlightRef.current = false
+      }
+    }
+
+    void run()
+  }, [panelPhase, fitWindowToCurrentContent])
+
+  useEffect(() => {
+    if (panelPhase !== 'closing') return
+
+    const timeout = window.setTimeout(() => {
+      setPanel(null)
+      setPanelPhase('closed')
+    }, 120)
+
+    return () => window.clearTimeout(timeout)
+  }, [panelPhase])
 
   const loadSources = useCallback(async () => {
     if (!window.electronAPI?.getDesktopSources) return
@@ -297,7 +378,7 @@ export function RecordButtonDock() {
   const handleSourceSelect = (source: Source) => {
     window.electronAPI?.hideMonitorOverlay?.()
     setSelectedSourceId(source.id)
-    setShowWindowPicker(false)
+    closeDockPanel()
 
     if (source.type === RecordingSourceType.Screen && source.displayInfo?.id !== undefined) {
       window.electronAPI?.showMonitorOverlay?.(source.displayInfo.id)
@@ -307,18 +388,13 @@ export function RecordButtonDock() {
   }
 
   const handleWindowModeClick = () => {
-    const newState = !showWindowPicker
-    setShowWindowPicker(newState)
-    if (newState) {
-      window.electronAPI?.hideMonitorOverlay?.()
-      setShowDevicePicker(false)
-    }
+    window.electronAPI?.hideMonitorOverlay?.()
+    openDockPanel('windows')
   }
 
   const handleAreaClick = async () => {
     window.electronAPI?.hideMonitorOverlay?.()
-    setShowWindowPicker(false)
-    setShowDevicePicker(false)
+    closeDockPanel()
 
     const result = await window.electronAPI?.selectScreenArea?.()
     const area = result?.area
@@ -339,14 +415,9 @@ export function RecordButtonDock() {
     }
     if (!selectedSourceId) return
 
-    const source = sources.find(s => s.id === selectedSourceId)
-    const displayId = source?.displayInfo?.id
-
     window.electronAPI?.hideMonitorOverlay?.()
     window.electronAPI?.hideRecordingOverlay?.()
-    setShowWindowPicker(false)
-    setShowDevicePicker(false)
-    await initializeDefaultWallpaper()
+    closeDockPanel()
 
     if (hideDesktopIcons) {
       await window.electronAPI?.hideDesktopIcons?.()
@@ -354,34 +425,26 @@ export function RecordButtonDock() {
 
     setRecordingSettings({ includeAppWindows })
 
-    if (selectedSourceId.startsWith('area:')) {
-      if (selectedSourceId === 'area:selection') {
-        const result = await window.electronAPI?.selectScreenArea?.()
-        const area = result?.area
-        if (result?.success && area) {
-          prepareRecording(createAreaSourceId(area), area.displayId)
-          if (countdownTimeoutRef.current !== null) {
-            window.clearTimeout(countdownTimeoutRef.current)
-          }
-          countdownTimeoutRef.current = window.setTimeout(() => startCountdown(startRecording, area.displayId), 50)
-        }
-      } else {
-        prepareRecording(selectedSourceId, displayId)
-        if (countdownTimeoutRef.current !== null) {
-          window.clearTimeout(countdownTimeoutRef.current)
-        }
-        countdownTimeoutRef.current = window.setTimeout(() => startCountdown(startRecording, displayId), 50)
-      }
-    } else {
-      prepareRecording(selectedSourceId, displayId)
-      if (countdownTimeoutRef.current !== null) {
-        window.clearTimeout(countdownTimeoutRef.current)
-      }
-      countdownTimeoutRef.current = window.setTimeout(() => startCountdown(startRecording, displayId), 50)
+    // Resolve source details (area selection is interactive).
+    let finalSourceId = selectedSourceId
+    let finalDisplayId: number | undefined = sources.find(s => s.id === selectedSourceId)?.displayInfo?.id
+
+    if (selectedSourceId === 'area:selection') {
+      const result = await window.electronAPI?.selectScreenArea?.()
+      const area = result?.area
+      if (!result?.success || !area) return
+      finalSourceId = createAreaSourceId(area)
+      finalDisplayId = area.displayId
     }
+
+    prepareRecording(finalSourceId, finalDisplayId)
+    startCountdown(startRecording, finalDisplayId)
   }
 
   const handleStop = async () => {
+    // Hide webcam preview when recording stops
+    window.electronAPI?.hideWebcamPreview?.()
+
     if (hideDesktopIcons) {
       await window.electronAPI?.showDesktopIcons?.()
     }
@@ -421,8 +484,7 @@ export function RecordButtonDock() {
   }
 
   const handleDevicePickerToggle = () => {
-    setShowDevicePicker(!showDevicePicker)
-    if (showWindowPicker) setShowWindowPicker(false)
+    openDockPanel('devices')
   }
 
   const screens = sources.filter(s => s.type === RecordingSourceType.Screen)
@@ -590,9 +652,13 @@ export function RecordButtonDock() {
     <div ref={containerRef} className="inline-flex flex-col items-center gap-1.5 p-1">
       {/* Window Picker - renders ABOVE the dock bar */}
       {showWindowPicker && windows.length > 0 && (
-        <div
+        <motion.div
+          initial={false}
+          animate={panelPhase === 'open' ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
+          transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
           className={cn(
             "w-sidebar p-2 rounded-xl",
+            panelPhase === 'open' ? "pointer-events-auto" : "pointer-events-none",
             "bg-popover/95 backdrop-blur-xl",
             "border border-border/50"
           )}
@@ -653,14 +719,18 @@ export function RecordButtonDock() {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Device Picker - renders ABOVE the dock bar when devices are enabled */}
       {(deviceSettings.webcam.enabled || deviceSettings.microphone.enabled) && showDevicePicker && (
-        <div
+        <motion.div
+          initial={false}
+          animate={panelPhase === 'open' ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
+          transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
           className={cn(
             "w-popover p-2.5 rounded-xl",
+            panelPhase === 'open' ? "pointer-events-auto" : "pointer-events-none",
             "bg-popover/95 backdrop-blur-xl",
             "border border-border/50"
           )}
@@ -670,14 +740,14 @@ export function RecordButtonDock() {
             <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wide">Devices</span>
             <button
               type="button"
-              onClick={() => setShowDevicePicker(false)}
+              onClick={closeDockPanel}
               className="p-1 rounded hover:bg-accent/50 transition-colors"
             >
               <X className="w-3 h-3 text-muted-foreground/60" />
             </button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
             {/* Camera Selection */}
             {deviceSettings.webcam.enabled && (
               <div className="p-2 bg-muted/20 rounded-lg">
@@ -744,7 +814,7 @@ export function RecordButtonDock() {
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Main Bar */}
@@ -926,7 +996,7 @@ export function RecordButtonDock() {
               >
                 <div className="absolute inset-0 rounded-r-md rounded-l-none bg-accent -z-10" />
                 <ChevronDown className={cn(
-                  "w-2.5 h-2.5 text-muted-foreground/60 transition-transform duration-100",
+                  "w-2.5 h-2.5 text-accent-foreground transition-transform duration-100",
                   showDevicePicker && "rotate-180"
                 )} />
               </motion.button>
@@ -979,7 +1049,7 @@ export function RecordButtonDock() {
               >
                 <div className="absolute inset-0 rounded-r-md rounded-l-none bg-accent -z-10" />
                 <ChevronDown className={cn(
-                  "w-2.5 h-2.5 text-muted-foreground/60 transition-transform duration-100",
+                  "w-2.5 h-2.5 text-accent-foreground transition-transform duration-100",
                   showDevicePicker && "rotate-180"
                 )} />
               </motion.button>
@@ -1048,26 +1118,26 @@ export function RecordButtonDock() {
           type="button"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           onClick={handleStartRecording}
-          disabled={!selectedSourceId}
+          disabled={!selectedSourceId || isStartingRecording}
           className={cn(
             "flex items-center justify-center gap-2 h-10 px-5 rounded-10",
             "text-2xs font-semibold uppercase tracking-[0.08em]",
             "transition-all duration-150 ease-out",
-            selectedSourceId
+            selectedSourceId && !isStartingRecording
               ? "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_3px_rgba(0,0,0,0.2)] hover:brightness-110 active:scale-[0.97]"
               : "bg-muted/40 text-muted-foreground/20 cursor-not-allowed"
           )}
-          whileHover={selectedSourceId ? { scale: 1.02 } : undefined}
-          whileTap={selectedSourceId ? { scale: 0.98 } : undefined}
+          whileHover={selectedSourceId && !isStartingRecording ? { scale: 1.02 } : undefined}
+          whileTap={selectedSourceId && !isStartingRecording ? { scale: 0.98 } : undefined}
           transition={springConfig}
         >
           <span className={cn(
             "w-2 h-2 rounded-full",
-            selectedSourceId
+            selectedSourceId && !isStartingRecording
               ? "bg-primary-foreground shadow-[0_0_8px_rgba(255,255,255,0.5)]"
               : "bg-muted-foreground/30"
           )} />
-          <span>Record</span>
+          <span>{isStartingRecording ? 'Starting' : 'Record'}</span>
         </motion.button>
       </div>
     </div>

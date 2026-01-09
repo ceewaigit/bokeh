@@ -17,7 +17,6 @@ import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import { usePlayerConfiguration } from '@/features/rendering/renderer/hooks/use-player-configuration';
 import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
-import type { CropEffectData } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
 import { assertDefined } from '@/shared/errors';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
@@ -106,12 +105,18 @@ export function PreviewAreaRemotion({
   }, [timelineMetadata]);
 
   // Player key for re-render on clip changes
+  // Only include VIDEO track recording IDs - webcam clips render via WebcamClipRenderer
+  // which handles its own stability. Including webcam recordings was causing unnecessary
+  // Player remounts that broke video rendering.
   const playerKey = useMemo(() => {
     if (!project || !timelineMetadata) return "player-empty";
-    const recordingIds = project?.recordings
-      ? project.recordings.map((recording) => recording.id).sort().join(",")
-      : "";
-    return `player-${timelineMetadata.durationInFrames}-${timelineMetadata.fps}-${timelineMetadata.width}-${timelineMetadata.height}-${recordingIds}`;
+    const videoTrack = project.timeline.tracks.find(t => t.type === 'video');
+    const videoRecordingIds = videoTrack?.clips
+      .map(c => c.recordingId)
+      .filter((id, i, arr) => arr.indexOf(id) === i) // unique
+      .sort()
+      .join(",") ?? "";
+    return `player-${timelineMetadata.durationInFrames}-${timelineMetadata.fps}-${timelineMetadata.width}-${timelineMetadata.height}-${videoRecordingIds}`;
   }, [project, timelineMetadata]);
   // Sync hook
   const { lastIsPlayingRef } = usePlayerSync({

@@ -6,7 +6,7 @@ import { AmbientGlowPlayer } from './ambient-glow-player';
 import { buildTimelineCompositionInput } from '@/features/rendering/renderer/utils/composition-input';
 import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT } from '@/shared/utils/resolution-utils';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
-import type { PlayerConfiguration, CropEffectData } from '@/types/project';
+import type { PlayerConfiguration } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
 
 interface PlayerContainerProps {

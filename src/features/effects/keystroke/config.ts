@@ -4,7 +4,7 @@ import { EffectLayerType } from '@/features/effects/types'
 
 // Default keystroke effect data
 export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
-  fontSize: 18,
+  fontSize: 22,
   fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
   backgroundColor: 'rgba(0, 0, 0, 0.75)',
   textColor: '#ffffff',
@@ -19,7 +19,7 @@ export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
   stylePreset: 'glass',
   showModifierSymbols: true,
   showShortcuts: true,
-  scale: 0.5
+  scale: 1
 }
 
 // Effect Track Configuration

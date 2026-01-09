@@ -6,9 +6,11 @@ import { getAppURL } from '../config'
 import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
 import { showMonitorOverlay, hideMonitorOverlay, showRecordingOverlay, hideRecordingOverlay } from '../windows/monitor-overlay'
 import { showTeleprompterWindow, hideTeleprompterWindow, toggleTeleprompterWindow } from '../windows/teleprompter-window'
+import { showWebcamPreview, hideWebcamPreview } from '../windows/webcam-preview-window'
 
 const execAsync = promisify(exec)
 let countdownWindow: BrowserWindow | null = null
+let countdownWindowDisplayId: number | undefined = undefined
 // Track if we hid desktop icons so we can restore them
 let desktopIconsHiddenByApp = false
 // Cache for source information
@@ -141,11 +143,7 @@ export function registerWindowControlHandlers(): void {
     if (global.recordButton) {
       global.recordButton.hide()
     }
-    // Only show main window if NOT actively recording
-    if (global.mainWindow && !global.isRecordingActive) {
-      global.mainWindow.show()
-      global.mainWindow.focus()
-    }
+    return { success: true }
   })
 
   ipcMain.handle('show-record-button', (_event, options?: { hideMainWindow?: boolean }) => {
@@ -183,26 +181,43 @@ export function registerWindowControlHandlers(): void {
   ipcMain.handle('set-window-content-size', (event: IpcMainInvokeEvent, dimensions: { width: number; height: number }) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window && dimensions.width > 0 && dimensions.height > 0) {
-      const { screen } = require('electron')
-      const display = screen.getPrimaryDisplay()
+      const currentBounds = window.getBounds()
+      const newWidth = Math.round(dimensions.width)
+      const newHeight = Math.round(dimensions.height)
 
-      // Set size constraints
-      window.setMinimumSize(dimensions.width, dimensions.height)
-      window.setMaximumSize(dimensions.width, dimensions.height)
+      if (newWidth === currentBounds.width && newHeight === currentBounds.height) {
+        return { success: true }
+      }
 
-      // Position: centered X, anchored to bottom of screen
-      const newX = Math.floor(display.workAreaSize.width / 2 - dimensions.width / 2)
-      // Keep 24px gap from bottom edge of work area
-      const newY = display.workAreaSize.height - dimensions.height - 24
+      // Calculate height difference to anchor bottom edge
+      // When expanding (picker appears), move window UP by the difference
+      // When collapsing (picker closes), move window DOWN  
+      const heightDiff = newHeight - currentBounds.height
 
-      window.setBounds({
-        x: newX,
-        y: newY,
-        width: Math.round(dimensions.width),
-        height: Math.round(dimensions.height)
-      }, true)
+      const isRecordButton = !!global.recordButton && window.id === global.recordButton.id
 
-      window.setResizable(false)
+      // Anchor to bottom edge and preserve center (until user drags).
+      const currentCenterX = currentBounds.x + currentBounds.width / 2
+      const userMoved = isRecordButton ? Boolean((window as any).__bokehUserMoved) : true
+      const newX = (isRecordButton && !userMoved)
+        ? Math.round(currentCenterX - newWidth / 2)
+        : currentBounds.x
+
+      const newY = currentBounds.y - heightDiff
+
+      // Resize with bottom-edge anchoring, preserve horizontal position
+      if (isRecordButton) (window as any).__bokehBoundsUpdateInProgress = true
+      try {
+        window.setBounds({
+          x: newX,
+          y: newY,
+          width: newWidth,
+          height: newHeight
+        }, false)
+      } finally {
+        if (isRecordButton) (window as any).__bokehBoundsUpdateInProgress = false
+      }
+
       return { success: true }
     }
     return { success: false }
@@ -210,24 +225,36 @@ export function registerWindowControlHandlers(): void {
 
   // Glassmorphism handlers removed (feature disabled).
 
-  ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number, displayId?: number) => {
+  ipcMain.handle('show-countdown', async (_event: IpcMainInvokeEvent, number: number, displayId?: number) => {
     // Hide any overlay when countdown starts
     hideMonitorOverlay()
 
-    if (countdownWindow) {
-      countdownWindow.close()
-      countdownWindow = null
+    const needsNewWindow =
+      !countdownWindow ||
+      countdownWindow.isDestroyed() ||
+      countdownWindowDisplayId !== displayId
+
+    if (needsNewWindow) {
+      if (countdownWindow && !countdownWindow.isDestroyed()) {
+        countdownWindow.close()
+      }
+      countdownWindow = createCountdownWindow(displayId)
+      countdownWindowDisplayId = displayId
     }
-    countdownWindow = createCountdownWindow(displayId)
-    showCountdown(countdownWindow, number)
+
+    if (!countdownWindow) {
+      return { success: false, error: 'Countdown window not available' }
+    }
+
+    await showCountdown(countdownWindow, number)
     return { success: true }
   })
 
   ipcMain.handle('hide-countdown', async () => {
     if (countdownWindow) {
-      countdownWindow.hide()
-      countdownWindow.close()
-      countdownWindow = null
+      if (!countdownWindow.isDestroyed()) {
+        countdownWindow.hide()
+      }
     }
     return { success: true }
   })
@@ -365,6 +392,27 @@ export function registerWindowControlHandlers(): void {
       return { success: true }
     } catch (error) {
       console.error('[WindowControls] Failed to hide teleprompter:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // Webcam preview window handlers
+  ipcMain.handle('show-webcam-preview', async (_event, deviceId: string) => {
+    try {
+      showWebcamPreview(deviceId)
+      return { success: true }
+    } catch (error) {
+      console.error('[WindowControls] Failed to show webcam preview:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('hide-webcam-preview', async () => {
+    try {
+      hideWebcamPreview()
+      return { success: true }
+    } catch (error) {
+      console.error('[WindowControls] Failed to hide webcam preview:', error)
       return { success: false, error: (error as Error).message }
     }
   })

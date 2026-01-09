@@ -9,15 +9,18 @@ export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   console.log('🖥️ Creating record button overlay for display:', display.bounds)
 
+  const initialWidth = 180
+  const initialHeight = 56
+  const marginBottom = 24
+  const workArea = display.workArea
+
   const recordButton = new BrowserWindow({
-    width: 180,
-    height: 56,
+    width: initialWidth,
+    height: initialHeight,
     minWidth: 140,
     minHeight: 56,
-    maxWidth: 500,  // Allow expansion for source picker
-    maxHeight: 500, // Allow expansion for source picker
-    x: Math.floor(display.workAreaSize.width / 2 - 90),
-    y: display.workAreaSize.height - 56 - 24, // Position at bottom, 24px from edge
+    x: Math.round(workArea.x + (workArea.width - initialWidth) / 2),
+    y: Math.round(workArea.y + workArea.height - initialHeight - marginBottom),
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -48,6 +51,13 @@ export function createRecordButton(): BrowserWindow {
 
   // Set window title to empty string to avoid any OS chrome showing it
   recordButton.setTitle('')
+
+  // Track whether the user has moved the dock (so future resizes preserve their placement).
+  recordButton.on('move', () => {
+    if (!(recordButton as any).__bokehBoundsUpdateInProgress) {
+      ; (recordButton as any).__bokehUserMoved = true
+    }
+  })
 
   // Configure as a true overlay window
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })

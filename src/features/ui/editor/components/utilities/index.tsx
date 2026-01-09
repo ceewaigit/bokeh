@@ -16,7 +16,7 @@ const UTILITY_TABS: { id: UtilityTabId; label: string; icon: React.ElementType }
     { id: 'import', label: 'Media', icon: Upload },
     { id: 'audio', label: 'Sound', icon: Volume2 },
     { id: 'guides', label: 'Overlays', icon: Grid },
-    { id: 'plugins', label: 'Add-ons', icon: Puzzle },
+    { id: 'plugins', label: 'Add-ons (WIP)', icon: Puzzle },
     { id: 'advanced', label: 'Editing', icon: Settings },
 ]
 

@@ -13,7 +13,6 @@ import { getDefaultAnnotationSize } from '../config'
 import { EffectLayerType } from '@/features/effects/types'
 import {
     containerPointToVideoPoint,
-    videoDeltaToPercentDelta,
     type Point
 } from '@/features/ui/editor/logic/preview-point-transforms'
 import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
@@ -29,6 +28,7 @@ interface UseAnnotationDropOptions {
 interface UseAnnotationDropReturn {
     handlers: {
         onDragOver: (e: React.DragEvent) => void
+        onDragEnter: (e: React.DragEvent) => void
         onDragLeave: (e: React.DragEvent) => void
         onDrop: (e: React.DragEvent) => void
     }
@@ -164,6 +164,7 @@ export function useAnnotationDrop({
     return {
         handlers: {
             onDragOver,
+            onDragEnter,
             onDragLeave,
             onDrop
         },
