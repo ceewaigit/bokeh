@@ -18,6 +18,7 @@ import { KeystrokePreviewOverlay } from '@/features/effects/keystroke/components
 import { OverlayPositionControl } from '@/features/rendering/overlays/components/overlay-position-control'
 import { OverlayStyleControl } from '@/features/rendering/overlays/components/overlay-style-control'
 import { useShallow } from 'zustand/react/shallow'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 interface KeystrokeTabProps {
   keystrokeEffect: Effect | undefined
@@ -122,7 +123,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
   })))
 
   const keystrokeEffects = useMemo(() => {
-    return getEffectsOfType(effects, EffectType.Keystroke, false)
+    return getEffectsOfType(effects, EffectType.Keystroke, false).filter(e => e.id !== KEYSTROKE_STYLE_EFFECT_ID)
   }, [effects])
 
   const hasEnabledKeystrokes = React.useMemo(() => {
@@ -258,18 +259,18 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             fontSize={localFontSize}
             onFontSizeChange={(v) => {
               setLocalFontSize(v)
+              onUpdateKeystroke({ fontSize: v })
             }}
-            onFontSizeCommit={(v) => onUpdateKeystroke({ fontSize: v })}
             padding={localPadding}
             onPaddingChange={(v) => {
               setLocalPadding(v)
+              onUpdateKeystroke({ padding: v })
             }}
-            onPaddingCommit={(v) => onUpdateKeystroke({ padding: v })}
             borderRadius={localBorderRadius}
             onBorderRadiusChange={(v) => {
               setLocalBorderRadius(v)
+              onUpdateKeystroke({ borderRadius: v })
             }}
-            onBorderRadiusCommit={(v) => onUpdateKeystroke({ borderRadius: v })}
           />
 
           {/* Duration */}

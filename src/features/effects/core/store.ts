@@ -8,6 +8,7 @@
 import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { findNearestAvailableStart } from '@/features/ui/timeline/utils/nearest-gap'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
   EffectType.Plugin,
@@ -16,6 +17,10 @@ export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
   EffectType.Keystroke,
   // NOTE: Webcam removed - now handled via clip.layout
 ])
+
+function isKeystrokeStyleEffect(effect: Pick<Effect, 'type' | 'id'>): boolean {
+  return effect.type === EffectType.Keystroke && effect.id === KEYSTROKE_STYLE_EFFECT_ID
+}
 
 export function isValidEffectTiming(effect: Effect): boolean {
   if (!Number.isFinite(effect.startTime) || !Number.isFinite(effect.endTime)) return false
@@ -49,8 +54,9 @@ export const EffectStore = {
       return
     }
 
-    if (NON_OVERLAPPING_EFFECT_TYPES.has(effect.type)) {
-      const sameTypeEffects = existing.filter(e => e.type === effect.type)
+    const enforceNonOverlap = NON_OVERLAPPING_EFFECT_TYPES.has(effect.type) && !isKeystrokeStyleEffect(effect)
+    if (enforceNonOverlap) {
+      const sameTypeEffects = existing.filter(e => e.type === effect.type && !isKeystrokeStyleEffect(e))
       const { startTime, endTime } = findNearestNonOverlappingPosition(effect, sameTypeEffects)
       effect.startTime = startTime
       effect.endTime = endTime
@@ -99,9 +105,9 @@ export const EffectStore = {
 
     const isTimeUpdate = updates.startTime !== undefined || updates.endTime !== undefined
     // Only check overlap if NOT forced
-    if (isTimeUpdate && NON_OVERLAPPING_EFFECT_TYPES.has(effect.type) && !force) {
+    if (isTimeUpdate && NON_OVERLAPPING_EFFECT_TYPES.has(effect.type) && !force && !isKeystrokeStyleEffect(effect)) {
       const tempEffect = { ...effect, startTime: nextStartTime, endTime: nextEndTime }
-      const sameTypeEffects = effects.filter(e => e.type === effect.type)
+      const sameTypeEffects = effects.filter(e => e.type === effect.type && !isKeystrokeStyleEffect(e))
       const { startTime, endTime } = findNearestNonOverlappingPosition(tempEffect, sameTypeEffects, effectId)
       updates = { ...updates, startTime, endTime }
     }
@@ -136,4 +142,3 @@ export const EffectStore = {
     if (!project.timeline.effects) project.timeline.effects = []
   },
 }
-

@@ -14,7 +14,7 @@ import { addRecordingToProject } from '@/features/ui/timeline/clips/clip-creatio
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { ProjectIOService } from '@/features/core/storage/project-io-service'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { playbackService } from '@/features/ui/timeline/playback/playback-service'
 import { WaveformAnalyzer } from '@/features/media/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
@@ -54,7 +54,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     })
 
     // Cache video URLs for all recordings to prevent repeated video-stream requests
-    RecordingStorage.cacheVideoUrls(project.recordings || [])
+    ProjectStorage.cacheVideoUrls(project.recordings || [])
   },
 
   updateProjectData: (updater) => {
@@ -78,7 +78,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
 
       // Cache video URLs for all recordings BEFORE setting project
       // This prevents multiple video-stream requests during initial render
-      await RecordingStorage.cacheVideoUrls(project.recordings || [])
+      await ProjectStorage.cacheVideoUrls(project.recordings || [])
 
       set((state) => {
         state.currentProject = project
@@ -119,12 +119,12 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   addRecording: async (recording, videoBlob) => {
     // Load metadata from chunks if needed
     if (recording.folderPath && recording.metadataChunks && (!recording.metadata || Object.keys(recording.metadata).length === 0)) {
-      recording.metadata = await RecordingStorage.loadMetadataChunks(
+      recording.metadata = await ProjectStorage.loadMetadataChunks(
         recording.folderPath,
         recording.metadataChunks
       )
       // Cache the loaded metadata
-      RecordingStorage.setMetadata(recording.id, recording.metadata)
+      ProjectStorage.setMetadata(recording.id, recording.metadata)
     }
 
     set((state) => {
@@ -158,7 +158,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     // This was causing 9GB+ VTDecoderXPCService memory usage
     WaveformAnalyzer.clearAllCache()
     ThumbnailGenerator.clearAllCache()
-    RecordingStorage.clearMetadataCache()
+    ProjectStorage.clearMetadataCache()
 
     // Reset store state first so components unmount before we revoke blob URLs
     set((state) => {

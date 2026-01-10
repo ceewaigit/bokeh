@@ -8,12 +8,12 @@ import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
 import { useComposition } from '../../context/CompositionContext';
 import { useTimelineContext } from '../../context/TimelineContext';
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config';
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config';
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context';
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext';
 import { KeystrokePreviewOverlay } from '@/features/effects/keystroke/components/keystroke-preview-overlay';
 import { calculateVideoPosition } from '@/features/rendering/renderer/engine/layout-engine';
 import { OverlayAnchor } from '@/types/overlays';
-import { getOverlayDisplayScale } from '@/features/rendering/overlays/overlay-metrics'
 
 export const KeystrokeLayer: React.FC = () => {
   const sourceTimeMs = useSourceTime();
@@ -37,6 +37,10 @@ export const KeystrokeLayer: React.FC = () => {
   }, [clip.recordingId, getRecording, width, height, videoPosition.paddingScaled]);
 
 
+  const keystrokeStyleEffect = useMemo(() => {
+    return effects.find(e => e.type === EffectType.Keystroke && e.id === KEYSTROKE_STYLE_EFFECT_ID);
+  }, [effects]);
+
   const activeKeystrokeEffects = useMemo(() => {
     const frameDurationMs = 1000 / fps;
     const timelineTimeMs = clip.startTime + ((frame + 0.5) / fps) * 1000;
@@ -44,6 +48,7 @@ export const KeystrokeLayer: React.FC = () => {
 
     return effects.filter(e =>
       e.type === EffectType.Keystroke &&
+      e.id !== KEYSTROKE_STYLE_EFFECT_ID &&
       e.enabled &&
       timelineTimeMs + tolerance >= e.startTime &&
       timelineTimeMs <= e.endTime + tolerance
@@ -53,8 +58,6 @@ export const KeystrokeLayer: React.FC = () => {
   if (activeKeystrokeEffects.length === 0) {
     return null;
   }
-
-  const displayScale = getOverlayDisplayScale(width)
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', zIndex: 150 }}>
@@ -66,7 +69,7 @@ export const KeystrokeLayer: React.FC = () => {
           keystrokeEvents={keystrokeEvents}
           clipLayout={clipLayout}
           resolvedAnchor={resolvedAnchors.get(effect.id)}
-          displayScale={displayScale}
+          styleEffect={keystrokeStyleEffect}
         />
       ))}
     </AbsoluteFill>
@@ -84,7 +87,7 @@ interface KeystrokeEffectRendererProps {
     offsetY: number;
   };
   resolvedAnchor?: OverlayAnchor;
-  displayScale: number;
+  styleEffect?: Effect;
 }
 
 const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
@@ -93,19 +96,21 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
   keystrokeEvents,
   clipLayout,
   resolvedAnchor,
-  displayScale,
+  styleEffect,
 }) => {
   const { isRendering } = getRemotionEnvironment();
 
   // Merge effect data with defaults - pass ALL settings
   const settings = useMemo<KeystrokeEffectData>(() => {
     const data = effect.data as KeystrokeEffectData | undefined;
+    const styleData = (styleEffect?.data as KeystrokeEffectData | undefined) ?? {};
     return {
       ...DEFAULT_KEYSTROKE_DATA,
+      ...styleData,
       ...data,
       ...(resolvedAnchor ? { anchor: resolvedAnchor } : {})
     };
-  }, [effect.data, resolvedAnchor]);
+  }, [effect.data, resolvedAnchor, styleEffect?.data]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<KeystrokeRenderer | null>(null);
@@ -126,7 +131,6 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
     // Always create a fresh renderer when settings change to ensure they're applied
     rendererRef.current = new KeystrokeRenderer(settings);
     rendererRef.current.setDPR(dpr);
-    rendererRef.current.setDisplayScale(displayScale);
     settingsVersionRef.current++;
 
     if (canvasRef.current) {
@@ -134,7 +138,7 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
     }
 
     rendererRef.current.setKeyboardEvents(keystrokeEvents);
-  }, [shouldRender, settings, keystrokeEvents, dpr, displayScale]);
+  }, [shouldRender, settings, keystrokeEvents, dpr]);
 
   // Render keystrokes (Canvas Path)
   useEffect(() => {
@@ -186,7 +190,6 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
           currentTimeMs={sourceTimeMs}
           keystrokeEvents={keystrokeEvents}
           settings={settings}
-          displayScale={displayScale}
           enabled
         />
       </div>

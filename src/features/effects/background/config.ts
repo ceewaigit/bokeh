@@ -20,7 +20,7 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
     },
     wallpaper: undefined,
     padding: 120,
-    cornerRadius: 30,
+    cornerRadius: 15,
     shadowIntensity: 90,
     parallaxLayers: DEFAULT_PARALLAX_LAYERS,
     blur: 0,

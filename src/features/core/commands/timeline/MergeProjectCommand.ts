@@ -19,7 +19,7 @@ import { EffectType, TrackType, TimelineItemType } from '@/types/project'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { removeClipFromTrack } from '@/features/ui/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 
 // ============================================================================
 // Types
@@ -102,14 +102,14 @@ export class MergeProjectCommand extends Command<{ importedClipIds: string[] }> 
 
                 // Cache metadata if available
                 if (sourceRecording.metadata) {
-                    RecordingStorage.setMetadata(newId, sourceRecording.metadata)
+                    ProjectStorage.setMetadata(newId, sourceRecording.metadata)
                 }
 
                 // Copy blob URL from source recording to new recording
                 // This is critical for video playback - URLs are cached by ID
-                const sourceBlobUrl = RecordingStorage.getBlobUrl(sourceRecording.id)
+                const sourceBlobUrl = ProjectStorage.getBlobUrl(sourceRecording.id)
                 if (sourceBlobUrl) {
-                    RecordingStorage.setBlobUrl(newId, sourceBlobUrl)
+                    ProjectStorage.setBlobUrl(newId, sourceBlobUrl)
                 }
 
                 draft.recordings.push(clonedRecording)

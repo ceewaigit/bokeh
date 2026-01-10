@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type Project } from '@/types'
 import { useRecordingsLibraryStore, type LibraryRecording, type LibraryRecordingHydration, type LibraryRecordingView } from '@/features/media/recording/store/library-store'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
-import { PROJECT_EXTENSION, PROJECT_EXTENSION_REGEX } from '@/features/core/storage/recording-storage'
+import { PROJECT_EXTENSION, PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
 import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'
 
 interface HydrationOptions {

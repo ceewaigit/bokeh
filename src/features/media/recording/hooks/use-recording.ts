@@ -4,7 +4,7 @@ import { useRef, useCallback, useEffect, useState } from 'react'
 import { ElectronRecorder } from '@/features/media/recording'
 import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { logger } from '@/shared/utils/logger'
 import { RecordingError, RecordingErrorCode, PermissionError, ElectronError } from '@/shared/errors'
 import { buildRecordingSettings } from '@/features/media/recording/logic/settings-builder'
@@ -177,7 +177,7 @@ export function useRecording() {
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
 
         // Save recording with project using consolidated function
-        const saved = await RecordingStorage.saveRecordingWithProject(
+        const saved = await ProjectStorage.saveRecordingWithProject(
           result.videoPath,
           result.metadata,
           projectName,
@@ -201,7 +201,7 @@ export function useRecording() {
           if (window.electronAPI?.getVideoUrl) {
             const videoUrl = await window.electronAPI.getVideoUrl(result.videoPath)
             if (videoUrl) {
-              RecordingStorage.setBlobUrl(recordingId, videoUrl)
+              ProjectStorage.setBlobUrl(recordingId, videoUrl)
             }
           }
 
@@ -211,7 +211,7 @@ export function useRecording() {
             if (webcamRecording && window.electronAPI?.getVideoUrl) {
               const webcamUrl = await window.electronAPI.getVideoUrl(saved.webcamVideoPath)
               if (webcamUrl) {
-                RecordingStorage.setBlobUrl(webcamRecording.id, webcamUrl)
+                ProjectStorage.setBlobUrl(webcamRecording.id, webcamUrl)
               }
             }
           }
@@ -222,7 +222,7 @@ export function useRecording() {
             if (audioRecording && window.electronAPI?.getVideoUrl) {
               const audioUrl = await window.electronAPI.getVideoUrl(saved.audioPath)
               if (audioUrl) {
-                RecordingStorage.setBlobUrl(audioRecording.id, audioUrl)
+                ProjectStorage.setBlobUrl(audioRecording.id, audioUrl)
               }
             }
           }

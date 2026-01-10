@@ -14,7 +14,6 @@ import {
 } from './utils'
 
 import { getOverlayAnchorPosition } from '@/features/rendering/overlays/anchor-utils'
-import { getOverlaySafeMarginPx } from '@/features/rendering/overlays/overlay-metrics'
 
 export type KeystrokeDrawRect = { x: number; y: number; width: number; height: number }
 
@@ -25,7 +24,6 @@ export class KeystrokeRenderer {
   private segments: KeystrokeSegment[] = []
   private options: Required<KeystrokeEffectData>
   private dpr: number = 1
-  private displayScale: number = 1
   private lastKeyboardEvents: KeyboardEvent[] | undefined
   private lastCanvas: HTMLCanvasElement | undefined
 
@@ -48,10 +46,6 @@ export class KeystrokeRenderer {
 
   setDPR(dpr: number) {
     this.dpr = dpr
-  }
-
-  setDisplayScale(displayScale: number) {
-    this.displayScale = Number.isFinite(displayScale) && displayScale > 0 ? displayScale : 1
   }
 
   setKeyboardEvents(events: KeyboardEvent[]) {
@@ -100,12 +94,12 @@ export class KeystrokeRenderer {
     const displayState = getKeystrokeDisplayState(this.segments, timestamp, this.options)
     if (!displayState) return null
 
-    const position = this.calculatePosition(videoWidth, videoHeight, this.displayScale)
-    return this.drawKeystroke(displayState.text, position.x, position.y, displayState.opacity, this.displayScale)
+    const position = this.calculatePosition(videoWidth, videoHeight)
+    return this.drawKeystroke(displayState.text, position.x, position.y, displayState.opacity)
   }
 
-  private calculatePosition(videoWidth: number, videoHeight: number, displayScale: number): { x: number; y: number } {
-    const margin = getOverlaySafeMarginPx(displayScale)
+  private calculatePosition(videoWidth: number, videoHeight: number): { x: number; y: number } {
+    const margin = 20
     const anchor = this.resolveAnchor()
     const offsetX = this.options.offsetX ?? 0
     const offsetY = this.options.offsetY ?? 0
@@ -127,11 +121,11 @@ export class KeystrokeRenderer {
     }
   }
 
-  private drawKeystroke(text: string, x: number, y: number, opacity: number, displayScale: number): KeystrokeDrawRect | null {
+  private drawKeystroke(text: string, x: number, y: number, opacity: number): KeystrokeDrawRect | null {
     if (!this.ctx) return null
 
     const ctx = this.ctx
-    const scale = (this.options.scale || 1) * displayScale
+    const scale = this.options.scale || 1
     const fontSize = (this.options.fontSize || 14) * scale
     const padding = (this.options.padding || 12) * scale
     const borderRadius = (this.options.borderRadius || 8) * scale
@@ -144,10 +138,13 @@ export class KeystrokeRenderer {
     const fontFamily = getKeystrokeFontFamily(preset, this.options.fontFamily)
     ctx.font = `500 ${fontSize}px ${fontFamily}`
 
-    const metrics = ctx.measureText(text)
-    const textWidth = metrics.width
     const hPad = padding * 1.4
     const vPad = padding * 0.9
+
+    const maxBoxWidth = (this.options.maxWidth || Infinity) * scale
+    const maxTextWidth = Number.isFinite(maxBoxWidth) ? Math.max(0, maxBoxWidth - hPad * 2) : Infinity
+    const drawText = this.truncateTextToWidth(ctx, text, maxTextWidth)
+    const textWidth = ctx.measureText(drawText).width
     const boxWidth = textWidth + hPad * 2
     const boxHeight = fontSize + vPad * 2
 
@@ -201,7 +198,7 @@ export class KeystrokeRenderer {
     const textY = boxY + boxHeight / 2
 
     this.drawBackground(ctx, presetStyle, boxX, boxY, boxWidth, boxHeight, borderRadius)
-    this.drawText(ctx, presetStyle, text, textX, textY)
+    this.drawText(ctx, presetStyle, drawText, textX, textY)
 
     ctx.restore()
 
@@ -212,6 +209,26 @@ export class KeystrokeRenderer {
       width: Math.ceil(boxWidth + clearPad * 2),
       height: Math.ceil(boxHeight + clearPad * 2),
     }
+  }
+
+  private truncateTextToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+    if (!Number.isFinite(maxWidth) || maxWidth <= 0) return ''
+    if (ctx.measureText(text).width <= maxWidth) return text
+
+    const ellipsis = '…'
+    const ellipsisWidth = ctx.measureText(ellipsis).width
+    if (ellipsisWidth >= maxWidth) return ellipsis
+
+    let low = 0
+    let high = text.length
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2)
+      const candidate = `${text.slice(0, mid)}${ellipsis}`
+      if (ctx.measureText(candidate).width <= maxWidth) low = mid
+      else high = mid - 1
+    }
+
+    return `${text.slice(0, low)}${ellipsis}`
   }
 
   private drawBackground(

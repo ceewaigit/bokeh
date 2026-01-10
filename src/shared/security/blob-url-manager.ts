@@ -5,7 +5,7 @@
 
 import { logger } from '@/shared/utils/logger'
 import { MemoryError } from '@/shared/errors'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 
 interface BlobEntry {
   url: string
@@ -81,7 +81,7 @@ export class BlobURLManager {
     // Auto-cache if it's a recording
     if (description?.startsWith('recording-')) {
       const recordingId = description.replace('recording-', '')
-      RecordingStorage.setBlobUrl(recordingId, url)
+      ProjectStorage.setBlobUrl(recordingId, url)
     }
 
     logger.debug(`Blob URL created: ${description || 'unnamed'}, size: ${blob.size} bytes`)
@@ -332,7 +332,7 @@ export class BlobURLManager {
         if (entry.description?.startsWith('recording-')) {
           // Check if this recording is still in storage (being used)
           const recordingId = entry.description.replace('recording-', '')
-          const cachedUrl = RecordingStorage.getBlobUrl(recordingId)
+          const cachedUrl = ProjectStorage.getBlobUrl(recordingId)
           if (cachedUrl === entry.url) {
             // Still in use, skip cleanup
             return
@@ -364,14 +364,14 @@ export class BlobURLManager {
    */
   async loadVideo(recordingId: string, filePath?: string, folderPath?: string): Promise<string | null> {
     // Check cache first
-    const cached = RecordingStorage.getBlobUrl(recordingId)
+    const cached = ProjectStorage.getBlobUrl(recordingId)
     if (cached && this.entries.has(cached)) {
       logger.debug(`Using cached video for ${recordingId}`)
       this.markAccessed(cached)
       return cached
     } else if (cached) {
       // Clear invalid cached URL
-      RecordingStorage.clearBlobUrl(recordingId)
+      ProjectStorage.clearBlobUrl(recordingId)
     }
 
     // Check if already loading
@@ -404,7 +404,7 @@ export class BlobURLManager {
     // This prevents crash when plugin-generated snapshots (data URIs) are treated as file paths
     if (filePath.startsWith('data:')) {
       logger.debug(`Using data URI for ${recordingId}`)
-      RecordingStorage.setBlobUrl(recordingId, filePath)
+      ProjectStorage.setBlobUrl(recordingId, filePath)
       return filePath
     }
 
@@ -419,7 +419,7 @@ export class BlobURLManager {
       logger.debug(`Video URL resolved: ${recordingId} -> ${videoUrl}`)
 
       // Cache the URL for future use
-      RecordingStorage.setBlobUrl(recordingId, videoUrl)
+      ProjectStorage.setBlobUrl(recordingId, videoUrl)
 
       logger.info(`Video ready: ${recordingId}`)
       return videoUrl
@@ -443,7 +443,7 @@ export class BlobURLManager {
       recordingArray.map(async rec => {
         // Store metadata if provided
         if (rec.metadata) {
-          RecordingStorage.setMetadata(rec.id, rec.metadata)
+          ProjectStorage.setMetadata(rec.id, rec.metadata)
         }
 
         // Load video
@@ -467,14 +467,14 @@ export class BlobURLManager {
    * Store metadata for a recording
    */
   storeMetadata(recordingId: string, metadata: any): void {
-    RecordingStorage.setMetadata(recordingId, metadata)
+    ProjectStorage.setMetadata(recordingId, metadata)
   }
 
   /**
    * Get metadata for a recording
    */
   getMetadata(recordingId: string): any {
-    return RecordingStorage.getMetadata(recordingId)
+    return ProjectStorage.getMetadata(recordingId)
   }
 
   dispose(): void {

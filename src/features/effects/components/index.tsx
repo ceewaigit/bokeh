@@ -9,6 +9,7 @@ import { EffectLayerType } from '@/features/effects/types'
 import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
 import { TrackType } from '@/types/project'
@@ -152,7 +153,9 @@ export function EffectsSidebar({
   // Extract current effects from the array using effect-filters helpers
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined
   const cursorEffect = effects ? getEffectByType(effects, EffectType.Cursor) : undefined
-  const keystrokeEffect = effects ? getEffectByType(effects, EffectType.Keystroke) : undefined
+  const keystrokeEffect = effects
+    ? effects.find(effect => effect.type === EffectType.Keystroke && effect.id === KEYSTROKE_STYLE_EFFECT_ID)
+    : undefined
   const selectedAnnotation = React.useMemo(() => {
     if (selectedEffectLayer?.type !== EffectLayerType.Annotation || !selectedEffectLayer.id) {
       return null

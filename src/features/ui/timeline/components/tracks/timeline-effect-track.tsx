@@ -21,6 +21,7 @@ import { useTimelineColors } from '@/features/ui/timeline/utils/colors'
 import { useShallow } from 'zustand/react/shallow'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { UpdateEffectCommand } from '@/features/core/commands'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 interface TimelineEffectTrackProps {
   /** The effect type to render */
@@ -63,7 +64,9 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
   // Get all effects of this type
   const effects = useMemo(() => {
     if (!currentProject) return []
-    return EffectStore.getAll(currentProject).filter(e => e.type === effectType)
+    const all = EffectStore.getAll(currentProject).filter(e => e.type === effectType)
+    if (effectType !== EffectType.Keystroke) return all
+    return all.filter(e => e.id !== KEYSTROKE_STYLE_EFFECT_ID)
   }, [currentProject, effectType])
 
   // Block data for snapping

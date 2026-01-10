@@ -43,7 +43,7 @@ export function useProjectLoader() {
 
             // Use centralized ProjectIOService for project loading
             // awaitPlaybackPreparation: true ensures loading blocks until proxy is ready
-            const project = await ProjectIOService.loadProjectFromRecording(recording, {
+            const project = await ProjectIOService.loadProject(recording, {
                 onProgress: setLoadingMessage,
                 awaitPlaybackPreparation: true
             })

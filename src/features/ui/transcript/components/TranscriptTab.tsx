@@ -13,7 +13,7 @@ import { AddEffectCommand, RemoveEffectCommand, UpdateEffectCommand } from '@/fe
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { TranscriptionModelList, TranscriptionProgress, TranscriptionStatusUpdate } from '@/types/transcription'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { UnifiedTranscriptView, type UnifiedTranscriptSection, type UnifiedTranscriptWord } from './UnifiedTranscriptView'
 import { useShallow } from 'zustand/react/shallow'
@@ -56,14 +56,14 @@ const createSubtitleEffect = (recording: Recording, project: Project): SubtitleE
     textColor: '#ffffff',
     highlightColor: '#FFD166',
     backgroundColor: '#000000',
-    backgroundOpacity: 0.45,
+    backgroundOpacity: 0.4,
     wordsPerLine: 8,
     lineHeight: 28,
     maxWidth: 80,
     highlightStyle: 'color',
     transitionMs: 140,
-    padding: 4,
-    borderRadius: 12
+    padding: 2,
+    borderRadius: 6
   }
 
   return {
@@ -260,7 +260,7 @@ export function TranscriptTab() {
         recording.metadata.scrollEvents = []
       }
       updater(recording.metadata, recording)
-      RecordingStorage.setMetadata(recordingId, recording.metadata)
+      ProjectStorage.setMetadata(recordingId, recording.metadata)
       return project
     })
   }, [updateProjectData])
@@ -560,7 +560,7 @@ export function TranscriptTab() {
 
   const persistTranscript = useCallback(async (recording: Recording, transcript: NonNullable<Recording['metadata']>['transcript']) => {
     if (!recording.folderPath) return
-    const fileName = await RecordingStorage.saveTranscriptChunk(recording.folderPath, transcript)
+    const fileName = await ProjectStorage.saveTranscriptChunk(recording.folderPath, transcript)
     if (fileName) {
       updateProjectData(project => {
         const updated = project.recordings.find(r => r.id === recording.id)
@@ -706,11 +706,11 @@ export function TranscriptTab() {
 
   // Get current global subtitle settings from the first available effect, or defaults
   const firstSubtitleEffect = effects.find(e => e.type === EffectType.Subtitle) as SubtitleEffect | undefined
-  const globalFontSize = firstSubtitleEffect?.data?.fontSize ?? 10
+  const globalFontSize = firstSubtitleEffect?.data?.fontSize ?? 8
   const globalAnchor = firstSubtitleEffect?.data?.anchor ?? OverlayAnchor.BottomCenter
-  const globalPadding = firstSubtitleEffect?.data?.padding ?? 12
-  const globalBorderRadius = firstSubtitleEffect?.data?.borderRadius ?? 12
-  const globalBackgroundOpacity = firstSubtitleEffect?.data?.backgroundOpacity ?? 0.45
+  const globalPadding = firstSubtitleEffect?.data?.padding ?? 2
+  const globalBorderRadius = firstSubtitleEffect?.data?.borderRadius ?? 6
+  const globalBackgroundOpacity = firstSubtitleEffect?.data?.backgroundOpacity ?? 0.4
   const globalHighlightStyle = firstSubtitleEffect?.data?.highlightStyle ?? 'color'
   const globalHighlightColor = firstSubtitleEffect?.data?.highlightColor ?? '#FFD166'
   const hasSubtitles = subtitleEffects.size > 0

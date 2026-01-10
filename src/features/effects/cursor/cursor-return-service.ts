@@ -4,7 +4,8 @@ import { EffectStore } from '@/features/effects/core/store'
 import { getCropEffectForClip, getActiveCropEffect } from '@/features/effects/core/filters'
 import { captureLastFrame } from '@/shared/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/features/effects/cursor/synthetic-events'
-import { RecordingStorage, resolveProjectRoot } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
+import { resolveProjectRoot } from '@/features/core/storage/project-paths'
 import { metadataLoader } from '@/features/core/export/metadata-loader'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 
@@ -74,7 +75,7 @@ export class CursorReturnService {
         }
 
         // Ensure metadata is available for cursor return generation
-        let effectiveMetadata = sourceRecording.metadata ?? RecordingStorage.getMetadata(sourceRecording.id)
+        let effectiveMetadata = sourceRecording.metadata ?? ProjectStorage.getMetadata(sourceRecording.id)
         if (!effectiveMetadata && sourceRecording.folderPath && sourceRecording.metadataChunks) {
             try {
                 effectiveMetadata = await metadataLoader.loadRecordingMetadata(sourceRecording)

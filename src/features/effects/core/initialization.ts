@@ -9,6 +9,7 @@ import { EffectType } from '@/types/project';
 import { EffectStore } from './store'
 import { EffectCreation } from './creation'
 import { syncKeystrokeEffects } from '../services/keystroke-sync-service'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 export const EffectInitialization = {
   ensureGlobalEffects(project: Project): void {
@@ -23,9 +24,13 @@ export const EffectInitialization = {
       EffectStore.add(project, EffectCreation.createDefaultCursorEffect())
     }
 
-    if (!effects.some(e => e.type === EffectType.Keystroke)) {
-      syncKeystrokeEffects(project)
+    if (!effects.some(e => e.type === EffectType.Keystroke && e.id === KEYSTROKE_STYLE_EFFECT_ID)) {
+      EffectStore.add(project, EffectCreation.createDefaultKeystrokeStyleEffect())
     }
+
+    // Only create derived keystroke blocks when absent. The style effect is always global.
+    const hasAnyKeystrokeBlocks = effects.some(e => e.type === EffectType.Keystroke && e.id !== KEYSTROKE_STYLE_EFFECT_ID)
+    if (!hasAnyKeystrokeBlocks) syncKeystrokeEffects(project)
   },
 
   syncKeystrokeEffects(

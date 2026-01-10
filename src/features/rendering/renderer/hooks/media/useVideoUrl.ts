@@ -14,7 +14,7 @@
 
 import { useMemo, useRef } from 'react';
 import { getRemotionEnvironment } from 'remotion';
-import { RecordingStorage } from '@/features/core/storage/recording-storage';
+import { ProjectStorage } from '@/features/core/storage/project-storage';
 import { useProxyStore } from '@/features/proxy';
 import type { UseVideoUrlProps } from '@/types';
 
@@ -169,7 +169,7 @@ export function useVideoUrl({
     }
 
     // PRIORITY 4: Preview mode - use blob URL cache
-    const cachedUrl = RecordingStorage.getBlobUrl(recording.id);
+    const cachedUrl = ProjectStorage.getBlobUrl(recording.id);
     if (cachedUrl) {
       return cachedUrl;
     }

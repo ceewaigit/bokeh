@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { RecordingStorage } from "@/features/core/storage/recording-storage"
+import { ProjectStorage } from "@/features/core/storage/project-storage"
 import { ThemeProvider } from "@/shared/contexts/theme-context"
 import { SettingsDialog } from "@/features/core/settings/components/settings-dialog"
 
@@ -16,7 +16,7 @@ export default function LayoutClient({
   // Clear invalid blob URLs on app startup
   useEffect(() => {
     // Only run once on initial mount
-    RecordingStorage.clearAllBlobUrls()
+    ProjectStorage.clearAllBlobUrls()
   }, [])
 
   return (

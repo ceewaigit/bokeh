@@ -4,7 +4,7 @@
 
 import type { Migration } from '../index'
 import type { Project } from '@/types/project'
-import { PROJECT_PACKAGE_FILE } from '@/features/core/storage/recording-storage'
+import { PROJECT_PACKAGE_FILE } from '@/features/core/storage/project-paths'
 
 export const migration004: Migration = {
   version: 4,

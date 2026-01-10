@@ -2,6 +2,7 @@ import type { Effect, Clip, WebcamLayoutData, SubtitleEffectData } from '@/types
 import { KeystrokePosition } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { OverlayAnchor } from '@/types/overlays'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 interface PositionClaim {
   effectId: string
@@ -71,6 +72,13 @@ export function resolveOverlayConflicts(
     }
   }
 
+  const keystrokeStyleEffect = effects.find(e => e.type === EffectType.Keystroke && e.id === KEYSTROKE_STYLE_EFFECT_ID)
+  const keystrokeStyleData = keystrokeStyleEffect?.data as { anchor?: OverlayAnchor; position?: KeystrokePosition } | undefined
+  const defaultKeystrokeAnchor =
+    keystrokeStyleData?.anchor ??
+    mapPositionToAnchor(keystrokeStyleData?.position) ??
+    OverlayAnchor.BottomCenter
+
   const allAnchors = [
     OverlayAnchor.BottomCenter,
     OverlayAnchor.BottomRight,
@@ -111,6 +119,7 @@ export function resolveOverlayConflicts(
       if (timeMs < effect.startTime || timeMs >= effect.endTime) return false
       // NOTE: Webcam removed from filter - now handled via clip.layout above
       if (effect.type !== EffectType.Keystroke && effect.type !== EffectType.Subtitle) return false
+      if (effect.type === EffectType.Keystroke && effect.id === KEYSTROKE_STYLE_EFFECT_ID) return false
 
       if (effect.type === EffectType.Subtitle) {
         const subtitleData = effect.data as SubtitleEffectData | undefined
@@ -121,7 +130,10 @@ export function resolveOverlayConflicts(
     })
     .map(effect => {
       const data = effect.data as { anchor?: OverlayAnchor; priority?: number; position?: KeystrokePosition } | undefined
-      const preferredAnchor = data?.anchor ?? mapPositionToAnchor(data?.position)
+      const preferredAnchor =
+        data?.anchor ??
+        mapPositionToAnchor(data?.position) ??
+        (effect.type === EffectType.Keystroke ? defaultKeystrokeAnchor : undefined)
       const priority = data?.priority ?? (effect.type === EffectType.Subtitle ? 100 : 50)
       return { effect, preferredAnchor, priority }
     })
@@ -132,9 +144,10 @@ export function resolveOverlayConflicts(
   for (const { effect, preferredAnchor, priority } of activeEffects) {
     if (!preferredAnchor) continue
 
-    // Subtitles always use their explicitly selected anchor - no displacement
-    // This respects the user's position choice in the Transcript tab
+    // Subtitles always use their explicitly selected anchor and take priority over other overlays.
+    // They still claim the anchor so other overlays (keystrokes, webcam) can avoid collisions.
     if (effect.type === EffectType.Subtitle) {
+      registry.claim(preferredAnchor, effect.id, effect.type, priority)
       resolvedAnchors.set(effect.id, preferredAnchor)
       continue
     }

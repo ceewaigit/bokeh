@@ -29,7 +29,7 @@ import { EffectInitialization } from '@/features/effects/core/initialization'
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
 import { PlayheadService } from '@/features/ui/timeline/playback/playhead-service'
 import { playbackService } from '@/features/ui/timeline/playback/playback-service'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { CursorReturnService } from '@/features/effects/cursor/cursor-return-service'
 import { EffectStore } from '@/features/effects/core/store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
@@ -574,7 +574,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
     cacheTypingPeriods: (recordingId, periods) => {
         set((state) => {
-            RecordingStorage.cacheAnalysisPeriods(
+            ProjectStorage.cacheAnalysisPeriods(
                 state.currentProject,
                 recordingId,
                 'detectedTypingPeriods',
@@ -632,7 +632,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
     cacheIdlePeriods: (recordingId, periods) => {
         set((state) => {
-            RecordingStorage.cacheAnalysisPeriods(
+            ProjectStorage.cacheAnalysisPeriods(
                 state.currentProject,
                 recordingId,
                 'detectedIdlePeriods',

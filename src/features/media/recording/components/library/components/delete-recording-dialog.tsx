@@ -9,7 +9,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { type LibraryRecordingView } from '@/features/media/recording/store/library-store'
-import { PROJECT_EXTENSION_REGEX } from '@/features/core/storage/recording-storage'
+import { PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
 
 interface DeleteRecordingDialogProps {
   pendingDelete: LibraryRecordingView | null

@@ -27,6 +27,7 @@ import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-e
 import { PlayheadService, type PlayheadState } from '@/features/ui/timeline/playback/playhead-service'
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 import { timelineToSource, getSourceDuration } from '@/features/ui/timeline/time/time-space-converter'
 import { useCommandKeyboard } from '@/features/core/commands/hooks/use-command-keyboard'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
@@ -35,7 +36,7 @@ import { initializeDefaultWallpaper } from '@/features/effects/background'
 import { EffectLayerType } from '@/features/effects/types'
 import { EffectStore } from '@/features/effects/core/store'
 import { applyEffectChange } from '@/features/effects/services/effect-change'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { UpdateZoomBlockCommand } from '@/features/core/commands'
 import { toast } from 'sonner'
 import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
@@ -359,7 +360,7 @@ export function WorkspaceManager() {
   const handleBulkToggleKeystrokes = useCallback((enabled: boolean) => {
     if (!executorRef.current) return
 
-    const keystrokeEffects = contextEffects.filter(e => e.type === EffectType.Keystroke)
+    const keystrokeEffects = contextEffects.filter(e => e.type === EffectType.Keystroke && e.id !== KEYSTROKE_STYLE_EFFECT_ID)
     keystrokeEffects.forEach(effect => {
       executorRef.current?.executeByName('UpdateEffect', effect.id, { enabled })
     })
@@ -452,7 +453,7 @@ export function WorkspaceManager() {
                   setHasUnsavedChanges(false)
 
                   // Memory cleanup: clear HEAVY data only (not thumbnails - those are small and should persist)
-                  RecordingStorage.clearMetadataCache()
+                  ProjectStorage.clearMetadataCache()
 
                   // Clean up stores
                   cleanupProject()

@@ -5,20 +5,16 @@ interface OverlayStyleControlProps {
   // Font
   fontSize?: number
   onFontSizeChange?: (value: number) => void
-  onFontSizeCommit?: (value: number) => void
 
   // Box Model
   padding?: number
   onPaddingChange?: (value: number) => void
-  onPaddingCommit?: (value: number) => void
   borderRadius?: number
   onBorderRadiusChange?: (value: number) => void
-  onBorderRadiusCommit?: (value: number) => void
 
   // Opacity
   backgroundOpacity?: number
   onBackgroundOpacityChange?: (value: number) => void
-  onBackgroundOpacityCommit?: (value: number) => void
 }
 
 interface SliderRowProps {
@@ -26,13 +22,12 @@ interface SliderRowProps {
   value: number
   displayValue: string
   onChange: (value: number) => void
-  onCommit?: (value: number) => void
   min: number
   max: number
   step: number
 }
 
-function SliderRow({ label, value, displayValue, onChange, onCommit, min, max, step }: SliderRowProps) {
+function SliderRow({ label, value, displayValue, onChange, min, max, step }: SliderRowProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
@@ -42,7 +37,6 @@ function SliderRow({ label, value, displayValue, onChange, onCommit, min, max, s
       <Slider
         value={[value]}
         onValueChange={([v]) => onChange(v)}
-        onValueCommit={onCommit ? ([v]) => onCommit(v) : undefined}
         min={min}
         max={max}
         step={step}
@@ -55,16 +49,12 @@ function SliderRow({ label, value, displayValue, onChange, onCommit, min, max, s
 export function OverlayStyleControl({
   fontSize,
   onFontSizeChange,
-  onFontSizeCommit,
   padding,
   onPaddingChange,
-  onPaddingCommit,
   borderRadius,
   onBorderRadiusChange,
-  onBorderRadiusCommit,
   backgroundOpacity,
   onBackgroundOpacityChange,
-  onBackgroundOpacityCommit,
 }: OverlayStyleControlProps) {
   const hasAnyControl =
     (typeof fontSize === 'number' && onFontSizeChange) ||
@@ -82,8 +72,7 @@ export function OverlayStyleControl({
           value={fontSize}
           displayValue={`${fontSize}px`}
           onChange={onFontSizeChange}
-          onCommit={onFontSizeCommit}
-          min={8}
+          min={4}
           max={48}
           step={1}
         />
@@ -95,7 +84,6 @@ export function OverlayStyleControl({
           value={padding}
           displayValue={`${padding}px`}
           onChange={onPaddingChange}
-          onCommit={onPaddingCommit}
           min={0}
           max={40}
           step={1}
@@ -108,7 +96,6 @@ export function OverlayStyleControl({
           value={borderRadius}
           displayValue={`${borderRadius}px`}
           onChange={onBorderRadiusChange}
-          onCommit={onBorderRadiusCommit}
           min={0}
           max={24}
           step={1}
@@ -121,7 +108,6 @@ export function OverlayStyleControl({
           value={backgroundOpacity}
           displayValue={`${Math.round(backgroundOpacity * 100)}%`}
           onChange={onBackgroundOpacityChange}
-          onCommit={onBackgroundOpacityCommit}
           min={0}
           max={1}
           step={0.05}

@@ -5,13 +5,14 @@
  * Purely focused on object creation, not state management.
  */
 
-import type { Effect, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData } from '@/types/project'
+import type { Effect, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData, KeystrokeEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { getPluginDefaults, getDefaultZIndexForCategory } from '@/features/effects/config/plugin-sdk'
 import { getDefaultWallpaper } from '@/features/effects/background'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
+import { DEFAULT_KEYSTROKE_DATA, KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 // NOTE: DEFAULT_WEBCAM_DATA removed - webcam styling now lives on clip.layout
 
 export const EffectCreation = {
@@ -39,6 +40,19 @@ export const EffectCreation = {
       data: {
         ...DEFAULT_CURSOR_DATA,
       } as CursorEffectData,
+      enabled: true,
+    }
+  },
+
+  createDefaultKeystrokeStyleEffect(): Effect {
+    return {
+      id: KEYSTROKE_STYLE_EFFECT_ID,
+      type: EffectType.Keystroke,
+      startTime: 0,
+      endTime: Number.MAX_SAFE_INTEGER,
+      data: {
+        ...DEFAULT_KEYSTROKE_DATA,
+      } as KeystrokeEffectData,
       enabled: true,
     }
   },
@@ -104,4 +118,3 @@ export const EffectCreation = {
     }
   },
 }
-

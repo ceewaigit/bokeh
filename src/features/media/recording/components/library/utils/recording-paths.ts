@@ -1,4 +1,4 @@
-import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE } from '@/features/core/storage/recording-storage'
+import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE } from '@/features/core/storage/project-paths'
 import type { Recording } from '@/types/project'
 
 /**

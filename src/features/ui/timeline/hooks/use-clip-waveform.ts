@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import type { Recording } from '@/types/project'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { globalBlobManager } from '@/shared/security/blob-url-manager'
 import { WaveformAnalyzer, type WaveformData } from '@/features/media/audio/waveform-analyzer'
 
@@ -41,7 +41,7 @@ export function useClipWaveform({
 
         const loadWaveform = async () => {
             // Get or load video URL
-            let blobUrl = RecordingStorage.getBlobUrl(recording.id)
+            let blobUrl = ProjectStorage.getBlobUrl(recording.id)
             if (!blobUrl && recording.filePath) {
                 blobUrl = await globalBlobManager.loadVideos({
                     id: recording.id,

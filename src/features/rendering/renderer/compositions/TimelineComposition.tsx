@@ -25,7 +25,7 @@ import { PluginLayer } from './layers/PluginLayer';
 import { WebcamClipRenderer } from './renderers/WebcamClipRenderer';
 import { SubtitleLayer } from './layers/SubtitleLayer';
 
-import { RecordingStorage } from '@/features/core/storage/recording-storage';
+import { ProjectStorage } from '@/features/core/storage/project-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths';
 import { useTimelineContext } from '../context/TimelineContext';
 import { findActiveFrameLayoutItems } from '@/features/ui/timeline/utils/frame-layout';
@@ -46,7 +46,7 @@ function getAudioUrl(recording: Recording, videoFilePaths?: VideoUrlMap): string
   }
 
   // Priority 2: Cached blob URL
-  const cachedUrl = RecordingStorage.getBlobUrl(recording.id);
+  const cachedUrl = ProjectStorage.getBlobUrl(recording.id);
   if (cachedUrl) {
     return cachedUrl;
   }

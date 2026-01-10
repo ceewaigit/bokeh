@@ -7,7 +7,7 @@ import { formatTime } from '@/shared/utils/time'
 import { formatBytes } from '../utils/format-bytes'
 import { cn } from '@/shared/utils/utils'
 import { Button } from '@/components/ui/button'
-import { PROJECT_EXTENSION_REGEX } from '@/features/core/storage/recording-storage'
+import { PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
 import { springConfig } from '@/features/effects/components/motion-controls'
 
 const MotionButton = motion.create(Button)

@@ -2,7 +2,7 @@ import type { Project, SubtitleEffectData } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
 import { WaveformAnalyzer } from '@/features/media/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { EffectStore, isValidEffectTiming } from '@/features/effects/core/store'
 
 export class ProjectCleanupService {
@@ -21,8 +21,8 @@ export class ProjectCleanupService {
         // Clean up resources for each orphaned recording
         for (const recording of orphanedRecordings) {
             ThumbnailGenerator.clearCacheForRecording(recording.id)
-            RecordingStorage.clearBlobUrl(recording.id)
-            RecordingStorage.clearMetadataForRecording(recording.id)
+            ProjectStorage.clearBlobUrl(recording.id)
+            ProjectStorage.clearMetadataForRecording(recording.id)
             if (project.timeline.transcriptEdits?.[recording.id]) {
                 delete project.timeline.transcriptEdits[recording.id]
             }
@@ -74,9 +74,9 @@ export class ProjectCleanupService {
             // Clear thumbnail cache for the recording
             ThumbnailGenerator.clearCacheForRecording(recordingIdToCheck)
             // Clear blob URL for the recording
-            RecordingStorage.clearBlobUrl(recordingIdToCheck)
+            ProjectStorage.clearBlobUrl(recordingIdToCheck)
             // Clear metadata cache for the recording
-            RecordingStorage.clearMetadataForRecording(recordingIdToCheck)
+            ProjectStorage.clearMetadataForRecording(recordingIdToCheck)
             if (project.timeline.transcriptEdits?.[recordingIdToCheck]) {
                 delete project.timeline.transcriptEdits[recordingIdToCheck]
             }

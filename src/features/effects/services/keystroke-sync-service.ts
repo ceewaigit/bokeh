@@ -5,14 +5,13 @@
  * Clusters keyboard events in SOURCE SPACE, then projects to TIMELINE SPACE.
  *
  * Managed effects:
- * - New IDs: `keystroke|<recordingId>|<clipId>|<clusterIndex>`
- * - Legacy IDs: `keystroke-<recordingId>-<clusterIndex>`
- * - Old-style global effect (0..MAX_SAFE_INTEGER)
+ * - IDs: `keystroke|<recordingId>|<clusterIndex>|<rangeIndex>`
  */
 import type { Effect, Project, KeystrokeEffectData, RecordingMetadata } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { sourceToTimeline, getSourceDuration } from '@/features/ui/timeline/time/time-space-converter'
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config'
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 import { EffectStore } from '@/features/effects/core/store'
 
 // Configuration
@@ -20,22 +19,6 @@ const MAX_GAP_MS = 2000 // Max gap between keys to be in same cluster
 const PADDING_MS = 500  // Add padding before/after cluster
 const MIN_DURATION_MS = 100
 const MERGE_TOLERANCE_MS = 1
-
-const LEGACY_DEFAULT_KEYSTROKE_STYLE = {
-  fontSize: 18,
-  scale: 0.5,
-} as const
-
-function stripLegacyDefaultKeystrokeStyle(data?: KeystrokeEffectData): KeystrokeEffectData | undefined {
-  if (!data) return undefined
-
-  // If a project was created with older defaults, those values were persisted into effect.data.
-  // Strip them so the current DEFAULT_KEYSTROKE_DATA can take effect on rebuild/regeneration.
-  const next: KeystrokeEffectData = { ...data }
-  if (next.fontSize === LEGACY_DEFAULT_KEYSTROKE_STYLE.fontSize) delete next.fontSize
-  if (next.scale === LEGACY_DEFAULT_KEYSTROKE_STYLE.scale) delete next.scale
-  return next
-}
 
 /**
  * Create a keystroke effect with default data
@@ -52,29 +35,16 @@ export function createKeystrokeEffect(options: {
     type: EffectType.Keystroke,
     startTime: options.startTime,
     endTime: options.endTime,
-    data: {
-      ...DEFAULT_KEYSTROKE_DATA,
-      ...(options.data ?? {})
-    } as KeystrokeEffectData,
+    data: { ...(options.data ?? {}) } as KeystrokeEffectData,
     enabled: options.enabled ?? true
   }
-}
-
-/**
- * Check if an effect is an old-style global keystroke effect
- */
-function isOldStyleGlobalEffect(e: Effect): boolean {
-  return e.type === EffectType.Keystroke &&
-    e.startTime === 0 &&
-    e.endTime >= Number.MAX_SAFE_INTEGER - 1
 }
 
 /**
  * Check if an effect is a managed (auto-generated) keystroke effect
  */
 function isManagedKeystrokeEffect(e: Effect): boolean {
-  if (isOldStyleGlobalEffect(e)) return true
-  return typeof e.id === 'string' && (e.id.startsWith('keystroke|') || e.id.startsWith('keystroke-'))
+  return typeof e.id === 'string' && e.id.startsWith('keystroke|')
 }
 
 /**
@@ -141,7 +111,7 @@ function mergeTimelineRanges(
  *
  * - Clusters keyboard events in SOURCE SPACE (recording timestamps)
  * - Projects each cluster into TIMELINE SPACE for every clip that uses that recording
- * - Preserves per-block `enabled` state + keystroke settings where possible
+ * - Preserves per-block `enabled` state
  */
 export function syncKeystrokeEffects(
   project: Project,
@@ -152,6 +122,19 @@ export function syncKeystrokeEffects(
 
   const allClips = project.timeline.tracks.flatMap(t => t.clips)
   const existingKeystrokes = EffectStore.getAll(project).filter(e => e.type === EffectType.Keystroke)
+  const hasStyleEffect = existingKeystrokes.some(e => e.id === KEYSTROKE_STYLE_EFFECT_ID)
+
+  // Ensure the global style effect always exists so UI edits are O(1).
+  if (!hasStyleEffect) {
+    project.timeline.effects!.push({
+      id: KEYSTROKE_STYLE_EFFECT_ID,
+      type: EffectType.Keystroke,
+      startTime: 0,
+      endTime: Number.MAX_SAFE_INTEGER,
+      enabled: true,
+      data: { ...DEFAULT_KEYSTROKE_DATA },
+    } as Effect)
+  }
 
   // Check if metadata is available
   const hasAnyLoadedMetadata = Boolean(metadataByRecordingId && metadataByRecordingId.size > 0) ||
@@ -162,31 +145,13 @@ export function syncKeystrokeEffects(
     return
   }
 
-  // Get template data from existing effects for style preservation
-  const templateData: KeystrokeEffectData | undefined =
-    (existingKeystrokes.find(e => e.data) as Effect | undefined)?.data as KeystrokeEffectData | undefined
-
   // Preserve state from existing managed effects so toggles/settings survive rebuilds.
-  const stateById = new Map<string, { enabled: boolean; data?: KeystrokeEffectData }>()
-  const legacyStateByRecordingCluster = new Map<string, { enabled: boolean; data?: KeystrokeEffectData }>()
+  const stateById = new Map<string, { enabled: boolean }>()
 
   for (const e of existingKeystrokes) {
     if (!isManagedKeystrokeEffect(e)) continue
 
-    stateById.set(e.id, { enabled: e.enabled, data: stripLegacyDefaultKeystrokeStyle(e.data as KeystrokeEffectData) })
-
-    // Legacy format: keystroke-<recordingId>-<clusterIndex>
-    const legacyMatch = /^keystroke-(.+)-(\d+)$/.exec(e.id)
-    if (legacyMatch) {
-      const recordingId = legacyMatch[1]
-      const clusterIndex = Number(legacyMatch[2])
-      if (Number.isFinite(clusterIndex)) {
-        legacyStateByRecordingCluster.set(`${recordingId}::${clusterIndex}`, {
-          enabled: e.enabled,
-          data: stripLegacyDefaultKeystrokeStyle(e.data as KeystrokeEffectData)
-        })
-      }
-    }
+    stateById.set(e.id, { enabled: e.enabled })
   }
 
   // Preserve user-created keystroke effects
@@ -258,16 +223,14 @@ export function syncKeystrokeEffects(
 
         // Use a stable ID based on recording + cluster + range index
         const id = `keystroke|${recording.id}|${clusterIndex}|${rangeIndex}`
-        const saved = stateById.get(id) ??
-          legacyStateByRecordingCluster.get(key) ??
-          null
+        const saved = stateById.get(id) ?? null
 
         project.timeline.effects!.push(createKeystrokeEffect({
           id,
           startTime: merged.start,
           endTime: merged.end,
           enabled: saved?.enabled ?? true,
-          data: (saved?.data ?? stripLegacyDefaultKeystrokeStyle(templateData)) as KeystrokeEffectData | undefined
+          data: undefined
         }))
       }
     })

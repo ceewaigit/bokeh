@@ -7,12 +7,12 @@
  * 3. FAIL-SAFE - any error results in empty metadata, not a crash
  *
  * Handles both preview (local file access) and export (HTTP URLs) environments.
- * Uses MetadataLoader for actual loading and RecordingStorage for caching.
+ * Uses MetadataLoader for actual loading and ProjectStorage for caching.
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { getRemotionEnvironment, delayRender, continueRender } from 'remotion';
-import { RecordingStorage } from '@/features/core/storage/recording-storage';
+import { ProjectStorage } from '@/features/core/storage/project-storage';
 import { metadataLoader } from '@/features/core/export/metadata-loader';
 import type { Recording, RecordingMetadata } from '@/types/project';
 import type { UseRecordingMetadataOptions, UseRecordingMetadataResult } from '@/types';
@@ -179,7 +179,7 @@ export function useRecordingMetadata(options: UseRecordingMetadataOptions): UseR
     // ========================================================================
 
     if (recordingId) {
-      const cached = RecordingStorage.getMetadata(recordingId);
+      const cached = ProjectStorage.getMetadata(recordingId);
       if (cached) {
         safeSetMetadata(cached);
         setIsLoading(false);
@@ -197,7 +197,7 @@ export function useRecordingMetadata(options: UseRecordingMetadataOptions): UseR
 
       // Cache for future use
       if (recordingId) {
-        RecordingStorage.setMetadata(recordingId, inlineMetadata);
+        ProjectStorage.setMetadata(recordingId, inlineMetadata);
       }
 
       setIsLoading(false);
@@ -256,7 +256,7 @@ export function useRecordingMetadata(options: UseRecordingMetadataOptions): UseR
 
         // Cache successful loads
         if (loadedMetadata && recordingId) {
-          RecordingStorage.setMetadata(recordingId, loadedMetadata);
+          ProjectStorage.setMetadata(recordingId, loadedMetadata);
         }
       } catch (err) {
         // NEVER THROW - log and return empty metadata

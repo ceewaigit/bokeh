@@ -4,7 +4,7 @@
  */
 
 import type { Recording, RecordingMetadata, CaptureArea } from '@/types'
-import { RecordingStorage } from '@/features/core/storage/recording-storage'
+import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { logger } from '@/shared/utils/logger'
 import { assertDefined } from '@/shared/errors'
 
@@ -72,7 +72,7 @@ export class MetadataLoader {
     );
 
     // Check memory cache first
-    const cached = RecordingStorage.getMetadata(recordingId)
+    const cached = ProjectStorage.getMetadata(recordingId)
     if (cached) {
       logger.debug(`Using cached metadata for recording ${recordingId}`)
       return cached
@@ -93,7 +93,7 @@ export class MetadataLoader {
 
       // Cache in memory for future use
       if (metadata) {
-        RecordingStorage.setMetadata(recordingId, metadata)
+        ProjectStorage.setMetadata(recordingId, metadata)
       }
 
       return metadata
@@ -112,7 +112,7 @@ export class MetadataLoader {
     metadataUrls: MetadataUrlSet
   ): Promise<RecordingMetadata> {
     // Check cache first (reuse existing LRU cache)
-    const cached = RecordingStorage.getMetadata(recordingId)
+    const cached = ProjectStorage.getMetadata(recordingId)
     if (cached) {
       logger.debug(`Using cached metadata for recording ${recordingId} (HTTP mode)`)
       return cached
@@ -132,7 +132,7 @@ export class MetadataLoader {
     try {
       const metadata = await loadPromise
       if (metadata) {
-        RecordingStorage.setMetadata(recordingId, metadata)
+        ProjectStorage.setMetadata(recordingId, metadata)
       }
       return assertDefined(metadata, `Metadata load returned null for recording ${recordingId}`)
     } finally {
@@ -233,7 +233,7 @@ export class MetadataLoader {
 
     if (metadataChunks && folderPath) {
       try {
-        const metadata = await RecordingStorage.loadMetadataChunks(
+        const metadata = await ProjectStorage.loadMetadataChunks(
           folderPath,
           metadataChunks
         )
@@ -282,7 +282,7 @@ export class MetadataLoader {
    */
   clearCache(): void {
     this.loadPromises.clear()
-    // Note: We don't clear RecordingStorage cache here as it's managed separately
+    // Note: We don't clear ProjectStorage cache here as it's managed separately
   }
 
   private createSnapshot(recording: Recording): Recording {

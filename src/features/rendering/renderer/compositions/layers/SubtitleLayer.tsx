@@ -7,7 +7,8 @@ import { EffectType } from '@/types/project'
 import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context'
 import { getOverlayAnchorStyle } from '@/features/rendering/overlays/anchor-utils'
-import { getOverlayDisplayScale, getOverlaySafeMarginPx } from '@/features/rendering/overlays/overlay-metrics'
+import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
+import { calculateVideoPosition } from '@/features/rendering/renderer/engine/layout-engine'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import type { SourceTimeRange } from '@/types/project'
@@ -84,11 +85,13 @@ function getWordWindow(words: TranscriptWord[], currentIndex: number, windowSize
 
 export function SubtitleLayer() {
   const frame = useCurrentFrame()
-  const { fps, width } = useVideoConfig()
+  const { fps, width, height } = useVideoConfig()
   const { effects, getRecording } = useTimelineContext()
   const { resolvedAnchors } = useOverlayContext()
   const currentTimeMs = (frame / fps) * 1000
   const project = useProjectStore((s) => s.currentProject)
+  const videoPosition = useVideoPosition()
+  const paddingScaled = videoPosition.paddingScaled ?? 0
 
   // 1. Efficiently derive active subtitle effects
   const activeSubtitleEffects = useMemo(() => {
@@ -144,6 +147,8 @@ export function SubtitleLayer() {
           effect={effect}
           currentTimeMs={currentTimeMs}
           width={width}
+          height={height}
+          paddingScaled={paddingScaled}
           getRecording={getRecording}
           hiddenRegionsMap={hiddenRegionsMap}
           clipsByRecordingId={clipsByRecordingId}
@@ -159,6 +164,8 @@ const SubtitleEffectRenderer = React.memo<{
   effect: Effect
   currentTimeMs: number
   width: number
+  height: number
+  paddingScaled: number
   getRecording: (id: string) => Recording | undefined
   hiddenRegionsMap: Map<string, SourceTimeRange[]>
   clipsByRecordingId: Map<string, Clip[]>
@@ -167,6 +174,8 @@ const SubtitleEffectRenderer = React.memo<{
   effect,
   currentTimeMs,
   width,
+  height,
+  paddingScaled,
   getRecording,
   hiddenRegionsMap,
   clipsByRecordingId,
@@ -229,19 +238,25 @@ const SubtitleEffectRenderer = React.memo<{
   )
   const windowWords = visibleWords.slice(start, end)
 
-  const displayScale = getOverlayDisplayScale(width)
+  const clipLayout = calculateVideoPosition(
+    width,
+    height,
+    recording?.width ?? width,
+    recording?.height ?? height,
+    paddingScaled
+  )
 
   const anchor = resolvedAnchors.get(effect.id) ?? data.anchor
-  const anchorStyle = getOverlayAnchorStyle(anchor, data, getOverlaySafeMarginPx(displayScale))
+  const anchorStyle = getOverlayAnchorStyle(anchor, data, 20)
   const maxWidthPercent = data.maxWidth ?? 80
-  const maxWidthPx = Math.round((maxWidthPercent / 100) * width)
+  const maxWidthPx = Math.round((maxWidthPercent / 100) * clipLayout.drawWidth)
 
   const textColor = data.textColor ?? '#ffffff'
   const highlightColor = data.highlightColor ?? '#FFD166'
-  const padding = Math.round((data.padding ?? 4) * displayScale)
-  const borderRadius = Math.round((data.borderRadius ?? 12) * displayScale)
-  const fontSizePx = Math.round((data.fontSize ?? 32) * displayScale)
-  const lineHeightPx = Math.round(lineHeight * displayScale)
+  const padding = data.padding ?? 4
+  const borderRadius = data.borderRadius ?? 12
+  const fontSizePx = data.fontSize ?? 32
+  const lineHeightPx = lineHeight
 
   return (
     <div
@@ -249,45 +264,56 @@ const SubtitleEffectRenderer = React.memo<{
       data-effect-id={effect.id}
       style={{
         position: 'absolute',
-        maxWidth: maxWidthPx,
-        lineHeight: `${lineHeightPx}px`,
-        fontSize: `${fontSizePx}px`,
-        fontFamily: data.fontFamily ?? 'SF Pro Display, system-ui, -apple-system, sans-serif',
-        color: textColor,
-        textAlign: 'center',
-        padding: `${padding}px ${padding * 2}px`,
-        borderRadius: borderRadius,
-        backgroundColor: data.backgroundColor
-          ? applyOpacity(data.backgroundColor, data.backgroundOpacity)
-          : 'transparent',
-        ...anchorStyle
+        left: clipLayout.offsetX,
+        top: clipLayout.offsetY,
+        width: clipLayout.drawWidth,
+        height: clipLayout.drawHeight,
+        pointerEvents: 'none',
       }}
     >
-      {windowWords.map((word, index) => {
-        const isActive = index === highlightIndex
-        const style: React.CSSProperties = {
-          color: isActive ? highlightColor : textColor,
-          transition: `color ${transitionMs}ms, transform ${transitionMs}ms`
-        }
-        if (isActive && highlightStyle === 'underline') {
-          style.textDecoration = 'underline'
-        }
-        if (isActive && highlightStyle === 'background') {
-          style.backgroundColor = highlightColor
-          style.color = '#000000'
-          style.padding = `0 ${Math.max(1, Math.round(4 * displayScale))}px`
-          style.borderRadius = Math.max(1, Math.round(6 * displayScale))
-        }
-        if (isActive && highlightStyle === 'scale') {
-          style.display = 'inline-block'
-          style.transform = 'scale(1.08)'
-        }
-        return (
-          <span key={word.id} style={style}>
-            {word.text}{' '}
-          </span>
-        )
-      })}
+      <div
+        style={{
+          position: 'absolute',
+          maxWidth: maxWidthPx,
+          lineHeight: `${lineHeightPx}px`,
+          fontSize: `${fontSizePx}px`,
+          fontFamily: data.fontFamily ?? 'SF Pro Display, system-ui, -apple-system, sans-serif',
+          color: textColor,
+          textAlign: 'center',
+          padding: `${padding}px ${padding * 2}px`,
+          borderRadius: borderRadius,
+          backgroundColor: data.backgroundColor
+            ? applyOpacity(data.backgroundColor, data.backgroundOpacity)
+            : 'transparent',
+          ...anchorStyle
+        }}
+      >
+        {windowWords.map((word, index) => {
+          const isActive = index === highlightIndex
+          const style: React.CSSProperties = {
+            color: isActive ? highlightColor : textColor,
+            transition: `color ${transitionMs}ms, transform ${transitionMs}ms`
+          }
+          if (isActive && highlightStyle === 'underline') {
+            style.textDecoration = 'underline'
+          }
+          if (isActive && highlightStyle === 'background') {
+            style.backgroundColor = highlightColor
+            style.color = '#000000'
+            style.padding = '0 4px'
+            style.borderRadius = 6
+          }
+          if (isActive && highlightStyle === 'scale') {
+            style.display = 'inline-block'
+            style.transform = 'scale(1.08)'
+          }
+          return (
+            <span key={word.id} style={style}>
+              {word.text}{' '}
+            </span>
+          )
+        })}
+      </div>
     </div>
   )
 })

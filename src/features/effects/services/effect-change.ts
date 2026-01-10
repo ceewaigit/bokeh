@@ -3,6 +3,7 @@ import { EffectType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectLayerType } from '@/features/effects/types'
 import { resolveEffectIdForType } from '@/features/effects/core/selection'
+import { DEFAULT_KEYSTROKE_DATA, KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 type ExecuteCommand = (commandName: string, ...args: any[]) => void
 
@@ -104,24 +105,40 @@ function updateKeystrokeEffects(
   data: Record<string, unknown>,
   enabled?: boolean
 ): void {
-  const keystrokeEffects = context.effects.filter(e => e.type === EffectType.Keystroke)
-  if (keystrokeEffects.length > 0) {
-    keystrokeEffects.forEach(effect => {
-      updateEffectData(context.executeCommand, effect.id, data, enabled ?? effect.enabled)
-    })
+  const styleEffect = context.effects.find(e => e.type === EffectType.Keystroke && e.id === KEYSTROKE_STYLE_EFFECT_ID)
+  if (styleEffect) {
+    const merged = { ...(styleEffect.data as Record<string, unknown>), ...data }
+    updateEffectData(context.executeCommand, styleEffect.id, merged, enabled ?? styleEffect.enabled)
+
+    // If the caller is toggling enabled state without bulk support, apply it to blocks too.
+    if (enabled !== undefined) {
+      context.effects.forEach(effect => {
+        if (effect.type !== EffectType.Keystroke) return
+        if (effect.id === KEYSTROKE_STYLE_EFFECT_ID) return
+        updateEffectEnabled(context.executeCommand, effect.id, enabled)
+      })
+    }
     return
   }
 
   const newEffect: Effect = {
-    id: `keystroke-global-${Date.now()}`,
+    id: KEYSTROKE_STYLE_EFFECT_ID,
     type: EffectType.Keystroke,
     startTime: 0,
     endTime: Number.MAX_SAFE_INTEGER,
-    data,
+    data: { ...DEFAULT_KEYSTROKE_DATA, ...data },
     enabled: enabled ?? true
   }
 
   context.executeCommand('AddEffect', newEffect)
+
+  if (enabled !== undefined) {
+    context.effects.forEach(effect => {
+      if (effect.type !== EffectType.Keystroke) return
+      if (effect.id === KEYSTROKE_STYLE_EFFECT_ID) return
+      updateEffectEnabled(context.executeCommand, effect.id, enabled)
+    })
+  }
 }
 
 function updateAnnotationEffect(context: EffectChangeContext, data: any): void {

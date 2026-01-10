@@ -1,9 +1,9 @@
 import type { Project, Recording, CursorEffectData, MouseEvent } from '@/types/project'
-import { RecordingStorage } from './recording-storage'
+import { ProjectStorage } from './project-storage'
 import { globalBlobManager } from '@/shared/security/blob-url-manager'
 import { migrationRunner } from '@/shared/migrations'
 import { getVideoMetadata } from '@/shared/utils/video-metadata'
-import { PROJECT_EXTENSION, PROJECT_PACKAGE_FILE, buildProjectFilePath } from '@/features/core/storage/recording-storage'
+import { PROJECT_EXTENSION, buildProjectFilePath, resolveProjectRoot } from '@/features/core/storage/project-paths'
 import { precomputeCursorSmoothingCache } from '@/features/effects/cursor/logic/cursor-logic'
 import { ProxyService } from '@/features/proxy'
 
@@ -34,268 +34,182 @@ export class ProjectIOService {
     return packageExists ? packageFilePath : projectPath
   }
 
-  private static getProjectRootFromPaths(projectPath: string, projectFilePath: string): string {
-    if (projectFilePath.endsWith(`/${PROJECT_PACKAGE_FILE}`)) {
-      if (/\/project-[^/]+\.bokeh$/.test(projectPath)) {
-        const idx = projectPath.lastIndexOf('/')
-        return idx >= 0 ? projectPath.substring(0, idx) : projectPath
-      }
-      return projectPath
+  private static async readProjectFromSource(source: { path: string; embeddedProject?: unknown }, onProgress?: (message: string) => void): Promise<Project> {
+    if (source.embeddedProject) {
+      return source.embeddedProject as Project
     }
-    const idx = projectPath.lastIndexOf('/')
-    return idx >= 0 ? projectPath.substring(0, idx) : ''
+
+    const projectPath = source.path
+    if (!projectPath) {
+      throw new Error('Missing project path')
+    }
+
+    onProgress?.('Loading project file...')
+
+    // Prefer filesystem when running in Electron.
+    if (window.electronAPI?.readLocalFile) {
+      const resolvedPath = await this.resolveProjectFilePath(projectPath)
+      const res = await window.electronAPI.readLocalFile(resolvedPath)
+      if (!res?.success || !res.data) {
+        throw new Error('Failed to read project file')
+      }
+      const json = new TextDecoder().decode(res.data)
+      return JSON.parse(json)
+    }
+
+    // Fallback to localStorage-based cache (web/preview environments).
+    const stored = ProjectStorage.getProject(projectPath)
+    if (!stored) throw new Error('Project not found')
+    return typeof stored === 'string' ? JSON.parse(stored) : (stored as Project)
   }
 
-  /**
-   * Load a project from filesystem or storage
-   */
-  static async loadProject(projectPath: string): Promise<Project> {
-    let project: Project
-
-    // Check if it's a file path or storage key
-    const isProject = projectPath.endsWith(PROJECT_EXTENSION)
-
-    if (projectPath && (isProject || projectPath.includes('/'))) {
-      // Load from filesystem
-      if (window.electronAPI?.readLocalFile) {
-        const resolvedPath = await this.resolveProjectFilePath(projectPath)
-        const res = await window.electronAPI.readLocalFile(resolvedPath)
-        if (res?.success && res.data) {
-          const json = new TextDecoder().decode(res.data)
-          project = JSON.parse(json)
-        } else {
-          throw new Error('Failed to read project file')
-        }
-      } else {
-        // Fallback to storage
-        const data = RecordingStorage.getProject(projectPath)
-        if (!data) throw new Error('Project not found')
-        project = JSON.parse(data)
-      }
-    } else {
-      // Load from storage
-      const data = RecordingStorage.getProject(projectPath)
-      if (!data) throw new Error('Project not found')
-      project = JSON.parse(data)
-    }
-
-    project.filePath = projectPath
-
-    // Resolve relative paths to absolute (same logic as loadProjectFromRecording)
-    // This is critical for loadProjectAssets to correctly load metadata chunks
-    const resolvedPath = await this.resolveProjectFilePath(projectPath)
-    const projectDir = this.getProjectRootFromPaths(projectPath, resolvedPath)
-
-    for (const rec of project.recordings) {
-      // Resolve folderPath
-      if (rec.folderPath && !rec.folderPath.startsWith('/')) {
-        rec.folderPath = `${projectDir}/${rec.folderPath}`
-      }
-      // Resolve filePath
-      if (rec.filePath && !rec.filePath.startsWith('/')) {
-        rec.filePath = `${projectDir}/${rec.filePath}`
-      }
-      // Resolve imageSource.imagePath if present (for image clips)
-      if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
-        rec.imageSource.imagePath = `${projectDir}/${rec.imageSource.imagePath}`
-      }
-    }
-
-    // Apply migrations
-    project = await this.migrateProject(project)
-
-    // Load metadata and videos
-    await this.loadProjectAssets(project)
-
-    return project
-  }
-
-  /**
-   * Load a project from a recording reference (from library)
-   * Handles path resolution, file validation, video property repair, and asset loading
-   * 
-   * This is the main entry point for workspace-manager when opening a project
-   */
-  static async loadProjectFromRecording(
-    recording: { path: string; project?: any },
+  private static async loadAndPrepareProject(
+    source: { path: string; embeddedProject?: unknown },
     options: LoadProjectOptions = {}
   ): Promise<Project> {
     const { onProgress, awaitPlaybackPreparation = false } = options
-    let project = recording.project as Project | undefined
-    const pendingProxyTasks: Promise<void>[] = []
 
-    // Load project from disk if not already loaded (library only passes lightweight projectInfo)
-    if (!project && recording.path) {
-      onProgress?.('Loading project file...')
-      try {
-        if (window.electronAPI?.readLocalFile) {
-          const resolvedPath = await this.resolveProjectFilePath(recording.path)
-          const result = await window.electronAPI.readLocalFile(resolvedPath)
-          if (result?.success && result.data) {
-            const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
-            project = JSON.parse(projectData)
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load project from disk:', e)
-        throw new Error('Failed to load project file')
-      }
-    }
-
+    let project = await this.readProjectFromSource(source, onProgress)
     if (!project) {
       throw new Error('This recording does not have an associated project. Please try loading a different project file.')
     }
 
-    // Deep clone the project to allow mutations (JSON objects are frozen/read-only)
+    // Deep clone to allow mutations safely.
     project = structuredClone(project)
-    project.filePath = recording.path
 
-    // NOTE: Proxy URLs are stored in the proxy zustand store, not on recording objects
-    // No need to clean them here anymore
+    // Canonicalize project.filePath so everything else (relative path resolution, saving) is consistent.
+    const resolvedProjectPath = await this.resolveProjectFilePath(source.path)
+    const projectRoot = await resolveProjectRoot(resolvedProjectPath, window.electronAPI?.fileExists)
+    project.filePath = projectRoot || source.path
 
-    // Apply migrations
+    // Apply migrations.
     onProgress?.('Applying migrations...')
     project = await this.migrateProject(project)
 
-    // Get project directory for resolving relative paths
-    const resolvedProjectPath = await this.resolveProjectFilePath(recording.path)
-    const projectDir = this.getProjectRootFromPaths(recording.path, resolvedProjectPath)
+    const basePath = project.filePath || projectRoot || source.path
+    const pendingProxyTasks: Promise<void>[] = []
 
-    // Resolve paths, validate files, and repair properties for each recording
+    // Resolve paths, validate files, repair manifests, and repair properties for each recording.
     for (let i = 0; i < project.recordings.length; i++) {
       const rec = project.recordings[i]
       onProgress?.(`Setting up video ${i + 1} of ${project.recordings.length}...`)
 
-      // 1. Resolve folderPath FIRST
-      // This is critical because video path resolution depends on folderPath
-      if (rec.folderPath) {
-        let resolvedFolderPath = rec.folderPath
-        if (!resolvedFolderPath.startsWith('/')) {
-          resolvedFolderPath = `${projectDir}/${resolvedFolderPath}`
-        }
-
-        if (window.electronAPI?.fileExists) {
-          const folderExists = await window.electronAPI.fileExists(resolvedFolderPath)
-          if (!folderExists) {
-            throw new InvalidPathError(`[ProjectIO] Recording folder not found: ${resolvedFolderPath}`)
-          }
-        }
-
-        rec.folderPath = resolvedFolderPath
+      // Resolve folderPath.
+      if (rec.folderPath && !rec.folderPath.startsWith('/')) {
+        rec.folderPath = `${basePath}/${rec.folderPath}`
       }
 
-      if (rec.filePath) {
-        // Resolve video path relative to project file location
-        let videoPath = rec.filePath
-        if (!videoPath.startsWith('/')) {
-          videoPath = `${projectDir}/${videoPath}`
+      // Resolve filePath.
+      if (rec.filePath && !rec.filePath.startsWith('/')) {
+        rec.filePath = `${basePath}/${rec.filePath}`
+      }
+
+      // Resolve imageSource.imagePath if present (for image clips).
+      if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
+        rec.imageSource.imagePath = `${basePath}/${rec.imageSource.imagePath}`
+      }
+
+      // For image clips, keep filePath in sync with the resolved image path.
+      if (rec.sourceType === 'image' && rec.imageSource?.imagePath && rec.imageSource.imagePath.startsWith('/')) {
+        rec.filePath = rec.imageSource.imagePath
+      }
+
+      // Validate folder exists (when available).
+      if (rec.folderPath && window.electronAPI?.fileExists) {
+        const folderExists = await window.electronAPI.fileExists(rec.folderPath)
+        if (!folderExists) {
+          throw new InvalidPathError(`[ProjectIO] Recording folder not found: ${rec.folderPath}`)
         }
+      }
 
-        rec.filePath = videoPath
+      // Repair metadata manifest before any metadata load attempts.
+      await this.repairMetadataManifest(rec)
 
-        // Also resolve imageSource.imagePath if present (for image clips like cursor return freeze frames)
-        if (rec.imageSource?.imagePath && !rec.imageSource.imagePath.startsWith('/') && !rec.imageSource.imagePath.startsWith('data:')) {
-          const resolvedImagePath = `${projectDir}/${rec.imageSource.imagePath}`
-          rec.imageSource.imagePath = resolvedImagePath
+      // Validate file exists before loading.
+      if (rec.filePath && window.electronAPI?.fileExists) {
+        const exists = await window.electronAPI.fileExists(rec.filePath)
+        if (!exists) {
+          rec.isMissing = true
+          throw new MissingVideoError(`[ProjectIO] Recording file missing: ${rec.filePath} (sourceType: ${rec.sourceType})`)
         }
+      }
 
-        // For image clips, also sync filePath to resolved imageSource path
-        if (rec.sourceType === 'image' && rec.imageSource?.imagePath && rec.imageSource.imagePath.startsWith('/')) {
-          rec.filePath = rec.imageSource.imagePath
-        }
-
-        // Validate file exists before loading
-        if (window.electronAPI?.fileExists) {
-          const exists = await window.electronAPI.fileExists(rec.filePath)
-          if (!exists) {
-            rec.isMissing = true
-            throw new MissingVideoError(`[ProjectIO] Recording file missing: ${rec.filePath} (sourceType: ${rec.sourceType})`)
-          }
-        }
-
-        // Validate and fix recording properties if needed
+      // Validate and fix recording properties if needed.
+      if (rec.filePath && rec.sourceType !== 'image') {
         await this.validateAndFixRecording(rec, project, onProgress)
+      }
 
-        // ASYNC PROXY GENERATION: Don't block project load
-        // Video will play from original source while proxy generates in background
-        // Once proxy is ready, future loads will use it instantly
-        // SKIP for image clips - static images don't need video proxy conversion
-        if (rec.sourceType !== 'image') {
-          const proxyPromise = ProxyService.ensureProxiesForRecording(rec, {
-            onProgress,
-            background: !awaitPlaybackPreparation
-          })
+      // ASYNC PROXY GENERATION: Don't block project load unless requested.
+      if (rec.sourceType !== 'image') {
+        const proxyPromise = ProxyService.ensureProxiesForRecording(rec, {
+          onProgress,
+          background: !awaitPlaybackPreparation
+        })
 
-          if (awaitPlaybackPreparation) {
-            pendingProxyTasks.push(proxyPromise)
-          }
+        if (awaitPlaybackPreparation) {
+          pendingProxyTasks.push(proxyPromise)
         }
       }
     }
 
-    // Load assets (metadata chunks and videos)
+    // Load assets (metadata chunks and videos).
     await this.loadProjectAssets(project, onProgress)
 
-    // Initialize effects array using EffectStore
+    // Initialize effects array using EffectStore.
     EffectStore.ensureArray(project)
 
-    // Ensure global background/cursor effects exist
-    const { EffectInitialization } = await import('@/features/effects/core/initialization')
-
-
-    // DEDUPLICATE CROP EFFECTS: Fix for multiple overlapping crop effects causing glitches
+    // DEDUPLICATE CROP EFFECTS: Fix for multiple overlapping crop effects causing glitches.
     const timelineEffects = project.timeline.effects || []
     if (timelineEffects.length > 0) {
-      const otherEffects: typeof project.timeline.effects = [];
+      const otherEffects: typeof project.timeline.effects = []
 
       // Sort by modification time (or ID timestamp if available) to keep the newest one
       // IDs are like 'crop-UUID-TIMESTAMP'
       const getTimestampFromId = (id: string) => {
-        const parts = id.split('-');
-        const result = parseInt(parts[parts.length - 1]);
-        return isNaN(result) ? 0 : result;
-      };
+        const parts = id.split('-')
+        const result = parseInt(parts[parts.length - 1])
+        return isNaN(result) ? 0 : result
+      }
 
       // Extract Clip ID from Effect ID (crop-CLIPID-TIMESTAMP)
       const getClipIdFromEffectId = (id: string) => {
-        const lastDash = id.lastIndexOf('-');
-        if (lastDash === -1) return 'unknown';
-        // prefix 'crop-' is 5 chars
-        if (!id.startsWith('crop-')) return 'unknown';
-        return id.substring(5, lastDash);
-      };
+        const lastDash = id.lastIndexOf('-')
+        if (lastDash === -1) return 'unknown'
+        if (!id.startsWith('crop-')) return 'unknown'
+        return id.substring(5, lastDash)
+      }
 
-      const cropEffects = timelineEffects.filter(e => e.type === 'crop');
-      const nonCropEffects = timelineEffects.filter(e => e.type !== 'crop');
+      const cropEffects = timelineEffects.filter(e => e.type === 'crop')
+      const nonCropEffects = timelineEffects.filter(e => e.type !== 'crop')
 
       if (cropEffects.length > 1) {
-        // Group by CLIP ID to ensure we only deduplicate effects targeting the SAME clip
-        const groups = new Map<string, typeof timelineEffects>();
+        // Group by clip ID; fallback to time-range for legacy IDs.
+        const groups = new Map<string, typeof timelineEffects>()
 
         cropEffects.forEach(e => {
-          // Use Clip ID as the grouping key. 
-          // If we can't parse it, fallback to time-range (risky, but handles legacy)
-          let key = getClipIdFromEffectId(e.id);
+          let key = getClipIdFromEffectId(e.id)
           if (key === 'unknown') {
-            key = `time-${e.startTime}-${e.endTime}`;
+            key = `time-${e.startTime}-${e.endTime}`
           }
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key)!.push(e);
-        });
+          if (!groups.has(key)) groups.set(key, [])
+          groups.get(key)!.push(e)
+        })
 
         groups.forEach((group) => {
           if (group.length > 1) {
-            group.sort((a, b) => getTimestampFromId(b.id) - getTimestampFromId(a.id)); // Newest first
-            otherEffects.push(group[0]); // Keep newest
+            group.sort((a, b) => getTimestampFromId(b.id) - getTimestampFromId(a.id))
+            otherEffects.push(group[0])
           } else {
-            otherEffects.push(group[0]);
+            otherEffects.push(group[0])
           }
-        });
+        })
 
-        project.timeline.effects = [...nonCropEffects, ...otherEffects];
+        project.timeline.effects = [...nonCropEffects, ...otherEffects]
       }
     }
 
+    // Ensure global background/cursor effects exist.
+    const { EffectInitialization } = await import('@/features/effects/core/initialization')
     EffectInitialization.ensureGlobalEffects(project)
 
     if (awaitPlaybackPreparation && pendingProxyTasks.length > 0) {
@@ -304,6 +218,35 @@ export class ProjectIOService {
     }
 
     return project
+  }
+
+  /**
+   * Load a project from filesystem or storage
+   */
+  static async loadProject(projectPath: string, options?: LoadProjectOptions): Promise<Project>
+  static async loadProject(recording: { path: string; project?: any }, options?: LoadProjectOptions): Promise<Project>
+  static async loadProject(
+    source: string | { path: string; project?: any },
+    options: LoadProjectOptions = {}
+  ): Promise<Project> {
+    if (typeof source === 'string') {
+      return this.loadAndPrepareProject({ path: source }, options)
+    }
+    return this.loadAndPrepareProject({ path: source.path, embeddedProject: source.project }, options)
+  }
+
+  /**
+   * Load a project from a recording reference (from library)
+   * Handles path resolution, file validation, video property repair, and asset loading
+   * 
+   * This is the main entry point for workspace-manager when opening a project
+   */
+  /** @deprecated Prefer `ProjectIOService.loadProject(recording, options)` */
+  static async loadProjectFromRecording(
+    recording: { path: string; project?: any },
+    options: LoadProjectOptions = {}
+  ): Promise<Project> {
+    return this.loadProject(recording, options)
   }
 
 
@@ -388,7 +331,7 @@ export class ProjectIOService {
       modifiedAt: new Date().toISOString()
     })
 
-    return RecordingStorage.saveProject(projectToSave, projectToSave.filePath)
+    return ProjectStorage.saveProject(projectToSave, projectToSave.filePath)
   }
 
   /**
@@ -464,7 +407,7 @@ export class ProjectIOService {
       const recording = project.recordings[i]
 
       // 1. Try cache first
-      const cachedMetadata = RecordingStorage.getMetadata(recording.id)
+      const cachedMetadata = ProjectStorage.getMetadata(recording.id)
       if (cachedMetadata) {
         recording.metadata = cachedMetadata
       }
@@ -474,7 +417,7 @@ export class ProjectIOService {
       if (!recording.metadata && recording.folderPath && recording.metadataChunks) {
         try {
           onProgress?.(`Loading metadata for recording ${i + 1}...`)
-          const meta = await RecordingStorage.loadMetadataChunks(recording.folderPath, recording.metadataChunks)
+          const meta = await ProjectStorage.loadMetadataChunks(recording.folderPath, recording.metadataChunks)
 
           // Add capture area if available on recording
           if (recording.captureArea && !meta.captureArea) {
@@ -482,7 +425,7 @@ export class ProjectIOService {
           }
 
           recording.metadata = meta
-          RecordingStorage.setMetadata(recording.id, meta)
+          ProjectStorage.setMetadata(recording.id, meta)
         } catch (e) {
           console.warn(`[ProjectIO] Failed to eager load metadata for ${recording.id}:`, e)
         }
@@ -549,7 +492,7 @@ export class ProjectIOService {
    * Create a new empty project
    */
   static createNewProject(name: string): Project {
-    return RecordingStorage.createProject(name)
+    return ProjectStorage.createProject(name)
   }
 
   /**
