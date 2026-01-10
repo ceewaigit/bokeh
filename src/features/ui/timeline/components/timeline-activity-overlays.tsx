@@ -14,13 +14,14 @@ import { Group, Rect, Text } from 'react-konva'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { TimelineTrackType } from '@/types/project'
 import { ActivityDetectionService } from '@/features/ui/timeline/activity-detection/detection-service'
-import { useVideoClips, useRecordings } from '@/features/core/stores/selectors/clip-selectors'
+import { useVideoClips, useRecordings, useDismissedSuggestions } from '@/features/core/stores/selectors/clip-selectors'
 import { TimelineConfig } from '@/features/ui/timeline/config'
 import { useTimelineContext } from './TimelineContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { sourceToTimeline } from '@/features/ui/timeline/time/time-space-converter'
 import { withAlpha, useTimelineColors } from '@/features/ui/timeline/utils/colors'
+import { getSuggestionKey } from '@/features/core/commands/timeline/DismissSuggestionCommand'
 
 interface BarData {
     key: string
@@ -129,6 +130,7 @@ export const TimelineActivityOverlays = React.memo(() => {
     const videoClips = useVideoClips()
     const recordings = useRecordings()
     const colors = useTimelineColors()
+    const dismissedSuggestions = useDismissedSuggestions()
 
     if (!visibleTracks.has(TimelineTrackType.Video) || !showTypingSuggestions) {
         return null
@@ -147,14 +149,26 @@ export const TimelineActivityOverlays = React.memo(() => {
 
         const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip, recording.metadata)
 
+        // Filter out dismissed suggestions from all period lists
+        const filterDismissed = (periods: SpeedUpPeriod[]) =>
+            periods.filter(p => !dismissedSuggestions.has(getSuggestionKey(clip.id, p)))
+
+        const filteredTyping = filterDismissed(suggestions.typing)
+        const filteredIdle = filterDismissed(suggestions.idle)
+        const filteredEdgeIdle = filterDismissed(suggestions.edgeIdle)
+
         // All speed-up periods (typing + idle)
         const allPeriods = [
-            ...suggestions.typing,
-            ...suggestions.idle,
-            ...suggestions.edgeIdle // Edge idle periods (can be trimmed or sped up)
+            ...filteredTyping,
+            ...filteredIdle,
+            ...filteredEdgeIdle // Edge idle periods (can be trimmed or sped up)
         ]
 
         allPeriods.forEach((period, i) => {
+            // Skip dismissed suggestions
+            const suggestionKey = getSuggestionKey(clip.id, period)
+            if (dismissedSuggestions.has(suggestionKey)) return
+
             const isTrim = period.type === SpeedUpType.TrimStart || period.type === SpeedUpType.TrimEnd
 
             // For trim periods, position at clip edges
@@ -213,8 +227,8 @@ export const TimelineActivityOverlays = React.memo(() => {
                 color,
                 label,
                 isEdge: isTrim,
-                allTypingPeriods: suggestions.typing,
-                allIdlePeriods: suggestions.idle
+                allTypingPeriods: filteredTyping,
+                allIdlePeriods: filteredIdle
             })
         })
     }

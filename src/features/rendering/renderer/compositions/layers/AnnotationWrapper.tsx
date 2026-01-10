@@ -16,7 +16,7 @@ import type { AnnotationData, AnnotationStyle } from '@/types/project'
 import { type AnnotationRenderContext, getRedactionPatternStyle } from './annotation-elements'
 import { RedactionPattern } from '@/features/effects/annotation/types'
 import { clamp01 } from '@/features/rendering/canvas/math/clamp'
-import { useCoordinateMapping } from '@/features/rendering/renderer/hooks/layout/useCoordinateMapping'
+import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
 
 interface AnnotationWrapperProps {
     id: string
@@ -381,7 +381,7 @@ interface ArrowContentProps {
     id: string
     data: AnnotationData
     isSelected: boolean
-    mapPercentPoint: (p: { x: number; y: number }, o?: { applyTransform: boolean }) => { x: number; y: number }
+    mapPercentPoint: (p: { x: number; y: number }) => { x: number; y: number }
 }
 
 const ArrowContent: React.FC<ArrowContentProps> = memo(({
@@ -394,9 +394,9 @@ const ArrowContent: React.FC<ArrowContentProps> = memo(({
     const pos = data.position ?? { x: 50, y: 50 }
     const rawEnd = data.endPosition ?? { x: pos.x + 10, y: pos.y + 10 }
 
-    // Map coordinates to pixels (without transforms for the inner SVG relative math)
-    const start = mapPercentPoint(pos, { applyTransform: false })
-    const end = mapPercentPoint(rawEnd, { applyTransform: false })
+    // Map coordinates to pixels in LOCAL video space.
+    const start = mapPercentPoint(pos)
+    const end = mapPercentPoint(rawEnd)
 
     const color = style.color ?? '#ff0000'
     const strokeWidth = style.strokeWidth ?? 1
@@ -531,14 +531,19 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
     onEditComplete,
     fadeOpacity = 1,
 }) => {
-    // Disable transform application because AnnotationLayer is inside the CSS-transformed container
-    const { mapPercentPoint, videoPosition } = useCoordinateMapping()
-    const mappingOptions = { applyTransform: false }
+    // PERF: This layer is rendered inside a video-bounds container with the same CSS transform as the video,
+    // so we want LOCAL coordinates (0..drawWidth/height), not composition coordinates.
+    const videoPosition = useVideoPosition()
     
     const pos = data.position ?? { x: 50, y: 50 }
     const rotation = data.rotation ?? 0
     const constrainTextWidth = data.type === AnnotationType.Text && typeof data.width === 'number'
     const textWidthPx = constrainTextWidth ? (data.width! / 100) * videoPosition.drawWidth : undefined
+
+    const toLocalPoint = (percent: { x: number; y: number }) => ({
+        x: (percent.x / 100) * videoPosition.drawWidth,
+        y: (percent.y / 100) * videoPosition.drawHeight
+    })
 
     // Determine anchor type
     const isTopLeftAnchor = data.type === AnnotationType.Highlight ||
@@ -549,8 +554,8 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
     let wrapperPosition: { x: number; y: number }
     if (data.type === AnnotationType.Arrow) {
         const rawEnd = data.endPosition ?? { x: pos.x + 10, y: pos.y + 10 }
-        const start = mapPercentPoint(pos, mappingOptions)
-        const end = mapPercentPoint(rawEnd, mappingOptions)
+        const start = toLocalPoint(pos)
+        const end = toLocalPoint(rawEnd)
         
         const padding = Math.max((data.style?.strokeWidth ?? 3), (data.style?.arrowHeadSize ?? 10)) + 4
         wrapperPosition = {
@@ -558,7 +563,7 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
             y: Math.min(start.y, end.y) - padding,
         }
     } else {
-        wrapperPosition = mapPercentPoint(pos, mappingOptions)
+        wrapperPosition = toLocalPoint(pos)
     }
 
     // Shadow logic
@@ -611,7 +616,14 @@ export const AnnotationWrapper: React.FC<AnnotationWrapperProps> = memo(({
             case AnnotationType.Redaction:
                 return <RedactionContent id={id} data={data} videoWidth={videoPosition.drawWidth} videoHeight={videoPosition.drawHeight} scale={context.scale} />
             case AnnotationType.Arrow:
-                return <ArrowContent id={id} data={data} isSelected={isSelected} mapPercentPoint={mapPercentPoint} />
+                return (
+                    <ArrowContent
+                        id={id}
+                        data={data}
+                        isSelected={isSelected}
+                        mapPercentPoint={toLocalPoint}
+                    />
+                )
             default:
                 return (
                     <EditableTextContent

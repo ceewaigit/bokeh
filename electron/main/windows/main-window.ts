@@ -9,13 +9,10 @@ export function createMainWindow(): BrowserWindow {
   console.log('[MainWindow] Creating main window...')
 
   const isMac = process.platform === 'darwin'
-
-  // Calculate window size as 85% of the primary display's work area
-  // This adapts to any screen resolution and aspect ratio
   const primaryDisplay = screen.getPrimaryDisplay()
   const workArea = primaryDisplay.workArea
-  const width = Math.round(workArea.width * 0.90)
-  const height = Math.round(workArea.height * 0.85)
+  const width = Math.round(workArea.width * 1.00)
+  const height = Math.round(workArea.height * 1.00)
 
   // Center the window on the screen
   const x = Math.round(workArea.x + (workArea.width - width) / 2)

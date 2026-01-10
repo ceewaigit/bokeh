@@ -16,7 +16,6 @@ import { EffectType, AnnotationType } from '@/types/project'
 import { EffectLayerType } from '@/features/effects/types'
 import type { Effect, AnnotationData } from '@/types/project'
 import { AnnotationWrapper } from './AnnotationWrapper'
-import { useCoordinateMapping } from '@/features/rendering/renderer/hooks/layout/useCoordinateMapping'
 import { clamp01 } from '@/features/rendering/canvas/math/clamp'
 
 const HIGHLIGHT_FADE_MS = 220
@@ -56,11 +55,12 @@ export const AnnotationLayer: React.FC = memo(() => {
   const frame = useCurrentFrame()
   const { fps, width: compositionWidth, height: compositionHeight } = useVideoConfig()
   const videoPosition = useVideoPosition()
+  const timeline = useTimelineContext()
 
-  // Use the coordinate mapping hook (SSOT)
-  // Disable transforms since we are inside the transform container
-  const { mapPercentPoint } = useCoordinateMapping()
-  const mappingOptions = { applyTransform: false }
+  const toLocalPoint = useCallback((percent: { x: number; y: number }) => ({
+    x: (percent.x / 100) * videoPosition.drawWidth,
+    y: (percent.y / 100) * videoPosition.drawHeight,
+  }), [videoPosition.drawWidth, videoPosition.drawHeight])
 
   // Get selection state (only used in preview mode)
   const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
@@ -76,12 +76,25 @@ export const AnnotationLayer: React.FC = memo(() => {
 
   // Render context is legacy - but we still pass it to wrapper for now (wrapper ignores it for positioning)
   // We can eventually remove it once we clean up the wrapper types
+  // IMPORTANT: style values like fontSize/padding/borderRadius are authored in "video pixels"
+  // (i.e. export space). When preview renders at a reduced composition size, we must scale them
+  // down so the annotation looks identical relative to the video frame.
+  const styleScale = useMemo(() => {
+    const vw = Math.max(1, timeline.videoWidth)
+    const vh = Math.max(1, timeline.videoHeight)
+    const sx = compositionWidth / vw
+    const sy = compositionHeight / vh
+    const s = Math.min(sx, sy)
+    return Number.isFinite(s) && s > 0 ? s : 1
+  }, [compositionWidth, compositionHeight, timeline.videoWidth, timeline.videoHeight])
+
   const renderContext = useMemo(() => ({
     videoWidth: videoPosition.drawWidth,
     videoHeight: videoPosition.drawHeight,
     offsetX: 0,
     offsetY: 0,
-  }), [videoPosition.drawWidth, videoPosition.drawHeight])
+    scale: styleScale,
+  }), [videoPosition.drawWidth, videoPosition.drawHeight, styleScale])
 
   // Get the ID of the annotation currently being edited
   // Note: Use selected annotation ID when inline editing, not transientState
@@ -212,16 +225,13 @@ export const AnnotationLayer: React.FC = memo(() => {
             const data = effect.data as AnnotationData
             const pos = data.position ?? { x: 50, y: 50 }
 
-            // Use the hook to map coordinates (without transforms)
-            const mappedPos = mapPercentPoint(pos, mappingOptions)
+            const mappedPos = toLocalPoint(pos)
             const width = ((data.width ?? 20) / 100) * videoPosition.drawWidth
             const height = ((data.height ?? 10) / 100) * videoPosition.drawHeight
             const x = mappedPos.x
             const y = mappedPos.y
 
             const rotation = data.rotation ?? 0
-            const cx = x + width / 2
-            const cy = y + height / 2
 
             const anim = getHighlightOpacity(currentTimeMs, effect.startTime, effect.endTime, 1000 / fps)
             const dim = clamp01((data.style as any)?.opacity ?? DEFAULT_DIM_OPACITY)
@@ -229,51 +239,26 @@ export const AnnotationLayer: React.FC = memo(() => {
 
             if (dimOpacity <= 0) return null
 
-            const maskId = `highlight-mask-${effect.id}`
             const borderRadius = Math.max(0, Number((data.style as any)?.borderRadius ?? 0) || 0)
 
             return (
-              <svg
+              <div
                 key={`spotlight-${effect.id}`}
-                width="100%"
-                height="100%"
-                viewBox={`0 0 ${compositionWidth} ${compositionHeight}`}
-                preserveAspectRatio="none"
                 style={{
                   position: 'absolute',
-                  inset: 0,
+                  left: x,
+                  top: y,
+                  width,
+                  height,
+                  borderRadius,
+                  // Dim everything outside the highlight box.
+                  // box-shadow is compositor-friendly compared to SVG masking under transforms.
+                  boxShadow: `0 0 0 9999px rgba(0, 0, 0, ${dimOpacity})`,
+                  // Rotation around the box center (match previous SVG rotate(cx, cy)).
+                  transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+                  transformOrigin: 'center center',
                 }}
-              >
-                <defs>
-                  <mask id={maskId}>
-                    <rect
-                      x={0}
-                      y={0}
-                      width={compositionWidth}
-                      height={compositionHeight}
-                      fill="white"
-                    />
-                    <rect
-                      x={x}
-                      y={y}
-                      width={width}
-                      height={height}
-                      rx={borderRadius}
-                      ry={borderRadius}
-                      transform={rotation !== 0 ? `rotate(${rotation} ${cx} ${cy})` : undefined}
-                      fill="black"
-                    />
-                  </mask>
-                </defs>
-                <rect
-                  x={0}
-                  y={0}
-                  width={compositionWidth}
-                  height={compositionHeight}
-                  mask={`url(#${maskId})`}
-                  fill={`rgba(0, 0, 0, ${dimOpacity})`}
-                />
-              </svg>
+              />
             )
           })}
         </AbsoluteFill>

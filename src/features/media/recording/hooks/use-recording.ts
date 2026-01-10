@@ -205,11 +205,12 @@ export function useRecording() {
             }
           }
 
-          // Cache webcam video URL if present
-          if (saved.webcamVideoPath) {
-            const webcamRecording = saved.project.recordings.find(r => r.id.startsWith('webcam-'))
-            if (webcamRecording && window.electronAPI?.getVideoUrl) {
-              const webcamUrl = await window.electronAPI.getVideoUrl(saved.webcamVideoPath)
+          // Cache webcam video URLs if present (supports multiple segments)
+          const webcamRecordings = saved.project.recordings.filter(r => r.id.startsWith('webcam-'))
+          for (const webcamRecording of webcamRecordings) {
+            if (webcamRecording.folderPath && webcamRecording.filePath && window.electronAPI?.getVideoUrl) {
+              const webcamPath = `${webcamRecording.folderPath}/${webcamRecording.filePath.split('/').pop()}`
+              const webcamUrl = await window.electronAPI.getVideoUrl(webcamPath)
               if (webcamUrl) {
                 ProjectStorage.setBlobUrl(webcamRecording.id, webcamUrl)
               }
@@ -292,6 +293,64 @@ export function useRecording() {
     return recorderRef.current?.canResume() ?? false
   }, [])
 
+  // Independent webcam pause/resume (creates segments)
+  const pauseWebcam = useCallback(async () => {
+    if (!recorderRef.current || !isRecording) return
+    try {
+      await recorderRef.current.pauseWebcam()
+      logger.info('Webcam paused independently')
+    } catch (error) {
+      logger.error('Failed to pause webcam:', error)
+    }
+  }, [isRecording])
+
+  const resumeWebcam = useCallback(async () => {
+    if (!recorderRef.current || !isRecording) return
+    try {
+      await recorderRef.current.resumeWebcam()
+      logger.info('Webcam resumed as new segment')
+    } catch (error) {
+      logger.error('Failed to resume webcam:', error)
+    }
+  }, [isRecording])
+
+  const isWebcamPaused = useCallback(() => {
+    return recorderRef.current?.isWebcamPaused() ?? false
+  }, [])
+
+  const isWebcamRecording = useCallback(() => {
+    return recorderRef.current?.isWebcamRecording() ?? false
+  }, [])
+
+  // Independent microphone pause/resume
+  const pauseMicrophone = useCallback(() => {
+    if (!recorderRef.current || !isRecording) return
+    try {
+      recorderRef.current.pauseMicrophone()
+      logger.info('Microphone paused independently')
+    } catch (error) {
+      logger.error('Failed to pause microphone:', error)
+    }
+  }, [isRecording])
+
+  const resumeMicrophone = useCallback(() => {
+    if (!recorderRef.current || !isRecording) return
+    try {
+      recorderRef.current.resumeMicrophone()
+      logger.info('Microphone resumed')
+    } catch (error) {
+      logger.error('Failed to resume microphone:', error)
+    }
+  }, [isRecording])
+
+  const isMicrophonePaused = useCallback(() => {
+    return recorderRef.current?.isMicrophonePaused() ?? false
+  }, [])
+
+  const isMicrophoneRecording = useCallback(() => {
+    return recorderRef.current?.isMicrophoneRecording() ?? false
+  }, [])
+
   return {
     startRecording,
     stopRecording,
@@ -299,6 +358,17 @@ export function useRecording() {
     resumeRecording,
     canPause,
     canResume,
+    // Independent webcam controls
+    pauseWebcam,
+    resumeWebcam,
+    isWebcamPaused,
+    isWebcamRecording,
+    // Independent microphone controls
+    pauseMicrophone,
+    resumeMicrophone,
+    isMicrophonePaused,
+    isMicrophoneRecording,
+    // Legacy
     screenRecorder: recorderRef.current,
     isRecording,
     isPaused,

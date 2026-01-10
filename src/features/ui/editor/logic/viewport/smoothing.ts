@@ -8,6 +8,7 @@
 import type { MouseEvent } from '@/types/project'
 import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 import { CAMERA_CONFIG } from '@/shared/config/physics-config'
+import { binarySearchEvents } from '@/features/rendering/canvas/math'
 
 const {
     dwellTriggerMs: DWELL_TRIGGER_MS,
@@ -94,19 +95,19 @@ function getAveragePosition(
     let sumY = 0
     let count = 0
 
-    // Optimization: Binary search could be used here for very large datasets,
-    // but typically we only scan a few dozen events for a 500ms window.
-    // We scan backwards from the approximate end index for efficiency.
-
-    // Find approximate end index (naive linear scan backwards is fast enough for localized lookups)
-    for (let i = mouseEvents.length - 1; i >= 0; i--) {
-        const e = mouseEvents[i]
-        if (e.timestamp > endTime) continue
-        if (e.timestamp < startTime) break // Done scanning window
-
-        sumX += e.x
-        sumY += e.y
-        count++
+    // PERF: Don't scan from the end of the array.
+    // During early playback of a long recording, `mouseEvents.length - 1` can be far in the future,
+    // making this O(n) per frame. Use binary search to jump to the last event <= endTime, then
+    // scan only the small window.
+    const endIdx = binarySearchEvents(mouseEvents, endTime)
+    if (endIdx >= 0) {
+        for (let i = endIdx; i >= 0; i--) {
+            const e = mouseEvents[i]
+            if (e.timestamp < startTime) break
+            sumX += e.x
+            sumY += e.y
+            count++
+        }
     }
 
     if (count === 0) {

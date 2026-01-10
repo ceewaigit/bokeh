@@ -356,15 +356,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     useParentFade
   ]);
 
-  const annotationTransformOrigin = useMemo(() => {
-    // The video transform container uses `transformOrigin: 'center center'`.
-    // When rendering annotations outside that container (so they can appear above other overlays),
-    // we apply the same transform to a fullscreen wrapper and match the origin in composition pixels.
-    const originX = layout.mockupEnabled ? width / 2 : layout.offsetX + layout.drawWidth / 2;
-    const originY = layout.mockupEnabled ? height / 2 : layout.offsetY + layout.drawHeight / 2;
-    return `${originX}px ${originY}px`;
-  }, [layout.mockupEnabled, layout.offsetX, layout.offsetY, layout.drawWidth, layout.drawHeight, width, height]);
-
   // If no active content, render children (overlays) or empty container
   if (!resolvedClipData && !shouldHoldPrevFrame) {
     return (
@@ -451,18 +442,32 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
           <AbsoluteFill
             data-annotation-overlay-root="true"
             style={{
-              transform: outerTransform,
-              transformOrigin: annotationTransformOrigin,
-              opacity: useParentFade ? clipFadeOpacity : 1,
-              filter: effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : undefined,
-              willChange: isRendering ? undefined : 'transform',
-              transformStyle: has3DTransform ? 'preserve-3d' : undefined,
-              backfaceVisibility: has3DTransform ? 'hidden' : undefined,
+              // PERF: Do NOT apply blur to the annotation overlay.
+              // Blurring a full-screen DOM layer during zoom transitions forces large offscreen
+              // rasterization passes and spikes GPU memory/CPU, especially with many annotations.
+              // Video blur remains applied on the video transform container.
               // Above cursor (200), keystrokes (150), webcam (20), subtitles (60), etc.
               zIndex: 300,
             }}
           >
-            <AnnotationLayer />
+            {/* Render annotations in a video-bounds container to avoid transforming a full-screen layer. */}
+            <div
+              style={{
+                position: 'absolute',
+                left: layout.offsetX,
+                top: layout.offsetY,
+                width: layout.drawWidth,
+                height: layout.drawHeight,
+                transform: outerTransform,
+                transformOrigin: 'center center',
+                opacity: useParentFade ? clipFadeOpacity : 1,
+                willChange: isRendering ? undefined : 'transform',
+                transformStyle: has3DTransform ? 'preserve-3d' : undefined,
+                backfaceVisibility: has3DTransform ? 'hidden' : undefined,
+              }}
+            >
+              <AnnotationLayer />
+            </div>
           </AbsoluteFill>
         )}
         {children}

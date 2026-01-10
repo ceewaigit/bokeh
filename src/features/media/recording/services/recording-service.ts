@@ -45,6 +45,7 @@ export class RecordingService {
   private captureHeight = 0
   private onlySelf = false
   private webcamEnabled = false
+  private mainRecordingStartTime = 0  // When main recording started
 
   constructor() {
     this.trackingService = new TrackingService()
@@ -76,6 +77,7 @@ export class RecordingService {
 
     try {
       await this.strategy.start(config)
+      this.mainRecordingStartTime = Date.now()
 
       // Start tracking after recording begins so mouse timestamps align with the video clock.
       await this.trackingService.start(
@@ -90,6 +92,9 @@ export class RecordingService {
         this.webcamEnabled = true
         this.webcamService = new WebcamService()
 
+        // Set main recording start time for segment offset calculations
+        this.webcamService.setMainRecordingStartTime(this.mainRecordingStartTime)
+
         const resolution = settings.webcam.resolution ?? '1080p'
         const dimensions = {
           '720p': { width: 1280, height: 720 },
@@ -97,13 +102,17 @@ export class RecordingService {
           '4k': { width: 3840, height: 2160 }
         }[resolution]
 
+        // Include microphone in webcam ONLY when:
+        // 1. Microphone is explicitly enabled
+        // 2. No audio input is selected (AudioInput.None) - meaning user wants mic-only, no system audio
+        const shouldIncludeMicInWebcam = settings.microphone?.enabled && settings.audioInput === AudioInput.None
+
         try {
           await this.webcamService.start({
             deviceId: settings.webcam.deviceId,
             width: dimensions.width,
             height: dimensions.height,
-            // Include microphone in webcam if microphone is enabled and no separate audio input
-            includeMicrophone: settings.microphone?.enabled && !settings.audioInput,
+            includeMicrophone: shouldIncludeMicInWebcam,
             microphoneDeviceId: settings.microphone?.deviceId
           })
           logger.info('[RecordingService] Webcam recording started')
@@ -114,8 +123,10 @@ export class RecordingService {
         }
       }
 
-      // Start separate microphone recording if enabled and not captured via webcam
-      const micCapturedViaWebcam = this.webcamEnabled && settings.microphone?.enabled
+      // Start separate microphone recording if enabled and not already captured via webcam
+      // Microphone is captured via webcam ONLY when: webcam is enabled AND audioInput is None
+      const micIncludedInWebcam = settings.microphone?.enabled && settings.audioInput === AudioInput.None
+      const micCapturedViaWebcam = this.webcamEnabled && micIncludedInWebcam
       if (settings.microphone?.enabled && settings.microphone.deviceId && !micCapturedViaWebcam) {
         this.audioInputService = new AudioInputService()
 
@@ -221,6 +232,7 @@ export class RecordingService {
     this.captureHeight = 0
     this.onlySelf = false
     this.webcamEnabled = false
+    this.mainRecordingStartTime = 0
     if (trackingError) {
       logger.warn('[RecordingService] Tracking stop failed; returning video with partial metadata', trackingError)
     }
@@ -246,6 +258,57 @@ export class RecordingService {
     this.trackingService.resume()
     this.webcamService?.resume()
     this.audioInputService?.resume()
+  }
+
+  /**
+   * Pause ONLY the webcam recording (creates a new segment on resume).
+   * Screen recording and tracking continue uninterrupted.
+   */
+  async pauseWebcam(): Promise<void> {
+    if (!this.webcamService) return
+    await this.webcamService.pauseSegment()
+    logger.info('[RecordingService] Webcam paused independently')
+  }
+
+  /**
+   * Resume webcam recording (starts a new segment).
+   * Call this after pauseWebcam() to continue recording.
+   */
+  async resumeWebcam(): Promise<void> {
+    if (!this.webcamService) return
+    await this.webcamService.resumeSegment()
+    logger.info('[RecordingService] Webcam resumed as new segment')
+  }
+
+  /**
+   * Check if webcam is currently paused (independently from main recording).
+   */
+  isWebcamPaused(): boolean {
+    return this.webcamService?.isPaused() ?? false
+  }
+
+  /**
+   * Pause ONLY the microphone recording.
+   * Screen recording, webcam, and tracking continue uninterrupted.
+   */
+  pauseMicrophone(): void {
+    this.audioInputService?.pause()
+    logger.info('[RecordingService] Microphone paused independently')
+  }
+
+  /**
+   * Resume microphone recording.
+   */
+  resumeMicrophone(): void {
+    this.audioInputService?.resume()
+    logger.info('[RecordingService] Microphone resumed')
+  }
+
+  /**
+   * Check if microphone is currently paused.
+   */
+  isMicrophonePaused(): boolean {
+    return this.audioInputService?.isPaused() ?? false
   }
 
   /**

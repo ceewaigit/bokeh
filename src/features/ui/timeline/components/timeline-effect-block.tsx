@@ -6,6 +6,7 @@ import { useTimelineColors, withAlpha } from '@/features/ui/timeline/utils/color
 import { getNearestAvailableDragX, validatePosition } from '@/features/ui/timeline/utils/drag-positioning'
 import { EffectType } from '@/types/project'
 import Konva from 'konva'
+import { useTimelineUI } from './timeline-ui-context'
 
 interface TimelineTimeBlock {
   id: string
@@ -66,6 +67,7 @@ export const TimelineEffectBlock = React.memo(({
   onUpdate,
   onHover
 }: TimelineEffectBlockProps) => {
+  const { scrollLeftRef } = useTimelineUI()
   // Determine if block is in expanded track for enhanced styling
   const isExpanded = !isCompact
   // Prevent rendering if collapsed/invalid bounds to avoid invalid shape errors
@@ -306,7 +308,9 @@ export const TimelineEffectBlock = React.memo(({
         y={y}
         draggable={!isTransforming}
         dragBoundFunc={(pos) => {
-          const constrainedX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, pos.x)
+          const currentScroll = scrollLeftRef.current
+          const proposedTimelineX = pos.x + currentScroll
+          const constrainedX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, proposedTimelineX)
           const snappedX = getNearestAvailableDragX({
             proposedX: constrainedX,
             blockWidthPx: safeWidth,
@@ -316,7 +320,7 @@ export const TimelineEffectBlock = React.memo(({
             excludeId: blockId
           })
           return {
-            x: snappedX,
+            x: snappedX - currentScroll,
             y: y
           }
         }}

@@ -58,6 +58,8 @@ export interface MotionBlurCanvasProps {
     smoothWindow?: number;
     /** Notify when a frame is rendered to the canvas */
     onRender?: () => void;
+    /** Notify when the canvas is visually active (non-zero blend) */
+    onVisibilityChange?: (visible: boolean) => void;
 }
 
 export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
@@ -72,6 +74,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     saturation = 1.0,
     forceRender = false,
     onRender,
+    onVisibilityChange,
     unpackPremultiplyAlpha = false,
     videoFrame,
     containerRef,
@@ -84,7 +87,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     rampRange: rampRangeProp = 0.5,
     clampRadius: clampRadiusProp = 60,
     smoothWindow: smoothWindowProp = 6,
-}) => {
+    }) => {
     // Config - use props instead of hard-coded values
     const maxBlurRadius = clampRadiusProp > 0 ? clampRadiusProp : 60;
     const velocityThreshold = velocityThresholdProp;  // Default 0 = most sensitive
@@ -129,6 +132,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             // forcing WebGL video so the last good frame stays visible.
             if (!forceRender) {
                 canvasEl.style.opacity = '0';
+                onVisibilityChange?.(false);
             }
             return;
         }
@@ -142,58 +146,26 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         if (!bitmapCtx) return;
         const actualColorSpace = desiredColorSpace;
 
-        const pixelRatio = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
-        const clampedRenderScale = Number.isFinite(renderScale) ? Math.max(1, renderScale) : 1;
+        // IMPORTANT: `drawWidth/drawHeight` are already in composition pixels.
+        // Multiplying by `devicePixelRatio` here effectively supersamples the blur layer (2× on Retina),
+        // which can explode GPU memory during zoom/follow-mouse. Export uses 1× pixels as well.
+        const pixelRatio = 1;
+        // `renderScale` is a resolution multiplier. Allow < 1 to downscale in preview (huge perf win),
+        // but cap to avoid absurd allocations either way.
+        const clampedRenderScale = Number.isFinite(renderScale)
+            ? Math.max(0.25, Math.min(4, renderScale))
+            : 1;
         const outputScale = pixelRatio * clampedRenderScale;
 
-        const resolveLength = (
-            value: number | SVGAnimatedLength | undefined,
-            fallback: number
-        ): number => {
-            if (typeof value === 'number') {
-                return Number.isFinite(value) ? value : fallback;
-            }
-            if (value && typeof value === 'object' && 'baseVal' in value) {
-                const baseValue = value.baseVal?.value;
-                return Number.isFinite(baseValue) ? baseValue : fallback;
-            }
-            return fallback;
-        };
+        // No need to resolve source element dimensions anymore; we render in output space.
 
-        const resolveSourceSize = (source: CanvasImageSource) => {
-            const fallback = { width: drawWidth, height: drawHeight };
-            if (!source) return fallback;
-            if ('videoWidth' in source && 'videoHeight' in source) {
-                const width = Number.isFinite(source.videoWidth) ? source.videoWidth : fallback.width;
-                const height = Number.isFinite(source.videoHeight) ? source.videoHeight : fallback.height;
-                return { width, height };
-            }
-            if ('naturalWidth' in source && 'naturalHeight' in source) {
-                const width = Number.isFinite(source.naturalWidth) ? source.naturalWidth : fallback.width;
-                const height = Number.isFinite(source.naturalHeight) ? source.naturalHeight : fallback.height;
-                return { width, height };
-            }
-            if ('codedWidth' in source && 'codedHeight' in source) {
-                const width = Number.isFinite(source.codedWidth) ? source.codedWidth : fallback.width;
-                const height = Number.isFinite(source.codedHeight) ? source.codedHeight : fallback.height;
-                return { width, height };
-            }
-            if ('width' in source && 'height' in source) {
-                const width = resolveLength(source.width, fallback.width);
-                const height = resolveLength(source.height, fallback.height);
-                return { width, height };
-            }
-            return fallback;
-        };
+        // Source-size resolution logic was previously used to decide whether to render at source size.
+        // We now always render in output space to prevent GPU memory blowups, so this is intentionally removed.
 
-        const sourceSize = resolveSourceSize(mediaSource);
-        const useSourceSize = sourceSize.width !== drawWidth || sourceSize.height !== drawHeight;
         const targetOutputWidth = Math.max(1, Math.round(drawWidth * outputScale));
         const targetOutputHeight = Math.max(1, Math.round(drawHeight * outputScale));
-        const sourceScale = Math.max(
-            targetOutputWidth / Math.max(1, sourceSize.width),
-            targetOutputHeight / Math.max(1, sourceSize.height)
-        );
+        // Keep for future diagnostics/debugging if needed.
+        // const sourceSize = resolveSourceSize(mediaSource);
 
         // Apply velocity smoothing for gradual fade effect
         const rawVx = Number.isFinite(velocity.x) ? velocity.x : 0;
@@ -234,6 +206,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         if (mixRamp < 0.001 && !forceRender) {
             canvasEl.style.visibility = 'hidden';
             canvasEl.style.opacity = '0';
+            onVisibilityChange?.(false);
             return;
         }
         canvasEl.style.visibility = 'visible';
@@ -252,14 +225,19 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const calculatedSamples = Math.max(8, Math.min(64, Math.ceil(effectiveRadius)));
         const finalSamples = Math.min(64, samples ?? calculatedSamples);
 
-        // Render via WebGL controller
-        const glPixelRatio = useSourceSize ? Math.max(1, sourceScale) : outputScale;
+        // Render via WebGL controller.
+        // IMPORTANT: Render the blur output in *output space* (drawWidth/drawHeight), not source space.
+        // Rendering at the source resolution (e.g. 4K/6K) and then downscaling explodes GPU memory
+        // and is the primary cause of “zoomed in = laggy”.
+        const glPixelRatio = outputScale;
 
         // Route video through a 2D canvas to match browser color-managed display.
+        // PERF: Don’t re-rasterize at full source resolution in preview; only render enough pixels
+        // for the output canvas (drawWidth/drawHeight × DPR × renderScale).
         let webglSource: TexImageSource = mediaSource as TexImageSource;
         if (mediaSource && 'videoWidth' in mediaSource) {
-            const targetWidth = Math.max(1, Math.floor(sourceSize.width));
-            const targetHeight = Math.max(1, Math.floor(sourceSize.height));
+            const targetWidth = targetOutputWidth;
+            const targetHeight = targetOutputHeight;
             if (!videoCanvasRef.current) {
                 if (typeof OffscreenCanvas !== 'undefined') {
                     videoCanvasRef.current = new OffscreenCanvas(targetWidth, targetHeight);
@@ -286,6 +264,12 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                     });
                 }
                 if (videoCtxRef.current) {
+                    try {
+                        (videoCtxRef.current as any).imageSmoothingEnabled = true;
+                        (videoCtxRef.current as any).imageSmoothingQuality = 'high';
+                    } catch {
+                        // Ignore if unsupported.
+                    }
                     videoCtxRef.current.drawImage(mediaSource, 0, 0, targetWidth, targetHeight);
                     webglSource = videoCanvasRef.current as TexImageSource;
                 }
@@ -294,8 +278,8 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
 
         const resultCanvas = MotionBlurController.instance.render(
             webglSource,
-            sourceSize.width,
-            sourceSize.height,
+            drawWidth,
+            drawHeight,
             {
                 uvVelocityX: Number.isFinite(uvVelocityX) ? uvVelocityX : 0,
                 uvVelocityY: Number.isFinite(uvVelocityY) ? uvVelocityY : 0,
@@ -327,6 +311,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             if (typeof closable === 'function') {
                 closable.call(bitmap);
             }
+            onVisibilityChange?.(true);
             if (onRender) onRender();
         }
         // No per-frame cleanup - let resources persist across frames for performance.
@@ -355,6 +340,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         rampRange,
         clampRadius,
         smoothWindowProp,
+        onVisibilityChange,
     ]);
 
     // Cleanup GPU resources only on unmount

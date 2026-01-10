@@ -17,12 +17,28 @@ export interface WebcamRecordingConfig {
   microphoneDeviceId?: string
 }
 
+/**
+ * A webcam segment represents a continuous recording period.
+ * Multiple segments are created when webcam is paused/resumed independently.
+ */
+export interface WebcamSegment {
+  videoPath: string
+  startTimeOffsetMs: number  // Relative to main recording start
+  durationMs: number
+  width: number
+  height: number
+  hasAudio: boolean
+}
+
 export interface WebcamRecordingResult {
+  /** Primary video path (for backward compatibility, uses first segment) */
   videoPath: string
   duration: number
   width: number
   height: number
   hasAudio: boolean
+  /** All recorded segments (may be multiple if pause/resume was used) */
+  segments: WebcamSegment[]
 }
 
 type WebcamStateCallback = (state: {
@@ -46,6 +62,12 @@ export class WebcamService {
   private actualHeight = 0
   private dataRequestInterval: NodeJS.Timeout | null = null
   private stateCallbacks: Set<WebcamStateCallback> = new Set()
+
+  // Segment tracking for independent pause/resume
+  private segments: WebcamSegment[] = []
+  private segmentStartTime = 0  // When current segment started (relative to main recording)
+  private mainRecordingStartTime = 0  // When main recording started
+  private lastConfig: WebcamRecordingConfig | null = null  // Store config for resume
 
   constructor(bridge?: RecordingIpcBridge) {
     this.bridge = bridge ?? getRecordingBridge()
@@ -180,6 +202,13 @@ export class WebcamService {
     this._isPaused = false
     this.totalPausedDuration = 0
 
+    // Initialize segment tracking
+    this.lastConfig = config
+    this.segments = []
+    this.segmentStartTime = this.mainRecordingStartTime > 0
+      ? Date.now() - this.mainRecordingStartTime
+      : 0
+
     // Periodically request data for streaming
     this.dataRequestInterval = setInterval(() => {
       if (this.mediaRecorder?.state === 'recording') {
@@ -193,6 +222,15 @@ export class WebcamService {
 
     this.notifyStateChange()
     logger.info('[WebcamService] Recording started')
+  }
+
+  /**
+   * Set the main recording start time for segment offset calculation.
+   * Call this right after starting the main screen recording.
+   */
+  setMainRecordingStartTime(time: number): void {
+    this.mainRecordingStartTime = time
+    logger.info(`[WebcamService] Main recording start time set: ${time}`)
   }
 
   /**
@@ -279,6 +317,145 @@ export class WebcamService {
   }
 
   /**
+   * Pause webcam independently by finalizing the current segment.
+   * Unlike pause(), this stops the current recording and allows starting
+   * a new segment later via resumeSegment().
+   *
+   * @returns The finalized segment, or null if not recording
+   */
+  async pauseSegment(): Promise<WebcamSegment | null> {
+    if (!this._isRecording || !this.mediaRecorder) {
+      return null
+    }
+
+    // If already paused via standard pause, resume first
+    if (this._isPaused) {
+      this.resume()
+    }
+
+    // Calculate segment duration before stopping
+    const segmentDuration = this.getDuration()
+
+    // Clear data request interval
+    this.clearDataInterval()
+
+    return new Promise((resolve) => {
+      if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') {
+        resolve(null)
+        return
+      }
+
+      this.mediaRecorder.onstop = async () => {
+        try {
+          // Finalize the current segment file
+          if (this.recordingPath) {
+            await this.bridge.finalizeRecording(this.recordingPath)
+          }
+
+          const segment: WebcamSegment = {
+            videoPath: this.recordingPath || '',
+            startTimeOffsetMs: this.segmentStartTime,
+            durationMs: segmentDuration,
+            width: this.actualWidth,
+            height: this.actualHeight,
+            hasAudio: this.hasAudio
+          }
+
+          this.segments.push(segment)
+          logger.info(`[WebcamService] Segment paused: ${segmentDuration}ms at offset ${this.segmentStartTime}ms`)
+
+          // Mark as paused but keep stream alive for preview
+          this._isPaused = true
+          this.mediaRecorder = null
+          this.recordingPath = null
+          this.notifyStateChange()
+
+          resolve(segment)
+        } catch (err) {
+          logger.error('[WebcamService] Error pausing segment:', err)
+          resolve(null)
+        }
+      }
+
+      try {
+        this.mediaRecorder.stop()
+      } catch {
+        resolve(null)
+      }
+    })
+  }
+
+  /**
+   * Resume webcam recording by starting a new segment.
+   * Call this after pauseSegment() to continue recording.
+   */
+  async resumeSegment(): Promise<void> {
+    if (!this.stream || !this.lastConfig) {
+      throw new Error('Cannot resume segment: no active stream or config')
+    }
+
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      throw new Error('Cannot resume segment: recorder still active')
+    }
+
+    // Create new temp file for the new segment
+    const fileResult = await this.bridge.createTempRecordingFile('webm')
+    if (!fileResult?.success || !fileResult.data) {
+      throw new Error('Failed to create temp file for new segment')
+    }
+
+    this.recordingPath = fileResult.data
+    logger.info(`[WebcamService] New segment streaming to: ${this.recordingPath}`)
+
+    // Create new MediaRecorder with same settings
+    const mimeType = this.selectMimeType()
+    this.mediaRecorder = new MediaRecorder(this.stream, {
+      mimeType,
+      videoBitsPerSecond: 2500000,
+      ...(this.hasAudio ? { audioBitsPerSecond: 128000 } : {})
+    })
+
+    // Set up data handling
+    this.mediaRecorder.ondataavailable = async (event) => {
+      if (event.data?.size > 0 && this.recordingPath) {
+        const result = await this.bridge.appendToRecording(this.recordingPath, event.data)
+        if (!result?.success) {
+          logger.error('[WebcamService] Failed to stream chunk:', result?.error)
+        }
+      }
+    }
+
+    this.mediaRecorder.onerror = (event) => {
+      logger.error('[WebcamService] Error:', event)
+    }
+
+    // Start new segment
+    this.mediaRecorder.start()
+    this.startTime = Date.now()
+    this._isPaused = false
+    this.totalPausedDuration = 0
+
+    // Calculate new segment start time relative to main recording
+    this.segmentStartTime = this.mainRecordingStartTime > 0
+      ? Date.now() - this.mainRecordingStartTime
+      : 0
+
+    // Restart data request interval
+    this.dataRequestInterval = setInterval(() => {
+      if (this.mediaRecorder?.state === 'recording') {
+        try {
+          this.mediaRecorder.requestData()
+        } catch {
+          this.clearDataInterval()
+        }
+      }
+    }, 1000)
+
+    this.notifyStateChange()
+    logger.info(`[WebcamService] New segment started at offset ${this.segmentStartTime}ms`)
+  }
+
+  /**
    * Get the current stream (for preview during recording).
    */
   getStream(): MediaStream | null {
@@ -330,23 +507,39 @@ export class WebcamService {
     // Use wall-clock duration if calculated duration seems wrong (< 100ms for a real recording)
     const duration = calculatedDuration > 100 ? calculatedDuration : wallClockDuration
 
-    if (!this.recordingPath) {
-      throw new Error('Webcam recording path not available')
+    // Add final segment if there's an active recording path
+    if (this.recordingPath) {
+      // Finalize the video file
+      await this.bridge.finalizeRecording(this.recordingPath)
+
+      const finalSegment: WebcamSegment = {
+        videoPath: this.recordingPath,
+        startTimeOffsetMs: this.segmentStartTime,
+        durationMs: duration,
+        width: this.actualWidth,
+        height: this.actualHeight,
+        hasAudio: this.hasAudio
+      }
+
+      this.segments.push(finalSegment)
+      logger.info(`[WebcamService] Final segment: ${duration}ms at offset ${this.segmentStartTime}ms`)
     }
 
-    // Finalize the video file
-    await this.bridge.finalizeRecording(this.recordingPath)
+    // Calculate total duration from all segments
+    const totalDuration = this.segments.reduce((sum, seg) => sum + seg.durationMs, 0)
 
-    const videoPath = this.recordingPath
+    // Use first segment as primary video path for backward compatibility
+    const primaryVideoPath = this.segments.length > 0 ? this.segments[0].videoPath : ''
 
-    logger.info(`[WebcamService] Recording stopped: ${duration}ms (calculated: ${calculatedDuration}ms, wall-clock: ${wallClockDuration}ms), path: ${videoPath}`)
+    logger.info(`[WebcamService] Recording stopped: ${this.segments.length} segment(s), total ${totalDuration}ms`)
 
     const result: WebcamRecordingResult = {
-      videoPath,
-      duration,
+      videoPath: primaryVideoPath,
+      duration: totalDuration,
       width: this.actualWidth,
       height: this.actualHeight,
-      hasAudio: this.hasAudio
+      hasAudio: this.hasAudio,
+      segments: [...this.segments]  // Copy to prevent mutation
     }
 
     // Cleanup
@@ -374,6 +567,12 @@ export class WebcamService {
     this.recordingPath = null
     this._isRecording = false
     this._isPaused = false
+
+    // Reset segment tracking
+    this.segments = []
+    this.segmentStartTime = 0
+    this.lastConfig = null
+
     this.notifyStateChange()
   }
 

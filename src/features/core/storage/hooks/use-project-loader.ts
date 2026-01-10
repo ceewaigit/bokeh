@@ -5,12 +5,9 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import { initializeDefaultWallpaper } from '@/features/effects/background'
 import { calculateFullCameraPath } from '@/features/ui/editor/logic/viewport/logic/path-calculator'
 import { EffectStore } from '@/features/effects/core/store'
-import { getEffectsOfType } from '@/features/effects/core/filters'
-import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { TimelineConfig } from '@/features/ui/timeline/config'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { calculateCanvasDimensions } from '@/shared/constants/aspect-ratio-presets'
-import { AspectRatioPreset, EffectType } from '@/types/project'
+import { AspectRatioPreset } from '@/types/project'
 
 /**
  * Project Loader Hook
@@ -26,7 +23,6 @@ export function useProjectLoader() {
     const newProject = useProjectStore((s) => s.newProject)
     const setProject = useProjectStore((s) => s.setProject)
     const setCameraPathCache = useProjectStore((s) => s.setCameraPathCache)
-    const setAutoZoom = useProjectStore((s) => s.setAutoZoom)
     const setPreviewReady = useProjectStore((s) => s.setPreviewReady)
 
     const loadRecording = useCallback(async (
@@ -102,25 +98,7 @@ export function useProjectLoader() {
                 })
             }
 
-            const viewportWidth = window.innerWidth
-            const allZoomEffects = getEffectsOfType(EffectStore.getAll(project), EffectType.Zoom)
-            const zoomBlocks = allZoomEffects.map((e: any) => ({
-                startTime: e.startTime,
-                endTime: e.endTime
-            }))
-            // Timeline-Centric: use raw timeline duration
-            const timelineDuration = project.timeline.duration
-            const adaptiveLimits = TimeConverter.calculateAdaptiveZoomLimits(
-                timelineDuration,
-                viewportWidth,
-                zoomBlocks,
-                TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX
-            )
-
-            // Calculate optimal zoom and clamp to adaptive limits
-            const optimalZoom = TimeConverter.calculateOptimalZoom(timelineDuration, viewportWidth)
-            const clampedZoom = Math.max(adaptiveLimits.min, Math.min(adaptiveLimits.max, optimalZoom))
-            setAutoZoom(clampedZoom)
+            // Auto-zoom is handled by the timeline layout (uses real container width).
 
             // NOTE: Library thumbnails are NOT cleared - they persist for instant
             // navigation back to the library. Only the generator cache is cleared.
@@ -142,7 +120,7 @@ export function useProjectLoader() {
             setPreviewReady(false)
             return false
         }
-    }, [newProject, setProject, setCameraPathCache, setAutoZoom, setPreviewReady])
+    }, [newProject, setProject, setCameraPathCache, setPreviewReady])
 
     return {
         isLoading,

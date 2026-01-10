@@ -1,10 +1,10 @@
 "use client"
 
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react'
+import React, { createContext, useContext, useCallback, useMemo, useRef } from 'react'
 
 export interface TimelineUIContextValue {
-    scrollLeft: number
-    scrollTop: number
+    scrollLeftRef: React.MutableRefObject<number>
+    scrollTopRef: React.MutableRefObject<number>
     setScrollPos: (left: number, top: number) => void
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void
     scrollContainerRef: React.RefObject<HTMLDivElement | null>
@@ -21,34 +21,31 @@ export function useTimelineUI(): TimelineUIContextValue {
 }
 
 export function TimelineUIProvider({ children }: { children: React.ReactNode }) {
-    const [scrollLeft, setScrollLeft] = useState(0)
-    const [scrollTop, setScrollTop] = useState(0)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const scrollLeftRef = useRef(0)
+    const scrollTopRef = useRef(0)
 
     const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         const target = e.currentTarget
-        // Update state to trigger re-renders in consumers (Ruler, Tracks)
-        // Note: React 18 automatic batching and concurrent features help here,
-        // but generic high-frequency scroll updates might benefit from not using React state 
-        // if performance issues arise. For now, KISS: use state.
-        setScrollLeft(target.scrollLeft)
-        setScrollTop(target.scrollTop)
+        scrollLeftRef.current = target.scrollLeft
+        scrollTopRef.current = target.scrollTop
     }, [])
 
     const setScrollPos = useCallback((left: number, top: number) => {
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTo(left, top)
-            // onScroll will fire naturally, but we can also optimistically update if needed
+            scrollLeftRef.current = left
+            scrollTopRef.current = top
         }
     }, [])
 
-    const value = {
-        scrollLeft,
-        scrollTop,
+    const value = useMemo<TimelineUIContextValue>(() => ({
+        scrollLeftRef,
+        scrollTopRef,
         setScrollPos,
         onScroll,
         scrollContainerRef
-    }
+    }), [setScrollPos, onScroll])
 
     return (
         <TimelineUIContext.Provider value={value}>

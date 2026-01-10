@@ -23,6 +23,7 @@ import { TimelineClipBackground } from './clip/timeline-clip-background'
 import { TimelineClipThumbnails } from './clip/timeline-clip-thumbnails'
 import { TimelineClipWaveform } from './clip/timeline-clip-waveform'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
+import { useTimelineUI } from './timeline-ui-context'
 
 interface TimelineClipProps {
   clip: Clip
@@ -83,6 +84,7 @@ const TimelineClipComponent = ({
     onTrimEnd
   })
   const groupRef = useRef<Konva.Group>(null)
+  const { scrollLeftRef } = useTimelineUI()
 
   /* ---------------- THEME & SETTINGS ---------------- */
   const colors = useTimelineColors()
@@ -191,9 +193,11 @@ const TimelineClipComponent = ({
         y={trackY + TimelineConfig.TRACK_PADDING}
         draggable={!trimEdge}
         dragBoundFunc={(pos) => {
+          const currentScrollLeft = scrollLeftRef.current
+          const proposedTimelineX = pos.x + currentScrollLeft
           const proposedTime = Math.max(
             0,
-            TimeConverter.pixelsToMs(pos.x - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+            TimeConverter.pixelsToMs(proposedTimelineX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
           )
 
           // WEBCAM: Overlay behavior (no ripple/contiguous logic)
@@ -201,7 +205,7 @@ const TimelineClipComponent = ({
           // Refactored to use shared collision logic (same as Effects)
           if (trackType === TrackType.Webcam) {
             const snappedX = getNearestAvailableDragX({
-              proposedX: pos.x,
+              proposedX: proposedTimelineX,
               blockWidthPx: clipWidth,
               durationMs: clip.duration,
               blocks: otherClipsInTrack.map(c => ({
@@ -214,7 +218,7 @@ const TimelineClipComponent = ({
             })
 
             return {
-              x: snappedX,
+              x: snappedX - currentScrollLeft,
               y: trackY + TimelineConfig.TRACK_PADDING
             }
           }
@@ -224,7 +228,7 @@ const TimelineClipComponent = ({
           const insertTime = preview?.insertTime ?? proposedTime
           const snappedX = TimeConverter.msToPixels(insertTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
           return {
-            x: snappedX,
+            x: snappedX - currentScrollLeft,
             y: trackY + TimelineConfig.TRACK_PADDING
           }
         }}

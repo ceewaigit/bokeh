@@ -13,8 +13,6 @@ import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectLayerType } from '@/features/effects/types'
 import { getCropEffectForClip, getDataOfType, getEffectsOfType } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/store'
-import { AddEffectCommand } from '@/features/core/commands'
-import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { DEFAULT_ZOOM_DATA } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { ZoomTargetPreview } from './ZoomTargetPreview'
@@ -233,7 +231,6 @@ export function ZoomTab({
     selectedClip,
     onZoomBlockUpdate
 }: ZoomTabProps) {
-    const executorRef = useCommandExecutor()
     const { project, currentTime } = useProjectStore(
         useShallow(s => ({
             project: s.currentProject,

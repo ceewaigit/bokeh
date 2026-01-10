@@ -8,10 +8,14 @@ import { useProjectStore } from '@/features/core/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
 
-import { useTimelineUI } from './timeline-ui-context'
+interface TimelineRulerProps {
+  scrollLeft: number
+}
 
-export const TimelineRuler = React.memo(() => {
-  const { scrollTop } = useTimelineUI()
+export const TimelineRuler = React.memo(({ scrollLeft }: TimelineRulerProps) => {
+  // Removed direct context subscription to scrollLeft/scrollTop to prevent per-frame re-renders
+  // Parent manages the Y position via an imperative ref update
+  // scrollLeft comes as a coarse prop update for culling
   const {
     duration,
     stageWidth,
@@ -33,7 +37,7 @@ export const TimelineRuler = React.memo(() => {
   marks.push(
     <Rect
       key="ruler-bg"
-      x={0}
+      x={scrollLeft}
       y={0}
       width={stageWidth}
       height={TimelineConfig.RULER_HEIGHT}
@@ -57,7 +61,7 @@ export const TimelineRuler = React.memo(() => {
   marks.push(
     <Rect
       key="ruler-border"
-      x={0}
+      x={scrollLeft}
       y={TimelineConfig.RULER_HEIGHT - 1}
       width={stageWidth}
       height={1}
@@ -66,16 +70,24 @@ export const TimelineRuler = React.memo(() => {
     />
   )
 
-  // Calculate the maximum time we need to render marks for based on stage width
-  const maxTimeForStage = TimeConverter.pixelsToMs(stageWidth - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-  const maxTime = Math.max(duration, maxTimeForStage)
+  const visibleStartTime = Math.max(
+    0,
+    TimeConverter.pixelsToMs(scrollLeft - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+  )
+  const visibleEndTime = TimeConverter.pixelsToMs(
+    scrollLeft + stageWidth - TimelineConfig.TRACK_LABEL_WIDTH,
+    pixelsPerMs
+  )
+  const maxTime = Math.max(duration, visibleEndTime)
+  const startTime = Math.max(0, Math.floor(visibleStartTime / minor) * minor)
 
-  for (let time = 0; time <= maxTime; time += minor) {
+  for (let time = startTime; time <= maxTime; time += minor) {
     const isMajor = time % major === 0
     const x = TimeConverter.msToPixels(time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 
-    // Only render marks that are within the stage width
-    if (x > stageWidth) break
+    // Only render marks that are within the visible viewport
+    if (x < scrollLeft) continue
+    if (x > scrollLeft + stageWidth) break
 
     // Cleaner tick marks
     marks.push(
@@ -108,7 +120,7 @@ export const TimelineRuler = React.memo(() => {
     }
   }
 
-  return <Group y={scrollTop}>{marks}</Group>
+  return <Group>{marks}</Group>
 })
 
 TimelineRuler.displayName = 'TimelineRuler'

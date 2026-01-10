@@ -205,3 +205,16 @@ export function useAllClipIds(): string[] {
     return [...videoClips, ...audioClips].map(c => c.id)
   }, [videoClips, audioClips])
 }
+
+/**
+ * Get the set of dismissed suggestion keys.
+ * Returns a Set for O(1) lookup.
+ */
+export function useDismissedSuggestions(): Set<string> {
+  const project = useProjectStore((s) => s.currentProject)
+
+  return useMemo(() => {
+    if (!project?.timeline.dismissedSuggestions) return new Set()
+    return new Set(project.timeline.dismissedSuggestions)
+  }, [project?.timeline.dismissedSuggestions])
+}

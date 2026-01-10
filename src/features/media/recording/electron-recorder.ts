@@ -48,4 +48,38 @@ export class ElectronRecorder {
   canResume(): boolean {
     return this.service.canResume()
   }
+
+  // Independent webcam pause/resume (creates segments)
+  async pauseWebcam(): Promise<void> {
+    return this.service.pauseWebcam()
+  }
+
+  async resumeWebcam(): Promise<void> {
+    return this.service.resumeWebcam()
+  }
+
+  isWebcamPaused(): boolean {
+    return this.service.isWebcamPaused()
+  }
+
+  isWebcamRecording(): boolean {
+    return this.service.isWebcamRecording()
+  }
+
+  // Independent microphone pause/resume
+  pauseMicrophone(): void {
+    this.service.pauseMicrophone()
+  }
+
+  resumeMicrophone(): void {
+    this.service.resumeMicrophone()
+  }
+
+  isMicrophonePaused(): boolean {
+    return this.service.isMicrophonePaused()
+  }
+
+  isMicrophoneRecording(): boolean {
+    return this.service.isMicrophoneRecording()
+  }
 }

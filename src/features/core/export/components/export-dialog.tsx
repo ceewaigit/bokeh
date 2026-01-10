@@ -333,8 +333,16 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
       }
       toast.success('Export completed')
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Export failed'
-      toast.error(msg)
+      // Never show internal stack traces / Remotion details to users.
+      const message = (() => {
+        if (e instanceof DOMException && e.name === 'AbortError') return 'Export canceled'
+        const raw = e instanceof Error ? (e.message ?? '') : ''
+        if (/abort|cancell?ed?/i.test(raw)) return 'Export canceled'
+        if (/no video clips to export/i.test(raw)) return 'No video clips to export'
+        if (/project must be saved/i.test(raw)) return 'Save the project before exporting'
+        return 'Export failed'
+      })()
+      toast.error(message)
     }
   }
 

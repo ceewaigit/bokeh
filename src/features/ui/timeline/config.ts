@@ -69,7 +69,8 @@ export const TimelineConfig = {
 
   // Timeline visibility
   BASE_VISIBLE_DURATION_MS: 10000,
-  TIMELINE_EXTRA_PADDING_PERCENT: 0.3,
+  // Used by auto-fit zoom: keep a small right padding so the last clip doesn't touch the edge.
+  TIMELINE_EXTRA_PADDING_PERCENT: 0.03,
 
   // Keyboard shortcuts
   SHORTCUTS: {

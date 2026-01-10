@@ -12,7 +12,8 @@
  */
 
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react'
-import { Stage, Layer, Rect } from 'react-konva'
+import Konva from 'konva'
+import { Stage, Layer, Rect, Group } from 'react-konva'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
@@ -44,6 +45,7 @@ import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-sto
 import { ApplySpeedUpCommand } from '@/features/core/commands/timeline/ApplySpeedUpCommand'
 import { ApplyAllSpeedUpsCommand } from '@/features/core/commands/timeline/ApplyAllSpeedUpsCommand'
 import { ApplyAutoTrimCommand } from '@/features/core/commands/timeline/ApplyAutoTrimCommand'
+import { DismissSuggestionCommand } from '@/features/core/commands/timeline/DismissSuggestionCommand'
 import { TimelineAssetDropOverlay } from './timeline-asset-drop-overlay'
 import { useTimelineEffects } from '@/features/core/stores/selectors/timeline-selectors'
 
@@ -148,7 +150,8 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // UI Context (Scroll State)
   // ─────────────────────────────────────────────────────────────────────────
   const {
-    scrollLeft,
+    scrollLeftRef,
+    scrollTopRef,
     onScroll,
     scrollContainerRef
   } = useTimelineUI()
@@ -168,6 +171,75 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const [isScrolling, setIsScrolling] = useState(false)
   const isScrollingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Coarse scroll state for virtualization (updated ~10Hz)
+  const [coarseScrollLeft, setCoarseScrollLeft] = useState(0)
+  const lastCoarseUpdateRef = useRef(0)
+  const coarseScrollLeftRef = useRef(0)
+
+  // Konva Layer Ref for imperative scrolling
+  const layerRef = useRef<Konva.Layer>(null)
+  const rulerRef = useRef<Konva.Group>(null)
+
+  useEffect(() => {
+    coarseScrollLeftRef.current = coarseScrollLeft
+  }, [coarseScrollLeft])
+
+  const syncKonvaToScroll = useCallback((opts?: { forceCoarse?: boolean }) => {
+    const scrollLeft = scrollLeftRef.current ?? 0
+    const scrollTop = scrollTopRef.current ?? 0
+
+    let needsDraw = false
+
+    if (layerRef.current) {
+      const desiredX = -scrollLeft
+      if (layerRef.current.x() !== desiredX) {
+        layerRef.current.x(desiredX)
+        needsDraw = true
+      }
+    }
+
+    if (rulerRef.current) {
+      const desiredY = scrollTop
+      if (rulerRef.current.y() !== desiredY) {
+        rulerRef.current.y(desiredY)
+        needsDraw = true
+      }
+    }
+
+    const now = performance.now()
+    const forceCoarse = opts?.forceCoarse === true
+    if (forceCoarse || now - lastCoarseUpdateRef.current > 100) {
+      if (forceCoarse || Math.abs(scrollLeft - coarseScrollLeftRef.current) > 50) {
+        coarseScrollLeftRef.current = scrollLeft
+        lastCoarseUpdateRef.current = now
+        setCoarseScrollLeft(scrollLeft)
+      }
+    }
+
+    if (needsDraw) {
+      layerRef.current?.batchDraw()
+    }
+  }, [scrollLeftRef, scrollTopRef])
+
+  const scrollSyncRafRef = useRef<number | null>(null)
+  const requestScrollSync = useCallback((opts?: { forceCoarse?: boolean }) => {
+    if (scrollSyncRafRef.current !== null) return
+    scrollSyncRafRef.current = requestAnimationFrame(() => {
+      scrollSyncRafRef.current = null
+      syncKonvaToScroll(opts)
+    })
+  }, [syncKonvaToScroll])
+
+  useEffect(() => {
+    requestScrollSync({ forceCoarse: true })
+    return () => {
+      if (scrollSyncRafRef.current !== null) {
+        cancelAnimationFrame(scrollSyncRafRef.current)
+        scrollSyncRafRef.current = null
+      }
+    }
+  }, [requestScrollSync])
+
   // ─────────────────────────────────────────────────────────────────────────
   // Theming
   // ─────────────────────────────────────────────────────────────────────────
@@ -184,12 +256,12 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   const BUFFER_PIXELS = 1000 // Render extra pixels before/after to prevent popping
   const visibleStartTime = useMemo(() =>
-    Math.max(0, TimeConverter.pixelsToMs(scrollLeft - BUFFER_PIXELS, pixelsPerMs)),
-    [scrollLeft, pixelsPerMs]
+    Math.max(0, TimeConverter.pixelsToMs(coarseScrollLeft - BUFFER_PIXELS, pixelsPerMs)),
+    [coarseScrollLeft, pixelsPerMs]
   )
   const visibleEndTime = useMemo(() =>
-    TimeConverter.pixelsToMs(scrollLeft + containerWidth + BUFFER_PIXELS, pixelsPerMs),
-    [scrollLeft, containerWidth, pixelsPerMs]
+    TimeConverter.pixelsToMs(coarseScrollLeft + containerWidth + BUFFER_PIXELS, pixelsPerMs),
+    [coarseScrollLeft, containerWidth, pixelsPerMs]
   )
 
   const filterVisible = useCallback(<T extends Clip>(clips: T[]) => {
@@ -367,6 +439,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const { handleScrubStart, handleScrubMove, handleScrubEnd } = useTimelineScrub({
     duration,
     pixelsPerMs,
+    scrollLeftRef,
     onSeek
   })
 
@@ -520,14 +593,15 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     setSpeedUpPopover(null)
   }, [executorRef])
 
+  const handleDismissSuggestion = useCallback(async (period: SpeedUpPeriod, clipId: string) => {
+    if (!executorRef.current) return
+    await executorRef.current.execute(DismissSuggestionCommand, clipId, period)
+    setSpeedUpPopover(null)
+  }, [executorRef])
+
   // ─────────────────────────────────────────────────────────────────────────
   // CONSOLIDATED CONTEXT VALUE
   // ─────────────────────────────────────────────────────────────────────────
-
-  const handleCloseSpeedUp = useCallback(() => {
-    setSpeedUpPopover(null)
-  }, [])
-
   const timelineContextValue = useMemo(() => ({
     // Layout values
     pixelsPerMs,
@@ -619,14 +693,21 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
             tabIndex={0}
             onScroll={(e) => {
               onScroll(e)
+              requestScrollSync()
 
-              // Handle scrollbar visibility
               setIsScrolling(true)
               if (isScrollingTimeoutRef.current) {
                 clearTimeout(isScrollingTimeoutRef.current)
               }
+
+              // Capture value immediately as e.currentTarget is null in timeout
+              const currentScrollLeft = e.currentTarget.scrollLeft
+
               isScrollingTimeoutRef.current = setTimeout(() => {
                 setIsScrolling(false)
+                // Ensure final sync on stop
+                setCoarseScrollLeft(currentScrollLeft)
+                requestScrollSync({ forceCoarse: true })
               }, 1000)
             }}
             onMouseLeave={() => scheduleHoverUpdate(null)}
@@ -642,206 +723,223 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
               outline: 'none',
             }}
           >
-            <Stage
-              key={themeKey}
-              width={stageWidth}
-              height={totalContentHeight}
-              onMouseDown={handleStageScrubStart}
-              onTouchStart={handleStageScrubStart}
-              onMouseUp={handleScrubEnd}
-              onTouchEnd={handleScrubEnd}
-              onMouseMove={(e) => {
-                if (handleScrubMove(e)) return
-                const stage = e.target.getStage()
-                const pointerPos = stage?.getPointerPosition()
-                if (!pointerPos) return
-                const rawTime = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration)
-                if (rawTime === null) return
-
-                // CLAMP FIX: Target the CENTER of the last frame to ensure we hit a valid frame index.
-                // Using 1ms can still fall on a boundary due to rounding.
-                const fps = TimelineDataService.getFps(currentProject)
-                const frameDuration = 1000 / fps
-                const safeEndTime = Math.max(0, currentProject.timeline.duration - (frameDuration * 0.5))
-
-                const clampedTime = Math.max(0, Math.min(rawTime, safeEndTime))
-                scheduleHoverUpdate(clampedTime)
-              }}
-              onTouchMove={(e) => handleScrubMove(e)}
+            <div
+              className="relative"
               style={{
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-                MozUserSelect: 'none',
-                msUserSelect: 'none'
+                width: timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH,
+                height: totalContentHeight
               }}
             >
-              {/* Background Layer */}
-              <Layer>
-                <Rect
-                  x={0}
-                  y={0}
+              <div
+                className="sticky left-0 relative"
+                style={{
+                  width: stageWidth,
+                  height: totalContentHeight
+                }}
+              >
+                <Stage
+                  key={themeKey}
                   width={stageWidth}
                   height={totalContentHeight}
-                  fill={colors.background}
-                  opacity={0} // Using container bg instead
-                  name="timeline-background"
-                />
+                  onMouseDown={handleStageScrubStart}
+                  onTouchStart={handleStageScrubStart}
+                  onMouseUp={handleScrubEnd}
+                  onTouchEnd={handleScrubEnd}
+                  onMouseMove={(e) => {
+                    if (handleScrubMove(e)) return
+                    const stage = e.target.getStage()
+                    const pointerPos = stage?.getPointerPosition()
+                    if (!pointerPos) return
+                    // Use ref for precise calculation
+                    const rawTime = getTimelineTimeFromX(pointerPos.x, pixelsPerMs, currentProject.timeline.duration, scrollLeftRef.current)
+                    if (rawTime === null) return
 
-                {/* VISUALIZE HAZARD ZONES (Global Skips) */}
-                {globalSkipRanges.map((range, i) => {
-                  const x = TimeConverter.msToPixels(range.start, pixelsPerMs)
-                  const width = TimeConverter.msToPixels(range.end - range.start, pixelsPerMs)
+                    // CLAMP FIX: Target the CENTER of the last frame to ensure we hit a valid frame index.
+                    // Using 1ms can still fall on a boundary due to rounding.
+                    const fps = TimelineDataService.getFps(currentProject)
+                    const frameDuration = 1000 / fps
+                    const safeEndTime = Math.max(0, currentProject.timeline.duration - (frameDuration * 0.5))
 
-                  // Simple optimization: don't render if out of view
-                  if (x + width < 0 || x > stageWidth) return null
-
-                  return (
+                    const clampedTime = Math.max(0, Math.min(rawTime, safeEndTime))
+                    scheduleHoverUpdate(clampedTime)
+                  }}
+                  onTouchMove={(e) => handleScrubMove(e)}
+                  style={{
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none'
+                  }}
+                >
+                  {/* Background Layer */}
+                  <Layer
+                    ref={layerRef}
+                    x={0} // Managed imperatively using layerRef and scrollToRef
+                  >
                     <Rect
-                      key={`skip-${range.clipId}-${i}`}
-                      x={x}
+                      x={0} // No longer offset by scrollLeft, the whole layer moves
                       y={0}
-                      width={width}
+                      width={Math.max(timelineWidth, stageWidth)}
                       height={totalContentHeight}
-                      fill="rgba(255, 60, 60, 0.08)" // Subtle red tint
-                      fillPatternScale={{ x: 0.5, y: 0.5 }} // If we had a pattern
-                      stroke="rgba(255, 60, 60, 0.2)"
-                      strokeWidth={1}
-                      dash={[4, 4]}
-                      listening={false}
-                      name="hazard-zone"
+                      fill={colors.background}
+                      opacity={0}
+                      name="timeline-background"
                     />
-                  )
-                })}
 
-                {/* Ruler background removed to match main bg */}
+                    {/* Hazard Zones */}
+                    {globalSkipRanges.map((range, i) => {
+                      const x = TimeConverter.msToPixels(range.start, pixelsPerMs)
+                      const width = TimeConverter.msToPixels(range.end - range.start, pixelsPerMs)
+                      if (x + width < coarseScrollLeft || x > coarseScrollLeft + stageWidth) return null
+                      return (
+                        <Rect
+                          key={`skip-${range.clipId}-${i}`}
+                          x={x}
+                          y={0}
+                          width={width}
+                          height={totalContentHeight}
+                          fill="rgba(255, 60, 60, 0.08)"
+                          stroke="rgba(255, 60, 60, 0.2)"
+                          strokeWidth={1}
+                          dash={[4, 4]}
+                          listening={false}
+                          name="hazard-zone"
+                        />
+                      )
+                    })}
 
-                <TimelineTrack
-                  type={TimelineTrackType.Video}
-                  y={trackPositions.video}
-                  width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                  height={trackHeights.video}
-                  onLabelClick={toggleVideoTrackExpanded}
+                    {/* Tracks */}
+                    <TimelineTrack
+                      type={TimelineTrackType.Video}
+                      y={trackPositions.video}
+                      width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                      height={trackHeights.video}
+                      onLabelClick={toggleVideoTrackExpanded}
+                    />
+
+                    {trackHeights.audio > 0 && (
+                      <TimelineTrack
+                        type={TimelineTrackType.Audio}
+                        y={trackPositions.audio}
+                        width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                        height={trackHeights.audio}
+                      />
+                    )}
+
+                    {trackHeights.webcam > 0 && (
+                      <TimelineTrack
+                        type={TimelineTrackType.Webcam}
+                        y={trackPositions.webcam}
+                        width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                        height={trackHeights.webcam}
+                        onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Webcam)}
+                      />
+                    )}
+
+                    {hasZoomTrack && (
+                      <TimelineTrack
+                        type={TimelineTrackType.Zoom}
+                        y={trackPositions.zoom}
+                        width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                        height={trackHeights.zoom}
+                        muted={!allZoomEffects.some(e => e.enabled)}
+                        onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Zoom)}
+                      />
+                    )}
+
+                    {hasScreenTrack && (
+                      <TimelineTrack
+                        type={TimelineTrackType.Screen}
+                        y={trackPositions.screen}
+                        width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                        height={trackHeights.screen}
+                        onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Screen)}
+                      />
+                    )}
+
+                    {hasKeystrokeTrack && (
+                      <TimelineTrack
+                        type={TimelineTrackType.Keystroke}
+                        y={trackPositions.keystroke}
+                        width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                        height={trackHeights.keystroke}
+                        onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Keystroke)}
+                      />
+                    )}
+
+                    {hasPluginTrack && (
+                      <TimelineTrack
+                        type={TimelineTrackType.Plugin}
+                        y={trackPositions.plugin}
+                        width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                        height={trackHeights.plugin}
+                        onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
+                      />
+                    )}
+
+                    {hasAnnotationTrack && (
+                      <TimelineTrack
+                        type={TimelineTrackType.Annotation}
+                        y={trackPositions.annotation}
+                        width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
+                        height={trackHeights.annotation}
+                      />
+                    )}
+
+                    {/* Clips */}
+                    {videoClips.map((clip) => (
+                      <TimelineClip
+                        key={clip.id}
+                        clip={clip}
+                        trackType={TrackType.Video}
+                        trackY={trackPositions.video}
+                        trackHeight={trackHeights.video}
+                        isSelected={selectedClips.includes(clip.id)}
+                        clipIdOverride={clip.id}
+                        otherClipsInTrack={baseVideoClips}
+                      />
+                    ))}
+
+                    <TimelineAnnotationTrack />
+                    <TimelineEffectTracks visibleStartTime={visibleStartTime} visibleEndTime={visibleEndTime} />
+                    <TimelineWebcamTrack />
+
+                    {audioClips.map((clip) => (
+                      <TimelineClip
+                        key={clip.id}
+                        clip={clip}
+                        trackType={TrackType.Audio}
+                        trackY={trackPositions.audio}
+                        trackHeight={trackHeights.audio}
+                        isSelected={selectedClips.includes(clip.id)}
+                        clipIdOverride={clip.id}
+                        otherClipsInTrack={baseAudioClips}
+                      />
+                    ))}
+
+                    {/* Ruler (Sticky) */}
+                    <Group ref={rulerRef}>
+                      <TimelineRuler scrollLeft={coarseScrollLeft} />
+                    </Group>
+
+                    {/* Playhead */}
+                    <TimelineGhostPlayhead />
+                    <TimelinePlayhead />
+
+                    {/* Activity Overlays */}
+                    <TimelineActivityOverlays />
+
+                  </Layer>
+                </Stage>
+
+                {/* Asset drop overlays - isolated component to prevent full re-renders */}
+                <TimelineAssetDropOverlay
+                  assetDragDrop={assetDragDrop}
+                  getTrackBounds={safeGetTrackBounds}
+                  pixelsPerMs={pixelsPerMs}
                 />
-
-                {trackHeights.audio > 0 && (
-                  <TimelineTrack
-                    type={TimelineTrackType.Audio}
-                    y={trackPositions.audio}
-                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                    height={trackHeights.audio}
-                  />
-                )}
-
-                {trackHeights.webcam > 0 && (
-                  <TimelineTrack
-                    type={TimelineTrackType.Webcam}
-                    y={trackPositions.webcam}
-                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                    height={trackHeights.webcam}
-                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Webcam)}
-                  />
-                )}
-
-                {hasZoomTrack && (
-                  <TimelineTrack
-                    type={TimelineTrackType.Zoom}
-                    y={trackPositions.zoom}
-                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                    height={trackHeights.zoom}
-                    muted={!allZoomEffects.some(e => e.enabled)}
-                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Zoom)}
-                  />
-                )}
-
-                {hasScreenTrack && (
-                  <TimelineTrack
-                    type={TimelineTrackType.Screen}
-                    y={trackPositions.screen}
-                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                    height={trackHeights.screen}
-                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Screen)}
-                  />
-                )}
-
-                {hasKeystrokeTrack && (
-                  <TimelineTrack
-                    type={TimelineTrackType.Keystroke}
-                    y={trackPositions.keystroke}
-                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                    height={trackHeights.keystroke}
-                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Keystroke)}
-                  />
-                )}
-
-                {hasPluginTrack && (
-                  <TimelineTrack
-                    type={TimelineTrackType.Plugin}
-                    y={trackPositions.plugin}
-                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                    height={trackHeights.plugin}
-                    onLabelClick={() => toggleEffectTrackExpanded(TimelineTrackType.Plugin)}
-                  />
-                )}
-
-                {hasAnnotationTrack && (
-                  <TimelineTrack
-                    type={TimelineTrackType.Annotation}
-                    y={trackPositions.annotation}
-                    width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
-                    height={trackHeights.annotation}
-                  />
-                )}
-              </Layer>
-
-              {/* Clips Layer */}
-              <Layer>
-                {videoClips.map((clip) => (
-                  <TimelineClip
-                    key={clip.id}
-                    clip={clip}
-                    trackType={TrackType.Video}
-                    trackY={trackPositions.video}
-                    trackHeight={trackHeights.video}
-                    isSelected={selectedClips.includes(clip.id)}
-                    clipIdOverride={clip.id}
-                    otherClipsInTrack={baseVideoClips}
-                  />
-                ))}
-
-                <TimelineAnnotationTrack />
-                <TimelineEffectTracks />
-                <TimelineWebcamTrack />
-
-                {audioClips.map((clip) => (
-                  <TimelineClip
-                    key={clip.id}
-                    clip={clip}
-                    trackType={TrackType.Audio}
-                    trackY={trackPositions.audio}
-                    trackHeight={trackHeights.audio}
-                    isSelected={selectedClips.includes(clip.id)}
-                    clipIdOverride={clip.id}
-                    otherClipsInTrack={baseAudioClips}
-                  />
-                ))}
-              </Layer>
-
-              {/* Ruler Layer */}
-              <Layer>
-                <TimelineRuler />
-              </Layer>
-
-              {/* Playhead Layer */}
-              <Layer>
-                <TimelineGhostPlayhead />
-                <TimelinePlayhead />
-              </Layer>
-
-              {/* Activity Overlay Layer - Rendered last to ensure it captures clicks */}
-              <Layer>
-                <TimelineActivityOverlays />
-              </Layer>
-            </Stage>
+              </div>
+            </div>
 
             {/* Context Menu */}
             {contextMenu && (
@@ -853,14 +951,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
               />
             )}
 
-            {/* Asset drop overlays - isolated component to prevent full re-renders */}
-            <TimelineAssetDropOverlay
-              assetDragDrop={assetDragDrop}
-              getTrackBounds={safeGetTrackBounds}
-              timelineWidth={timelineWidth}
-              pixelsPerMs={pixelsPerMs}
-            />
-
             {/* Activity suggestion popover */}
             {speedUpPopover && (
               <ActivitySuggestionPopover
@@ -871,8 +961,9 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                 allIdlePeriods={speedUpPopover.allIdlePeriods}
                 onApply={(p: SpeedUpPeriod) => handleApplySpeedUp(p, speedUpPopover.clipId)}
                 onTrim={(p: SpeedUpPeriod) => handleApplyTrim(p, speedUpPopover.clipId)}
+                onDismiss={(p: SpeedUpPeriod) => handleDismissSuggestion(p, speedUpPopover.clipId)}
                 onApplyAll={handleApplyAllSpeedUps}
-                onClose={handleCloseSpeedUp}
+                onClose={() => setSpeedUpPopover(null)}
               />
             )}
           </div>

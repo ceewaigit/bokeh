@@ -5,8 +5,6 @@
  * to understand what changed and how to update effects accordingly.
  */
 
-import type { SpeedUpPeriod } from '@/types/speed-up'
-
 /**
  * Describes a clip change operation for effect synchronization.
  * 

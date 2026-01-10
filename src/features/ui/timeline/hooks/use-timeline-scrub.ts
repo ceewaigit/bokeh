@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import type { MutableRefObject } from 'react'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { getTimelineTimeFromClientX, getTimelineTimeFromStagePointer } from '@/features/ui/timeline/playback/seek-utils'
 import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
@@ -6,10 +7,11 @@ import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
 interface TimelineScrubOptions {
   duration: number
   pixelsPerMs: number
+  scrollLeftRef: MutableRefObject<number>
   onSeek?: (time: number) => void
 }
 
-export const useTimelineScrub = ({ duration, pixelsPerMs, onSeek }: TimelineScrubOptions) => {
+export const useTimelineScrub = ({ duration, pixelsPerMs, scrollLeftRef, onSeek }: TimelineScrubOptions) => {
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
   const setScrubbing = useProjectStore((s) => s.setScrubbing)
   const stageRef = useRef<any>(null)
@@ -19,21 +21,21 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, onSeek }: TimelineScru
 
   const seekFromStage = useCallback((stage: any) => {
     if (!onSeek) return
-    const time = getTimelineTimeFromStagePointer(stage, pixelsPerMs, duration)
+    const time = getTimelineTimeFromStagePointer(stage, pixelsPerMs, duration, scrollLeftRef.current)
     if (time === null) return
     // DECOUPLED: Push to timeObserver immediately for playhead UI
     useTimeStore.getState().setTime(time)
     onSeek(time)
-  }, [duration, onSeek, pixelsPerMs])
+  }, [duration, onSeek, pixelsPerMs, scrollLeftRef])
 
   const seekFromClientX = useCallback((clientX: number) => {
     if (!onSeek) return
-    const time = getTimelineTimeFromClientX(stageRef.current, clientX, pixelsPerMs, duration)
+    const time = getTimelineTimeFromClientX(stageRef.current, clientX, pixelsPerMs, duration, scrollLeftRef.current)
     if (time === null) return
     // DECOUPLED: Push to timeObserver immediately for playhead UI
     useTimeStore.getState().setTime(time)
     onSeek(time)
-  }, [duration, onSeek, pixelsPerMs])
+  }, [duration, onSeek, pixelsPerMs, scrollLeftRef])
 
   const handleScrubStart = useCallback((e: any) => {
     if (!onSeek) return

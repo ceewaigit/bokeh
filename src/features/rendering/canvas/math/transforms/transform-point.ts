@@ -44,11 +44,9 @@ export function applyInverseCssTransformToPoint(
 
   try {
     const matrix = new DOMMatrixReadOnly(trimmed);
-
-    // DEBUG: Check if matrix is identity (parsing failed?)
-    if (matrix.a === 1 && matrix.d === 1 && matrix.e === 0 && matrix.f === 0 && trimmed.length > 20) {
-      console.warn('[applyInverseCssTransformToPoint] Matrix is Identity despite complex string:', trimmed);
-    }
+    // Note: Some transforms serialize to a long-but-noop string, e.g.
+    // `translate3d(0px, 0px, 0) scale3d(1, 1, 1)`. These are effectively identity and
+    // should not spam logs or trigger slow-path debugging during high-frequency pointer moves.
 
     const toOrigin = new DOMMatrixReadOnly().translate(originX, originY, 0);
     const fromOrigin = new DOMMatrixReadOnly().translate(-originX, -originY, 0);
@@ -66,4 +64,3 @@ export function applyInverseCssTransformToPoint(
     return { x, y };
   }
 }
-

@@ -4,7 +4,6 @@ import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/features/rendering/renderer/compositions/TimelineComposition';
 import { AmbientGlowPlayer } from './ambient-glow-player';
 import { buildTimelineCompositionInput } from '@/features/rendering/renderer/utils/composition-input';
-import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import type { PlayerConfiguration } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
@@ -17,7 +16,8 @@ interface PlayerContainerProps {
     playerKey: string;
     initialFrame: number;
     isHighQualityPlaybackEnabled: boolean;
-    previewScale: number;
+    compositionWidth: number;
+    compositionHeight: number;
     muted: boolean;
     volume: number;
     isGlowEnabled: boolean;
@@ -44,7 +44,8 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     playerKey,
     initialFrame,
     isHighQualityPlaybackEnabled,
-    previewScale,
+    compositionWidth,
+    compositionHeight,
     muted,
     volume,
     isGlowEnabled,
@@ -56,33 +57,6 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     glowPortalRoot,
     glowPortalStyle,
 }) => {
-    // Calculate composition size for preview
-    const compositionSize = useMemo(() => {
-        const videoWidth = timelineMetadata.width;
-        const videoHeight = timelineMetadata.height;
-        const videoAspectRatio = videoWidth / videoHeight;
-
-        const maxWidth = isHighQualityPlaybackEnabled
-            ? videoWidth
-            : PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
-        const maxHeight = isHighQualityPlaybackEnabled
-            ? videoHeight
-            : PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
-
-        const scaleByWidth = maxWidth / videoWidth;
-        const scaleByHeight = maxHeight / videoHeight;
-        const scale = Math.min(scaleByWidth, scaleByHeight, 1);
-
-        const width = Math.max(320, Math.round(videoWidth * scale));
-        let height = Math.max(180, Math.round(videoHeight * scale));
-
-        if (Math.abs(width / height - videoAspectRatio) > 0.001) {
-            height = Math.round(width / videoAspectRatio);
-        }
-
-        return { width, height };
-    }, [timelineMetadata, isHighQualityPlaybackEnabled, previewScale]);
-
     const mainPlayerInputProps = useMemo(() => {
         return buildTimelineCompositionInput(playerConfig, {
             playback: {
@@ -157,8 +131,8 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
                     inputProps={mainPlayerInputProps}
                     durationInFrames={timelineMetadata.durationInFrames}
                     fps={timelineMetadata.fps}
-                    compositionWidth={compositionSize.width}
-                    compositionHeight={compositionSize.height}
+                    compositionWidth={compositionWidth}
+                    compositionHeight={compositionHeight}
                     className="w-full h-full"
                     style={{
                         width: '100%',

@@ -6,6 +6,7 @@
 import { logger } from '@/shared/utils/logger'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import type { Project, Recording, Clip, CaptureArea, RecordingMetadata } from '@/types/project'
+import type { WebcamRecordingResult } from '@/features/media/recording/services/webcam-service'
 import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, EffectType } from '@/types/project'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getEffectsOfType } from '@/features/effects/core/filters'
@@ -378,7 +379,7 @@ export class ProjectStorage {
     captureArea?: CaptureArea,
     hasAudio?: boolean,
     durationOverrideMs?: number,
-    webcamResult?: { videoPath: string; duration: number; hasAudio?: boolean },
+    webcamResult?: WebcamRecordingResult,
     microphoneResult?: { audioPath: string; duration: number }
   ): Promise<{ project: Project; videoPath: string; projectPath: string; webcamVideoPath?: string; audioPath?: string } | null> {
     if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
@@ -585,8 +586,92 @@ export class ProjectStorage {
       project.timeline.duration = duration
 
       // Handle webcam recording if present
+      // Supports multiple segments (from independent pause/resume) or single file (legacy)
       let webcamVideoFilePath: string | undefined
-      if (webcamResult?.videoPath && window.electronAPI?.moveFile) {
+      const hasSegments = webcamResult?.segments && webcamResult.segments.length > 0
+      const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
+
+      if (hasSegments && window.electronAPI?.moveFile) {
+        // New: Handle multiple webcam segments
+        for (let i = 0; i < webcamResult!.segments.length; i++) {
+          const segment = webcamResult!.segments[i]
+          const segmentId = `webcam-${Date.now()}-${i}`
+          const segmentFolder = `${projectFolder}/${segmentId}`
+          const segmentExt = segment.videoPath.toLowerCase().endsWith('.mov') ? 'mov' :
+            segment.videoPath.toLowerCase().endsWith('.mp4') ? 'mp4' : 'webm'
+          const segmentFileName = `${segmentId}.${segmentExt}`
+          const segmentVideoPath = `${segmentFolder}/${segmentFileName}`
+
+          try {
+            const moveResult = await window.electronAPI.moveFile(segment.videoPath, segmentVideoPath)
+            if (moveResult?.success) {
+              // Get segment video metadata
+              let segmentWidth = segment.width || 1920
+              let segmentHeight = segment.height || 1080
+              let segmentDuration = segment.durationMs
+
+              try {
+                const meta = await getVideoMetadataFromPath(segmentVideoPath)
+                if (meta.width > 0) segmentWidth = meta.width
+                if (meta.height > 0) segmentHeight = meta.height
+                // Only use file duration if segment duration seems wrong
+                if (!segment.durationMs && meta.duration > 100) {
+                  segmentDuration = meta.duration
+                }
+              } catch (_e) {
+                logger.warn(`[ProjectStorage] Failed to read webcam segment ${i} metadata`)
+              }
+
+              // Create Recording for this segment
+              const segmentRecording: Recording = {
+                id: segmentId,
+                filePath: `${segmentId}/${segmentFileName}`,
+                duration: segmentDuration,
+                width: segmentWidth,
+                height: segmentHeight,
+                frameRate: 30,
+                hasAudio: segment.hasAudio || false,
+                folderPath: segmentFolder,
+                sourceType: 'video',
+                effects: []
+              }
+              project.recordings.push(segmentRecording)
+
+              // Create Clip at the correct timeline position
+              const segmentClip: Clip = {
+                id: `webcam-clip-${Date.now()}-${i}`,
+                recordingId: segmentId,
+                startTime: segment.startTimeOffsetMs,
+                duration: segmentDuration,
+                sourceIn: 0,
+                sourceOut: segmentDuration
+              }
+
+              if (webcamTrack) {
+                webcamTrack.clips.push(segmentClip)
+                logger.info(`[ProjectStorage] Webcam segment ${i} added:`, {
+                  clipId: segmentClip.id,
+                  startTime: segment.startTimeOffsetMs,
+                  duration: segmentDuration
+                })
+              }
+
+              // Store first segment path for return value (backward compatibility)
+              if (i === 0) {
+                webcamVideoFilePath = segmentVideoPath
+              }
+            } else {
+              logger.warn(`[ProjectStorage] Failed to move webcam segment ${i}`)
+            }
+          } catch (error) {
+            logger.error(`[ProjectStorage] Error saving webcam segment ${i}:`, error)
+          }
+        }
+
+        logger.info(`[ProjectStorage] ${webcamResult!.segments.length} webcam segment(s) saved`)
+
+      } else if (webcamResult?.videoPath && window.electronAPI?.moveFile) {
+        // Legacy: Handle single webcam file (backward compatibility)
         const webcamRecordingId = `webcam-${Date.now()}`
         const webcamFolder = `${projectFolder}/${webcamRecordingId}`
         const webcamExt = webcamResult.videoPath.toLowerCase().endsWith('.mov') ? 'mov' :
@@ -600,16 +685,12 @@ export class ProjectStorage {
             // Get webcam video metadata
             let webcamWidth = 1920
             let webcamHeight = 1080
-            // Prefer wall-clock duration from WebcamService (reliable), fallback to main recording duration
-            // WebM files created by MediaRecorder streaming often have incorrect/missing duration metadata
             let webcamDuration = webcamResult.duration || duration
 
             try {
               const webcamMeta = await getVideoMetadataFromPath(webcamVideoFilePath)
               if (webcamMeta.width > 0) webcamWidth = webcamMeta.width
               if (webcamMeta.height > 0) webcamHeight = webcamMeta.height
-              // Only use file metadata duration if we don't have a valid duration from WebcamService
-              // and the metadata duration is reasonable (at least 100ms)
               if (!webcamResult.duration && webcamMeta.duration > 100) {
                 webcamDuration = webcamMeta.duration
               }
@@ -642,7 +723,6 @@ export class ProjectStorage {
               sourceOut: Math.min(webcamDuration, duration)
             }
 
-            const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
             if (webcamTrack) {
               webcamTrack.clips.push(webcamClip)
               logger.info(`[ProjectStorage] Webcam clip added to track:`, { clipId: webcamClip.id, recordingId: webcamRecordingId, trackClipsCount: webcamTrack.clips.length })

@@ -239,7 +239,8 @@ export class RemotionExportService {
       onProgress?.({
         progress: 0,
         stage: 'error',
-        message: isAbort ? 'Export canceled' : `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        // User-facing: keep generic; full details are in logs.
+        message: isAbort ? 'Export canceled' : 'Export failed'
       });
 
       throw error;

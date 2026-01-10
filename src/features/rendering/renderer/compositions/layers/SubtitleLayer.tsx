@@ -13,6 +13,7 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import type { SourceTimeRange } from '@/types/project'
 import { timelineToSource } from '@/features/ui/timeline/time/time-space-converter'
 import { getHighlightWeight, mixColors, scaleAlpha } from './subtitle-highlight'
+import { findSubtitleWordIndex, getVisibleSubtitleWords } from '@/features/rendering/overlays/subtitle-words'
 
 function applyOpacity(color: string, opacity?: number): string {
   if (opacity == null) return color
@@ -35,40 +36,6 @@ function applyOpacity(color: string, opacity?: number): string {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`
   }
   return color
-}
-
-function findWordIndex(words: TranscriptWord[], timeMs: number): number {
-  if (words.length === 0) return -1
-
-  let low = 0
-  let high = words.length - 1
-
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2)
-    const word = words[mid]
-    if (timeMs < word.startTime) {
-      high = mid - 1
-    } else if (timeMs >= word.endTime) {
-      low = mid + 1
-    } else {
-      return mid
-    }
-  }
-
-  // If not inside any word, find the closest one
-  // 'low' is where the time would be inserted, so check neighbors
-  if (low >= words.length) {
-    // Past the last word - return the last word
-    return words.length - 1
-  }
-  if (low === 0) {
-    // Before the first word - return first word if close enough (within 500ms)
-    if (words[0].startTime - timeMs < 500) return 0
-    return -1
-  }
-
-  // Between words - return the previous word (just finished speaking)
-  return low - 1
 }
 
 function getWordWindow(words: TranscriptWord[], currentIndex: number, windowSize: number) {
@@ -178,7 +145,7 @@ export function SubtitleLayer() {
           effect={effect}
           currentTimeMs={currentTimeMs}
           width={width}
-          height={height}
+          _height={height}
           overlayScale={overlayScale}
           overlayBounds={overlayBounds}
           getRecording={getRecording}
@@ -196,7 +163,7 @@ const SubtitleEffectRenderer = React.memo<{
   effect: Effect
   currentTimeMs: number
   width: number
-  height: number
+  _height: number
   overlayScale: number
   overlayBounds: { left: number; top: number; width: number; height: number }
   getRecording: (id: string) => Recording | undefined
@@ -207,7 +174,7 @@ const SubtitleEffectRenderer = React.memo<{
   effect,
   currentTimeMs,
   width,
-  height,
+  _height,
   overlayScale,
   overlayBounds,
   getRecording,
@@ -224,19 +191,8 @@ const SubtitleEffectRenderer = React.memo<{
   // Optimization: Filter once per hiddenRegions change.
   const visibleWords = useMemo(() => {
     const hiddenRegions = hiddenRegionsMap.get(data.recordingId) ?? []
-    if (!transcript || hiddenRegions.length === 0) return transcript?.words ?? []
-
-    const isSourceTimeInHiddenRegion = (time: number, regions: SourceTimeRange[]) => {
-      for (const region of regions) {
-        if (time >= region.startTime && time < region.endTime) return true
-      }
-      return false
-    }
-
-    return transcript.words.filter(word =>
-      !isSourceTimeInHiddenRegion(word.startTime, hiddenRegions) ||
-      !isSourceTimeInHiddenRegion(word.endTime - 1, hiddenRegions)
-    )
+    if (!transcript) return []
+    return getVisibleSubtitleWords(transcript.words, hiddenRegions)
   }, [transcript, hiddenRegionsMap, data.recordingId])
 
   const scaledOffsets = useMemo(() => ({
@@ -267,7 +223,7 @@ const SubtitleEffectRenderer = React.memo<{
   // 6. Source Time Calculation
   const sourceTimeMs = timelineToSource(currentTimeMs, activeClip)
 
-  const currentIndex = findWordIndex(visibleWords, sourceTimeMs)
+  const currentIndex = findSubtitleWordIndex(visibleWords, sourceTimeMs)
   if (currentIndex === -1) return null
 
   // 8. Render Logic (Lightweight)

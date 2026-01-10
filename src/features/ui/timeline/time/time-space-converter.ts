@@ -29,6 +29,7 @@
  */
 
 import type { Clip } from '@/types/project'
+import { TimelineConfig } from '@/features/ui/timeline/config'
 
 /**
  * Convert source recording time to timeline position
@@ -424,16 +425,14 @@ export function pixelsToMs(pixels: number, pixelsPerMs: number): number {
 export function calculateOptimalZoom(duration: number, viewportWidth: number): number {
   if (duration === 0) return 1
 
-  // We want the timeline to fit comfortably in the viewport
-  // Leave some padding (80% of viewport)
-  const targetWidth = viewportWidth * 0.8
+  // Fit the whole timeline so the end lands close to the right edge.
+  const targetWidth = viewportWidth * (1 - TimelineConfig.TIMELINE_EXTRA_PADDING_PERCENT)
   const basePixelsPerMs = 0.1
 
-  // Calculate zoom needed to fit duration in target width
   const requiredZoom = targetWidth / (duration * basePixelsPerMs)
 
   // Clamp between reasonable zoom levels
-  return Math.max(0.1, Math.min(10, requiredZoom))
+  return Math.max(TimelineConfig.MIN_ZOOM, Math.min(TimelineConfig.MAX_ZOOM, requiredZoom))
 }
 
 /**

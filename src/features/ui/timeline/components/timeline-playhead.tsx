@@ -12,6 +12,7 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
 import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
+import { useTimelineUI } from './timeline-ui-context'
 
 export const TimelinePlayhead = React.memo(() => {
   const {
@@ -21,6 +22,7 @@ export const TimelinePlayhead = React.memo(() => {
     duration: maxTime
   } = useTimelineLayout()
   const { onSeek } = useTimelineContext()
+  const { scrollLeftRef } = useTimelineUI()
 
   // DECOUPLED: Use useTimeStore hook which subscribes to transient updates
   // This prevents playhead freezing during heavy store operations
@@ -168,11 +170,13 @@ export const TimelinePlayhead = React.memo(() => {
       y={0}
       draggable
       dragBoundFunc={(pos) => {
-        const newX = Math.max(
+        const currentScroll = scrollLeftRef.current
+        const proposedTimelineX = pos.x + currentScroll
+        const clampedTimelineX = Math.max(
           TimelineConfig.TRACK_LABEL_WIDTH,
-          Math.min(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, pos.x)
+          Math.min(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, proposedTimelineX)
         )
-        return { x: newX, y: 0 }
+        return { x: clampedTimelineX - currentScroll, y: 0 }
       }}
       onDragStart={() => {
         setScrubbing(true)

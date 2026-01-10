@@ -165,9 +165,18 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   const setAudioSettings = useProjectStore((s) => s.setAudioSettings)
   const { volume, muted } = audio
   const [hoveredControl, setHoveredControl] = React.useState<TimelineControlId | null>(null)
+  const [focusedControl, setFocusedControl] = React.useState<TimelineControlId | null>(null)
+
+  const isControlActive = React.useCallback((id: TimelineControlId) => (
+    hoveredControl === id || focusedControl === id
+  ), [hoveredControl, focusedControl])
+
+  const isSliderExpanded = React.useCallback((id: TimelineControlId, defaultExpanded = false) => (
+    isControlActive(id) || (defaultExpanded && hoveredControl === null && focusedControl === null)
+  ), [focusedControl, hoveredControl, isControlActive])
 
   const getSliderWrapperStyle = (id: TimelineControlId, targetWidth: string, defaultExpanded = false) => {
-    const isExpanded = hoveredControl === id || (defaultExpanded && hoveredControl === null)
+    const isExpanded = isSliderExpanded(id, defaultExpanded)
     return {
       width: isExpanded ? targetWidth : '0px',
       opacity: isExpanded ? 1 : 0,
@@ -183,14 +192,17 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
     } as React.CSSProperties
   }
 
-  const handleControlFocus = (id: TimelineControlId) => setHoveredControl(id)
-  const handleControlBlur = (
+  const handleControlFocus = React.useCallback((id: TimelineControlId) => {
+    setFocusedControl(id)
+  }, [])
+
+  const handleControlBlur = React.useCallback((id: TimelineControlId) => (
     event: React.FocusEvent<HTMLDivElement>,
   ) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-      setHoveredControl(null)
+      setFocusedControl((prev) => (prev === id ? null : prev))
     }
-  }
+  }, [])
 
   // Ensure zoom limits are valid
   const effectiveMinZoom = Math.max(0.01, minZoom)
@@ -212,12 +224,12 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
         <div
           className={cn(
             "flex items-center rounded-full transition-all duration-300 ease-out",
-            hoveredControl === TimelineControlId.Volume ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
+            isControlActive(TimelineControlId.Volume) ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
           )}
           onMouseEnter={() => setHoveredControl(TimelineControlId.Volume)}
-          onMouseLeave={() => setHoveredControl(null)}
+          onMouseLeave={() => setHoveredControl((prev) => (prev === TimelineControlId.Volume ? null : prev))}
           onFocusCapture={() => handleControlFocus(TimelineControlId.Volume)}
-          onBlurCapture={handleControlBlur}
+          onBlurCapture={handleControlBlur(TimelineControlId.Volume)}
         >
           <Tooltip>
             <TooltipTrigger asChild>
@@ -240,7 +252,10 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
               <span>{muted ? 'Unmute' : 'Mute'} master audio</span>
             </TooltipContent>
           </Tooltip>
-          <div style={getSliderWrapperStyle(TimelineControlId.Volume, '7rem')} aria-hidden={hoveredControl !== TimelineControlId.Volume}>
+          <div
+            style={getSliderWrapperStyle(TimelineControlId.Volume, '7rem')}
+            aria-hidden={!isSliderExpanded(TimelineControlId.Volume)}
+          >
             <Slider
               value={[volume]}
               onValueChange={([value]) => {
@@ -449,15 +464,18 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
         <div
           className={cn(
             "flex items-center rounded-full transition-all duration-300 ease-out",
-            hoveredControl === TimelineControlId.Preview ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
+            isControlActive(TimelineControlId.Preview) ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
           )}
           onMouseEnter={() => setHoveredControl(TimelineControlId.Preview)}
-          onMouseLeave={() => setHoveredControl(null)}
+          onMouseLeave={() => setHoveredControl((prev) => (prev === TimelineControlId.Preview ? null : prev))}
           onFocusCapture={() => handleControlFocus(TimelineControlId.Preview)}
-          onBlurCapture={handleControlBlur}
+          onBlurCapture={handleControlBlur(TimelineControlId.Preview)}
         >
           <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
-          <div style={getSliderWrapperStyle(TimelineControlId.Preview, '7rem')} aria-hidden={hoveredControl !== TimelineControlId.Preview}>
+          <div
+            style={getSliderWrapperStyle(TimelineControlId.Preview, '7rem')}
+            aria-hidden={!isSliderExpanded(TimelineControlId.Preview)}
+          >
             <Slider
               value={[previewScale]}
               onValueChange={([value]) => {
@@ -473,12 +491,12 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
         <div
           className={cn(
             "flex items-center transition-all duration-300 ease-out",
-            (hoveredControl === TimelineControlId.Zoom || hoveredControl === null) ? "gap-2" : "gap-0"
+            (isControlActive(TimelineControlId.Zoom) || (hoveredControl === null && focusedControl === null)) ? "gap-2" : "gap-0"
           )}
           onMouseEnter={() => setHoveredControl(TimelineControlId.Zoom)}
-          onMouseLeave={() => setHoveredControl(null)}
+          onMouseLeave={() => setHoveredControl((prev) => (prev === TimelineControlId.Zoom ? null : prev))}
           onFocusCapture={() => handleControlFocus(TimelineControlId.Zoom)}
-          onBlurCapture={handleControlBlur}
+          onBlurCapture={handleControlBlur(TimelineControlId.Zoom)}
         >
           <Tooltip>
             <TooltipTrigger asChild>
@@ -498,7 +516,10 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
             </TooltipContent>
           </Tooltip>
           {/* Added padding-left to slider container to give some breathing room from the icon */}
-          <div style={getSliderWrapperStyle(TimelineControlId.Zoom, '8rem', true)} aria-hidden={hoveredControl !== TimelineControlId.Zoom && hoveredControl !== null}>
+          <div
+            style={getSliderWrapperStyle(TimelineControlId.Zoom, '8rem', true)}
+            aria-hidden={!isSliderExpanded(TimelineControlId.Zoom, true)}
+          >
             <Slider
               value={[zoom]}
               onValueChange={([value]) => {

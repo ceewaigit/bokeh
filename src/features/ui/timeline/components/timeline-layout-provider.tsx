@@ -130,6 +130,7 @@ function detectSpeedUpSuggestions(project: { recordings?: Array<{ metadata?: { d
 
 export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const hasMeasuredContainerRef = useRef(false)
   const [containerSize, setContainerSize] = useState({ width: 800, height: 300 })
   const [isScreenGroupCollapsed, setIsScreenGroupCollapsed] = useState(false)
 
@@ -150,6 +151,9 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const [isVideoTrackExpanded, setIsVideoTrackExpanded] = useState(false)
   const [isAnnotationExpanded, setIsAnnotationExpanded] = useState(false)
 
+  const currentProjectId = useProjectStore((s) => s.currentProject?.id)
+  const setAutoZoom = useProjectStore((s) => s.setAutoZoom)
+  const zoomManuallyAdjusted = useProjectStore((s) => s.zoomManuallyAdjusted)
   const zoom = useProjectStore((s) => s.zoom)
   const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
   const currentProject = useProjectStore((s) => s.currentProject)
@@ -203,14 +207,32 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   )
 
   const pixelsPerMs = useMemo(
-    () => TimeConverter.calculatePixelsPerMs(containerSize.width - TimelineConfig.LAYOUT_PADDING * 2, zoom),
+    () => TimeConverter.calculatePixelsPerMs(containerSize.width, zoom),
     [zoom, containerSize.width]
   )
 
   const timelineWidth = useMemo(
-    () => TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, containerSize.width - TimelineConfig.LAYOUT_PADDING * 2),
+    () => TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, containerSize.width),
     [duration, pixelsPerMs, containerSize.width]
   )
+
+  // Auto-fit zoom once container size is known: end of last clip lands near the right edge.
+  const autoZoomSignatureRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!currentProjectId) return
+    if (zoomManuallyAdjusted) return
+    if (!hasMeasuredContainerRef.current) return
+    if (!(containerSize.width > 0) || !(duration > 0)) return
+
+    const optimalZoom = TimeConverter.calculateOptimalZoom(duration, containerSize.width)
+    const clampedZoom = Math.max(TimelineConfig.MIN_ZOOM, Math.min(TimelineConfig.MAX_ZOOM, optimalZoom))
+
+    const signature = `${currentProjectId}:${Math.round(containerSize.width)}:${Math.round(duration)}`
+    if (autoZoomSignatureRef.current === signature) return
+    autoZoomSignatureRef.current = signature
+
+    setAutoZoom(clampedZoom)
+  }, [currentProjectId, zoomManuallyAdjusted, containerSize.width, duration, setAutoZoom])
 
   // Calculate fixed track heights - use fixed values to allow vertical scrolling
   const fixedTrackHeights = useMemo((): FixedTrackHeights => {
@@ -377,6 +399,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     let rafId: number | null = null
     const updateSize = () => {
       const rect = container.getBoundingClientRect()
+      hasMeasuredContainerRef.current = true
       setContainerSize({ width: rect.width, height: rect.height })
     }
     const scheduleUpdate = () => {
@@ -400,8 +423,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   }, [])
 
   const value = useMemo<TimelineLayoutContextValue>(() => ({
-    stageWidth: containerSize.width - TimelineConfig.LAYOUT_PADDING * 2,
-    stageHeight: containerSize.height - TimelineConfig.LAYOUT_PADDING * 2,
+    stageWidth: containerSize.width,
+    stageHeight: containerSize.height,
     totalContentHeight,
     containerHeight: containerSize.height,
     containerWidth: containerSize.width,

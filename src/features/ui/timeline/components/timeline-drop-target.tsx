@@ -1,22 +1,20 @@
 import React from 'react'
-import { TimelineConfig } from '@/features/ui/timeline/config'
 import type { TrackType } from '@/types/project'
+import { useTimelineLayout } from './timeline-layout-provider'
 
 interface TimelineDropTargetProps {
     visible: boolean
     trackType: TrackType | null
     getTrackBounds: (type: TrackType) => { y: number; height: number }
-    timelineWidth: number
 }
 
 export const TimelineDropTarget = React.memo(function TimelineDropTarget({
     visible,
     trackType,
-    getTrackBounds,
-    timelineWidth
+    getTrackBounds
 }: TimelineDropTargetProps) {
+    const { stageWidth } = useTimelineLayout()
     if (!visible || !trackType) return null
-
     const bounds = getTrackBounds(trackType)
 
     return (
@@ -25,7 +23,7 @@ export const TimelineDropTarget = React.memo(function TimelineDropTarget({
             style={{
                 left: 0,
                 top: bounds.y + 'px',
-                width: (timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH) + 'px',
+                width: stageWidth + 'px',
                 height: bounds.height + 'px',
             }}
         />

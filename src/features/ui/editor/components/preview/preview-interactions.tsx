@@ -4,7 +4,8 @@ import { useProjectStore } from '@/features/core/stores/project-store';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
 import { SidebarTabId } from '@/features/effects/components/constants';
 import { EffectLayerType } from '@/features/effects/types';
-import { EffectType, Project, Effect, TrackType } from '@/types/project';
+import { EffectType, Project, Effect, TrackType, AnnotationType } from '@/types/project';
+import type { AnnotationData } from '@/types/project';
 import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters';
 import { LayerHoverOverlays } from './layer-hover-overlays';
 import type { ZoomSettings } from '@/types/remotion';
@@ -18,8 +19,10 @@ import { useEditorFrameSnapshot } from '@/features/rendering/renderer/hooks/use-
 import { CropOverlay } from '@/features/effects/crop/components/CropOverlay';
 import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager';
 import { useAnnotationDrop } from '@/features/effects/annotation/hooks/use-annotation-drop';
+import { useAnnotationDropTarget } from '@/features/effects/annotation/ui/AnnotationDragPreview';
 import { useSelectedClipId } from '@/features/core/stores/project-store';
-import { getVideoRectFromSnapshot } from '@/features/ui/editor/logic/preview-point-transforms';
+import { getVideoRectFromSnapshot, containerPointToVideoPoint } from '@/features/ui/editor/logic/preview-point-transforms';
+import { getDefaultAnnotationSize } from '@/features/effects/annotation/config';
 
 // ------------------------------------------------------------------
 // Main Component: PreviewInteractions
@@ -59,6 +62,8 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
 }) => {
     const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer);
     const selectClip = useProjectStore((s) => s.selectClip);
+    const addEffect = useProjectStore((s) => s.addEffect);
+    const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay);
     const inlineEditingId = useProjectStore((s) => s.inlineEditingId);
     const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen);
     const toggleProperties = useWorkspaceStore((s) => s.toggleProperties);
@@ -73,6 +78,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     // PERF: Avoid state updates during playback to prevent 60fps React renders outside Remotion.
     const [currentFrame, setCurrentFrame] = useState(() => playerRef?.current?.getCurrentFrame() ?? 0);
     const lastFrameRef = useRef(0);
+    const lastStateFrameRef = useRef(0);
 
     useEffect(() => {
         const player = playerRef?.current;
@@ -80,9 +86,13 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
 
         const onFrame = (e: { detail: { frame: number } }) => {
             const newFrame = e.detail.frame;
-            // PERF: Skip if paused and frame unchanged - saves ~10% CPU
-            if (!isPlayingRef.current && newFrame === lastFrameRef.current) return;
             lastFrameRef.current = newFrame;
+            // PERF: Do not drive React re-renders at 60fps during playback.
+            // Overlays/interaction UI are hidden while playing, so the state update is wasted.
+            if (isPlayingRef.current) return;
+            // PERF: Skip if paused/scrubbing and frame unchanged.
+            if (newFrame === lastStateFrameRef.current) return;
+            lastStateFrameRef.current = newFrame;
             setCurrentFrame(newFrame);
         };
 
@@ -91,6 +101,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         // Keep state in sync when (re)mounting or when we transition to paused.
         const initialFrame = player.getCurrentFrame();
         lastFrameRef.current = initialFrame;
+        lastStateFrameRef.current = initialFrame;
         setCurrentFrame(initialFrame);
 
         return () => player.removeEventListener('frameupdate', onFrame);
@@ -101,7 +112,10 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         if (isPlaying) return;
         const player = playerRef?.current;
         if (!player) return;
-        setCurrentFrame(player.getCurrentFrame());
+        const frame = player.getCurrentFrame();
+        lastFrameRef.current = frame;
+        lastStateFrameRef.current = frame;
+        setCurrentFrame(frame);
     }, [isPlaying, playerRef, playerKey]);
 
     const currentTimeMs = useMemo(() => {
@@ -302,6 +316,65 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         snapshot,
         currentTime: currentTimeMs
     })
+
+    // Custom drop handler for mouse-based drag (useAnnotationDragSource)
+    const handleCustomAnnotationDrop = useCallback((type: AnnotationType, containerX: number, containerY: number) => {
+        // Convert container coordinates to video-local coordinates
+        const videoPoint = containerPointToVideoPoint({ x: containerX, y: containerY }, snapshot)
+        const videoRectData = getVideoRectFromSnapshot(snapshot)
+
+        // Convert to percent within the video frame
+        const percentX = videoRectData.width > 0 ? (videoPoint.x / videoRectData.width) * 100 : 50
+        const percentY = videoRectData.height > 0 ? (videoPoint.y / videoRectData.height) * 100 : 50
+
+        const startTime = currentTimeMs
+        const endTime = startTime + 3000 // 3 second default duration
+        const defaultSize = getDefaultAnnotationSize(type)
+
+        // Adjust position for top-left anchored elements (Highlight, Redaction, Blur)
+        const isTopLeftAnchor = type === AnnotationType.Highlight ||
+            type === AnnotationType.Redaction ||
+            type === AnnotationType.Blur
+
+        let finalX = percentX
+        let finalY = percentY
+        if (isTopLeftAnchor && defaultSize.width && defaultSize.height) {
+            finalX = percentX - defaultSize.width / 2
+            finalY = percentY - defaultSize.height / 2
+        }
+
+        const effect: Effect = {
+            id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            type: EffectType.Annotation,
+            startTime,
+            endTime,
+            enabled: true,
+            data: {
+                type,
+                position: { x: finalX, y: finalY },
+                content: type === AnnotationType.Text ? 'New text' : undefined,
+                endPosition: type === AnnotationType.Arrow
+                    ? { x: percentX + 10, y: percentY }
+                    : undefined,
+                width: defaultSize.width,
+                height: defaultSize.height,
+                style: {
+                    color: type === AnnotationType.Highlight ? '#ffeb3b' : '#ffffff',
+                    backgroundColor: type === AnnotationType.Redaction ? '#000000' : undefined,
+                    fontSize: 18,
+                    textAlign: type === AnnotationType.Text ? 'center' : undefined,
+                    borderRadius: type === AnnotationType.Redaction ? 2 : undefined,
+                },
+            } satisfies AnnotationData,
+        }
+
+        addEffect(effect)
+        selectEffectLayer(EffectLayerType.Annotation, effect.id)
+        startEditingOverlay(effect.id)
+    }, [snapshot, currentTimeMs, addEffect, selectEffectLayer, startEditingOverlay])
+
+    // Wire up custom event listener for mouse-based drag-drop
+    useAnnotationDropTarget(aspectContainerRef, handleCustomAnnotationDrop)
 
     // Calculate video rect for the DOM overlay
     const videoRect = useMemo(() => {

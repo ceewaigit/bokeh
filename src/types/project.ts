@@ -386,6 +386,8 @@ export interface Timeline {
   duration: number;
   effects?: Effect[];
   transcriptEdits?: Record<string, TranscriptEditState>;
+  /** Dismissed activity suggestions (e.g., "clipId-typing-1234") */
+  dismissedSuggestions?: string[];
 }
 
 export interface Track {

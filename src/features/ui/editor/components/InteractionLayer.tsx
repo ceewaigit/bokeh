@@ -971,21 +971,22 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             setMode('IDLE')
         }
 
-    }, [
-        canInteract,
-        clearEffectSelection,
-        effects,
-        interactableEffects,
-        isPropertiesOpen,
-        selectEffectLayer,
-        selectedEffect,
-        snapshot,
-        startDrag,
-        startEditingOverlay,
-        setActiveSidebarTab,
-        stopEditingOverlay,
-        toggleProperties
-    ])
+	    }, [
+	        canInteract,
+	        clearEffectSelection,
+	        effects,
+	        interactableEffects,
+	        isPropertiesOpen,
+	        selectEffectLayer,
+	        selectedEffect,
+	        snapshot,
+	        startDrag,
+	        startEditingOverlay,
+	        setActiveSidebarTab,
+	        stopEditingOverlay,
+	        toggleProperties,
+	        videoRect
+	    ])
 
     // Click handler - stops propagation when annotation/plugin is hit
     // This prevents PreviewInteractions from duplicating selection handling

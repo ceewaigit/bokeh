@@ -16,7 +16,7 @@ import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults';
 import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store';
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import { usePlayerConfiguration } from '@/features/rendering/renderer/hooks/use-player-configuration';
-import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
+import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, PROXY_HEIGHT, PROXY_WIDTH, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
 import type { ZoomSettings } from '@/types/remotion';
 import { assertDefined } from '@/shared/errors';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
@@ -148,10 +148,16 @@ export function PreviewAreaRemotion({
   );
 
   const previewFrameBounds = useMemo(() => {
-    const capWidth = PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * previewScale;
-    const capHeight = PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * previewScale;
-    const viewportWidth = previewViewportSize.width || capWidth;
-    const viewportHeight = previewViewportSize.height || capHeight;
+    const viewportWidth = previewViewportSize.width || PREVIEW_DISPLAY_WIDTH;
+    const viewportHeight = previewViewportSize.height || PREVIEW_DISPLAY_HEIGHT;
+
+    // NOTE: This is *CSS layout size*, not render resolution.
+    // Keep UI scale separate from internal composition resolution to avoid fullscreen causing massive GPU buffers.
+    //
+    // We size the preview to a predictable baseline (720p @ 1x scale), clamped by the available viewport.
+    const uiScale = Math.max(0.25, previewScale || 1);
+    const capWidth = PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * uiScale;
+    const capHeight = PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * uiScale;
     const maxWidth = Math.min(viewportWidth, capWidth);
     const maxHeight = Math.min(viewportHeight, capHeight);
 
@@ -174,12 +180,34 @@ export function PreviewAreaRemotion({
     const videoHeight = timelineMetadata.height;
     const videoAspectRatio = videoWidth / videoHeight;
 
+    // Render resolution: scale with what's actually displayed (for sharpness),
+    // but cap aggressively to avoid fullscreen = huge buffers = lag/VRAM spikes.
+    //
+    // Proxy sizes are a good upper bound: they're designed for zoom quality without being full source.
+    const dpr = typeof window !== 'undefined'
+      ? Math.max(1, Math.min(2, window.devicePixelRatio || 1))
+      : 1;
+
+    // IMPORTANT: `previewScale` is a UI zoom. Users expect scaling the preview up/down to not
+    // dramatically change performance. We therefore only increase internal render resolution
+    // up to a baseline (720p@2x). Above that, we upscale via CSS.
+    const baselineCssWidth = PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER;
+    const baselineCssHeight = PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER;
+    const renderCssWidth = Math.min(previewFrameBounds.width, baselineCssWidth);
+    const renderCssHeight = Math.min(previewFrameBounds.height, baselineCssHeight);
+
+    const desiredMaxWidth = Math.round(renderCssWidth * dpr);
+    const desiredMaxHeight = Math.round(renderCssHeight * dpr);
+
+    const minWidth = PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER;
+    const minHeight = PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER;
+
     const maxWidth = isHighQualityPlaybackEnabled
       ? videoWidth
-      : PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
+      : Math.min(videoWidth, Math.max(minWidth, Math.min(PROXY_WIDTH, desiredMaxWidth)));
     const maxHeight = isHighQualityPlaybackEnabled
       ? videoHeight
-      : PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
+      : Math.min(videoHeight, Math.max(minHeight, Math.min(PROXY_HEIGHT, desiredMaxHeight)));
 
     const scaleByWidth = maxWidth / videoWidth;
     const scaleByHeight = maxHeight / videoHeight;
@@ -193,7 +221,7 @@ export function PreviewAreaRemotion({
     }
 
     return { width, height };
-  }, [timelineMetadata, isHighQualityPlaybackEnabled, previewScale]);
+  }, [timelineMetadata, isHighQualityPlaybackEnabled, previewFrameBounds.width, previewFrameBounds.height]);
 
   useLayoutEffect(() => {
     setGlowPortalRoot(glowPortalRootRef?.current ?? null);
@@ -277,7 +305,8 @@ export function PreviewAreaRemotion({
         playerKey={playerKey}
         initialFrame={initialFrame}
         isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-        previewScale={previewScale}
+        compositionWidth={compositionSize.width}
+        compositionHeight={compositionSize.height}
         muted={muted}
         volume={volume}
         isGlowEnabled={isGlowEnabled}
@@ -298,7 +327,6 @@ export function PreviewAreaRemotion({
     playerKey,
     initialFrame,
     isHighQualityPlaybackEnabled,
-    previewScale,
     muted,
     volume,
     isGlowEnabled,

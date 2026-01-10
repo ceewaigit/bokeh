@@ -26,6 +26,7 @@ export interface ActivitySuggestionPopoverProps {
   allIdlePeriods: SpeedUpPeriod[]
   onApply: (period: SpeedUpPeriod) => Promise<void>
   onTrim?: (period: SpeedUpPeriod) => Promise<void>
+  onDismiss?: (period: SpeedUpPeriod) => Promise<void>
   onApplyAll?: () => Promise<void>
   onClose: () => void
 }
@@ -38,6 +39,7 @@ export function ActivitySuggestionPopover({
   allIdlePeriods,
   onApply,
   onTrim,
+  onDismiss,
   onApplyAll,
   onClose
 }: ActivitySuggestionPopoverProps) {
@@ -114,8 +116,7 @@ export function ActivitySuggestionPopover({
     return 'Idle'
   }, [isTyping, isTrimStart, isTrimEnd])
 
-  const handleSpeedUp = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleSpeedUp = async () => {
     setLoading('speedup')
     try {
       // For edge idle (trim types), convert to regular idle period for speed-up
@@ -126,8 +127,7 @@ export function ActivitySuggestionPopover({
     }
   }
 
-  const handleTrim = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleTrim = async () => {
     setLoading('trim')
     try {
       if (onTrim) {
@@ -138,8 +138,7 @@ export function ActivitySuggestionPopover({
     }
   }
 
-  const handleApplyAll = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleApplyAll = async () => {
     if (onApplyAll) {
       setLoading('speedup')
       try {
@@ -148,11 +147,6 @@ export function ActivitySuggestionPopover({
         onClose()
       }
     }
-  }
-
-  const handleDismiss = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onClose()
   }
 
   const content = (
@@ -174,13 +168,7 @@ export function ActivitySuggestionPopover({
             <span className="text-foreground/40 ml-1.5">{stats.duration}</span>
           </span>
           <button
-            onClick={handleDismiss}
-            onMouseUp={(e) => {
-              e.stopPropagation()
-              // Also handle mouse up to be sure, in case click is swallowed
-              // This is a "nuclear option" for the dismiss button
-            }}
-            type="button"
+            onClick={onClose}
             title="Dismiss"
             className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -193,7 +181,6 @@ export function ActivitySuggestionPopover({
           {/* Speed Up option - available for all types */}
           <button
             onClick={handleSpeedUp}
-            type="button"
             disabled={loading !== null}
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
           >
@@ -212,7 +199,6 @@ export function ActivitySuggestionPopover({
           {canTrim && (
             <button
               onClick={handleTrim}
-              type="button"
               disabled={loading !== null}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
             >
@@ -228,10 +214,20 @@ export function ActivitySuggestionPopover({
             </button>
           )}
 
-          {/* Dismiss option */}
+          {/* Dismiss option - removes the bar with undo support */}
           <button
-            onClick={handleDismiss}
-            type="button"
+            onClick={async () => {
+              if (onDismiss) {
+                setLoading('speedup') // reuse loading state
+                try {
+                  await onDismiss(period)
+                } finally {
+                  onClose()
+                }
+              } else {
+                onClose()
+              }
+            }}
             disabled={loading !== null}
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
           >
@@ -241,7 +237,7 @@ export function ActivitySuggestionPopover({
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-medium text-foreground">Dismiss</div>
               <div className="text-[10px] text-muted-foreground">
-                Ignore suggestion
+                Remove bar (Cmd+Z to undo)
               </div>
             </div>
           </button>
@@ -250,7 +246,6 @@ export function ActivitySuggestionPopover({
           {showApplyAll && (
             <button
               onClick={handleApplyAll}
-              type="button"
               disabled={loading !== null}
               className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
             >

@@ -54,6 +54,7 @@ export function resolveOverlayConflicts(
     activeRecordingId?: string
     hasActiveTranscript?: boolean
     activeWebcamClip?: Clip | null
+    isSubtitleVisibleAtTime?: (effect: Effect, timeMs: number) => boolean
   }
 ): { displacedEffectIds: Set<string>; resolvedAnchors: Map<string, OverlayAnchor> } {
   const registry = new OverlayPositionRegistry()
@@ -125,6 +126,7 @@ export function resolveOverlayConflicts(
         const subtitleData = effect.data as SubtitleEffectData | undefined
         if (options?.activeRecordingId && subtitleData?.recordingId && subtitleData.recordingId !== options.activeRecordingId) return false
         if (options?.hasActiveTranscript === false) return false
+        if (options?.isSubtitleVisibleAtTime && !options.isSubtitleVisibleAtTime(effect, timeMs)) return false
       }
       return true
     })

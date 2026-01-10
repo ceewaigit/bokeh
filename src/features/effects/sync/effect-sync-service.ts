@@ -10,7 +10,7 @@
  * 3. Auto-managed (Keystroke): Regenerated from recording metadata
  */
 
-import type { Project, Effect, Clip, Track } from '@/types/project'
+import type { Project, Effect, Clip } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
 import type { ClipChange, SegmentMapping } from './types'
 import { EffectStore } from '@/features/effects/core/store'

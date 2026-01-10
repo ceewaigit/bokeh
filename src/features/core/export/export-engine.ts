@@ -186,7 +186,8 @@ export class ExportEngine {
         onProgress?.({
           progress: 0,
           stage: 'error',
-          message: `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          // User-facing: keep generic here; full details are logged below/in Remotion service.
+          message: 'Export failed'
         })
       }
       throw error

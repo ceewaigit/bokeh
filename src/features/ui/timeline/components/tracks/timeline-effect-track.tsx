@@ -15,6 +15,7 @@ import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { EffectStore } from '@/features/effects/core/store'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
+import type { Effect } from '@/features/effects/types'
 import { EffectType } from '@/features/effects/types'
 import { EFFECT_TRACK_TYPES, getEffectTrackConfig } from '@/features/ui/timeline/effect-track-registry'
 import { useTimelineColors } from '@/features/ui/timeline/utils/colors'
@@ -26,9 +27,12 @@ import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 interface TimelineEffectTrackProps {
   /** The effect type to render */
   effectType: EffectType
+  effects: Effect[]
+  visibleStartTime: number
+  visibleEndTime: number
 }
 
-export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
+export function TimelineEffectTrack({ effectType, effects, visibleStartTime, visibleEndTime }: TimelineEffectTrackProps) {
   const config = getEffectTrackConfig(effectType)
   const executorRef = useCommandExecutor()
 
@@ -42,13 +46,11 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
   } = useTimelineLayout()
 
   const {
-    currentProject,
     selectedEffectLayer,
     selectEffectLayer,
     clearEffectSelection
   } = useProjectStore(
     useShallow((s) => ({
-      currentProject: s.currentProject,
       selectedEffectLayer: s.selectedEffectLayer,
       selectEffectLayer: s.selectEffectLayer,
       clearEffectSelection: s.clearEffectSelection
@@ -61,28 +63,29 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
 
   const colors = useTimelineColors()
 
-  // Get all effects of this type
-  const effects = useMemo(() => {
-    if (!currentProject) return []
-    const all = EffectStore.getAll(currentProject).filter(e => e.type === effectType)
-    if (effectType !== EffectType.Keystroke) return all
-    return all.filter(e => e.id !== KEYSTROKE_STYLE_EFFECT_ID)
-  }, [currentProject, effectType])
+  const visibleEffects = useMemo(() => {
+    if (effects.length === 0) return effects
+    return effects.filter((effect) => {
+      const startTime = Math.max(0, effect.startTime)
+      const endTime = Math.min(duration, effect.endTime)
+      return endTime > visibleStartTime && startTime < visibleEndTime
+    })
+  }, [effects, duration, visibleStartTime, visibleEndTime])
 
   // Block data for snapping
   const blocksData = useMemo(
-    () => effects.map(e => ({
+    () => visibleEffects.map(e => ({
       id: e.id,
       startTime: Math.max(0, e.startTime),
       endTime: Math.min(duration, e.endTime)
     })),
-    [effects, duration]
+    [visibleEffects, duration]
   )
 
   // Don't render if no config, no track, or no effects
   if (!config) return null
   if (!effectTrackExistence[effectType]) return null
-  if (effects.length === 0) return null
+  if (visibleEffects.length === 0) return null
 
   const trackY = effectTrackPositions[effectType]
   const trackHeight = effectTrackHeights[effectType]
@@ -102,7 +105,7 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
 
   return (
     <>
-      {effects.map((effect) => {
+      {visibleEffects.map((effect) => {
         const isBlockSelected =
           selectedEffectLayer?.type === config.layerType && selectedEffectLayer?.id === effect.id
 
@@ -164,13 +167,50 @@ export function TimelineEffectTrack({ effectType }: TimelineEffectTrackProps) {
  * Render all effect tracks based on registry.
  * Drop-in replacement for individual track components.
  */
-export function TimelineEffectTracks() {
+interface TimelineEffectTracksProps {
+  visibleStartTime: number
+  visibleEndTime: number
+}
+
+export function TimelineEffectTracks({ visibleStartTime, visibleEndTime }: TimelineEffectTracksProps) {
   const { effectTrackExistence } = useTimelineLayout()
+  const currentProject = useProjectStore((s) => s.currentProject)
+
+  const effectsByType = useMemo(() => {
+    const map = new Map<EffectType, Effect[]>()
+    if (!currentProject) return map
+
+    for (const effect of EffectStore.getAll(currentProject)) {
+      const existing = map.get(effect.type)
+      if (existing) {
+        existing.push(effect)
+      } else {
+        map.set(effect.type, [effect])
+      }
+    }
+
+    const keystrokes = map.get(EffectType.Keystroke)
+    if (keystrokes) {
+      map.set(EffectType.Keystroke, keystrokes.filter(e => e.id !== KEYSTROKE_STYLE_EFFECT_ID))
+    }
+
+    return map
+  }, [currentProject])
 
   return (
     <>
       {EFFECT_TRACK_TYPES.map((type) =>
-        effectTrackExistence[type] ? <TimelineEffectTrack key={type} effectType={type} /> : null
+        effectTrackExistence[type]
+          ? (
+            <TimelineEffectTrack
+              key={type}
+              effectType={type}
+              effects={effectsByType.get(type) ?? []}
+              visibleStartTime={visibleStartTime}
+              visibleEndTime={visibleEndTime}
+            />
+          )
+          : null
       )}
     </>
   )

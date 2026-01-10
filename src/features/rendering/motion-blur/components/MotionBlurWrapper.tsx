@@ -11,10 +11,12 @@
  * - Preview: falls back to DOM discovery + requestVideoFrameCallback
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MotionBlurCanvas } from './MotionBlurCanvas';
 
 export interface MotionBlurWrapperProps {
+    /** Export mode (Remotion render) */
+    isRendering?: boolean;
     /** Whether motion blur is enabled for this clip */
     enabled: boolean;
     /** Camera velocity in pixels per frame */
@@ -59,6 +61,7 @@ export interface MotionBlurWrapperProps {
  * Video is never hidden - blur overlays on top.
  */
 export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
+    isRendering = false,
     enabled,
     velocity,
     intensity = 1.0,
@@ -81,6 +84,9 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [webglReady, setWebglReady] = useState(false);
+    const [hasFreshFrame, setHasFreshFrame] = useState(false);
+    const [canvasVisible, setCanvasVisible] = useState(false);
+    const freshFrameTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (!useWebglVideo) {
@@ -90,11 +96,46 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
 
     const speed = Math.hypot(velocity.x, velocity.y);
     const effectiveThreshold = velocityThreshold ?? 0;
-    // Only mount the heavy canvas if we are moving faster than threshold, OR if forced (renderScale/useWebglVideo)
-    // Note: unmounting destroys the smoothing tail state in MotionBlurCanvas,
-    // but preventing idle GPU memory leak is more important.
-    // We add a tiny epsilon to threshold to avoid flickering at exactly 0.
-    const isActive = speed > effectiveThreshold + 0.001 || useWebglVideo;
+    // Mount while active; allow MotionBlurCanvas to handle tail fade via smoothing.
+    // Avoid forcing WebGL rendering in preview when blur is inactive (export can still force for determinism).
+    const isActive = speed > effectiveThreshold + 0.001;
+    const forceRender = Boolean(isRendering && useWebglVideo);
+    const shouldRenderCanvas = Boolean(enabled && (isActive || forceRender));
+    const shouldHideVideo = Boolean(useWebglVideo && enabled && shouldRenderCanvas);
+
+    useEffect(() => {
+        if (!shouldHideVideo) {
+            setWebglReady(false);
+            setHasFreshFrame(false);
+            setCanvasVisible(false);
+            if (freshFrameTimeoutRef.current !== null) {
+                window.clearTimeout(freshFrameTimeoutRef.current);
+                freshFrameTimeoutRef.current = null;
+            }
+        }
+    }, [shouldHideVideo]);
+
+    const handleCanvasRender = useCallback(() => {
+        setHasFreshFrame(true);
+        if (freshFrameTimeoutRef.current !== null) {
+            window.clearTimeout(freshFrameTimeoutRef.current);
+        }
+        // If WebGL rendering stalls (missing video element during seek, etc.),
+        // quickly fall back to the native <video> so preview never "disappears".
+        freshFrameTimeoutRef.current = window.setTimeout(() => {
+            setHasFreshFrame(false);
+            freshFrameTimeoutRef.current = null;
+        }, 120);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (freshFrameTimeoutRef.current !== null) {
+                window.clearTimeout(freshFrameTimeoutRef.current);
+                freshFrameTimeoutRef.current = null;
+            }
+        };
+    }, []);
 
     return (
         <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -103,14 +144,20 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                 style={{
                     width: '100%',
                     height: '100%',
-                    opacity: useWebglVideo ? (webglReady ? 0 : 1) : 1,
+                    opacity: shouldHideVideo
+                        ? (
+                            isRendering
+                              ? (webglReady ? 0 : 1)
+                              : (canvasVisible && hasFreshFrame ? 0 : 1)
+                          )
+                        : 1,
                 }}
             >
                 {children}
             </div>
 
             {/* Motion blur canvas overlays when active or when WebGL video is forced */}
-            {(enabled && isActive) && (
+            {shouldRenderCanvas && (
                 <MotionBlurCanvas
                     enabled={true}
                     velocity={velocity}
@@ -120,8 +167,16 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                     gamma={gamma}
                     blackLevel={blackLevel}
                     saturation={saturation}
-                    forceRender={useWebglVideo}
-                    onRender={() => setWebglReady(true)}
+                    forceRender={forceRender}
+                    onRender={() => {
+                        if (shouldHideVideo) {
+                            setWebglReady(true);
+                        }
+                        if (!isRendering) {
+                            handleCanvasRender();
+                        }
+                    }}
+                    onVisibilityChange={setCanvasVisible}
                     unpackPremultiplyAlpha={unpackPremultiplyAlpha}
                     videoFrame={videoFrame}
                     containerRef={containerRef}

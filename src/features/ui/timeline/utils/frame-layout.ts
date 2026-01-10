@@ -26,6 +26,84 @@ export interface FrameLayoutItem {
   persistedVideoState?: PersistedVideoState | null;
 }
 
+type FrameLayoutIndexCache = {
+  startFrames: number[];
+  maxEndPrefix: number[];
+  indicesByStartFrame: Map<number, number[]>;
+  itemsByEndFrame: Map<number, FrameLayoutItem[]>;
+};
+
+const frameLayoutIndexCache = new WeakMap<FrameLayoutItem[], FrameLayoutIndexCache>();
+
+function getIndexCache(layout: FrameLayoutItem[]): FrameLayoutIndexCache {
+  const cached = frameLayoutIndexCache.get(layout);
+  if (cached) return cached;
+
+  const startFrames: number[] = new Array(layout.length);
+  const maxEndPrefix: number[] = new Array(layout.length);
+  const indicesByStartFrame = new Map<number, number[]>();
+  const itemsByEndFrame = new Map<number, FrameLayoutItem[]>();
+
+  let runningMaxEnd = -Infinity;
+
+  for (let i = 0; i < layout.length; i += 1) {
+    const item = layout[i];
+    startFrames[i] = item.startFrame;
+
+    runningMaxEnd = Math.max(runningMaxEnd, item.endFrame);
+    maxEndPrefix[i] = runningMaxEnd;
+
+    const startList = indicesByStartFrame.get(item.startFrame);
+    if (startList) startList.push(i);
+    else indicesByStartFrame.set(item.startFrame, [i]);
+
+    const endList = itemsByEndFrame.get(item.endFrame);
+    if (endList) endList.push(item);
+    else itemsByEndFrame.set(item.endFrame, [item]);
+  }
+
+  const next: FrameLayoutIndexCache = {
+    startFrames,
+    maxEndPrefix,
+    indicesByStartFrame,
+    itemsByEndFrame,
+  };
+  frameLayoutIndexCache.set(layout, next);
+  return next;
+}
+
+function upperBoundLE(sorted: number[], value: number): number {
+  // Rightmost index where sorted[i] <= value, or -1 if none.
+  let lo = 0;
+  let hi = sorted.length - 1;
+  let result = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] <= value) {
+      result = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return result;
+}
+
+function lowerBoundGT(sorted: number[], value: number): number {
+  // Leftmost index where sorted[i] > value, or sorted.length if none.
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] > value) {
+      hi = mid;
+    } else {
+      lo = mid + 1;
+    }
+  }
+  return lo;
+}
+
 /**
  * Find the index of the clip that should be considered "active" at a given frame.
  *
@@ -84,33 +162,19 @@ export function findActiveFrameLayoutIndex(layout: FrameLayoutItem[], frame: num
 export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: number): FrameLayoutItem[] {
   if (!layout || layout.length === 0) return [];
 
-  const activeItems: FrameLayoutItem[] = [];
-  let hi = layout.length - 1;
-  let lo = 0;
+  const { startFrames, maxEndPrefix } = getIndexCache(layout);
 
-  // Find the rightmost index where startFrame <= frame
-  let limitIndex = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (layout[mid].startFrame <= frame) {
-      limitIndex = mid;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
+  // Only items with startFrame <= frame can be active.
+  const limitIndex = upperBoundLE(startFrames, frame);
+  if (limitIndex < 0) return [];
 
-  if (limitIndex === -1) return [];
-
-  for (let i = limitIndex; i >= 0; i--) {
-    const item = layout[i];
-    if (frame < item.endFrame) {
-      activeItems.push(item);
-    }
-  }
+  // If max end in prefix is <= frame, then everything in that prefix has ended.
+  // Find the first index where maxEndPrefix[i] > frame to skip large expired prefixes.
+  const startIndex = lowerBoundGT(maxEndPrefix, frame);
+  if (startIndex > limitIndex) return [];
 
   const result: FrameLayoutItem[] = [];
-  for (let i = 0; i <= limitIndex; i++) {
+  for (let i = startIndex; i <= limitIndex; i += 1) {
     const item = layout[i];
     if (frame < item.endFrame) {
       result.push(item);
@@ -348,32 +412,35 @@ export function getVisibleFrameLayout(opts: {
     items.push(nextLayoutItem);
   }
 
+  const { indicesByStartFrame, itemsByEndFrame } = getIndexCache(frameLayout);
+
   // Boundary safety: keep clips that just ended at this frame for 1 frame
   // to avoid a single-frame gap when timeline state doesn't include neighbors.
-  for (let i = 0; i < frameLayout.length; i += 1) {
-    const item = frameLayout[i];
-    if (item.endFrame === currentFrame) {
-      items.push(item);
-    }
-    if (item.startFrame === currentFrame && i > 0) {
-      items.push(frameLayout[i - 1]);
+  const endedNow = itemsByEndFrame.get(currentFrame);
+  if (endedNow) {
+    items.push(...endedNow);
+  }
+
+  const startedNowIndices = indicesByStartFrame.get(currentFrame);
+  if (startedNowIndices) {
+    for (const idx of startedNowIndices) {
+      if (idx > 0) {
+        items.push(frameLayout[idx - 1]);
+      }
     }
   }
 
   // Extra safety: keep near-boundary neighbors for a tiny window to avoid flicker.
   const boundaryHoldFrames = Math.max(2, Math.round(fps * 0.12));
-  for (const item of frameLayout) {
-    if (
-      item.endFrame >= currentFrame - boundaryHoldFrames &&
-      item.endFrame <= currentFrame
-    ) {
-      items.push(item);
-    }
-    if (
-      item.startFrame >= currentFrame &&
-      item.startFrame <= currentFrame + boundaryHoldFrames
-    ) {
-      items.push(item);
+  for (let f = currentFrame - boundaryHoldFrames; f <= currentFrame; f += 1) {
+    const ended = itemsByEndFrame.get(f);
+    if (ended) items.push(...ended);
+  }
+  for (let f = currentFrame; f <= currentFrame + boundaryHoldFrames; f += 1) {
+    const indices = indicesByStartFrame.get(f);
+    if (!indices) continue;
+    for (const idx of indices) {
+      items.push(frameLayout[idx]);
     }
   }
 

@@ -8,7 +8,6 @@ import type { UseAssetDragDropReturn } from '@/features/ui/editor/hooks/use-asse
 interface TimelineAssetDropOverlayProps {
     assetDragDrop: UseAssetDragDropReturn
     getTrackBounds: (type: TrackType) => { y: number; height: number; clipY: number; clipHeight: number }
-    timelineWidth: number
     pixelsPerMs: number
 }
 
@@ -20,7 +19,6 @@ interface TimelineAssetDropOverlayProps {
 export const TimelineAssetDropOverlay = React.memo(function TimelineAssetDropOverlay({
     assetDragDrop,
     getTrackBounds,
-    timelineWidth,
     pixelsPerMs
 }: TimelineAssetDropOverlayProps) {
     // Subscribe to draggingAsset here to isolate re-renders
@@ -36,7 +34,6 @@ export const TimelineAssetDropOverlay = React.memo(function TimelineAssetDropOve
                 visible={!!draggingAsset && !!effectiveTrackType}
                 trackType={effectiveTrackType}
                 getTrackBounds={getTrackBounds}
-                timelineWidth={timelineWidth}
             />
 
             {/* Drag Preview Overlay (Ghost Clip) */}

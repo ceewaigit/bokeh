@@ -10,7 +10,7 @@
  * issues that occurred with the single-instance WebcamLayer approach.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Video, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { WebcamLayoutData, Clip, Recording } from '@/types/project';
 import type { VideoResources } from '@/types';
@@ -325,7 +325,7 @@ export const WebcamClipRenderer = React.memo(({
                             style={webcamStyle}
                             startFrom={sourceInFrame}
                             playbackRate={playbackRate}
-                            volume={effectiveVolume}
+                            volume={useCallback(() => effectiveVolume, [effectiveVolume])}
                             muted={shouldMuteAudio}
                             preload={preload}
                             playsInline={true}

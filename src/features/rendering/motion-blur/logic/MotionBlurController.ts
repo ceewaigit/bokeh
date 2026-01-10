@@ -163,9 +163,12 @@ export class MotionBlurController {
         if (!gl || !this.program || !this.buffers || !this.texture) return null;
 
         // 1. Resize if needed
-        const pixelRatio = Math.max(1, uniforms.pixelRatio ?? 1);
-        const widthPx = Math.round(width * pixelRatio);
-        const heightPx = Math.round(height * pixelRatio);
+        // Allow downscaling in preview to prevent GPU memory blowups when the underlying video
+        // is decoded at high resolution (e.g. during zoom-follow-mouse).
+        const rawPixelRatio = uniforms.pixelRatio ?? 1;
+        const pixelRatio = Number.isFinite(rawPixelRatio) ? Math.max(0.25, rawPixelRatio) : 1;
+        const widthPx = Math.max(1, Math.round(width * pixelRatio));
+        const heightPx = Math.max(1, Math.round(height * pixelRatio));
         if (this.canvas.width !== widthPx || this.canvas.height !== heightPx) {
             this.canvas.width = widthPx;
             this.canvas.height = heightPx;
