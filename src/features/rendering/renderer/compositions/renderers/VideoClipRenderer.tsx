@@ -81,6 +81,23 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const { isGlowMode, preferOffthreadVideo, enhanceAudio } = renderSettings;
   const preload = 'auto';
 
+  const exportMotionBlurLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!isRendering) return;
+    if (exportMotionBlurLoggedRef.current) return;
+    exportMotionBlurLoggedRef.current = true;
+    const v = motionBlur?.velocity ?? { x: 0, y: 0 };
+    const speed = Math.hypot(v.x ?? 0, v.y ?? 0);
+    console.log('[ExportDebug] motion-blur-clip', JSON.stringify({
+      recordingId: recording?.id ?? null,
+      enabled: Boolean(motionBlur?.enabled),
+      speed,
+      velocityThreshold: motionBlur?.velocityThreshold ?? null,
+      forceWebglVideo: Boolean(motionBlur?.useWebglVideo),
+      hasOnVideoFrame: Boolean(isRendering && (motionBlur?.enabled ?? false)),
+    }));
+  }, [isRendering, motionBlur?.enabled, motionBlur?.velocity, motionBlur?.velocityThreshold, motionBlur?.useWebglVideo, recording?.id]);
+
   // Video URL resolution
   const videoUrl = useVideoUrl({
     recording, resources, clipId: clipForVideo.id, preferOffthreadVideo,
@@ -101,14 +118,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // VTDecoder cleanup
   const containerRef = useVideoContainerCleanup(videoUrl);
 
-  // Track video element reference for MotionBlurLayer
+  // Track video element reference for external consumers (e.g., tooling/debug).
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
-  // Video frame for motion blur effect (populated by onVideoFrame callback)
-  const [videoFrame, setVideoFrame] = useState<CanvasImageSource | null>(null);
-  const videoFrameRef = useRef<CanvasImageSource | null>(null);
-
-  const closeVideoFrame = useCallback((frame: CanvasImageSource | null) => {
+  // Export-safe video frame source for MotionBlurCanvas.
+  // Avoids relying on DOM discovery of <video> elements inside Remotion's renderer.
+  const motionBlurFrameRef = useRef<CanvasImageSource | null>(null);
+  const closeMotionBlurFrame = useCallback((frame: CanvasImageSource | null) => {
     if (!frame) return;
     const closable = (frame as { close?: () => void }).close;
     if (typeof closable === 'function') {
@@ -117,21 +133,17 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   }, []);
 
   const handleVideoFrame = useCallback((frame: CanvasImageSource) => {
-    if (!isRendering) {
-      closeVideoFrame(frame);
-      return;
-    }
-    closeVideoFrame(videoFrameRef.current);
-    videoFrameRef.current = frame;
-    setVideoFrame(frame);
-  }, [isRendering, closeVideoFrame]);
+    // Keep only the latest frame; don't trigger React renders.
+    closeMotionBlurFrame(motionBlurFrameRef.current);
+    motionBlurFrameRef.current = frame;
+  }, [closeMotionBlurFrame]);
 
   useEffect(() => {
     return () => {
-      closeVideoFrame(videoFrameRef.current);
-      videoFrameRef.current = null;
+      closeMotionBlurFrame(motionBlurFrameRef.current);
+      motionBlurFrameRef.current = null;
     };
-  }, [closeVideoFrame]);
+  }, [closeMotionBlurFrame]);
 
   // Find and expose video element when container mounts/updates
   useEffect(() => {
@@ -220,6 +232,20 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const useHighResSizing = isRendering || needsHighRes;
   const playbackRate = clipForVideo.playbackRate && clipForVideo.playbackRate > 0 ? clipForVideo.playbackRate : 1;
 
+  // Export correctness: the video is rendered at native size and then CSS-scaled into the
+  // composition. The motion blur canvas must live in the same pre-transform coordinate
+  // space or it will appear as a "second image" overlaid on top.
+  const motionBlurDrawWidth = isRendering
+    ? (recording?.width ?? drawWidth)
+    : (useHighResSizing ? (recording?.width ?? drawWidth) : (motionBlur?.drawWidth ?? drawWidth))
+  const motionBlurDrawHeight = isRendering
+    ? (recording?.height ?? drawHeight)
+    : (useHighResSizing ? (recording?.height ?? drawHeight) : (motionBlur?.drawHeight ?? drawHeight))
+
+  // Performance: avoid multiplying work by zoom scale during export. The velocity values
+  // already encode camera motion in pixels; zoom-scale here can double-count.
+  const motionBlurRenderScale = isRendering ? 1 : currentZoomScale
+
   // Validate critical timing data in dev mode
   devAssert(groupStartSourceIn !== undefined, `groupStartSourceIn is undefined for clip ${clipForVideo.id}`)
   devAssert(fps > 0, `fps must be positive, got ${fps}`)
@@ -231,7 +257,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const effectiveOpacity = renderState.effectiveOpacity;
   const visualOpacity = useParentFade ? 1 : effectiveOpacity;
   const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1)) * effectiveOpacity;
-  const shouldMuteAudio = previewMuted || effectiveVolume <= 0 || !recording?.hasAudio || renderState.isPreloading;
+  const shouldMuteAudio = (!isRendering && (previewMuted || effectiveVolume <= 0 || renderState.isPreloading))
+    || !recording?.hasAudio;
 
   return (
     <div ref={containerRef} style={{ display: 'contents' }}>
@@ -263,10 +290,10 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             useWebglVideo={motionBlur?.useWebglVideo}
             samples={motionBlur?.samples}
             unpackPremultiplyAlpha={motionBlur?.unpackPremultiplyAlpha}
-            drawWidth={useHighResSizing ? (recording?.width ?? drawWidth) : (motionBlur?.drawWidth ?? drawWidth)}
-            drawHeight={useHighResSizing ? (recording?.height ?? drawHeight) : (motionBlur?.drawHeight ?? drawHeight)}
-            renderScale={currentZoomScale}
-            videoFrame={videoFrame}
+            drawWidth={motionBlurDrawWidth}
+            drawHeight={motionBlurDrawHeight}
+            renderScale={motionBlurRenderScale}
+            videoFrame={isRendering ? motionBlurFrameRef.current : undefined}
             velocityThreshold={motionBlur?.velocityThreshold}
             rampRange={motionBlur?.rampRange}
             clampRadius={motionBlur?.clampRadius}
@@ -297,7 +324,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                 onLoadedMetadata={handleMetadataLoaded}
                 onCanPlay={handleLoaded}
                 onSeeked={isRendering ? handleVideoReady : undefined}
-                onVideoFrame={isRendering ? handleVideoFrame : undefined}
+                onVideoFrame={isRendering && (motionBlur?.enabled ?? false) ? handleVideoFrame : undefined}
                 onError={(e: any) => {
                   // CRITICAL: Always signal "ready" to Remotion/Thumbnail generator even on error,
                   // otherwise delayRender() will time out and crash the app/export.

@@ -11,6 +11,7 @@
 import { produceWithPatches } from 'immer'
 import { globalBlobManager } from '@/shared/security/blob-url-manager'
 import { addRecordingToProject } from '@/features/ui/timeline/clips/clip-creation'
+import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { ProjectIOService } from '@/features/core/storage/project-io-service'
@@ -47,6 +48,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     ProjectCleanupService.cleanupOrphanedRecordings(project)
     ProjectCleanupService.cleanupInvalidEffects(project)
     EffectInitialization.ensureGlobalEffects(project)
+    project.timeline.duration = calculateTimelineDuration(project)
 
     set((state) => {
       state.currentProject = project
@@ -75,6 +77,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       ProjectCleanupService.cleanupOrphanedRecordings(project)
       ProjectCleanupService.cleanupInvalidEffects(project)
       EffectInitialization.ensureGlobalEffects(project)
+      project.timeline.duration = calculateTimelineDuration(project)
 
       // Cache video URLs for all recordings BEFORE setting project
       // This prevents multiple video-stream requests during initial render

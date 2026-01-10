@@ -5,74 +5,27 @@
  * Extracted from timeline-operations.ts for better organization.
  */
 
-import type { Project, Track, Clip } from '@/types/project'
-import { TrackType, EffectType } from '@/types/project'
+import type { Project, Track } from '@/types/project'
+import { TrackType } from '@/types/project'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { EffectStore, isValidEffectTiming } from '@/features/effects/core/store'
-import { isGlobalEffectType } from '@/features/effects/core/classification'
 
 /**
  * Calculate total timeline duration from clips and effects.
  */
 export function calculateTimelineDuration(project: Project): number {
+    // Timeline duration should reflect the exported media length.
+    // Effects should not extend the project duration; if an effect has bad timing
+    // (e.g. epoch timestamps), including it here can blow up the duration.
     let maxEndTime = 0
     for (const track of project.timeline.tracks) {
         for (const clip of track.clips) {
-            maxEndTime = Math.max(maxEndTime, clip.startTime + clip.duration)
-        }
-    }
-    const effects = EffectStore.getAll(project)
-    for (const effect of effects) {
-        if (
-            isValidEffectTiming(effect) &&
-            !isGlobalEffectType(effect.type) &&
-            effect.endTime < Number.MAX_SAFE_INTEGER
-        ) {
-            maxEndTime = Math.max(maxEndTime, effect.endTime)
+            const endTime = clip.startTime + clip.duration
+            if (Number.isFinite(endTime)) {
+                maxEndTime = Math.max(maxEndTime, endTime)
+            }
         }
     }
     return maxEndTime
-}
-
-/**
- * Sync crop effect time ranges to match their bound clips.
- * Call this after any operation that changes clip positions.
- */
-export function syncCropEffectTimes(project: Project): void {
-    const allEffects = EffectStore.getAll(project)
-    if (allEffects.length === 0) return
-
-    const videoClips = project.timeline.tracks
-        .filter(t => t.type === TrackType.Video)
-        .flatMap(t => t.clips)
-
-    for (const effect of allEffects) {
-        if (effect.type !== EffectType.Crop) continue
-
-        let clip = effect.clipId ? videoClips.find(c => c.id === effect.clipId) : null
-
-        if (!clip) {
-            // Best-effort rebind for legacy crop effects without clipId
-            let best: { clip: Clip; overlap: number } | null = null
-            for (const candidate of videoClips) {
-                const overlapStart = Math.max(candidate.startTime, effect.startTime)
-                const overlapEnd = Math.min(candidate.startTime + candidate.duration, effect.endTime)
-                const overlap = Math.max(0, overlapEnd - overlapStart)
-                if (overlap > 0 && (!best || overlap > best.overlap)) {
-                    best = { clip: candidate, overlap }
-                }
-            }
-            if (best) {
-                clip = best.clip
-                effect.clipId = best.clip.id
-            }
-        }
-
-        if (clip) {
-            effect.startTime = clip.startTime
-            effect.endTime = clip.startTime + clip.duration
-        }
-    }
 }
 
 /**

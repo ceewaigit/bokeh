@@ -4,6 +4,7 @@
  */
 
 import path from 'path'
+import * as fs from 'fs'
 import { app } from 'electron'
 import type { MachineProfile } from '../utils/machine-profiler'
 import { workerPool, SupervisedWorker } from '../utils/worker-manager'
@@ -72,9 +73,25 @@ async function raceWithAbort<T>(
  * Get the export worker path
  */
 export function getWorkerPath(): string {
-  // Worker is at electron/dist/main/export-worker.js
-  // This file is at electron/dist/main/export/worker-coordinator.js
-  // So we need to go up two levels (export -> handlers -> main)
+  // Try to locate the worker in common locations to support both Dev (TSC) and Prod (Webpack) structures.
+  const candidates = [
+    // 1. One level up (Dev/TSC - electron/dist/main/export-worker.js)
+    path.join(__dirname, '..', 'export-worker.js'),
+    // 2. Two levels up (Alternative/Old - electron/dist/export-worker.js)
+    path.join(__dirname, '..', '..', 'export-worker.js'),
+    // 3. Same directory (Webpack bundle - .webpack/main/export-worker.js)
+    path.join(__dirname, 'export-worker.js'),
+    // 4. Raw compiled file (Fallback TSC - electron/dist/main/export/worker-process.js)
+    path.join(__dirname, 'worker-process.js')
+  ]
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate
+    }
+  }
+
+  // Fallback to original expected path if none found (will throw later)
   return path.join(__dirname, '..', '..', 'export-worker.js')
 }
 

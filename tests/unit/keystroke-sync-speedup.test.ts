@@ -5,10 +5,11 @@
  * that change clip boundaries or playback rates.
  */
 
-import { syncKeystrokeEffects } from '@/features/effects/services/keystroke-sync-service';
+import { syncKeystrokeEffects } from '@/features/effects/sync/keystroke-sync';
 import { sourceToTimeline } from '@/features/ui/timeline/time/time-space-converter';
 import type { Project, Clip, RecordingMetadata, KeyboardEvent } from '@/types/project';
 import { TrackType } from '@/types/project';
+import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config';
 
 function createTestProject(clips: Clip[], keyboardEvents: KeyboardEvent[]): Project {
     const recording = {
@@ -147,7 +148,7 @@ describe('syncKeystrokeEffects after speed-up', () => {
         syncKeystrokeEffects(project);
 
         // Check that keystroke effects were created
-        const keystrokeEffects = project.timeline.effects?.filter(e => e.type === 'keystroke') || [];
+        const keystrokeEffects = project.timeline.effects?.filter(e => e.type === 'keystroke' && e.id !== KEYSTROKE_STYLE_EFFECT_ID) || [];
         expect(keystrokeEffects.length).toBeGreaterThan(0);
 
         // The keystroke cluster (3000-3200ms source) should be in clip-1-part-1 (2x speed section)
@@ -159,5 +160,46 @@ describe('syncKeystrokeEffects after speed-up', () => {
         // Effect should be positioned in the 2000-3000 timeline range (clip-1-part-1)
         expect(effect.startTime).toBeGreaterThanOrEqual(2000);
         expect(effect.endTime).toBeLessThanOrEqual(4000); // With padding buffer
+    });
+});
+
+describe('syncKeystrokeEffects tombstones', () => {
+    it('does not recreate deleted clusters when suppressedClusters is set on the style effect', () => {
+        const keyboardEvents: KeyboardEvent[] = [
+            { timestamp: 1000, key: 'KeyA', modifiers: [] },
+            { timestamp: 1200, key: 'KeyB', modifiers: [] },
+            // Gap > MAX_GAP_MS (2000) to force a new cluster
+            { timestamp: 6000, key: 'KeyC', modifiers: [] },
+            { timestamp: 6200, key: 'KeyD', modifiers: [] },
+        ];
+
+        const clips: Clip[] = [{
+            id: 'clip-1',
+            recordingId: 'rec-1',
+            startTime: 0,
+            duration: 10000,
+            sourceIn: 0,
+            sourceOut: 10000,
+            playbackRate: 1,
+        }];
+
+        const project = createTestProject(clips, keyboardEvents);
+        syncKeystrokeEffects(project);
+
+        const style = project.timeline.effects?.find(e => e.id === KEYSTROKE_STYLE_EFFECT_ID);
+        expect(style).toBeTruthy();
+
+        // Suppress cluster 0 for this recording (format: `${recordingId}::${clusterIndex}`)
+        (style as any).data = { ...(style as any).data, suppressedClusters: ['rec-1::0'] };
+
+        // Remove the generated effect for cluster 0 to simulate user delete
+        project.timeline.effects = (project.timeline.effects ?? []).filter(e => !e.id.startsWith('keystroke|rec-1|0|'));
+
+        // Re-sync should NOT recreate cluster 0 effects, but should keep cluster 1
+        syncKeystrokeEffects(project);
+
+        const managed = (project.timeline.effects ?? []).filter(e => typeof e.id === 'string' && e.id.startsWith('keystroke|'));
+        expect(managed.some(e => e.id.startsWith('keystroke|rec-1|0|'))).toBe(false);
+        expect(managed.some(e => e.id.startsWith('keystroke|rec-1|1|'))).toBe(true);
     });
 });

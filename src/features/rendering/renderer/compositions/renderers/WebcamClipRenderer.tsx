@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Video, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Video, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { WebcamLayoutData, Clip, Recording } from '@/types/project';
 import type { VideoResources } from '@/types';
 import { OverlayAnchor } from '@/types/overlays';
@@ -68,11 +68,21 @@ export const WebcamClipRenderer = React.memo(({
     const frame = useCurrentFrame();
     const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
     const { displacedEffectIds, resolvedAnchors } = useOverlayContext();
-    const { zoomTransform } = useVideoPosition();
+    const videoPosition = useVideoPosition();
+    const { zoomTransform } = videoPosition;
+    const { isRendering } = getRemotionEnvironment();
 
     const preload = 'auto';
     const effectiveVolume = Math.max(0, Math.min(1, playback.previewVolume ?? 1));
-    const shouldMuteAudio = playback.previewMuted || effectiveVolume <= 0 || !recording.hasAudio;
+    const shouldMuteAudio = (!isRendering && (playback.previewMuted || effectiveVolume <= 0)) || !recording.hasAudio;
+
+    const overlayScale = useMemo(() => {
+        const scaleFactor = videoPosition.scaleFactor;
+        if (typeof scaleFactor === 'number' && Number.isFinite(scaleFactor) && scaleFactor > 0) {
+            return scaleFactor;
+        }
+        return 1;
+    }, [videoPosition.scaleFactor]);
 
     // Stable timing from clip (doesn't change)
     const startFrame = Math.floor((clip.startTime / 1000) * fps);
@@ -149,8 +159,9 @@ export const WebcamClipRenderer = React.memo(({
 
     // Layout calculations
     const layout = useMemo(() => {
-        return getWebcamLayout(data, compositionWidth, compositionHeight);
-    }, [data, compositionWidth, compositionHeight]);
+        const scaledPadding = (data.padding ?? 0) * overlayScale;
+        return getWebcamLayout({ ...data, padding: scaledPadding }, compositionWidth, compositionHeight);
+    }, [data, compositionWidth, compositionHeight, overlayScale]);
 
     const webcamSize = Math.round(layout.size);
     const position = { x: Math.round(layout.x), y: Math.round(layout.y) };
@@ -212,6 +223,12 @@ export const WebcamClipRenderer = React.memo(({
         zIndex: 20,
     }), [compositionWidth, compositionHeight]);
 
+    const scaledCornerRadius = useMemo(() => (data.cornerRadius ?? 0) * overlayScale, [data.cornerRadius, overlayScale]);
+    const scaledBorderWidth = useMemo(() => (data.borderWidth ?? 0) * overlayScale, [data.borderWidth, overlayScale]);
+    const scaledShadowBlur = useMemo(() => (data.shadowBlur ?? 0) * overlayScale, [data.shadowBlur, overlayScale]);
+    const scaledShadowOffsetX = useMemo(() => (data.shadowOffsetX ?? 0) * overlayScale, [data.shadowOffsetX, overlayScale]);
+    const scaledShadowOffsetY = useMemo(() => (data.shadowOffsetY ?? 0) * overlayScale, [data.shadowOffsetY, overlayScale]);
+
     const staticContainerStyle = useMemo<React.CSSProperties>(() => ({
         position: 'absolute',
         left: position.x,
@@ -219,11 +236,11 @@ export const WebcamClipRenderer = React.memo(({
         width: webcamSize,
         height: webcamSize,
         transformOrigin: getTransformOrigin(data.position.anchor),
-        borderRadius: data.shape === 'circle' ? '50%' : data.cornerRadius,
+        borderRadius: data.shape === 'circle' ? '50%' : scaledCornerRadius,
         overflow: 'hidden',
         backgroundColor: 'transparent',
         backfaceVisibility: 'hidden',
-    }), [position.x, position.y, webcamSize, data.position.anchor, data.shape, data.cornerRadius]);
+    }), [position.x, position.y, webcamSize, data.position.anchor, data.shape, scaledCornerRadius]);
 
     const sourceStyle = useMemo<React.CSSProperties>(() => ({
         position: 'absolute',
@@ -262,15 +279,15 @@ export const WebcamClipRenderer = React.memo(({
 
     const borderStyle = useMemo<React.CSSProperties>(() =>
         data.borderEnabled ? {
-            border: `${data.borderWidth}px solid ${data.borderColor}`,
+            border: `${scaledBorderWidth}px solid ${data.borderColor}`,
         } : {},
-        [data.borderEnabled, data.borderWidth, data.borderColor]);
+        [data.borderEnabled, scaledBorderWidth, data.borderColor]);
 
     const shadowStyle = useMemo<React.CSSProperties>(() =>
         data.shadowEnabled ? {
-            boxShadow: `${data.shadowOffsetX}px ${data.shadowOffsetY}px ${data.shadowBlur}px ${data.shadowColor}`,
+            boxShadow: `${scaledShadowOffsetX}px ${scaledShadowOffsetY}px ${scaledShadowBlur}px ${data.shadowColor}`,
         } : {},
-        [data.shadowEnabled, data.shadowOffsetX, data.shadowOffsetY, data.shadowBlur, data.shadowColor]);
+        [data.shadowEnabled, scaledShadowOffsetX, scaledShadowOffsetY, scaledShadowBlur, data.shadowColor]);
 
     // Don't render if displaced or no video URL
     if (isDisplaced || !videoUrl) {
@@ -283,6 +300,7 @@ export const WebcamClipRenderer = React.memo(({
     const effectiveScale = 1 + (inverseCameraScale - 1) * zoomInfluence;
     const finalScale = animationScale * effectiveScale;
     const finalOpacity = animationOpacity * globalOpacity;
+    const finalTranslateY = translateY * overlayScale;
 
     return (
         // STABLE SEQUENCE: from/durationInFrames never change for this clip instance
@@ -295,7 +313,7 @@ export const WebcamClipRenderer = React.memo(({
                         ...staticContainerStyle,
                         ...borderStyle,
                         ...shadowStyle,
-                        transform: `scale(${finalScale}) translateY(${translateY}px)`,
+                        transform: `scale(${finalScale}) translateY(${finalTranslateY}px)`,
                         opacity: finalOpacity,
                     }}
                     data-webcam-overlay="true"

@@ -11,11 +11,11 @@ export const DEFAULT_WEBCAM_DATA: WebcamLayoutData = {
         anchor: OverlayAnchor.BottomLeft as any
     },
     size: 18, // 18% of canvas width - compact but visible
-    padding: 12, // Edge padding in pixels
+    padding: 24, // Edge padding in pixels
 
-    // Rounded rectangle shape for clean, modern look
-    shape: 'rounded-rect',
-    cornerRadius: 16, // Default radius for rounded-rect
+    // Squircle shape for clean, modern look
+    shape: 'squircle',
+    cornerRadius: 32, // Default radius for squircle
 
     // No border by default for cleaner appearance
     borderEnabled: false,

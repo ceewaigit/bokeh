@@ -84,20 +84,22 @@ export function createMainWindow(): BrowserWindow {
 }
 
 function setupPermissions(window: BrowserWindow): void {
+  const logPermissions = isDev && process.env.DEBUG_PERMISSIONS === '1'
+
   const permissionHandler = (webContents: WebContents, permission: string, callback: (granted: boolean) => void) => {
-    console.log('🔐 Permission requested:', permission)
+    if (logPermissions) console.log('🔐 Permission requested:', permission)
     if (permission === 'media' || permission === 'display-capture' || permission === 'screen') {
-      console.log('✅ Granting permission for:', permission)
+      if (logPermissions) console.log('✅ Granting permission for:', permission)
       callback(true)
     } else {
-      console.log('❌ Denying permission for:', permission)
+      if (logPermissions) console.log('❌ Denying permission for:', permission)
       callback(false)
     }
   }
   window.webContents.session.setPermissionRequestHandler(permissionHandler)
 
   const permissionCheckHandler = (webContents: WebContents | null, permission: string) => {
-    console.log('🔍 Permission check:', permission)
+    if (logPermissions) console.log('🔍 Permission check:', permission)
     return permission === 'media' || permission === 'display-capture' || permission === 'screen'
   }
   window.webContents.session.setPermissionCheckHandler(permissionCheckHandler)

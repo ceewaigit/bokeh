@@ -17,13 +17,10 @@ import { EffectLayerType } from '@/features/effects/types'
 import type { Effect, AnnotationData } from '@/types/project'
 import { AnnotationWrapper } from './AnnotationWrapper'
 import { useCoordinateMapping } from '@/features/rendering/renderer/hooks/layout/useCoordinateMapping'
+import { clamp01 } from '@/features/rendering/canvas/math/clamp'
 
 const HIGHLIGHT_FADE_MS = 220
 const DEFAULT_DIM_OPACITY = 0.55
-
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v))
-}
 
 function getHighlightOpacity(currentTimeMs: number, startTime: number, endTime: number, frameMs: number): number {
   // Add one frame so the first visible frame isn't fully "off" (feels laggy).
@@ -57,7 +54,7 @@ function useActiveAnnotations(currentTimeMs: number) {
 export const AnnotationLayer: React.FC = memo(() => {
   const { isRendering } = getRemotionEnvironment()
   const frame = useCurrentFrame()
-  const { fps } = useVideoConfig()
+  const { fps, width: compositionWidth, height: compositionHeight } = useVideoConfig()
   const videoPosition = useVideoPosition()
   
   // Use the coordinate mapping hook (SSOT)
@@ -187,7 +184,7 @@ export const AnnotationLayer: React.FC = memo(() => {
                 key={`spotlight-${effect.id}`}
                 width="100%"
                 height="100%"
-                viewBox={`0 0 ${videoPosition.drawWidth} ${videoPosition.drawHeight}`}
+                viewBox={`0 0 ${compositionWidth} ${compositionHeight}`}
                 preserveAspectRatio="none"
                 style={{
                   position: 'absolute',
@@ -199,8 +196,8 @@ export const AnnotationLayer: React.FC = memo(() => {
                     <rect
                       x={0}
                       y={0}
-                      width={videoPosition.drawWidth}
-                      height={videoPosition.drawHeight}
+                      width={compositionWidth}
+                      height={compositionHeight}
                       fill="white"
                     />
                     <rect
@@ -218,8 +215,8 @@ export const AnnotationLayer: React.FC = memo(() => {
                 <rect
                   x={0}
                   y={0}
-                  width={videoPosition.drawWidth}
-                  height={videoPosition.drawHeight}
+                  width={compositionWidth}
+                  height={compositionHeight}
                   mask={`url(#${maskId})`}
                   fill={`rgba(0, 0, 0, ${dimOpacity})`}
                 />

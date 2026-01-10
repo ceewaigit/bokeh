@@ -13,6 +13,7 @@ import { getDefaultAnnotationSize } from '../config'
 import { EffectLayerType } from '@/features/effects/types'
 import {
     containerPointToVideoPoint,
+    getVideoRectFromSnapshot,
     type Point
 } from '@/features/ui/editor/logic/preview-point-transforms'
 import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
@@ -58,15 +59,18 @@ export function useAnnotationDrop({
         // Convert container coordinates to video-local coordinates
         const videoPoint = containerPointToVideoPoint({ x: containerX, y: containerY }, snapshot)
 
-        // Convert to percent (0-100)
-        const videoRect = snapshot.layout
-        const percentX = (videoPoint.x / videoRect.drawWidth) * 100
-        const percentY = (videoPoint.y / videoRect.drawHeight) * 100
+        // Convert to percent within the video frame (supports mockups).
+        const videoRect = getVideoRectFromSnapshot(snapshot)
+        const percentX = videoRect.width > 0 ? (videoPoint.x / videoRect.width) * 100 : 50
+        const percentY = videoRect.height > 0 ? (videoPoint.y / videoRect.height) * 100 : 50
 
-        // Clamp to valid range
+        const clamp = (v: number, lo: number, hi: number) => {
+            return Math.max(lo, Math.min(hi, v))
+        }
+
         return {
-            x: Math.max(5, Math.min(95, percentX)),
-            y: Math.max(5, Math.min(95, percentY))
+            x: clamp(percentX, 0, 100),
+            y: clamp(percentY, 0, 100)
         }
     }, [aspectContainerRef, snapshot])
 
@@ -87,6 +91,26 @@ export function useAnnotationDrop({
             finalPosition = {
                 x: position.x - defaultSize.width / 2,
                 y: position.y - defaultSize.height / 2
+            }
+        }
+        // Clamp so the annotation stays within the video frame.
+        // Top-left anchored elements clamp by their full size; center-anchored elements clamp by half-size.
+        const sizeW = defaultSize.width ?? 0
+        const sizeH = defaultSize.height ?? 0
+        if (isTopLeftAnchor) {
+            finalPosition = {
+                x: Math.max(0, Math.min(100 - sizeW, finalPosition.x)),
+                y: Math.max(0, Math.min(100 - sizeH, finalPosition.y)),
+            }
+        } else if (sizeW > 0 || sizeH > 0) {
+            finalPosition = {
+                x: Math.max(sizeW / 2, Math.min(100 - sizeW / 2, finalPosition.x)),
+                y: Math.max(sizeH / 2, Math.min(100 - sizeH / 2, finalPosition.y)),
+            }
+        } else {
+            finalPosition = {
+                x: Math.max(0, Math.min(100, finalPosition.x)),
+                y: Math.max(0, Math.min(100, finalPosition.y)),
             }
         }
         // Arrow uses position directly as start point, which is correct

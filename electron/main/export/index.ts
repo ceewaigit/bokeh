@@ -113,6 +113,7 @@ export async function resolveVideoUrls(
   const absolutePaths: Record<string, string> = {}
   const normalizedRecordingsDir = normalizeCrossPlatform(recordingsDir)
 
+  const startedAt = Date.now()
   for (const [recordingId, recording] of recordings) {
     if (recording.filePath) {
       let fullPath = normalizeCrossPlatform(recording.filePath)
@@ -162,6 +163,15 @@ export async function resolveVideoUrls(
       videoFilePaths[recordingId] = normalizedPath
     }
   }
+
+  console.log(
+    '[ExportDebug] resolveVideoUrls',
+    JSON.stringify({
+      recordings: recordings.length,
+      resolved: Object.keys(videoUrls).length,
+      ms: Date.now() - startedAt,
+    })
+  )
 
   return { videoUrls, videoFilePaths, absolutePaths }
 }
@@ -435,7 +445,7 @@ export function setupExportHandler(): void {
     }
   })
 
-  ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder, webcamClips }) => {
+  ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder, webcamClips, audioClips }) => {
     console.log('[Export] Export handler invoked with settings:', settings)
     const timing = createExportTiming()
 
@@ -748,11 +758,46 @@ export function setupExportHandler(): void {
         concurrency: allocation.concurrency
       })
 
-      // Build pre-filtered metadata
+      // PERFORMANCE FIX: Pre-filter metadata by chunk time range.
+      // This reduces IPC payload size (e.g., 3162 mouse events → only events in chunk's time range)
+      // and prevents redundant filtering in workers.
       const metadataMap = metadata instanceof Map ? metadata : new Map(metadata)
       const preFilteredMetadata = new Map<number, Map<string, any>>()
       for (const chunk of chunkPlan) {
-        preFilteredMetadata.set(chunk.index, metadataMap)
+        const chunkMetadata = new Map<string, any>()
+        const chunkStartMs = chunk.startTimeMs
+        const chunkEndMs = chunk.endTimeMs
+
+        for (const [recordingId, recordingMeta] of metadataMap) {
+          if (!recordingMeta) continue
+          const filteredMeta: any = { ...recordingMeta }
+
+          // Filter event arrays by chunk time range (with small buffer for edge cases)
+          const bufferMs = 50 // ~1-2 frames at 30fps
+          if (Array.isArray(recordingMeta.mouseEvents) && recordingMeta.mouseEvents.length > 0) {
+            filteredMeta.mouseEvents = recordingMeta.mouseEvents.filter(
+              (e: any) => e.timestamp >= chunkStartMs - bufferMs && e.timestamp <= chunkEndMs + bufferMs
+            )
+          }
+          if (Array.isArray(recordingMeta.keyboardEvents) && recordingMeta.keyboardEvents.length > 0) {
+            filteredMeta.keyboardEvents = recordingMeta.keyboardEvents.filter(
+              (e: any) => e.timestamp >= chunkStartMs - bufferMs && e.timestamp <= chunkEndMs + bufferMs
+            )
+          }
+          if (Array.isArray(recordingMeta.clickEvents) && recordingMeta.clickEvents.length > 0) {
+            filteredMeta.clickEvents = recordingMeta.clickEvents.filter(
+              (e: any) => e.timestamp >= chunkStartMs - bufferMs && e.timestamp <= chunkEndMs + bufferMs
+            )
+          }
+          if (Array.isArray(recordingMeta.scrollEvents) && recordingMeta.scrollEvents.length > 0) {
+            filteredMeta.scrollEvents = recordingMeta.scrollEvents.filter(
+              (e: any) => e.timestamp >= chunkStartMs - bufferMs && e.timestamp <= chunkEndMs + bufferMs
+            )
+          }
+
+          chunkMetadata.set(recordingId, filteredMeta)
+        }
+        preFilteredMetadata.set(chunk.index, chunkMetadata)
       }
 
       // Resolve paths
@@ -818,6 +863,7 @@ export function setupExportHandler(): void {
         // Core timeline data
         clips: allClips,
         webcamClips: Array.isArray(webcamClips) ? webcamClips : [],
+        audioClips: Array.isArray(audioClips) ? audioClips : [],
         recordings: downsampledRecordings,
         effects: allEffects,
 
@@ -901,6 +947,43 @@ export function setupExportHandler(): void {
         totalFrames: totalDurationInFrames,
         totalChunks: chunkPlan.length
       }
+
+      const toCount = (obj: unknown) =>
+        obj && typeof obj === 'object' ? Object.keys(obj as Record<string, unknown>).length : 0
+      console.log(
+        '[ExportDebug] plan',
+        JSON.stringify({
+          fps,
+          totalFrames: totalDurationInFrames,
+          durationSeconds,
+          resolution: { width: targetWidth, height: targetHeight },
+          megapixels,
+          source: { width: nativeSourceWidth, height: nativeSourceHeight, megapixels: sourceMegapixels },
+          maxZoomScale,
+          preferOffthreadVideo,
+          enhanceAudio: Boolean(settings.enhanceAudio ?? false),
+          useGPU: Boolean(dynamicSettings.useGPU),
+          x264Preset: dynamicSettings.x264Preset,
+          jpegQuality: dynamicSettings.jpegQuality,
+          videoBitrate: dynamicSettings.videoBitrate,
+          chunking: {
+            useParallelEffective,
+            workerCount: useParallelEffective ? allocation.workerCount : 1,
+            chunkSizeFrames: effectiveChunkSize,
+            chunkCount: chunkPlan.length,
+            concurrency: (commonJob as any).concurrency,
+            forceSequential,
+            forceSequentialDecode,
+            decodeHeavy,
+          },
+          resources: {
+            videoUrls: toCount(videoUrls),
+            videoUrlsHighRes: toCount(videoUrlsHighRes),
+            videoFilePaths: toCount(videoFilePaths),
+            metadataUrls: toCount(metadataUrls),
+          },
+        })
+      )
 
       // Create progress tracker
       const progressTracker = new ProgressTracker(event.sender, totalDurationInFrames)

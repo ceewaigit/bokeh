@@ -17,14 +17,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
-import { formatTimecode } from '@/shared/utils/time'
+import { formatClockTime } from '@/shared/utils/time'
 import { useTimelineLayout } from './timeline-layout-provider'
 import { useTimelineContext } from './TimelineContext'
 import { TimelineTrackType } from '@/types/project'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
-import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata'
 import { useSelectedClipIds } from '@/features/core/stores/selectors/clip-selectors'
 import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
 import { useTimelinePlayback } from '@/features/ui/timeline/hooks/use-timeline-playback'
@@ -145,7 +144,6 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
     onDuplicateSelected,
   } = useTimelineContext()
   const { zoom, duration } = useTimelineLayout()
-  const currentProject = useProjectStore((s) => s.currentProject)
 
   // Use the unified playback hook (disabled because we don't want duplicate keyboard listeners here)
   const {
@@ -161,7 +159,6 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   const selectedClips = useSelectedClipIds()
   const previewScale = useWorkspaceStore((s) => s.previewScale)
   const setPreviewScale = useWorkspaceStore((s) => s.setPreviewScale)
-  const fps = useTimelineMetadata(currentProject)?.fps || 60
   const hasSelection = selectedClips.length > 0
   const hasSingleSelection = selectedClips.length === 1
   const audio = useProjectStore((s) => s.currentProject?.settings.audio ?? DEFAULT_PROJECT_SETTINGS.audio)
@@ -370,7 +367,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
           {/* Current Time */}
           <div className="min-w-[4rem] text-right">
             <span className="font-mono text-xs font-medium tabular-nums text-foreground">
-              {formatTimecode(displayTime, fps)}
+              {formatClockTime(displayTime)}
             </span>
           </div>
 
@@ -441,7 +438,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
           {/* Total Duration */}
           <div className="min-w-[4rem] text-left">
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {formatTimecode(duration, fps)}
+              {formatClockTime(duration)}
             </span>
           </div>
         </div>

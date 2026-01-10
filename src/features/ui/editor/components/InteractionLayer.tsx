@@ -11,6 +11,7 @@ import {
     deltaToPercent,
     clampPosition,
     clampPoint,
+    clampHighlightBox,
     type CameraTransform
 } from '@/features/rendering/canvas/math/coordinates'
 import {
@@ -90,6 +91,60 @@ interface SelectionBounds {
     y: number
     width: number
     height: number
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value))
+}
+
+type PercentSize = { width?: number; height?: number }
+
+function resolvePercentSize(
+    data: AnnotationData,
+    startBounds: { width: number; height: number } | null | undefined,
+    videoRectPx: { width: number; height: number }
+): PercentSize {
+    const width = typeof data.width === 'number'
+        ? data.width
+        : startBounds && videoRectPx.width > 0
+            ? (startBounds.width / videoRectPx.width) * 100
+            : undefined
+
+    const height = typeof data.height === 'number'
+        ? data.height
+        : startBounds && videoRectPx.height > 0
+            ? (startBounds.height / videoRectPx.height) * 100
+            : undefined
+
+    return {
+        width: width && Number.isFinite(width) ? width : undefined,
+        height: height && Number.isFinite(height) ? height : undefined,
+    }
+}
+
+function clampCenterPosition(pos: { x: number; y: number }, size: PercentSize | null | undefined) {
+    const halfW = (size?.width ?? 0) / 2
+    const halfH = (size?.height ?? 0) / 2
+    return {
+        x: clampNumber(pos.x, halfW, 100 - halfW),
+        y: clampNumber(pos.y, halfH, 100 - halfH),
+    }
+}
+
+function clampTopLeftPosition(pos: { x: number; y: number }, size: PercentSize | null | undefined) {
+    const w = size?.width ?? 0
+    const h = size?.height ?? 0
+    return {
+        x: clampNumber(pos.x, 0, Math.max(0, 100 - w)),
+        y: clampNumber(pos.y, 0, Math.max(0, 100 - h)),
+    }
+}
+
+function clampAnnotationPosition(data: AnnotationData, pos: { x: number; y: number }, size: PercentSize | null | undefined) {
+    const type = (data.type ?? AnnotationType.Text) as AnnotationType
+    const isTopLeftAnchor = type === AnnotationType.Highlight || type === AnnotationType.Blur || type === AnnotationType.Redaction
+    if (isTopLeftAnchor) return clampTopLeftPosition(pos, size)
+    return clampCenterPosition(pos, size)
 }
 
 
@@ -322,25 +377,19 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
         if (initial.kind === 'annotation') {
             const base = initial.data
+            const sizePercent = (initial as any).sizePercent as PercentSize | undefined
 
             if (type === 'move') {
                 const pos = base.position || { x: 50, y: 50 }
-                const next = clampPoint({
-                    x: pos.x + percentDelta.x,
-                    y: pos.y + percentDelta.y
-                })
-
-                if (base.type === AnnotationType.Arrow && base.endPosition) {
-                    const end = base.endPosition
+                if (base.type === AnnotationType.Arrow) {
+                    const end = base.endPosition ?? { x: pos.x + 10, y: pos.y + 10 }
                     newData = {
-                        position: next,
-                        endPosition: clampPoint({
-                            x: end.x + percentDelta.x,
-                            y: end.y + percentDelta.y
-                        })
+                        position: clampPoint({ x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }),
+                        endPosition: clampPoint({ x: end.x + percentDelta.x, y: end.y + percentDelta.y })
                     }
                 } else {
-                    newData = { position: next }
+                    const unclamped = { x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }
+                    newData = { position: clampAnnotationPosition(base, unclamped, sizePercent) }
                 }
             } else if (type === 'rotate') {
                 // Rotation drag - calculate angle from center to current mouse position
@@ -420,10 +469,16 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                     newPos.width = Math.max(1, newPos.width)
                     newPos.height = Math.max(1, newPos.height)
 
+                    const clamped = clampHighlightBox(
+                        { x: newPos.x, y: newPos.y },
+                        newPos.width,
+                        newPos.height
+                    )
+
                     newData = {
-                        position: { x: newPos.x, y: newPos.y },
-                        width: newPos.width,
-                        height: newPos.height
+                        position: { x: clamped.x, y: clamped.y },
+                        width: clamped.width,
+                        height: clamped.height
                     }
                 } else if (base.type === AnnotationType.Arrow) {
                     const pos = base.position || { x: 50, y: 50 }
@@ -431,19 +486,13 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
                     if (type === 'arrow-start') {
                         newData = {
-                            position: clampPoint({
-                                x: pos.x + percentDelta.x,
-                                y: pos.y + percentDelta.y
-                            }),
+                            position: clampPoint({ x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }),
                             endPosition: end
                         }
                     } else if (type === 'arrow-end') {
                         newData = {
                             position: pos,
-                            endPosition: clampPoint({
-                                x: end.x + percentDelta.x,
-                                y: end.y + percentDelta.y
-                            })
+                            endPosition: clampPoint({ x: end.x + percentDelta.x, y: end.y + percentDelta.y })
                         }
                     }
                 } else {
@@ -479,10 +528,10 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
                         const newWidthPercent = (newWidthPx / videoRect.width) * 100
                         // Text is center-anchored: edge drags shift center by half the edge movement.
-                        const nextCenter = clampPoint({
+                        const nextCenter = clampCenterPosition({
                             x: basePosition.x + percentDelta.x / 2,
                             y: basePosition.y
-                        })
+                        }, { width: newWidthPercent, height: sizePercent?.height })
 
                         newData = {
                             position: { ...basePosition, x: nextCenter.x },
@@ -717,6 +766,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                     if (hit.handlePosition === 'rotate' && effect.type === EffectType.Annotation) {
                         // Rotation handle - need to calculate center position
                         const data = effect.data as AnnotationData
+                        const sizePercent = resolvePercentSize(data, startBounds, videoRect)
                         const pos = data.position ?? { x: 50, y: 50 }
 
                         // Calculate the ACTUAL center based on annotation type
@@ -753,13 +803,15 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                                 rotateCenter,
                                 startPos: { x: mouseX, y: mouseY },
                                 startContainer,
-                                startVideoPoint
+                                startVideoPoint,
+                                sizePercent,
                             },
                             activationDistance: 0
                         })
                     } else {
                         if (effect.type === EffectType.Annotation) {
                             const data = effect.data as any
+                            const sizePercent = resolvePercentSize(data as AnnotationData, startBounds, videoRect)
                             startDrag({
                                 startX: e.clientX,
                                 startY: e.clientY,
@@ -770,6 +822,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                                     startContainer,
                                     startVideoPoint,
                                     startBounds,
+                                    sizePercent,
                                 },
                                 activationDistance: 0
                             })
@@ -790,16 +843,19 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 } else {
                     if (effect.type === EffectType.Annotation) {
                         // Pass distinct type for anchor handling if needed
+                        const data = effect.data as any
+                        const sizePercent = resolvePercentSize(data as AnnotationData, startBounds, videoRect)
                         startDrag({
                             startX: e.clientX,
                             startY: e.clientY,
                             type: 'move',
                             initialValue: {
                                 kind: 'annotation',
-                                data: { ...(effect.data as any) },
+                                data: { ...data },
                                 startContainer,
                                 startVideoPoint,
                                 startBounds,
+                                sizePercent,
                             },
                             activationDistance: 6
                         })

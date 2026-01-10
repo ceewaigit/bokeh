@@ -1,6 +1,10 @@
 import type { Project, Track } from '@/types/project'
-import { calculateTimelineDuration, reflowClips, syncCropEffectTimes } from './clip-reflow'
+import { calculateTimelineDuration, reflowClips } from './clip-reflow'
 
+/**
+ * Wrapper for clip mutations that handles reflow and timeline duration updates.
+ * Effect sync is now handled by individual commands via EffectSyncService.
+ */
 export function withMutation<T>(
   project: Project,
   mutation: () => T,
@@ -10,6 +14,6 @@ export function withMutation<T>(
   if (track) reflowClips(track)
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
-  syncCropEffectTimes(project)
   return result
 }
+

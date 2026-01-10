@@ -9,6 +9,19 @@ const TRIM_ALPHA_THRESHOLD = 32
 const COLOR_TOLERANCE = 24
 const MIN_REGION_RATIO = 0.05
 
+type PreinstalledWallpaperEntry = {
+  id: string
+  name: string
+  path: string
+  absolutePath: string
+}
+
+let cachedPreinstalledWallpapers: {
+  root: string
+  rootMtimeMs: number
+  result: PreinstalledWallpaperEntry[]
+} | null = null
+
 type ScreenRegion = {
   x: number
   y: number
@@ -447,12 +460,25 @@ export function registerAssetHandlers(): void {
   // List pre-installed wallpapers from public/wallpapers
   ipcMain.handle('list-preinstalled-wallpapers', async () => {
     const root = getWallpapersRootDir()
-    console.log('[Assets] Loading preinstalled wallpapers from:', root)
+    const logAssets = process.env.DEBUG_ASSETS === '1'
+    if (logAssets) console.log('[Assets] Loading preinstalled wallpapers from:', root)
 
     try {
       if (!fs.existsSync(root)) {
-        console.log('[Assets] Wallpapers directory does not exist:', root)
+        if (logAssets) console.log('[Assets] Wallpapers directory does not exist:', root)
         return []
+      }
+
+      // Cache aggressively: wallpapers are bundled and rarely change at runtime.
+      // This avoids repeated disk scans during export and fast UI polling.
+      const rootStats = fs.statSync(root)
+      const rootMtimeMs = rootStats.mtimeMs
+      if (
+        cachedPreinstalledWallpapers &&
+        cachedPreinstalledWallpapers.root === root &&
+        cachedPreinstalledWallpapers.rootMtimeMs === rootMtimeMs
+      ) {
+        return cachedPreinstalledWallpapers.result
       }
 
       const files = fs.readdirSync(root, { withFileTypes: true })
@@ -485,7 +511,8 @@ export function registerAssetHandlers(): void {
           absolutePath
         }
       })
-      console.log('[Assets] Found', result.length, 'preinstalled wallpapers')
+      if (logAssets) console.log('[Assets] Found', result.length, 'preinstalled wallpapers')
+      cachedPreinstalledWallpapers = { root, rootMtimeMs, result }
       return result
     } catch (error) {
       console.error('[Assets] Failed to list preinstalled wallpapers:', error)

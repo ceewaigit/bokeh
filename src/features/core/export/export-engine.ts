@@ -114,6 +114,7 @@ export class ExportEngine {
         5000 // Arbitrary value, not used in actual export
       )
       const webcamClips: Clip[] = TimelineDataService.getWebcamClips(exportProject)
+      const audioClips: Clip[] = TimelineDataService.getAudioClips(exportProject)
 
       if (processedTimeline.clipCount === 0) {
         throw new Error('No video clips to export')
@@ -171,7 +172,8 @@ export class ExportEngine {
         progressAdapter,
         this.abortController?.signal,
         projectFolder,
-        webcamClips
+        webcamClips,
+        audioClips
       )
 
       return await this.currentExportPromise

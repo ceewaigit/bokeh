@@ -114,28 +114,27 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   }
 
   return (
-    <div className="flex-1 overflow-hidden bg-transparent">
+    <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
+      <LibraryHeader
+        totalRecordings={recordings.length}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        canPrev={canPrev}
+        canNext={canNext}
+        onPrevPage={handlePrevPage}
+        onNextPage={handleNextPage}
+        onRefresh={() => loadRecordings(true)}
+        onNewRecording={handleNewRecording}
+        onOpenSettings={() => setSettingsOpen(true)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
       <div
         ref={setScrollEl}
-        className="h-full overflow-y-scroll scrollbar-thin scrollbar-track-transparent"
+        className="flex-1 overflow-y-scroll scrollbar-thin scrollbar-track-transparent"
       >
-        <LibraryHeader
-          ref={setHeaderEl}
-          totalRecordings={recordings.length}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          canPrev={canPrev}
-          canNext={canNext}
-          onPrevPage={handlePrevPage}
-          onNextPage={handleNextPage}
-          onRefresh={() => loadRecordings(true)}
-          onNewRecording={handleNewRecording}
-          onOpenSettings={() => setSettingsOpen(true)}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
-
-        <div className="p-6">
+        <div className="px-6 py-3">
           <div ref={setGridEl}>
             {recordings.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in duration-300">
@@ -148,7 +147,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 </p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <p className="text-xs font-[var(--font-display)] font-semibold tracking-[0.18em] uppercase text-muted-foreground/80">

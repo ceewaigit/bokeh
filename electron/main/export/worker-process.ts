@@ -256,10 +256,15 @@ class ExportWorker extends BaseWorker {
 
       const effectiveChunkSize = requestedChunkSize ?? Math.min(totalFrames, 2000);
 
+      // PERFORMANCE FIX: Skip chunking overhead for short videos.
+      // Each chunk restart adds 2-3s overhead (browser restart, cache flush).
+      // ~2 minutes at 60fps = 7200 frames is a reasonable threshold.
+      const SHORT_VIDEO_THRESHOLD = 7200;
+
       const needsChunking =
         !!chunkAssignments ||
         (requestedChunkSize != null && requestedChunkSize < totalFrames) ||
-        totalFrames > 0; // Force chunking for ALL videos to ensure robust stitching and consistent behavior
+        totalFrames > SHORT_VIDEO_THRESHOLD; // Only chunk longer videos
 
       if (needsChunking) {
         console.log(`[ExportWorker] Using chunked rendering for ${totalFrames} frames (chunk size: ${effectiveChunkSize})`);
@@ -303,15 +308,18 @@ class ExportWorker extends BaseWorker {
     const is1080pOrLess = width * height <= 1920 * 1080;
 
     // Concurrency is primarily bounded by Chromium process memory.
-    // PERFORMANCE: Increased concurrency limits for faster exports
+    // PERFORMANCE FIX: Conservative limits to prevent thermal throttling.
+    // The AdaptiveConcurrencyController will ramp up if the machine can handle it.
+    // Each concurrent process spawns Chromium + offthread video threads = N × threads total.
+    // On 8-core machines (M-series), keeping this low prevents context switch overhead.
     const maxConcurrency =
       totalMemGB <= 16
-        ? (is1080pOrLess ? 6 : 4)
+        ? (is1080pOrLess ? 3 : 2)  // Conservative: 3 for 1080p, 2 for 4K on 16GB
         : totalMemGB <= 24
-          ? 7
-          : 10;
+          ? 4  // Moderate for 24GB
+          : 6; // Higher for 32GB+
 
-    const renderConcurrency = Math.max(2, Math.min(job.concurrency || 4, maxConcurrency));
+    const renderConcurrency = Math.max(2, Math.min(job.concurrency || 3, maxConcurrency));
 
     // Send progress updates
     this.send('progress', {
@@ -378,8 +386,9 @@ class ExportWorker extends BaseWorker {
 
         const memoryBefore = this.getMemorySnapshot();
         const adaptiveConcurrency = concurrencyController.getConcurrency();
-        // PERFORMANCE: Increased offthreadVideoThreads for faster video decoding
-        const offthreadVideoThreads = Math.min(4, Math.max(2, adaptiveConcurrency));
+        // PERFORMANCE FIX: Limit threads to prevent explosion (N concurrent × threads = total).
+        // 2 threads is optimal for most Macs - allows parallelism without overwhelming cores.
+        const offthreadVideoThreads = Math.min(2, adaptiveConcurrency);
 
         const batchResult = await renderFrames({
           serveUrl: job.bundleLocation,
@@ -519,16 +528,17 @@ class ExportWorker extends BaseWorker {
     const height = job.compositionMetadata?.height ?? job.settings?.resolution?.height ?? 1080;
     const is1080pOrLess = width * height <= 1920 * 1080;
 
-    // PERFORMANCE: Increased concurrency limits for faster exports
+    // PERFORMANCE FIX: Conservative limits to prevent thermal throttling.
+    // The AdaptiveConcurrencyController will ramp up if the machine can handle it.
     const maxConcurrency =
       totalMemGB <= 16
-        ? (is1080pOrLess ? 6 : 4)
+        ? (is1080pOrLess ? 3 : 2)  // Conservative: 3 for 1080p, 2 for 4K on 16GB
         : totalMemGB <= 24
-          ? 7
-          : 10;
+          ? 4  // Moderate for 24GB
+          : 6; // Higher for 32GB+
 
-    const renderConcurrency = Math.max(2, Math.min(job.concurrency || 4, maxConcurrency));
-    const concurrencyController = new AdaptiveConcurrencyController(3, renderConcurrency);
+    const renderConcurrency = Math.max(2, Math.min(job.concurrency || 3, maxConcurrency));
+    const concurrencyController = new AdaptiveConcurrencyController(2, renderConcurrency); // Start at 2, not 3
 
     const chunkPlan: ChunkAssignment[] = providedChunks && providedChunks.length > 0
       ? [...providedChunks].sort((a, b) => a.index - b.index)
@@ -538,6 +548,22 @@ class ExportWorker extends BaseWorker {
     const numChunks = chunkPlan.length;
 
     console.log(`[ExportWorker] Rendering ${numChunks} chunks of ${chunkSize} frames each (combine=${combineChunksInWorker})`);
+    console.log(
+      '[ExportDebug] worker-init',
+      JSON.stringify({
+        fps,
+        totalFrames,
+        chunkSize,
+        chunks: numChunks,
+        width,
+        height,
+        useGPU: Boolean(job.useGPU),
+        concurrency: renderConcurrency,
+        maxConcurrency,
+        preferOffthreadVideo: Boolean(job.inputProps?.renderSettings?.preferOffthreadVideo),
+        enhanceAudio: Boolean(job.settings?.enhanceAudio),
+      })
+    )
 
     try {
       for (let i = 0; i < numChunks; i++) {
@@ -651,8 +677,40 @@ class ExportWorker extends BaseWorker {
         // PERFORMANCE: Lowered default JPEG quality (75 is visually lossless for intermediates)
         const jpegQuality = Math.max(40, Math.min(job.jpegQuality ?? 75, 100));
         const adaptiveConcurrency = concurrencyController.getConcurrency();
-        // PERFORMANCE: Increased offthreadVideoThreads for faster video decoding
-        const offthreadVideoThreads = Math.min(4, Math.max(2, adaptiveConcurrency));
+        // PERFORMANCE FIX: Limit threads to prevent explosion (N concurrent × threads = total).
+        const offthreadVideoThreads = Math.min(2, adaptiveConcurrency);
+
+        const resources = this.getVideoResources(chunkInputProps)
+        const urlValues = resources?.videoUrls ? Object.values(resources.videoUrls) : []
+        const hostCounts = urlValues.reduce<Record<string, number>>((acc, url) => {
+          if (typeof url !== 'string') {
+            acc.invalid = (acc.invalid ?? 0) + 1
+            return acc
+          }
+          try {
+            const host = new URL(url).host
+            acc[host] = (acc[host] ?? 0) + 1
+          } catch {
+            acc.invalid = (acc.invalid ?? 0) + 1
+          }
+          return acc
+        }, {})
+        console.log(
+          '[ExportDebug] chunk',
+          JSON.stringify({
+            index: chunkInfo.index,
+            frameRange: [startFrame, endFrame],
+            chunkFrames,
+            concurrency: adaptiveConcurrency,
+            offthreadVideoThreads,
+            jpegQuality,
+            x264Preset,
+            useGPU: Boolean(job.useGPU),
+            gl: job.useGPU ? 'angle' : 'swangle',
+            videoUrls: Object.keys(resources?.videoUrls || {}).length,
+            videoHosts: hostCounts,
+          })
+        )
 
         await renderMedia({
           serveUrl: job.bundleLocation,

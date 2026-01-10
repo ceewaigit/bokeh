@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Captions, CaptionsOff, RotateCcw, ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
+import { Captions, CaptionsOff, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Recording, SourceTimeRange, Transcript, TranscriptWord, SubtitleEffect } from '@/types/project'
 import { TranscriptionStatus } from '@/types/project'
 import type { TranscriptionProgress } from '@/types/transcription'
@@ -536,7 +536,7 @@ function UnifiedTranscriptStream({
     }
 
     return (
-      <div className="flex items-center justify-center gap-2 py-6 text-muted">
+      <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
         <span className="text-sm">Choose a model and transcribe to start editing</span>
       </div>
     )

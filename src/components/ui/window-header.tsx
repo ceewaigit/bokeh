@@ -14,8 +14,8 @@ export const WindowHeader = forwardRef<HTMLDivElement, WindowHeaderProps>(
       <div
         ref={ref}
         className={cn(
-          "h-11 pl-24 pr-4 flex items-center justify-start",
-          "bg-transparent border-b border-border/40",
+          "h-11 pl-24 pr-4 flex items-center justify-start overflow-hidden flex-shrink-0",
+          "bg-background/50 border-b border-border/40 rounded-2xl",
           className
         )}
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}

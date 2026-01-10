@@ -8,7 +8,7 @@ import type { Project } from '@/types/project'
 import { EffectType } from '@/types/project';
 import { EffectStore } from './store'
 import { EffectCreation } from './creation'
-import { syncKeystrokeEffects } from '../services/keystroke-sync-service'
+import { syncKeystrokeEffects } from '../sync/keystroke-sync'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 export const EffectInitialization = {

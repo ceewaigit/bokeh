@@ -8,7 +8,7 @@ export function getWebcamLayout(
 ): { x: number; y: number; size: number } {
   const size = (data.size / 100) * containerWidth
   const padding = data.padding ?? 0
-  
+
   let x = (data.position.x / 100) * containerWidth
   let y = (data.position.y / 100) * containerHeight
   const anchor = data.position.anchor

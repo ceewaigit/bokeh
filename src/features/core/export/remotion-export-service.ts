@@ -47,7 +47,8 @@ export class RemotionExportService {
     onProgress?: (progress: RemotionExportProgress) => void,
     abortSignal?: AbortSignal,
     projectFolder?: string,
-    webcamClips: Clip[] = []
+    webcamClips: Clip[] = [],
+    audioClips: Clip[] = []
   ): Promise<Blob> {
     this.abortSignal = abortSignal || null;
     this.isAborting = false;
@@ -94,7 +95,8 @@ export class RemotionExportService {
         metadata: [], // Metadata embedded in Recording.metadata - don't duplicate over IPC
         settings,
         projectFolder,
-        webcamClips
+        webcamClips,
+        audioClips
       };
 
       // Listen for progress updates

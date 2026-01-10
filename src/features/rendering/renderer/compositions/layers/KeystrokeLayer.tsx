@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useMemo } from 'react';
-import { AbsoluteFill, useVideoConfig, useCurrentFrame, getRemotionEnvironment } from 'remotion';
-import { KeystrokeRenderer, type KeystrokeDrawRect } from '@/features/effects/keystroke/renderer';
+import React, { useMemo } from 'react';
+import { AbsoluteFill, useVideoConfig, useCurrentFrame } from 'remotion';
 import { EffectType, type KeystrokeEffectData, type Effect, type KeyboardEvent } from '@/types/project';
 
 import { useClipContext } from '../../context/timeline/ClipContext';
@@ -24,6 +23,13 @@ export const KeystrokeLayer: React.FC = () => {
   const { resolvedAnchors } = useOverlayContext();
   const videoPosition = useVideoPosition();
   const { getRecording } = useTimelineContext();
+  const overlayScale = useMemo(() => {
+    const scaleFactor = videoPosition.scaleFactor;
+    if (typeof scaleFactor === 'number' && Number.isFinite(scaleFactor) && scaleFactor > 0) {
+      return scaleFactor;
+    }
+    return 1;
+  }, [videoPosition.scaleFactor]);
 
   // Calculate dimensions for THIS clip's recording (architectural fix)
   // Previously used global VideoPositionContext which could have dimensions for a different clip
@@ -68,6 +74,7 @@ export const KeystrokeLayer: React.FC = () => {
           sourceTimeMs={sourceTimeMs}
           keystrokeEvents={keystrokeEvents}
           clipLayout={clipLayout}
+          overlayScale={overlayScale}
           resolvedAnchor={resolvedAnchors.get(effect.id)}
           styleEffect={keystrokeStyleEffect}
         />
@@ -86,6 +93,7 @@ interface KeystrokeEffectRendererProps {
     offsetX: number;
     offsetY: number;
   };
+  overlayScale: number;
   resolvedAnchor?: OverlayAnchor;
   styleEffect?: Effect;
 }
@@ -95,11 +103,10 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
   sourceTimeMs,
   keystrokeEvents,
   clipLayout,
+  overlayScale,
   resolvedAnchor,
   styleEffect,
 }) => {
-  const { isRendering } = getRemotionEnvironment();
-
   // Merge effect data with defaults - pass ALL settings
   const settings = useMemo<KeystrokeEffectData>(() => {
     const data = effect.data as KeystrokeEffectData | undefined;
@@ -112,57 +119,17 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
     };
   }, [effect.data, resolvedAnchor, styleEffect?.data]);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rendererRef = useRef<KeystrokeRenderer | null>(null);
-  const lastDrawRectRef = useRef<KeystrokeDrawRect | null>(null);
-  // Track settings version to force re-render when they change
-  const settingsVersionRef = useRef(0);
-  const dpr = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
+  const scaledSettings = useMemo<KeystrokeEffectData>(() => {
+    const baseScale = settings.scale ?? 1;
+    return {
+      ...settings,
+      scale: baseScale * overlayScale,
+      offsetX: typeof settings.offsetX === 'number' ? settings.offsetX * overlayScale : settings.offsetX,
+      offsetY: typeof settings.offsetY === 'number' ? settings.offsetY * overlayScale : settings.offsetY,
+    };
+  }, [settings, overlayScale]);
 
-  const shouldRender = keystrokeEvents.length > 0;
-
-  // Create/update renderer when settings change
-  useEffect(() => {
-    if (!shouldRender) {
-      rendererRef.current = null;
-      return;
-    }
-
-    // Always create a fresh renderer when settings change to ensure they're applied
-    rendererRef.current = new KeystrokeRenderer(settings);
-    rendererRef.current.setDPR(dpr);
-    settingsVersionRef.current++;
-
-    if (canvasRef.current) {
-      rendererRef.current.setCanvas(canvasRef.current);
-    }
-
-    rendererRef.current.setKeyboardEvents(keystrokeEvents);
-  }, [shouldRender, settings, keystrokeEvents, dpr]);
-
-  // Render keystrokes (Canvas Path)
-  useEffect(() => {
-    if (!shouldRender || !isRendering) return;
-    if (!canvasRef.current || !rendererRef.current) return;
-
-    const ctx = canvasRef.current.getContext('2d');
-    if (!ctx) return;
-
-    // Clear only the region we drew last frame instead of the full canvas.
-    const prev = lastDrawRectRef.current;
-    if (prev) {
-      ctx.clearRect(prev.x, prev.y, prev.width, prev.height);
-      lastDrawRectRef.current = null;
-    }
-
-    // Use clip-specific dimensions for rendering
-    const rect = rendererRef.current.render(sourceTimeMs, clipLayout.drawWidth, clipLayout.drawHeight);
-    if (rect) {
-      lastDrawRectRef.current = rect;
-    }
-  }, [shouldRender, isRendering, sourceTimeMs, clipLayout.drawWidth, clipLayout.drawHeight, settings]);
-
-  if (!shouldRender) {
+  if (keystrokeEvents.length === 0) {
     return null;
   }
 
@@ -172,37 +139,8 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
   const effectiveOffsetX = clipLayout.offsetX;
   const effectiveOffsetY = clipLayout.offsetY;
 
-  if (!isRendering) {
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          left: effectiveOffsetX,
-          top: effectiveOffsetY,
-          width: effectiveWidth,
-          height: effectiveHeight,
-          pointerEvents: 'none',
-        }}
-      >
-        <KeystrokePreviewOverlay
-          data-keystroke-layer="true"
-          data-effect-id={effect.id}
-          currentTimeMs={sourceTimeMs}
-          keystrokeEvents={keystrokeEvents}
-          settings={settings}
-          enabled
-        />
-      </div>
-    );
-  }
-
   return (
-    <canvas
-      ref={canvasRef}
-      data-keystroke-layer="true"
-      data-effect-id={effect.id}
-      width={effectiveWidth * dpr}
-      height={effectiveHeight * dpr}
+    <div
       style={{
         position: 'absolute',
         left: effectiveOffsetX,
@@ -210,11 +148,16 @@ const KeystrokeEffectRenderer: React.FC<KeystrokeEffectRendererProps> = ({
         width: effectiveWidth,
         height: effectiveHeight,
         pointerEvents: 'none',
-        // Force GPU compositing for crisp rendering
-        transform: 'translateZ(0)',
-        willChange: 'transform',
-        backfaceVisibility: 'hidden',
       }}
-    />
+    >
+      <KeystrokePreviewOverlay
+        data-keystroke-layer="true"
+        data-effect-id={effect.id}
+        currentTimeMs={sourceTimeMs}
+        keystrokeEvents={keystrokeEvents}
+        settings={scaledSettings}
+        enabled
+      />
+    </div>
   );
 };

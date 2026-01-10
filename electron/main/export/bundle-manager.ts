@@ -11,6 +11,54 @@ import type { BundleCache } from './types'
 let cachedBundle: BundleCache | null = null
 let isBundling = false
 
+const RENDER_BUNDLE_WATCH_DIRS = [
+  path.join(process.cwd(), 'src', 'features', 'rendering'),
+  path.join(process.cwd(), 'src', 'types'),
+]
+
+const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.json'])
+
+function getLatestSourceMtimeMs(rootDirs: string[]): number {
+  let latest = 0
+
+  for (const root of rootDirs) {
+    if (!fsSync.existsSync(root)) continue
+    const stack: string[] = [root]
+
+    while (stack.length) {
+      const current = stack.pop()!
+      let stat: fsSync.Stats
+      try {
+        stat = fsSync.statSync(current)
+      } catch {
+        continue
+      }
+
+      if (stat.isDirectory()) {
+        let entries: string[]
+        try {
+          entries = fsSync.readdirSync(current)
+        } catch {
+          continue
+        }
+        for (const entry of entries) {
+          // Skip common heavy dirs
+          if (entry === 'node_modules' || entry === '.next' || entry === 'dist' || entry === 'out') continue
+          stack.push(path.join(current, entry))
+        }
+        continue
+      }
+
+      if (!stat.isFile()) continue
+      const ext = path.extname(current)
+      if (!SOURCE_EXTENSIONS.has(ext)) continue
+      latest = Math.max(latest, stat.mtimeMs)
+    }
+  }
+
+  return latest
+}
+
 /**
  * Get or create webpack bundle with caching
  * @param forceRebuild - Force rebuild even if cached bundle exists
@@ -31,8 +79,14 @@ export async function getBundleLocation(forceRebuild = false): Promise<string> {
   // Check if we have a valid cached bundle
   if (!forceRebuild && cachedBundle?.location) {
     if (fsSync.existsSync(cachedBundle.location)) {
+      const latestSourceMtimeMs = getLatestSourceMtimeMs(RENDER_BUNDLE_WATCH_DIRS)
+      if (latestSourceMtimeMs > (cachedBundle.timestamp ?? 0)) {
+        console.log('Cached Remotion bundle is stale (source changed), rebuilding...')
+        cachedBundle = null
+      } else {
       console.log('Using cached Remotion bundle from:', cachedBundle.location)
       return cachedBundle.location
+      }
     } else {
       console.log('Cached bundle no longer exists, rebuilding...')
       cachedBundle = null
@@ -44,7 +98,7 @@ export async function getBundleLocation(forceRebuild = false): Promise<string> {
     console.log('Building new Remotion bundle...')
 
     const { bundle } = await import('@remotion/bundler')
-    const entryPoint = path.join(process.cwd(), 'src/features/renderer/index.ts')
+    const entryPoint = path.join(process.cwd(), 'src/features/rendering/renderer/index.ts')
 
     const startTime = Date.now()
     const bundleLocation = await bundle({

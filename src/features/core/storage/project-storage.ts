@@ -26,9 +26,6 @@ import { joinRendererPath } from './renderer-path'
 
 import {
   PROJECT_EXTENSION,
-  PROJECT_EXTENSION_REGEX,
-  PROJECT_PACKAGE_FILE,
-  SUPPORTED_PROJECT_EXTENSIONS,
   buildProjectFilePath,
 } from './project-paths'
 

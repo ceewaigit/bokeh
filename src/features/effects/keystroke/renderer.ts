@@ -99,7 +99,7 @@ export class KeystrokeRenderer {
   }
 
   private calculatePosition(videoWidth: number, videoHeight: number): { x: number; y: number } {
-    const margin = 20
+    const margin = 20 * (this.options.scale || 1)
     const anchor = this.resolveAnchor()
     const offsetX = this.options.offsetX ?? 0
     const offsetY = this.options.offsetY ?? 0
@@ -126,7 +126,7 @@ export class KeystrokeRenderer {
 
     const ctx = this.ctx
     const scale = this.options.scale || 1
-    const fontSize = (this.options.fontSize || 14) * scale
+    const fontSize = (this.options.fontSize || 18) * scale
     const padding = (this.options.padding || 12) * scale
     const borderRadius = (this.options.borderRadius || 8) * scale
     const preset = (this.options.stylePreset || 'glass') as KeystrokeStylePreset
@@ -279,7 +279,7 @@ export class KeystrokeRenderer {
     ctx.shadowBlur = 0
   }
 
-  reset() {}
+  reset() { }
 
   hasKeystrokesAtTime(timestamp: number): boolean {
     const fadeOutDuration = this.options.fadeOutDuration || 400

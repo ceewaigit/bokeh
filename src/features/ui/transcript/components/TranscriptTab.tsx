@@ -40,6 +40,26 @@ function normalizeProgress(value?: number): number | undefined {
 
 
 
+const DEFAULT_SUBTITLE_STYLE: Omit<SubtitleEffectData, 'recordingId'> = {
+  anchor: OverlayAnchor.BottomCenter,
+  offsetX: 0,
+  offsetY: 0,
+  priority: 100,
+  fontSize: 32,
+  fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
+  textColor: '#ffffff',
+  highlightColor: '#FFD166',
+  backgroundColor: '#000000',
+  backgroundOpacity: 0.4,
+  wordsPerLine: 8,
+  lineHeight: Math.round(32 * 1.3),
+  maxWidth: 80,
+  highlightStyle: 'color',
+  transitionMs: 140,
+  padding: 2,
+  borderRadius: 6
+}
+
 const createSubtitleEffect = (recording: Recording, project: Project): SubtitleEffect => {
   const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -47,23 +67,7 @@ const createSubtitleEffect = (recording: Recording, project: Project): SubtitleE
 
   const data: SubtitleEffectData = {
     recordingId: recording.id,
-    anchor: OverlayAnchor.BottomCenter,
-    offsetX: 0,
-    offsetY: 0,
-    priority: 100,
-    fontSize: 22,
-    fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
-    textColor: '#ffffff',
-    highlightColor: '#FFD166',
-    backgroundColor: '#000000',
-    backgroundOpacity: 0.4,
-    wordsPerLine: 8,
-    lineHeight: 28,
-    maxWidth: 80,
-    highlightStyle: 'color',
-    transitionMs: 140,
-    padding: 2,
-    borderRadius: 6
+    ...DEFAULT_SUBTITLE_STYLE
   }
 
   return {
@@ -414,7 +418,6 @@ export function TranscriptTab() {
     // Normalization & Deduplication
     const seenRecordings = new Set<string>()
     const effectsToRemove: string[] = []
-    const effectsToUpdate: { id: string, updates: Partial<SubtitleEffectData> }[] = []
 
     project.timeline.effects?.forEach(effect => {
       if (effect.type !== EffectType.Subtitle) return
@@ -424,24 +427,11 @@ export function TranscriptTab() {
         effectsToRemove.push(effect.id)
       } else {
         seenRecordings.add(data.recordingId)
-        // Normalize font size if it's too big
-        if ((data.fontSize ?? 0) > 20) {
-          effectsToUpdate.push({
-            id: effect.id,
-            updates: { fontSize: 10, lineHeight: 14 }
-          })
-        }
       }
     })
 
     if (effectsToRemove.length > 0) {
       effectsToRemove.forEach(id => executorRef.current?.execute(RemoveEffectCommand, id))
-    }
-
-    if (effectsToUpdate.length > 0) {
-      effectsToUpdate.forEach(({ id, updates }) => {
-        executorRef.current?.execute(UpdateEffectCommand, id, { data: updates })
-      })
     }
 
     // Auto-create missing subtitles
@@ -706,13 +696,13 @@ export function TranscriptTab() {
 
   // Get current global subtitle settings from the first available effect, or defaults
   const firstSubtitleEffect = effects.find(e => e.type === EffectType.Subtitle) as SubtitleEffect | undefined
-  const globalFontSize = firstSubtitleEffect?.data?.fontSize ?? 8
+  const globalFontSize = firstSubtitleEffect?.data?.fontSize ?? DEFAULT_SUBTITLE_STYLE.fontSize
   const globalAnchor = firstSubtitleEffect?.data?.anchor ?? OverlayAnchor.BottomCenter
-  const globalPadding = firstSubtitleEffect?.data?.padding ?? 2
-  const globalBorderRadius = firstSubtitleEffect?.data?.borderRadius ?? 6
-  const globalBackgroundOpacity = firstSubtitleEffect?.data?.backgroundOpacity ?? 0.4
-  const globalHighlightStyle = firstSubtitleEffect?.data?.highlightStyle ?? 'color'
-  const globalHighlightColor = firstSubtitleEffect?.data?.highlightColor ?? '#FFD166'
+  const globalPadding = firstSubtitleEffect?.data?.padding ?? DEFAULT_SUBTITLE_STYLE.padding ?? 2
+  const globalBorderRadius = firstSubtitleEffect?.data?.borderRadius ?? DEFAULT_SUBTITLE_STYLE.borderRadius ?? 6
+  const globalBackgroundOpacity = firstSubtitleEffect?.data?.backgroundOpacity ?? DEFAULT_SUBTITLE_STYLE.backgroundOpacity ?? 0.4
+  const globalHighlightStyle = firstSubtitleEffect?.data?.highlightStyle ?? DEFAULT_SUBTITLE_STYLE.highlightStyle ?? 'color'
+  const globalHighlightColor = firstSubtitleEffect?.data?.highlightColor ?? DEFAULT_SUBTITLE_STYLE.highlightColor ?? '#FFD166'
   const hasSubtitles = subtitleEffects.size > 0
 
   return (

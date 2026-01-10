@@ -10,7 +10,7 @@ import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { executeTrimClipStart, executeTrimClipEnd } from '@/features/ui/timeline/clips/clip-trim'
-import { EffectInitialization } from '@/features/effects/core/initialization'
+import { EffectSyncService } from '@/features/effects/sync'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
 export type TrimSide = 'start' | 'end'
@@ -58,6 +58,16 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
       throw new Error(`Clip ${this.clipId} not found`)
     }
 
+    const { clip } = result
+
+    // Capture state BEFORE trim for effect sync
+    const oldState = {
+      startTime: clip.startTime,
+      endTime: clip.startTime + clip.duration,
+      sourceIn: clip.sourceIn || 0,
+      sourceOut: clip.sourceOut || clip.duration,
+    }
+
     if (this.side === 'start') {
       if (!executeTrimClipStart(draft.currentProject, this.clipId, this.trimPosition)) {
         throw new Error('Trim start failed')
@@ -66,8 +76,12 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
       throw new Error('Trim end failed')
     }
 
-    // Trim changes clip boundaries; rebuild derived keystroke blocks.
-    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
+    // Re-lookup clip to get updated state
+    const updatedResult = ClipLookup.byId(draft.currentProject, this.clipId)
+    if (updatedResult) {
+      const clipChange = EffectSyncService.buildTrimChange(updatedResult.clip, this.side, oldState)
+      EffectSyncService.syncAfterClipChange(draft.currentProject, clipChange)
+    }
 
     // Clear render caches after trim operation
     TimelineDataService.invalidateCache(draft.currentProject)
@@ -75,3 +89,4 @@ export class TrimCommand extends PatchedCommand<{ clipId: string }> {
     this.setResult({ success: true, data: { clipId: this.clipId } })
   }
 }
+

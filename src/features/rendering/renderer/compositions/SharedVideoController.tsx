@@ -137,6 +137,23 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const MOTION_BLUR_MIN_WIDTH = 200;  // Only apply to main video, not webcam
   const isMainVideo = layout.drawWidth >= MOTION_BLUR_MIN_WIDTH;
   const isMotionBlurActive = motionBlurEnabled && isMainVideo;
+  const exportMotionBlurLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!isRendering) return;
+    if (exportMotionBlurLoggedRef.current) return;
+    exportMotionBlurLoggedRef.current = true;
+    const v = snapshotCamera.velocity ?? { x: 0, y: 0 };
+    const speed = Math.hypot(v.x ?? 0, v.y ?? 0);
+    console.log('[ExportDebug] motion-blur-state', JSON.stringify({
+      enabled: isMotionBlurActive,
+      intensity: motionBlurIntensity,
+      velocityThreshold: motionBlurConfig.velocityThreshold,
+      speed,
+      useWebglVideo: Boolean(isMotionBlurActive ? (cameraSettings?.motionBlurUseWebglVideo ?? true) : false),
+      drawWidth: layout.drawWidth,
+      drawHeight: layout.drawHeight,
+    }));
+  }, [isRendering, isMotionBlurActive, motionBlurIntensity, motionBlurConfig.velocityThreshold, snapshotCamera.velocity, cameraSettings, layout.drawWidth, layout.drawHeight]);
 
   // ============================================================================
   // REFOCUS BLUR (Zoom transitions only - motion blur handled by WebGL)
@@ -287,6 +304,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       gamma: cameraSettings?.motionBlurGamma ?? 1.0,
       blackLevel: cameraSettings?.motionBlurBlackLevel ?? 0,
       saturation: cameraSettings?.motionBlurSaturation ?? 1.0,
+      // Respect user setting in both preview and export.
+      // When enabled, the motion blur layer can force WebGL video to ensure deterministic frames.
       useWebglVideo: isMotionBlurActive ? (cameraSettings?.motionBlurUseWebglVideo ?? true) : false,
       samples: cameraSettings?.motionBlurSamples,
       unpackPremultiplyAlpha: cameraSettings?.motionBlurUnpackPremultiply ?? false,
@@ -348,6 +367,14 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   // Check if 3D screen transform is active (for GPU optimization hints)
   const has3DTransform = Boolean(snapshotTransforms.screen3D);
+  const annotationTransformOrigin = useMemo(() => {
+    // The video transform container uses `transformOrigin: 'center center'`.
+    // When rendering annotations outside that container (so they can appear above other overlays),
+    // we apply the same transform to a fullscreen wrapper and match the origin in composition pixels.
+    const originX = layout.mockupEnabled ? width / 2 : layout.offsetX + layout.drawWidth / 2;
+    const originY = layout.mockupEnabled ? height / 2 : layout.offsetY + layout.drawHeight / 2;
+    return `${originX}px ${originY}px`;
+  }, [layout.mockupEnabled, layout.offsetX, layout.offsetY, layout.drawWidth, layout.drawHeight, width, height]);
 
   return (
     <AbsoluteFill>
@@ -407,13 +434,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             </div>
 
             {/* Debug Overlay - Independent visual guide if needed */}
-
-            {/* Annotations render INSIDE the transform context, but OUTSIDE the clipping container */}
-            {/* This ensures annotations (like arrows) can stick out if needed, OR we can choose to put them inside */}
-            {/* Typically annotations should move with the video. Placing them here means they inherit transforms. */}
-            {/* Note: If annotations need to be clipped by crop, move them INSIDE the inner container. */}
-            {/* For now, keeping them here matches previous behavior (they float on top). */}
-            {!renderSettings.isGlowMode && <AnnotationLayer />}
           </div>
 
           {/* Preview Guides */}
@@ -423,6 +443,27 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
         </AbsoluteFill>
 
         {/* Overlays */}
+        {/* Render annotations above all other overlays (webcam, cursor, subtitles, etc.). */}
+        {/* Previously this lived inside the transformed video container, which created a stacking context and prevented */}
+        {/* annotations from appearing above composition-level overlays even with a high z-index. */}
+        {!renderSettings.isGlowMode && (
+          <AbsoluteFill
+            data-annotation-overlay-root="true"
+            style={{
+              transform: outerTransform,
+              transformOrigin: annotationTransformOrigin,
+              opacity: useParentFade ? clipFadeOpacity : 1,
+              filter: effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : undefined,
+              willChange: isRendering ? undefined : 'transform',
+              transformStyle: has3DTransform ? 'preserve-3d' : undefined,
+              backfaceVisibility: has3DTransform ? 'hidden' : undefined,
+              // Above cursor (200), keystrokes (150), webcam (20), subtitles (60), etc.
+              zIndex: 300,
+            }}
+          >
+            <AnnotationLayer />
+          </AbsoluteFill>
+        )}
         {children}
       </VideoPositionProvider>
     </AbsoluteFill>

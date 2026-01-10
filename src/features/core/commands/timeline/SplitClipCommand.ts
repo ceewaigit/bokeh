@@ -9,8 +9,10 @@ import { CommandContext } from '../base/CommandContext'
 import { timelineToClipRelative } from '@/features/ui/timeline/time/time-space-converter'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
+import type { Clip } from '@/types/project'
+import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { executeSplitClip } from '@/features/ui/timeline/clips/clip-split'
-import { EffectInitialization } from '@/features/effects/core/initialization'
+import { EffectSyncService } from '@/features/effects/sync'
 import { playbackService } from '@/features/ui/timeline/playback/playback-service'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
@@ -54,6 +56,10 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
       throw new Error('No active project')
     }
 
+    // Capture original clip info BEFORE split for effect sync
+    const originalResult = ClipLookup.byId(draft.currentProject, this.clipId)
+    const originalClip: Clip | null = originalResult ? { ...originalResult.clip } : null
+
     const result = executeSplitClip(draft.currentProject, this.clipId, this.splitTime)
     if (!result) {
       throw new Error('Split failed')
@@ -61,8 +67,11 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
 
     const { firstClip, secondClip } = result
 
-    // Split changes clip boundaries; rebuild derived keystroke blocks.
-    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
+    // Unified effect sync - handles crop duplication and keystroke regeneration
+    if (originalClip) {
+      const clipChange = EffectSyncService.buildSplitChange(originalClip, firstClip.id, secondClip.id)
+      EffectSyncService.syncAfterClipChange(draft.currentProject, clipChange)
+    }
 
     // Select the left clip to keep focus at the split point
     draft.selectedClips = [firstClip.id]
@@ -88,3 +97,4 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
     })
   }
 }
+

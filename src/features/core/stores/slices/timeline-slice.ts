@@ -11,7 +11,7 @@
 
 import type { Clip, Recording, Effect, Project } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
-import { calculateTimelineDuration, reflowClips, syncCropEffectTimes } from '@/features/ui/timeline/clips/clip-reflow'
+import { calculateTimelineDuration, reflowClips } from '@/features/ui/timeline/clips/clip-reflow'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { executeSplitClip } from '@/features/ui/timeline/clips/clip-split'
 import { executeTrimClipStart, executeTrimClipEnd } from '@/features/ui/timeline/clips/clip-trim'
@@ -545,8 +545,6 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                     if (effects.length > 0) {
                         state.currentProject.timeline.effects = [...effects]
                     }
-
-                    syncCropEffectTimes(state.currentProject)
 
                     // Start times changed; rebuild derived keystroke blocks.
                     EffectInitialization.syncKeystrokeEffects(state.currentProject)

@@ -10,7 +10,7 @@ import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { removeClipFromTrack } from '@/features/ui/timeline/clips/clip-crud'
-import { EffectInitialization } from '@/features/effects/core/initialization'
+import { EffectSyncService } from '@/features/effects/sync'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { TrackType } from '@/types/project'
@@ -51,6 +51,9 @@ export class RemoveClipCommand extends PatchedCommand<{ clipId: string }> {
     const { clip, track } = result
     const isWebcamTrack = track.type === TrackType.Webcam
 
+    // Capture clip state BEFORE removal for effect sync
+    const clipChange = EffectSyncService.buildDeleteChange(clip)
+
     // Auto Ripple handling - SKIP for webcam track (overlays can be placed anywhere)
     const shouldRipple = draft.settings.editing.autoRipple && !isWebcamTrack
     if (shouldRipple) {
@@ -60,21 +63,15 @@ export class RemoveClipCommand extends PatchedCommand<{ clipId: string }> {
       })
     }
 
-    // Logic from timeline-slice.ts: removeClip
     // Get clip info BEFORE removal to check recording reference
     const recordingIdToCheck = clip.recordingId
 
     if (removeClipFromTrack(project, this.clipId, track)) {
-      // Clip removal changes layout; rebuild derived keystroke blocks.
-      EffectInitialization.syncKeystrokeEffects(project)
-
       // Clear selection if removed clip was selected
       draft.selectedClips = draft.selectedClips.filter(id => id !== this.clipId)
 
-      // CLEANUP: Remove clip-bound effects (webcam effects, etc.)
-      if (project.timeline.effects) {
-        project.timeline.effects = project.timeline.effects.filter(e => e.clipId !== this.clipId)
-      }
+      // Unified effect sync - handles clip-bound removal, time-based shifting, and keystroke regeneration
+      EffectSyncService.syncAfterClipChange(project, clipChange)
 
       // MEMORY CLEANUP: Check if recording is still referenced by other clips
       if (recordingIdToCheck) {
@@ -96,3 +93,4 @@ export class RemoveClipCommand extends PatchedCommand<{ clipId: string }> {
     this.setResult({ success: true, data: { clipId: this.clipId } })
   }
 }
+

@@ -27,4 +27,11 @@ export interface KeystrokeEffectData extends Partial<BaseOverlayConfig> {
   showModifierSymbols?: boolean; // Show ⌘⌥⌃⇧ vs Cmd+Alt+Ctrl+Shift
   showShortcuts?: boolean;       // Show shortcut combos like ⌘C
   scale?: number;                // Overall scale multiplier
+
+  /**
+   * Internal: cluster tombstones for auto-generated keystroke blocks.
+   * Stored on the global keystroke style effect so deleted blocks don't reappear after re-sync.
+   * Format: `${recordingId}::${clusterIndex}`.
+   */
+  suppressedClusters?: string[];
 }

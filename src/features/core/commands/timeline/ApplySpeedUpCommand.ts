@@ -13,7 +13,7 @@ import type { ProjectStore } from '@/features/core/stores/project-store'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
-import { EffectInitialization } from '@/features/effects/core/initialization'
+import { syncKeystrokeEffects } from '@/features/effects/sync'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 import { playbackService } from '@/features/ui/timeline/playback/playback-service'
@@ -73,7 +73,7 @@ export class ApplySpeedUpCommand extends PatchedCommand<{
     )
 
     // Apply speed-up using the unified service
-    // The service modifies the project in place, which Immer will capture as patches
+    // SpeedUpApplicationService handles clip splitting and effect remapping
     const result = SpeedUpApplicationService.applySpeedUpToClip(
       draft.currentProject,
       this.sourceClipId,
@@ -85,7 +85,7 @@ export class ApplySpeedUpCommand extends PatchedCommand<{
     this.affectedClipIds = result.affectedClips
 
     // Speed-up can change durations/time-remaps; rebuild derived keystroke blocks
-    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
+    syncKeystrokeEffects(draft.currentProject)
 
     // Update modified timestamp
     draft.currentProject.modifiedAt = new Date().toISOString()

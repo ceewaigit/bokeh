@@ -124,7 +124,9 @@ export function setupRecordButton(recordButton: BrowserWindow): void {
       allowedPrefixes.push('http://localhost:', 'http://127.0.0.1:')
     }
     if (!allowedPrefixes.some(prefix => url.startsWith(prefix))) {
-      console.log('🚫 Preventing navigation to:', url)
+      if (isDev && process.env.DEBUG_NAVIGATION === '1') {
+        console.log('🚫 Preventing navigation to:', url)
+      }
       event.preventDefault()
     }
   })
