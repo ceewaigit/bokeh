@@ -47,7 +47,7 @@ const EMPTY_METADATA: RecordingMetadata = {
  * - No metadata inputs are available
  */
 function shouldSkipLoading(options: UseRecordingMetadataOptions): boolean {
-  const { recordingId, isExternal, capabilities, inlineMetadata, folderPath, metadataChunks } = options;
+  const { recordingId, isExternal, capabilities, inlineMetadata, folderPath, metadataChunks, metadataUrls } = options;
 
   // No recording ID means nothing to load
   if (!recordingId) {
@@ -69,8 +69,10 @@ function shouldSkipLoading(options: UseRecordingMetadataOptions): boolean {
     return false; // Don't skip - we'll use the inline data
   }
 
+  const hasMetadataUrls = Boolean(metadataUrls && metadataUrls[recordingId]);
+
   // No paths to load from
-  if (!folderPath && !metadataChunks) {
+  if (!folderPath && !metadataChunks && !hasMetadataUrls) {
     return true;
   }
 
@@ -87,8 +89,8 @@ function canAttemptLoading(options: UseRecordingMetadataOptions, isRendering: bo
     // Export mode: need metadata URLs
     return !!(metadataUrls && recordingId && metadataUrls[recordingId]);
   } else {
-    // Preview mode: need folder path and chunk manifest
-    return !!(folderPath && metadataChunks);
+    // Preview mode: prefer local files, but allow URL-backed metadata as a fallback (some recordings lack chunk manifests).
+    return Boolean((folderPath && metadataChunks) || (metadataUrls && recordingId && metadataUrls[recordingId]));
   }
 }
 
@@ -233,14 +235,12 @@ export function useRecordingMetadata(options: UseRecordingMetadataOptions): UseR
       try {
         let loadedMetadata: RecordingMetadata | null = null;
 
-        if (isRendering && metadataUrls && recordingId) {
-          // EXPORT MODE: Load from HTTP URLs
+        if (metadataUrls && recordingId) {
+          // Export mode uses URLs; preview may also use URLs if local chunk inputs are missing.
           const urlSet = metadataUrls[recordingId];
-          if (urlSet) {
-            loadedMetadata = await metadataLoader.loadMetadataFromUrls(recordingId, urlSet);
-          }
+          if (urlSet) loadedMetadata = await metadataLoader.loadMetadataFromUrls(recordingId, urlSet);
         } else if (folderPath && metadataChunks && recordingId) {
-          // PREVIEW MODE: Load from local files via electronAPI
+          // Preview mode: load from local files via electronAPI
           const partialRecording = {
             id: recordingId,
             folderPath,

@@ -164,7 +164,9 @@ export const CursorLayer = React.memo(() => {
   const isImageWithSyntheticEvents = recording?.sourceType === 'image' && recording?.syntheticMouseEvents?.length;
 
   // Normalize events: converts timestamps to source space AND coordinates to 0-1 range
-  const cursorEvents = useMemo(() => normalizeMouseEvents(rawCursorEvents), [rawCursorEvents]);
+  const cursorEvents = useMemo(() => normalizeMouseEvents(rawCursorEvents, {
+    scaleFactor: effectiveMetadata?.captureArea?.scaleFactor ?? recording?.captureArea?.scaleFactor ?? 1
+  }), [rawCursorEvents, effectiveMetadata?.captureArea?.scaleFactor, recording?.captureArea?.scaleFactor]);
   // Pass cursor events as reference for capture dimensions
   const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents, cursorEvents), [rawClickEvents, cursorEvents]);
 

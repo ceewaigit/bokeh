@@ -64,13 +64,9 @@ export function useAnnotationDrop({
         const percentX = videoRect.width > 0 ? (videoPoint.x / videoRect.width) * 100 : 50
         const percentY = videoRect.height > 0 ? (videoPoint.y / videoRect.height) * 100 : 50
 
-        const clamp = (v: number, lo: number, hi: number) => {
-            return Math.max(lo, Math.min(hi, v))
-        }
-
         return {
-            x: clamp(percentX, 0, 100),
-            y: clamp(percentY, 0, 100)
+            x: percentX,
+            y: percentY
         }
     }, [aspectContainerRef, snapshot])
 
@@ -93,26 +89,6 @@ export function useAnnotationDrop({
                 y: position.y - defaultSize.height / 2
             }
         }
-        // Clamp so the annotation stays within the video frame.
-        // Top-left anchored elements clamp by their full size; center-anchored elements clamp by half-size.
-        const sizeW = defaultSize.width ?? 0
-        const sizeH = defaultSize.height ?? 0
-        if (isTopLeftAnchor) {
-            finalPosition = {
-                x: Math.max(0, Math.min(100 - sizeW, finalPosition.x)),
-                y: Math.max(0, Math.min(100 - sizeH, finalPosition.y)),
-            }
-        } else if (sizeW > 0 || sizeH > 0) {
-            finalPosition = {
-                x: Math.max(sizeW / 2, Math.min(100 - sizeW / 2, finalPosition.x)),
-                y: Math.max(sizeH / 2, Math.min(100 - sizeH / 2, finalPosition.y)),
-            }
-        } else {
-            finalPosition = {
-                x: Math.max(0, Math.min(100, finalPosition.x)),
-                y: Math.max(0, Math.min(100, finalPosition.y)),
-            }
-        }
         // Arrow uses position directly as start point, which is correct
 
         const effect: Effect = {
@@ -126,7 +102,7 @@ export function useAnnotationDrop({
                 position: finalPosition,
                 content: type === AnnotationType.Text ? 'New text' : undefined,
                 endPosition: type === AnnotationType.Arrow
-                    ? { x: Math.min(95, position.x + 10), y: position.y }
+                    ? { x: position.x + 10, y: position.y }
                     : undefined,
                 width: defaultSize.width,
                 height: defaultSize.height,

@@ -117,6 +117,9 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
+                // Prefer showing the most recent keystrokes when truncated.
+                direction: 'rtl',
+                textAlign: 'left',
                 pointerEvents: 'none',
                 zIndex: 100,
                 // Ensure crisp text rendering
@@ -124,7 +127,7 @@ export const KeystrokePreviewOverlay: React.FC<KeystrokePreviewOverlayProps> = (
                 MozOsxFontSmoothing: 'grayscale',
             }}
         >
-            {displayState.text}
+            <span style={{ direction: 'ltr', unicodeBidi: 'plaintext' }}>{displayState.text}</span>
         </div>
     );
 };

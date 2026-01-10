@@ -84,7 +84,7 @@ export function computeKeystrokeSegments(events: KeyboardEvent[], options: Requi
 
     const modifiers = event.modifiers || []
     const shortcut = allowShortcuts && isShortcutModifier(modifiers)
-    const isSpecialKey = key === 'Enter' || key === 'Tab' || key === 'Escape'
+    const isSpecialKey = key === 'Enter' || key === 'NumpadEnter' || key === 'Tab' || key === 'Escape'
     const isTimeGap = currentBuffer && event.timestamp - currentBuffer.lastKeyTime > bufferTimeoutMs
 
     if (isTimeGap && currentBuffer) flushBuffer()
@@ -229,6 +229,7 @@ function normalizeKey(key: string): string {
 function formatSpecialKey(key: string): string {
   switch (key) {
     case 'Enter':
+    case 'NumpadEnter':
       return '⏎'
     case 'Tab':
       return '⇥'

@@ -4,7 +4,7 @@ import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/features/rendering/renderer/compositions/TimelineComposition';
 import { AmbientGlowPlayer } from './ambient-glow-player';
 import { buildTimelineCompositionInput } from '@/features/rendering/renderer/utils/composition-input';
-import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT } from '@/shared/utils/resolution-utils';
+import { PREVIEW_DISPLAY_WIDTH, PREVIEW_DISPLAY_HEIGHT, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import type { PlayerConfiguration } from '@/types/project';
 import type { ZoomSettings } from '@/types/remotion';
@@ -17,6 +17,7 @@ interface PlayerContainerProps {
     playerKey: string;
     initialFrame: number;
     isHighQualityPlaybackEnabled: boolean;
+    previewScale: number;
     muted: boolean;
     volume: number;
     isGlowEnabled: boolean;
@@ -43,6 +44,7 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     playerKey,
     initialFrame,
     isHighQualityPlaybackEnabled,
+    previewScale,
     muted,
     volume,
     isGlowEnabled,
@@ -62,10 +64,10 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
 
         const maxWidth = isHighQualityPlaybackEnabled
             ? videoWidth
-            : PREVIEW_DISPLAY_WIDTH;
+            : PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
         const maxHeight = isHighQualityPlaybackEnabled
             ? videoHeight
-            : PREVIEW_DISPLAY_HEIGHT;
+            : PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
 
         const scaleByWidth = maxWidth / videoWidth;
         const scaleByHeight = maxHeight / videoHeight;
@@ -79,7 +81,7 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
         }
 
         return { width, height };
-    }, [timelineMetadata, isHighQualityPlaybackEnabled]);
+    }, [timelineMetadata, isHighQualityPlaybackEnabled, previewScale]);
 
     const mainPlayerInputProps = useMemo(() => {
         return buildTimelineCompositionInput(playerConfig, {

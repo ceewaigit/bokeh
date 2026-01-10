@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { Copy, PencilLine, Play, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { type LibraryRecordingView } from '@/features/media/recording/store/library-store'
 import { formatTime } from '@/shared/utils/time'
 import { formatBytes } from '../utils/format-bytes'
@@ -117,6 +117,7 @@ const HeroCard = ({
   onRequestDelete?: (recording: LibraryRecordingView) => void
   className?: string
 }) => {
+  const reduceMotion = useReducedMotion()
   const displayName = buildDisplayName(recording)
   const relativeTime = formatDistanceToNow(recording.timestamp, { addSuffix: true })
     .replace('about ', '')
@@ -135,14 +136,13 @@ const HeroCard = ({
           onSelect(recording)
         }
       }}
-      whileHover={{ y: -2 }}
-      whileTap={{ y: 0 }}
-      transition={springConfig}
+      whileHover={reduceMotion ? undefined : { y: -2 }}
+      whileTap={reduceMotion ? undefined : { y: 0 }}
+      transition={reduceMotion ? { duration: 0 } : springConfig}
       className={cn(
-        "group relative w-full overflow-hidden rounded-3xl border border-border/50 bg-card/80",
-        "min-h-[220px]",
-        "shadow-[0_16px_40px_-32px_rgba(0,0,0,0.7)]",
-        "text-left focus-visible:outline-none",
+        "group relative w-full overflow-hidden rounded-3xl border border-border/50 bg-card/70 backdrop-blur-sm",
+        "shadow-[0_18px_50px_-40px_rgba(0,0,0,0.65)]",
+        "text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className
       )}
     >
@@ -163,7 +163,7 @@ const HeroCard = ({
             </div>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
       </div>
 
       <div className="absolute inset-0 p-5 sm:p-6">
@@ -185,7 +185,7 @@ const HeroCard = ({
             <div className="text-3xs uppercase tracking-[0.22em] text-white/60">
               Last opened {relativeTime}
             </div>
-            <h2 className="text-2xl font-[var(--font-display)] font-semibold tracking-tight text-white">
+            <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
               {displayName}
             </h2>
             <div className="flex flex-wrap items-center gap-2 text-2xs text-white/70">
@@ -209,9 +209,9 @@ const HeroCard = ({
                   event.stopPropagation()
                   onSelect(recording)
                 }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                transition={springConfig}
+                whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+                whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                transition={reduceMotion ? { duration: 0 } : springConfig}
               >
                 <Play className="h-4 w-4 mr-2" />
                 Open
@@ -239,6 +239,7 @@ const WideCard = ({
   onRequestDelete?: (recording: LibraryRecordingView) => void
   className?: string
 }) => {
+  const reduceMotion = useReducedMotion()
   const displayName = buildDisplayName(recording)
   const relativeTime = formatDistanceToNow(recording.timestamp, { addSuffix: true })
     .replace('about ', '')
@@ -257,13 +258,12 @@ const WideCard = ({
           onSelect(recording)
         }
       }}
-      whileHover={{ y: -2 }}
-      whileTap={{ y: 0 }}
-      transition={springConfig}
+      whileHover={reduceMotion ? undefined : { y: -2 }}
+      whileTap={reduceMotion ? undefined : { y: 0 }}
+      transition={reduceMotion ? { duration: 0 } : springConfig}
       className={cn(
-        "group relative w-full overflow-hidden rounded-2xl border border-border/50 bg-card/70",
-        "min-h-[130px]",
-        "text-left focus-visible:outline-none",
+        "group relative w-full overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm",
+        "text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className
       )}
     >
@@ -281,7 +281,7 @@ const WideCard = ({
             <Play className="h-5 w-5 text-muted-foreground/50" />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
       </div>
 
       <div className="absolute inset-0 p-4 sm:p-5">
@@ -298,7 +298,7 @@ const WideCard = ({
             <div className="text-3xs uppercase tracking-[0.22em] text-white/60">
               {relativeTime}
             </div>
-            <div className="text-sm font-[var(--font-display)] font-semibold tracking-tight text-white">
+            <div className="text-sm font-semibold tracking-tight text-white">
               {displayName}
             </div>
             <div className="flex flex-wrap gap-2 text-3xs text-white/70">
@@ -333,29 +333,55 @@ export const RecentRecordingsMosaic = ({
 
   if (!hero) return null
 
+  const sideA = secondary[0]
+  const sideB = secondary[1]
+  const bottom = secondary[2]
+
   return (
-    <div className="space-y-4 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch lg:gap-4 lg:space-y-0">
+    <div className="space-y-4 lg:grid lg:grid-cols-12 lg:items-stretch lg:gap-4 lg:space-y-0">
       <HeroCard
         recording={hero}
         onSelect={onSelect}
         onRequestRename={onRequestRename}
         onRequestDuplicate={onRequestDuplicate}
         onRequestDelete={onRequestDelete}
-        className="aspect-[16/9] sm:aspect-[16/8] lg:aspect-auto lg:h-full"
+        className={cn(
+          "aspect-[16/9] sm:aspect-[16/8]",
+          "lg:col-span-7 lg:row-span-2 lg:aspect-auto lg:min-h-[420px]"
+        )}
       />
-      {secondary.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:h-full lg:auto-rows-fr lg:content-stretch">
-          {secondary.map((recording) => (
+      {(sideA || sideB || bottom) && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-5 lg:row-span-2 lg:h-full lg:grid-cols-1 lg:grid-rows-3 lg:content-stretch">
+          {sideA && (
             <WideCard
-              key={recording.path}
-              recording={recording}
+              recording={sideA}
               onSelect={onSelect}
               onRequestRename={onRequestRename}
               onRequestDuplicate={onRequestDuplicate}
               onRequestDelete={onRequestDelete}
-              className="aspect-[16/6] sm:aspect-[16/7] lg:aspect-auto lg:h-full"
+              className="aspect-[16/8] lg:h-full lg:aspect-auto lg:min-h-0"
             />
-          ))}
+          )}
+          {sideB && (
+            <WideCard
+              recording={sideB}
+              onSelect={onSelect}
+              onRequestRename={onRequestRename}
+              onRequestDuplicate={onRequestDuplicate}
+              onRequestDelete={onRequestDelete}
+              className="aspect-[16/8] lg:h-full lg:aspect-auto lg:min-h-0"
+            />
+          )}
+          {bottom && (
+            <WideCard
+              recording={bottom}
+              onSelect={onSelect}
+              onRequestRename={onRequestRename}
+              onRequestDuplicate={onRequestDuplicate}
+              onRequestDelete={onRequestDelete}
+              className="aspect-[16/8] sm:col-span-2 lg:h-full lg:col-span-1 lg:aspect-auto lg:min-h-0"
+            />
+          )}
         </div>
       )}
     </div>

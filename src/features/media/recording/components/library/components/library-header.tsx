@@ -94,7 +94,7 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
       </HeaderButton>
       <HeaderButton
         variant="default"
-        className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
+        className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
         onClick={onNewRecording}
         tooltip="New Recording"
         icon={Video}

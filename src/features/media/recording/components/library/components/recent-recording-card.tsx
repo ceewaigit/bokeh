@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { Copy, PencilLine, Play, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { type LibraryRecordingView } from '@/features/media/recording/store/library-store'
 import { formatTime } from '@/shared/utils/time'
 import { formatBytes } from '../utils/format-bytes'
@@ -27,6 +27,7 @@ export const RecentRecordingCard = ({
   onRequestDuplicate,
   onRequestDelete
 }: RecentRecordingCardProps) => {
+  const reduceMotion = useReducedMotion()
   const displayName = recording.projectInfo?.name || recording.name.replace(/^Recording_/, '').replace(PROJECT_EXTENSION_REGEX, '')
   const relativeTime = formatDistanceToNow(recording.timestamp, { addSuffix: true })
     .replace('about ', '')
@@ -42,7 +43,7 @@ export const RecentRecordingCard = ({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={springConfig}
+      transition={reduceMotion ? { duration: 0 } : springConfig}
       className={cn(
         "relative overflow-hidden rounded-2xl border border-border/50",
         "bg-card/80 backdrop-blur-sm",
@@ -89,7 +90,7 @@ export const RecentRecordingCard = ({
             <p className="text-3xs font-medium uppercase tracking-[0.24em] text-muted-foreground/70">
               Last opened {relativeTime}
             </p>
-            <h2 className="text-xl font-[var(--font-display)] font-semibold tracking-tight text-foreground leading-tight">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground leading-tight">
               {displayName}
             </h2>
             <div className="flex flex-wrap items-center gap-2 text-2xs text-muted-foreground">
@@ -119,11 +120,11 @@ export const RecentRecordingCard = ({
           <div className="flex flex-wrap items-center gap-2">
             <MotionButton
               variant="default"
-              className="h-9 px-5 rounded-full font-[var(--font-display)] font-semibold tracking-tight"
+              className="h-9 px-5 rounded-full font-semibold tracking-tight"
               onClick={() => onSelect(recording)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={springConfig}
+              whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+              whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              transition={reduceMotion ? { duration: 0 } : springConfig}
             >
               <Play className="h-4 w-4 mr-2" />
               Open
@@ -132,9 +133,9 @@ export const RecentRecordingCard = ({
               variant="outline"
               className="h-9 px-4 rounded-full"
               onClick={() => onRequestRename?.(recording)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={springConfig}
+              whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+              whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              transition={reduceMotion ? { duration: 0 } : springConfig}
             >
               <PencilLine className="h-3.5 w-3.5 mr-2" />
               Rename
@@ -143,9 +144,9 @@ export const RecentRecordingCard = ({
               variant="outline"
               className="h-9 px-4 rounded-full"
               onClick={() => onRequestDuplicate?.(recording)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={springConfig}
+              whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+              whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              transition={reduceMotion ? { duration: 0 } : springConfig}
             >
               <Copy className="h-3.5 w-3.5 mr-2" />
               Duplicate
@@ -154,9 +155,9 @@ export const RecentRecordingCard = ({
               variant="ghost"
               className="h-9 px-3 rounded-full text-destructive/80 hover:text-destructive"
               onClick={() => onRequestDelete?.(recording)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={springConfig}
+              whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+              whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+              transition={reduceMotion ? { duration: 0 } : springConfig}
             >
               <Trash2 className="h-3.5 w-3.5 mr-2" />
               Delete

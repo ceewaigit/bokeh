@@ -319,7 +319,8 @@ class ExportWorker extends BaseWorker {
           ? 4  // Moderate for 24GB
           : 6; // Higher for 32GB+
 
-    const renderConcurrency = Math.max(2, Math.min(job.concurrency || 3, maxConcurrency));
+    const minConcurrency = job.concurrency === 1 ? 1 : 2;
+    const renderConcurrency = Math.max(minConcurrency, Math.min(job.concurrency || 3, maxConcurrency));
 
     // Send progress updates
     this.send('progress', {
@@ -365,7 +366,7 @@ class ExportWorker extends BaseWorker {
       batches.push({ start, end });
     }
 
-    const concurrencyController = new AdaptiveConcurrencyController(2, renderConcurrency);
+    const concurrencyController = new AdaptiveConcurrencyController(minConcurrency, renderConcurrency);
     let renderedSoFar = 0;
     let combinedAssets: any[] = [];
     let baseAssetsInfo: any = null;
@@ -537,8 +538,9 @@ class ExportWorker extends BaseWorker {
           ? 4  // Moderate for 24GB
           : 6; // Higher for 32GB+
 
-    const renderConcurrency = Math.max(2, Math.min(job.concurrency || 3, maxConcurrency));
-    const concurrencyController = new AdaptiveConcurrencyController(2, renderConcurrency); // Start at 2, not 3
+    const minConcurrency = job.concurrency === 1 ? 1 : 2;
+    const renderConcurrency = Math.max(minConcurrency, Math.min(job.concurrency || 3, maxConcurrency));
+    const concurrencyController = new AdaptiveConcurrencyController(minConcurrency, renderConcurrency); // Start at 2 unless explicitly forced to 1
 
     const chunkPlan: ChunkAssignment[] = providedChunks && providedChunks.length > 0
       ? [...providedChunks].sort((a, b) => a.index - b.index)

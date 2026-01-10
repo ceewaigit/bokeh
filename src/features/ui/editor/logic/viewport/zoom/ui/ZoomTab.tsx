@@ -370,19 +370,6 @@ export function ZoomTab({
                 </AnimatePresence>
             </div>
 
-            {selectedClip && (
-                <div className="rounded-md bg-background/40 p-2.5">
-                    <button className="w-full px-3 py-2 text-xs rounded-md flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary" onClick={async () => {
-                        const project = useProjectStore.getState().currentProject
-                        if (!project) return
-                        const zooms = EffectStore.getAll(project).filter(e => e.type === EffectType.Zoom).sort((a, b) => a.startTime - b.startTime)
-                        let start = Math.max(0, selectedClip.startTime)
-                        for (const e of zooms) if (start < e.endTime && (start + selectedClip.duration) > e.startTime) start = e.endTime + 100
-                        executorRef.current?.execute(AddEffectCommand, { id: `zoom-fill-${Date.now()}`, type: EffectType.Zoom, startTime: start, endTime: start + selectedClip.duration, enabled: true, data: { origin: 'manual', scale: 1, introMs: DEFAULT_ZOOM_DATA.introMs, outroMs: DEFAULT_ZOOM_DATA.outroMs, smoothing: 50, followStrategy: ZoomFollowStrategy.Center, autoScale: 'fill' } })
-                    }}>Fill Frame Zoom</button>
-                </div>
-            )}
-
             {selectedBlock ? (
                 <ZoomBlockEditor
                     blockId={selectedBlock.id}
@@ -421,4 +408,3 @@ export function ZoomTab({
         </div>
     )
 }
-

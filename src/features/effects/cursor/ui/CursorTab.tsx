@@ -494,51 +494,49 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             />
           </div>
 
-          <AccordionSection title="Effects" className="bg-background/30" contentClassName="pt-2.5">
-            <div className="space-y-2.5">
-              <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Blur</label>
-                    <InfoTooltip content="Add blur trails on fast movement" />
-                  </div>
-                  <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{(Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0).toFixed(0)}%</span>
-                </div>
-                <Slider
-                  value={[Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0]}
-                  onValueChange={([value]) => {
-                    onUpdateCursor({ motionBlur: value > 0, motionBlurIntensity: value })
-                  }}
-                  onValueCommit={([value]) =>
-                    onUpdateCursor({ motionBlur: value > 0, motionBlurIntensity: value })
-                  }
-                  min={0}
-                  max={100}
-                  step={5}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="rounded-md bg-background/40 p-2.5 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold leading-none tracking-[-0.01em]">Click Animation</div>
-                    <div className="mt-0.5 text-xs text-muted-foreground leading-snug">
-                      Adds a visual pulse on click
-                    </div>
-                  </div>
-                  <Switch
-                    className="scale-90 origin-right"
-                    checked={clickEffectsEnabled}
-                    onCheckedChange={(checked) => onUpdateCursor({ clickEffects: checked })}
-                  />
-                </div>
-              </div>
-            </div>
-          </AccordionSection>
-
           <AccordionSection title="Advanced" className="bg-background/30" contentClassName="pt-2.5">
             <div className="rounded-md bg-background/40 p-2.5 space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="space-y-2.5">
+                <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Blur</label>
+                      <InfoTooltip content="Add blur trails on fast movement" />
+                    </div>
+                    <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{(Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0).toFixed(0)}%</span>
+                  </div>
+                  <Slider
+                    value={[Number.isFinite(motionBlurIntensity) ? motionBlurIntensity : 0]}
+                    onValueChange={([value]) => {
+                      onUpdateCursor({ motionBlur: value > 0, motionBlurIntensity: value })
+                    }}
+                    onValueCommit={([value]) =>
+                      onUpdateCursor({ motionBlur: value > 0, motionBlurIntensity: value })
+                    }
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="rounded-md bg-background/40 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold leading-none tracking-[-0.01em]">Click Animation</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground leading-snug">
+                        Adds a visual pulse on click
+                      </div>
+                    </div>
+                    <Switch
+                      className="scale-90 origin-right"
+                      checked={clickEffectsEnabled}
+                      onCheckedChange={(checked) => onUpdateCursor({ clickEffects: checked })}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Fine-tune Section */}
               <button
                 onClick={() => setShowFineTune(!showFineTune)}

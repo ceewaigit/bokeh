@@ -641,7 +641,8 @@ export async function ensureExportProxy(
     targetWidth: number,
     targetHeight: number,
     fps?: number,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    overrides?: Partial<Pick<ProxyOptions, 'videoBitrate' | 'audioBitrate' | 'preset' | 'crf' | 'maintainAspectRatio'>>
 ): Promise<string> {
     const normalizedPath = path.resolve(inputPath)
     const options: ProxyOptions = {
@@ -649,6 +650,7 @@ export async function ensureExportProxy(
         targetWidth,
         targetHeight,
         fps,
+        ...(overrides ?? {}),
     }
 
     // Check if proxy already exists

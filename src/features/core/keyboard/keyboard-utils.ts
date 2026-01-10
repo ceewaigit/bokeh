@@ -4,6 +4,40 @@ function hasShift(modifiers: string[] = []): boolean {
   return modifiers.some(m => m.toLowerCase() === 'shift')
 }
 
+const SHIFTED_DIGIT_MAP: Record<string, string> = {
+  Digit1: '!',
+  Digit2: '@',
+  Digit3: '#',
+  Digit4: '$',
+  Digit5: '%',
+  Digit6: '^',
+  Digit7: '&',
+  Digit8: '*',
+  Digit9: '(',
+  Digit0: ')',
+}
+
+const CODE_PUNCTUATION_MAP: Record<string, { normal: string; shift?: string }> = {
+  Minus: { normal: '-', shift: '_' },
+  Equal: { normal: '=', shift: '+' },
+  BracketLeft: { normal: '[', shift: '{' },
+  BracketRight: { normal: ']', shift: '}' },
+  Backslash: { normal: '\\', shift: '|' },
+  Semicolon: { normal: ';', shift: ':' },
+  Quote: { normal: '\'', shift: '"' },
+  Backquote: { normal: '`', shift: '~' },
+  Comma: { normal: ',', shift: '<' },
+  Period: { normal: '.', shift: '>' },
+  Slash: { normal: '/', shift: '?' },
+
+  // Numpad operators
+  NumpadAdd: { normal: '+' },
+  NumpadSubtract: { normal: '-' },
+  NumpadMultiply: { normal: '*' },
+  NumpadDivide: { normal: '/' },
+  NumpadDecimal: { normal: '.' },
+}
+
 /**
  * Convert a raw key string (e.g. "KeyA", "Digit1") into a printable character
  * into a printable character for typing overlays and WPM calculation.
@@ -12,17 +46,24 @@ function hasShift(modifiers: string[] = []): boolean {
 export function getPrintableCharFromKey(key: string, modifiers: string[] = []): string | null {
   if (!key) return null
 
+  const shift = hasShift(modifiers)
+
   // Direct space / special aliases
   if (key === 'Space' || key === ' ') return ' '
 
   // uiohook-style key names
   if (key.startsWith('Key') && key.length === 4) {
     const ch = key.charAt(3)
-    return hasShift(modifiers) ? ch.toUpperCase() : ch.toLowerCase()
+    return shift ? ch.toUpperCase() : ch.toLowerCase()
   }
   if (key.startsWith('Digit') && key.length === 6) {
+    if (shift && SHIFTED_DIGIT_MAP[key]) return SHIFTED_DIGIT_MAP[key]
     return key.charAt(5)
   }
+
+  const mappedPunctuation = CODE_PUNCTUATION_MAP[key]
+  if (mappedPunctuation) return (shift && mappedPunctuation.shift) ? mappedPunctuation.shift : mappedPunctuation.normal
+
   if (key.startsWith('Numpad')) {
     const numpadKey = key.slice(6)
     if (numpadKey.length === 1) return numpadKey

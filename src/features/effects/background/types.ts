@@ -26,6 +26,8 @@ export interface BackgroundEffectData {
   };
   image?: string;
   wallpaper?: string;
+  /** Identifier for the selected wallpaper source (typically a path/absolutePath). */
+  wallpaperKey?: string;
   blur?: number;
   padding: number;
   cornerRadius?: number;  // Video corner radius in pixels

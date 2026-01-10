@@ -70,6 +70,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     motionBlur,
     maxZoomScale,
     useParentFade,
+    has3DTransform,
   } = videoPosition;
 
   // Derive current zoom scale from transform
@@ -108,12 +109,17 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Self-healing: track if current URL failed, fallback to original source
   const [urlFailed, setUrlFailed] = useState(false);
+  const [intrinsicVideoSize, setIntrinsicVideoSize] = useState<{ width: number; height: number } | null>(null);
 
   const effectiveUrl = useMemo(() => {
     if (!urlFailed || !recording?.filePath) return videoUrl;
     // Fallback to original source file when proxy fails
     return createVideoStreamUrl(recording.filePath);
   }, [urlFailed, videoUrl, recording?.filePath]);
+
+  useEffect(() => {
+    setIntrinsicVideoSize(null);
+  }, [effectiveUrl]);
 
   // VTDecoder cleanup
   const containerRef = useVideoContainerCleanup(videoUrl);
@@ -190,7 +196,13 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   }, [isRendering, handleVideoReady, setPreviewReady]);
 
   // Handle metadata loaded - check for zombie proxy here (dimensions guaranteed)
-  const handleMetadataLoaded = useCallback((_e: SyntheticEvent<HTMLVideoElement>) => {
+  const handleMetadataLoaded = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      setIntrinsicVideoSize({ width: video.videoWidth, height: video.videoHeight });
+    }
+
     // RELAXED CHECK: Only fail if we have enough data to play but still no dimensions.
     // Some browsers/codecs might fire metadata before dimensions are fully parsed (rare but possible).
     // UPDATE: Even H.264 proxies can briefly report 0x0 on load. We will disable this check
@@ -229,18 +241,32 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // Sizing
   const needsHighRes = isHighQualityPlaybackEnabled
     && !isProxySufficientForTarget(compositionWidth, compositionHeight, currentZoomScale || (maxZoomScale ?? 1) || 1);
-  const useHighResSizing = isRendering || needsHighRes;
+  const useHighResSizing = isRendering || needsHighRes || Boolean(has3DTransform);
   const playbackRate = clipForVideo.playbackRate && clipForVideo.playbackRate > 0 ? clipForVideo.playbackRate : 1;
+
+  // In preview, using the element's *intrinsic* dimensions (proxy vs source) forces the browser
+  // to decode at higher resolution, improving sharpness under zoom/3D, without changing framing.
+  const baseWidth = useHighResSizing
+    ? (isRendering
+      ? (recording?.width ?? drawWidth)
+      : (intrinsicVideoSize?.width ?? drawWidth))
+    : null;
+
+  const baseHeight = useHighResSizing
+    ? (isRendering
+      ? (recording?.height ?? drawHeight)
+      : (intrinsicVideoSize?.height ?? drawHeight))
+    : null;
 
   // Export correctness: the video is rendered at native size and then CSS-scaled into the
   // composition. The motion blur canvas must live in the same pre-transform coordinate
   // space or it will appear as a "second image" overlaid on top.
   const motionBlurDrawWidth = isRendering
     ? (recording?.width ?? drawWidth)
-    : (useHighResSizing ? (recording?.width ?? drawWidth) : (motionBlur?.drawWidth ?? drawWidth))
+    : (useHighResSizing ? ((baseWidth ?? recording?.width) ?? drawWidth) : (motionBlur?.drawWidth ?? drawWidth))
   const motionBlurDrawHeight = isRendering
     ? (recording?.height ?? drawHeight)
-    : (useHighResSizing ? (recording?.height ?? drawHeight) : (motionBlur?.drawHeight ?? drawHeight))
+    : (useHighResSizing ? ((baseHeight ?? recording?.height) ?? drawHeight) : (motionBlur?.drawHeight ?? drawHeight))
 
   // Performance: avoid multiplying work by zoom scale during export. The velocity values
   // already encode camera motion in pixels; zoom-scale here can double-count.
@@ -265,10 +291,10 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
       <Sequence from={groupStartFrame} durationInFrames={renderState.finalDuration} premountFor={premountFor} postmountFor={postmountFor}>
         <div style={{
-          width: useHighResSizing ? (recording?.width || '100%') : '100%',
-          height: useHighResSizing ? (recording?.height || '100%') : '100%',
+          width: useHighResSizing ? (baseWidth ?? '100%') : '100%',
+          height: useHighResSizing ? (baseHeight ?? '100%') : '100%',
           transform: useHighResSizing
-            ? `scale(${drawWidth / (recording?.width || drawWidth)}, ${drawHeight / (recording?.height || drawHeight)})`
+            ? `scale(${drawWidth / ((baseWidth ?? drawWidth) || drawWidth)}, ${drawHeight / ((baseHeight ?? drawHeight) || drawHeight)})`
             : undefined,
           transformOrigin: '0 0',
           position: 'absolute',

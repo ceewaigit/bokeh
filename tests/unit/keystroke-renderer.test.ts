@@ -51,6 +51,31 @@ describe('KeystrokeRenderer', () => {
     expect(fillText.mock.calls[0][0]).toBe('cd')
   })
 
+  test('truncates from the start so newest characters stay visible', () => {
+    const renderer = new KeystrokeRenderer({ displayDuration: 2000, fadeOutDuration: 400, maxWidth: 60 })
+    const { canvas, fillText } = makeMockCanvas()
+    renderer.setCanvas(canvas)
+
+    const events: KeyboardEvent[] = [
+      { timestamp: 0, key: 'KeyA', modifiers: [] },
+      { timestamp: 50, key: 'KeyB', modifiers: [] },
+      { timestamp: 100, key: 'KeyC', modifiers: [] },
+      { timestamp: 150, key: 'KeyD', modifiers: [] },
+      { timestamp: 200, key: 'KeyE', modifiers: [] },
+      { timestamp: 250, key: 'KeyF', modifiers: [] },
+      { timestamp: 300, key: 'KeyG', modifiers: [] },
+      { timestamp: 350, key: 'KeyH', modifiers: [] },
+      { timestamp: 400, key: 'KeyI', modifiers: [] },
+      { timestamp: 450, key: 'KeyJ', modifiers: [] },
+    ]
+
+    renderer.setKeyboardEvents(events)
+    renderer.render(1000, 1920, 1080)
+
+    expect(fillText).toHaveBeenCalled()
+    expect(fillText.mock.calls[0][0]).toBe('…hij')
+  })
+
   test('sorts out-of-order keyboard events to render incrementally', () => {
     const renderer = new KeystrokeRenderer({ displayDuration: 2000, fadeOutDuration: 400 })
     const { canvas, fillText } = makeMockCanvas()

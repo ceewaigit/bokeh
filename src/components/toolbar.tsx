@@ -84,7 +84,7 @@ export function Toolbar({
         <div className="flex items-center gap-2 px-2.5 h-6 bg-primary/15 rounded-xl">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
           <span className="font-bold text-xs text-primary tracking-[0.1em] whitespace-nowrap">
-            bokeh studio
+            bokeh workspace
           </span>
         </div>
 
@@ -180,7 +180,7 @@ export function Toolbar({
           <Tooltip>
             <TooltipTrigger asChild>
               <div
-                className="flex items-center gap-1.5 px-2.5 h-8 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
+                className="flex items-center gap-1.5 px-2.5 h-6 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               >
                 <span className="text-3xs font-medium text-foreground/90">{project.name}</span>

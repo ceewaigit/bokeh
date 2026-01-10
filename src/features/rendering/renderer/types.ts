@@ -90,6 +90,9 @@ export interface VideoPositionContextValue {
     activeSourceHeight?: number;
 
     // Effects
+    /** Whether the screen has an active 3D CSS transform (e.g. depth block) */
+    has3DTransform?: boolean;
+
     /** Refocus blur strength in pixels for zoom transitions */
     refocusBlurPx?: number;
 

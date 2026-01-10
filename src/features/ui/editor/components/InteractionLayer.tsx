@@ -11,7 +11,6 @@ import {
     deltaToPercent,
     clampPosition,
     clampPoint,
-    clampHighlightBox,
     type CameraTransform
 } from '@/features/rendering/canvas/math/coordinates'
 import {
@@ -98,6 +97,47 @@ function clampNumber(value: number, min: number, max: number): number {
 }
 
 type PercentSize = { width?: number; height?: number }
+type PercentBounds = { minX: number; maxX: number; minY: number; maxY: number }
+
+function getContainerPercentBounds(
+    snapshot: FrameSnapshot,
+    containerPx: { width: number; height: number }
+): PercentBounds {
+    const videoRect = getVideoRectFromSnapshot(snapshot)
+    if (videoRect.width <= 0 || videoRect.height <= 0 || containerPx.width <= 0 || containerPx.height <= 0) {
+        return { minX: 0, maxX: 100, minY: 0, maxY: 100 }
+    }
+
+    const corners: Point[] = [
+        { x: 0, y: 0 },
+        { x: containerPx.width, y: 0 },
+        { x: 0, y: containerPx.height },
+        { x: containerPx.width, y: containerPx.height },
+    ]
+
+    const toPercent = (containerPoint: Point): Point => {
+        const videoPoint = containerPointToVideoPoint(containerPoint, snapshot)
+        return {
+            x: (videoPoint.x / videoRect.width) * 100,
+            y: (videoPoint.y / videoRect.height) * 100,
+        }
+    }
+
+    const p = corners.map(toPercent)
+    const xs = p.map((pt) => pt.x)
+    const ys = p.map((pt) => pt.y)
+
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const minY = Math.min(...ys)
+    const maxY = Math.max(...ys)
+
+    if (![minX, maxX, minY, maxY].every(Number.isFinite)) {
+        return { minX: 0, maxX: 100, minY: 0, maxY: 100 }
+    }
+
+    return { minX, maxX, minY, maxY }
+}
 
 function resolvePercentSize(
     data: AnnotationData,
@@ -122,29 +162,77 @@ function resolvePercentSize(
     }
 }
 
-function clampCenterPosition(pos: { x: number; y: number }, size: PercentSize | null | undefined) {
+function clampCenterPosition(
+    pos: { x: number; y: number },
+    size: PercentSize | null | undefined,
+    bounds: PercentBounds
+) {
     const halfW = (size?.width ?? 0) / 2
     const halfH = (size?.height ?? 0) / 2
+    const loX = bounds.minX + halfW
+    const hiX = bounds.maxX - halfW
+    const loY = bounds.minY + halfH
+    const hiY = bounds.maxY - halfH
     return {
-        x: clampNumber(pos.x, halfW, 100 - halfW),
-        y: clampNumber(pos.y, halfH, 100 - halfH),
+        x: clampNumber(pos.x, Math.min(loX, hiX), Math.max(loX, hiX)),
+        y: clampNumber(pos.y, Math.min(loY, hiY), Math.max(loY, hiY)),
     }
 }
 
-function clampTopLeftPosition(pos: { x: number; y: number }, size: PercentSize | null | undefined) {
+function clampTopLeftPosition(
+    pos: { x: number; y: number },
+    size: PercentSize | null | undefined,
+    bounds: PercentBounds
+) {
     const w = size?.width ?? 0
     const h = size?.height ?? 0
+    const loX = bounds.minX
+    const hiX = bounds.maxX - w
+    const loY = bounds.minY
+    const hiY = bounds.maxY - h
     return {
-        x: clampNumber(pos.x, 0, Math.max(0, 100 - w)),
-        y: clampNumber(pos.y, 0, Math.max(0, 100 - h)),
+        x: clampNumber(pos.x, Math.min(loX, hiX), Math.max(loX, hiX)),
+        y: clampNumber(pos.y, Math.min(loY, hiY), Math.max(loY, hiY)),
     }
 }
 
-function clampAnnotationPosition(data: AnnotationData, pos: { x: number; y: number }, size: PercentSize | null | undefined) {
+function clampAnnotationPosition(
+    data: AnnotationData,
+    pos: { x: number; y: number },
+    size: PercentSize | null | undefined,
+    bounds: PercentBounds
+) {
     const type = (data.type ?? AnnotationType.Text) as AnnotationType
     const isTopLeftAnchor = type === AnnotationType.Highlight || type === AnnotationType.Blur || type === AnnotationType.Redaction
-    if (isTopLeftAnchor) return clampTopLeftPosition(pos, size)
-    return clampCenterPosition(pos, size)
+    if (isTopLeftAnchor) return clampTopLeftPosition(pos, size, bounds)
+    return clampCenterPosition(pos, size, bounds)
+}
+
+const MIN_ANNOTATION_RECT_SIZE = 2
+function clampTopLeftRectToBounds(
+    next: { x: number; y: number; width: number; height: number },
+    bounds: PercentBounds,
+    minSize = MIN_ANNOTATION_RECT_SIZE
+) {
+    const minW = Math.max(minSize, 0)
+    const minH = Math.max(minSize, 0)
+    const clampedX = clampNumber(next.x, Math.min(bounds.minX, bounds.maxX - minW), Math.max(bounds.minX, bounds.maxX - minW))
+    const clampedY = clampNumber(next.y, Math.min(bounds.minY, bounds.maxY - minH), Math.max(bounds.minY, bounds.maxY - minH))
+    const maxW = Math.max(minW, bounds.maxX - clampedX)
+    const maxH = Math.max(minH, bounds.maxY - clampedY)
+    return {
+        x: clampedX,
+        y: clampedY,
+        width: clampNumber(next.width, minW, maxW),
+        height: clampNumber(next.height, minH, maxH),
+    }
+}
+
+function clampAnnotationPointToBounds(point: { x: number; y: number }, bounds: PercentBounds) {
+    return {
+        x: clampNumber(point.x, Math.min(bounds.minX, bounds.maxX), Math.max(bounds.minX, bounds.maxX)),
+        y: clampNumber(point.y, Math.min(bounds.minY, bounds.maxY), Math.max(bounds.minY, bounds.maxY)),
+    }
 }
 
 
@@ -378,18 +466,24 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         if (initial.kind === 'annotation') {
             const base = initial.data
             const sizePercent = (initial as any).sizePercent as PercentSize | undefined
+            const overlayEl = overlayRef.current
+            const bounds = overlayEl
+                ? getContainerPercentBounds(snapshot, { width: overlayEl.clientWidth, height: overlayEl.clientHeight })
+                : { minX: 0, maxX: 100, minY: 0, maxY: 100 }
 
             if (type === 'move') {
                 const pos = base.position || { x: 50, y: 50 }
                 if (base.type === AnnotationType.Arrow) {
                     const end = base.endPosition ?? { x: pos.x + 10, y: pos.y + 10 }
+                    const nextPos = { x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }
+                    const nextEnd = { x: end.x + percentDelta.x, y: end.y + percentDelta.y }
                     newData = {
-                        position: clampPoint({ x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }),
-                        endPosition: clampPoint({ x: end.x + percentDelta.x, y: end.y + percentDelta.y })
+                        position: clampAnnotationPointToBounds(nextPos, bounds),
+                        endPosition: clampAnnotationPointToBounds(nextEnd, bounds)
                     }
                 } else {
                     const unclamped = { x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }
-                    newData = { position: clampAnnotationPosition(base, unclamped, sizePercent) }
+                    newData = { position: clampAnnotationPosition(base, unclamped, sizePercent, bounds) }
                 }
             } else if (type === 'rotate') {
                 // Rotation drag - calculate angle from center to current mouse position
@@ -469,10 +563,9 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                     newPos.width = Math.max(1, newPos.width)
                     newPos.height = Math.max(1, newPos.height)
 
-                    const clamped = clampHighlightBox(
-                        { x: newPos.x, y: newPos.y },
-                        newPos.width,
-                        newPos.height
+                    const clamped = clampTopLeftRectToBounds(
+                        { x: newPos.x, y: newPos.y, width: newPos.width, height: newPos.height },
+                        bounds
                     )
 
                     newData = {
@@ -486,13 +579,13 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
                     if (type === 'arrow-start') {
                         newData = {
-                            position: clampPoint({ x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }),
+                            position: clampAnnotationPointToBounds({ x: pos.x + percentDelta.x, y: pos.y + percentDelta.y }, bounds),
                             endPosition: end
                         }
                     } else if (type === 'arrow-end') {
                         newData = {
                             position: pos,
-                            endPosition: clampPoint({ x: end.x + percentDelta.x, y: end.y + percentDelta.y })
+                            endPosition: clampAnnotationPointToBounds({ x: end.x + percentDelta.x, y: end.y + percentDelta.y }, bounds)
                         }
                     }
                 } else {
@@ -531,7 +624,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                         const nextCenter = clampCenterPosition({
                             x: basePosition.x + percentDelta.x / 2,
                             y: basePosition.y
-                        }, { width: newWidthPercent, height: sizePercent?.height })
+                        }, { width: newWidthPercent, height: sizePercent?.height }, bounds)
 
                         newData = {
                             position: { ...basePosition, x: nextCenter.x },

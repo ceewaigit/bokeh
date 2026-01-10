@@ -223,12 +223,12 @@ export class KeystrokeRenderer {
     let high = text.length
     while (low < high) {
       const mid = Math.ceil((low + high) / 2)
-      const candidate = `${text.slice(0, mid)}${ellipsis}`
+      const candidate = `${ellipsis}${text.slice(text.length - mid)}`
       if (ctx.measureText(candidate).width <= maxWidth) low = mid
       else high = mid - 1
     }
 
-    return `${text.slice(0, low)}${ellipsis}`
+    return `${ellipsis}${text.slice(text.length - low)}`
   }
 
   private drawBackground(

@@ -98,6 +98,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const outerTransform = snapshotTransforms.combined;
   const cropClipPath = snapshotTransforms.clipPath;
   const zoomTransform = snapshotCamera.zoomTransform;
+  const has3DTransform = Boolean(snapshotTransforms.screen3D);
 
   // ==========================================================================
   // ACTIVE CLIP DATA (Unified)
@@ -292,6 +293,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     ...layout,
     zoomTransform: (zoomTransform as any) ?? null,
     contentTransform: outerTransform,
+    has3DTransform,
     refocusBlurPx: effectiveBlurPx,
     // NEW: Motion blur state for IoC pattern (VideoClipRenderer consumes this)
     motionBlur: {
@@ -332,6 +334,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     layout,
     zoomTransform,
     outerTransform,
+    has3DTransform,
     effectiveBlurPx,
     isMotionBlurActive,
     snapshotCamera.velocity,
@@ -353,6 +356,15 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     useParentFade
   ]);
 
+  const annotationTransformOrigin = useMemo(() => {
+    // The video transform container uses `transformOrigin: 'center center'`.
+    // When rendering annotations outside that container (so they can appear above other overlays),
+    // we apply the same transform to a fullscreen wrapper and match the origin in composition pixels.
+    const originX = layout.mockupEnabled ? width / 2 : layout.offsetX + layout.drawWidth / 2;
+    const originY = layout.mockupEnabled ? height / 2 : layout.offsetY + layout.drawHeight / 2;
+    return `${originX}px ${originY}px`;
+  }, [layout.mockupEnabled, layout.offsetX, layout.offsetY, layout.drawWidth, layout.drawHeight, width, height]);
+
   // If no active content, render children (overlays) or empty container
   if (!resolvedClipData && !shouldHoldPrevFrame) {
     return (
@@ -364,17 +376,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       </AbsoluteFill>
     );
   }
-
-  // Check if 3D screen transform is active (for GPU optimization hints)
-  const has3DTransform = Boolean(snapshotTransforms.screen3D);
-  const annotationTransformOrigin = useMemo(() => {
-    // The video transform container uses `transformOrigin: 'center center'`.
-    // When rendering annotations outside that container (so they can appear above other overlays),
-    // we apply the same transform to a fullscreen wrapper and match the origin in composition pixels.
-    const originX = layout.mockupEnabled ? width / 2 : layout.offsetX + layout.drawWidth / 2;
-    const originY = layout.mockupEnabled ? height / 2 : layout.offsetY + layout.drawHeight / 2;
-    return `${originX}px ${originY}px`;
-  }, [layout.mockupEnabled, layout.offsetX, layout.offsetY, layout.drawWidth, layout.drawHeight, width, height]);
 
   return (
     <AbsoluteFill>

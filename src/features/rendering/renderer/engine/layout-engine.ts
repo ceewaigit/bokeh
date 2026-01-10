@@ -523,6 +523,17 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     const mockupData = backgroundData?.mockup
     const mockupEnabled = mockupData?.enabled ?? false
 
+    // Preview only: the Remotion <Player> can render the composition at a reduced resolution
+    // and then scale it up in the UI. Any px-based 3D math (perspective, translate) must be
+    // scaled to this coordinate space to keep visuals identical across quality modes.
+    const previewPixelScale = !isRendering
+        ? Math.min(
+            1,
+            compositionWidth / Math.max(1, videoWidth),
+            compositionHeight / Math.max(1, videoHeight)
+        )
+        : 1
+
     // Calculate video position
     const vidPos = calculateVideoPosition(
         compositionWidth,
@@ -575,7 +586,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
         : cropTransform.clipPath
 
     // 3D Screen transform
-    const extra3DTransform = calculateScreenTransform(resolvedEffects, currentTimeMs)
+    const extra3DTransform = calculateScreenTransform(resolvedEffects, currentTimeMs, { pixelScale: previewPixelScale })
     const combinedZoomCrop = combineCropAndZoomTransforms(cropTransformStr, zoomTransformStr)
     const combinedTransform = extra3DTransform
         ? `${extra3DTransform} ${combinedZoomCrop}`.trim()

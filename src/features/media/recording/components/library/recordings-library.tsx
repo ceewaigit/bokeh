@@ -58,7 +58,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     gridCapacity,
     isExpandedLayout,
     setScrollEl,
-    setHeaderEl,
     setGridEl
   } = useLibraryGridCapacity(GRID_GAP_PX)
 
@@ -134,61 +133,60 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         ref={setScrollEl}
         className="flex-1 overflow-y-scroll scrollbar-thin scrollbar-track-transparent"
       >
-        <div className="px-6 py-3">
-          <div ref={setGridEl}>
-            {recordings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in duration-300">
-                <div className="mb-4 h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
-                  <SearchX className="h-8 w-8 opacity-70" />
-                </div>
-                <p className="text-sm font-medium">No such recording exists</p>
-                <p className="text-2xs text-muted-foreground/60 mt-1 max-w-xs text-center">
-                  We couldn&apos;t find any recordings matching &quot;{searchQuery}&quot;
-                </p>
+        <div className="mx-auto w-full max-w-[1440px] px-5 py-4 sm:px-6 lg:px-8">
+          {recordings.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground motion-safe:animate-in motion-safe:fade-in duration-300">
+              <div className="mb-4 h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
+                <SearchX className="h-8 w-8 opacity-70" />
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-[var(--font-display)] font-semibold tracking-[0.18em] uppercase text-muted-foreground/80">
-                      {showRecentSection ? 'All recordings' : 'Recordings'}
-                    </p>
-                    <p className="text-2xs text-muted-foreground/60">
-                      {searchQuery ? 'Filtered results based on your search.' : 'Browse and manage your projects.'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex items-center gap-2 text-2xs text-muted-foreground">
-                      <span className="h-2 w-2 rounded-full bg-primary/70" />
-                      <span className="uppercase tracking-[0.2em] text-muted-foreground/70">Sorted</span>
-                      <span>{sortLabel}</span>
-                    </div>
-                    <LibrarySort sortKey={sortKey} sortDirection={sortDirection} onSortChange={setSort} />
-                  </div>
+              <p className="text-sm font-medium">No such recording exists</p>
+              <p className="text-2xs text-muted-foreground/60 mt-1 max-w-xs text-center">
+                We couldn&apos;t find any recordings matching &quot;{searchQuery}&quot;
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold tracking-[0.18em] uppercase text-muted-foreground/80">
+                    {showRecentSection ? 'All recordings' : 'Recordings'}
+                  </p>
+                  <p className="text-2xs text-muted-foreground/60">
+                    {searchQuery ? 'Filtered results based on your search.' : 'Browse and manage your projects.'}
+                  </p>
                 </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <div className="hidden sm:flex items-center gap-2 text-2xs text-muted-foreground">
+                    <span className="h-2 w-2 rounded-full bg-primary/70" />
+                    <span className="uppercase tracking-[0.2em] text-muted-foreground/70">Sorted</span>
+                    <span>{sortLabel}</span>
+                  </div>
+                  <LibrarySort sortKey={sortKey} sortDirection={sortDirection} onSortChange={setSort} />
+                </div>
+              </div>
 
-                {showRecentSection && recentHighlights.length > 0 && (
-                  <RecentRecordingsMosaic
-                    recordings={recentHighlights}
-                    onSelect={handleSelect}
-                    onRequestRename={setPendingRename}
-                    onRequestDuplicate={setPendingDuplicate}
-                    onRequestDelete={setPendingDelete}
-                  />
-                )}
-
-                <RecordingsGrid
-                  recordings={gridRecordings}
-                  gridCapacity={gridCapacity}
-                  isExpandedLayout={isExpandedLayout}
+              {showRecentSection && recentHighlights.length > 0 && (
+                <RecentRecordingsMosaic
+                  recordings={recentHighlights}
                   onSelect={handleSelect}
-                  onRequestDelete={setPendingDelete}
                   onRequestRename={setPendingRename}
                   onRequestDuplicate={setPendingDuplicate}
+                  onRequestDelete={setPendingDelete}
                 />
-              </div>
-            )}
-          </div>
+              )}
+
+              <RecordingsGrid
+                recordings={gridRecordings}
+                gridCapacity={gridCapacity}
+                isExpandedLayout={isExpandedLayout}
+                gridRef={setGridEl}
+                onSelect={handleSelect}
+                onRequestDelete={setPendingDelete}
+                onRequestRename={setPendingRename}
+                onRequestDuplicate={setPendingDuplicate}
+              />
+            </div>
+          )}
 
           {showHydrationIndicator && (
             <div className="mt-4 flex justify-center">

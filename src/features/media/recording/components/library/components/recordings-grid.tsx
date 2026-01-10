@@ -14,6 +14,7 @@ interface RecordingsGridProps {
   recordings: LibraryRecordingView[]
   gridCapacity: number
   isExpandedLayout: boolean
+  gridRef?: (el: HTMLDivElement | null) => void
   onSelect: (recording: LibraryRecordingView) => void
   onRequestDelete?: (recording: LibraryRecordingView) => void
   onRequestRename?: (recording: LibraryRecordingView) => void
@@ -25,6 +26,7 @@ export const RecordingsGrid = ({
   recordings,
   gridCapacity,
   isExpandedLayout,
+  gridRef,
   onSelect,
   onRequestDelete,
   onRequestRename,
@@ -39,7 +41,10 @@ export const RecordingsGrid = ({
   const showActions = showDeleteAction || onRequestRename || onRequestDuplicate
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1920px]:grid-cols-6 gap-5">
+    <div
+      ref={gridRef}
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5"
+    >
       {recordings.map((recording) => {
         const displayName = recording.projectInfo?.name || recording.name.replace(/^Recording_/, '').replace(PROJECT_EXTENSION_REGEX, '')
         const relativeTime = formatDistanceToNow(recording.timestamp, { addSuffix: true })
@@ -106,17 +111,28 @@ export const RecordingsGrid = ({
         return (
           <div
             key={recording.path}
-            className="group relative animate-in fade-in duration-150"
+            className="group relative motion-safe:animate-in motion-safe:fade-in duration-150"
             data-library-card="true"
           >
             <div
               className={cn(
                 'relative rounded-xl overflow-hidden cursor-pointer',
                 'bg-muted/10 border border-border/30',
-                'transition-all duration-150 ease-out',
-                'hover:shadow-md hover:border-border/50'
+                'transition-[transform,box-shadow,border-color] duration-150 ease-out',
+                'hover:-translate-y-0.5 hover:shadow-md hover:border-border/55',
+                'active:translate-y-0',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background'
               )}
               onClick={() => onSelect(recording)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${displayName}`}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onSelect(recording)
+                }
+              }}
             >
               <div className="aspect-video relative bg-muted/10 overflow-hidden">
                 {recording.thumbnailUrl ? (
@@ -156,7 +172,7 @@ export const RecordingsGrid = ({
                     <div className="relative p-2.5">
                       <div className="flex items-end justify-between gap-2">
                         <div className="min-w-0">
-                          <h3 className="font-[var(--font-display)] font-semibold tracking-tight text-xs text-white truncate drop-shadow-sm">
+                          <h3 className="font-semibold tracking-tight text-xs text-white truncate drop-shadow-sm">
                             {displayName}
                           </h3>
                           <div className="mt-1 flex items-center gap-1.5 text-3xs text-white/70">
@@ -192,9 +208,9 @@ export const RecordingsGrid = ({
               {isExpandedLayout && (
                 <div className="flex items-start justify-between gap-3 px-3 pt-2.5 pb-3">
                   <div className="min-w-0">
-                  <h3 className="font-[var(--font-display)] font-semibold tracking-tight text-ui-sm text-foreground truncate">
-                    {displayName}
-                  </h3>
+                    <h3 className="font-semibold tracking-tight text-ui-sm text-foreground truncate">
+                      {displayName}
+                    </h3>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-2xs text-muted-foreground">
                       <span className="truncate">{relativeTime}</span>
                       {resolutionLabel && (
@@ -212,7 +228,7 @@ export const RecordingsGrid = ({
                     {detailsButton}
                   </div>
                 </div>
-              )}
+                )}
 
               <div
                 className={cn(
@@ -227,7 +243,7 @@ export const RecordingsGrid = ({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="w-5 h-5 p-0 hover:bg-white/10 hover:text-white text-white/80 rounded"
+                        className="w-5 h-5 p-0 hover:bg-white/10 hover:text-white text-white/80 rounded focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30"
                         onClick={(e) => {
                           e.stopPropagation()
                           onRequestRename(recording)
@@ -241,7 +257,7 @@ export const RecordingsGrid = ({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="w-5 h-5 p-0 hover:bg-white/10 hover:text-white text-white/80 rounded"
+                        className="w-5 h-5 p-0 hover:bg-white/10 hover:text-white text-white/80 rounded focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30"
                         onClick={(e) => {
                           e.stopPropagation()
                           onRequestDuplicate(recording)
@@ -255,7 +271,7 @@ export const RecordingsGrid = ({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="w-5 h-5 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded"
+                        className="w-5 h-5 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-black/30"
                         onClick={(e) => {
                           e.stopPropagation()
                           onRequestDelete?.(recording)

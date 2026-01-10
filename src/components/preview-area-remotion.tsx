@@ -166,6 +166,35 @@ export function PreviewAreaRemotion({
     return { width: maxWidth, height: heightFromWidth };
   }, [previewScale, timelineMetadata, previewViewportSize.width, previewViewportSize.height]);
 
+  // Remotion Player can render the composition at a reduced resolution for preview.
+  // This must stay in sync with the Player's `compositionWidth/Height` or overlays (cursor, annotations)
+  // will be scaled/mapped incorrectly.
+  const compositionSize = useMemo(() => {
+    const videoWidth = timelineMetadata.width;
+    const videoHeight = timelineMetadata.height;
+    const videoAspectRatio = videoWidth / videoHeight;
+
+    const maxWidth = isHighQualityPlaybackEnabled
+      ? videoWidth
+      : PREVIEW_DISPLAY_WIDTH * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
+    const maxHeight = isHighQualityPlaybackEnabled
+      ? videoHeight
+      : PREVIEW_DISPLAY_HEIGHT * RETINA_MULTIPLIER * Math.max(0.25, previewScale || 1);
+
+    const scaleByWidth = maxWidth / videoWidth;
+    const scaleByHeight = maxHeight / videoHeight;
+    const scale = Math.min(scaleByWidth, scaleByHeight, 1);
+
+    const width = Math.max(320, Math.round(videoWidth * scale));
+    let height = Math.max(180, Math.round(videoHeight * scale));
+
+    if (Math.abs(width / height - videoAspectRatio) > 0.001) {
+      height = Math.round(width / videoAspectRatio);
+    }
+
+    return { width, height };
+  }, [timelineMetadata, isHighQualityPlaybackEnabled, previewScale]);
+
   useLayoutEffect(() => {
     setGlowPortalRoot(glowPortalRootRef?.current ?? null);
   }, [glowPortalRootRef]);
@@ -248,6 +277,7 @@ export function PreviewAreaRemotion({
         playerKey={playerKey}
         initialFrame={initialFrame}
         isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
+        previewScale={previewScale}
         muted={muted}
         volume={volume}
         isGlowEnabled={isGlowEnabled}
@@ -268,6 +298,7 @@ export function PreviewAreaRemotion({
     playerKey,
     initialFrame,
     isHighQualityPlaybackEnabled,
+    previewScale,
     muted,
     volume,
     isGlowEnabled,
@@ -302,9 +333,9 @@ export function PreviewAreaRemotion({
             >
               <AnnotationDock />
               {playerConfig && (
-                <TimelineProvider
-                  compositionWidth={timelineMetadata.width}
-                  compositionHeight={timelineMetadata.height}
+                  <TimelineProvider
+                  compositionWidth={compositionSize.width}
+                  compositionHeight={compositionSize.height}
                   videoWidth={timelineMetadata.width}
                   videoHeight={timelineMetadata.height}
                   fps={timelineMetadata.fps}

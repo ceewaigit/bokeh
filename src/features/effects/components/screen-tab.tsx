@@ -160,7 +160,6 @@ export function ScreenTab({
                 onToggle={() => setSpeedFadeOpen(!speedFadeOpen)}
                 disabled={!selectedClip}
                 disabledTooltip="Select a clip on the timeline to adjust speed and fade settings"
-                badge={selectedClip ? 'Selected' : undefined}
             >
                 {selectedClip && <ClipTab selectedClip={selectedClip} />}
             </CollapsibleSection>

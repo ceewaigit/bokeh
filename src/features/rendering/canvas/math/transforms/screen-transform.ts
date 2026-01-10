@@ -5,7 +5,8 @@ import type { Effect, ScreenEffect } from '@/types/project';
 
 export function calculateScreenTransform(
     effects: Effect[],
-    sourceTimeMs: number
+    sourceTimeMs: number,
+    opts?: { pixelScale?: number }
 ): string {
     const screenBlock = effects.find(e =>
         e.type === EffectType.Screen &&
@@ -23,6 +24,10 @@ export function calculateScreenTransform(
     let tiltX = screenData.tiltX;
     let tiltY = screenData.tiltY;
     let perspective = screenData.perspective;
+    const pixelScaleRaw = opts?.pixelScale;
+    const pixelScale = typeof pixelScaleRaw === 'number' && Number.isFinite(pixelScaleRaw) && pixelScaleRaw > 0
+        ? pixelScaleRaw
+        : 1;
 
     // Defaults per preset
     const presetDefaults = SCREEN_EFFECT_PRESETS[preset];
@@ -62,8 +67,9 @@ export function calculateScreenTransform(
     ) {
         const tx = 0;
         const ty = Math.abs(easedTiltY ?? 0) > 0 ? -4 : 0;
-        centerAdjust = ` translate3d(${tx}px, ${ty}px, 0)`;
+        centerAdjust = ` translate3d(${tx * pixelScale}px, ${ty * pixelScale}px, 0)`;
     }
 
-    return ` perspective(${perspective ?? 900}px) rotateX(${easedTiltX}deg) rotateY(${easedTiltY}deg) scale(${scaleComp})${centerAdjust}`;
+    const scaledPerspective = (perspective ?? 900) * pixelScale;
+    return ` perspective(${scaledPerspective}px) rotateX(${easedTiltX}deg) rotateY(${easedTiltY}deg) scale(${scaleComp})${centerAdjust}`;
 }

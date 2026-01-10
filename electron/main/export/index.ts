@@ -7,14 +7,15 @@ import { ipcMain, app } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
 import fsSync from 'fs'
+import { spawn } from 'child_process'
 
 import { machineProfiler } from '../utils/machine-profiler'
 import { makeVideoSrc, makeMetadataSrc } from '../utils/video-url-factory'
 import { getVideoServer } from '../services/video-http-server'
 import { getRecordingsDirectory } from '../config'
-import { resolveFfmpegPath, getCompositorDirectory } from '../utils/ffmpeg-resolver'
+import { resolveFfmpegPath, resolveFfprobePath, getCompositorDirectory } from '../utils/ffmpeg-resolver'
 import { normalizeCrossPlatform } from '../utils/path-normalizer'
-import { ensureExportProxy, getExistingProxyPath } from '../services/proxy-service'
+import { ensureExportProxy, getExistingProxyPath, getVideoDimensions } from '../services/proxy-service'
 
 import { getBundleLocation, cleanupBundleCache } from './bundle-manager'
 import { buildChunkPlan, calculateStableChunkSize } from './chunk-planner'
@@ -74,6 +75,68 @@ function getMaxZoomScaleFromEffects(effects: any[]): number {
     }
   }
   return maxScale
+}
+
+async function getPrimaryVideoCodecName(ffprobePath: string, videoPath: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const args = [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=codec_name',
+      '-of', 'default=nw=1:nk=1',
+      videoPath,
+    ]
+
+    let output = ''
+    const proc = spawn(ffprobePath, args)
+    const timeout = setTimeout(() => {
+      proc.kill()
+      resolve(null)
+    }, 5000)
+
+    proc.stdout?.on('data', (data) => {
+      output += data.toString()
+    })
+
+    proc.on('exit', (code) => {
+      clearTimeout(timeout)
+      if (code === 0) {
+        const codec = output.trim().split('\n')[0]?.trim()
+        resolve(codec || null)
+        return
+      }
+      resolve(null)
+    })
+
+    proc.on('error', () => {
+      clearTimeout(timeout)
+      resolve(null)
+    })
+  })
+}
+
+function shouldForceExportProxyForCodec(codecName: string | null): boolean {
+  if (!codecName) return false
+  const normalized = codecName.trim().toLowerCase()
+  // Chromium decode support is more limited than macOS/Electron playback.
+  // HEVC/H.265 is a common culprit for exports hanging (video never becomes ready -> delayRender timeout).
+  return normalized === 'hevc' || normalized === 'h265' || normalized === 'prores' || normalized === 'dnxhd'
+}
+
+function shouldForceExportProxyForContainer(videoPath: string): boolean {
+  const lower = videoPath.toLowerCase()
+  // QuickTime .mov is frequently HEVC and is a common export hang in Chromium.
+  return lower.endsWith('.mov')
+}
+
+function estimateH264BitrateMbps(opts: { width: number; height: number; fps: number }): number {
+  const { width, height, fps } = opts
+  const referencePixels = 1920 * 1080
+  const pixelRatio = Math.max(0.1, (width * height) / referencePixels)
+  const fpsRatio = Math.max(0.5, fps / 30)
+  // 1080p30 ~= 6 Mbps (baseline), scale with pixels and fps and clamp.
+  const estimated = 6 * pixelRatio * fpsRatio
+  return Math.max(6, Math.min(40, Math.round(estimated)))
 }
 
 function calculateProxyDimensions(opts: {
@@ -155,12 +218,12 @@ export async function resolveVideoUrls(
 
       // Provide both:
       // - `videoUrls`: HTTP URLs for <Video> (Chromium security blocks file:// in many cases)
-      // - `videoFilePaths`: HTTP URL for <OffthreadVideo> (Remotion compositor only supports http(s) sources)
+      // - `videoFilePaths`: HTTP URLs for <OffthreadVideo> (Remotion compositor only supports http(s) sources)
       const httpUrl = await makeVideoSrc(normalizedPath, 'export')
       videoUrls[recordingId] = httpUrl
 
-      // Use direct file access for OffthreadVideo
-      videoFilePaths[recordingId] = normalizedPath
+      // OffthreadVideo should use HTTP sources for compositor compatibility
+      videoFilePaths[recordingId] = httpUrl
     }
   }
 
@@ -628,6 +691,25 @@ export function setupExportHandler(): void {
         needsProxy
       })
 
+      // PROPER FIX (not a timeout bump): If any source codec is unreliable in Chromium (e.g. HEVC),
+      // force an export proxy (H.264) even if a resolution proxy is not otherwise needed.
+      const codecProxyRecordings = new Set<string>()
+      const ffprobePath = resolveFfprobePath()
+      for (const [recordingId, absPath] of Object.entries(absolutePaths)) {
+        const codecName = await getPrimaryVideoCodecName(ffprobePath, absPath)
+        if (shouldForceExportProxyForContainer(absPath) || shouldForceExportProxyForCodec(codecName)) {
+          codecProxyRecordings.add(recordingId)
+        }
+      }
+
+      if (codecProxyRecordings.size > 0) {
+        console.log('[Export] Forcing export proxies for unsupported codecs', {
+          count: codecProxyRecordings.size,
+          codecs: ['hevc', 'h265', 'prores', 'dnxhd'],
+        })
+      }
+      const forceSingleThreadedDecode = codecProxyRecordings.size > 0
+
       // Some effects (notably background/corner effects) are stored on recordings
       // with source-relative timings. Segment filtering is timeline-relative and may drop them.
       // Merge in recording-scoped effects, BUT map them to timeline space for each clip.
@@ -659,7 +741,9 @@ export function setupExportHandler(): void {
       // The <Video> component uses Chromium's native video decode which is faster.
       const preferOffthreadVideo =
         preferOffthreadVideoOverride ??
-        false
+        // Stability: If we forced a compatibility proxy (e.g. .mov/HEVC), use OffthreadVideo to
+        // avoid Html5Video delayRender hangs in Chromium under concurrency.
+        (codecProxyRecordings.size > 0)
 
       console.log('[Export] Source video dimensions', {
         nativeSourceWidth,
@@ -714,6 +798,18 @@ export function setupExportHandler(): void {
         fps: compositionMetadata.fps || 30,
         effectiveMemoryGB
       })
+
+      // STABILITY: Some codecs/containers (notably .mov / HEVC) can cause one of the parallel Chromium tabs
+      // to never finish loading the first frame, eventually timing out Remotion's internal delayRender().
+      // Force single-tab rendering in those cases.
+      if (forceSingleThreadedDecode && !preferOffthreadVideo) {
+        if (allocation.concurrency !== 1) {
+          console.log('[Export] Forcing render concurrency to 1 for codec compatibility', {
+            previous: allocation.concurrency,
+          })
+        }
+        allocation.concurrency = 1
+      }
 
       // STABILITY FIX: If using High-Res Smart Proxies (maxZoomScale > 1.25), 
       // reduce worker count to prevent memory thrashing on 16GB machines.
@@ -805,7 +901,7 @@ export function setupExportHandler(): void {
       const compositorDir = getCompositorDirectory()
       const workerPath = getWorkerPath()
 
-      if (needsProxy) {
+      if (needsProxy || codecProxyRecordings.size > 0) {
         try {
           console.log('[Export] Creating export proxies for faster decoding...', {
             source: { width: nativeSourceWidth, height: nativeSourceHeight },
@@ -813,10 +909,25 @@ export function setupExportHandler(): void {
             fps
           })
           for (const [recordingId, absPath] of Object.entries(absolutePaths)) {
+            const codecForced = codecProxyRecordings.has(recordingId)
+            if (!needsProxy && !codecForced) continue
+
+            const dimensions = codecForced && !needsProxy ? await getVideoDimensions(absPath) : null
+            const targetWidth = dimensions?.width ?? proxyTargetWidth
+            const targetHeight = dimensions?.height ?? proxyTargetHeight
+            const bitrateMbps = estimateH264BitrateMbps({ width: targetWidth, height: targetHeight, fps })
+            const proxyOverrides = codecForced && !needsProxy ? {
+              // Higher bitrate when transcoding purely for compatibility to keep output close to preview.
+              videoBitrate: `${bitrateMbps}M`,
+              // Better quality for SW fallback (non-mac or HW encode failure).
+              crf: 18,
+              preset: 'fast' as const,
+            } : undefined
+
             const proxyPath = await ensureExportProxy(
               absPath,
-              proxyTargetWidth,
-              proxyTargetHeight,
+              targetWidth,
+              targetHeight,
               fps,
               (progress) => {
                 const safeProgress = Number.isFinite(progress) ? progress : 0
@@ -828,9 +939,12 @@ export function setupExportHandler(): void {
                   message: `Generating high-quality proxies: ${Math.round(safeProgress)}%`
                 })
               }
+              ,
+              proxyOverrides
             )
             const proxyUrl = await makeVideoSrc(proxyPath, 'export')
-            if (!previewProxyUrls[recordingId]) {
+            // If we're forcing a codec-safe proxy, prefer it over preview proxies to keep export quality high.
+            if (!previewProxyUrls[recordingId] || (codecForced && !needsProxy)) {
               videoUrls[recordingId] = proxyUrl
             }
 
@@ -838,8 +952,8 @@ export function setupExportHandler(): void {
             // Low-res stays on preview proxies when available to keep decode lightweight.
             videoUrlsHighRes[recordingId] = proxyUrl
 
-            // Use direct file access for OffthreadVideo
-            videoFilePaths[recordingId] = proxyPath
+            // OffthreadVideo should use HTTP sources for compositor compatibility
+            videoFilePaths[recordingId] = proxyUrl
           }
           console.log('[Export] Proxies ready')
           timing.mark('proxies ready')

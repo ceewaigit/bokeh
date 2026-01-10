@@ -523,6 +523,11 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // ─────────────────────────────────────────────────────────────────────────
   // CONSOLIDATED CONTEXT VALUE
   // ─────────────────────────────────────────────────────────────────────────
+
+  const handleCloseSpeedUp = useCallback(() => {
+    setSpeedUpPopover(null)
+  }, [])
+
   const timelineContextValue = useMemo(() => ({
     // Layout values
     pixelsPerMs,
@@ -867,7 +872,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                 onApply={(p: SpeedUpPeriod) => handleApplySpeedUp(p, speedUpPopover.clipId)}
                 onTrim={(p: SpeedUpPeriod) => handleApplyTrim(p, speedUpPopover.clipId)}
                 onApplyAll={handleApplyAllSpeedUps}
-                onClose={() => setSpeedUpPopover(null)}
+                onClose={handleCloseSpeedUp}
               />
             )}
           </div>

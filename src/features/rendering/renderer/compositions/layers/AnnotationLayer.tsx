@@ -56,7 +56,7 @@ export const AnnotationLayer: React.FC = memo(() => {
   const frame = useCurrentFrame()
   const { fps, width: compositionWidth, height: compositionHeight } = useVideoConfig()
   const videoPosition = useVideoPosition()
-  
+
   // Use the coordinate mapping hook (SSOT)
   // Disable transforms since we are inside the transform container
   const { mapPercentPoint } = useCoordinateMapping()
@@ -147,7 +147,60 @@ export const AnnotationLayer: React.FC = memo(() => {
         overflow: 'visible',
       }}
     >
+      {activeAnnotations.map((effect) => {
+        const isSelected = !isRendering &&
+          selectedEffectLayer?.type === EffectLayerType.Annotation &&
+          selectedEffectLayer.id === effect.id
+
+        const isEditing = editingAnnotationId === effect.id
+
+        // Get data with transient state merged (for live editing preview)
+        const baseData = effect.data as AnnotationData
+        const effectData = editContext
+          ? editContext.getMergedEffectData(effect.id, baseData as unknown as Record<string, unknown>) as AnnotationData
+          : baseData
+
+        // Calculate fade opacity
+        const introFadeMs = effectData.introFadeMs ?? 0
+        const outroFadeMs = effectData.outroFadeMs ?? 0
+
+        let fadeOpacity = 1
+        if (introFadeMs > 0 || outroFadeMs > 0) {
+          const durationFrames = ((effect.endTime - effect.startTime) / 1000) * fps
+          const introFrames = (introFadeMs / 1000) * fps
+          const outroFrames = (outroFadeMs / 1000) * fps
+          const localFrame = frame - (effect.startTime / 1000 * fps)
+
+          if (introFrames > 0 && localFrame < introFrames) {
+            fadeOpacity = clamp01(localFrame / introFrames)
+            // Smoothstep for smoother fade
+            fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
+          } else if (outroFrames > 0) {
+            const outroStart = durationFrames - outroFrames
+            if (localFrame > outroStart) {
+              fadeOpacity = clamp01(1 - (localFrame - outroStart) / outroFrames)
+              fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
+            }
+          }
+        }
+
+        return (
+          <AnnotationWrapper
+            key={effect.id}
+            id={effect.id}
+            data={effectData}
+            context={renderContext}
+            isSelected={isSelected}
+            isEditing={isEditing}
+            onContentChange={(content) => handleContentChange(effect.id, content)}
+            onEditComplete={() => handleEditComplete(effect.id)}
+            fadeOpacity={fadeOpacity}
+          />
+        )
+      })}
+
       {/* Spotlight-style highlight: dim everything outside the box */}
+      {/* RENDERED LAST so it sits ON TOP of other annotations (dimming them too) */}
       {activeHighlightEffects.length > 0 && (
         <AbsoluteFill
           data-highlight-spotlight-layer="true"
@@ -158,14 +211,14 @@ export const AnnotationLayer: React.FC = memo(() => {
           {activeHighlightEffects.map((effect) => {
             const data = effect.data as AnnotationData
             const pos = data.position ?? { x: 50, y: 50 }
-            
+
             // Use the hook to map coordinates (without transforms)
             const mappedPos = mapPercentPoint(pos, mappingOptions)
             const width = ((data.width ?? 20) / 100) * videoPosition.drawWidth
             const height = ((data.height ?? 10) / 100) * videoPosition.drawHeight
             const x = mappedPos.x
             const y = mappedPos.y
-            
+
             const rotation = data.rotation ?? 0
             const cx = x + width / 2
             const cy = y + height / 2
@@ -225,58 +278,6 @@ export const AnnotationLayer: React.FC = memo(() => {
           })}
         </AbsoluteFill>
       )}
-
-      {activeAnnotations.map((effect) => {
-        const isSelected = !isRendering &&
-          selectedEffectLayer?.type === EffectLayerType.Annotation &&
-          selectedEffectLayer.id === effect.id
-
-        const isEditing = editingAnnotationId === effect.id
-
-        // Get data with transient state merged (for live editing preview)
-        const baseData = effect.data as AnnotationData
-        const effectData = editContext
-          ? editContext.getMergedEffectData(effect.id, baseData as unknown as Record<string, unknown>) as AnnotationData
-          : baseData
-
-        // Calculate fade opacity
-        const introFadeMs = effectData.introFadeMs ?? 0
-        const outroFadeMs = effectData.outroFadeMs ?? 0
-
-        let fadeOpacity = 1
-        if (introFadeMs > 0 || outroFadeMs > 0) {
-          const durationFrames = ((effect.endTime - effect.startTime) / 1000) * fps
-          const introFrames = (introFadeMs / 1000) * fps
-          const outroFrames = (outroFadeMs / 1000) * fps
-          const localFrame = frame - (effect.startTime / 1000 * fps)
-
-          if (introFrames > 0 && localFrame < introFrames) {
-            fadeOpacity = clamp01(localFrame / introFrames)
-            // Smoothstep for smoother fade
-            fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
-          } else if (outroFrames > 0) {
-            const outroStart = durationFrames - outroFrames
-            if (localFrame > outroStart) {
-              fadeOpacity = clamp01(1 - (localFrame - outroStart) / outroFrames)
-              fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
-            }
-          }
-        }
-
-        return (
-          <AnnotationWrapper
-            key={effect.id}
-            id={effect.id}
-            data={effectData}
-            context={renderContext}
-            isSelected={isSelected}
-            isEditing={isEditing}
-            onContentChange={(content) => handleContentChange(effect.id, content)}
-            onEditComplete={() => handleEditComplete(effect.id)}
-            fadeOpacity={fadeOpacity}
-          />
-        )
-      })}
     </AbsoluteFill>
   )
 })

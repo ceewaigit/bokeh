@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
-import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Monitor, Layers, Droplets, Palette, Image as ImageIcon, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -61,9 +61,24 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   const [wallpaperPage, setWallpaperPage] = useState(0)
   const [wallpaperThumbnails, setWallpaperThumbnails] = useState<Record<string, string>>({})
   const pendingWallpaperThumbsRef = useRef<Set<string>>(new Set())
+  const autoAppliedDefaultWallpaperRef = useRef(false)
+  const repairedWallpaperKeyRef = useRef(false)
   const [parallaxPresets, setParallaxPresets] = useState<ParallaxPreset[]>([])
   const [selectedParallaxPresetId, setSelectedParallaxPresetId] = useState<string | null>(null)
   const [loadingParallaxPresets, setLoadingParallaxPresets] = useState(false)
+
+  const defaultWallpaperKey = useMemo(() => {
+    const match = macOSWallpapers.wallpapers.find(w => w.name === DEFAULT_WALLPAPER_NAME)
+    return match?.path
+  }, [macOSWallpapers.wallpapers])
+
+  const selectedWallpaperKey = useMemo(() => {
+    const data = backgroundEffect?.data as BackgroundEffectData | undefined
+    if (data?.type !== BackgroundType.Wallpaper) return undefined
+    if (data.wallpaperKey) return data.wallpaperKey
+    if (data.wallpaper) return undefined
+    return defaultWallpaperKey
+  }, [backgroundEffect, defaultWallpaperKey])
 
   // Combined wallpapers: preinstalled first, then macOS
   const allWallpapers = useMemo(() => {
@@ -83,8 +98,18 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
       macOS.unshift(defaultWallpaper)
     }
 
-    return [...preinstalled, ...macOS.map(w => ({ ...w, isPreinstalled: false }))]
-  }, [preinstalledWallpapers, macOSWallpapers.wallpapers])
+    const combined = [...preinstalled, ...macOS.map(w => ({ ...w, isPreinstalled: false }))]
+
+    if (!selectedWallpaperKey) return combined
+
+    const selectedIndex = combined.findIndex((w) => (w.absolutePath || w.path) === selectedWallpaperKey)
+    if (selectedIndex <= 0) return combined
+
+    const next = [...combined]
+    const [selected] = next.splice(selectedIndex, 1)
+    next.unshift(selected)
+    return next
+  }, [preinstalledWallpapers, macOSWallpapers.wallpapers, selectedWallpaperKey])
 
   const totalPages = Math.ceil(allWallpapers.length / WALLPAPERS_PER_PAGE)
   const paginatedWallpapers = allWallpapers.slice(
@@ -216,6 +241,80 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   const parallaxPreviewRafRef = useRef<number | null>(null)
   const [parallaxPreviewMouse, setParallaxPreviewMouse] = useState({ x: 0.5, y: 0.5, active: false })
   const softFocusEnabled = (bgData?.blur ?? 0) > 0
+
+  // Ensure the selected wallpaper is visible after reordering.
+  useEffect(() => {
+    if (backgroundType !== BackgroundType.Wallpaper) return
+    if (!selectedWallpaperKey) return
+    setWallpaperPage(0)
+  }, [backgroundType, selectedWallpaperKey])
+
+  // Auto-apply the default wallpaper once when Wallpaper is active but no image has been applied yet.
+  useEffect(() => {
+    if (backgroundType !== BackgroundType.Wallpaper) return
+    if (bgData?.type !== BackgroundType.Wallpaper) return
+    if (bgData.wallpaper) return
+    if (!selectedWallpaperKey) return
+    if (autoAppliedDefaultWallpaperRef.current) return
+    if (!window.electronAPI?.loadWallpaperImage) return
+
+    autoAppliedDefaultWallpaperRef.current = true
+    window.electronAPI.loadWallpaperImage(selectedWallpaperKey)
+      .then((dataUrl) => {
+        if (!dataUrl) return
+        onUpdateBackground({
+          type: BackgroundType.Wallpaper,
+          wallpaper: dataUrl,
+          wallpaperKey: selectedWallpaperKey
+        })
+      })
+      .catch((error) => {
+        console.error('Failed to auto-apply default wallpaper:', error)
+      })
+  }, [backgroundType, bgData?.type, bgData?.wallpaper, onUpdateBackground, selectedWallpaperKey])
+
+  // Repair `wallpaperKey` for legacy state (wallpaper dataUrl stored, key missing) so we can indicate selection + reorder.
+  useEffect(() => {
+    if (backgroundType !== BackgroundType.Wallpaper) return
+    if (bgData?.type !== BackgroundType.Wallpaper) return
+    if (!bgData.wallpaper) return
+    if (bgData.wallpaperKey) return
+    if (repairedWallpaperKeyRef.current) return
+
+    const loadImageAsDataUrl = window.electronAPI?.loadImageAsDataUrl
+    const loadWallpaperImage = window.electronAPI?.loadWallpaperImage
+    if (!loadImageAsDataUrl && !loadWallpaperImage) return
+    if (allWallpapers.length === 0) return
+
+    repairedWallpaperKeyRef.current = true
+    let cancelled = false
+
+    ;(async () => {
+      for (const candidate of allWallpapers) {
+        if (cancelled) return
+        const candidateKey = candidate.absolutePath || candidate.path
+        if (!candidateKey) continue
+
+        try {
+          const dataUrl = candidate.isPreinstalled && candidate.absolutePath && loadImageAsDataUrl
+            ? await loadImageAsDataUrl(candidate.absolutePath)
+            : loadWallpaperImage
+              ? await loadWallpaperImage(candidate.path)
+              : null
+
+          if (cancelled) return
+          if (dataUrl && dataUrl === bgData.wallpaper) {
+            onUpdateBackground({ wallpaperKey: candidateKey })
+            return
+          }
+        } catch {
+          // ignore and keep searching
+        }
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [allWallpapers, backgroundType, bgData?.type, bgData?.wallpaper, bgData?.wallpaperKey, onUpdateBackground])
 
   useEffect(() => {
     if (backgroundType !== BackgroundType.Parallax) return
@@ -405,6 +504,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   const isDefault = wallpaper.name === DEFAULT_WALLPAPER_NAME
                   const wallpaperKey = wallpaper.absolutePath || wallpaper.path
                   const resolvedThumbnail = wallpaperKey ? (wallpaperThumbnails[wallpaperKey] || wallpaper.thumbnail) : wallpaper.thumbnail
+                  const isSelected = Boolean(selectedWallpaperKey && wallpaperKey && wallpaperKey === selectedWallpaperKey)
 
                   return (
                     <button
@@ -418,16 +518,19 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                             if (dataUrl) {
                               onUpdateBackground({
                                 type: BackgroundType.Wallpaper,
-                                wallpaper: dataUrl
+                                wallpaper: dataUrl,
+                                wallpaperKey: wallpaper.absolutePath
                               })
                             }
                           } else {
                             // For macOS wallpapers, use loadWallpaperImage
                             const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
                             if (dataUrl) {
+                              const stableKey = wallpaper.absolutePath || wallpaper.path
                               onUpdateBackground({
                                 type: BackgroundType.Wallpaper,
-                                wallpaper: dataUrl
+                                wallpaper: dataUrl,
+                                wallpaperKey: stableKey
                               })
                             }
                           }
@@ -440,7 +543,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       disabled={isLoading}
                       className={cn(
                         "aspect-video rounded-md overflow-hidden hover:scale-105 relative group disabled:opacity-50 disabled:cursor-wait",
-                        isDefault && "border-2 border-primary/30"
+                        isSelected ? "border-2 border-primary/60" : (isDefault && "border-2 border-primary/30")
                       )}
                       title={wallpaper.name + (isDefault ? ' (Default)' : '')}
                     >
@@ -460,6 +563,11 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       {isLoading && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        </div>
+                      )}
+                      {isSelected && !isLoading && (
+                        <div className="absolute top-1 right-1 rounded-full bg-primary text-primary-foreground p-1 shadow">
+                          <Check className="w-3 h-3" />
                         </div>
                       )}
                       <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-xs leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">

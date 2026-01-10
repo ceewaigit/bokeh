@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 export const useLibraryGridCapacity = (gridGapPx: number) => {
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
-  const [headerEl, setHeaderEl] = useState<HTMLDivElement | null>(null)
   const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null)
   const [gridCapacity, setGridCapacity] = useState(0)
   const [isExpandedLayout, setIsExpandedLayout] = useState(false)
@@ -14,8 +13,10 @@ export const useLibraryGridCapacity = (gridGapPx: number) => {
     const columns = Math.max(1, gridStyle.gridTemplateColumns.split(' ').filter(Boolean).length)
     const availableWidth = gridEl.clientWidth
 
-    const headerHeight = headerEl?.offsetHeight ?? 0
-    const availableHeight = Math.max(0, scrollEl.clientHeight - headerHeight - 48)
+    const scrollRect = scrollEl.getBoundingClientRect()
+    const gridRect = gridEl.getBoundingClientRect()
+    const gridOffsetTop = Math.max(0, gridRect.top - scrollRect.top)
+    const availableHeight = Math.max(0, scrollEl.clientHeight - gridOffsetTop - 24)
 
     const cardWidth = (availableWidth - gridGapPx * (columns - 1)) / columns
     const expandedLayout = availableHeight >= 980
@@ -25,7 +26,7 @@ export const useLibraryGridCapacity = (gridGapPx: number) => {
 
     setGridCapacity(columns * rows)
     setIsExpandedLayout((prev) => (prev === expandedLayout ? prev : expandedLayout))
-  }, [gridGapPx, gridEl, headerEl, scrollEl])
+  }, [gridGapPx, gridEl, scrollEl])
 
   useEffect(() => {
     if (!scrollEl || !gridEl) return
@@ -44,19 +45,17 @@ export const useLibraryGridCapacity = (gridGapPx: number) => {
     const ro = new ResizeObserver(schedule)
     ro.observe(scrollEl)
     ro.observe(gridEl)
-    if (headerEl) ro.observe(headerEl)
 
     return () => {
       if (rafId != null) cancelAnimationFrame(rafId)
       ro.disconnect()
     }
-  }, [gridEl, headerEl, recomputeGridCapacity, scrollEl])
+  }, [gridEl, recomputeGridCapacity, scrollEl])
 
   return {
     gridCapacity,
     isExpandedLayout,
     setScrollEl,
-    setHeaderEl,
     setGridEl
   }
 }

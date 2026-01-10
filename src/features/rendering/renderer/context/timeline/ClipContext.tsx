@@ -70,8 +70,11 @@ export function ClipProvider({ clip, children }: ClipProviderProps) {
 
   // Filter cursor events - only recalculates when metadata or source range changes
   const cursorEvents = useMemo(
-    () => normalizeMouseEvents(filterEventsForSourceRange(metadata?.mouseEvents ?? [], sourceIn, sourceOut)),
-    [metadata?.mouseEvents, sourceIn, sourceOut]
+    () => normalizeMouseEvents(
+      filterEventsForSourceRange(metadata?.mouseEvents ?? [], sourceIn, sourceOut),
+      { scaleFactor: metadata?.captureArea?.scaleFactor ?? recording?.captureArea?.scaleFactor ?? 1 }
+    ),
+    [metadata?.mouseEvents, metadata?.captureArea?.scaleFactor, recording?.captureArea?.scaleFactor, sourceIn, sourceOut]
   );
 
   // Filter click events - pass cursorEvents as reference for capture dimensions

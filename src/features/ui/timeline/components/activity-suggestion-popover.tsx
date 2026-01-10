@@ -114,7 +114,8 @@ export function ActivitySuggestionPopover({
     return 'Idle'
   }, [isTyping, isTrimStart, isTrimEnd])
 
-  const handleSpeedUp = async () => {
+  const handleSpeedUp = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     setLoading('speedup')
     try {
       // For edge idle (trim types), convert to regular idle period for speed-up
@@ -125,7 +126,8 @@ export function ActivitySuggestionPopover({
     }
   }
 
-  const handleTrim = async () => {
+  const handleTrim = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     setLoading('trim')
     try {
       if (onTrim) {
@@ -136,7 +138,8 @@ export function ActivitySuggestionPopover({
     }
   }
 
-  const handleApplyAll = async () => {
+  const handleApplyAll = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     if (onApplyAll) {
       setLoading('speedup')
       try {
@@ -145,6 +148,11 @@ export function ActivitySuggestionPopover({
         onClose()
       }
     }
+  }
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onClose()
   }
 
   const content = (
@@ -166,7 +174,13 @@ export function ActivitySuggestionPopover({
             <span className="text-foreground/40 ml-1.5">{stats.duration}</span>
           </span>
           <button
-            onClick={onClose}
+            onClick={handleDismiss}
+            onMouseUp={(e) => {
+              e.stopPropagation()
+              // Also handle mouse up to be sure, in case click is swallowed
+              // This is a "nuclear option" for the dismiss button
+            }}
+            type="button"
             title="Dismiss"
             className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -179,6 +193,7 @@ export function ActivitySuggestionPopover({
           {/* Speed Up option - available for all types */}
           <button
             onClick={handleSpeedUp}
+            type="button"
             disabled={loading !== null}
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
           >
@@ -197,6 +212,7 @@ export function ActivitySuggestionPopover({
           {canTrim && (
             <button
               onClick={handleTrim}
+              type="button"
               disabled={loading !== null}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
             >
@@ -214,7 +230,8 @@ export function ActivitySuggestionPopover({
 
           {/* Dismiss option */}
           <button
-            onClick={onClose}
+            onClick={handleDismiss}
+            type="button"
             disabled={loading !== null}
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
           >
@@ -233,6 +250,7 @@ export function ActivitySuggestionPopover({
           {showApplyAll && (
             <button
               onClick={handleApplyAll}
+              type="button"
               disabled={loading !== null}
               className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
             >
