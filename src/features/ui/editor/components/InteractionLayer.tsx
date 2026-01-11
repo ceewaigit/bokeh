@@ -25,6 +25,8 @@ import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-
 import { EffectType, AnnotationType, type Effect, type AnnotationData } from '@/types/project'
 import { useAnnotationEditContext } from '@/features/ui/editor/context/AnnotationEditContext'
 import { SidebarTabId } from '@/features/effects/components/constants'
+import { CommandExecutor, UpdateEffectCommand } from '@/features/core/commands'
+import { getWatermarkGate, normalizeWatermarkEffectData } from '@/features/effects/watermark'
 
 /**
  * Calculate rotation angle from drag position relative to center
@@ -251,10 +253,13 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay)
     const stopEditingOverlay = useProjectStore((s) => s.stopEditingOverlay)
     const updateEffect = useProjectStore((s) => s.updateEffect)
+    const project = useProjectStore((s) => s.currentProject)
+    const updateProjectData = useProjectStore((s) => s.updateProjectData)
     const startInlineEditing = useProjectStore((s) => s.startInlineEditing)
     const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
     const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
     const setActiveSidebarTab = useWorkspaceStore((s) => s.setActiveSidebarTab)
+    const activeSidebarTab = useWorkspaceStore((s) => s.activeSidebarTab)
 
     // SSOT: Use isolated annotation editing context for transient state
     // This ensures video rendering is never affected by annotation drag/resize
@@ -305,6 +310,38 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
     const selectedAnnotation = selectedEffect?.type === EffectType.Annotation ? selectedEffect : null
     const [selectionBounds, setSelectionBounds] = useState<SelectionBounds | null>(null)
+    const [watermarkBounds, setWatermarkBounds] = useState<SelectionBounds | null>(null)
+
+    const canInteractWatermark =
+        canInteract &&
+        activeSidebarTab === SidebarTabId.Watermark &&
+        Boolean(project) &&
+        !getWatermarkGate().customizationLocked
+
+    const updateWatermarkBounds = useCallback(() => {
+        const overlayEl = overlayRef.current
+        if (!overlayEl || !canInteractWatermark) {
+            setWatermarkBounds(null)
+            return
+        }
+
+        const candidates = Array.from(document.querySelectorAll<HTMLElement>('[data-watermark="true"]'))
+        const watermarkEl = candidates.find((el) => !overlayEl.contains(el)) ?? candidates[0]
+        if (!watermarkEl) {
+            setWatermarkBounds(null)
+            return
+        }
+
+        const overlayRect = overlayEl.getBoundingClientRect()
+        const rect = watermarkEl.getBoundingClientRect()
+
+        setWatermarkBounds({
+            x: rect.left - overlayRect.left,
+            y: rect.top - overlayRect.top,
+            width: rect.width,
+            height: rect.height,
+        })
+    }, [canInteractWatermark])
 
     const updateSelectionBounds = useCallback(() => {
         const overlayEl = overlayRef.current
@@ -357,6 +394,22 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         rafId = window.requestAnimationFrame(tick)
         return () => window.cancelAnimationFrame(rafId)
     }, [selectedAnnotation, updateSelectionBounds, mode])
+
+    useEffect(() => {
+        if (!canInteractWatermark) {
+            setWatermarkBounds(null)
+            return
+        }
+
+        let rafId = 0
+        const tick = () => {
+            updateWatermarkBounds()
+            rafId = window.requestAnimationFrame(tick)
+        }
+
+        rafId = window.requestAnimationFrame(tick)
+        return () => window.cancelAnimationFrame(rafId)
+    }, [canInteractWatermark, updateWatermarkBounds])
 
     // Force mode reset if selection cleared externally
     useEffect(() => {
@@ -425,6 +478,43 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             if (type === 'move') setMode('DRAGGING')
             else if (type === 'rotate') setMode('ROTATING')
             else setMode('RESIZING')
+        }
+
+        if (initial?.kind === 'watermark' && type === 'move') {
+            if (!project) return
+            const compWidth = project.settings?.resolution?.width ?? 0
+            const compHeight = project.settings?.resolution?.height ?? 0
+            if (compWidth <= 0 || compHeight <= 0) return
+
+            const containerScale = videoRect.width > 0 ? (videoRect.width / compWidth) : 1
+            const minDim = Math.max(1, Math.min(compWidth, compHeight))
+            const uiScale = clampNumber(minDim / 1080, 0.5, 2)
+
+            const deltaCompPx = {
+                x: delta.x / containerScale,
+                y: delta.y / containerScale,
+            }
+            const deltaDesignPx = {
+                x: deltaCompPx.x / uiScale,
+                y: deltaCompPx.y / uiScale,
+            }
+
+            const initialOffsets = initial.data as { offsetX: number; offsetY: number }
+            const maxOffsetX = compWidth / uiScale
+            const maxOffsetY = compHeight / uiScale
+
+            const nextOffsetX = clampNumber(initialOffsets.offsetX - deltaDesignPx.x, 0, maxOffsetX)
+            const nextOffsetY = clampNumber(initialOffsets.offsetY - deltaDesignPx.y, 0, maxOffsetY)
+
+            updateProjectData((p) => ({
+                ...p,
+                watermark: normalizeWatermarkEffectData({
+                    ...(p.watermark ?? {}),
+                    offsetX: nextOffsetX,
+                    offsetY: nextOffsetY,
+                })
+            }))
+            return
         }
 
         // Handle visual updates (Transient State)
@@ -704,12 +794,16 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             setTransientState(selectedEffect.id, newData)
         }
 
-    }, [mode, selectedEffect, snapshot, videoRect, setTransientState, cameraTransform])
+    }, [mode, project, selectedEffect, snapshot, updateProjectData, videoRect, setTransientState, cameraTransform])
 
     const onDragEnd = useCallback(() => {
         setMode('IDLE')
         if (pendingUpdateRef.current && selectedEffectLayer?.id) {
-            updateEffect(selectedEffectLayer.id, { data: pendingUpdateRef.current })
+            if (CommandExecutor.isInitialized()) {
+                void CommandExecutor.getInstance().execute(UpdateEffectCommand, selectedEffectLayer.id, { data: pendingUpdateRef.current })
+            } else {
+                updateEffect(selectedEffectLayer.id, { data: pendingUpdateRef.current })
+            }
             pendingUpdateRef.current = null
         }
         setTransientState(null)
@@ -772,8 +866,20 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             return
         }
 
+        if (canInteractWatermark && watermarkBounds) {
+            if (
+                mouseX >= watermarkBounds.x &&
+                mouseX <= watermarkBounds.x + watermarkBounds.width &&
+                mouseY >= watermarkBounds.y &&
+                mouseY <= watermarkBounds.y + watermarkBounds.height
+            ) {
+                setOverlayCursor('move')
+                return
+            }
+        }
+
         setOverlayCursor('default')
-    }, [canInteract, interactablePlugins, mode, selectedEffect?.id, setOverlayCursor, snapshot])
+    }, [canInteract, canInteractWatermark, interactablePlugins, mode, selectedEffect?.id, setOverlayCursor, snapshot, watermarkBounds])
 
     const handlePointerLeave = useCallback(() => {
         setOverlayCursor('default')
@@ -792,6 +898,30 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         const mouseY = e.clientY - rect.top
         const startContainer: Point = { x: mouseX, y: mouseY }
         const startVideoPoint = containerPointToVideoPoint(startContainer, snapshot)
+
+        if (canInteractWatermark && watermarkBounds) {
+            if (
+                mouseX >= watermarkBounds.x &&
+                mouseX <= watermarkBounds.x + watermarkBounds.width &&
+                mouseY >= watermarkBounds.y &&
+                mouseY <= watermarkBounds.y + watermarkBounds.height
+            ) {
+                const watermark = normalizeWatermarkEffectData(project?.watermark ?? null)
+                startDrag({
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    type: 'move',
+                    initialValue: {
+                        kind: 'watermark',
+                        data: { offsetX: watermark.offsetX, offsetY: watermark.offsetY }
+                    },
+                    activationDistance: 0
+                })
+                e.preventDefault()
+                e.stopPropagation()
+                return
+            }
+        }
 
         const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
             ignoreElement: overlayRef.current
@@ -973,6 +1103,7 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 
 	    }, [
 	        canInteract,
+            canInteractWatermark,
 	        clearEffectSelection,
 	        effects,
 	        interactableEffects,
@@ -985,7 +1116,9 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
 	        setActiveSidebarTab,
 	        stopEditingOverlay,
 	        toggleProperties,
-	        videoRect
+	        videoRect,
+            watermarkBounds,
+            project
 	    ])
 
     // Click handler - stops propagation when annotation/plugin is hit
@@ -1080,6 +1213,21 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
                 pointerEvents: isInlineEditing ? 'none' : 'auto'
             }}
         >
+            {canInteractWatermark && watermarkBounds && !isInlineEditing && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: watermarkBounds.x,
+                        top: watermarkBounds.y,
+                        width: watermarkBounds.width,
+                        height: watermarkBounds.height,
+                        border: '1px solid rgba(255,255,255,0.65)',
+                        borderRadius: 10,
+                        boxShadow: '0 0 0 1px rgba(0,0,0,0.25)',
+                        pointerEvents: 'none',
+                    }}
+                />
+            )}
             {selectedAnnotation && selectionBounds && !isInlineEditing && (
                 <SelectionOverlay
                     annotationId={selectedAnnotation.id}

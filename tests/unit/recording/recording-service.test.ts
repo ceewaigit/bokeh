@@ -100,7 +100,8 @@ describe('RecordingService (black box)', () => {
 
     expect((window as any).electronAPI.showRecordingOverlay).toHaveBeenCalledWith(
       { x: 0, y: 0, width: 1920, height: 1080 },
-      'Recording Screen'
+      'Recording Screen',
+      { mode: 'hidden' }
     )
 
     const result = await service.stop()
@@ -134,7 +135,8 @@ describe('RecordingService (black box)', () => {
 
     expect((window as any).electronAPI.showRecordingOverlay).toHaveBeenCalledWith(
       { x: 110, y: 70, width: 200, height: 150 },
-      'Recording Area'
+      'Recording Area',
+      { mode: 'hidden' }
     )
 
     await service.stop()

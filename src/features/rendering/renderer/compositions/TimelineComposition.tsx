@@ -24,6 +24,7 @@ import { CursorLayer } from '@/features/effects/cursor/components/CursorLayer';
 import { PluginLayer } from './layers/PluginLayer';
 import { WebcamClipRenderer } from './renderers/WebcamClipRenderer';
 import { SubtitleLayer } from './layers/SubtitleLayer';
+import { WatermarkLayer } from '@/features/effects/watermark';
 
 import { ProjectStorage } from '@/features/core/storage/project-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths';
@@ -429,6 +430,8 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
             {!renderSettings.isGlowMode && (
               <PluginLayer layer="above-cursor" />
             )}
+
+            {!renderSettings.isGlowMode && <WatermarkLayer />}
           </div>
         </SharedVideoController>
       </OverlayProvider>

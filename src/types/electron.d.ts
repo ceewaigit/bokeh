@@ -302,7 +302,7 @@ export interface ElectronAPI {
   showRecordingOverlay?: (
     bounds: { x: number; y: number; width: number; height: number },
     label?: string,
-    options?: { displayId?: number; relativeToDisplay?: boolean }
+    options?: { displayId?: number; relativeToDisplay?: boolean; mode?: 'full' | 'dots' | 'hidden' }
   ) => Promise<{ success: boolean }>
   hideRecordingOverlay?: () => Promise<{ success: boolean }>
 

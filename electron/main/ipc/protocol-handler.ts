@@ -17,12 +17,13 @@ export function registerProtocol(): void {
         const stat = fs.statSync(filePath)
         const stream = fs.createReadStream(filePath)
         const body = Readable.toWeb(stream as any)
+        const contentType = guessMimeType(filePath)
 
         return new Response(body as any, {
           status: 200,
           headers: {
             'Content-Length': String(stat.size),
-            'Content-Type': 'text/html' // Adjust based on file type if needed
+            'Content-Type': contentType
           }
         })
       } catch (error) {

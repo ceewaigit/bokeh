@@ -14,6 +14,7 @@ import { EffectLayerType } from '@/features/effects/types'
 import { RedactionPattern } from '@/features/effects/annotation/types'
 import type { AnnotationData, AnnotationStyle, Effect } from '@/types/project'
 import { cn } from '@/shared/utils/utils'
+import { CommandExecutor, UpdateEffectCommand } from '@/features/core/commands'
 
 const FONT_FAMILIES = [
     { label: 'System', value: 'system-ui, -apple-system, sans-serif' },
@@ -83,7 +84,13 @@ export function AnnotationDock() {
         if (!selectedAnnotation) return
         const currentData = selectedAnnotation.data as AnnotationData
         const newStyle = { ...currentData.style, ...updates }
-        updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
+        if (CommandExecutor.isInitialized()) {
+            void CommandExecutor.getInstance().execute(UpdateEffectCommand, selectedAnnotation.id, {
+                data: { ...currentData, style: newStyle }
+            } as Partial<Effect>)
+        } else {
+            updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
+        }
     }, [selectedAnnotation, updateEffect])
 
     if (!isVisible || !selectedData) return null

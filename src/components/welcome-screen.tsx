@@ -159,7 +159,7 @@ export function WelcomeScreen({
           <div className="text-center mb-4">
             <div className="w-14 h-14 mx-auto mb-5 rounded-2xl overflow-hidden bg-foreground/5 flex items-center justify-center">
               <Image
-                src="/public/brand/bokeh_icon.svg"
+                src="/brand/bokeh_icon.svg"
                 alt="Bokeh"
                 className="rounded-xl"
                 width={40}

@@ -322,7 +322,7 @@ const electronAPI = {
   showRecordingOverlay: (
     bounds: { x: number; y: number; width: number; height: number },
     label?: string,
-    options?: { displayId?: number; relativeToDisplay?: boolean }
+    options?: { displayId?: number; relativeToDisplay?: boolean; mode?: 'full' | 'dots' | 'hidden' }
   ) =>
     ipcRenderer.invoke('show-recording-overlay', bounds, label, options),
 

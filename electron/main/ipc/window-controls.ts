@@ -343,7 +343,7 @@ export function registerWindowControlHandlers(): void {
       _event,
       bounds: { x: number; y: number; width: number; height: number },
       label?: string,
-      options?: { displayId?: number; relativeToDisplay?: boolean }
+      options?: { displayId?: number; relativeToDisplay?: boolean; mode?: 'full' | 'dots' | 'hidden' }
     ) => {
       try {
         showRecordingOverlay(bounds, label, options)

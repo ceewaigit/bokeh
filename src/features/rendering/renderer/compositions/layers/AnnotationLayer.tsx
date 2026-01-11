@@ -6,7 +6,7 @@
  * This eliminates coordinate mismatches since selection is a child of the annotation.
  */
 
-import React, { useMemo, memo, useCallback } from 'react'
+import React, { useMemo, memo, useCallback, useEffect, useRef } from 'react'
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion'
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
 import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
@@ -17,6 +17,7 @@ import { EffectLayerType } from '@/features/effects/types'
 import type { Effect, AnnotationData } from '@/types/project'
 import { AnnotationWrapper } from './AnnotationWrapper'
 import { clamp01 } from '@/features/rendering/canvas/math/clamp'
+import { CommandExecutor, UpdateEffectCommand } from '@/features/core/commands'
 
 const HIGHLIGHT_FADE_MS = 220
 const DEFAULT_DIM_OPACITY = 0.55
@@ -109,15 +110,24 @@ export const AnnotationLayer: React.FC = memo(() => {
     return null
   }, [isRendering, isInlineEditing, selectedEffectLayer])
 
+  // Capture initial content when entering inline edit mode so undo captures the true "before".
+  const editStartRef = useRef<{ id: string; content: string } | null>(null)
+  useEffect(() => {
+    if (!editingAnnotationId) {
+      editStartRef.current = null
+      return
+    }
+
+    if (editStartRef.current?.id === editingAnnotationId) return
+    const effect = activeAnnotations.find((e) => e.id === editingAnnotationId)
+    const content = (effect?.data as AnnotationData | undefined)?.content ?? ''
+    editStartRef.current = { id: editingAnnotationId, content }
+  }, [editingAnnotationId, activeAnnotations])
+
   // Handle content changes during editing
   const handleContentChange = useCallback((annotationId: string, content: string) => {
     editContext?.setTransientState(annotationId, { content })
-    // Persist immediately so side panels + timeline reflect edits live.
-    // Guard against export renders mutating project state.
-    if (!isRendering) {
-      updateEffect(annotationId, { data: { content } })
-    }
-  }, [editContext, isRendering, updateEffect])
+  }, [editContext])
 
   // Handle edit completion - called when user finishes editing
   const handleEditComplete = useCallback((annotationId: string) => {
@@ -126,16 +136,25 @@ export const AnnotationLayer: React.FC = memo(() => {
       ? (editContext.transientState.data as any)?.content
       : undefined
 
+    const beforeContent = editStartRef.current?.id === annotationId
+      ? editStartRef.current.content
+      : undefined
+
     // Only commit if there's a change
-    if (transientContent !== undefined) {
-      updateEffect(annotationId, { data: { content: transientContent } })
+    if (transientContent !== undefined && transientContent !== beforeContent) {
+      if (CommandExecutor.isInitialized()) {
+        void CommandExecutor.getInstance().execute(UpdateEffectCommand, annotationId, { data: { content: transientContent } })
+      } else if (!isRendering) {
+        updateEffect(annotationId, { data: { content: transientContent } })
+      }
     }
 
     // Clear transient state and editing mode
     editContext?.setTransientState(null)
     editContext?.setIsInlineEditing(false)
     stopInlineEditing()
-  }, [updateEffect, editContext, stopInlineEditing])
+    editStartRef.current = null
+  }, [updateEffect, editContext, stopInlineEditing, isRendering])
 
   // Render in BOTH preview and export modes
   // Annotations are inside the video transform container and inherit zoom/pan from CSS

@@ -14,6 +14,7 @@ import { addRecordingToProject } from '@/features/ui/timeline/clips/clip-creatio
 import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { EffectInitialization } from '@/features/effects/core/initialization'
+import { normalizeWatermarkEffectData } from '@/features/effects/watermark'
 import { ProjectIOService } from '@/features/core/storage/project-io-service'
 import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { playbackService } from '@/features/ui/timeline/playback/playback-service'
@@ -48,6 +49,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     ProjectCleanupService.cleanupOrphanedRecordings(project)
     ProjectCleanupService.cleanupInvalidEffects(project)
     EffectInitialization.ensureGlobalEffects(project)
+    project.watermark = normalizeWatermarkEffectData(project.watermark)
     project.timeline.duration = calculateTimelineDuration(project)
 
     set((state) => {
@@ -77,6 +79,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       ProjectCleanupService.cleanupOrphanedRecordings(project)
       ProjectCleanupService.cleanupInvalidEffects(project)
       EffectInitialization.ensureGlobalEffects(project)
+      project.watermark = normalizeWatermarkEffectData(project.watermark)
       project.timeline.duration = calculateTimelineDuration(project)
 
       // Cache video URLs for all recordings BEFORE setting project

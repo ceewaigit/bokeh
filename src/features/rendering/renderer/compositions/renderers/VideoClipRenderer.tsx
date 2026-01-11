@@ -317,7 +317,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                   pointerEvents: 'none',
                   opacity: visualOpacity,
                 }}
-                volume={effectiveVolume}
+                volume={() => effectiveVolume}
                 muted={shouldMuteAudio}
                 preload={preload}
                 playsInline={true}

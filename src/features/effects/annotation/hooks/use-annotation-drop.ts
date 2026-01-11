@@ -11,6 +11,7 @@ import { EffectType, type Effect, type AnnotationData } from '@/types/project'
 import { AnnotationType } from '@/types/project'
 import { getDefaultAnnotationSize } from '../config'
 import { EffectLayerType } from '@/features/effects/types'
+import { AddEffectCommand, CommandExecutor } from '@/features/core/commands'
 import {
     containerPointToVideoPoint,
     getVideoRectFromSnapshot,
@@ -116,7 +117,11 @@ export function useAnnotationDrop({
             } satisfies AnnotationData,
         }
 
-        addEffect(effect)
+        if (CommandExecutor.isInitialized()) {
+            void CommandExecutor.getInstance().execute(AddEffectCommand, effect)
+        } else {
+            addEffect(effect)
+        }
         selectEffectLayer(EffectLayerType.Annotation, effect.id)
         startEditingOverlay(effect.id)
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { Volume2, VolumeX, Info, ChevronDown, ChevronRight } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -8,6 +8,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { audioEnhancementManager, ENHANCEMENT_PRESETS } from '@/features/media/audio/audio-enhancement-manager'
 import type { AudioEnhancementPreset, AudioEnhancementSettings } from '@/types/project'
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
+import { CommandExecutor } from '@/features/core/commands'
+import { UpdateAudioSettingsCommand } from '@/features/core/commands/settings/UpdateAudioSettingsCommand'
 
 const PRESET_LABELS: Record<AudioEnhancementPreset, string> = {
     off: 'Off',
@@ -30,6 +32,8 @@ export function AudioSection() {
     const setAudioSettings = useProjectStore((s) => s.setAudioSettings)
     const { volume, muted, fadeInDuration = 0.5, fadeOutDuration = 0.5 } = audio
     const [showAdvanced, setShowAdvanced] = useState(false)
+    const fadeInStartRef = useRef<number | null>(null)
+    const fadeOutStartRef = useRef<number | null>(null)
 
     const currentPreset = audio.enhancementPreset || (audio.enhanceAudio ? 'balanced' : 'off')
     const customSettings = audio.customEnhancement || ENHANCEMENT_PRESETS.balanced
@@ -44,6 +48,22 @@ export function AudioSection() {
             [key]: value
         })
     }
+
+    const commitFadeChange = useCallback((
+        key: 'fadeInDuration' | 'fadeOutDuration',
+        beforeValue: number,
+        afterValue: number
+    ) => {
+        if (beforeValue === afterValue) return
+
+        if (!CommandExecutor.isInitialized()) return
+        const executor = CommandExecutor.getInstance()
+        void executor.execute(
+            UpdateAudioSettingsCommand,
+            { [key]: beforeValue },
+            { [key]: afterValue }
+        )
+    }, [])
 
     const handlePresetChange = (preset: AudioEnhancementPreset) => {
         const isEnabled = preset !== 'off'
@@ -278,7 +298,17 @@ export function AudioSection() {
                     </div>
                     <Slider
                         value={[fadeInDuration]}
+                        onPointerDown={() => {
+                            if (fadeInStartRef.current === null) {
+                                fadeInStartRef.current = fadeInDuration
+                            }
+                        }}
                         onValueChange={([v]) => updateAudioSettings('fadeInDuration', v)}
+                        onValueCommit={([v]) => {
+                            const before = fadeInStartRef.current ?? fadeInDuration
+                            fadeInStartRef.current = null
+                            commitFadeChange('fadeInDuration', before, v)
+                        }}
                         min={0}
                         max={5}
                         step={0.1}
@@ -293,7 +323,17 @@ export function AudioSection() {
                     </div>
                     <Slider
                         value={[fadeOutDuration]}
+                        onPointerDown={() => {
+                            if (fadeOutStartRef.current === null) {
+                                fadeOutStartRef.current = fadeOutDuration
+                            }
+                        }}
                         onValueChange={([v]) => updateAudioSettings('fadeOutDuration', v)}
+                        onValueCommit={([v]) => {
+                            const before = fadeOutStartRef.current ?? fadeOutDuration
+                            fadeOutStartRef.current = null
+                            commitFadeChange('fadeOutDuration', before, v)
+                        }}
                         min={0}
                         max={5}
                         step={0.1}

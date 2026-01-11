@@ -360,8 +360,13 @@ export function hideMonitorOverlay(): void {
 export function showRecordingOverlay(
   bounds: { x: number; y: number; width: number; height: number },
   label: string = 'Recording',
-  options?: { displayId?: number; relativeToDisplay?: boolean }
+  options?: { displayId?: number; relativeToDisplay?: boolean; mode?: 'full' | 'dots' | 'hidden' }
 ): void {
+  if (options?.mode === 'hidden') {
+    hideRecordingOverlay()
+    return
+  }
+
   if (recordingOverlayWindow && !recordingOverlayWindow.isDestroyed()) {
     recordingOverlayWindow.close()
     recordingOverlayWindow = null
@@ -404,6 +409,10 @@ export function showRecordingOverlay(
   recordingOverlayWindow.setIgnoreMouseEvents(true)
   recordingOverlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   recordingOverlayWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
+
+  const overlayMode = options?.mode ?? 'full'
+  const showFrame = overlayMode === 'full'
+  const pillText = overlayMode === 'dots' ? '&hellip;' : label
 
   const html = `
     <!DOCTYPE html>
@@ -454,6 +463,13 @@ export function showRecordingOverlay(
           box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
           animation: pulse 1.6s ease-in-out infinite;
         }
+        .dots {
+          font-size: 14px;
+          line-height: 1;
+          margin-top: -2px;
+          letter-spacing: 3px;
+          padding-left: 2px;
+        }
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(1.15); }
@@ -461,8 +477,11 @@ export function showRecordingOverlay(
       </style>
     </head>
     <body>
-      <div class="frame"></div>
-      <div class="label"><span class="dot"></span>${label}</div>
+      ${showFrame ? '<div class="frame"></div>' : ''}
+      <div class="label">
+        ${overlayMode === 'full' ? '<span class="dot"></span>' : ''}
+        <span class="${overlayMode === 'dots' ? 'dots' : ''}">${pillText}</span>
+      </div>
     </body>
     </html>
   `

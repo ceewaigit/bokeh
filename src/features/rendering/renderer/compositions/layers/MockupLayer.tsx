@@ -16,6 +16,21 @@ import { Img, staticFile } from 'remotion'
 import { resolveMockupMetadata } from '@/features/effects/mockups/mockup-metadata'
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
 
+function resolveBundledAssetSrc(path: string): string {
+  const normalized = path.startsWith('/') ? path.slice(1) : path
+
+  const isElectron =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.userAgent === 'string' &&
+    navigator.userAgent.includes('Electron')
+
+  if (isElectron) {
+    return `video-stream://assets/${normalized}`
+  }
+
+  return staticFile(normalized)
+}
+
 export interface MockupLayerProps {
   /** Fill color for letterbox/pillarbox areas */
   screenFillColor?: string
@@ -197,7 +212,7 @@ const DeviceFrame: React.FC<DeviceFrameProps> = ({
         }}
       >
         <Img
-          src={fullPath.startsWith('video-stream:') || fullPath.startsWith('http') ? fullPath : staticFile(fullPath)}
+          src={fullPath.startsWith('video-stream:') || fullPath.startsWith('http') ? fullPath : resolveBundledAssetSrc(fullPath)}
           style={{
             position: 'absolute',
             left: offsetX,
@@ -209,7 +224,7 @@ const DeviceFrame: React.FC<DeviceFrameProps> = ({
           // Fallback to base path if color variant doesn't exist
           onError={(e) => {
             const target = e.target as HTMLImageElement
-            const fallbackSrc = svgPath.startsWith('video-stream:') || svgPath.startsWith('http') ? svgPath : staticFile(svgPath)
+            const fallbackSrc = svgPath.startsWith('video-stream:') || svgPath.startsWith('http') ? svgPath : resolveBundledAssetSrc(svgPath)
             // Check if we already tried fallback to prevent infinite loop
             // We compare against the resolved fallback URL
             if (target.src !== fallbackSrc && target.src !== window.location.origin + fallbackSrc) {
@@ -223,7 +238,7 @@ const DeviceFrame: React.FC<DeviceFrameProps> = ({
 
   return (
     <Img
-      src={fullPath.startsWith('video-stream:') || fullPath.startsWith('http') ? fullPath : staticFile(fullPath)}
+      src={fullPath.startsWith('video-stream:') || fullPath.startsWith('http') ? fullPath : resolveBundledAssetSrc(fullPath)}
       style={{
         position: 'absolute',
         inset: 0,
@@ -235,7 +250,7 @@ const DeviceFrame: React.FC<DeviceFrameProps> = ({
       // Fallback to base path if color variant doesn't exist
       onError={(e) => {
         const target = e.target as HTMLImageElement
-        const fallbackSrc = svgPath.startsWith('video-stream:') || svgPath.startsWith('http') ? svgPath : staticFile(svgPath)
+        const fallbackSrc = svgPath.startsWith('video-stream:') || svgPath.startsWith('http') ? svgPath : resolveBundledAssetSrc(svgPath)
         // Check if we already tried fallback to prevent infinite loop
         // We compare against the resolved fallback URL
         if (target.src !== fallbackSrc && target.src !== window.location.origin + fallbackSrc) {

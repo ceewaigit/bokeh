@@ -21,6 +21,7 @@ import { BackgroundEffectData, BackgroundType, ParallaxLayer } from '@/features/
 import { ScreenEffectData, ScreenEffectPreset } from '@/features/effects/screen/types';
 import { CropEffectData } from '@/features/effects/crop/types';
 import { DeviceMockupData, DeviceType, DeviceModel, MockupVideoFit, MockupScreenRegion, MockupFrameBounds } from '@/features/effects/mockups/types';
+import type { WatermarkEffectData } from '@/features/effects/watermark/types';
 
 import {
   Effect,
@@ -191,6 +192,7 @@ export interface Project {
   timeline: Timeline;
   settings: ProjectSettings;
   exportPresets: ExportPreset[];
+  watermark?: WatermarkEffectData;
 }
 
 export interface RecordingCapabilities {

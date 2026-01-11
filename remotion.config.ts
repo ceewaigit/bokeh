@@ -5,6 +5,7 @@ Config.setVideoImageFormat('jpeg');
 Config.setScale(1);
 Config.setJpegQuality(90);
 Config.setOverwriteOutput(true);
+Config.setPublicDir(path.resolve(process.cwd(), 'public'));
 
 // Webpack configuration for Remotion bundler
 Config.overrideWebpackConfig((currentConfig) => {

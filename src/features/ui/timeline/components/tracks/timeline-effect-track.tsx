@@ -89,14 +89,6 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
     [visibleEffects, duration]
   )
 
-  // Don't render if no config, or track should not exist when empty
-  if (!config) return null
-  if (!effectTrackExistence[effectType] && !config.alwaysShowTrack) return null
-
-  const trackY = effectTrackPositions[effectType]
-  const trackHeight = effectTrackHeights[effectType]
-  if (trackHeight <= 0) return null
-
   const dragCreate = useDragToCreate({
     effectType,
     pixelsPerMs,
@@ -104,6 +96,14 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
     duration,
     existingEffects: effects
   })
+
+  // Don't render if no config, or track should not exist when empty
+  if (!config) return null
+  if (!effectTrackExistence[effectType] && !config.alwaysShowTrack) return null
+
+  const trackY = effectTrackPositions[effectType]
+  const trackHeight = effectTrackHeights[effectType]
+  if (trackHeight <= 0) return null
 
   // Get color from colors object using colorKey
   const getColor = () => {

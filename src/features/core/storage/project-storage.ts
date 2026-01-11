@@ -16,6 +16,7 @@ import { isLikelyKeyboardKey, isStandaloneModifierKey } from '@/features/core/ke
 import { getVideoMetadataFromPath } from '@/shared/utils/video-metadata'
 import { normalizeProjectSettings } from '@/features/core/settings/normalize-project-settings'
 import { migrationRunner } from '@/shared/migrations'
+import { normalizeWatermarkEffectData } from '@/features/effects/watermark/config'
 import { recordingMetadataCache } from './recording-metadata-cache'
 import { recordingBlobUrlCache } from './recording-blob-url-cache'
 import {
@@ -270,7 +271,8 @@ export class ProjectStorage {
           resolution: { width: 1920, height: 1080 },
           frameRate: 60
         }
-      ]
+      ],
+      watermark: normalizeWatermarkEffectData(),
     }
   }
 

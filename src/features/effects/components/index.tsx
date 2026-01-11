@@ -22,6 +22,7 @@ import { ZoomTab } from '@/features/ui/editor/logic/viewport/zoom'
 import { CanvasTab } from './canvas-tab'
 import { WebcamTab } from '@/features/media/webcam'
 import { AnnotationsTab } from '@/features/effects/annotation'
+import { WatermarkTab } from '@/features/effects/watermark'
 import { TranscriptTab } from '@/features/ui/transcript/components/TranscriptTab'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useProjectStore } from '@/features/core/stores/project-store'
@@ -610,6 +611,18 @@ export function EffectsSidebar({
                   </motion.div>
                 )}
 
+                {activeTab === SidebarTabId.Watermark && (
+                  <motion.div
+                    key={SidebarTabId.Watermark}
+                    variants={tabVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="space-y-3"
+                  >
+                    <WatermarkTab />
+                  </motion.div>
+                )}
 
               </AnimatePresence>
             </div>

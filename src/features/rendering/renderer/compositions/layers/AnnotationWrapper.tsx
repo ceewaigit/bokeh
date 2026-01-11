@@ -70,6 +70,8 @@ const EditableTextContentImpl: React.FC<EditableTextContentProps> = ({
     const fontSize = (style.fontSize ?? 18) * effectiveScale
     const fontFamily = style.fontFamily ?? 'system-ui, -apple-system, sans-serif'
     const fontWeight = style.fontWeight ?? 'normal'
+    const fontStyle = style.fontStyle ?? 'normal'
+    const textDecoration = style.textDecoration ?? 'none'
     const color = style.color ?? '#ffffff'
     const bgColor = style.backgroundColor
     const padding = resolvePadding(style.padding) * effectiveScale
@@ -157,6 +159,8 @@ const EditableTextContentImpl: React.FC<EditableTextContentProps> = ({
                 fontSize,
                 fontFamily,
                 fontWeight: fontWeight as React.CSSProperties['fontWeight'],
+                fontStyle,
+                textDecoration,
                 color,
                 backgroundColor: bgColor,
                 padding: bgColor ? padding : 0,
@@ -178,42 +182,50 @@ const EditableTextContentImpl: React.FC<EditableTextContentProps> = ({
     )
 }
 
-const EditableTextContent = memo(
-    EditableTextContentImpl,
-    (prev, next) => {
-        // Keep DOM stable while editing so the caret/selection doesn't get reset by re-renders,
-        // but still allow style changes (color, font) to apply.
-        if (prev.isEditing && next.isEditing) {
-            const prevStyle = prev.data.style ?? {}
-            const nextStyle = next.data.style ?? {}
-            return (
-                (prevStyle.fontSize ?? 18) === (nextStyle.fontSize ?? 18) &&
-                (prevStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') === (nextStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') &&
-                (prevStyle.fontWeight ?? 'normal') === (nextStyle.fontWeight ?? 'normal') &&
-                (prevStyle.fontStyle ?? 'normal') === (nextStyle.fontStyle ?? 'normal') &&
-                (prevStyle.textDecoration ?? 'none') === (nextStyle.textDecoration ?? 'none') &&
-                (prevStyle.color ?? '#ffffff') === (nextStyle.color ?? '#ffffff') &&
-                (prevStyle.backgroundColor ?? '') === (nextStyle.backgroundColor ?? '') &&
-                (prevStyle.borderRadius ?? 4) === (nextStyle.borderRadius ?? 4) &&
-                (prevStyle.textAlign ?? 'center') === (nextStyle.textAlign ?? 'center')
-            )
-        }
-
+export function areEditableTextContentPropsEqual(prev: EditableTextContentProps, next: EditableTextContentProps) {
+    // Keep DOM stable while editing so the caret/selection doesn't get reset by re-renders,
+    // but still allow style changes (color, font) to apply.
+    if (prev.isEditing && next.isEditing) {
+        const prevStyle = prev.data.style ?? {}
+        const nextStyle = next.data.style ?? {}
         return (
-            prev.isEditing === next.isEditing &&
-            prev.constrainWidth === next.constrainWidth &&
-            (prev.data.content ?? '') === (next.data.content ?? '') &&
-            (prev.data.style?.fontSize ?? 18) === (next.data.style?.fontSize ?? 18) &&
-            (prev.data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif') === (next.data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif') &&
-            (prev.data.style?.fontWeight ?? 'normal') === (next.data.style?.fontWeight ?? 'normal') &&
-            (prev.data.style?.color ?? '#ffffff') === (next.data.style?.color ?? '#ffffff') &&
-            (prev.data.style?.backgroundColor ?? '') === (next.data.style?.backgroundColor ?? '') &&
-            (prev.data.style?.borderRadius ?? 4) === (next.data.style?.borderRadius ?? 4) &&
-            (prev.data.style?.textAlign ?? 'center') === (next.data.style?.textAlign ?? 'center') &&
-            (prev.context.scale ?? 1) === (next.context.scale ?? 1)
+            (prevStyle.fontSize ?? 18) === (nextStyle.fontSize ?? 18) &&
+            (prevStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') === (nextStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') &&
+            (prevStyle.fontWeight ?? 'normal') === (nextStyle.fontWeight ?? 'normal') &&
+            (prevStyle.fontStyle ?? 'normal') === (nextStyle.fontStyle ?? 'normal') &&
+            (prevStyle.textDecoration ?? 'none') === (nextStyle.textDecoration ?? 'none') &&
+            (prevStyle.color ?? '#ffffff') === (nextStyle.color ?? '#ffffff') &&
+            (prevStyle.backgroundColor ?? '') === (nextStyle.backgroundColor ?? '') &&
+            (prevStyle.borderRadius ?? 4) === (nextStyle.borderRadius ?? 4) &&
+            (prevStyle.textAlign ?? 'center') === (nextStyle.textAlign ?? 'center')
         )
     }
-)
+
+    const prevStyle = prev.data.style ?? {}
+    const nextStyle = next.data.style ?? {}
+
+    return (
+        prev.isEditing === next.isEditing &&
+        prev.constrainWidth === next.constrainWidth &&
+        (prev.data.content ?? '') === (next.data.content ?? '') &&
+        (prevStyle.fontSize ?? 18) === (nextStyle.fontSize ?? 18) &&
+        (prevStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') === (nextStyle.fontFamily ?? 'system-ui, -apple-system, sans-serif') &&
+        (prevStyle.fontWeight ?? 'normal') === (nextStyle.fontWeight ?? 'normal') &&
+        (prevStyle.fontStyle ?? 'normal') === (nextStyle.fontStyle ?? 'normal') &&
+        (prevStyle.textDecoration ?? 'none') === (nextStyle.textDecoration ?? 'none') &&
+        (prevStyle.color ?? '#ffffff') === (nextStyle.color ?? '#ffffff') &&
+        (prevStyle.backgroundColor ?? '') === (nextStyle.backgroundColor ?? '') &&
+        (prevStyle.borderRadius ?? 4) === (nextStyle.borderRadius ?? 4) &&
+        (prevStyle.textAlign ?? 'center') === (nextStyle.textAlign ?? 'center') &&
+        (prev.context.scale ?? 1) === (next.context.scale ?? 1)
+    )
+}
+
+export const __testables = {
+    areEditableTextContentPropsEqual,
+}
+
+const EditableTextContent = memo(EditableTextContentImpl, areEditableTextContentPropsEqual)
 EditableTextContent.displayName = 'EditableTextContent'
 
 // ============================================================================

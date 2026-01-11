@@ -362,7 +362,7 @@ export class RecordingService {
     }
 
     try {
-      await window.electronAPI.showRecordingOverlay(this.captureArea.fullBounds, label)
+      await window.electronAPI.showRecordingOverlay(this.captureArea.fullBounds, label, { mode: 'hidden' })
     } catch {
       // Overlay is best-effort; recording should still proceed.
     }

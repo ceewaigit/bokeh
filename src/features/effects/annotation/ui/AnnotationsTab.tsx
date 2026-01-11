@@ -10,6 +10,7 @@ import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
 import { Type, ArrowRight, Highlighter, EyeOff, Trash2 } from 'lucide-react'
 import { AnnotationDragPreview, useAnnotationDragSource } from './AnnotationDragPreview'
+import { AddEffectCommand, CommandExecutor, RemoveEffectCommand } from '@/features/core/commands'
 import {
   Dialog,
   DialogContent,
@@ -142,14 +143,22 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
       } satisfies AnnotationData,
     }
 
-    addEffect(effect)
+    if (CommandExecutor.isInitialized()) {
+      void CommandExecutor.getInstance().execute(AddEffectCommand, effect)
+    } else {
+      addEffect(effect)
+    }
     onSelectAnnotation?.(effect)
   }, [currentTime, addEffect, onSelectAnnotation])
 
   // Delete annotation
   const handleDelete = useCallback(() => {
     if (!selectedAnnotation) return
-    removeEffect(selectedAnnotation.id)
+    if (CommandExecutor.isInitialized()) {
+      void CommandExecutor.getInstance().execute(RemoveEffectCommand, selectedAnnotation.id)
+    } else {
+      removeEffect(selectedAnnotation.id)
+    }
     onSelectAnnotation?.(null)
   }, [selectedAnnotation, removeEffect, onSelectAnnotation])
 
@@ -181,7 +190,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                   <DialogHeader>
                     <DialogTitle>Remove all overlays?</DialogTitle>
                     <DialogDescription>
-                      This will delete all {annotationEffects.length} annotation layers from your timeline. This action cannot be undone.
+                      This will delete all {annotationEffects.length} annotation layers from your timeline. You can undo this action.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
@@ -193,8 +202,25 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                         variant="destructive"
                         size="sm"
                         onClick={() => {
-                          annotationEffects.forEach(effect => removeEffect(effect.id))
-                          onSelectAnnotation?.(null)
+                          if (!annotationEffects.length) return
+                          if (!CommandExecutor.isInitialized()) {
+                            annotationEffects.forEach(effect => removeEffect(effect.id))
+                            onSelectAnnotation?.(null)
+                            return
+                          }
+
+                          const executor = CommandExecutor.getInstance()
+                          executor.beginGroup('remove-all-annotations')
+                          void (async () => {
+                            try {
+                              for (const effect of annotationEffects) {
+                                await executor.execute(RemoveEffectCommand, effect.id)
+                              }
+                            } finally {
+                              await executor.endGroup()
+                              onSelectAnnotation?.(null)
+                            }
+                          })()
                         }}
                       >
                         Remove All

@@ -30,6 +30,7 @@ import {
   Video,
   StickyNote,
   FileText,
+  Stamp,
 } from 'lucide-react'
 
 export enum SidebarTabId {
@@ -42,6 +43,7 @@ export enum SidebarTabId {
   Annotation = 'annotation',
   Transcript = 'transcript',
   Canvas = 'canvas',
+  Watermark = 'watermark',
 }
 
 export const SIDEBAR_TABS = [
@@ -53,4 +55,5 @@ export const SIDEBAR_TABS = [
   { id: SidebarTabId.Transcript, icon: FileText, label: 'Transcript' },
   { id: SidebarTabId.Annotation, icon: StickyNote, label: 'Overlay' },
   { id: SidebarTabId.Canvas, icon: LayoutGrid, label: 'Stage' },
+  { id: SidebarTabId.Watermark, icon: Stamp, label: 'Watermark' },
 ] as const
