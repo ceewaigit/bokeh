@@ -514,7 +514,7 @@ export function RecordButtonDock() {
     "text-2xs font-medium tracking-[-0.01em]",
     "active:scale-[0.97]",
     isSelected
-      ? "text-foreground"
+      ? "text-accent-foreground"
       : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
   )
 

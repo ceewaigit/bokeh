@@ -132,7 +132,7 @@ export interface ElectronAPI {
   }
 
   // Preview proxy generation for large source videos
-  generatePreviewProxy?: (filePath: string) => Promise<{
+  generatePreviewProxy?: (filePath: string, recordingId?: string) => Promise<{
     success: boolean
     proxyPath?: string
     proxyUrl?: string
@@ -140,7 +140,7 @@ export interface ElectronAPI {
     reason?: string
     error?: string
   }>
-  generateGlowProxy?: (filePath: string) => Promise<{
+  generateGlowProxy?: (filePath: string, recordingId?: string) => Promise<{
     success: boolean
     proxyPath?: string
     proxyUrl?: string
@@ -160,6 +160,11 @@ export interface ElectronAPI {
   clearPreviewProxies?: () => Promise<{ success: boolean }>
   clearGlowProxies?: () => Promise<{ success: boolean }>
   getProxyCacheSize?: () => Promise<{ size: number }>
+  onProxyProgress?: (callback: (event: any, data: {
+    recordingId: string
+    type: 'preview' | 'glow'
+    progress: number
+  }) => void) => () => void
 
   onToggleRecording?: (callback: () => void) => void
 

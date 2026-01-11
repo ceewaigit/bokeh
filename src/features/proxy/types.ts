@@ -8,7 +8,7 @@
 export type ProxyType = 'preview' | 'glow' | 'scrub'
 
 /** Status of proxy generation for a recording */
-export type ProxyStatus = 'idle' | 'checking' | 'generating' | 'ready' | 'error'
+export type ProxyStatus = 'idle' | 'checking' | 'generating' | 'ready' | 'dismissed' | 'error'
 
 /** User choice from the large video dialog */
 export type UserProxyChoice = 'dismiss' | 'background' | 'now'

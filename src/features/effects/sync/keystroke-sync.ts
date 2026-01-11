@@ -121,8 +121,8 @@ export function syncKeystrokeEffects(
   EffectStore.ensureArray(project)
 
   const allClips = project.timeline.tracks.flatMap(t => t.clips)
-  const existingKeystrokes = EffectStore.getAll(project).filter(e => e.type === EffectType.Keystroke)
-  const hasStyleEffect = existingKeystrokes.some(e => e.id === KEYSTROKE_STYLE_EFFECT_ID)
+  const effectsAfterEnsure = EffectStore.getAll(project)
+  const hasStyleEffect = effectsAfterEnsure.some(e => e.type === EffectType.Keystroke && e.id === KEYSTROKE_STYLE_EFFECT_ID)
 
   // Ensure the global style effect always exists so UI edits are O(1).
   if (!hasStyleEffect) {
@@ -136,12 +136,16 @@ export function syncKeystrokeEffects(
     } as Effect)
   }
 
+  const existingKeystrokes = EffectStore.getAll(project).filter(e => e.type === EffectType.Keystroke)
+  const styleEffect = existingKeystrokes.find(e => e.id === KEYSTROKE_STYLE_EFFECT_ID) ?? null
+  const suppressedClusters = new Set<string>((styleEffect?.data as KeystrokeEffectData | undefined)?.suppressedClusters ?? [])
+
   // Check if metadata is available
   const hasAnyLoadedMetadata = Boolean(metadataByRecordingId && metadataByRecordingId.size > 0) ||
     (project.recordings || []).some(r => r.metadata && Object.prototype.hasOwnProperty.call(r.metadata, 'keyboardEvents'))
 
   // If metadata isn't loaded yet, keep existing managed keystrokes to avoid resetting user settings.
-  if (!hasAnyLoadedMetadata && existingKeystrokes.length > 0) {
+  if (!hasAnyLoadedMetadata && existingKeystrokes.some(e => isManagedKeystrokeEffect(e))) {
     return
   }
 
@@ -186,6 +190,9 @@ export function syncKeystrokeEffects(
       const clipSourceOut = clip.sourceOut ?? (clipSourceIn + getSourceDuration(clip))
 
       clusters.forEach((cluster, clusterIndex) => {
+        const key = `${recording.id}::${clusterIndex}`
+        if (suppressedClusters.has(key)) return
+
         const paddedSourceStart = cluster.startTime - PADDING_MS
         const paddedSourceEnd = cluster.endTime + PADDING_MS
 
@@ -201,7 +208,6 @@ export function syncKeystrokeEffects(
         const effectEnd = Math.max(effectStart, Math.min(clipEnd, timelineEnd))
         if (effectEnd - effectStart < MIN_DURATION_MS) return
 
-        const key = `${recording.id}::${clusterIndex}`
         if (!clusterTimelineRanges.has(key)) {
           clusterTimelineRanges.set(key, [])
         }
@@ -212,6 +218,8 @@ export function syncKeystrokeEffects(
     // Create merged keystroke effects for each cluster
     clusters.forEach((_, clusterIndex) => {
       const key = `${recording.id}::${clusterIndex}`
+      if (suppressedClusters.has(key)) return
+
       const ranges = clusterTimelineRanges.get(key)
       if (!ranges || ranges.length === 0) return
 

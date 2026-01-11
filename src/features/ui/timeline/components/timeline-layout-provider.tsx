@@ -14,7 +14,7 @@ import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/confi
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { EffectType } from '@/features/effects/types'
 import { TimelineTrackType, TrackType } from '@/types/project'
-import { EFFECT_TRACK_TYPES, getSortedTrackConfigs } from '@/features/ui/timeline/effect-track-registry'
+import { EFFECT_TRACK_TYPES, getEffectTrackConfig, getSortedTrackConfigs } from '@/features/ui/timeline/effect-track-registry'
 import { EffectStore } from '@/features/effects/core/store'
 
 /** Track type that can be used for visibility/active state */
@@ -264,7 +264,9 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const effectTrackHeights = useMemo((): Record<EffectType, number> => {
     const heights: Record<string, number> = {}
     for (const type of EFFECT_TRACK_TYPES) {
-      const visible = effectTrackExistence[type] && !isScreenGroupCollapsed && visibleTracks.has(type)
+      const config = getEffectTrackConfig(type)
+      const alwaysShow = config?.alwaysShowTrack ?? false
+      const visible = (alwaysShow || effectTrackExistence[type]) && !isScreenGroupCollapsed && visibleTracks.has(type)
       heights[type] = visible
         ? (expandedEffectTrack === type ? TimelineConfig.TRACK.EFFECT_EXPANDED : TimelineConfig.TRACK.EFFECT_COLLAPSED)
         : 0
@@ -324,9 +326,7 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
 
     for (const { type } of sortedConfigs) {
       positions[type] = y
-      if (effectTrackExistence[type] && !isScreenGroupCollapsed) {
-        y += effectTrackHeights[type]
-      }
+      y += effectTrackHeights[type]
     }
 
     const annotationTrackY = y
@@ -440,10 +440,10 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     trackHeights,
     trackPositions,
     // Legacy boolean flags
-    hasZoomTrack: effectTrackExistence[EffectType.Zoom] ?? false,
-    hasScreenTrack: effectTrackExistence[EffectType.Screen] ?? false,
-    hasKeystrokeTrack: effectTrackExistence[EffectType.Keystroke] ?? false,
-    hasPluginTrack: effectTrackExistence[EffectType.Plugin] ?? false,
+    hasZoomTrack: (getEffectTrackConfig(EffectType.Zoom)?.alwaysShowTrack ?? false) || (effectTrackExistence[EffectType.Zoom] ?? false),
+    hasScreenTrack: (getEffectTrackConfig(EffectType.Screen)?.alwaysShowTrack ?? false) || (effectTrackExistence[EffectType.Screen] ?? false),
+    hasKeystrokeTrack: (getEffectTrackConfig(EffectType.Keystroke)?.alwaysShowTrack ?? false) || (effectTrackExistence[EffectType.Keystroke] ?? false),
+    hasPluginTrack: (getEffectTrackConfig(EffectType.Plugin)?.alwaysShowTrack ?? false) || (effectTrackExistence[EffectType.Plugin] ?? false),
     hasAnnotationTrack: effectTrackExistence[EffectType.Annotation] ?? false,
     isAnnotationExpanded,
     toggleAnnotationExpanded,

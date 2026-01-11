@@ -133,7 +133,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         ref={setScrollEl}
         className="flex-1 overflow-y-scroll scrollbar-thin scrollbar-track-transparent"
       >
-        <div className="mx-auto w-full max-w-[1440px] px-5 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-none px-5 py-4 sm:px-6 lg:px-8">
           {recordings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground motion-safe:animate-in motion-safe:fade-in duration-300">
               <div className="mb-4 h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center ring-1 ring-border/50">

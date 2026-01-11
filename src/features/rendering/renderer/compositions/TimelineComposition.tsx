@@ -14,7 +14,7 @@
 
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
-import type { Recording } from '@/types/project';
+import type { Clip, Effect, Recording, SourceTimeRange, SubtitleEffectData, TranscriptWord } from '@/types/project';
 import { EffectType } from '@/types/project';
 import type { TimelineCompositionProps, VideoUrlMap } from '@/types';
 import { PlaybackSettingsProvider } from '../context/playback/PlaybackSettingsContext';
@@ -35,6 +35,8 @@ import { calculateFullCameraPath } from '@/features/ui/editor/logic/viewport/log
 import { OverlayProvider } from '@/features/rendering/overlays/overlay-context';
 import { resolveOverlayConflicts } from '@/features/rendering/overlays/position-registry';
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service';
+import { timelineToSource } from '@/features/ui/timeline/time/time-space-converter';
+import { findSubtitleWordIndex, getVisibleSubtitleWords } from '@/features/rendering/overlays/subtitle-words';
 
 /**
  * Get audio URL for a recording
@@ -81,10 +83,13 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   sourceVideoWidth,
   sourceVideoHeight,
   globalSkipRanges = [],
+  clips,
+  recordings,
 }) => {
   const frame = useCurrentFrame();
   const { frameLayout, getActiveLayoutItems, getRecording } = useTimelineContext(); // Remove fps from here
   const currentTimeMs = (frame / fps) * 1000;
+  const project = useProjectStore(s => s.currentProject);
 
   // Global Timeline Mask: Calculate opacity (0 if skipped, 1 otherwise)
   const isSkipped = React.useMemo(() => {
@@ -108,6 +113,85 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     return Math.floor(currentTimeMs / 100) * 100;
   }, [currentTimeMs]);
 
+  const subtitleResolutionContext = React.useMemo(() => {
+    const subtitleEffects = effects.filter(
+      (effect): effect is Effect =>
+        effect.type === EffectType.Subtitle && effect.enabled !== false
+    );
+
+    const recordingIds = Array.from(
+      new Set(
+        subtitleEffects
+          .map(e => (e.data as SubtitleEffectData | undefined)?.recordingId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    );
+
+    if (recordingIds.length === 0) return null;
+
+    const timelineClips: Clip[] = project
+      ? project.timeline.tracks.flatMap(track => track.clips)
+      : [
+        ...(clips ?? []),
+        ...(audioClips ?? []),
+        ...(webcamClips ?? []),
+      ];
+
+    const clipsByRecordingId = new Map<string, Clip[]>();
+    const clipById = new Map<string, Clip>();
+
+    for (const clip of timelineClips) {
+      clipById.set(clip.id, clip);
+      if (!recordingIds.includes(clip.recordingId)) continue;
+      const list = clipsByRecordingId.get(clip.recordingId) ?? [];
+      list.push(clip);
+      clipsByRecordingId.set(clip.recordingId, list);
+    }
+
+    const hiddenRegionsByRecordingId = new Map<string, SourceTimeRange[]>();
+    const visibleWordsByRecordingId = new Map<string, TranscriptWord[]>();
+
+    for (const recordingId of recordingIds) {
+      let hiddenRegions: SourceTimeRange[] = [];
+
+      if (project) {
+        hiddenRegions = TimelineDataService.getHiddenRegionsForRecording(project, recordingId);
+      } else if (globalSkipRanges.length > 0) {
+        const rangesForRecording = globalSkipRanges.filter(r => r.recordingId === recordingId);
+        const converted = rangesForRecording
+          .map((range): SourceTimeRange | null => {
+            const clip = clipById.get(range.clipId);
+            if (!clip) return null;
+            const sourceStart = timelineToSource(range.start, clip);
+            const sourceEnd = timelineToSource(range.end, clip);
+            if (!Number.isFinite(sourceStart) || !Number.isFinite(sourceEnd) || sourceEnd <= sourceStart) return null;
+            return { startTime: sourceStart, endTime: sourceEnd };
+          })
+          .filter((r): r is SourceTimeRange => r !== null)
+          .sort((a, b) => a.startTime - b.startTime);
+
+        const merged: SourceTimeRange[] = [];
+        for (const region of converted) {
+          const prev = merged[merged.length - 1];
+          if (!prev || region.startTime > prev.endTime) {
+            merged.push(region);
+          } else {
+            prev.endTime = Math.max(prev.endTime, region.endTime);
+          }
+        }
+        hiddenRegions = merged;
+      }
+
+      hiddenRegionsByRecordingId.set(recordingId, hiddenRegions);
+
+      const recording = getRecording(recordingId) ?? (recordings.find(r => r.id === recordingId) as Recording | undefined);
+      const words = recording?.metadata?.transcript?.words ?? [];
+      visibleWordsByRecordingId.set(recordingId, getVisibleSubtitleWords(words, hiddenRegions));
+    }
+
+    return { clipsByRecordingId, visibleWordsByRecordingId };
+  }, [effects, audioClips, webcamClips, clips, recordings, getRecording, globalSkipRanges, project]);
+
   // Get webcam clip that is active at the current time
   // This uses the "Virtual Clips" (transcript-aware) passed from usePlayerConfiguration
   // NOTE: Use precise currentTimeMs (not quantizedTimeMs) to prevent edge-case disappearances
@@ -125,11 +209,37 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   }, [webcamClips, currentTimeMs]);
 
   const { displacedEffectIds, resolvedAnchors } = React.useMemo(
-    () => resolveOverlayConflicts(effects, quantizedTimeMs, {
-      hasActiveTranscript,
-      activeWebcamClip
-    }),
-    [effects, quantizedTimeMs, hasActiveTranscript, activeWebcamClip]
+    () => {
+      const isSubtitleVisibleAtTime = subtitleResolutionContext
+        ? (effect: Effect, timeMs: number) => {
+          if (effect.type !== EffectType.Subtitle) return true;
+          const data = effect.data as SubtitleEffectData | undefined;
+          const recordingId = data?.recordingId;
+          if (!recordingId) return false;
+
+          const candidates = subtitleResolutionContext.clipsByRecordingId.get(recordingId) ?? [];
+          const activeClip = candidates.find(clip => {
+            const start = clip.startTime;
+            const end = start + clip.duration;
+            return timeMs >= start && timeMs < end;
+          });
+          if (!activeClip) return false;
+
+          const visibleWords = subtitleResolutionContext.visibleWordsByRecordingId.get(recordingId) ?? [];
+          if (visibleWords.length === 0) return false;
+
+          const sourceTimeMs = timelineToSource(timeMs, activeClip);
+          return findSubtitleWordIndex(visibleWords, sourceTimeMs) !== -1;
+        }
+        : undefined;
+
+      return resolveOverlayConflicts(effects, quantizedTimeMs, {
+        hasActiveTranscript,
+        activeWebcamClip,
+        isSubtitleVisibleAtTime
+      });
+    },
+    [effects, quantizedTimeMs, hasActiveTranscript, activeWebcamClip, subtitleResolutionContext]
   );
 
   // Timeline-Centric Architecture:

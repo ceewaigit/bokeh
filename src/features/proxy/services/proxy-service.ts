@@ -14,6 +14,33 @@ const MIN_WIDTH_FOR_PREVIEW_PROXY = 2560
 // Active checks to prevent redundant concurrent calls
 const activeChecks = new Map<string, Promise<void>>()
 
+let proxyProgressListenerCleanup: (() => void) | null = null
+
+function ensureProxyProgressListener() {
+    if (proxyProgressListenerCleanup) return
+    if (typeof window === 'undefined') return
+    if (!window.electronAPI?.onProxyProgress) return
+
+    proxyProgressListenerCleanup = window.electronAPI.onProxyProgress((_event, data) => {
+        if (!data || typeof data !== 'object') return
+
+        const { recordingId, type, progress } = data as { recordingId?: unknown; type?: unknown; progress?: unknown }
+        if (typeof recordingId !== 'string') return
+        if (type !== 'preview' && type !== 'glow') return
+        if (typeof progress !== 'number' || !Number.isFinite(progress)) return
+
+        // For now, treat the progress bar as "preview proxy progress" (glow is secondary).
+        if (type !== 'preview') return
+
+        const store = useProxyStore.getState()
+        store.setProgress(recordingId, progress)
+
+        if (progress < 100 && store.status[recordingId] !== 'generating' && store.status[recordingId] !== 'ready') {
+            store.setStatus(recordingId, 'generating')
+        }
+    })
+}
+
 /**
  * ProxyService - Single entry point for all proxy operations
  */
@@ -68,6 +95,8 @@ export const ProxyService = {
             return { success: false, error: 'No file path or API unavailable' }
         }
 
+        ensureProxyProgressListener()
+
         const store = useProxyStore.getState()
 
         // Don't set status to 'generating' yet - backend may return cached result immediately
@@ -80,7 +109,7 @@ export const ProxyService = {
         }, 200)
 
         try {
-            const result = await window.electronAPI.generatePreviewProxy(recording.filePath)
+            const result = await window.electronAPI.generatePreviewProxy(recording.filePath, recording.id)
 
             // Clear the loading timer if generation was fast (cached)
             if (loadingTimerId) {
@@ -127,8 +156,10 @@ export const ProxyService = {
             return { success: false, error: 'No file path or API unavailable' }
         }
 
+        ensureProxyProgressListener()
+
         try {
-            const result = await window.electronAPI.generateGlowProxy(recording.filePath)
+            const result = await window.electronAPI.generateGlowProxy(recording.filePath, recording.id)
 
             if (result.success && result.proxyUrl) {
                 useProxyStore.getState().setUrl(recording.id, 'glow', result.proxyUrl)
@@ -166,7 +197,7 @@ export const ProxyService = {
         recording: Recording,
         options: EnsureProxyOptions = {}
     ): Promise<void> {
-        const { onProgress, background = true } = options
+        const { onProgress, background = true, promptUser = true } = options
         const store = useProxyStore.getState()
 
         const filePath = recording.filePath
@@ -181,6 +212,8 @@ export const ProxyService = {
         }
 
         const checkPromise = (async () => {
+            const previousStatus = store.status[recording.id]
+
             // Set initial status
             store.setStatus(recording.id, 'checking')
 
@@ -207,6 +240,12 @@ export const ProxyService = {
                 if (!needsProxy) {
                     // Small video - no proxy needed
                     store.setStatus(recording.id, 'idle')
+                    return
+                }
+
+                // 3. Large video without cached proxy: prompt user before generating unless explicitly disabled.
+                if (promptUser) {
+                    store.setStatus(recording.id, previousStatus === 'dismissed' ? 'dismissed' : 'idle')
                     return
                 }
 
@@ -239,7 +278,7 @@ export const ProxyService = {
         const status = useProxyStore.getState().status[recording.id]
 
         // Already processing or done
-        if (status === 'generating' || status === 'ready') {
+        if (status === 'generating' || status === 'ready' || status === 'dismissed') {
             return false
         }
 

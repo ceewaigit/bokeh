@@ -43,7 +43,7 @@ import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors
 import { useProjectLoader } from '@/features/core/storage/hooks/use-project-loader'
 import { usePanelResizer } from '@/features/ui/editor/hooks/use-panel-resizer'
 import { useTimelineAutoHeight } from '@/features/ui/timeline/hooks/use-timeline-auto-height'
-import { ProxyProgressContainer } from '@/features/proxy'
+import { LargeVideoDialog, ProxyProgressContainer, useProxyWorkflow } from '@/features/proxy'
 
 export function WorkspaceManager() {
   // Store hooks - using reactive state from single source of truth
@@ -125,6 +125,13 @@ export function WorkspaceManager() {
   // Custom hooks
   const { isLoading, loadingMessage, loadRecording } = useProjectLoader()
   const {
+    pendingRecording: pendingProxyRecording,
+    dialogOpen: proxyDialogOpen,
+    promptIfNeeded: promptProxyIfNeeded,
+    handleUserChoice: handleProxyUserChoice,
+    closeDialog: closeProxyDialog,
+  } = useProxyWorkflow()
+  const {
     panelMaxWidth,
     dragUtilitiesWidth,
     dragPropertiesWidth,
@@ -138,6 +145,57 @@ export function WorkspaceManager() {
 
   // Command executor for undo/redo support
   const executorRef = useCommandExecutor()
+
+  const prioritizedProxyPromptRecordings = useMemo(() => {
+    if (!currentProject) return []
+
+    const byId = new Map(currentProject.recordings.map(r => [r.id, r]))
+    const prioritized: typeof currentProject.recordings = []
+    const addById = (recordingId: string | undefined) => {
+      if (!recordingId) return
+      const rec = byId.get(recordingId)
+      if (!rec || rec.sourceType === 'image') return
+      if (prioritized.some(p => p.id === rec.id)) return
+      prioritized.push(rec)
+    }
+
+    addById(selectedClip?.recordingId)
+
+    // Fallback: first clip on the timeline
+    const firstClip = currentProject.timeline.tracks
+      .flatMap(t => t.clips)
+      .sort((a, b) => a.startTime - b.startTime)[0]
+    addById(firstClip?.recordingId)
+
+    // Fallback: any other recording in the project
+    currentProject.recordings.forEach(r => addById(r.id))
+
+    return prioritized
+  }, [currentProject, selectedClip?.recordingId])
+
+  // Prompt before generating preview proxies for large videos.
+  useEffect(() => {
+    if (!currentProject || isLoading || proxyDialogOpen) return
+
+    let cancelled = false
+    void (async () => {
+      for (const recording of prioritizedProxyPromptRecordings) {
+        if (cancelled) return
+        const didPrompt = await promptProxyIfNeeded(recording)
+        if (didPrompt) return
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    currentProject,
+    isLoading,
+    proxyDialogOpen,
+    prioritizedProxyPromptRecordings,
+    promptProxyIfNeeded,
+  ])
 
   // Reset preview state when project changes, safety timeout for edge cases
   useEffect(() => {
@@ -664,6 +722,14 @@ export function WorkspaceManager() {
 
       {/* Proxy progress indicator - shows during background generation */}
       <ProxyProgressContainer />
+
+      {/* Large video prompt (asks before generating preview proxies) */}
+      <LargeVideoDialog
+        open={proxyDialogOpen}
+        recording={pendingProxyRecording}
+        onChoice={handleProxyUserChoice}
+        onClose={closeProxyDialog}
+      />
     </>
   )
 }

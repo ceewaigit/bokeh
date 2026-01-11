@@ -461,13 +461,25 @@ export const TimelineEffectBlock = React.memo(({
         enabledAnchors={['middle-left', 'middle-right']}
         boundBoxFunc={(oldBox, newBox) => {
           const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
+          // Enforce minimum width while preserving the dragged edge.
+          // Konva's Transformer will mutate both x and width when resizing from the left.
+          // If we clamp width without compensating x, the right edge can "creep" outward.
           if (newBox.width < minWidthPx) {
+            const rightEdge = newBox.x + newBox.width
             newBox.width = minWidthPx
+            // If x moved, assume we're resizing from the left and keep the right edge fixed.
+            if (newBox.x !== oldBox.x) {
+              newBox.x = rightEdge - minWidthPx
+            }
           }
           const groupX = groupRef.current ? groupRef.current.x() : x
-          const absoluteX = groupX + newBox.x
-          if (absoluteX < TimelineConfig.TRACK_LABEL_WIDTH) {
-            newBox.x = TimelineConfig.TRACK_LABEL_WIDTH - groupX
+          const minX = TimelineConfig.TRACK_LABEL_WIDTH - groupX
+          if (newBox.x < minX) {
+            // Clamp the left edge to the track label boundary while keeping the right edge fixed.
+            // Without adjusting width, dragging the left handle into the boundary expands the right side.
+            const rightEdge = newBox.x + newBox.width
+            newBox.x = minX
+            newBox.width = Math.max(minWidthPx, rightEdge - minX)
           }
           newBox.height = oldBox.height
           newBox.y = oldBox.y

@@ -441,11 +441,11 @@ const electronAPI = {
     ipcRenderer.invoke('file-exists', filePath),
 
   // Preview proxy generation for large source videos
-  generatePreviewProxy: (filePath: string) =>
-    ipcRenderer.invoke('generate-preview-proxy', filePath),
+  generatePreviewProxy: (filePath: string, recordingId?: string) =>
+    ipcRenderer.invoke('generate-preview-proxy', filePath, recordingId),
 
-  generateGlowProxy: (filePath: string) =>
-    ipcRenderer.invoke('generate-glow-proxy', filePath),
+  generateGlowProxy: (filePath: string, recordingId?: string) =>
+    ipcRenderer.invoke('generate-glow-proxy', filePath, recordingId),
 
   checkPreviewProxy: (filePath: string) =>
     ipcRenderer.invoke('check-preview-proxy', filePath),
@@ -461,6 +461,16 @@ const electronAPI = {
 
   getProxyCacheSize: () =>
     ipcRenderer.invoke('get-proxy-cache-size'),
+
+  onProxyProgress: (callback: (event: IpcRendererEvent, data: any) => void) => {
+    const wrapped = (event: IpcRendererEvent, data: any) => {
+      if (data && typeof data === 'object') {
+        callback(event, data)
+      }
+    }
+    ipcRenderer.on('proxy:progress', wrapped)
+    return () => ipcRenderer.removeListener('proxy:progress', wrapped)
+  },
 
   onRefreshLibrary: (callback: () => void) => {
     const wrappedCallback = () => callback()

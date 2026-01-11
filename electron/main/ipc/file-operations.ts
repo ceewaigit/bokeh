@@ -110,8 +110,9 @@ export function registerFileOperationHandlers(): void {
 
   // Generate a preview proxy for a large video file
   ipcMain.handle('generate-preview-proxy', async (
-    _event: IpcMainInvokeEvent,
-    filePath: string
+    event: IpcMainInvokeEvent,
+    filePath: string,
+    recordingId?: string
   ): Promise<{
     success: boolean
     proxyPath?: string
@@ -122,7 +123,17 @@ export function registerFileOperationHandlers(): void {
   }> => {
     try {
       const normalizedPath = path.resolve(filePath)
-      const result = await ensurePreviewProxy(normalizedPath)
+      const progressKey = recordingId || normalizedPath
+      let lastProgressSent = -1
+      const result = await ensurePreviewProxy(normalizedPath, (progress) => {
+        if (progress === lastProgressSent) return
+        lastProgressSent = progress
+        event.sender.send('proxy:progress', {
+          recordingId: progressKey,
+          type: 'preview',
+          progress,
+        })
+      })
 
       if (result.success && result.proxyPath) {
         // Return both the path and a video-stream URL
@@ -157,8 +168,9 @@ export function registerFileOperationHandlers(): void {
 
   // Generate a glow proxy for the ambient glow player
   ipcMain.handle('generate-glow-proxy', async (
-    _event: IpcMainInvokeEvent,
-    filePath: string
+    event: IpcMainInvokeEvent,
+    filePath: string,
+    recordingId?: string
   ): Promise<{
     success: boolean
     proxyPath?: string
@@ -169,7 +181,17 @@ export function registerFileOperationHandlers(): void {
   }> => {
     try {
       const normalizedPath = path.resolve(filePath)
-      const result = await ensureGlowProxy(normalizedPath)
+      const progressKey = recordingId || normalizedPath
+      let lastProgressSent = -1
+      const result = await ensureGlowProxy(normalizedPath, (progress) => {
+        if (progress === lastProgressSent) return
+        lastProgressSent = progress
+        event.sender.send('proxy:progress', {
+          recordingId: progressKey,
+          type: 'glow',
+          progress,
+        })
+      })
 
       if (result.success && result.proxyPath) {
         const proxyUrl = await makeVideoSrc(result.proxyPath, 'preview')

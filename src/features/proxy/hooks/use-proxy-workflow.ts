@@ -60,7 +60,7 @@ export function useProxyWorkflow(): UseProxyWorkflowReturn {
         const existingUrl = store.urls[recording.id]?.previewProxyUrl
         const existingStatus = store.status[recording.id]
 
-        if (existingUrl || existingStatus === 'ready' || existingStatus === 'generating') {
+        if (existingUrl || existingStatus === 'ready' || existingStatus === 'generating' || existingStatus === 'dismissed') {
             // Proxy already exists or is being generated - no prompt needed
             return false
         }
@@ -84,7 +84,7 @@ export function useProxyWorkflow(): UseProxyWorkflowReturn {
         switch (choice) {
             case 'dismiss':
                 // User chose to use original - mark as idle
-                useProxyStore.getState().setStatus(pendingRecording.id, 'idle')
+                useProxyStore.getState().setStatus(pendingRecording.id, 'dismissed')
                 break
 
             case 'background':
@@ -107,7 +107,7 @@ export function useProxyWorkflow(): UseProxyWorkflowReturn {
         setDialogOpen(false)
         if (pendingRecording) {
             // Treat closing as dismiss
-            useProxyStore.getState().setStatus(pendingRecording.id, 'idle')
+            useProxyStore.getState().setStatus(pendingRecording.id, 'dismissed')
         }
         setPendingRecording(null)
     }, [pendingRecording])

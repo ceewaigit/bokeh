@@ -431,8 +431,15 @@ export function calculateOptimalZoom(duration: number, viewportWidth: number): n
 
   const requiredZoom = targetWidth / (duration * basePixelsPerMs)
 
-  // Clamp between reasonable zoom levels
-  return Math.max(TimelineConfig.MIN_ZOOM, Math.min(TimelineConfig.MAX_ZOOM, requiredZoom))
+  // Auto-fit should not zoom in excessively for short timelines.
+  const maxAutoZoom = 2.0
+  const clamped = Math.max(TimelineConfig.MIN_ZOOM, Math.min(maxAutoZoom, requiredZoom))
+
+  // Snap to increments so UI and tests are stable.
+  const snap = 0.05
+  const snapped = Math.round(clamped / snap) * snap
+
+  return Math.max(TimelineConfig.MIN_ZOOM, Math.min(maxAutoZoom, snapped))
 }
 
 /**

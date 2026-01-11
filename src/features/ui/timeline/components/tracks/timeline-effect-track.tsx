@@ -8,8 +8,10 @@
  */
 
 import React, { useMemo } from 'react'
+import { Rect } from 'react-konva'
 import { TimelineEffectBlock } from '../timeline-effect-block'
 import { useTimelineLayout } from '../timeline-layout-provider'
+import { useTimelineUI } from '@/features/ui/timeline/components/timeline-ui-context'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { EffectStore } from '@/features/effects/core/store'
@@ -23,6 +25,8 @@ import { useShallow } from 'zustand/react/shallow'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { UpdateEffectCommand } from '@/features/core/commands'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
+import { useDragToCreate } from '@/features/ui/timeline/hooks/use-drag-to-create'
+import { DragToCreatePreview } from '@/features/ui/timeline/components/drag-to-create-preview'
 
 interface TimelineEffectTrackProps {
   /** The effect type to render */
@@ -39,11 +43,14 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
   const {
     pixelsPerMs,
     duration,
+    timelineWidth,
+    containerWidth,
     effectTrackHeights,
     effectTrackPositions,
     effectTrackExistence,
     setActiveTrack
   } = useTimelineLayout()
+  const { scrollLeftRef } = useTimelineUI()
 
   const {
     selectedEffectLayer,
@@ -82,13 +89,21 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
     [visibleEffects, duration]
   )
 
-  // Don't render if no config, no track, or no effects
+  // Don't render if no config, or track should not exist when empty
   if (!config) return null
-  if (!effectTrackExistence[effectType]) return null
-  if (visibleEffects.length === 0) return null
+  if (!effectTrackExistence[effectType] && !config.alwaysShowTrack) return null
 
   const trackY = effectTrackPositions[effectType]
   const trackHeight = effectTrackHeights[effectType]
+  if (trackHeight <= 0) return null
+
+  const dragCreate = useDragToCreate({
+    effectType,
+    pixelsPerMs,
+    scrollLeftRef,
+    duration,
+    existingEffects: effects
+  })
 
   // Get color from colors object using colorKey
   const getColor = () => {
@@ -105,6 +120,29 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
 
   return (
     <>
+      {config.dragToCreate?.enabled && (
+        <Rect
+          name="effect-track-background"
+          x={TimelineConfig.TRACK_LABEL_WIDTH}
+          y={trackY}
+          width={Math.max(timelineWidth, containerWidth)}
+          height={trackHeight}
+          fill="transparent"
+          listening={true}
+          onPointerDown={(e) => {
+            if (dragCreate.handlePointerDown(e as any)) {
+              e.cancelBubble = true
+            }
+          }}
+          onPointerMove={(e) => {
+            dragCreate.handlePointerMove(e as any)
+          }}
+          onPointerLeave={() => {
+            dragCreate.handlePointerLeave()
+          }}
+        />
+      )}
+
       {visibleEffects.map((effect) => {
         const isBlockSelected =
           selectedEffectLayer?.type === config.layerType && selectedEffectLayer?.id === effect.id
@@ -159,6 +197,30 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
           />
         )
       })}
+
+      {!dragCreate.dragState && dragCreate.hoverState && (
+        <DragToCreatePreview
+          effectType={effectType}
+          startTime={dragCreate.hoverState.startTime}
+          endTime={dragCreate.hoverState.endTime}
+          trackY={trackY}
+          trackHeight={trackHeight}
+          pixelsPerMs={pixelsPerMs}
+          isValid={true}
+        />
+      )}
+
+      {dragCreate.dragState && (
+        <DragToCreatePreview
+          effectType={effectType}
+          startTime={dragCreate.dragState.startTime}
+          endTime={dragCreate.dragState.endTime}
+          trackY={trackY}
+          trackHeight={trackHeight}
+          pixelsPerMs={pixelsPerMs}
+          isValid={dragCreate.dragState.isValid}
+        />
+      )}
     </>
   )
 }
@@ -199,19 +261,19 @@ export function TimelineEffectTracks({ visibleStartTime, visibleEndTime }: Timel
 
   return (
     <>
-      {EFFECT_TRACK_TYPES.map((type) =>
-        effectTrackExistence[type]
-          ? (
-            <TimelineEffectTrack
-              key={type}
-              effectType={type}
-              effects={effectsByType.get(type) ?? []}
-              visibleStartTime={visibleStartTime}
-              visibleEndTime={visibleEndTime}
-            />
-          )
-          : null
-      )}
+      {EFFECT_TRACK_TYPES.map((type) => {
+        const config = getEffectTrackConfig(type)
+        const shouldRender = (config?.alwaysShowTrack ?? false) || effectTrackExistence[type]
+        return shouldRender ? (
+          <TimelineEffectTrack
+            key={type}
+            effectType={type}
+            effects={effectsByType.get(type) ?? []}
+            visibleStartTime={visibleStartTime}
+            visibleEndTime={visibleEndTime}
+          />
+        ) : null
+      })}
     </>
   )
 }

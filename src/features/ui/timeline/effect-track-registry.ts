@@ -11,6 +11,17 @@ import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { screenTrackConfig } from '@/features/effects/screen/config'
 import { zoomTrackConfig } from '@/features/ui/editor/logic/viewport/zoom/config'
 
+export interface DragToCreateConfig {
+  /** Whether this effect type supports drag-to-create */
+  enabled: boolean
+  /** Minimum duration in ms for created effect */
+  minDurationMs: number
+  /** Factory function returning default effect data */
+  createDefaultData: () => Record<string, unknown>
+  /** Optional cursor style during drag */
+  cursorStyle?: 'crosshair' | 'col-resize' | 'copy'
+}
+
 export interface EffectTrackConfig {
   /** Display label for the track */
   label: string
@@ -22,6 +33,10 @@ export interface EffectTrackConfig {
   getBlockLabel: (effect: Effect) => string
   /** EffectLayerType for selection */
   layerType: EffectLayerType
+  /** Drag-to-create configuration (optional) */
+  dragToCreate?: DragToCreateConfig
+  /** Whether to show this track even when empty */
+  alwaysShowTrack?: boolean
 }
 
 import { keystrokeTrackConfig } from '@/features/effects/keystroke/config'

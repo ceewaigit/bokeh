@@ -162,6 +162,11 @@ export function findActiveFrameLayoutIndex(layout: FrameLayoutItem[], frame: num
 export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: number): FrameLayoutItem[] {
   if (!layout || layout.length === 0) return [];
 
+  // Boundary protection: if the frame is at/past the end of the timeline,
+  // return the last clip to avoid blank frames at the end.
+  const lastItem = layout[layout.length - 1];
+  if (frame >= lastItem.endFrame) return [lastItem];
+
   const { startFrames, maxEndPrefix } = getIndexCache(layout);
 
   // Only items with startFrame <= frame can be active.
@@ -178,15 +183,6 @@ export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: num
     const item = layout[i];
     if (frame < item.endFrame) {
       result.push(item);
-    }
-  }
-
-  // Boundary protection: if no clips found and frame is at/past the timeline end,
-  // return the last clip to avoid blank frames at the end of the timeline
-  if (result.length === 0 && layout.length > 0) {
-    const lastItem = layout[layout.length - 1];
-    if (frame >= lastItem.endFrame) {
-      result.push(lastItem);
     }
   }
 

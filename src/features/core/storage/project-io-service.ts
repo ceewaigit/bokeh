@@ -143,7 +143,8 @@ export class ProjectIOService {
       if (rec.sourceType !== 'image') {
         const proxyPromise = ProxyService.ensureProxiesForRecording(rec, {
           onProgress,
-          background: !awaitPlaybackPreparation
+          background: !awaitPlaybackPreparation,
+          promptUser: true
         })
 
         if (awaitPlaybackPreparation) {
@@ -213,7 +214,8 @@ export class ProjectIOService {
     EffectInitialization.ensureGlobalEffects(project)
 
     if (awaitPlaybackPreparation && pendingProxyTasks.length > 0) {
-      onProgress?.('Optimizing video for smooth playback...')
+      // NOTE: We intentionally avoid auto-generating preview proxies here unless the user opted in via UI.
+      // `ensureProxiesForRecording` will still populate cached proxy URLs when available.
       await Promise.all(pendingProxyTasks)
     }
 
