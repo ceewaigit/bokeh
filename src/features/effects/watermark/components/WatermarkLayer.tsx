@@ -84,8 +84,8 @@ export function WatermarkLayer() {
 
   const direction = isStacked ? 'column' : 'row'
   const gapPx = isStacked
-    ? clampNumber(Math.round(iconPx * 0.1), 3, 14)
-    : clampNumber(Math.round(iconPx * 0.15), 4, 18)
+    ? clampNumber(Math.round(iconPx * 0.08), 3, 12)
+    : clampNumber(Math.round(iconPx * 0.1), 4, 14)
 
   const shadow = data.textStyle.textShadow?.enabled
     ? `${data.textStyle.textShadow.offsetX}px ${data.textStyle.textShadow.offsetY}px ${data.textStyle.textShadow.blur}px ${data.textStyle.textShadow.color}`
@@ -93,6 +93,7 @@ export function WatermarkLayer() {
 
   const outline = data.textStyle.textOutline?.enabled ? data.textStyle.textOutline : undefined
   const underline = data.textStyle.textUnderline?.enabled ? data.textStyle.textUnderline : undefined
+  const bg = data.containerStyle?.background?.enabled ? data.containerStyle.background : null
 
   return (
     <AbsoluteFill
@@ -113,6 +114,14 @@ export function WatermarkLayer() {
           flexDirection: direction,
           alignItems: 'center',
           gap: gapPx,
+          paddingLeft: bg ? Math.round(bg.paddingX * uiScale) : 0,
+          paddingRight: bg
+            ? Math.round((bg.paddingX + (!data.iconPath && !isTextFirst && showIcon ? 6 : 0)) * uiScale)
+            : 0,
+          paddingTop: bg ? Math.round(bg.paddingY * uiScale) : 0,
+          paddingBottom: bg ? Math.round(bg.paddingY * uiScale) : 0,
+          borderRadius: bg ? Math.round(bg.borderRadius * uiScale) : 0,
+          backgroundColor: bg ? bg.color : undefined,
         }}
         data-watermark="true"
       >
@@ -149,7 +158,7 @@ export function WatermarkLayer() {
                   width: iconPx,
                   height: iconPx,
                   objectFit: 'contain',
-                  filter: 'drop-shadow(0 1px 6px rgba(0,0,0,0.65)) drop-shadow(0 0 2px rgba(0,0,0,0.5))',
+                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45)) drop-shadow(0 0 1px rgba(0,0,0,0.35))',
                   pointerEvents: 'none',
                   flex: '0 0 auto',
                 }}
@@ -169,7 +178,7 @@ export function WatermarkLayer() {
                   width: iconPx,
                   height: iconPx,
                   objectFit: 'contain',
-                  filter: 'drop-shadow(0 1px 6px rgba(0,0,0,0.65)) drop-shadow(0 0 2px rgba(0,0,0,0.5))',
+                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45)) drop-shadow(0 0 1px rgba(0,0,0,0.35))',
                   pointerEvents: 'none',
                   flex: '0 0 auto',
                 }}

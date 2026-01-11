@@ -55,7 +55,7 @@ const ActionPill = ({
 }) => (
   <div
     className={cn(
-      "flex items-center gap-1 rounded-full bg-black/35 p-1 text-white/80 backdrop-blur-md",
+      "flex items-center gap-1 rounded-pill bg-black/35 p-1 text-white/80 backdrop-blur-md",
       "transition-opacity duration-200",
       visible ? "opacity-100" : "opacity-0 group-hover:opacity-100"
     )}
@@ -63,7 +63,7 @@ const ActionPill = ({
     {onRename && (
       <button
         type="button"
-        className="h-7 w-7 rounded-full hover:bg-white/10 flex items-center justify-center"
+        className="h-7 w-7 rounded-pill hover:bg-white/10 flex items-center justify-center"
         onClick={(event) => {
           event.stopPropagation()
           onRename()
@@ -76,7 +76,7 @@ const ActionPill = ({
     {onDuplicate && (
       <button
         type="button"
-        className="h-7 w-7 rounded-full hover:bg-white/10 flex items-center justify-center"
+        className="h-7 w-7 rounded-pill hover:bg-white/10 flex items-center justify-center"
         onClick={(event) => {
           event.stopPropagation()
           onDuplicate()
@@ -89,7 +89,7 @@ const ActionPill = ({
     {onDelete && (
       <button
         type="button"
-        className="h-7 w-7 rounded-full hover:bg-red-500/70 flex items-center justify-center"
+        className="h-7 w-7 rounded-pill hover:bg-red-500/70 flex items-center justify-center"
         onClick={(event) => {
           event.stopPropagation()
           onDelete()
@@ -158,7 +158,7 @@ const HeroCard = ({
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-16 w-16 rounded-full bg-muted/40 flex items-center justify-center">
+            <div className="h-16 w-16 rounded-pill bg-muted/40 flex items-center justify-center">
               <Play className="h-6 w-6 text-muted-foreground/60" />
             </div>
           </div>
@@ -168,7 +168,7 @@ const HeroCard = ({
 
       <div className="absolute inset-0 p-5 sm:p-6">
         <div className="absolute left-4 top-3 flex items-center gap-2 text-3xs uppercase tracking-[0.28em] text-white/80">
-          <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
+          <span className="h-1.5 w-1.5 rounded-pill bg-white/70" />
           Recent
         </div>
         <div className="absolute right-2 top-2 sm:right-3 sm:top-3">
@@ -193,7 +193,7 @@ const HeroCard = ({
                 <span
                   key={chip.label}
                   className={cn(
-                    "rounded-full bg-white/15 px-2.5 py-1",
+                    "rounded-pill bg-white/15 px-2.5 py-1",
                     chip.mono ? "font-mono" : "font-medium"
                   )}
                 >
@@ -204,7 +204,7 @@ const HeroCard = ({
             <div className="pt-2">
               <MotionButton
                 variant="secondary"
-                className="h-9 rounded-full bg-white/90 px-4 text-sm font-semibold text-black hover:bg-white"
+                className="h-9 rounded-pill bg-white/90 px-4 text-sm font-semibold text-black hover:bg-white"
                 onClick={(event) => {
                   event.stopPropagation()
                   onSelect(recording)
@@ -306,7 +306,7 @@ const WideCard = ({
                 <span
                   key={chip.label}
                   className={cn(
-                    "rounded-full bg-white/15 px-2 py-0.5",
+                    "rounded-pill bg-white/15 px-2 py-0.5",
                     chip.mono ? "font-mono" : "font-medium"
                   )}
                 >

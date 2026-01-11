@@ -19,6 +19,11 @@ export const WindowHeader = forwardRef<HTMLDivElement, WindowHeaderProps>(
           className
         )}
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        onDoubleClick={(event) => {
+          const target = event.target as HTMLElement | null
+          if (target?.closest?.('[data-titlebar-no-doubleclick=\"true\"]')) return
+          window.electronAPI?.doubleClickTitleBar?.()
+        }}
       >
         {customDragRegions ? (
           children
@@ -26,6 +31,7 @@ export const WindowHeader = forwardRef<HTMLDivElement, WindowHeaderProps>(
           <div
             className="flex-1 flex items-center"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            data-titlebar-no-doubleclick="true"
           >
             {children}
           </div>

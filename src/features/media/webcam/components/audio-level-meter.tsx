@@ -57,7 +57,7 @@ export function AudioLevelMeter({
           {isMonitoring && (
             <div
               className={cn(
-                "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all",
+                "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-pill transition-all",
                 level > 0.8 ? "bg-red-500" : level > 0.5 ? "bg-yellow-500" : "bg-green-500"
               )}
               style={{
@@ -69,10 +69,10 @@ export function AudioLevelMeter({
         </div>
 
         {/* Simple bar */}
-        <div className="flex-1 h-1.5 bg-muted/30 rounded-full overflow-hidden min-w-[40px]">
+        <div className="flex-1 h-1.5 bg-muted/30 rounded-pill overflow-hidden min-w-[40px]">
           <div
             className={cn(
-              "h-full rounded-full transition-all duration-75",
+              "h-full rounded-pill transition-all duration-75",
               level > 0.8 ? "bg-red-500" : level > 0.5 ? "bg-yellow-500" : "bg-green-500"
             )}
             style={{
@@ -186,7 +186,7 @@ export function InlineLevelIndicator({
         <div
           key={i}
           className={cn(
-            'w-0.5 rounded-full transition-all duration-75',
+            'w-0.5 rounded-pill transition-all duration-75',
             level > threshold
               ? threshold > 0.7 ? 'bg-red-500' : threshold > 0.5 ? 'bg-yellow-500' : 'bg-green-500'
               : 'bg-muted/30'

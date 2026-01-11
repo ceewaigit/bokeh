@@ -200,9 +200,9 @@ export function PluginPreview({
                     <div className="w-4/5 h-[70%] bg-background/90 rounded-2xl shadow-2xl border border-border/70 flex flex-col overflow-hidden transform transition-transform duration-700 hover:scale-[1.005] group-hover:shadow-foreground/10">
                         <div className="h-10 bg-muted/60 border-b border-border/60 flex items-center px-4 gap-2">
                             <div className="flex gap-2">
-                                <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm" />
-                                <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-sm" />
-                                <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm" />
+                                <div className="w-3 h-3 rounded-pill bg-red-500 shadow-sm" />
+                                <div className="w-3 h-3 rounded-pill bg-yellow-500 shadow-sm" />
+                                <div className="w-3 h-3 rounded-pill bg-green-500 shadow-sm" />
                             </div>
                         </div>
                         <div className="flex-1 p-8 space-y-6 bg-gradient-to-b from-background/60 to-background">
@@ -227,7 +227,7 @@ export function PluginPreview({
                             <div className="bg-destructive/90 border border-destructive/20 text-destructive-foreground p-6 rounded-xl text-sm font-mono max-w-2xl overflow-auto shadow-2xl flex flex-col gap-4">
                                 <div>
                                     <div className="font-bold mb-2 text-destructive-foreground flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                                        <div className="w-2 h-2 rounded-pill bg-destructive animate-pulse" />
                                         Runtime Error
                                     </div>
                                     <div className="opacity-80 whitespace-pre-wrap">{error.message}</div>

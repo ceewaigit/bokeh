@@ -60,6 +60,11 @@ export interface CameraPhysicsState {
   vy: number
   lastTimeMs: number
   lastSourceTimeMs?: number
+  lastZoomBlockId?: string
+  introAnchorX?: number
+  introAnchorY?: number
+  introAnchorVX?: number
+  introAnchorVY?: number
   cursorStoppedAtMs?: number
   frozenTargetX?: number
   frozenTargetY?: number
@@ -142,7 +147,8 @@ export function computeCameraState({
       activeZoomBlock.endTime - activeZoomBlock.startTime,
       zoomTargetScale,
       activeZoomBlock.introMs,
-      activeZoomBlock.outroMs
+      activeZoomBlock.outroMs,
+      (activeZoomBlock as any).transitionStyle
     )
     : 1
 
@@ -155,8 +161,16 @@ export function computeCameraState({
     mouseEvents, sourceTimeMs, recording, effectiveMetadata ?? undefined
   )
 
+  const rawCursorPosForAnchor = interpolateMousePosition(mouseEvents, sourceTimeMs)
+  const rawCursorNormForAnchor = rawCursorPosForAnchor
+    ? { x: rawCursorPosForAnchor.x / sourceWidth, y: rawCursorPosForAnchor.y / sourceHeight }
+    : null
+
   const { halfWindowX, halfWindowY } = getHalfWindows(
     currentScale, sourceWidth, sourceHeight, outputWidth, outputHeight
+  )
+  const { halfWindowX: halfWindowAimX, halfWindowY: halfWindowAimY } = getHalfWindows(
+    zoomTargetScale, sourceWidth, sourceHeight, outputWidth, outputHeight
   )
 
   const hasOverscan = safeOverscan.left > 0 || safeOverscan.right > 0 || safeOverscan.top > 0 || safeOverscan.bottom > 0
@@ -274,6 +288,18 @@ export function computeCameraState({
   const shouldFollowMouse = followStrategy === 'mouse' || followStrategy == null
   const shouldCenterLock = followStrategy === 'center'
   const isManualFocus = followStrategy === 'manual'
+  const mouseFollowAlgorithm = (activeZoomBlock as any)?.mouseFollowAlgorithm as
+    | 'deadzone'
+    | 'direct'
+    | 'smooth'
+    | 'thirds'
+    | undefined
+  const zoomIntoCursorMode = (activeZoomBlock as any)?.zoomIntoCursorMode as
+    | 'center'
+    | 'cursor'
+    | 'snap'
+    | 'lead'
+    | undefined
 
   let targetCenter = isDeterministic ? { x: 0.5, y: 0.5 } : { x: physics.x, y: physics.y }
   const followCursor = cursorIsFrozen && frozenTarget ? frozenTarget : { x: cursorNormX, y: cursorNormY }
@@ -282,6 +308,94 @@ export function computeCameraState({
     if (isSeek) return followCursor
     return { x: physics.x, y: physics.y }
   })()
+
+  const cursorVelocityVec = (() => {
+    const lookbackMs = 80
+    const prev = interpolateMousePosition(mouseEvents, sourceTimeMs - lookbackMs)
+    const curr = interpolateMousePosition(mouseEvents, sourceTimeMs)
+    if (!prev || !curr) return { vx: 0, vy: 0 }
+    const dt = Math.max(0.001, lookbackMs / 1000)
+    return {
+      vx: (curr.x - prev.x) / sourceWidth / dt,
+      vy: (curr.y - prev.y) / sourceHeight / dt
+    }
+  })()
+
+  const leadCursor = (cursor: { x: number; y: number }) => {
+    const sx = cursorVelocityVec.vx > 0.001 ? 1 : cursorVelocityVec.vx < -0.001 ? -1 : 0
+    const sy = cursorVelocityVec.vy > 0.001 ? 1 : cursorVelocityVec.vy < -0.001 ? -1 : 0
+    const zoomAmt = clamp01((currentScale - 1) / 2)
+    const offX = sx * (halfWindowX * 0.33) * zoomAmt
+    const offY = sy * (halfWindowY * 0.33) * zoomAmt
+    return { x: cursor.x + offX, y: cursor.y + offY }
+  }
+
+  // Capture an intro "anchor" on block entry so zoom-in doesn't chase live cursor.
+  const enteringZoomBlock = Boolean(activeZoomBlock && activeZoomBlock.id !== physics.lastZoomBlockId)
+  if (enteringZoomBlock && activeZoomBlock) {
+    physics.lastZoomBlockId = activeZoomBlock.id
+    const anchor = rawCursorNormForAnchor ?? { x: cursorNormX, y: cursorNormY }
+    physics.introAnchorX = anchor.x
+    physics.introAnchorY = anchor.y
+    physics.introAnchorVX = cursorVelocityVec.vx
+    physics.introAnchorVY = cursorVelocityVec.vy
+  } else if (!activeZoomBlock) {
+    physics.lastZoomBlockId = undefined
+    physics.introAnchorX = undefined
+    physics.introAnchorY = undefined
+    physics.introAnchorVX = undefined
+    physics.introAnchorVY = undefined
+  }
+
+  const applyMouseAlgorithm = (
+    cursor: { x: number; y: number },
+    baseCenter: { x: number; y: number },
+    overscanMode: boolean,
+    algorithmOverride?: 'deadzone' | 'direct' | 'smooth' | 'thirds'
+  ): { x: number; y: number } => {
+    const algo = algorithmOverride ?? mouseFollowAlgorithm ?? 'deadzone'
+    if (overscanMode) {
+      const cursorOut = { x: (safeOverscan.left + cursor.x) / denomX, y: (safeOverscan.top + cursor.y) / denomY }
+      const centerOut = { x: (safeOverscan.left + baseCenter.x) / denomX, y: (safeOverscan.top + baseCenter.y) / denomY }
+      const halfWindowOutX = halfWindowX / denomX, halfWindowOutY = halfWindowY / denomY
+
+      let targetOut: { x: number; y: number }
+      if (algo === 'direct') {
+        targetOut = cursorOut
+      } else if (algo === 'thirds') {
+        const sx = cursorVelocityVec.vx > 0.001 ? 1 : cursorVelocityVec.vx < -0.001 ? -1 : 0
+        const sy = cursorVelocityVec.vy > 0.001 ? 1 : cursorVelocityVec.vy < -0.001 ? -1 : 0
+        const zoomAmt = clamp01((currentScale - 1) / 2)
+        const offX = sx * (halfWindowOutX * 0.33) * zoomAmt
+        const offY = sy * (halfWindowOutY * 0.33) * zoomAmt
+        targetOut = { x: cursorOut.x + offX, y: cursorOut.y + offY }
+      } else {
+        targetOut = calculateFollowTargetNormalized(
+          cursorOut,
+          centerOut,
+          halfWindowOutX,
+          halfWindowOutY,
+          currentScale,
+          { left: 0, right: 0, top: 0, bottom: 0 }
+        )
+      }
+
+      return { x: targetOut.x * denomX - safeOverscan.left, y: targetOut.y * denomY - safeOverscan.top }
+    }
+
+    if (algo === 'direct') {
+      return cursor
+    }
+    if (algo === 'thirds') {
+      const sx = cursorVelocityVec.vx > 0.001 ? 1 : cursorVelocityVec.vx < -0.001 ? -1 : 0
+      const sy = cursorVelocityVec.vy > 0.001 ? 1 : cursorVelocityVec.vy < -0.001 ? -1 : 0
+      const zoomAmt = clamp01((currentScale - 1) / 2)
+      const offX = sx * (halfWindowX * 0.33) * zoomAmt
+      const offY = sy * (halfWindowY * 0.33) * zoomAmt
+      return { x: cursor.x + offX, y: cursor.y + offY }
+    }
+    return calculateFollowTargetNormalized(cursor, baseCenter, halfWindowX, halfWindowY, currentScale, safeOverscan)
+  }
 
   if (activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')) {
     targetCenter = { x: 0.5, y: 0.5 }
@@ -293,36 +407,74 @@ export function computeCameraState({
     targetCenter = { x: activeZoomBlock.targetX / sw, y: activeZoomBlock.targetY / sh }
     targetCenter = clampCenterToContentBounds(targetCenter, halfWindowX, halfWindowY, safeOverscan)
   } else {
-    if (shouldFollowMouse && hasOverscan) {
-      const cursorOut = { x: (safeOverscan.left + followCursor.x) / denomX, y: (safeOverscan.top + followCursor.y) / denomY }
-      const centerOut = { x: (safeOverscan.left + baseCenterForFollow.x) / denomX, y: (safeOverscan.top + baseCenterForFollow.y) / denomY }
-      const halfWindowOutX = halfWindowX / denomX, halfWindowOutY = halfWindowY / denomY
-      const targetOut = calculateFollowTargetNormalized(cursorOut, centerOut, halfWindowOutX, halfWindowOutY, currentScale, { left: 0, right: 0, top: 0, bottom: 0 })
-      targetCenter = { x: targetOut.x * denomX - safeOverscan.left, y: targetOut.y * denomY - safeOverscan.top }
-    } else {
-      targetCenter = calculateFollowTargetNormalized(followCursor, baseCenterForFollow, halfWindowX, halfWindowY, currentScale, safeOverscan)
-    }
+    const algo = mouseFollowAlgorithm ?? 'deadzone'
+    const cursorInput = (algo === 'smooth' && !cursorIsFrozen)
+      ? getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+      : followCursor
+    targetCenter = applyMouseAlgorithm(cursorInput, baseCenterForFollow, shouldFollowMouse && hasOverscan)
   }
 
-  if (activeZoomBlock && shouldFollowMouse && !shouldCenterLock && activeZoomBlock.autoScale !== 'fill' && timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs) {
-    targetCenter = { x: lerp(baseCenterForFollow.x, targetCenter.x, introBlend), y: lerp(baseCenterForFollow.y, targetCenter.y, introBlend) }
+  const isIntroPhase = Boolean(
+    activeZoomBlock
+    && shouldFollowMouse
+    && !shouldCenterLock
+    && activeZoomBlock.autoScale !== 'fill'
+    && timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs
+  )
+  const useFixedIntroWindow = Boolean(
+    activeZoomBlock
+    && shouldFollowMouse
+    && isIntroPhase
+    && (zoomIntoCursorMode ?? 'cursor') !== 'snap'
+  )
+  if (isIntroPhase) {
+    // "Stripe / product showcase" zoom-in: pick a target once, then move on a clean path.
+    // No chasing the live cursor during the zoom-in (unless explicitly chosen).
+    const mode = zoomIntoCursorMode ?? 'cursor'
+    const introMs = Math.max(1, activeZoomBlock?.introMs ?? 1)
+    const p = clamp01((timelineMs - (activeZoomBlock?.startTime ?? timelineMs)) / introMs)
+    const t = smootherStep(p)
+
+    const anchor = (() => {
+      if (mode === 'center') return { x: 0.5, y: 0.5 }
+      if (mode === 'snap') return followCursor // "live" experiment (can look jittery)
+
+      const ax = physics.introAnchorX ?? followCursor.x
+      const ay = physics.introAnchorY ?? followCursor.y
+      if (mode !== 'lead') return { x: ax, y: ay }
+
+      const vx = physics.introAnchorVX ?? cursorVelocityVec.vx
+      const vy = physics.introAnchorVY ?? cursorVelocityVec.vy
+      const predictSeconds = Math.min(0.35, Math.max(0.05, (activeZoomBlock?.introMs ?? 250) / 1000 * 0.4))
+      return { x: ax + vx * predictSeconds, y: ay + vy * predictSeconds }
+    })()
+
+    // Clamp once using the FINAL zoom window (target scale), so the aim doesn't "creep"
+    // as the visible window shrinks during the intro.
+    const zoomTarget = clampCenterToContentBounds(anchor, halfWindowAimX, halfWindowAimY, safeOverscan)
+    const zoomAim = mode === 'lead' ? leadCursor(zoomTarget) : zoomTarget
+    targetCenter = { x: lerp(baseCenterForFollow.x, zoomAim.x, t), y: lerp(baseCenterForFollow.y, zoomAim.y, t) }
   }
 
   // Deterministic export with mouse follow uses exponential smoothing
   if (isDeterministic && shouldFollowMouse && activeZoomBlock) {
+    const algo = mouseFollowAlgorithm ?? 'deadzone'
     const smoothedCursor = cursorIsFrozen && frozenTarget ? frozenTarget : getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+    const cursorInput = algo === 'smooth' ? smoothedCursor : followCursor
     const baseCenter = { x: 0.5, y: 0.5 }
-    if (hasOverscan) {
-      const cursorOut = { x: (safeOverscan.left + smoothedCursor.x) / denomX, y: (safeOverscan.top + smoothedCursor.y) / denomY }
-      const centerOut = { x: (safeOverscan.left + baseCenter.x) / denomX, y: (safeOverscan.top + baseCenter.y) / denomY }
-      const halfWindowOutX = halfWindowX / denomX, halfWindowOutY = halfWindowY / denomY
-      const targetOut = calculateFollowTargetNormalized(cursorOut, centerOut, halfWindowOutX, halfWindowOutY, currentScale, { left: 0, right: 0, top: 0, bottom: 0 })
-      targetCenter = { x: targetOut.x * denomX - safeOverscan.left, y: targetOut.y * denomY - safeOverscan.top }
-    } else {
-      targetCenter = calculateFollowTargetNormalized(smoothedCursor, baseCenter, halfWindowX, halfWindowY, currentScale, safeOverscan)
-    }
+    targetCenter = applyMouseAlgorithm(cursorInput, baseCenter, hasOverscan)
     if (timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs) {
-      targetCenter = { x: lerp(0.5, targetCenter.x, introBlend), y: lerp(0.5, targetCenter.y, introBlend) }
+      const cursorTarget = clampCenterToContentBounds(cursorInput, halfWindowAimX, halfWindowAimY, safeOverscan)
+      const targetForZoom = (zoomIntoCursorMode ?? 'cursor') === 'lead' ? leadCursor(cursorTarget) : cursorTarget
+
+      const mode = zoomIntoCursorMode ?? 'cursor'
+      const blend = mode === 'snap'
+        ? 1
+        : mode === 'center'
+          ? 0
+          : clamp01(Math.pow(introBlend, 0.6))
+
+      targetCenter = { x: lerp(0.5, targetForZoom.x, blend), y: lerp(0.5, targetForZoom.y, blend) }
     }
   }
 
@@ -333,6 +485,14 @@ export function computeCameraState({
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
   } else if (isSeek) {
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
+  } else if (shouldFollowMouse && isIntroPhase && (zoomIntoCursorMode ?? 'cursor') !== 'center') {
+    // Make the zoom-in feel like it aims at the cursor immediately (no spring lag during intro).
+    nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
+  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'smooth') {
+    nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
+  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'direct') {
+    // Direct tracking should feel immediate; bypass spring lag.
+    nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
   } else {
     const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
 
@@ -500,17 +660,22 @@ export function computeCameraState({
 
   // Apply clamping
   if (hasOverscan) {
-    const halfWindowOutX = halfWindowX / denomX, halfWindowOutY = halfWindowY / denomY
+    const clampHalfX = useFixedIntroWindow ? halfWindowAimX : halfWindowX
+    const clampHalfY = useFixedIntroWindow ? halfWindowAimY : halfWindowY
+    const halfWindowOutX = clampHalfX / denomX, halfWindowOutY = clampHalfY / denomY
     const finalOut = { x: (safeOverscan.left + finalCenter.x) / denomX, y: (safeOverscan.top + finalCenter.y) / denomY }
     const clampedOut = clampCenterToContentBounds(finalOut, halfWindowOutX, halfWindowOutY, { left: 0, right: 0, top: 0, bottom: 0 }, true, ignoreOverscan, contentBounds)
     finalCenter = { x: clampedOut.x * denomX - safeOverscan.left, y: clampedOut.y * denomY - safeOverscan.top }
   } else {
-    finalCenter = clampCenterToContentBounds(finalCenter, halfWindowX, halfWindowY, safeOverscan, false, ignoreOverscan, contentBounds)
+    const clampHalfX = useFixedIntroWindow ? halfWindowAimX : halfWindowX
+    const clampHalfY = useFixedIntroWindow ? halfWindowAimY : halfWindowY
+    finalCenter = clampCenterToContentBounds(finalCenter, clampHalfX, clampHalfY, safeOverscan, false, ignoreOverscan, contentBounds)
   }
 
   // 2. Resolve Visibility (Screen Studio fix / "Push" logic)
   // This OVERRIDES clamping because seeing the cursor is more important than black bars.
-  if (shouldFollowMouse) {
+  const shouldSkipVisibilityDuringIntro = useFixedIntroWindow // only "Live" should chase/push during intro
+  if (shouldFollowMouse && !shouldSkipVisibilityDuringIntro) {
     if (hasOverscan) {
       const finalOut = { x: (safeOverscan.left + finalCenter.x) / denomX, y: (safeOverscan.top + finalCenter.y) / denomY }
       const cursorOut = { x: (safeOverscan.left + mappedRawCursorNorm.x) / denomX, y: (safeOverscan.top + mappedRawCursorNorm.y) / denomY }

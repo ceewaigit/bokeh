@@ -10,6 +10,7 @@ import { useTheme, type ColorPreset, type Theme } from '@/shared/contexts/theme-
 import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-store'
 import { PRESET_DETAILS } from '@/shared/constants/appearance'
 import Image from 'next/image'
+import { getElectronAssetUrl } from '@/shared/assets/electron-asset-url'
 
 // Snappy, Apple-like animations
 const transition = { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
@@ -25,11 +26,11 @@ function ProgressDots({ step }: { step: 1 | 2 }) {
   return (
     <div className="flex items-center justify-center gap-2 mb-10">
       <div className={cn(
-        "w-2 h-2 rounded-full transition-all duration-300",
+        "w-2 h-2 rounded-pill transition-all duration-300",
         step === 1 ? "bg-foreground scale-100" : "bg-muted-foreground/30 scale-75"
       )} />
       <div className={cn(
-        "w-2 h-2 rounded-full transition-all duration-300",
+        "w-2 h-2 rounded-pill transition-all duration-300",
         step === 2 ? "bg-foreground scale-100" : "bg-muted-foreground/30 scale-75"
       )} />
     </div>
@@ -56,7 +57,7 @@ function PermissionItem({ icon, label, isGranted, isOptional, onAction }: Permis
       )}
     >
       <div className={cn(
-        "w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200",
+        "w-11 h-11 rounded-pill flex items-center justify-center transition-all duration-200",
         isGranted
           ? "bg-foreground/10"
           : "bg-muted border border-border/50 group-hover:border-border"
@@ -159,7 +160,7 @@ export function WelcomeScreen({
           <div className="text-center mb-4">
             <div className="w-14 h-14 mx-auto mb-5 rounded-2xl overflow-hidden bg-foreground/5 flex items-center justify-center">
               <Image
-                src="/brand/bokeh_icon.svg"
+                src={getElectronAssetUrl('/brand/bokeh_icon.svg')}
                 alt="Bokeh"
                 className="rounded-xl"
                 width={40}
@@ -289,7 +290,7 @@ export function WelcomeScreen({
                     )}
                   >
                     <div className={cn(
-                      "w-5 h-5 rounded-full transition-transform group-hover:scale-110",
+                      "w-5 h-5 rounded-pill transition-transform group-hover:scale-110",
                       PRESET_DETAILS[preset].accent
                     )} />
                     <span className={cn(

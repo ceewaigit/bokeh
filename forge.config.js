@@ -2,6 +2,10 @@ const path = require('path');
 const fs = require('fs');
 
 module.exports = {
+  // Ports are configurable to avoid hardcoding and collisions.
+  // These are only used for Electron Forge + webpack dev.
+  // Examples:
+  // - FORGE_WEBPACK_PORT=3100 FORGE_LOGGER_PORT=9100
   packagerConfig: {
     asar: {
       unpack: '**/node_modules/@remotion/compositor-*/**',
@@ -103,8 +107,8 @@ module.exports = {
             },
           ],
         },
-        port: 3001,
-        loggerPort: 9001,
+        port: Number.parseInt(process.env.FORGE_WEBPACK_PORT || '', 10) || 3001,
+        loggerPort: Number.parseInt(process.env.FORGE_LOGGER_PORT || '', 10) || 9001,
       },
     },
   ],

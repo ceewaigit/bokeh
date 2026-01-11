@@ -94,14 +94,17 @@ module.exports = {
     devMiddleware: {
       writeToDisk: true,
     },
-    static: {
-      directory: path.join(__dirname, 'out'),
-      publicPath: '/',
-    },
+    static: [
+      // Primary exported app content
+      { directory: path.join(__dirname, 'out'), publicPath: '/' },
+      // Ensure `public/` assets resolve at root in dev (e.g. `/favicon.svg`, `/brand/...`)
+      { directory: path.join(__dirname, 'public'), publicPath: '/' },
+    ],
     compress: true,
     hot: false, // Disable HMR to prevent require errors
     liveReload: false, // Disable live reload
-    port: 3001,
+    host: process.env.WEBPACK_DEV_SERVER_HOST || '127.0.0.1',
+    port: Number.parseInt(process.env.WEBPACK_DEV_SERVER_PORT || '', 10) || 3001,
   },
   optimization: {
     sideEffects: false,

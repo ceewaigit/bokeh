@@ -281,7 +281,7 @@ export function SettingsDialog() {
                                 : "border-border/40 hover:border-border/80 hover:bg-muted/30"
                             )}
                           >
-                            <div className={cn("w-5 h-5 rounded-full shadow-sm ring-2 ring-white/20", PRESET_DETAILS[preset].accent)} />
+                            <div className={cn("w-5 h-5 rounded-pill shadow-sm ring-2 ring-white/20", PRESET_DETAILS[preset].accent)} />
                             <span className={cn(
                               "text-[10px] font-semibold transition-colors mt-1",
                               colorPreset === preset ? "text-foreground" : "text-muted-foreground"
@@ -318,14 +318,14 @@ export function SettingsDialog() {
                           <div className="hidden sm:block absolute right-6 top-6 transform rotate-[-4deg] hover:rotate-0 transition-transform duration-500 ease-out origin-top-right">
                             <div className="w-[160px] h-[100px] rounded-xl bg-background/40 backdrop-blur-xl border border-white/20 shadow-xl p-3 flex flex-col gap-2">
                               <div className="flex items-center gap-2 mb-1">
-                                <div className="w-2 h-2 rounded-full bg-red-400/80" />
-                                <div className="w-2 h-2 rounded-full bg-yellow-400/80" />
-                                <div className="w-2 h-2 rounded-full bg-green-400/80" />
+                                <div className="w-2 h-2 rounded-pill bg-red-400/80" />
+                                <div className="w-2 h-2 rounded-pill bg-yellow-400/80" />
+                                <div className="w-2 h-2 rounded-pill bg-green-400/80" />
                               </div>
-                              <div className="h-2 w-3/4 rounded-full bg-white/20" />
-                              <div className="h-2 w-1/2 rounded-full bg-white/20" />
+                              <div className="h-2 w-3/4 rounded-pill bg-white/20" />
+                              <div className="h-2 w-1/2 rounded-pill bg-white/20" />
                               <div className="mt-auto h-6 w-full rounded bg-primary/20 border border-primary/10 flex items-center justify-center">
-                                <div className="h-1.5 w-12 rounded-full bg-primary/40" />
+                                <div className="h-1.5 w-12 rounded-pill bg-primary/40" />
                               </div>
                             </div>
                           </div>

@@ -16,6 +16,7 @@ export interface ElectronAPI {
       scaleFactor: number
     }
   }>>
+  getPathForFile?: (file: File) => string
   getDesktopStream?: (sourceId: string, hasAudio?: boolean) => Promise<any>
   getScreens?: () => Promise<Array<{
     id: number
@@ -242,6 +243,7 @@ export interface ElectronAPI {
   minimize: () => void
   maximize: () => void
   quit: () => void
+  doubleClickTitleBar?: () => void
   minimizeRecordButton?: () => void
   showRecordButton?: (options?: { hideMainWindow?: boolean }) => Promise<void>
   setRecordingState?: (isRecording: boolean) => Promise<{ success: boolean }>

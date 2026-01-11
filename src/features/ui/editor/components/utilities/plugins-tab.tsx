@@ -412,7 +412,7 @@ export function PluginsTab() {
                     <button
                         type="button"
                         disabled
-                        className="mt-3 h-7 px-3 rounded-full text-2xs font-semibold text-muted-foreground bg-muted/30 border border-border/50 cursor-not-allowed"
+                        className="mt-3 h-7 px-3 rounded-pill text-2xs font-semibold text-muted-foreground bg-muted/30 border border-border/50 cursor-not-allowed"
                     >
                         Browse community
                     </button>
@@ -597,7 +597,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
                             key={String(opt.value)}
                             onClick={() => onChange(opt.value)}
                             className={cn(
-                                "px-2.5 py-1 text-2xs rounded-full border transition-all",
+                                "px-2.5 py-1 text-2xs rounded-pill border transition-all",
                                 value === opt.value
                                     ? "bg-foreground text-background border-foreground/20 shadow-sm"
                                     : "bg-background/70 text-muted-foreground border-border/50 hover:bg-muted/40"
@@ -622,7 +622,7 @@ function PluginParamControl({ param, value, onChange }: ParamControlProps) {
                     value={colorValue}
                     onChange={(next) => onChange(next)}
                     className="px-2 py-1"
-                    swatchClassName="h-4 w-4 rounded-full"
+                    swatchClassName="h-4 w-4 rounded-pill"
                 />
             </div>
         )

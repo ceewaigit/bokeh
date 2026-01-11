@@ -39,8 +39,10 @@ function LayoutButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-lg border px-2.5 py-2 text-left text-2xs transition-colors',
-        selected ? 'border-primary bg-primary/10 text-foreground' : 'border-border/50 bg-background/30 text-muted-foreground hover:border-border'
+        'rounded-md border px-3 py-2 text-left text-xs font-medium transition-all duration-200',
+        selected
+          ? 'border-primary/20 bg-primary/10 text-primary shadow-sm'
+          : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground'
       )}
     >
       {label}
@@ -65,8 +67,8 @@ function decodeLayout(layout: WatermarkLayout): {
 
   const order: WatermarkOrder =
     layout === WatermarkLayout.TextOnly ||
-    layout === WatermarkLayout.TextIconHorizontal ||
-    layout === WatermarkLayout.TextIconStacked
+      layout === WatermarkLayout.TextIconHorizontal ||
+      layout === WatermarkLayout.TextIconStacked
       ? 'text-first'
       : 'icon-first'
 
@@ -107,6 +109,14 @@ export function WatermarkTab() {
         watermark: normalizeWatermarkEffectData({
           ...(p.watermark ?? {}),
           ...updates,
+          containerStyle: {
+            ...(p.watermark?.containerStyle ?? {}),
+            ...(updates.containerStyle ?? {}),
+            background: {
+              ...(p.watermark?.containerStyle?.background ?? {}),
+              ...(updates.containerStyle?.background ?? {}),
+            },
+          },
           textStyle: {
             ...(p.watermark?.textStyle ?? {}),
             ...(updates.textStyle ?? {}),
@@ -152,23 +162,23 @@ export function WatermarkTab() {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="rounded-2xl bg-background/40 p-4 overflow-hidden">
+      <div className="rounded-xl border border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-xl p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Stamp className="h-4 w-4 text-muted-foreground" />
-              <div className="text-xs font-semibold leading-none tracking-[-0.01em]">Watermark</div>
-              <span className="text-2xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+            <div className="flex items-center gap-2 mb-1">
+              <Stamp className="h-4 w-4 text-primary" />
+              <div className="text-sm font-semibold tracking-tight">Watermark</div>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
                 Free
               </span>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground leading-snug">
+            <div className="text-xs text-muted-foreground/80 leading-relaxed font-medium">
               Watermark settings are saved with your project.
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-2xs text-muted-foreground">Enabled</span>
+            <span className="text-xs font-medium text-muted-foreground/80">Enabled</span>
             <Switch
               checked={watermark.enabled}
               onCheckedChange={(v) => patch({ enabled: v })}
@@ -181,15 +191,15 @@ export function WatermarkTab() {
       <div className="relative">
         <div className={cn(showUpgradeOverlay && 'pointer-events-none select-none blur-[2px] opacity-60')}>
           {/* Layout */}
-          <div className="rounded-2xl border border-border/20 bg-background/50 p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-2xs font-medium text-muted-foreground">Layout</div>
+          <div className="rounded-xl border border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-md p-4 shadow-sm transition-all hover:bg-white/50 dark:hover:bg-black/30">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="text-xs font-semibold text-foreground/80">Layout</div>
               <InfoTooltip content="Choose whether the watermark is horizontal or stacked, and whether text/icon comes first." />
             </div>
             {(() => {
               const state = decodeLayout(watermark.layout)
               return (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-2">
                     <LayoutButton
                       label="Horizontal"
@@ -205,37 +215,37 @@ export function WatermarkTab() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <LayoutButton
-                      label="Text then icon"
+                      label="Text first"
                       selected={state.order === 'text-first'}
                       onClick={() => patch({ layout: encodeLayout({ ...state, order: 'text-first' }) })}
                     />
                     <LayoutButton
-                      label="Icon then text"
+                      label="Icon first"
                       selected={state.order === 'icon-first'}
                       onClick={() => patch({ layout: encodeLayout({ ...state, order: 'icon-first' }) })}
                     />
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <label className="text-xs font-medium text-muted-foreground">Show Icon</label>
-                      <InfoTooltip content="Turn the logo on or off." />
+                  <div className="grid grid-cols-2 gap-4 pt-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">Show Icon</label>
+                      </div>
+                      <Switch
+                        checked={state.showIcon}
+                        onCheckedChange={(v) => patch({ layout: encodeLayout({ ...state, showIcon: v }) })}
+                      />
                     </div>
-                    <Switch
-                      checked={state.showIcon}
-                      onCheckedChange={(v) => patch({ layout: encodeLayout({ ...state, showIcon: v }) })}
-                    />
-                  </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <label className="text-xs font-medium text-muted-foreground">Show Text</label>
-                      <InfoTooltip content="Turn the watermark text on or off." />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">Show Text</label>
+                      </div>
+                      <Switch
+                        checked={state.showText}
+                        onCheckedChange={(v) => patch({ layout: encodeLayout({ ...state, showText: v }) })}
+                      />
                     </div>
-                    <Switch
-                      checked={state.showText}
-                      onCheckedChange={(v) => patch({ layout: encodeLayout({ ...state, showText: v }) })}
-                    />
                   </div>
                 </div>
               )
@@ -243,42 +253,48 @@ export function WatermarkTab() {
           </div>
 
           {/* Content */}
-          <div className="rounded-2xl border border-border/20 bg-background/50 p-3 space-y-2.5">
+          <div className="rounded-xl border border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-md p-4 space-y-4 shadow-sm transition-all hover:bg-white/50 dark:hover:bg-black/30">
             <div className="flex items-center gap-2">
-              <div className="text-2xs font-medium text-muted-foreground">Content</div>
+              <div className="text-xs font-semibold text-foreground/80">Content</div>
               <InfoTooltip content="Customize the watermark text and pick an icon from your media library." />
             </div>
-            <div className="space-y-2">
-              <div className="space-y-1">
+            <div className="space-y-3">
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Text</label>
                 <Input
                   value={watermark.text}
                   onChange={(e) => patch({ text: e.target.value })}
                   placeholder="Watermark text"
-                  className="h-9"
+                  className="h-9 bg-black/5 dark:bg-white/5 border-transparent focus:border-primary/20 focus:bg-background transition-colors"
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-4">
                 <div className="text-xs font-medium text-muted-foreground">Icon</div>
-                <Button type="button" size="sm" variant="outline" onClick={() => setIconPickerOpen(true)}>
-                  Choose
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIconPickerOpen(true)}
+                  className="bg-black/5 dark:bg-white/5 border-transparent hover:bg-black/10 dark:hover:bg-white/10 hover:text-foreground text-xs h-8 px-3"
+                >
+                  Choose Image
                 </Button>
               </div>
             </div>
           </div>
 
           {/* Appearance */}
-          <div className="rounded-2xl border border-border/20 bg-background/50 p-3 space-y-3">
+          <div className="rounded-xl border border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-md p-4 space-y-5 shadow-sm transition-all hover:bg-white/50 dark:hover:bg-black/30">
             <div className="flex items-center gap-2">
-              <div className="text-2xs font-medium text-muted-foreground">Appearance</div>
+              <div className="text-xs font-semibold text-foreground/80">Appearance</div>
               <InfoTooltip content="Adjust opacity and logo size. Position is draggable in the preview (when available)." />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-                <span className="text-xs text-muted-foreground/70 tabular-nums">{Math.round(watermark.opacity * 100)}%</span>
+                <span className="text-xs text-muted-foreground/70 tabular-nums font-mono">{Math.round(watermark.opacity * 100)}%</span>
               </div>
               <Slider
                 value={[watermark.opacity]}
@@ -286,13 +302,14 @@ export function WatermarkTab() {
                 min={0.3}
                 max={1}
                 step={0.01}
+                className="py-2"
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Icon Size</label>
-                <span className="text-xs text-muted-foreground/70 tabular-nums">{watermark.iconSize.toFixed(0)}%</span>
+                <span className="text-xs text-muted-foreground/70 tabular-nums font-mono">{watermark.iconSize.toFixed(0)}%</span>
               </div>
               <Slider
                 value={[watermark.iconSize]}
@@ -300,8 +317,32 @@ export function WatermarkTab() {
                 min={5}
                 max={20}
                 step={1}
+                className="py-2"
               />
             </div>
+          </div>
+
+          {/* Quick controls that remain available */}
+          <div className="rounded-xl border border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-md p-4 space-y-4 shadow-sm transition-all hover:bg-white/50 dark:hover:bg-black/30">
+            <div className="flex items-center gap-2">
+              <div className="text-xs font-semibold text-foreground/80">Visibility</div>
+              <InfoTooltip content="Helps the watermark stay readable on bright backgrounds." />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <label className="text-xs font-medium text-muted-foreground">Background Chip</label>
+                <InfoTooltip content="Adds a subtle translucent backing behind the watermark." />
+              </div>
+              <Switch
+                checked={watermark.containerStyle?.background?.enabled ?? false}
+                onCheckedChange={(v) => patch({ containerStyle: { background: { enabled: v } } })}
+              />
+            </div>
+            {showUpgradeOverlay ? (
+              <div className="text-2xs text-muted-foreground/70 leading-snug">
+                More customization will unlock later.
+              </div>
+            ) : null}
           </div>
 
           <AccordionSection title="Text Styling" defaultOpen={false} className="bg-background/50">
@@ -526,16 +567,16 @@ export function WatermarkTab() {
         </div>
 
         {showUpgradeOverlay ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl overflow-hidden">
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg overflow-hidden">
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 rounded-xl"
               style={{
                 background:
                   'repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 10px, rgba(0,0,0,0.06) 10px 20px)',
               }}
             />
-            <div className="absolute inset-0 bg-background/35 backdrop-blur-md" />
-            <div className="relative z-10 max-w-[260px] rounded-2xl border border-border/30 bg-background/60 p-4 text-center shadow-sm">
+            <div className="rounded-lg absolute inset-0 bg-background/35 backdrop-blur-md" />
+            <div className="relative z-10 max-w-[260px] rounded-lg border border-border/30 bg-background/60 p-4 text-center shadow-sm">
               <div className="text-sm font-semibold tracking-tight">Upgrade for a custom watermark</div>
               <div className="mt-1 text-xs text-muted-foreground leading-snug">
                 Change text, logo, layout, styling, and animations.

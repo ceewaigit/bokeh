@@ -49,7 +49,7 @@ export function ProxyProgress({
                 <TooltipTrigger asChild>
                     <div
                         className={cn(
-                            "flex items-center gap-2 rounded-full px-3 py-1.5",
+                            "flex items-center gap-2 rounded-pill px-3 py-1.5",
                             "bg-background/80 backdrop-blur-md border border-border/50 shadow-lg",
                             "text-sm cursor-default",
                             isComplete && "border-green-500/30 bg-green-500/5",
@@ -78,7 +78,7 @@ export function ProxyProgress({
                                     e.stopPropagation()
                                     onDismiss()
                                 }}
-                                className="ml-1 rounded-full p-0.5 hover:bg-muted/50 transition-colors"
+                                className="ml-1 rounded-pill p-0.5 hover:bg-muted/50 transition-colors"
                             >
                                 <X className="h-3 w-3 text-muted-foreground" />
                             </button>

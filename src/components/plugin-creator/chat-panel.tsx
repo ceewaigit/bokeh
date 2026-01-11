@@ -53,7 +53,7 @@ export function ChatPanel({
                 ))}
                 {isLoading && (
                     <div className="flex items-start gap-4 animate-in fade-in duration-300">
-                        <div className="w-8 h-8 rounded-full bg-background/70 border border-border/70 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-pill bg-background/70 border border-border/70 flex items-center justify-center shrink-0">
                             <Bot className="w-4 h-4 text-muted-foreground" />
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground text-xs py-2">
@@ -112,7 +112,7 @@ function MessageBubble({
     return (
         <div className={`flex gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'} group`}>
             {/* Avatar */}
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border ${isUser
+            <div className={`w-7 h-7 rounded-pill flex items-center justify-center flex-shrink-0 border ${isUser
                 ? 'bg-background border-border/70 text-foreground'
                 : 'bg-background/70 border-border/70 text-muted-foreground'
                 }`}>
@@ -147,7 +147,7 @@ function MessageBubble({
                                         <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{message.plugin.description}</div>
                                     </div>
                                 </div>
-                                <span className={`text-3xs px-2.5 py-1 rounded-full border font-medium ${getCategoryColor(message.plugin.category)}`}>
+                                <span className={`text-3xs px-2.5 py-1 rounded-pill border font-medium ${getCategoryColor(message.plugin.category)}`}>
                                     {message.plugin.category}
                                 </span>
                             </div>

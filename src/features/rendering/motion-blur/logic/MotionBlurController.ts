@@ -103,6 +103,7 @@ export class MotionBlurController {
             u_blackLevel: gl.getUniformLocation(program, 'u_blackLevel')!,
             u_saturation: gl.getUniformLocation(program, 'u_saturation')!,
             u_linearize: gl.getUniformLocation(program, 'u_linearize')!,
+            u_refocusBlur: gl.getUniformLocation(program, 'u_refocusBlur')!,
         };
 
         // 4. Buffers
@@ -154,6 +155,7 @@ export class MotionBlurController {
             unpackPremultiplyAlpha?: boolean;
             pixelRatio?: number;
             linearize?: boolean;
+            refocusBlur?: number;
         }
     ): OffscreenCanvas | HTMLCanvasElement | null {
         if (!this.gl || this.gl.isContextLost()) {
@@ -231,6 +233,7 @@ export class MotionBlurController {
         gl.uniform1f(this.locations.u_blackLevel as WebGLUniformLocation, uniforms.blackLevel);
         gl.uniform1f(this.locations.u_saturation as WebGLUniformLocation, uniforms.saturation);
         gl.uniform1i(this.locations.u_linearize as WebGLUniformLocation, uniforms.linearize ? 1 : 0);
+        gl.uniform1f(this.locations.u_refocusBlur as WebGLUniformLocation, uniforms.refocusBlur ?? 0);
 
         // 5. Draw
         // Bind attributes

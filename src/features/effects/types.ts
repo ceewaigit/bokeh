@@ -149,6 +149,10 @@ export enum ZoomFollowStrategy {
   Manual = 'manual'
 }
 
+export type ZoomTransitionStyle = 'linear' | 'cubic' | 'sine' | 'expo' | 'sigmoid';
+export type ZoomMouseFollowAlgorithm = 'deadzone' | 'direct' | 'smooth' | 'thirds';
+export type ZoomIntoCursorMode = 'center' | 'cursor' | 'snap' | 'lead';
+
 export interface ZoomBlockBase {
   id: string;
   startTime: number;
@@ -165,6 +169,9 @@ export interface ZoomBlockBase {
   autoScale?: 'fill';
   smoothing?: number;
   mouseIdlePx?: number;
+  transitionStyle?: ZoomTransitionStyle;
+  mouseFollowAlgorithm?: ZoomMouseFollowAlgorithm;
+  zoomIntoCursorMode?: ZoomIntoCursorMode;
 }
 
 export interface AutoZoomBlock extends ZoomBlockBase {
@@ -192,4 +199,7 @@ export interface ZoomEffectData {
   autoScale?: 'fill';
   // Mouse idle threshold in pixels (physical) to consider idle within the velocity window
   mouseIdlePx?: number;
+  transitionStyle?: ZoomTransitionStyle;
+  mouseFollowAlgorithm?: ZoomMouseFollowAlgorithm;
+  zoomIntoCursorMode?: ZoomIntoCursorMode;
 }

@@ -138,7 +138,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                 >
                     {/* Inner content */}
                     <div className={backgroundOverlay ? "absolute inset-0 rounded-lg bg-white/5 border border-white/15" : "absolute inset-0 rounded-2xl bg-white/5 border border-white/15"} />
-                    <div className="absolute left-3 top-3 rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80">
+                    <div className="absolute left-3 top-3 rounded-pill bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80">
                         Background
                     </div>
                 </div>
@@ -158,7 +158,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                         }}
                     />
                     <div
-                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
+                        className="absolute rounded-pill bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
                         style={{
                             left: `${Math.max(12, webcamOverlay.x + 8)}px`,
                             top: `${Math.max(12, webcamOverlay.y + 8)}px`,
@@ -183,7 +183,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                         }}
                     />
                     <div
-                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
+                        className="absolute rounded-pill bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
                         style={{
                             left: `${Math.max(12, subtitleOverlay.x + 8)}px`,
                             top: `${Math.max(12, subtitleOverlay.y - 24)}px`,
@@ -208,7 +208,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                         }}
                     />
                     <div
-                        className="absolute rounded-full bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
+                        className="absolute rounded-pill bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
                         style={{
                             left: `${Math.max(12, keystrokeOverlay.x + 8)}px`,
                             top: `${Math.max(12, keystrokeOverlay.y - 24)}px`,
@@ -231,18 +231,18 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                         }}
                     >
                         {/* Outer soft ambient glow */}
-                        <div className="absolute h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white opacity-[0.08] blur-3xl" />
+                        <div className="absolute h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-white opacity-[0.08] blur-3xl" />
 
                         {/* Secondary spread glow */}
-                        <div className="absolute h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white opacity-[0.12] blur-xl mix-blend-plus-lighter" />
+                        <div className="absolute h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-white opacity-[0.12] blur-xl mix-blend-plus-lighter" />
 
                         {/* Inner core accent */}
-                        <div className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white opacity-[0.15] blur-md mix-blend-plus-lighter" />
+                        <div className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-white opacity-[0.15] blur-md mix-blend-plus-lighter" />
                     </div>
 
                     {/* Label */}
                     <div
-                        className="absolute rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
+                        className="absolute rounded-pill bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
                         style={{
                             left: `${Math.max(12, cursorOverlay.left + cursorOverlay.width * 0.75)}px`,
                             top: `${Math.max(12, cursorOverlay.top - 24)}px`,
@@ -268,7 +268,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                             }}
                         />
                         <div
-                            className="absolute rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
+                            className="absolute rounded-pill bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
                             style={{
                                 left: `${Math.max(12, annotationOverlay.x)}px`,
                                 top: `${Math.max(12, annotationOverlay.y - 24)}px`,
@@ -295,7 +295,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
                     />
                     {/* Label */}
                     <div
-                        className="absolute rounded-full bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
+                        className="absolute rounded-pill bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
                         style={{
                             left: `${Math.max(12, videoOverlay.x + 12)}px`,
                             top: `${Math.max(12, videoOverlay.y + 12)}px`,

@@ -37,13 +37,13 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
 }, ref) => (
   <WindowHeader ref={ref} customDragRegions className="z-30 relative">
     <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-      <div className="flex items-center gap-2 px-2.5 h-6 bg-accent/15 rounded-xl">
+      <div className="flex items-center gap-2 px-2.5 h-6 bg-accent/15 rounded-lg">
         <Film className="w-3.5 h-3.5 text-accent flex-shrink-0" />
         <span className="font-bold text-xs text-accent tracking-[0.1em] whitespace-nowrap">
           bokeh library
         </span>
       </div>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/80 backdrop-blur-md px-2.5 h-6 rounded-full border border-border/60 shadow-sm">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/80 backdrop-blur-md px-2.5 h-6 rounded-pill border border-border/60 shadow-sm">
         <Layers className="w-3 h-3 opacity-70" />
         <span className="font-mono font-bold">{totalRecordings}</span>
       </div>
@@ -94,7 +94,7 @@ export const LibraryHeader = forwardRef<HTMLDivElement, LibraryHeaderProps>(({
       </HeaderButton>
       <HeaderButton
         variant="default"
-        className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
+        className="relative rounded-pill bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] active:translate-y-[1px]"
         onClick={onNewRecording}
         tooltip="New Recording"
         icon={Video}

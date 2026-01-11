@@ -1,8 +1,8 @@
 import { app, BrowserWindow, protocol, ipcMain } from 'electron'
 
 // Set app name immediately for best chance of persisting in Dock/Menu
-app.setName('bokeh.')
-app.name = 'bokeh.'
+app.setName('Bokeh')
+app.name = 'Bokeh'
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.bokeh.app')
 }
@@ -32,10 +32,34 @@ import { enableCaptureProtection } from './windows/capture-protection'
 import { registerProtocol } from './ipc/protocol-handler'
 import { resolveRecordingFilePath } from './utils/file-resolution'
 import { registerTranscriptionHandlers } from './ipc/transcription'
+import { installAppMenu } from './menu/app-menu'
+import { openWorkspaceWindow } from './windows/workspace-window'
+import { toggleTeleprompterWindow } from './windows/teleprompter-window'
+import { installNativeContextMenu } from './services/context-menu'
 
 app.on('browser-window-created', (_event, window) => {
   enableCaptureProtection(window, `window-${window.id}`)
+  installNativeContextMenu(window)
 })
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // Prefer the main workspace; fall back to recorder overlay.
+    if (global.mainWindow && !global.mainWindow.isDestroyed()) {
+      if (global.mainWindow.isMinimized()) global.mainWindow.restore()
+      global.mainWindow.show()
+      global.mainWindow.focus()
+      return
+    }
+    if (global.recordButton && !global.recordButton.isDestroyed()) {
+      global.recordButton.show()
+      global.recordButton.focus()
+    }
+  })
+}
 
 // Register custom protocols before app ready
 // This ensures they're available when needed
@@ -125,6 +149,11 @@ async function initializeApp(): Promise<void> {
   console.log(`🚀 App ready - Electron version: ${process.versions.electron}`)
   console.log(`🌐 Chrome version: ${process.versions.chrome}`)
 
+  ;(app as any).__bokehIsQuitting = false
+  app.on('before-quit', () => {
+    ;(app as any).__bokehIsQuitting = true
+  })
+
   registerProtocol()
   // Initialize permission service
   await PermissionService.getInstance().checkInitialPermissions()
@@ -146,6 +175,18 @@ async function initializeApp(): Promise<void> {
   const recordButton = createRecordButton()
   global.recordButton = recordButton
   setupRecordButton(recordButton)
+
+  installAppMenu({
+    openWorkspace: () => openWorkspaceWindow(),
+    openSettings: () => openWorkspaceWindow({ openSettings: true }),
+    showRecordButton: () => {
+      if (global.recordButton && !global.recordButton.isDestroyed()) {
+        global.recordButton.show()
+        global.recordButton.focus()
+      }
+    },
+    toggleTeleprompter: () => void toggleTeleprompterWindow(),
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

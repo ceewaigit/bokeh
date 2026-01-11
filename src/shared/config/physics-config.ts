@@ -152,14 +152,22 @@ export const CURSOR_RENDER_CONFIG = {
 // ZOOM TRANSITION (easing and timing for zoom in/out)
 // =============================================================================
 export const ZOOM_TRANSITION_CONFIG = {
-    /** Default intro duration - fast enough to feel responsive (ms) */
-    defaultIntroMs: 450,
-    /** Default outro duration - slower for deliberate, cinematic feel (ms) */
-    defaultOutroMs: 800,
+    /** Default intro duration (ms) */
+    defaultIntroMs: 1200,
+    /** Default outro duration (ms) */
+    defaultOutroMs: 1300,
     /** Minimum transition duration (ms) */
     minTransitionMs: 200,
     /** Maximum transition duration before it feels sluggish (ms) */
     maxTransitionMs: 1500,
+} as const
+
+// =============================================================================
+// ZOOM VISUALS (refocus blur, etc.)
+// =============================================================================
+export const ZOOM_VISUAL_CONFIG = {
+    /** Default refocus blur intensity (0-100) */
+    defaultRefocusBlurIntensity: 30,
 } as const
 
 // =============================================================================
@@ -213,6 +221,7 @@ export const PHYSICS_CONFIG = {
     cursorStop: CURSOR_STOP_CONFIG,
     zoomDetection: ZOOM_DETECTION_CONFIG,
     zoomTransition: ZOOM_TRANSITION_CONFIG,
+    zoomVisual: ZOOM_VISUAL_CONFIG,
     actionZoom: ACTION_ZOOM_CONFIG,
     cursorRender: CURSOR_RENDER_CONFIG,
     cameraMotionBlur: CAMERA_MOTION_BLUR_CONFIG,

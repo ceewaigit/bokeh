@@ -3,36 +3,44 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { getNextJsPort } from './utils/port-detector'
 
-export const isDev = process.env.NODE_ENV === 'development'
+export const isDev =
+  process.env.NODE_ENV === 'development' ||
+  process.env.ELECTRON_IS_DEV === 'true' ||
+  process.defaultApp === true ||
+  !app.isPackaged
+
+function getForgeWebpackDevUrl(): string | null {
+  // When running `electron-forge start` with the webpack plugin, the main process
+  // is bundled into `.webpack/main`. If `MAIN_WINDOW_WEBPACK_ENTRY` isn't injected
+  // (custom webpack config edge cases), fall back to a computed dev-server URL.
+  const looksLikeForgeWebpack =
+    process.env.npm_lifecycle_event === 'forge:start' ||
+    __dirname.includes(`${path.sep}.webpack${path.sep}`) ||
+    process.argv.some(arg => arg.includes('electron-forge'))
+
+  if (!looksLikeForgeWebpack) return null
+
+  const port =
+    Number.parseInt(process.env.FORGE_WEBPACK_PORT || '', 10) ||
+    Number.parseInt(process.env.WEBPACK_DEV_SERVER_PORT || '', 10) ||
+    3001
+
+  const host = process.env.WEBPACK_DEV_SERVER_HOST || '127.0.0.1'
+  return `http://${host}:${port}/main_window`
+}
 
 export function getAppURL(route: string = ''): string {
-  console.log('🔍 getAppURL called with route:', route)
-  console.log('🔍 isDev:', isDev)
-  console.log('🔍 MAIN_WINDOW_WEBPACK_ENTRY:', process.env.MAIN_WINDOW_WEBPACK_ENTRY)
-  console.log('🔍 DEV_SERVER_URL:', process.env.DEV_SERVER_URL)
-  console.log('🔍 npm_lifecycle_event:', process.env.npm_lifecycle_event)
-  console.log('🔍 process.argv:', process.argv)
+  // Prefer the URL Electron Forge provides (dev + prod). This avoids hardcoding ports.
+  if (process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
+    const baseUrl = process.env.MAIN_WINDOW_WEBPACK_ENTRY
+    if (route) return `${baseUrl}#${route}`
+    return baseUrl
+  }
 
-  // Try to detect if we're in webpack dev mode by checking for common webpack indicators
-  const isWebpackDev = process.env.npm_lifecycle_event === 'forge:start' ||
-    process.env.ELECTRON_IS_DEV === 'true' ||
-    process.argv.some(arg => arg.includes('forge') || arg.includes('webpack')) ||
-    __dirname.includes('.webpack')
-
-  console.log('🔍 isWebpackDev:', isWebpackDev)
-  console.log('🔍 __dirname:', __dirname)
-
-  if (isWebpackDev) {
-    // When running with forge:start, use the webpack dev server
-    // The webpack renderer runs on port 3001 with the main_window endpoint
-    const webpackPort = 3001 // Webpack dev server port from forge.config.js
-    const webpackDevUrl = `http://localhost:${webpackPort}/main_window`
-    console.log('🔍 Using webpack dev server on port:', webpackPort, 'URL:', webpackDevUrl)
-
-    if (route) {
-      return `${webpackDevUrl}#${route}`
-    }
-    return webpackDevUrl
+  const forgeWebpackDevUrl = getForgeWebpackDevUrl()
+  if (forgeWebpackDevUrl) {
+    if (route) return `${forgeWebpackDevUrl}#${route}`
+    return forgeWebpackDevUrl
   }
 
   if (isDev && !process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
@@ -47,19 +55,6 @@ export function getAppURL(route: string = ''): string {
   }
 
   // For webpack builds (both dev and production)
-  if (process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
-    const baseUrl = process.env.MAIN_WINDOW_WEBPACK_ENTRY
-    console.log('🔍 Using webpack entry URL:', baseUrl)
-
-    // For routes, we need to navigate within the single-page app
-    if (route) {
-      // Return the main entry with a hash route for client-side routing
-      return `${baseUrl}#${route}`
-    }
-
-    return baseUrl
-  }
-
   // Fallback for packaged app without webpack
   const isPackaged = app.isPackaged
 

@@ -1,6 +1,7 @@
 import type { ProjectSettings } from '@/types/project'
 import { AspectRatioPreset, ExportFormat, QualityLevel } from '@/types/project'
 import type { StoreSettings } from '@/features/core/stores/slices/types'
+import { ZOOM_VISUAL_CONFIG } from '@/shared/config/physics-config'
 
 export const DEFAULT_CAMERA_SETTINGS = {
   motionBlurEnabled: true,
@@ -15,7 +16,7 @@ export const DEFAULT_CAMERA_SETTINGS = {
   motionBlurUseWebglVideo: true,
   motionBlurSamples: 32,
   refocusBlurEnabled: true,
-  refocusBlurIntensity: 50,
+  refocusBlurIntensity: ZOOM_VISUAL_CONFIG.defaultRefocusBlurIntensity,
   cameraSmoothness: 48,
   cameraDynamics: {
     stiffness: 60,

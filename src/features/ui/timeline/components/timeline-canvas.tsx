@@ -937,6 +937,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                   assetDragDrop={assetDragDrop}
                   getTrackBounds={safeGetTrackBounds}
                   pixelsPerMs={pixelsPerMs}
+                  scrollContainerRef={scrollContainerRef}
                 />
               </div>
             </div>

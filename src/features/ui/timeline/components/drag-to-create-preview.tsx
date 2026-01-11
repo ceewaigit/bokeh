@@ -7,6 +7,7 @@ import { EffectType } from '@/types/project'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { useTimelineColors, withAlpha } from '@/features/ui/timeline/utils/colors'
+import { ContinuousRect } from './konva/continuous-rect'
 
 interface DragToCreatePreviewProps {
   effectType: EffectType
@@ -60,15 +61,15 @@ export function DragToCreatePreview({
 
   return (
     <Group listening={false} name="drag-to-create-preview">
-      <Rect
+      <ContinuousRect
         x={x}
         y={trackY}
         width={width}
         height={height}
+        cornerRadius={8}
         fill={fill}
         stroke={stroke}
         strokeWidth={1}
-        cornerRadius={8}
         dash={isValid ? undefined : [5, 4]}
       />
       {showLabel && (

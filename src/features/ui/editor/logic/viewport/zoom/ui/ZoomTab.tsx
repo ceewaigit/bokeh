@@ -25,6 +25,7 @@ import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/ge
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { computeCameraState } from '@/features/ui/editor/logic/viewport/logic/orchestrator'
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
+import { getEffectiveZoomEaseDurations } from '@/features/rendering/canvas/math/transforms/zoom-transform'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -34,6 +35,7 @@ interface ZoomBlockEditorProps {
     sourceDims: { width: number; height: number } | null
     timelineMetadata: any
     cropData: CropEffectData | null
+    blockDurationMs: number
     onUpdate: (blockId: string, updates: Partial<ZoomBlock>) => void
     seedManualTarget: () => any
 }
@@ -44,6 +46,7 @@ function ZoomBlockEditor({
     sourceDims,
     timelineMetadata,
     cropData,
+    blockDurationMs,
     onUpdate,
     seedManualTarget
 }: ZoomBlockEditorProps) {
@@ -71,6 +74,14 @@ function ZoomBlockEditor({
     const isCenterLocked = followStrategy === ZoomFollowStrategy.Center
     const isManualFocus = followStrategy === ZoomFollowStrategy.Manual
     const hasManualTarget = isManualFocus && zoomData.targetX != null && zoomData.targetY != null
+
+    const effectiveEase = React.useMemo(() => {
+        return getEffectiveZoomEaseDurations(
+            Math.max(0, blockDurationMs),
+            zoomData.introMs ?? DEFAULT_ZOOM_DATA.introMs,
+            zoomData.outroMs ?? DEFAULT_ZOOM_DATA.outroMs
+        )
+    }, [blockDurationMs, zoomData.introMs, zoomData.outroMs])
 
     return (
         <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -141,7 +152,7 @@ function ZoomBlockEditor({
                         {isManualFocus ? 'Manual zoom lets you drag the zoom window in the sidebar preview.' : 'Center Lock keeps the view fixed for a clean, professional look.'}
                     </span>
                     {isManualFocus && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-background/70 px-2 py-0.5 text-2xs uppercase tracking-[0.2em] text-muted-foreground/80">
+                        <span className="inline-flex items-center gap-1.5 rounded-pill bg-background/70 px-2 py-0.5 text-2xs uppercase tracking-[0.2em] text-muted-foreground/80">
                             <Sparkles className="h-3 w-3" />
                             Sidebar drag
                         </span>
@@ -179,10 +190,18 @@ function ZoomBlockEditor({
                         <div key={i} className="space-y-2">
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
                                 <span>{ease.label}</span>
-                                <span className="font-mono tabular-nums">{ease.val ?? (ease.dataVal || DEFAULT_ZOOM_DATA.introMs)}ms</span>
+                                <span className="font-mono tabular-nums">
+                                    {(ease.val ?? (ease.dataVal || (ease.label === 'Zoom Out' ? DEFAULT_ZOOM_DATA.outroMs : DEFAULT_ZOOM_DATA.introMs)))}ms
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between text-3xs text-muted-foreground/70">
+                                <span>Effective</span>
+                                <span className="font-mono tabular-nums">
+                                    {Math.round((ease.label === 'Zoom Out' ? effectiveEase.outroMs : effectiveEase.introMs) / 10) * 10}ms
+                                </span>
                             </div>
                             <Slider
-                                value={[ease.val ?? (ease.dataVal || DEFAULT_ZOOM_DATA.introMs)]}
+                                value={[ease.val ?? (ease.dataVal || (ease.label === 'Zoom Out' ? DEFAULT_ZOOM_DATA.outroMs : DEFAULT_ZOOM_DATA.introMs))]}
                                 onValueChange={([v]) => ease.set(v)}
                                 onValueCommit={([v]) => ease.commit(v)}
                                 min={0} max={2000} step={50}
@@ -257,7 +276,7 @@ export function ZoomTab({
     const [localStiffness, setLocalStiffness] = React.useState<number | null>(null)
     const [localDamping, setLocalDamping] = React.useState<number | null>(null)
     const [cameraStylePreset, setCameraStylePreset] = React.useState<string>('cinematic')
-    const [zoomBlurPreset, setZoomBlurPreset] = React.useState<string>('balanced')
+    const [zoomBlurPreset, setZoomBlurPreset] = React.useState<string>('subtle')
     const [motionBlurPreset, setMotionBlurPreset] = React.useState<string>('balanced')
     const [isAdvancedBlurOpen, setIsAdvancedBlurOpen] = React.useState(false)
 
@@ -293,7 +312,7 @@ export function ZoomTab({
 
     React.useEffect(() => {
         if (!camera.refocusBlurEnabled) {
-            setZoomBlurPreset('balanced') // Default visual state
+            setZoomBlurPreset('subtle') // Default visual state
             return
         }
         const match = zoomBlurPresets.find(p => p.value === camera.refocusBlurIntensity)
@@ -331,6 +350,28 @@ export function ZoomTab({
     }
 
     const selectedBlock = selectedEffectLayer?.type === EffectLayerType.Zoom ? zoomEffects.find(e => e.id === selectedEffectLayer.id) : null
+    const selectedZoomData = selectedBlock?.data as ZoomEffectData | undefined
+    const selectedMouseFollowAlgorithm = selectedZoomData?.mouseFollowAlgorithm ?? DEFAULT_ZOOM_DATA.mouseFollowAlgorithm ?? 'deadzone'
+    const selectedZoomIntoCursorMode = selectedZoomData?.zoomIntoCursorMode ?? DEFAULT_ZOOM_DATA.zoomIntoCursorMode ?? 'cursor'
+    const shouldShowCursorFraming = Boolean(
+        selectedBlock
+        && (selectedZoomData?.followStrategy ?? ZoomFollowStrategy.Mouse) === ZoomFollowStrategy.Mouse
+        && selectedZoomData?.autoScale !== 'fill'
+    )
+
+    const cursorFramingOptions = useMemo(() => ([
+        { id: 'deadzone', label: 'Stable' },
+        { id: 'direct', label: 'Locked' },
+        { id: 'smooth', label: 'Glide' },
+        { id: 'thirds', label: 'Lead' },
+    ] as const), [])
+
+    const zoomIntoOptions = useMemo(() => ([
+        { id: 'cursor', label: 'Locked' },
+        { id: 'lead', label: 'Predict' },
+        { id: 'snap', label: 'Live' },
+        { id: 'center', label: 'Center' },
+    ] as const), [])
 
     return (
         <div className="space-y-2.5">
@@ -352,12 +393,40 @@ export function ZoomTab({
                 </AnimatePresence>
             </div>
 
+            {shouldShowCursorFraming && (
+                <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-3 shadow-sm hover:bg-background/30 overflow-hidden">
+                    <SectionHeader icon={Sparkles} title="Cursor Framing" subtitle="How the camera stays with your cursor" />
+                    <SegmentedControl
+                        options={cursorFramingOptions}
+                        value={selectedMouseFollowAlgorithm}
+                        onChange={(id) => onZoomBlockUpdate?.(selectedBlock!.id, { mouseFollowAlgorithm: id as ZoomEffectData['mouseFollowAlgorithm'] })}
+                        namespace="cursor-framing"
+                        wrap
+                        columns={2}
+                    />
+                </div>
+            )}
+
+            {shouldShowCursorFraming && (
+                <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-3 shadow-sm hover:bg-background/30 overflow-hidden">
+                    <SectionHeader icon={ZoomIn} title="Zoom Aim" subtitle="What the zoom locks onto while scaling" />
+                    <SegmentedControl
+                        options={zoomIntoOptions}
+                        value={selectedZoomIntoCursorMode}
+                        onChange={(id) => onZoomBlockUpdate?.(selectedBlock!.id, { zoomIntoCursorMode: id as ZoomEffectData['zoomIntoCursorMode'] })}
+                        namespace="zoom-into-cursor"
+                        wrap
+                        columns={2}
+                    />
+                </div>
+            )}
+
             <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm hover:bg-background/30 overflow-hidden">
                 <SectionHeader icon={AppWindow} title="Zoom Blur" subtitle="Depth during transitions" />
                 <SegmentedControl options={zoomBlurPresets} value={zoomBlurPreset} onChange={id => {
                     const val = zoomBlurPresets.find(p => p.id === id)?.value
                     if (val != null) setCameraSettings({ refocusBlurIntensity: val, refocusBlurEnabled: val > 0 })
-                }} namespace="zoom-blur" wrap columns={3} />
+                }} namespace="zoom-blur" wrap columns={2} />
                 <AnimatePresence>
                     {zoomBlurPreset === 'custom' && (
                         <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="pt-1">
@@ -374,6 +443,7 @@ export function ZoomTab({
                     sourceDims={sourceDims}
                     timelineMetadata={timelineMetadata}
                     cropData={cropData}
+                    blockDurationMs={Math.max(0, selectedBlock.endTime - selectedBlock.startTime)}
                     onUpdate={onZoomBlockUpdate!}
                     seedManualTarget={seedManualTargetFromLiveCamera}
                 />

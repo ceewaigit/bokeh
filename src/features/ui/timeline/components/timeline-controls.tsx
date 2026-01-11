@@ -96,7 +96,7 @@ function TrackVisibilityDropdown() {
             <MotionButton
               size="sm"
               variant="ghost"
-              className="h-8 w-8 p-0 rounded-full"
+              className="h-8 w-8 p-0 rounded-pill"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               transition={springConfig}
@@ -126,6 +126,95 @@ function TrackVisibilityDropdown() {
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared Hover Logic for Button Groups
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { AnimatePresence } from 'framer-motion'
+
+const ControlContext = React.createContext<{
+  hoveredId: string | null
+  setHoveredId: (id: string | null) => void
+} | null>(null)
+
+function ControlGroup({ children, layoutId }: { children: React.ReactNode, layoutId: string }) {
+  const [hoveredId, setHoveredId] = React.useState<string | null>(null)
+  return (
+    <ControlContext.Provider value={{ hoveredId, setHoveredId }}>
+      <div className="flex items-center gap-0.5 relative group/controls" onMouseLeave={() => setHoveredId(null)}>
+        {children}
+      </div>
+    </ControlContext.Provider>
+  )
+}
+
+interface ControlButtonProps {
+  onClick: () => void
+  disabled?: boolean
+  icon: React.ElementType
+  label: string
+  layoutId: string
+  className?: string
+  iconClassName?: string
+  variant?: 'default' | 'destructive'
+}
+
+function ControlButton({ onClick, disabled, icon: Icon, label, layoutId, className, iconClassName, variant = 'default' }: ControlButtonProps) {
+  const ReactId = React.useId()
+  const context = React.useContext(ControlContext)
+  const isHovered = context?.hoveredId === ReactId
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          onMouseEnter={() => context?.setHoveredId(ReactId)}
+          className={cn(
+            "relative flex items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            "h-7 w-7", // Default size, overrideable
+            disabled ? "opacity-40 cursor-not-allowed" : "cursor-default",
+            className
+          )}
+          aria-label={label}
+        >
+          {/* Active Background Follower */}
+          <AnimatePresence>
+            {isHovered && !disabled && (
+              <motion.div
+                className={cn(
+                  "absolute inset-0 rounded-md z-0",
+                  variant === 'destructive' ? "bg-destructive/10" : "bg-foreground/10"
+                )}
+                layoutId={`${layoutId}-hover`}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ type: "spring", duration: 0.25, bounce: 0 }}
+              />
+            )}
+          </AnimatePresence>
+
+          <Icon
+            className={cn(
+              "relative z-10 w-4 h-4 transition-colors duration-200",
+              variant === 'destructive'
+                ? (isHovered && !disabled ? "text-destructive" : "text-muted-foreground")
+                : (isHovered && !disabled ? "text-foreground" : "text-muted-foreground"),
+              iconClassName
+            )}
+          />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={4} className="text-xs font-medium px-2 py-1 bg-popover/95 backdrop-blur-sm border-border/50">
+        <span>{label}</span>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -223,8 +312,8 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
         {/* Volume Control */}
         <div
           className={cn(
-            "flex items-center rounded-full transition-all duration-300 ease-out",
-            isControlActive(TimelineControlId.Volume) ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
+            "flex items-center rounded-pill transition-all duration-300 ease-out",
+            isControlActive(TimelineControlId.Volume) ? "bg-muted/40 pr-2 pl-0.5 py-0.5" : "bg-transparent px-0 py-0.5"
           )}
           onMouseEnter={() => setHoveredControl(TimelineControlId.Volume)}
           onMouseLeave={() => setHoveredControl((prev) => (prev === TimelineControlId.Volume ? null : prev))}
@@ -238,7 +327,11 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
                 onClick={() => {
                   setAudioSettings({ muted: !muted })
                 }}
-                className="flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                className={cn(
+                  "flex items-center justify-center p-1.5 rounded-full transition-colors relative",
+                  muted ? "text-muted-foreground" : "text-foreground",
+                  !isControlActive(TimelineControlId.Volume) && "hover:bg-muted/50"
+                )}
                 aria-label={muted ? 'Unmute' : 'Mute'}
               >
                 {muted ? (
@@ -273,186 +366,94 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
         {/* Single-clip Edit Controls - Hidden when no selection */}
         {hasSingleSelection && (
-          <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={onSplitSelected}
-                  className="h-8 w-8 p-0 rounded-full"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  transition={springConfig}
-                >
-                  <Scissors className="w-4 h-4" />
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Split at playhead (S)</span>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={onTrimStartSelected}
-                  className="h-8 w-8 p-0 rounded-full"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  transition={springConfig}
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Trim start to playhead (Q)</span>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={onTrimEndSelected}
-                  className="h-8 w-8 p-0 rounded-full"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  transition={springConfig}
-                >
-                  <ChevronsRight className="w-4 h-4" />
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Trim end to playhead (W)</span>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={onDuplicateSelected}
-                  className="h-8 w-8 p-0 rounded-full"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  transition={springConfig}
-                >
-                  <Layers className="w-4 h-4" />
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Duplicate (⌘D)</span>
-              </TooltipContent>
-            </Tooltip>
-          </>
+          <ControlGroup layoutId="edit-controls">
+            <ControlButton
+              onClick={onSplitSelected}
+              icon={Scissors}
+              label="Split at playhead (S)"
+              layoutId="edit-controls"
+            />
+            <ControlButton
+              onClick={onTrimStartSelected}
+              icon={ChevronsLeft}
+              label="Trim start to playhead (Q)"
+              layoutId="edit-controls"
+            />
+            <ControlButton
+              onClick={onTrimEndSelected}
+              icon={ChevronsRight}
+              label="Trim end to playhead (W)"
+              layoutId="edit-controls"
+            />
+            <ControlButton
+              onClick={onDuplicateSelected}
+              icon={Layers}
+              label="Duplicate (⌘D)"
+              layoutId="edit-controls"
+            />
+          </ControlGroup>
         )}
 
         {/* Always visible but disabled when no selection */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <MotionButton
-              size="sm"
-              variant="ghost"
+        <div className="ml-1">
+          <ControlGroup layoutId="delete-control">
+            <ControlButton
               onClick={onDeleteSelected}
               disabled={!hasSelection}
-              className="h-8 w-8 p-0 disabled:opacity-50 rounded-full"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              transition={springConfig}
-            >
-              <Trash2 className="w-4 h-4" />
-            </MotionButton>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" sideOffset={4}>
-            <span>Delete selected (Del)</span>
-          </TooltipContent>
-        </Tooltip>
+              icon={Trash2}
+              label="Delete selected (Del)"
+              layoutId="delete-control"
+              variant="destructive"
+            />
+          </ControlGroup>
+        </div>
 
       </div>
 
       {/* CENTER: Playback Controls & Timecode */}
       <div className="flex items-center justify-center gap-4">
         {/* Playback Controls Group */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {/* Current Time */}
           <div className="min-w-[4rem] text-right">
-            <span className="font-mono text-xs font-medium tabular-nums text-foreground">
+            <span className="font-mono text-xs font-medium tabular-nums text-foreground/90">
               {formatClockTime(displayTime)}
             </span>
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={jumpBackward1s}
-                  className="h-9 w-9 p-0 rounded-full"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  transition={springConfig}
-                >
-                  <SkipBack className="w-4 h-4 fill-current opacity-80" />
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Jump back 1s</span>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={playPause}
-                  className="h-9 w-9 p-0 rounded-full"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  transition={springConfig}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-4 h-4 fill-current" />
-                  ) : (
-                    <Play className="w-4 h-4 fill-current ml-0.5" />
-                  )}
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>{isPlaying ? 'Pause' : 'Play'} (Space)</span>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <MotionButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={jumpForward1s}
-                  className="h-9 w-9 p-0 rounded-full"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  transition={springConfig}
-                >
-                  <SkipForward className="w-4 h-4 fill-current opacity-80" />
-                </MotionButton>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={4}>
-                <span>Jump forward 1s</span>
-              </TooltipContent>
-            </Tooltip>
+          <div className="p-1 rounded-lg border border-border/20 bg-background/40 backdrop-blur-sm shadow-sm">
+            <ControlGroup layoutId="playback-controls">
+              <ControlButton
+                onClick={jumpBackward1s}
+                icon={SkipBack}
+                label="Jump back 1s"
+                layoutId="playback-controls"
+                className="w-8 h-8"
+                iconClassName="w-3.5 h-3.5"
+              />
+              <ControlButton
+                onClick={playPause}
+                icon={isPlaying ? Pause : Play}
+                label={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+                layoutId="playback-controls"
+                className="w-8 h-8"
+                iconClassName={cn("w-3.5 h-3.5", !isPlaying && "ml-0.5")}
+              />
+              <ControlButton
+                onClick={jumpForward1s}
+                icon={SkipForward}
+                label="Jump forward 1s"
+                layoutId="playback-controls"
+                className="w-8 h-8"
+                iconClassName="w-3.5 h-3.5"
+              />
+            </ControlGroup>
           </div>
 
           {/* Total Duration */}
           <div className="min-w-[4rem] text-left">
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            <span className="font-mono text-xs tabular-nums text-muted-foreground/70">
               {formatClockTime(duration)}
             </span>
           </div>
@@ -463,7 +464,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
       <div className="flex items-center gap-2 justify-end">
         <div
           className={cn(
-            "flex items-center rounded-full transition-all duration-300 ease-out",
+            "flex items-center rounded-pill transition-all duration-300 ease-out",
             isControlActive(TimelineControlId.Preview) ? "gap-1 bg-muted/40 px-2 py-0.5" : "gap-0 bg-transparent px-0 py-0.5"
           )}
           onMouseEnter={() => setHoveredControl(TimelineControlId.Preview)}
@@ -503,7 +504,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
               <MotionButton
                 size="sm"
                 variant="ghost"
-                className="h-8 w-8 p-0 rounded-full"
+                className="h-8 w-8 p-0 rounded-pill"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 transition={springConfig}

@@ -70,6 +70,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     motionBlur,
     maxZoomScale,
     useParentFade,
+    refocusBlurPx,
   } = videoPosition;
 
   // Derive current zoom scale from transform
@@ -284,7 +285,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
               - Export: video renders at native res, scaled via CSS -> use native dims
               - Preview: video renders at display size -> use drawWidth/Height */}
           <MotionBlurWrapper
-            enabled={motionBlur?.enabled ?? false}
+            enabled={motionBlur?.enabled ?? (refocusBlurPx ?? 0) > 0}
             isRendering={isRendering}
             velocity={motionBlur?.velocity ?? { x: 0, y: 0 }}
             intensity={motionBlur?.intensity ?? 1.0}
@@ -303,6 +304,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             rampRange={motionBlur?.rampRange}
             clampRadius={motionBlur?.clampRadius}
             smoothWindow={motionBlur?.smoothWindow}
+            refocusBlurIntensity={Math.min(1, (refocusBlurPx ?? 0) / 12)}
+            isScrubbing={isScrubbing}
           >
             <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
               <VideoComponent

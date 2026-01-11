@@ -43,6 +43,16 @@ export interface WatermarkTextStyle {
   }
 }
 
+export interface WatermarkContainerStyle {
+  background?: {
+    enabled: boolean
+    color: string
+    paddingX: number
+    paddingY: number
+    borderRadius: number
+  }
+}
+
 export interface WatermarkAnimationConfig {
   entry: { type: WatermarkAnimationType; durationMs: number }
   exit: { type: WatermarkAnimationType; durationMs: number }
@@ -63,6 +73,7 @@ export interface WatermarkEffectData {
   opacity: number
   offsetX: number
   offsetY: number
+  containerStyle?: WatermarkContainerStyle
   textStyle: WatermarkTextStyle
   animations: WatermarkAnimationConfig
 }
@@ -70,9 +81,13 @@ export interface WatermarkEffectData {
 export type WatermarkTextShadow = NonNullable<WatermarkTextStyle['textShadow']>
 export type WatermarkTextOutline = NonNullable<WatermarkTextStyle['textOutline']>
 export type WatermarkTextUnderline = NonNullable<WatermarkTextStyle['textUnderline']>
+export type WatermarkContainerBackground = NonNullable<NonNullable<WatermarkContainerStyle['background']>>
 
 export type WatermarkEffectDataPatch =
-  Partial<Omit<WatermarkEffectData, 'textStyle' | 'animations'>> & {
+  Partial<Omit<WatermarkEffectData, 'textStyle' | 'animations' | 'containerStyle'>> & {
+    containerStyle?: Partial<Omit<WatermarkContainerStyle, 'background'>> & {
+      background?: Partial<WatermarkContainerBackground>
+    }
     textStyle?: Partial<Omit<WatermarkTextStyle, 'textShadow' | 'textOutline' | 'textUnderline'>> & {
       textShadow?: Partial<WatermarkTextShadow>
       textOutline?: Partial<WatermarkTextOutline>

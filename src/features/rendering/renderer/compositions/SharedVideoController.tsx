@@ -28,6 +28,7 @@ import { MockupLayer } from './layers/MockupLayer';
 import { AnnotationLayer } from './layers/AnnotationLayer';
 
 import { PreviewGuides } from '@/components/preview-guides';
+import { ZOOM_VISUAL_CONFIG } from '@/shared/config/physics-config'
 import { getMotionBlurConfig } from '@/features/rendering/canvas/math/transforms/zoom-transform';
 
 // ============================================================================
@@ -161,7 +162,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // ============================================================================
   const refocusEnabled = cameraSettings?.refocusBlurEnabled !== false;
   const refocusIntensity = refocusEnabled
-    ? Math.max(0, Math.min(1, (cameraSettings?.refocusBlurIntensity ?? 50) / 100))
+    ? Math.max(0, Math.min(1, (cameraSettings?.refocusBlurIntensity ?? ZOOM_VISUAL_CONFIG.defaultRefocusBlurIntensity) / 100))
     : 0;
 
   // Refocus blur during zoom transitions (intro/outro phases)
@@ -386,7 +387,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               opacity: useParentFade ? clipFadeOpacity : 1,
               // OUTER CONTAINER: Handles positioning, transforms
               // Shadows are now handled by the inner container for performance
-              filter: effectiveBlurPx > 0 ? `blur(${effectiveBlurPx}px)` : undefined,
+              // NOTE: Refocus blur is now handled by WebGL (MotionBlurCanvas) for performance
               willChange: isRendering ? undefined : 'transform',
               zIndex: 1,
               // GPU OPTIMIZATION: These hints help browser allocate proper GPU textures

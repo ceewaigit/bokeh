@@ -11,8 +11,8 @@ export function createMainWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin'
   const primaryDisplay = screen.getPrimaryDisplay()
   const workArea = primaryDisplay.workArea
-  const width = Math.round(workArea.width * 1.00)
-  const height = Math.round(workArea.height * 1.00)
+  const width = 1920
+  const height = 1440
 
   // Center the window on the screen
   const x = Math.round(workArea.x + (workArea.width - width) / 2)
@@ -40,6 +40,8 @@ export function createMainWindow(): BrowserWindow {
         },
       }),
     transparent: true,
+    vibrancy: 'under-window', // or 'sidebar', 'hud', 'popover'
+    visualEffectState: 'followWindow',
     backgroundColor: '#00000000',
     hasShadow: true,
     webPreferences: {

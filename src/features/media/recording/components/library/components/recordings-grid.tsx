@@ -118,9 +118,9 @@ export const RecordingsGrid = ({
               className={cn(
                 'relative rounded-xl overflow-hidden cursor-pointer',
                 'bg-muted/10 border border-border/30',
-                'transition-[transform,box-shadow,border-color] duration-150 ease-out',
-                'hover:-translate-y-0.5 hover:shadow-md hover:border-border/55',
-                'active:translate-y-0',
+                'transition-[box-shadow,border-color] duration-150 ease-out',
+                'hover:shadow-md hover:border-border/55',
+                'active:shadow-sm',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background'
               )}
               onClick={() => onSelect(recording)}
@@ -161,7 +161,7 @@ export const RecordingsGrid = ({
                     'group-hover:opacity-100'
                   )}
                 >
-                  <div className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md transition-transform duration-150 ease-out group-hover:scale-105">
+                  <div className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-pill flex items-center justify-center shadow-md transition-transform duration-150 ease-out group-hover:scale-105">
                     <Play className="w-4 h-4 text-black ml-0.5" fill="currentColor" />
                   </div>
                 </div>
@@ -228,7 +228,7 @@ export const RecordingsGrid = ({
                     {detailsButton}
                   </div>
                 </div>
-                )}
+              )}
 
               <div
                 className={cn(

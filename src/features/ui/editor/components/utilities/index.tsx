@@ -42,43 +42,57 @@ const tabVariants = {
 export function UtilitiesSidebar({ className }: { className?: string }) {
     const activeUtilityTab = useWorkspaceStore((s) => s.activeUtilityTab)
     const setActiveUtilityTab = useWorkspaceStore((s) => s.setActiveUtilityTab)
+    const [hoveredTab, setHoveredTab] = React.useState<UtilityTabId | null>(null)
 
     return (
         <TooltipProvider>
             <div className={cn("flex h-full", className)}>
                 {/* Left icon strip */}
-                <div className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent">
-                    <div className="flex flex-col gap-1.5 w-full px-1.5">
+                <div className="w-[3.5rem] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/40 bg-muted/10">
+                    <div className="flex flex-col gap-2 w-full px-2">
                         {UTILITY_TABS.map((tab) => (
-                            <Tooltip key={tab.id} delayDuration={200}>
+                            <Tooltip key={tab.id} delayDuration={300}>
                                 <TooltipTrigger asChild>
-                                    <motion.button
+                                    <button
                                         onClick={() => setActiveUtilityTab(tab.id)}
+                                        onMouseEnter={() => setHoveredTab(tab.id)}
+                                        onMouseLeave={() => setHoveredTab(null)}
                                         className={cn(
-                                            "group relative flex w-full aspect-square items-center justify-center rounded-xl p-2 transition-colors duration-150",
+                                            "group relative flex w-full aspect-square items-center justify-center rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                                             activeUtilityTab === tab.id
                                                 ? "text-primary-foreground"
-                                                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
+                                                : "text-muted-foreground hover:text-foreground"
                                         )}
                                         aria-label={tab.label}
-                                        transition={tabMotion}
                                     >
                                         <AnimatePresence>
-                                            {activeUtilityTab === tab.id && (
+                                            {hoveredTab === tab.id && activeUtilityTab !== tab.id && (
                                                 <motion.div
-                                                    className="absolute inset-0 rounded-xl bg-primary shadow-sm"
-                                                    initial={{ opacity: 0, scale: 0.98 }}
+                                                    className="absolute inset-0 rounded-[10px] bg-muted/60"
+                                                    initial={{ opacity: 0, scale: 0.9 }}
                                                     animate={{ opacity: 1, scale: 1 }}
-                                                    exit={{ opacity: 0, scale: 0.98 }}
-                                                    transition={tabMotion}
-                                                    layoutId="utilities-sidebar-tab-active"
+                                                    exit={{ opacity: 0, scale: 0.9 }}
+                                                    transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                                                    layoutId="utilities-sidebar-hover"
                                                 />
                                             )}
                                         </AnimatePresence>
-                                        <tab.icon className="relative z-10 w-4 h-4" />
-                                    </motion.button>
+                                        <AnimatePresence>
+                                            {activeUtilityTab === tab.id && (
+                                                <motion.div
+                                                    className="absolute inset-0 rounded-[10px] bg-primary shadow-sm"
+                                                    initial={{ opacity: 0, scale: 0.9 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.9 }}
+                                                    transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                                                    layoutId="utilities-sidebar-active"
+                                                />
+                                            )}
+                                        </AnimatePresence>
+                                        <tab.icon className="relative z-10 w-[1.125rem] h-[1.125rem] transition-transform duration-300 group-hover:scale-110 group-active:scale-95" />
+                                    </button>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" align="center" sideOffset={8} className="text-xs">
+                                <TooltipContent side="right" align="center" sideOffset={10} className="text-xs font-medium px-2 py-1 bg-popover/95 backdrop-blur-sm border-border/50">
                                     {tab.label}
                                 </TooltipContent>
                             </Tooltip>

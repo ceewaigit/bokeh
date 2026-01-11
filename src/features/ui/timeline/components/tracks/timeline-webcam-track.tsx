@@ -16,9 +16,11 @@ import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
 import { useTimelineColors } from '@/features/ui/timeline/utils/colors'
+import { getContinuousCornerRadius } from '@/features/ui/timeline/utils/corners'
 import { useShallow } from 'zustand/react/shallow'
 import { TrackType } from '@/types/project'
 import { TimelineClip } from '../timeline-clip'
+import { ContinuousRect } from '../konva/continuous-rect'
 
 export function TimelineWebcamTrack() {
   const {
@@ -49,6 +51,7 @@ export function TimelineWebcamTrack() {
   const trackY = trackPositions.webcam
   const trackHeight = trackHeights.webcam
   const blockHeight = getClipInnerHeight(trackHeight)
+  const dropZoneCornerRadius = getContinuousCornerRadius(blockHeight, { ratio: 0.28, min: 8, max: 16 })
   const trackWidth = stageWidth - TimelineConfig.TRACK_LABEL_WIDTH
 
   // Empty state - show drop zone when no webcam clips
@@ -58,7 +61,7 @@ export function TimelineWebcamTrack() {
     return (
       <Group>
         {/* Drop zone background */}
-        <Rect
+        <ContinuousRect
           x={TimelineConfig.TRACK_LABEL_WIDTH}
           y={trackY + TimelineConfig.TRACK_PADDING}
           width={trackWidth}
@@ -67,7 +70,7 @@ export function TimelineWebcamTrack() {
           stroke={colors.border}
           strokeWidth={1}
           dash={[6, 4]}
-          cornerRadius={8}
+          cornerRadius={dropZoneCornerRadius}
           opacity={isHovering ? 0.8 : 0.4}
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}

@@ -111,15 +111,15 @@ export function PluginPlayer({ plugin, onError }: PluginPlayerProps) {
             </div>
 
             {/* Playback Controls - Floating bar */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-5 bg-background/85 backdrop-blur-xl rounded-full px-6 py-3 border border-border/70 shadow-2xl shadow-black/30 z-20 transition-all hover:bg-background/95 hover:scale-[1.02] hover:border-border/60 group">
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-5 bg-background/85 backdrop-blur-xl rounded-pill px-6 py-3 border border-border/70 shadow-2xl shadow-black/30 z-20 transition-all hover:bg-background/95 hover:scale-[1.02] hover:border-border/60 group">
                 <button
                     onClick={() => setIsPlaying(!isPlaying)}
-                    className="w-10 h-10 rounded-full bg-foreground text-background hover:bg-foreground/80 flex items-center justify-center transition-all shadow-lg hover:shadow-white/20 active:scale-95"
+                    className="w-10 h-10 rounded-pill bg-foreground text-background hover:bg-foreground/80 flex items-center justify-center transition-all shadow-lg hover:shadow-white/20 active:scale-95"
                 >
                     {isPlaying ? (
                         <div className="flex gap-1">
-                            <div className="w-1 h-3 bg-black rounded-full" />
-                            <div className="w-1 h-3 bg-black rounded-full" />
+                            <div className="w-1 h-3 bg-black rounded-pill" />
+                            <div className="w-1 h-3 bg-black rounded-pill" />
                         </div>
                     ) : (
                         <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -130,7 +130,7 @@ export function PluginPlayer({ plugin, onError }: PluginPlayerProps) {
 
                 <div className="w-80 flex items-center gap-3">
                     <div className="relative flex-1 h-1.5 group/slider">
-                        <div className="absolute inset-0 bg-foreground/10 rounded-full overflow-hidden">
+                        <div className="absolute inset-0 bg-foreground/10 rounded-pill overflow-hidden">
                             <div
                                 className="h-full bg-foreground/30 transition-all duration-100 ease-out"
                                 style={{ width: `${progress * 100}%` }}
@@ -148,7 +148,7 @@ export function PluginPlayer({ plugin, onError }: PluginPlayerProps) {
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
                         <div
-                            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-foreground rounded-full shadow-lg pointer-events-none transition-all duration-100 ease-out group-hover/slider:scale-125"
+                            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-foreground rounded-pill shadow-lg pointer-events-none transition-all duration-100 ease-out group-hover/slider:scale-125"
                             style={{ left: `calc(${progress * 100}% - 6px)` }}
                         />
                     </div>

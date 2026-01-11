@@ -27,13 +27,22 @@ export function createDefaultWatermarkEffectData(): WatermarkEffectData {
   return {
     enabled: true,
     forceEnabled: true,
-    layout: WatermarkLayout.TextIconHorizontal,
+    layout: WatermarkLayout.IconTextHorizontal,
     text: DEFAULT_BOKEH_TEXT,
     iconPath: null,
     iconSize: 5,
     opacity: 0.5,
     offsetX: 24,
     offsetY: 24,
+    containerStyle: {
+      background: {
+        enabled: true,
+        color: 'rgba(0,0,0,0.22)',
+        paddingX: 10,
+        paddingY: 6,
+        borderRadius: 12,
+      },
+    },
     textStyle: {
       fontFamily: FONT_FAMILY_OPTIONS[0].value,
       fontWeight: 600,
@@ -42,12 +51,12 @@ export function createDefaultWatermarkEffectData(): WatermarkEffectData {
       textShadow: {
         enabled: true,
         offsetX: 0,
-        offsetY: 2,
-        blur: 10,
-        color: 'rgba(0,0,0,0.75)',
+        offsetY: 1,
+        blur: 6,
+        color: 'rgba(0,0,0,0.55)',
       },
       textOutline: {
-        enabled: true,
+        enabled: false,
         width: 2,
         color: 'rgba(0,0,0,0.9)',
       },
@@ -89,10 +98,25 @@ export function normalizeWatermarkEffectData(input?: WatermarkEffectDataPatch | 
   const defaultShadow = defaults.textStyle.textShadow!
   const defaultOutline = defaults.textStyle.textOutline!
   const defaultUnderline = defaults.textStyle.textUnderline!
+  const defaultContainerBg = defaults.containerStyle?.background ?? {
+    enabled: false,
+    color: 'rgba(0,0,0,0.18)',
+    paddingX: 10,
+    paddingY: 6,
+    borderRadius: 12,
+  }
 
   const merged: WatermarkEffectData = {
     ...defaults,
     ...(input ?? {}),
+    containerStyle: {
+      ...defaults.containerStyle,
+      ...((input?.containerStyle ?? {}) as Partial<NonNullable<WatermarkEffectData['containerStyle']>>),
+      background: {
+        ...defaultContainerBg,
+        ...((input?.containerStyle?.background ?? {}) as Partial<NonNullable<NonNullable<WatermarkEffectData['containerStyle']>['background']>>),
+      },
+    },
     textStyle: {
       ...defaults.textStyle,
       ...((input?.textStyle ?? {}) as Partial<WatermarkEffectData['textStyle']>),

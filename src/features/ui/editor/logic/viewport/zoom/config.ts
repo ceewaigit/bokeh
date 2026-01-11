@@ -2,16 +2,20 @@ import { EffectLayerType } from '@/features/effects/types'
 import type { Effect, ZoomEffectData } from '@/types/project'
 import { ZoomFollowStrategy } from '@/types/project'
 import type { EffectTrackConfig } from '@/features/ui/timeline/effect-track-registry'
+import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
 
 // Default zoom data
 export const DEFAULT_ZOOM_DATA: ZoomEffectData = {
     origin: 'manual',
     scale: 2.0,
-    introMs: 800,
-    outroMs: 800,
+    introMs: ZOOM_TRANSITION_CONFIG.defaultIntroMs,
+    outroMs: ZOOM_TRANSITION_CONFIG.defaultOutroMs,
     smoothing: 50,
     followStrategy: ZoomFollowStrategy.Mouse,
-    mouseIdlePx: 3
+    mouseIdlePx: 3,
+    transitionStyle: 'sine',
+    mouseFollowAlgorithm: 'deadzone',
+    zoomIntoCursorMode: 'cursor'
 }
 
 // Zoom Track Configuration
@@ -34,11 +38,14 @@ export const zoomTrackConfig: EffectTrackConfig = {
             ...DEFAULT_ZOOM_DATA,
             origin: 'manual',
             scale: 2.0,
-            introMs: 800,
-            outroMs: 800,
+            introMs: ZOOM_TRANSITION_CONFIG.defaultIntroMs,
+            outroMs: ZOOM_TRANSITION_CONFIG.defaultOutroMs,
             smoothing: 50,
             followStrategy: ZoomFollowStrategy.Mouse,
-            mouseIdlePx: 3
+            mouseIdlePx: 3,
+            transitionStyle: 'sine',
+            mouseFollowAlgorithm: 'deadzone',
+            zoomIntoCursorMode: 'cursor'
         })
     }
 }

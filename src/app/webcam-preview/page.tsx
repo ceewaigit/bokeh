@@ -60,7 +60,7 @@ function WebcamPreviewContent() {
                 autoPlay
                 muted
                 playsInline
-                className="w-full h-full object-cover rounded-full"
+                className="w-full h-full object-cover rounded-pill"
                 style={{
                     transform: 'scaleX(-1)', // Mirror for natural feel
                     opacity: isLoaded ? 1 : 0,
@@ -69,7 +69,7 @@ function WebcamPreviewContent() {
             />
             {/* Subtle border ring */}
             <div
-                className="absolute inset-0 rounded-full pointer-events-none"
+                className="absolute inset-0 rounded-pill pointer-events-none"
                 style={{
                     boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.15), 0 4px 24px rgba(0,0,0,0.3)'
                 }}

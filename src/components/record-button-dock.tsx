@@ -546,8 +546,8 @@ export function RecordButtonDock() {
           <div className="flex items-center gap-2 px-3 h-11">
             {/* Recording dot - both layers absolutely positioned for perfect centering */}
             <span className="relative flex-shrink-0 w-1.5 h-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-destructive opacity-60 will-change-transform" />
-              <span className="absolute inset-0 rounded-full bg-destructive" />
+              <span className="absolute inset-0 animate-ping rounded-pill bg-destructive opacity-60 will-change-transform" />
+              <span className="absolute inset-0 rounded-pill bg-destructive" />
             </span>
             {/* Timer - fixed width to prevent layout shift */}
             <span className="text-foreground/90 text-ui-sm font-mono font-medium tabular-nums tracking-tight min-w-[52px]">
@@ -1132,7 +1132,7 @@ export function RecordButtonDock() {
           transition={springConfig}
         >
           <span className={cn(
-            "w-2 h-2 rounded-full",
+            "w-2 h-2 rounded-pill",
             selectedSourceId && !isStartingRecording
               ? "bg-primary-foreground shadow-[0_0_8px_rgba(255,255,255,0.5)]"
               : "bg-muted-foreground/30"

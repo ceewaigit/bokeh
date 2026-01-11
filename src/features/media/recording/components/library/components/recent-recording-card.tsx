@@ -68,13 +68,13 @@ export const RecentRecordingCard = ({
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-16 w-16 rounded-full bg-muted/40 flex items-center justify-center">
+                <div className="h-16 w-16 rounded-pill bg-muted/40 flex items-center justify-center">
                   <Play className="h-5 w-5 text-muted-foreground/60" />
                 </div>
               </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/10 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/55 px-3 py-1.5 text-3xs font-medium text-white/90 backdrop-blur-md">
+            <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-pill bg-black/55 px-3 py-1.5 text-3xs font-medium text-white/90 backdrop-blur-md">
               <Play className="h-3.5 w-3.5" />
               Open
             </div>
@@ -83,7 +83,7 @@ export const RecentRecordingCard = ({
 
         <div className="relative flex flex-col gap-4 px-6 pb-6 pt-6 lg:pr-8">
           <div className="flex items-center gap-2 text-3xs uppercase tracking-[0.28em] text-muted-foreground/70">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+            <span className="h-1.5 w-1.5 rounded-pill bg-primary/70" />
             Recent
           </div>
           <div className="space-y-2">
@@ -95,22 +95,22 @@ export const RecentRecordingCard = ({
             </h2>
             <div className="flex flex-wrap items-center gap-2 text-2xs text-muted-foreground">
               {hasDuration && (
-                <span className="rounded-full bg-muted/45 px-2.5 py-1 font-mono text-2xs text-foreground/80">
+                <span className="rounded-pill bg-muted/45 px-2.5 py-1 font-mono text-2xs text-foreground/80">
                   {formatTime(recording.projectInfo?.duration || 0)}
                 </span>
               )}
               {resolutionLabel && (
-                <span className="rounded-full bg-muted/35 px-2.5 py-1 font-mono text-2xs text-muted-foreground/80">
+                <span className="rounded-pill bg-muted/35 px-2.5 py-1 font-mono text-2xs text-muted-foreground/80">
                   {resolutionLabel}
                 </span>
               )}
               {recording.mediaFileSize && (
-                <span className="rounded-full bg-muted/35 px-2.5 py-1 font-mono text-2xs text-muted-foreground/80">
+                <span className="rounded-pill bg-muted/35 px-2.5 py-1 font-mono text-2xs text-muted-foreground/80">
                   {formatBytes(recording.mediaFileSize)}
                 </span>
               )}
               {clipCount > 0 && (
-                <span className="rounded-full bg-muted/35 px-2.5 py-1 text-2xs font-semibold text-muted-foreground/80">
+                <span className="rounded-pill bg-muted/35 px-2.5 py-1 text-2xs font-semibold text-muted-foreground/80">
                   {clipCount} {clipCount === 1 ? 'clip' : 'clips'}
                 </span>
               )}
@@ -120,7 +120,7 @@ export const RecentRecordingCard = ({
           <div className="flex flex-wrap items-center gap-2">
             <MotionButton
               variant="default"
-              className="h-9 px-5 rounded-full font-semibold tracking-tight"
+              className="h-9 px-5 rounded-pill font-semibold tracking-tight"
               onClick={() => onSelect(recording)}
               whileHover={reduceMotion ? undefined : { scale: 1.02 }}
               whileTap={reduceMotion ? undefined : { scale: 0.98 }}
@@ -131,7 +131,7 @@ export const RecentRecordingCard = ({
             </MotionButton>
             <MotionButton
               variant="outline"
-              className="h-9 px-4 rounded-full"
+              className="h-9 px-4 rounded-pill"
               onClick={() => onRequestRename?.(recording)}
               whileHover={reduceMotion ? undefined : { scale: 1.02 }}
               whileTap={reduceMotion ? undefined : { scale: 0.98 }}
@@ -142,7 +142,7 @@ export const RecentRecordingCard = ({
             </MotionButton>
             <MotionButton
               variant="outline"
-              className="h-9 px-4 rounded-full"
+              className="h-9 px-4 rounded-pill"
               onClick={() => onRequestDuplicate?.(recording)}
               whileHover={reduceMotion ? undefined : { scale: 1.02 }}
               whileTap={reduceMotion ? undefined : { scale: 0.98 }}
@@ -153,7 +153,7 @@ export const RecentRecordingCard = ({
             </MotionButton>
             <MotionButton
               variant="ghost"
-              className="h-9 px-3 rounded-full text-destructive/80 hover:text-destructive"
+              className="h-9 px-3 rounded-pill text-destructive/80 hover:text-destructive"
               onClick={() => onRequestDelete?.(recording)}
               whileHover={reduceMotion ? undefined : { scale: 1.02 }}
               whileTap={reduceMotion ? undefined : { scale: 0.98 }}

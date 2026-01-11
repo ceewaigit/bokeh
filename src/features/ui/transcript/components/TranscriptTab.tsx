@@ -813,7 +813,7 @@ export function TranscriptTab() {
 
       {transcriptionError && (
         <div className="flex items-center gap-2 text-xs text-destructive">
-          <div className="h-1.5 w-1.5 rounded-full bg-destructive" />
+          <div className="h-1.5 w-1.5 rounded-pill bg-destructive" />
           <span>{transcriptionError}</span>
         </div>
       )}

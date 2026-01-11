@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { FastForward, Scissors, X } from 'lucide-react'
+import { cn } from '@/shared/utils/utils'
 
 const spring = { type: 'spring', stiffness: 500, damping: 30 } as const
 
@@ -149,76 +150,127 @@ export function ActivitySuggestionPopover({
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Animation State (Springy Follow)
+  // ─────────────────────────────────────────────────────────────────────────────
+  const [hoveredOption, setHoveredOption] = useState<string | null>(null)
+
+  const OptionButton = ({
+    id,
+    onClick,
+    disabled,
+    icon: Icon,
+    iconColorClass,
+    iconBgClass,
+    label,
+    description
+  }: {
+    id: string
+    onClick: () => void
+    disabled?: boolean
+    icon: React.ElementType
+    iconColorClass: string
+    iconBgClass: string
+    label: string
+    description: React.ReactNode
+  }) => {
+    const isHovered = hoveredOption === id
+
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        onMouseEnter={() => setHoveredOption(id)}
+        onMouseLeave={() => setHoveredOption(null)}
+        className="group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left disabled:opacity-50 transition-none"
+      >
+        <AnimatePresence>
+          {isHovered && !disabled && (
+            <motion.div
+              className="absolute inset-0 rounded-lg bg-foreground/5 dark:bg-white/10"
+              layoutId="activity-popover-hover"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", duration: 0.2, bounce: 0 }}
+            />
+          )}
+        </AnimatePresence>
+
+        <div className={cn("relative z-10 w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 group-active:scale-95", iconBgClass)}>
+          <Icon className={cn("w-4 h-4", iconColorClass)} />
+        </div>
+        <div className="relative z-10 flex-1 min-w-0">
+          <div className="text-[13px] font-semibold text-foreground tracking-tight">{label}</div>
+          <div className="text-[11px] font-medium text-muted-foreground/80 leading-none mt-0.5">
+            {description}
+          </div>
+        </div>
+      </button>
+    )
+  }
+
   const content = (
     <AnimatePresence>
       <motion.div
         ref={ref}
-        initial={{ opacity: 0, scale: 0.95, y: 6 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.95, y: 8, filter: 'blur(4px)' }}
+        animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+        exit={{ opacity: 0, scale: 0.95, filter: 'blur(2px)' }}
         transition={spring}
-        className="fixed z-[9999] rounded-xl bg-popover/95 backdrop-blur-lg border border-border shadow-xl overflow-hidden"
-        style={{ left: pos.left, top: pos.top, minWidth: canTrim ? 200 : 160 }}
+        className="fixed z-[9999] w-[240px] rounded-2xl bg-popover/85 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden p-1.5"
+        style={{ left: pos.left, top: pos.top }}
         onMouseDown={e => e.stopPropagation()}
       >
-        {/* Header with dismiss (X) button */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
-          <span className="text-xs font-medium text-foreground/70">
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 pt-2 pb-1.5 mb-1 border-b border-border/10">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
             {typeLabel}
-            <span className="text-foreground/40 ml-1.5">{stats.duration}</span>
           </span>
-          <button
-            onClick={onClose}
-            title="Dismiss"
-            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-muted-foreground/50">{stats.duration}</span>
+            <button
+              onClick={onClose}
+              className="p-1 -mr-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* Options */}
-        <div className="p-1.5 space-y-1">
-          {/* Speed Up option - available for all types */}
-          <button
+        {/* Options List */}
+        <div className="space-y-0.5">
+          <OptionButton
+            id="speedup"
             onClick={handleSpeedUp}
             disabled={loading !== null}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
-          >
-            <div className="w-7 h-7 rounded-md bg-sky-500/15 flex items-center justify-center">
-              <FastForward className="w-3.5 h-3.5 text-sky-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-medium text-foreground">Speed Up</div>
-              <div className="text-[10px] text-muted-foreground">
-                {stats.multiplier}× · saves {stats.speedUpSaved}
-              </div>
-            </div>
-          </button>
+            icon={FastForward}
+            iconColorClass="text-sky-500"
+            iconBgClass="bg-sky-500/10"
+            label="Speed Up"
+            description={<>{stats.multiplier}× <span className="mx-1">·</span> Saves {stats.speedUpSaved}</>}
+          />
 
-          {/* Trim option - available for ALL idle types (edge or mid-clip) */}
           {canTrim && (
-            <button
+            <OptionButton
+              id="trim"
               onClick={handleTrim}
               disabled={loading !== null}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
-            >
-              <div className="w-7 h-7 rounded-md bg-rose-500/15 flex items-center justify-center">
-                <Scissors className="w-3.5 h-3.5 text-rose-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-foreground">Trim</div>
-                <div className="text-[10px] text-muted-foreground">
-                  Remove · saves {stats.trimSaved}
-                </div>
-              </div>
-            </button>
+              icon={Scissors}
+              iconColorClass="text-rose-500"
+              iconBgClass="bg-rose-500/10"
+              label="Trim Segment"
+              description={<>Remove <span className="mx-1">·</span> Saves {stats.trimSaved}</>}
+            />
           )}
 
-          {/* Dismiss option - removes the bar with undo support */}
-          <button
+          <div className="my-1 h-px bg-white/5 mx-2" />
+
+          <OptionButton
+            id="dismiss"
             onClick={async () => {
               if (onDismiss) {
-                setLoading('speedup') // reuse loading state
+                setLoading('speedup')
                 try {
                   await onDismiss(period)
                 } finally {
@@ -229,28 +281,23 @@ export function ActivitySuggestionPopover({
               }
             }}
             disabled={loading !== null}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-muted/80 transition-colors text-left disabled:opacity-50"
-          >
-            <div className="w-7 h-7 rounded-md bg-muted/50 flex items-center justify-center">
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-medium text-foreground">Dismiss</div>
-              <div className="text-[10px] text-muted-foreground">
-                Remove bar (Cmd+Z to undo)
-              </div>
-            </div>
-          </button>
+            icon={X}
+            iconColorClass="text-muted-foreground"
+            iconBgClass="bg-black/5 dark:bg-white/5"
+            label="Dismiss"
+            description="Ignore suggestion"
+          />
 
-          {/* Apply All Speed-Ups - shown if multiple periods exist */}
+          {/* Apply All Footer */}
           {showApplyAll && (
-            <button
+            <motion.button
               onClick={handleApplyAll}
               disabled={loading !== null}
-              className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
+              className="mt-1 w-full py-2 text-[11px] font-medium text-primary/80 hover:text-primary transition-colors border-t border-border/10"
+              whileHover={{ backgroundColor: "rgba(255,255,255,0.05)" }}
             >
-              Speed up all ({totalAll})
-            </button>
+              Apply to all ({totalAll} items)
+            </motion.button>
           )}
         </div>
       </motion.div>

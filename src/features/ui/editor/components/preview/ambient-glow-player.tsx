@@ -133,24 +133,39 @@ export function AmbientGlowPlayer({
 
     // Glow player sync - follows main player but simpler (no audio)
     useEffect(() => {
-        if (!glowPlayerRef.current || !timelineMetadata) return;
+        if (!timelineMetadata) return;
+        const glowPlayer = glowPlayerRef.current;
+        if (!glowPlayer) return;
 
-        // Direct store access for syncing when not playing
-        const currentTimeMs = useProjectStore.getState().currentTime;
-        const targetFrame = clampFrame(timeToFrame(currentTimeMs));
+        const getTargetFrame = () => {
+            const mainPlayer = mainPlayerRef.current;
+            if (mainPlayer) {
+                return clampFrame(mainPlayer.getCurrentFrame());
+            }
+            const currentTimeMs = useProjectStore.getState().currentTime;
+            return clampFrame(timeToFrame(currentTimeMs));
+        };
+
+        const maybeSeek = (targetFrame: number) => {
+            const currentGlowFrame = glowPlayer.getCurrentFrame();
+            if (Math.abs(currentGlowFrame - targetFrame) <= 2) return;
+            glowPlayer.seekTo(targetFrame);
+        };
 
         if (isPlaying) {
             if (!lastGlowIsPlayingRef.current) {
-                glowPlayerRef.current.seekTo(targetFrame);
-                safePlay(glowPlayerRef.current);
+                maybeSeek(getTargetFrame());
+                safePlay(glowPlayer);
             }
-
             lastGlowIsPlayingRef.current = true;
-        } else {
-            lastGlowIsPlayingRef.current = false;
-            glowPlayerRef.current.pause();
-            glowPlayerRef.current.seekTo(targetFrame);
+            return;
         }
+
+        if (lastGlowIsPlayingRef.current) {
+            glowPlayer.pause();
+            maybeSeek(getTargetFrame());
+        }
+        lastGlowIsPlayingRef.current = false;
     }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, safePlay, playerKey]);
 
     useEffect(() => {
@@ -182,7 +197,10 @@ export function AmbientGlowPlayer({
 
         const syncToMain = () => {
             const targetFrame = clampFrame(mainPlayer.getCurrentFrame());
-            glowPlayer.seekTo(targetFrame);
+            const currentGlowFrame = glowPlayer.getCurrentFrame();
+            if (Math.abs(currentGlowFrame - targetFrame) > 1) {
+                glowPlayer.seekTo(targetFrame);
+            }
             if (!isPlaying) {
                 glowPlayer.pause();
             }
@@ -290,9 +308,6 @@ export function AmbientGlowPlayer({
     if (!timelineMetadata || !playerConfig || !glowPlayerInputProps) return null;
     if (clampedIntensity <= 0) return null;
 
-    // PERF: Don't render glow player when paused - saves ~50% GPU
-    if (!isPlaying && !isScrubbing) return null;
-
     return (
         <div
             style={{
@@ -338,8 +353,8 @@ export function AmbientGlowPlayer({
                 spaceKeyToPlayOrPause={false}
                 alwaysShowControls={false}
                 initiallyShowControls={false}
-                showPosterWhenPaused={true}
-                showPosterWhenUnplayed={true}
+                showPosterWhenPaused={false}
+                showPosterWhenUnplayed={false}
                 showPosterWhenEnded={false}
                 moveToBeginningWhenEnded={false}
                 renderLoading={() => null}

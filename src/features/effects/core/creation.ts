@@ -9,7 +9,7 @@ import type { Effect, BackgroundEffectData, CursorEffectData, CropEffectData, Pl
 import { EffectType } from '@/types/project'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { getPluginDefaults, getDefaultZIndexForCategory } from '@/features/effects/config/plugin-sdk'
-import { getDefaultWallpaper } from '@/features/effects/background'
+import { getDefaultWallpaper } from '@/features/effects/background/utils'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { DEFAULT_KEYSTROKE_DATA, KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'

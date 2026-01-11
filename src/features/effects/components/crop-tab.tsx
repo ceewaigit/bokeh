@@ -129,7 +129,7 @@ export function CropTab({
         </div>
         <div
           className={cn(
-            "shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-2xs font-mono uppercase tracking-[0.18em] transition-colors duration-150",
+            "shrink-0 whitespace-nowrap rounded-pill border px-2 py-0.5 text-2xs font-mono uppercase tracking-[0.18em] transition-colors duration-150",
             isEditingCrop
               ? "bg-primary/10 text-primary border-primary/20"
               : "bg-muted/40 text-muted-foreground border-border/40"

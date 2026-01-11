@@ -23,6 +23,9 @@ export interface ParsedZoomBlock {
     followStrategy?: ZoomFollowStrategy
     autoScale?: 'fill'
     mouseIdlePx?: number
+    transitionStyle?: NonNullable<ZoomEffectData['transitionStyle']>
+    mouseFollowAlgorithm?: NonNullable<ZoomEffectData['mouseFollowAlgorithm']>
+    zoomIntoCursorMode?: NonNullable<ZoomEffectData['zoomIntoCursorMode']>
 }
 
 // Cache parsed zoom blocks per effects array reference.
@@ -60,6 +63,9 @@ export function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
                 followStrategy: data.followStrategy,
                 autoScale: data.autoScale,
                 mouseIdlePx: data.mouseIdlePx,
+                transitionStyle: normalizeZoomTransitionStyle(data.transitionStyle),
+                mouseFollowAlgorithm: normalizeMouseFollowAlgorithm(data.mouseFollowAlgorithm),
+                zoomIntoCursorMode: normalizeZoomIntoCursorMode(data.zoomIntoCursorMode),
             }
         })
 
@@ -116,6 +122,15 @@ function requireZoomEffectData(effect: Effect): ZoomEffectData {
     if (data.followStrategy !== undefined && !isValidFollowStrategy(data.followStrategy)) {
         throw new Error(`[ZoomBlocks] Invalid followStrategy for ${effect.id}`)
     }
+    if (data.transitionStyle !== undefined && !isValidTransitionStyle(data.transitionStyle)) {
+        throw new Error(`[ZoomBlocks] Invalid transitionStyle for ${effect.id}`)
+    }
+    if (data.mouseFollowAlgorithm !== undefined && !isValidMouseFollowAlgorithm(data.mouseFollowAlgorithm)) {
+        throw new Error(`[ZoomBlocks] Invalid mouseFollowAlgorithm for ${effect.id}`)
+    }
+    if (data.zoomIntoCursorMode !== undefined && !isValidZoomIntoCursorMode(data.zoomIntoCursorMode)) {
+        throw new Error(`[ZoomBlocks] Invalid zoomIntoCursorMode for ${effect.id}`)
+    }
     return data
 }
 
@@ -129,6 +144,59 @@ function isValidFollowStrategy(strategy: ZoomFollowStrategy): boolean {
     return strategy === ZoomFollowStrategyEnum.Mouse
         || strategy === ZoomFollowStrategyEnum.Center
         || strategy === ZoomFollowStrategyEnum.Manual
+}
+
+function isValidTransitionStyle(style: NonNullable<ZoomEffectData['transitionStyle']>): boolean {
+    // Accept legacy values too; they are normalized during parsing.
+    return style === 'linear'
+        || style === 'cubic'
+        || style === 'sine'
+        || style === 'expo'
+        || style === 'sigmoid'
+        || (style as any) === 'cinematic'
+        || (style as any) === 'smooth'
+        || (style as any) === 'spring'
+}
+
+function normalizeZoomTransitionStyle(
+    style: ZoomEffectData['transitionStyle'] | undefined
+): NonNullable<ZoomEffectData['transitionStyle']> {
+    if (style === 'linear' || style === 'cubic' || style === 'sine' || style === 'expo' || style === 'sigmoid') {
+        return style
+    }
+    // Legacy ids from earlier iterations
+    if ((style as any) === 'cinematic') return 'cubic'
+    if ((style as any) === 'smooth') return 'sine'
+    if ((style as any) === 'spring') return 'expo'
+    return 'sine'
+}
+
+function isValidMouseFollowAlgorithm(algo: NonNullable<ZoomEffectData['mouseFollowAlgorithm']>): boolean {
+    return algo === 'deadzone'
+        || algo === 'direct'
+        || algo === 'smooth'
+        || algo === 'thirds'
+}
+
+function normalizeMouseFollowAlgorithm(
+    algo: ZoomEffectData['mouseFollowAlgorithm'] | undefined
+): NonNullable<ZoomEffectData['mouseFollowAlgorithm']> {
+    if (algo === 'deadzone' || algo === 'direct' || algo === 'smooth' || algo === 'thirds') return algo
+    return 'deadzone'
+}
+
+function isValidZoomIntoCursorMode(mode: NonNullable<ZoomEffectData['zoomIntoCursorMode']>): boolean {
+    return mode === 'center'
+        || mode === 'cursor'
+        || mode === 'snap'
+        || mode === 'lead'
+}
+
+function normalizeZoomIntoCursorMode(
+    mode: ZoomEffectData['zoomIntoCursorMode'] | undefined
+): NonNullable<ZoomEffectData['zoomIntoCursorMode']> {
+    if (mode === 'center' || mode === 'cursor' || mode === 'snap' || mode === 'lead') return mode
+    return 'cursor'
 }
 
 /**

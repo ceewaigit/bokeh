@@ -14,7 +14,7 @@ export function calculateWatermarkAnimations(
   const entry = data.animations.entry
   if (entry.type === WatermarkAnimationType.Fade) {
     const entryFrames = Math.max(1, Math.round((entry.durationMs / 1000) * fps))
-    opacityMultiplier *= interpolate(frame, [startFrame, startFrame + entryFrames], [0, 1], {
+    opacityMultiplier *= interpolate(frame, [startFrame, startFrame + entryFrames], [0.4, 1], {
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
     })
@@ -23,7 +23,7 @@ export function calculateWatermarkAnimations(
   const exit = data.animations.exit
   if (exit.type === WatermarkAnimationType.Fade) {
     const exitFrames = Math.max(1, Math.round((exit.durationMs / 1000) * fps))
-    opacityMultiplier *= interpolate(frame, [endFrame - exitFrames, endFrame], [1, 0], {
+    opacityMultiplier *= interpolate(frame, [endFrame - exitFrames, endFrame], [1, 0.4], {
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
     })

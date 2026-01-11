@@ -145,6 +145,7 @@ export function EffectsSidebar({
 
   const [backdropSubTab, setBackdropSubTab] = useState<BackdropSubTabId>('background')
   const [pointerSubTab, setPointerSubTab] = useState<PointerSubTabId>('cursor')
+  const [hoveredTab, setHoveredTab] = useState<SidebarTabId | null>(null)
 
   const tooltipRef = useRef<HTMLDivElement | null>(null)
 
@@ -341,41 +342,54 @@ export function EffectsSidebar({
     <TooltipProvider>
       <div ref={tooltipRef} className={cn("flex h-full", className)}>
         {/* Left sidebar with section tabs */}
-        <div className="w-14 flex-shrink-0 flex flex-col items-center py-3 border-r border-border/30 bg-transparent relative z-50">
-          <div className="flex flex-col gap-1.5 w-full px-1.5">
+        <div className="w-[3.5rem] flex-shrink-0 flex flex-col items-center py-3 border-r border-border/40 bg-muted/10 relative z-50">
+          <div className="flex flex-col gap-2 w-full px-2">
             {visibleTabs.map((tab) => (
-              <Tooltip key={tab.id} delayDuration={200}>
+              <Tooltip key={tab.id} delayDuration={300}>
                 <TooltipTrigger asChild>
-                  <motion.button
+                  <button
                     onClick={tab.disabled ? undefined : () => setActiveTab(tab.id as SidebarTabId)}
+                    onMouseEnter={() => !tab.disabled && setHoveredTab(tab.id as SidebarTabId)}
+                    onMouseLeave={() => setHoveredTab(null)}
                     disabled={tab.disabled}
                     className={cn(
-                      "group relative flex w-full aspect-square items-center justify-center p-2 rounded-xl transition-colors duration-150",
+                      "group relative flex w-full aspect-square items-center justify-center rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
                       activeTab === tab.id
                         ? "text-primary-foreground"
                         : tab.disabled
                           ? "text-muted-foreground/30 cursor-not-allowed"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.97]"
+                          : "text-muted-foreground hover:text-foreground"
                     )}
                     aria-label={tab.label}
-                    transition={tabMotion}
                   >
                     <AnimatePresence>
-                      {activeTab === tab.id && (
+                      {hoveredTab === tab.id && activeTab !== tab.id && (
                         <motion.div
-                          className="absolute inset-0 rounded-lg bg-primary shadow-sm"
-                          initial={{ opacity: 0, scale: 0.98 }}
+                          className="absolute inset-0 rounded-[10px] bg-muted/60"
+                          initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={tabMotion}
-                          layoutId="effects-sidebar-tab-active"
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                          layoutId="effects-sidebar-hover"
                         />
                       )}
                     </AnimatePresence>
-                    <tab.icon className="relative z-10 w-4.5 h-4.5" />
-                  </motion.button>
+                    <AnimatePresence>
+                      {activeTab === tab.id && (
+                        <motion.div
+                          className="absolute inset-0 rounded-[10px] bg-primary shadow-sm"
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                          layoutId="effects-sidebar-active"
+                        />
+                      )}
+                    </AnimatePresence>
+                    <tab.icon className="relative z-10 w-[1.125rem] h-[1.125rem] transition-transform duration-300 group-hover:scale-110 group-active:scale-95" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" align="center" sideOffset={8} className="text-xs">
+                <TooltipContent side="right" align="center" sideOffset={10} className="text-xs font-medium px-2 py-1 bg-popover/95 backdrop-blur-sm border-border/50">
                   {tab.tooltip}
                 </TooltipContent>
               </Tooltip>
@@ -400,7 +414,7 @@ export function EffectsSidebar({
               </motion.h2>
             </AnimatePresence>
             {selectedEffectLayer && (
-              <div className="ml-auto max-w-[55%] truncate whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-0.5 text-2xs font-medium text-primary">
+              <div className="ml-auto max-w-[55%] truncate whitespace-nowrap rounded-pill bg-primary/10 px-2.5 py-0.5 text-2xs font-medium text-primary">
                 {`Editing ${EFFECT_LABELS[selectedEffectLayer.type] ?? 'Layer'}`}
               </div>
             )}

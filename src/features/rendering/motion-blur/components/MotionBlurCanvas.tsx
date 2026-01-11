@@ -60,6 +60,8 @@ export interface MotionBlurCanvasProps {
     onRender?: () => void;
     /** Notify when the canvas is visually active (non-zero blend) */
     onVisibilityChange?: (visible: boolean) => void;
+    /** Refocus blur intensity (0-1) for omnidirectional blur during zoom transitions */
+    refocusBlurIntensity?: number;
 }
 
 export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
@@ -87,6 +89,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     rampRange: rampRangeProp = 0.5,
     clampRadius: clampRadiusProp = 60,
     smoothWindow: smoothWindowProp = 6,
+    refocusBlurIntensity = 0,
     }) => {
     // Config - use props instead of hard-coded values
     const maxBlurRadius = clampRadiusProp > 0 ? clampRadiusProp : 60;
@@ -97,7 +100,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     // Velocity smoothing ref - persists across renders for fade effect
     const prevVelocityRef = useRef({ x: 0, y: 0 });
 
-    const enabled = enabledProp && (intensity > 0 || forceRender);
+    const enabled = enabledProp && (intensity > 0 || refocusBlurIntensity > 0 || forceRender);
     // Force sRGB to match video color space - P3 causes visible color mismatch
     const desiredColorSpace: PredefinedColorSpace = colorSpace ?? 'srgb';
 
@@ -203,7 +206,9 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const opacityRamp = clamp01(effectiveRadius / 2.0);
         const mixRamp = clamp01((Number.isFinite(mix) ? mix : 1.0) * opacityRamp);
 
-        if (mixRamp < 0.001 && !forceRender) {
+        // Check if we should render (motion blur OR refocus blur active)
+        const hasRefocusBlur = refocusBlurIntensity > 0.001;
+        if (mixRamp < 0.001 && !hasRefocusBlur && !forceRender) {
             canvasEl.style.visibility = 'hidden';
             canvasEl.style.opacity = '0';
             onVisibilityChange?.(false);
@@ -293,6 +298,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 unpackPremultiplyAlpha,
                 linearize: actualColorSpace === 'srgb',
                 pixelRatio: glPixelRatio,
+                refocusBlur: refocusBlurIntensity,
             }
         );
 
@@ -341,6 +347,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         clampRadius,
         smoothWindowProp,
         onVisibilityChange,
+        refocusBlurIntensity,
     ]);
 
     // Cleanup GPU resources only on unmount

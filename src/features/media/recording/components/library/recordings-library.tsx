@@ -131,12 +131,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
       <div
         ref={setScrollEl}
-        className="flex-1 overflow-y-scroll scrollbar-thin scrollbar-track-transparent"
+        className="flex-1 overflow-y-scroll scrollbar-none"
       >
         <div className="mx-auto w-full max-w-none px-5 py-4 sm:px-6 lg:px-8">
           {recordings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground motion-safe:animate-in motion-safe:fade-in duration-300">
-              <div className="mb-4 h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
+              <div className="mb-4 h-16 w-16 rounded-pill bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
                 <SearchX className="h-8 w-8 opacity-70" />
               </div>
               <p className="text-sm font-medium">No such recording exists</p>
@@ -157,7 +157,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 </div>
                 <div className="flex items-center justify-between gap-3 sm:justify-end">
                   <div className="hidden sm:flex items-center gap-2 text-2xs text-muted-foreground">
-                    <span className="h-2 w-2 rounded-full bg-primary/70" />
+                    <span className="h-2 w-2 rounded-pill bg-primary/70" />
                     <span className="uppercase tracking-[0.2em] text-muted-foreground/70">Sorted</span>
                     <span>{sortLabel}</span>
                   </div>
@@ -190,7 +190,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
           {showHydrationIndicator && (
             <div className="mt-4 flex justify-center">
-              <div className="bg-muted/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
+              <div className="bg-muted/60 backdrop-blur-md rounded-pill px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
                 <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
                 <span className="text-3xs font-medium text-muted-foreground">Loading page…</span>
               </div>

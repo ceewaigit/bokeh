@@ -5,6 +5,8 @@ export interface CommandMetadata {
   category?: string
   timestamp?: number
   groupId?: string
+  coalesceKey?: string
+  coalesceWindowMs?: number
 }
 
 export interface CommandResult<T = any> {
@@ -25,7 +27,9 @@ export abstract class Command<TResult = any> {
       description: metadata.description,
       category: metadata.category,
       timestamp: Date.now(),
-      groupId: metadata.groupId
+      groupId: metadata.groupId,
+      coalesceKey: metadata.coalesceKey,
+      coalesceWindowMs: metadata.coalesceWindowMs
     }
   }
 

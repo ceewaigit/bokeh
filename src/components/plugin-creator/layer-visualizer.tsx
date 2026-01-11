@@ -36,7 +36,7 @@ export function LayerVisualizer({ currentCategory }: LayerVisualizerProps) {
               `}
                         >
                             {/* Color indicator */}
-                            <div className={`w-3 h-3 rounded-full ${layer.color} ${isActive ? 'animate-pulse' : ''}`} />
+                            <div className={`w-3 h-3 rounded-pill ${layer.color} ${isActive ? 'animate-pulse' : ''}`} />
 
                             {/* Layer info */}
                             <div className="flex-1 min-w-0">
@@ -45,7 +45,7 @@ export function LayerVisualizer({ currentCategory }: LayerVisualizerProps) {
                                         {layer.label}
                                     </span>
                                     {isSystem && (
-                                        <span className="text-3xs px-1.5 py-0.5 bg-background/70 rounded-full text-muted-foreground border border-border/60">
+                                        <span className="text-3xs px-1.5 py-0.5 bg-background/70 rounded-pill text-muted-foreground border border-border/60">
                                             System
                                         </span>
                                     )}
@@ -58,7 +58,7 @@ export function LayerVisualizer({ currentCategory }: LayerVisualizerProps) {
 
                             {/* Active indicator */}
                             {isActive && (
-                                <div className="text-xs px-2 py-0.5 bg-foreground/10 text-foreground rounded-full border border-foreground/10">
+                                <div className="text-xs px-2 py-0.5 bg-foreground/10 text-foreground rounded-pill border border-foreground/10">
                                     Active
                                 </div>
                             )}
@@ -70,7 +70,7 @@ export function LayerVisualizer({ currentCategory }: LayerVisualizerProps) {
             {/* Legend */}
             <div className="mt-4 pt-3 border-t border-border/60 text-xs text-muted-foreground shrink-0">
                 <div className="flex items-center gap-2">
-                    <span className="inline-block w-2 h-2 rounded-full bg-foreground animate-pulse" />
+                    <span className="inline-block w-2 h-2 rounded-pill bg-foreground animate-pulse" />
                     <span>Your plugin will render in the highlighted layer</span>
                 </div>
             </div>

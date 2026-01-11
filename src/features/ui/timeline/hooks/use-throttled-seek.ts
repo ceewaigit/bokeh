@@ -1,7 +1,9 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { PlayerRef } from '@remotion/player';
 
-const SCRUB_THROTTLE_MS = 125;
+// PERFORMANCE: 50ms throttle = ~20 seeks/second for responsive scrubbing
+// Previously 125ms (8 seeks/sec) felt laggy and disconnected from cursor
+const SCRUB_THROTTLE_MS = 50;
 
 /**
  * Hook to throttle seek operations on a Remotion Player.

@@ -182,7 +182,7 @@ export function CameraPreview({
         <div className="absolute bottom-2 right-2 flex gap-1">
           <button
             onClick={handleRefresh}
-            className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white transition-colors"
+            className="p-1.5 rounded-pill bg-black/50 text-white/80 hover:bg-black/70 hover:text-white transition-colors"
             title="Refresh camera"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -193,8 +193,8 @@ export function CameraPreview({
       {/* Active indicator */}
       {isPreviewActive && !error && !isLoading && deviceId && (
         <div className="absolute top-2 left-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/50 text-white/80">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-pill bg-black/50 text-white/80">
+            <div className="w-1.5 h-1.5 rounded-pill bg-green-500 animate-pulse" />
             <span className="text-3xs font-medium">LIVE</span>
           </div>
         </div>

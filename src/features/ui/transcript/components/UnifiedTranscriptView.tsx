@@ -83,7 +83,7 @@ function TranscriptSourceList({
             {sections.slice(0, 4).map((section, i) => (
               <div
                 key={section.recording.id}
-                className={`flex items-center justify-center w-7 h-7 rounded-full ring-2 ring-background text-[10px] font-semibold transition-transform z-[${4 - i}] ${section.isCurrent
+                className={`flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background text-[10px] font-semibold transition-transform z-[${4 - i}] ${section.isCurrent
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground'
                   }`}
@@ -93,7 +93,7 @@ function TranscriptSourceList({
               </div>
             ))}
             {sections.length > 4 && (
-              <div className="flex items-center justify-center w-7 h-7 rounded-full ring-2 ring-background bg-muted text-muted-foreground text-[10px] font-semibold">
+              <div className="flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background bg-muted text-muted-foreground text-[10px] font-semibold">
                 +{sections.length - 4}
               </div>
             )}
@@ -149,7 +149,7 @@ function TranscriptSourceList({
             className="group flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted/30 transition-colors relative"
           >
             {/* Avatar */}
-            <div className={`flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-semibold ${section.isCurrent ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`flex items-center justify-center w-7 h-7 rounded-pill text-[10px] font-semibold ${section.isCurrent ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
               {section.label.charAt(0)}
             </div>
 
@@ -159,7 +159,7 @@ function TranscriptSourceList({
                 <span className="text-sm font-medium text-foreground truncate">
                   {section.label}
                 </span>
-                {section.isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                {section.isCurrent && <span className="h-1.5 w-1.5 rounded-pill bg-primary" />}
                 {needsTranscription && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-[9px] font-medium text-amber-600 dark:text-amber-400 animate-pulse">
                     <span>Needs Transcription</span>

@@ -3,14 +3,23 @@
 const http = require('http');
 const { spawn } = require('child_process');
 
-// Try ports in order
-const portsToTry = [3000, 3001, 3002, 3003, 3004];
+const preferredPort = (() => {
+  const raw = process.env.NEXT_PORT || process.env.PORT || process.env.DEV_SERVER_PORT;
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+})();
+
+// Try ports in order (prefer explicit env port first)
+const portsToTry = [
+  ...(preferredPort ? [preferredPort] : []),
+  3000, 3001, 3002, 3003, 3004
+].filter((p, idx, arr) => arr.indexOf(p) === idx);
 let detectedPort = null;
 
 function checkPort(port) {
   return new Promise((resolve) => {
     const options = {
-      host: 'localhost',
+      host: '127.0.0.1',
       port: port,
       path: '/',
       method: 'GET',

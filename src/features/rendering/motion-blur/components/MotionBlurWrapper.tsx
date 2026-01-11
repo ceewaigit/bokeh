@@ -19,6 +19,8 @@ export interface MotionBlurWrapperProps {
     isRendering?: boolean;
     /** Whether motion blur is enabled for this clip */
     enabled: boolean;
+    /** Whether user is actively scrubbing the timeline */
+    isScrubbing?: boolean;
     /** Camera velocity in pixels per frame */
     velocity: { x: number; y: number };
     /** Intensity multiplier (0-1) */
@@ -54,6 +56,8 @@ export interface MotionBlurWrapperProps {
     clampRadius?: number;
     /** Smoothing window in frames - higher = longer blur fade */
     smoothWindow?: number;
+    /** Refocus blur intensity (0-1) for omnidirectional blur during zoom transitions */
+    refocusBlurIntensity?: number;
 }
 
 /**
@@ -81,6 +85,8 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     rampRange,
     clampRadius,
     smoothWindow,
+    refocusBlurIntensity,
+    isScrubbing = false,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [webglReady, setWebglReady] = useState(false);
@@ -98,10 +104,12 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     const effectiveThreshold = velocityThreshold ?? 0;
     // Mount while active; allow MotionBlurCanvas to handle tail fade via smoothing.
     // Avoid forcing WebGL rendering in preview when blur is inactive (export can still force for determinism).
+    // PERFORMANCE: Skip WebGL blur during scrubbing to prevent video disappearance and improve responsiveness
     const isActive = speed > effectiveThreshold + 0.001;
+    const hasRefocusBlur = (refocusBlurIntensity ?? 0) > 0.001;
     const forceRender = Boolean(isRendering && useWebglVideo);
-    const shouldRenderCanvas = Boolean(enabled && (isActive || forceRender));
-    const shouldHideVideo = Boolean(useWebglVideo && enabled && shouldRenderCanvas);
+    const shouldRenderCanvas = Boolean(enabled && !isScrubbing && (isActive || hasRefocusBlur || forceRender));
+    const shouldHideVideo = Boolean(useWebglVideo && enabled && shouldRenderCanvas && !isScrubbing);
 
     useEffect(() => {
         if (!shouldHideVideo) {
@@ -121,11 +129,12 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
             window.clearTimeout(freshFrameTimeoutRef.current);
         }
         // If WebGL rendering stalls (missing video element during seek, etc.),
-        // quickly fall back to the native <video> so preview never "disappears".
+        // fall back to the native <video> so preview never "disappears".
+        // PERF: Increased from 120ms to 250ms to prevent flickering during frame drops
         freshFrameTimeoutRef.current = window.setTimeout(() => {
             setHasFreshFrame(false);
             freshFrameTimeoutRef.current = null;
-        }, 120);
+        }, 250);
     }, []);
 
     useEffect(() => {
@@ -189,6 +198,7 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                     rampRange={rampRange}
                     clampRadius={clampRadius}
                     smoothWindow={smoothWindow}
+                    refocusBlurIntensity={refocusBlurIntensity}
                 />
             )}
         </div>

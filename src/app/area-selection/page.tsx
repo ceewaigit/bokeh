@@ -173,13 +173,13 @@ export default function AreaSelectionPage() {
                 <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-white rounded-sm shadow-md" />
 
                 {/* Edge handles */}
-                <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-1.5 h-6 bg-white rounded-full shadow-md" />
-                <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-1.5 h-6 bg-white rounded-full shadow-md" />
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-1.5 bg-white rounded-full shadow-md" />
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-1.5 bg-white rounded-full shadow-md" />
+                <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-1.5 h-6 bg-white rounded-pill shadow-md" />
+                <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-1.5 h-6 bg-white rounded-pill shadow-md" />
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-1.5 bg-white rounded-pill shadow-md" />
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-1.5 bg-white rounded-pill shadow-md" />
 
                 {/* Dimensions Tag */}
-                <div className="absolute left-1/2 -bottom-10 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 bg-black/80 text-white rounded-full shadow-lg whitespace-nowrap">
+                <div className="absolute left-1/2 -bottom-10 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 bg-black/80 text-white rounded-pill shadow-lg whitespace-nowrap">
                     <span data-dimensions className="text-xs font-medium tabular-nums">
                         0 × 0
                     </span>

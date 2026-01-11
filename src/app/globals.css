@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 :root {
+  --active-color: AccentColor;
+
   /* Spacing System */
   --spacing-xs: 0.25rem;
   /* 4px */
@@ -22,6 +24,8 @@
   --radius-sm: 0.25rem;
   --radius-lg: 0.75rem;
   --radius-full: 9999px;
+  /* macOS-ish control rounding (used for former `rounded-pill` pills) */
+  --radius-macos-pill: 1.5rem;
   --window-surface-radius: 1rem;
 
   /* Typography Scale */
@@ -96,6 +100,13 @@
   --border: 220 13% 91%;
   --input: 220 13% 91%;
   --ring: 262 80% 50%;
+
+  /* Overlay tokens (loading/modals) */
+  --overlay-scrim: 0 0% 0%;
+  --overlay-accent-1: var(--primary);
+  --overlay-accent-2: var(--info);
+  --overlay-accent-3: var(--accent);
+  --overlay-highlight: 0 0% 100%;
 
   /* App specific colors (Bokeh) */
   --timeline-bg: 220 14.3% 98%;
@@ -569,10 +580,15 @@
 
   body {
     @apply text-foreground select-none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
     background: transparent;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+    -webkit-user-drag: none;
+    touch-action: none;
     height: 100vh;
     overflow: hidden;
     margin: 0;
@@ -592,6 +608,15 @@
   [contenteditable="true"] {
     user-select: text !important;
     -webkit-user-select: text !important;
+  }
+
+  button {
+    /* Native macOS buttons don't show the hand pointer */
+    cursor: default;
+  }
+
+  img {
+    -webkit-user-drag: none;
   }
 
   #__next {
@@ -629,11 +654,13 @@
 
 
   /* Hide scrollbar by default, show on hover - macOS behavior */
-  .hide-scrollbar {
+  .hide-scrollbar,
+  .scrollbar-none {
     scrollbar-width: none;
   }
 
-  .hide-scrollbar::-webkit-scrollbar {
+  .hide-scrollbar::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
 
@@ -737,6 +764,30 @@
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, var(--window-surface-border-alpha));
     border-radius: var(--window-surface-radius);
     overflow: hidden;
+  }
+
+  /*
+    Electron-only: macOS-like "continuous" corner smoothing in Chromium.
+    This is supported in newer Electron versions (e.g. 37+).
+  */
+  @supports (-electron-corner-smoothing: 100%) {
+    :root {
+      --electron-corner-smoothing: 100%;
+    }
+
+    /*
+      Apply broadly so Tailwind/shadcn components automatically pick it up
+      without touching every `className`.
+    */
+    :where(.window-surface,
+      button,
+      [role="button"],
+      input,
+      textarea,
+      select,
+      [class*="rounded"]) {
+      -electron-corner-smoothing: var(--electron-corner-smoothing);
+    }
   }
 
   /* Material tuning per mode */

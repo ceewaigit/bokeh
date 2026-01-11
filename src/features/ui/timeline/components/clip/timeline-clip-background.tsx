@@ -1,6 +1,8 @@
 import React from 'react';
 import { Rect, Group, Text } from 'react-konva';
 import { withAlpha, useTimelineColors } from '@/features/ui/timeline/utils/colors';
+import { drawSquircleRectPath } from '@/features/ui/timeline/utils/corners';
+import { ContinuousRect } from '@/features/ui/timeline/components/konva/continuous-rect';
 
 interface TimelineClipBackgroundProps {
     clipId: string;
@@ -15,6 +17,9 @@ interface TimelineClipBackgroundProps {
     trackType: 'video' | 'audio' | 'webcam';
     hasThumbnails: boolean;
     colors: ReturnType<typeof useTimelineColors>;
+    roundLeft?: boolean;
+    roundRight?: boolean;
+    isHovering?: boolean;
 }
 
 export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
@@ -30,16 +35,57 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
     trackType,
     hasThumbnails,
     colors,
+    roundLeft = true,
+    roundRight = true,
+    isHovering = false,
 }) => {
+    const shapeRef = React.useRef<any>(null);
+    const tweenRef = React.useRef<any>(null);
+
+    React.useEffect(() => {
+        if (!shapeRef.current) return;
+
+        // Destroy previous tween
+        if (tweenRef.current) {
+            tweenRef.current.destroy();
+        }
+
+        // Target state
+        const targetShadowBlur = isHovering && !isDragging ? (isSelected ? 16 : 12) : (isSelected ? 4 : 0);
+        const targetShadowOpacity = isHovering && !isDragging ? 0.3 : (isSelected || trackType === 'webcam' ? 0.2 : 0);
+        // Special case for webcam which always has some shadow/border
+
+        tweenRef.current = new (window as any).Konva.Tween({
+            node: shapeRef.current,
+            duration: 0.15, // fast & snappy
+            shadowBlur: targetShadowBlur,
+            shadowOpacity: targetShadowOpacity,
+            easing: (window as any).Konva.Easings.EaseOut,
+        });
+
+        tweenRef.current.play();
+
+        return () => {
+            if (tweenRef.current) tweenRef.current.destroy();
+        };
+    }, [isHovering, isDragging, isSelected, trackType]);
+
     const clipBaseColor = colors.isDark ? 'hsl(42, 95%, 55%)' : 'hsl(42, 95%, 45%)';
     const clipFillColor = showMissingThumb
         ? withAlpha(clipBaseColor, colors.isDark ? 0.12 : 0.08)
         : 'rgba(127,127,127,0.1)';
 
+    const cornerRadius = {
+        topLeft: roundLeft ? 10 : 0,
+        bottomLeft: roundLeft ? 10 : 0,
+        topRight: roundRight ? 10 : 0,
+        bottomRight: roundRight ? 10 : 0,
+    };
+
     return (
         <>
             {/* Clip background with rounded corners */}
-            <Rect
+            <ContinuousRect
                 // Center pivot for scaling
                 offsetX={width / 2}
                 offsetY={height / 2}
@@ -47,6 +93,7 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                 y={height / 2}
                 width={width}
                 height={height}
+                cornerRadius={cornerRadius}
                 fill={
                     trackType === 'video' && hasThumbnails
                         ? 'transparent'
@@ -77,7 +124,6 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
                                 ? 1.5 // Always show border for Webcam
                                 : showMissingThumb || isGeneratedClip || trackType !== 'video' ? 1.5 : 0
                 }
-                cornerRadius={10}
                 shadowColor="black"
                 // Match Effect Block shadow depth
                 shadowBlur={trackType === 'webcam' ? (isSelected ? 12 : 4) : 0}
@@ -89,11 +135,7 @@ export const TimelineClipBackground: React.FC<TimelineClipBackgroundProps> = ({
             {isGeneratedClip && !hasThumbnails && (
                 <Group
                     clipFunc={(ctx) => {
-                        ctx.beginPath();
-                        if (width > 0 && height > 0) {
-                            ctx.roundRect(0, 0, width, height, 8);
-                        }
-                        ctx.closePath();
+                        drawSquircleRectPath(ctx as unknown as CanvasRenderingContext2D, 0, 0, width, height, cornerRadius);
                     }}
                 >
                     {(() => {

@@ -29,7 +29,9 @@ export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
     super(context, {
       name: 'UpdateClip',
       description: `Update clip ${clipId}`,
-      category: 'timeline'
+      category: 'timeline',
+      coalesceKey: `UpdateClip:${clipId}`,
+      coalesceWindowMs: 1000
     })
     this.clipId = clipId
     this.updates = updates

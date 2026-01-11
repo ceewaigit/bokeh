@@ -62,8 +62,9 @@ export function PluginCreator() {
                 prompt = `I have this existing plugin code:\n\n${currentPlugin.renderCode}\n\nBased on this code, please: ${content}`
             }
 
+            const pluginServerUrl = (process.env.NEXT_PUBLIC_PLUGIN_SERVER_URL || 'http://localhost:3000').replace(/\/$/, '')
             // Call the LLM server with system prompt for constraints
-            const response = await fetch('http://localhost:3000/api/generate-plugin', {
+            const response = await fetch(`${pluginServerUrl}/api/generate-plugin`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -116,7 +117,7 @@ export function PluginCreator() {
             const errorMessage: ChatMessage = {
                 id: `error-${Date.now()}`,
                 role: 'assistant',
-                content: `Error connecting to LLM server: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure the server is running at localhost:3000.`,
+                content: `Error connecting to LLM server: ${error instanceof Error ? error.message : 'Unknown error'}. Set NEXT_PUBLIC_PLUGIN_SERVER_URL or run the server on http://localhost:3000.`,
                 timestamp: new Date()
             }
             setMessages(prev => [...prev, errorMessage])
@@ -261,7 +262,7 @@ ${plugin.renderCode}
                 <div className="absolute top-6 right-6 z-30 flex gap-2">
                     <button
                         onClick={() => setIsLibraryOpen(true)}
-                        className="px-4 py-2 bg-background/80 backdrop-blur-md border border-border/70 rounded-full shadow-lg hover:bg-accent/60 transition-all flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground group"
+                        className="px-4 py-2 bg-background/80 backdrop-blur-md border border-border/70 rounded-pill shadow-lg hover:bg-accent/60 transition-all flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground group"
                     >
                         <FolderOpen className="w-4 h-4 group-hover:text-primary transition-colors" />
                         Load Plugin

@@ -38,6 +38,7 @@ uniform float u_gamma;       // Gamma correction factor
 uniform float u_blackLevel;  // Manual Black Level (0.0 - 0.2)
 uniform float u_saturation;  // Saturation (0.0 - 2.0)
 uniform int u_linearize;     // 1 = do sRGB <-> linear conversion for blur math
+uniform float u_refocusBlur; // Omnidirectional (gaussian) blur intensity (0..1)
 
 float shutterWeight(float t) {
     // Cinematic shutter: bell-shaped exposure with soft edges.
@@ -59,20 +60,24 @@ vec3 toSrgb(vec3 c) {
     return mix(lo, hi, step(vec3(0.0031308), c));
 }
 
+// Gaussian weight for omnidirectional blur
+float gaussianWeight(float dist, float sigma) {
+    return exp(-(dist * dist) / (2.0 * sigma * sigma));
+}
+
 void main() {
-    // Calculate blur magnitude
-    float blurMagnitude = length(u_velocity) * u_intensity;
-    
-    vec4 blurredColor = vec4(0.0);
-    
     vec4 baseSample = texture(u_image, v_texCoord);
     vec3 baseRgb = baseSample.rgb;
     if (u_linearize == 1) {
         baseRgb = toLinear(baseRgb);
     }
 
-    // Lower threshold (0.0001 vs 0.0005) to allow more subtle blur effects
-    if (blurMagnitude < 0.0001) {
+    // Determine blur mode: refocus (omnidirectional) vs motion (directional)
+    float blurMagnitude = length(u_velocity) * u_intensity;
+    bool useRefocusBlur = u_refocusBlur > 0.001;
+
+    // Early exit if no blur needed
+    if (blurMagnitude < 0.0001 && !useRefocusBlur) {
         vec3 outRgb = (u_linearize == 1) ? toSrgb(baseRgb) : baseRgb;
         outRgb = clamp(outRgb, 0.0, 1.0);
         if (u_gamma != 1.0) {
@@ -86,31 +91,72 @@ void main() {
     vec4 accumulatedColor = vec4(0.0);
     float totalWeight = 0.0;
     float samples = float(u_samples);
-    
-    for (int i = 0; i < u_samples; i++) {
-        // Map i to range -0.5 to 0.5
-        // Use deterministic stratified sampling (no random jitter) to avoid visible grain.
-        float t = ((float(i) + 0.5) / samples) - 0.5;
-        
-        float weight = shutterWeight(t);
-        
-        vec2 offset = u_velocity * t * u_intensity;
-        vec2 sampleCoord = v_texCoord + offset;
+    vec2 margin = 1.0 / u_resolution;
 
-        // Clamp with small margin to avoid sampling undefined edge pixels
-        // This prevents purple/blue artifacts at texture boundaries
-        vec2 margin = 1.0 / u_resolution;
-        sampleCoord = clamp(sampleCoord, margin, 1.0 - margin);
+    if (useRefocusBlur) {
+        // OMNIDIRECTIONAL (REFOCUS) BLUR
+        // Sample in a circular pattern for camera-like defocus effect
+        float blurRadius = u_refocusBlur * 0.02; // Convert 0-1 to UV space radius
+        float sigma = blurRadius * 0.5;
 
-        vec4 sampleColor = texture(u_image, sampleCoord);
-        vec3 sampleRgb = sampleColor.rgb;
-        if (u_linearize == 1) {
-            sampleRgb = toLinear(sampleRgb);
+        // Use spiral sampling pattern for even distribution
+        int ringCount = max(2, u_samples / 6);
+        float samplesPerRing = samples / float(ringCount);
+
+        // Center sample (highest weight)
+        accumulatedColor += vec4(baseRgb, baseSample.a) * 1.0;
+        totalWeight += 1.0;
+
+        for (int ring = 1; ring <= ringCount; ring++) {
+            float ringRadius = (float(ring) / float(ringCount)) * blurRadius;
+            int samplesInRing = int(samplesPerRing * float(ring));
+
+            for (int s = 0; s < samplesInRing; s++) {
+                float angle = (float(s) / float(samplesInRing)) * 6.28318530718; // 2*PI
+                vec2 offset = vec2(cos(angle), sin(angle)) * ringRadius;
+
+                // Aspect ratio correction
+                offset.x *= u_resolution.y / u_resolution.x;
+
+                vec2 sampleCoord = clamp(v_texCoord + offset, margin, 1.0 - margin);
+                vec4 sampleColor = texture(u_image, sampleCoord);
+                vec3 sampleRgb = sampleColor.rgb;
+                if (u_linearize == 1) {
+                    sampleRgb = toLinear(sampleRgb);
+                }
+
+                float weight = gaussianWeight(ringRadius, sigma);
+                accumulatedColor += vec4(sampleRgb, sampleColor.a) * weight;
+                totalWeight += weight;
+            }
         }
-        accumulatedColor += vec4(sampleRgb, sampleColor.a) * weight;
-        totalWeight += weight;
+    } else {
+        // DIRECTIONAL (MOTION) BLUR
+        // Original motion blur sampling along velocity vector
+        for (int i = 0; i < u_samples; i++) {
+            // Map i to range -0.5 to 0.5
+            // Use deterministic stratified sampling (no random jitter) to avoid visible grain.
+            float t = ((float(i) + 0.5) / samples) - 0.5;
+
+            float weight = shutterWeight(t);
+
+            vec2 offset = u_velocity * t * u_intensity;
+            vec2 sampleCoord = v_texCoord + offset;
+
+            // Clamp with small margin to avoid sampling undefined edge pixels
+            // This prevents purple/blue artifacts at texture boundaries
+            sampleCoord = clamp(sampleCoord, margin, 1.0 - margin);
+
+            vec4 sampleColor = texture(u_image, sampleCoord);
+            vec3 sampleRgb = sampleColor.rgb;
+            if (u_linearize == 1) {
+                sampleRgb = toLinear(sampleRgb);
+            }
+            accumulatedColor += vec4(sampleRgb, sampleColor.a) * weight;
+            totalWeight += weight;
+        }
     }
-    
+
     vec4 blurred = accumulatedColor / totalWeight;
     vec3 corrected = mix(baseRgb, blurred.rgb, u_mix);
 

@@ -2,6 +2,7 @@ import { ipcMain, app, IpcMainInvokeEvent } from 'electron'
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { makeVideoSrc } from '../utils/video-url-factory'
+import { resolveRecordingFilePath } from '../utils/file-resolution'
 import {
   ensurePreviewProxy,
   ensureGlowProxy,
@@ -83,12 +84,35 @@ export function registerFileOperationHandlers(): void {
   // Get a URL that can be used to stream video files
   ipcMain.handle('get-video-url', async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      const normalizedPath = path.resolve(filePath)
-      await fs.access(normalizedPath)
+      if (!filePath) return null
 
-      // Return video-stream URL using our safe encoding utility
-      // Use the unified video URL factory for consistency
-      return await makeVideoSrc(normalizedPath, 'preview')
+      // If the renderer already has a usable URL, keep it as-is.
+      // This avoids breaking thumbnails when paths are stored as `video-stream://...` etc.
+      const lower = String(filePath).toLowerCase()
+      const isAlreadyUrl =
+        lower.startsWith('video-stream:') ||
+        lower.startsWith('app:') ||
+        lower.startsWith('file:') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('blob:') ||
+        lower.startsWith('http:') ||
+        lower.startsWith('https:')
+      if (isAlreadyUrl) return filePath
+
+      const normalizedPath = path.resolve(filePath)
+      try {
+        await fs.access(normalizedPath)
+        // Return video-stream URL using our safe encoding utility
+        // Use the unified video URL factory for consistency
+        return await makeVideoSrc(normalizedPath, 'preview')
+      } catch {
+        // Fall back to resolving relative recording paths (e.g. stored project-relative filenames).
+        const resolved = resolveRecordingFilePath(filePath)
+        if (!resolved) return null
+        await fs.access(resolved)
+        return await makeVideoSrc(resolved, 'preview')
+      }
+
     } catch {
       return null
     }

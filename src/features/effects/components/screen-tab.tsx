@@ -47,7 +47,7 @@ function CollapsibleSection({ title, isOpen, onToggle, children, disabled, disab
                         {title}
                     </span>
                     {badge && (
-                        <span className="text-2xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                        <span className="text-2xs px-1.5 py-0.5 rounded-pill bg-primary/10 text-primary font-medium">
                             {badge}
                         </span>
                     )}

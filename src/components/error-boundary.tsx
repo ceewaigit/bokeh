@@ -66,7 +66,7 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
     <div className="h-screen w-screen flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
       <div className="max-w-md w-full bg-card/50 backdrop-blur-xl border border-border/50 shadow-2xl rounded-2xl p-8 animate-in fade-in zoom-in-95 duration-300">
         <div className="flex flex-col items-center text-center">
-          <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-6 ring-1 ring-destructive/20 shadow-[0_0_20px_-10px_rgba(239,68,68,0.5)]">
+          <div className="w-12 h-12 bg-destructive/10 rounded-pill flex items-center justify-center mb-6 ring-1 ring-destructive/20 shadow-[0_0_20px_-10px_rgba(239,68,68,0.5)]">
             <AlertTriangle className="w-6 h-6 text-destructive" />
           </div>
 

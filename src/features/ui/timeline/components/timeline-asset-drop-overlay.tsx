@@ -9,6 +9,7 @@ interface TimelineAssetDropOverlayProps {
     assetDragDrop: UseAssetDragDropReturn
     getTrackBounds: (type: TrackType) => { y: number; height: number; clipY: number; clipHeight: number }
     pixelsPerMs: number
+    scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
 /**
@@ -19,7 +20,8 @@ interface TimelineAssetDropOverlayProps {
 export const TimelineAssetDropOverlay = React.memo(function TimelineAssetDropOverlay({
     assetDragDrop,
     getTrackBounds,
-    pixelsPerMs
+    pixelsPerMs,
+    scrollContainerRef
 }: TimelineAssetDropOverlayProps) {
     // Subscribe to draggingAsset here to isolate re-renders
     const draggingAsset = useAssetLibraryStore((s) => s.draggingAsset)
@@ -43,6 +45,7 @@ export const TimelineAssetDropOverlay = React.memo(function TimelineAssetDropOve
                 trackType={effectiveTrackType}
                 getTrackBounds={getTrackBounds}
                 pixelsPerMs={pixelsPerMs}
+                scrollContainerRef={scrollContainerRef}
             />
         </>
     )

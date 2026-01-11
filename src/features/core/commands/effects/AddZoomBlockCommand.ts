@@ -3,6 +3,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { TimelineConfig } from '@/features/ui/timeline/config'
+import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
 
 /**
  * AddZoomBlockCommand - Adds zoom effects to timeline.effects[] (TIMELINE SPACE)
@@ -77,12 +78,15 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
         targetY: this.block.targetY,
         screenWidth: this.block.screenWidth,
         screenHeight: this.block.screenHeight,
-        introMs: this.block.introMs || 300,
-        outroMs: this.block.outroMs || 300,
+        introMs: this.block.introMs ?? ZOOM_TRANSITION_CONFIG.defaultIntroMs,
+        outroMs: this.block.outroMs ?? ZOOM_TRANSITION_CONFIG.defaultOutroMs,
         smoothing: this.block.smoothing ?? 50,
         followStrategy: this.block.followStrategy ?? ZoomFollowStrategy.Mouse,
         autoScale: this.block.autoScale,
-        mouseIdlePx: this.block.mouseIdlePx
+        mouseIdlePx: this.block.mouseIdlePx,
+        transitionStyle: this.block.transitionStyle ?? 'sine',
+        mouseFollowAlgorithm: this.block.mouseFollowAlgorithm ?? 'deadzone',
+        zoomIntoCursorMode: this.block.zoomIntoCursorMode ?? 'cursor'
       } as ZoomEffectData,
       enabled: true
     }

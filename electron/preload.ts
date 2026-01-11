@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron'
 import type {
   DesktopSourceOptions,
   DesktopSource,
@@ -58,6 +58,11 @@ const electronAPI = {
     }
 
     return sources
+  },
+
+  // File Utils
+  getPathForFile: (file: File) => {
+    return webUtils.getPathForFile(file)
   },
 
   getDesktopStream: (sourceId: string, hasAudio: boolean) => {
@@ -182,6 +187,9 @@ const electronAPI = {
     ipcRenderer.invoke('get-elements-at-point', x, y, limit),
 
   getMainWindowId: () => ipcRenderer.invoke('get-main-window-id'),
+
+  // Title bar behaviors (macOS polish)
+  doubleClickTitleBar: () => ipcRenderer.send('titlebar-double-click'),
 
   // Scroll events
   onScroll: (callback: (event: IpcRendererEvent, data: { timestamp: number; deltaX: number; deltaY: number }) => void) => {

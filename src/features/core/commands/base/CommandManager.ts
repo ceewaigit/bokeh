@@ -66,6 +66,24 @@ export class CommandManager {
         // you can no longer redo commands that were previously undone.
         this.history = this.history.filter(entry => !entry.undone)
 
+        // Auto-coalesce rapid "update" commands (e.g. sliders/color pickers) into one undo step.
+        // This works by assigning a shared groupId across successive commands with the same coalesceKey.
+        if (!this.groupingEnabled && command.metadata.coalesceKey) {
+          const lastEntry = this.getLastUndoableEntry()
+          if (lastEntry?.metadata.coalesceKey === command.metadata.coalesceKey) {
+            const windowMs = command.metadata.coalesceWindowMs ?? 1000
+            const lastTimestamp = lastEntry.metadata.timestamp ?? lastEntry.timestamp
+            if (Date.now() - lastTimestamp <= windowMs) {
+              const groupId = lastEntry.metadata.groupId ?? `coalesce-${Date.now()}`
+              if (!lastEntry.metadata.groupId) {
+                lastEntry.metadata.groupId = groupId
+                lastEntry.command.metadata.groupId = groupId
+              }
+              command.metadata.groupId = groupId
+            }
+          }
+        }
+
         // If grouping is enabled, add to pending group
         if (this.groupingEnabled) {
           this.pendingGroup.push(command)

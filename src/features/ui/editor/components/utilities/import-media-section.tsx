@@ -325,7 +325,21 @@ export function ImportMediaSection() {
         const type = getMediaType(file.name)
         if (!type || type === 'project') return
 
-        const path = (file as File & { path?: string }).path || file.name
+        let path = (file as File & { path?: string }).path
+
+        // Try getting path from electron API first (uses webUtils.getPathForFile)
+        if (window.electronAPI?.getPathForFile) {
+            try {
+                const electronPath = window.electronAPI.getPathForFile(file)
+                if (electronPath) {
+                    path = electronPath
+                }
+            } catch (e) {
+                console.warn('Failed to get path from electronAPI:', e)
+            }
+        }
+
+        path = path || file.name
         const assetId = `asset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
         try {
@@ -583,9 +597,6 @@ export function ImportMediaSection() {
                 <DialogContent className="max-w-5xl w-[min(92vw,1100px)] p-0 gap-0 overflow-hidden">
                     <DialogHeader className="px-5 pt-5 pb-4 border-b border-border/50">
                         <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                <Library className="h-4 w-4" />
-                            </span>
                             Import from Library
                         </DialogTitle>
                         <DialogDescription className="text-sm text-muted-foreground">
@@ -597,7 +608,7 @@ export function ImportMediaSection() {
                         <div className="flex items-center gap-3">
                             <LibrarySearch query={searchQuery} onQueryChange={setSearchQuery} />
                             <div className="flex items-center gap-2 text-2xs text-muted-foreground">
-                                <span className="rounded-full bg-muted/40 px-2 py-0.5 font-mono">
+                                <span className="rounded-pill bg-muted/40 px-2 py-0.5 font-mono">
                                     {libraryRecordings.length}
                                 </span>
                                 recordings
@@ -619,7 +630,7 @@ export function ImportMediaSection() {
                             </div>
                         ) : libraryRecordings.length === 0 ? (
                             <div className="flex h-full flex-col items-center justify-center text-sm text-muted-foreground">
-                                <div className="mb-2 h-10 w-10 rounded-full bg-muted/40 flex items-center justify-center">
+                                <div className="mb-2 h-10 w-10 rounded-pill bg-muted/40 flex items-center justify-center">
                                     {searchQuery ? <SearchX className="h-5 w-5" /> : <Film className="h-5 w-5" />}
                                 </div>
                                 {searchQuery ? "No such recording exists" : "No recordings found yet."}
@@ -638,7 +649,7 @@ export function ImportMediaSection() {
                                 />
                                 {showHydrationIndicator && (
                                     <div className="flex justify-center pt-2">
-                                        <div className="bg-muted/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
+                                        <div className="bg-muted/60 backdrop-blur-md rounded-pill px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
                                             <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
                                             <span className="text-3xs font-medium text-muted-foreground">Loading page…</span>
                                         </div>
@@ -685,7 +696,7 @@ export function ImportMediaSection() {
                         )}
                     >
                         <div className={cn(
-                            "w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0",
+                            "w-9 h-9 rounded-pill flex items-center justify-center transition-all shrink-0",
                             isDragOver ? "bg-primary/20 text-primary" : "bg-muted/20 text-muted-foreground group-hover:text-foreground group-hover:scale-105"
                         )}>
                             <Upload className="w-4 h-4" />
@@ -703,7 +714,7 @@ export function ImportMediaSection() {
                             "flex items-center gap-2.5 p-2.5 bg-muted/10 hover:bg-muted/20 hover:border-border/70"
                         )}
                     >
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted/30 text-muted-foreground">
+                        <div className="w-8 h-8 rounded-pill flex items-center justify-center bg-muted/30 text-muted-foreground">
                             <Library className="w-4 h-4" />
                         </div>
                         <div>

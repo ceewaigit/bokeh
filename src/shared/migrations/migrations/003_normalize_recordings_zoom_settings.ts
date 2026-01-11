@@ -6,6 +6,7 @@ import type { Migration } from '../index'
 import type { Effect, Project, Recording, ZoomEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { normalizeProjectSettings } from '@/features/core/settings/normalize-project-settings'
+import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif'])
 
@@ -58,12 +59,15 @@ function normalizeZoomEffect(effect: Effect): Effect {
     targetY: data.targetY,
     screenWidth: data.screenWidth,
     screenHeight: data.screenHeight,
-    introMs: data.introMs ?? 300,
-    outroMs: data.outroMs ?? 300,
+    introMs: data.introMs ?? ZOOM_TRANSITION_CONFIG.defaultIntroMs,
+    outroMs: data.outroMs ?? ZOOM_TRANSITION_CONFIG.defaultOutroMs,
     smoothing: data.smoothing ?? 50,
     followStrategy: data.followStrategy ?? ZoomFollowStrategy.Mouse,
     autoScale: data.autoScale,
-    mouseIdlePx: data.mouseIdlePx
+    mouseIdlePx: data.mouseIdlePx,
+    transitionStyle: (data.transitionStyle as any) ?? 'sine',
+    mouseFollowAlgorithm: (data.mouseFollowAlgorithm as any) ?? 'deadzone',
+    zoomIntoCursorMode: (data.zoomIntoCursorMode as any) ?? 'cursor'
   }
 
   return {

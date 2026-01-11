@@ -128,7 +128,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                 <div className="relative flex-1 overflow-y-auto p-4 space-y-2 min-h-[300px]">
                     {filteredPlugins.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-12">
-                            <div className="w-10 h-10 rounded-full bg-background/70 border border-border/60 flex items-center justify-center mb-4">
+                            <div className="w-10 h-10 rounded-pill bg-background/70 border border-border/60 flex items-center justify-center mb-4">
                                 <Search className="w-6 h-6 opacity-50" />
                             </div>
                             <p>No plugins found</p>
@@ -158,7 +158,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <span className="text-3xs font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full border border-border/50 uppercase tracking-wider">
+                                    <span className="text-3xs font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-pill border border-border/50 uppercase tracking-wider">
                                         {plugin.category}
                                     </span>
 
@@ -187,7 +187,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                 <div className="relative p-3 border-t border-border/60 bg-card/60 text-xs text-muted-foreground flex justify-between items-center">
                     <span>{plugins.length} saved plugins</span>
                     <div className="flex gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-muted/30 border border-border/50">Local Storage</span>
+                        <span className="px-2 py-0.5 rounded-pill bg-muted/30 border border-border/50">Local Storage</span>
                     </div>
                 </div>
             </div>

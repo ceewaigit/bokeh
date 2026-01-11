@@ -7,6 +7,7 @@ import { getNearestAvailableDragX, validatePosition } from '@/features/ui/timeli
 import { EffectType } from '@/types/project'
 import Konva from 'konva'
 import { useTimelineUI } from './timeline-ui-context'
+import { ContinuousRect } from './konva/continuous-rect'
 
 interface TimelineTimeBlock {
   id: string
@@ -72,7 +73,9 @@ export const TimelineEffectBlock = React.memo(({
   const isExpanded = !isCompact
   // Prevent rendering if collapsed/invalid bounds to avoid invalid shape errors
 
-  const EFFECT_TRACK_ANIMATION_DURATION = 0.18
+  // Prevent rendering if collapsed/invalid bounds to avoid invalid shape errors
+
+  const EFFECT_TRACK_ANIMATION_DURATION = 0.15
 
   const colors = useTimelineColors()
   const isDarkMode = colors.isDark
@@ -81,7 +84,7 @@ export const TimelineEffectBlock = React.memo(({
   const [isHovering, setIsHovering] = useState(false)
   const [currentWidth, setCurrentWidth] = useState(width)
   const groupRef = useRef<Konva.Group>(null)
-  const rectRef = useRef<Konva.Rect>(null)
+  const rectRef = useRef<Konva.Shape>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const hasMountedRef = useRef(false)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -361,12 +364,13 @@ export const TimelineEffectBlock = React.memo(({
         listening={true}
       >
         {/* Main block - Colored fill with gradient overlay for depth */}
-        <Rect
+        <ContinuousRect
           ref={rectRef}
           x={0}
           y={0}
           width={safeWidth}
           height={safeHeight}
+          cornerRadius={isExpanded ? 10 : 8}
           fill={withAlpha(blockFill, isExpanded ? 0.15 : 0.1)}
           // Enhanced border - slightly thicker and more prominent for outline look
           stroke={isSelected
@@ -374,8 +378,6 @@ export const TimelineEffectBlock = React.memo(({
             : withAlpha(blockFill, isDarkMode ? 0.8 : 0.7)
           }
           strokeWidth={isSelected ? 2 : 1.5}
-          // Refined corner radius
-          cornerRadius={isExpanded ? 10 : 8}
           opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
           listening={true}
         />
@@ -489,7 +491,7 @@ export const TimelineEffectBlock = React.memo(({
         anchorFill="transparent"
         anchorStroke="transparent"
         anchorStrokeWidth={0}
-        anchorSize={28}
+        anchorSize={36} // Increased from 28 for easier grabbing
         anchorCornerRadius={0}
         keepRatio={false}
         ignoreStroke={true}

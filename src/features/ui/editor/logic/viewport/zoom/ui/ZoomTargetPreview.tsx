@@ -186,7 +186,7 @@ export function ZoomTargetPreview({
                     }}
                 />
                 <div
-                    className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_0_6px_rgba(255,255,255,0.18)] pointer-events-none"
+                    className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-primary shadow-[0_0_0_6px_rgba(255,255,255,0.18)] pointer-events-none"
                     style={{ left: `${target.x * 100}%`, top: `${target.y * 100}%` }}
                 />
             </div>

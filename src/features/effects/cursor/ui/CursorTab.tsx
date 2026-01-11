@@ -373,7 +373,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   key={themeConfig.id}
                   onClick={() => onUpdateCursor({ theme: themeConfig.id })}
                   className={cn(
-                    'w-2 h-2 rounded-full transition-all',
+                    'w-2 h-2 rounded-pill transition-all',
                     currentTheme === themeConfig.id
                       ? 'bg-primary scale-110'
                       : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
@@ -391,7 +391,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Motion Style</label>
                 <InfoTooltip content="Choose how cursor motion feels" />
               </div>
-              <span className="rounded-full bg-muted/50 px-2 py-0.5 text-2xs font-medium text-muted-foreground">
+              <span className="rounded-pill bg-muted/50 px-2 py-0.5 text-2xs font-medium text-muted-foreground">
                 {motionLabel}
               </span>
             </div>
@@ -451,12 +451,12 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   <div className="absolute inset-y-0 left-3 right-3 flex items-center">
                     <div className="relative w-full" style={previewTrackStyle}>
                       <div
-                        className="absolute left-0 top-0 rounded-full bg-primary/40"
+                        className="absolute left-0 top-0 rounded-pill bg-primary/40"
                         key={`trail-${previewKey}`}
                         style={previewTrailStyle}
                       />
                       <div
-                        className="absolute left-0 top-0 rounded-full bg-primary"
+                        className="absolute left-0 top-0 rounded-pill bg-primary"
                         key={`dot-${previewKey}`}
                         style={previewDotStyle}
                       />

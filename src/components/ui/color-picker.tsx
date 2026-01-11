@@ -41,6 +41,8 @@ interface ColorPickerContextValue {
   setLightness: (lightness: number) => void
   setAlpha: (alpha: number) => void
   setMode: (mode: string) => void
+  beginInteraction?: () => void
+  endInteraction?: () => void
 }
 
 const ColorPickerContext = createContext<ColorPickerContextValue | undefined>(
@@ -59,6 +61,8 @@ export type ColorPickerProps = Omit<HTMLAttributes<HTMLDivElement>, 'onChange' |
   value?: ColorInput
   defaultValue?: ColorInput
   onChange?: (value: string) => void
+  onInteractionStart?: () => void
+  onInteractionEnd?: () => void
 }
 
 const toSafeColor = (input: ColorInput | undefined, fallback: ColorInstance) => {
@@ -85,6 +89,8 @@ export const ColorPicker = ({
   value,
   defaultValue = '#000000',
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
   className,
   ...props
 }: ColorPickerProps) => {
@@ -106,9 +112,27 @@ export const ColorPicker = ({
   const [alpha, setAlpha] = useState(Math.round((resolvedColor.alpha() || 1) * 100))
   const [mode, setMode] = useState('hex')
   const isSyncingRef = useRef(false)
+  const isInteractingRef = useRef(false)
   const lastEmittedRef = useRef<string | null>(null)
 
+  const beginInteraction = useCallback(() => {
+    if (isInteractingRef.current) return
+    isInteractingRef.current = true
+    onInteractionStart?.()
+  }, [onInteractionStart])
+
+  const endInteraction = useCallback(() => {
+    if (!isInteractingRef.current) return
+    isInteractingRef.current = false
+    onInteractionEnd?.()
+  }, [onInteractionEnd])
+
   useEffect(() => {
+    if (isInteractingRef.current) return
+    const normalizedProp = normalizeValue(value, fallbackColor).toLowerCase()
+    if (lastEmittedRef.current && normalizedProp === lastEmittedRef.current.toLowerCase()) {
+      return
+    }
     const next = toSafeColor(value, fallbackColor)
     const hsl = next.hsl()
     const nextHue = hsl.hue() || 0
@@ -161,6 +185,8 @@ export const ColorPicker = ({
         setLightness,
         setAlpha,
         setMode,
+        beginInteraction,
+        endInteraction,
       }}
     >
       <div
@@ -179,7 +205,7 @@ export const ColorPickerSelection = memo(
     const [positionX, setPositionX] = useState(0)
     const [positionY, setPositionY] = useState(0)
     const activePointerIdRef = useRef<number | null>(null)
-    const { hue, saturation, lightness, setSaturation, setLightness } = useColorPicker()
+    const { hue, saturation, lightness, setSaturation, setLightness, beginInteraction, endInteraction } = useColorPicker()
 
     const backgroundGradient = useMemo(() => {
       return `linear-gradient(0deg, rgba(0,0,0,1), rgba(0,0,0,0)),
@@ -234,6 +260,7 @@ export const ColorPickerSelection = memo(
           }
         }
         activePointerIdRef.current = null
+        endInteraction?.()
       }
       if (isDragging) {
         window.addEventListener('pointermove', handlePointerMove)
@@ -252,6 +279,7 @@ export const ColorPickerSelection = memo(
         className={cn('relative h-32 w-full cursor-crosshair rounded-md', className)}
         onPointerDown={(e) => {
           e.preventDefault()
+          beginInteraction?.()
           setIsDragging(true)
           activePointerIdRef.current = e.pointerId
           if (containerRef.current) {
@@ -263,8 +291,6 @@ export const ColorPickerSelection = memo(
           }
           handlePointerMove(e.nativeEvent)
         }}
-        onPointerUp={() => setIsDragging(false)}
-        onPointerLeave={() => setIsDragging(false)}
         ref={containerRef}
         style={{
           background: backgroundGradient,
@@ -272,7 +298,7 @@ export const ColorPickerSelection = memo(
         {...(props as any)}
       >
         <div
-          className="-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute h-4 w-4 rounded-full border-2 border-white"
+          className="-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute h-4 w-4 rounded-pill border-2 border-white"
           style={{
             left: `${positionX * 100}%`,
             top: `${positionY * 100}%`,
@@ -288,22 +314,42 @@ ColorPickerSelection.displayName = 'ColorPickerSelection'
 export type ColorPickerHueProps = ComponentProps<typeof Slider.Root>
 export const ColorPickerHue = ({
   className,
+  onPointerDown,
+  onPointerUp,
+  onPointerCancel,
+  onValueCommit,
   ...props
 }: ColorPickerHueProps) => {
-  const { hue, setHue } = useColorPicker()
+  const { hue, setHue, beginInteraction, endInteraction } = useColorPicker()
   return (
     <Slider.Root
       className={cn('relative flex h-4 w-full touch-none', className)}
       max={360}
       onValueChange={([next]) => setHue(next)}
+      onValueCommit={(value) => {
+        onValueCommit?.(value)
+        endInteraction?.()
+      }}
+      onPointerDown={(event) => {
+        onPointerDown?.(event)
+        beginInteraction?.()
+      }}
+      onPointerUp={(event) => {
+        onPointerUp?.(event)
+        endInteraction?.()
+      }}
+      onPointerCancel={(event) => {
+        onPointerCancel?.(event)
+        endInteraction?.()
+      }}
       step={1}
       value={[hue]}
       {...(props as any)}
     >
-      <Slider.Track className="relative my-0.5 h-3 w-full grow rounded-full bg-[linear-gradient(90deg,#FF0000,#FFFF00,#00FF00,#00FFFF,#0000FF,#FF00FF,#FF0000)]">
+      <Slider.Track className="relative my-0.5 h-3 w-full grow rounded-pill bg-[linear-gradient(90deg,#FF0000,#FFFF00,#00FF00,#00FFFF,#0000FF,#FF00FF,#FF0000)]">
         <Slider.Range className="absolute h-full" />
       </Slider.Track>
-      <Slider.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
+      <Slider.Thumb className="block h-4 w-4 rounded-pill border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
     </Slider.Root>
   )
 }
@@ -311,9 +357,13 @@ export const ColorPickerHue = ({
 export type ColorPickerAlphaProps = ComponentProps<typeof Slider.Root>
 export const ColorPickerAlpha = ({
   className,
+  onPointerDown,
+  onPointerUp,
+  onPointerCancel,
+  onValueCommit,
   ...props
 }: ColorPickerAlphaProps) => {
-  const { alpha, setAlpha, hue, saturation, lightness } = useColorPicker()
+  const { alpha, setAlpha, hue, saturation, lightness, beginInteraction, endInteraction } = useColorPicker()
   const alphaGradient = useMemo(() => {
     const base = Color.hsl(hue, saturation, lightness)
     const solid = base.alpha(1).rgb().string()
@@ -324,21 +374,37 @@ export const ColorPickerAlpha = ({
       className={cn('relative flex h-5 w-full touch-none items-center', className)}
       max={100}
       onValueChange={([next]) => setAlpha(next)}
+      onValueCommit={(value) => {
+        onValueCommit?.(value)
+        endInteraction?.()
+      }}
+      onPointerDown={(event) => {
+        onPointerDown?.(event)
+        beginInteraction?.()
+      }}
+      onPointerUp={(event) => {
+        onPointerUp?.(event)
+        endInteraction?.()
+      }}
+      onPointerCancel={(event) => {
+        onPointerCancel?.(event)
+        endInteraction?.()
+      }}
       step={1}
       value={[alpha]}
       {...(props as any)}
     >
       <Slider.Track
-        className="relative h-4 w-full grow rounded-full border border-border/50 overflow-hidden"
+        className="relative h-4 w-full grow rounded-pill border border-border/50 overflow-hidden"
         style={{
           background:
             'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAJyRCgLaBCAAgXwixzAS0pgAAAABJRU5ErkJggg==") left center',
         }}
       >
         <div className="absolute inset-0" style={{ background: alphaGradient }} />
-        <Slider.Range className="absolute h-full rounded-full bg-transparent" />
+        <Slider.Range className="absolute h-full rounded-pill bg-transparent" />
       </Slider.Track>
-      <Slider.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
+      <Slider.Thumb className="block h-4 w-4 rounded-pill border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" />
     </Slider.Root>
   )
 }
@@ -688,6 +754,8 @@ export type ColorPickerPanelProps = {
   value?: ColorInput
   defaultValue?: ColorInput
   onChange?: (value: string) => void
+  onInteractionStart?: () => void
+  onInteractionEnd?: () => void
   className?: string
 }
 
@@ -695,6 +763,8 @@ export const ColorPickerPanel = ({
   value,
   defaultValue,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
   className,
 }: ColorPickerPanelProps) => {
   const [showPresets, setShowPresets] = useState(false)
@@ -708,7 +778,13 @@ export const ColorPickerPanel = ({
     '#dcfce7', '#ecfeff', '#eff6ff', '#f5f3ff', '#faf5ff', '#fdf2f8', '#fff1f2'
   ]
   return (
-    <ColorPicker value={value} defaultValue={defaultValue} onChange={onChange}>
+    <ColorPicker
+      value={value}
+      defaultValue={defaultValue}
+      onChange={onChange}
+      onInteractionStart={onInteractionStart}
+      onInteractionEnd={onInteractionEnd}
+    >
       <div className={cn('space-y-3', className)}>
         <ColorPickerSelection />
         <ColorPickerHue />
@@ -766,6 +842,8 @@ export type ColorPickerPopoverProps = {
   value?: ColorInput
   defaultValue?: ColorInput
   onChange?: (value: string) => void
+  onInteractionStart?: () => void
+  onInteractionEnd?: () => void
   label?: string
   className?: string
   swatchClassName?: string
@@ -781,6 +859,8 @@ export const ColorPickerPopover = ({
   value,
   defaultValue,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
   label,
   className,
   swatchClassName,
@@ -815,7 +895,13 @@ export const ColorPickerPopover = ({
         sideOffset={sideOffset}
         className={cn('w-80 p-4', contentClassName)}
       >
-        <ColorPickerPanel value={value} defaultValue={defaultValue} onChange={onChange} />
+        <ColorPickerPanel
+          value={value}
+          defaultValue={defaultValue}
+          onChange={onChange}
+          onInteractionStart={onInteractionStart}
+          onInteractionEnd={onInteractionEnd}
+        />
       </PopoverContent>
     </Popover>
   )

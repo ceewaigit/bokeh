@@ -253,7 +253,7 @@ export function WebcamTab() {
       {/* Enable toggle */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 rounded-full border border-border/60 bg-background/60 p-1">
+          <div className="mt-0.5 rounded-pill border border-border/60 bg-background/60 p-1">
             <Video className="h-3.5 w-3.5 text-muted-foreground" />
           </div>
           <div className="space-y-1">

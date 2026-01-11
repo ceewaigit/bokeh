@@ -11,7 +11,12 @@ export class UpdateEffectCommand extends Command {
         private effectId: string,
         private updates: Partial<Effect>
     ) {
-        super({ name: 'UpdateEffect' })
+        super({
+            name: 'UpdateEffect',
+            description: `Update effect ${effectId}`,
+            coalesceKey: `UpdateEffect:${effectId}`,
+            coalesceWindowMs: 1000
+        })
     }
 
     canExecute(): boolean {

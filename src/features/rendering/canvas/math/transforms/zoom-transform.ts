@@ -3,26 +3,49 @@
  * Uses deterministic, frame-perfect easing without spring physics
  */
 
-import type { ZoomBlock } from '@/types/project';
+import type { ZoomBlock, ZoomTransitionStyle } from '@/types/project';
 import type { CameraMotionBlurState, CameraSettings, MotionBlurConfig, ZoomTransform } from '@/types';
 import { smoothStep, smootherStep, easeInOutCubic, clamp01 } from '@/features/rendering/canvas/math';
+import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config';
 
 // Re-export easing functions for backwards compatibility
 export { smoothStep, smootherStep, easeInOutCubic };
 
-// Professional zoom easing - asymmetric for cinematic feel
-// Now using smootherStep for ultra-smooth transitions
-const professionalZoomIn = (progress: number): number => {
-  // Fast approach, slow landing - feels responsive yet polished
-  const eased = smootherStep(progress);
-  // Softer takeoff to reduce early-frame jumpiness.
-  return Math.pow(eased, 1.35);
+const easeInOutSine = (p: number): number => 0.5 - 0.5 * Math.cos(Math.PI * clamp01(p));
+
+const easeInOutExpo = (p: number): number => {
+  const x = clamp01(p);
+  if (x === 0) return 0;
+  if (x === 1) return 1;
+  return x < 0.5
+    ? Math.pow(2, 20 * x - 10) / 2
+    : (2 - Math.pow(2, -20 * x + 10)) / 2;
 };
 
-const professionalZoomOut = (progress: number): number => {
-  // Symmetric ease for smooth exit
-  return smootherStep(progress);
+const easeInOutSigmoid = (p: number, k: number = 10): number => {
+  const x = clamp01(p);
+  const s = (t: number) => 1 / (1 + Math.exp(-k * (t - 0.5)));
+  const s0 = s(0);
+  const s1 = s(1);
+  return (s(x) - s0) / (s1 - s0);
 };
+
+function easeZoomProgress(style: ZoomTransitionStyle | undefined, progress: number): number {
+  const p = clamp01(progress);
+  switch (style ?? 'sine') {
+    case 'linear':
+      return p;
+    case 'cubic':
+      return easeInOutCubic(p);
+    case 'expo':
+      return easeInOutExpo(p);
+    case 'sigmoid':
+      return easeInOutSigmoid(p);
+    case 'sine':
+    default:
+      return easeInOutSine(p);
+  }
+}
 
 const normalizeEaseDurations = (
   blockDuration: number,
@@ -49,6 +72,15 @@ const normalizeEaseDurations = (
   return { duration, intro: effectiveIntro, outro: effectiveOutro };
 };
 
+export function getEffectiveZoomEaseDurations(
+  blockDuration: number,
+  introMs: number,
+  outroMs: number
+): { introMs: number; outroMs: number } {
+  const { intro, outro } = normalizeEaseDurations(blockDuration, introMs, outroMs);
+  return { introMs: intro, outroMs: outro };
+}
+
 /**
  * Calculate refocus blur during zoom transitions.
  * Creates a camera-like defocus effect that peaks at the midpoint of intro/outro.
@@ -73,14 +105,11 @@ export function calculateZoomScale(
   elapsed: number,
   blockDuration: number,
   targetScale: number,
-  introMs: number = 800,
-  outroMs: number = 800
+  introMs: number = ZOOM_TRANSITION_CONFIG.defaultIntroMs,
+  outroMs: number = ZOOM_TRANSITION_CONFIG.defaultOutroMs,
+  transitionStyle?: ZoomTransitionStyle
 ): number {
-  const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(
-    blockDuration,
-    introMs,
-    outroMs
-  );
+  const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(blockDuration, introMs, outroMs);
   if (duration <= 0) {
     return 1;
   }
@@ -91,14 +120,14 @@ export function calculateZoomScale(
   if (clampedElapsed < effectiveIntro) {
     // Intro phase - zoom in smoothly
     const progress = effectiveIntro > 0 ? Math.min(1, Math.max(0, clampedElapsed / effectiveIntro)) : 1;
-    const easedProgress = professionalZoomIn(progress);
+    const easedProgress = easeZoomProgress(transitionStyle, progress);
     return 1 + (targetScale - 1) * easedProgress;
   } else if (clampedElapsed > duration - effectiveOutro) {
     // Outro phase - zoom out smoothly
     const outroElapsed = clampedElapsed - (duration - effectiveOutro);
     const progress = effectiveOutro > 0 ? Math.min(1, Math.max(0, outroElapsed / effectiveOutro)) : 1;
-    const easedProgress = professionalZoomOut(progress);
-    return targetScale - (targetScale - 1) * easedProgress;
+    const easedProgress = easeZoomProgress(transitionStyle, progress);
+    return Math.max(1, targetScale - (targetScale - 1) * easedProgress);
   } else {
     // Hold phase - maintain exact zoom scale
     return targetScale;
@@ -165,8 +194,8 @@ export function calculateZoomTransform(
   const blockDuration = activeBlock.endTime - activeBlock.startTime;
   const elapsed = currentTimeMs - activeBlock.startTime;
 
-  const introMs = activeBlock.introMs ?? 800;
-  const outroMs = activeBlock.outroMs ?? 800;
+  const introMs = activeBlock.introMs ?? ZOOM_TRANSITION_CONFIG.defaultIntroMs;
+  const outroMs = activeBlock.outroMs ?? ZOOM_TRANSITION_CONFIG.defaultOutroMs;
 
   // Calculate zoom scale - completely deterministic
   const targetScale = overrideScale ?? (activeBlock.scale || 2);
@@ -175,10 +204,12 @@ export function calculateZoomTransform(
     blockDuration,
     targetScale,
     introMs,
-    outroMs
+    outroMs,
+    (activeBlock as any)?.transitionStyle as ZoomTransitionStyle | undefined
   );
 
-  // Keep the zoom fully locked on target during intro/hold; only blend back to center on outro.
+  // Keep the zoom fully locked on target during intro/hold.
+  // For cursor-follow zooms, avoid blending back to center on outro to prevent the "zoom out to center" feel.
   const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(
     blockDuration,
     introMs,
@@ -188,7 +219,17 @@ export function calculateZoomTransform(
   const outroProgress = effectiveOutro > 0 && clampedElapsed > duration - effectiveOutro
     ? (clampedElapsed - (duration - effectiveOutro)) / effectiveOutro
     : 0;
-  const zoomStrength = 1 - easeInOutCubic(Math.min(1, Math.max(0, outroProgress)));
+  const shouldBlendBackToCenter = (() => {
+    const follow = (activeBlock as any)?.followStrategy as string | undefined;
+    if (follow === 'mouse' || follow == null) {
+      const mode = (activeBlock as any)?.zoomIntoCursorMode as string | undefined;
+      return mode === 'center';
+    }
+    return true;
+  })();
+  const zoomStrength = shouldBlendBackToCenter
+    ? 1 - easeZoomProgress((activeBlock as any)?.transitionStyle as ZoomTransitionStyle | undefined, outroProgress)
+    : 1;
   const blendedCenter = {
     x: 0.5 + (zoomCenter.x - 0.5) * zoomStrength,
     y: 0.5 + (zoomCenter.y - 0.5) * zoomStrength,
@@ -209,11 +250,35 @@ export function calculateZoomTransform(
   const scaleProgress = targetScale > 1 ? clamp01((scale - 1) / (targetScale - 1)) : 0;
   const panBlend = allowPanWithoutZoom && targetScale <= 1 ? 1 : scaleProgress;
 
+  const zoomIntoCursorMode = (activeBlock as any)?.zoomIntoCursorMode as
+    | 'center'
+    | 'cursor'
+    | 'snap'
+    | 'lead'
+    | undefined;
+
   // Revert to center-origin math as SharedVideoController uses transformOrigin: 'center center'
   const rawPanX = (0.5 - blendedCenter.x) * videoWidth * scale;
   const rawPanY = (0.5 - blendedCenter.y) * videoHeight * scale;
-  const panX = rawPanX * panBlend;
-  const panY = rawPanY * panBlend;
+
+  const panX = (() => {
+    if (zoomIntoCursorMode === 'snap') return rawPanX;
+    // Polished cursor-zoom: couple translation to scale so we "zoom into" the cursor continuously.
+    if ((zoomIntoCursorMode === 'cursor' || zoomIntoCursorMode === 'lead') && targetScale > 1) {
+      const k = targetScale / (targetScale - 1);
+      return (0.5 - blendedCenter.x) * videoWidth * (scale - 1) * k;
+    }
+    return rawPanX * panBlend;
+  })();
+
+  const panY = (() => {
+    if (zoomIntoCursorMode === 'snap') return rawPanY;
+    if ((zoomIntoCursorMode === 'cursor' || zoomIntoCursorMode === 'lead') && targetScale > 1) {
+      const k = targetScale / (targetScale - 1);
+      return (0.5 - blendedCenter.y) * videoHeight * (scale - 1) * k;
+    }
+    return rawPanY * panBlend;
+  })();
 
   // Calculate refocus blur - peaks mid-transition for camera-like focus pull
   // Default maxRefocusBlur is 0.4 (40% blur intensity) - can be wired to settings
@@ -239,7 +304,7 @@ export function calculateZoomTransform(
     scaleCompensationY: 0,
     panX,
     panY,
-    refocusBlur
+    refocusBlur,
   };
 }
 

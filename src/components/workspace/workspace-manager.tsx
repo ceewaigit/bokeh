@@ -44,6 +44,7 @@ import { useProjectLoader } from '@/features/core/storage/hooks/use-project-load
 import { usePanelResizer } from '@/features/ui/editor/hooks/use-panel-resizer'
 import { useTimelineAutoHeight } from '@/features/ui/timeline/hooks/use-timeline-auto-height'
 import { LargeVideoDialog, ProxyProgressContainer, useProxyWorkflow } from '@/features/proxy'
+import { WorkspaceLoadingOverlay } from './workspace-loading-overlay'
 
 export function WorkspaceManager() {
   // Store hooks - using reactive state from single source of truth
@@ -444,20 +445,9 @@ export function WorkspaceManager() {
 
   const shouldWaitForPreview = Boolean(currentProject && timelineMetadata) && !previewReady
   const showLoadingOverlay = isLoading || shouldWaitForPreview
-  const loadingOverlayMessage = loadingMessage || 'Loading...'
-  const loadingOverlay = showLoadingOverlay ? (
-    <div className="fixed inset-0 flex flex-col items-center justify-center z-50 bg-background/90 backdrop-blur-sm">
-      <div className="text-center space-y-6">
-        {/* Single animated spinner */}
-        <div className="w-16 h-16 mx-auto border-4 border-primary/20 rounded-full border-t-primary animate-spin" />
-
-        {/* Loading message */}
-        <div className="space-y-2">
-          <h3 className="text-lg font-medium">{loadingOverlayMessage}</h3>
-        </div>
-      </div>
-    </div>
-  ) : null
+  const loadingOverlayMessage = shouldWaitForPreview
+    ? (loadingMessage && loadingMessage !== 'Loading...' ? loadingMessage : 'Preparing preview…')
+    : (loadingMessage && loadingMessage !== 'Loading...' ? loadingMessage : 'Loading…')
 
   let content: React.ReactNode
   if (currentView === 'plugin-creator') {
@@ -593,7 +583,7 @@ export function WorkspaceManager() {
                           className="flex-shrink-0 w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-20 mx-1"
                           onMouseDown={startResizingUtilities}
                         >
-                          <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
+                          <div className="h-8 w-1 rounded-pill bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
                         </div>
                       </motion.div>
                     )}
@@ -649,7 +639,7 @@ export function WorkspaceManager() {
                           className="flex-shrink-0 w-1.5 cursor-col-resize bg-transparent hover:bg-transparent transition-colors flex items-center justify-center group z-20 mx-1"
                           onMouseDown={startResizingProperties}
                         >
-                          <div className="h-8 w-1 rounded-full bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
+                          <div className="h-8 w-1 rounded-pill bg-foreground/10 group-hover:bg-foreground/30 transition-all duration-300 ease-out" />
                         </div>
                         <div
                           className="flex flex-col flex-shrink-0 h-full pt-3 pb-1 pr-4 flex-1 min-w-0"
@@ -678,7 +668,7 @@ export function WorkspaceManager() {
                 onMouseDown={startResizingTimeline}
               >
                 {/* Subtle resize handle indicator */}
-                <div className="w-14 h-1.5 rounded-full bg-foreground/15 group-hover:bg-foreground/35 shadow-sm transition-colors" />
+                <div className="w-14 h-1.5 rounded-pill bg-foreground/15 group-hover:bg-foreground/35 shadow-sm transition-colors" />
               </div>
 
               {/* Timeline Section - Full width at bottom, auto-fit height */}
@@ -718,7 +708,7 @@ export function WorkspaceManager() {
   return (
     <>
       {content}
-      {loadingOverlay}
+      <WorkspaceLoadingOverlay open={showLoadingOverlay} message={loadingOverlayMessage} />
 
       {/* Proxy progress indicator - shows during background generation */}
       <ProxyProgressContainer />

@@ -77,11 +77,11 @@ export function Toolbar({
   }
 
   return (
-    <WindowHeader customDragRegions className="gap-2 overflow-hidden">
+    <WindowHeader customDragRegions className="gap-2 overflow-hidden relative">
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo/Brand */}
-        <div className="flex items-center gap-2 px-2.5 h-6 bg-primary/15 rounded-xl">
+        <div className="flex items-center gap-2 px-2.5 h-6 bg-primary/15 rounded-lg">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
           <span className="font-bold text-xs text-primary tracking-[0.1em] whitespace-nowrap">
             bokeh workspace
@@ -168,66 +168,70 @@ export function Toolbar({
         >
           Save
           {hasUnsavedChanges && (
-            <span className="ml-1 w-1.5 h-1.5 bg-primary rounded-full animate-pulse flex-shrink-0" />
+            <span className="ml-1 w-1.5 h-1.5 bg-primary rounded-pill animate-pulse flex-shrink-0" />
           )}
         </HeaderButton>
       </div>
 
-      {/* Center Section - Project Info and Status - This area is draggable */}
-      <div className="flex-1 flex items-center justify-center gap-2 min-w-0 overflow-hidden">
-        {/* Project Name with Metadata Tooltip */}
-        {project && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div
-                className="flex items-center gap-1.5 px-2.5 h-6 bg-muted/30 rounded-lg flex-shrink-0 cursor-default"
-                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-              >
-                <span className="text-3xs font-medium text-foreground/90">{project.name}</span>
-                <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" align="center" className="text-xs">
-              <div className="space-y-1">
-                <div className="font-medium text-foreground">{project.name}</div>
-                {project.timeline?.duration && project.timeline.duration > 0 && (
-                  <div className="text-muted-foreground">
-                    Duration: <span className="font-mono">{formatTime(project.timeline.duration)}</span>
-                  </div>
-                )}
-                {project.recordings?.[0]?.width && project.recordings?.[0]?.height && (
-                  <div className="text-muted-foreground">
-                    Resolution: <span className="font-mono">{project.recordings[0].width}×{project.recordings[0].height}</span>
-                  </div>
-                )}
-                {project.recordings && project.recordings.length > 0 && (
-                  <div className="text-muted-foreground">
-                    Clips: <span className="font-mono">{project.recordings.length}</span>
-                  </div>
-                )}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )}
+      {/* Keep left/right pinned; center overlay is truly window-centered */}
+      <div className="flex-1" />
 
-        {/* Recording Status */}
-        {status !== 'idle' && (
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 rounded-md flex-shrink-0">
-            <div className={cn(
-              "w-1.5 h-1.5 rounded-full",
-              status === 'recording' && "bg-red-500 animate-pulse",
-              status === 'paused' && "bg-yellow-500"
-            )} />
-            <span className="text-3xs font-medium uppercase tracking-wider">
-              {status}
-            </span>
-            {isRecording && (
-              <span className="font-mono text-3xs text-muted-foreground/70">
-                {formatTime(duration / 1000)}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div
+          className="flex items-center justify-center gap-2 min-w-0 overflow-hidden pointer-events-auto"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          {/* Project Name with Metadata Tooltip */}
+          {project && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 px-2.5 h-6 bg-muted/30 rounded-lg flex-shrink-0 cursor-default">
+                  <span className="text-3xs font-medium text-foreground/90">{project.name}<span className="text-3xs font-normal text-muted-foreground/60 leading-none">.bokeh</span></span>
+                  <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center" className="text-xs">
+                <div className="space-y-1">
+                  <div className="font-medium text-foreground">{project.name}</div>
+                  {project.timeline?.duration && project.timeline.duration > 0 && (
+                    <div className="text-muted-foreground">
+                      Duration: <span className="font-mono">{formatTime(project.timeline.duration)}</span>
+                    </div>
+                  )}
+                  {project.recordings?.[0]?.width && project.recordings?.[0]?.height && (
+                    <div className="text-muted-foreground">
+                      Resolution: <span className="font-mono">{project.recordings[0].width}×{project.recordings[0].height}</span>
+                    </div>
+                  )}
+                  {project.recordings && project.recordings.length > 0 && (
+                    <div className="text-muted-foreground">
+                      Clips: <span className="font-mono">{project.recordings.length}</span>
+                    </div>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Recording Status */}
+          {status !== 'idle' && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 rounded-md flex-shrink-0">
+              <div className={cn(
+                "w-1.5 h-1.5 rounded-pill",
+                status === 'recording' && "bg-red-500 animate-pulse",
+                status === 'paused' && "bg-yellow-500"
+              )} />
+              <span className="text-3xs font-medium uppercase tracking-wider">
+                {status}
               </span>
-            )}
-          </div>
-        )}
+              {isRecording && (
+                <span className="font-mono text-3xs text-muted-foreground/70">
+                  {formatTime(duration / 1000)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right Section - Export and Settings - Not draggable */}
@@ -250,7 +254,7 @@ export function Toolbar({
           variant="default"
           disabled={!project || !hasVideoClips}
           onClick={onExport}
-          className="relative rounded-full bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] hover:text-primary-foreground active:translate-y-[1px]"
+          className="relative rounded-lg bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] hover:text-primary-foreground active:translate-y-[1px]"
           icon={Download}
         >
           Export

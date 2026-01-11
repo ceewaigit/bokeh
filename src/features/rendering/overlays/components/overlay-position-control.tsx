@@ -48,7 +48,7 @@ export function OverlayPositionControl({
               key={gridAnchor}
               onClick={() => onChange(gridAnchor)}
               className={cn(
-                "h-6 w-6 rounded-full transition-all duration-100 flex items-center justify-center relative",
+                "h-6 w-6 rounded-pill transition-all duration-100 flex items-center justify-center relative",
                 isSelected
                   ? "bg-primary/15 ring-1 ring-primary/40"
                   : "hover:bg-muted/40"
@@ -57,13 +57,13 @@ export function OverlayPositionControl({
               type="button"
             >
               <div className={cn(
-                "rounded-full transition-all duration-100",
+                "rounded-pill transition-all duration-100",
                 isSelected
                   ? "h-2 w-2 bg-primary"
                   : "h-1 w-1 bg-muted-foreground/40 group-hover:bg-muted-foreground/60"
               )} />
               {isOccupied && (
-                <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-500/70 ring-1 ring-background" />
+                <div className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-pill bg-amber-500/70 ring-1 ring-background" />
               )}
             </button>
           )

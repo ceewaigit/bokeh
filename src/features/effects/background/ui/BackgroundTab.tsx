@@ -562,11 +562,11 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       )}
                       {isLoading && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-pill animate-spin" />
                         </div>
                       )}
                       {isSelected && !isLoading && (
-                        <div className="absolute top-1 right-1 rounded-full bg-primary text-primary-foreground p-1 shadow">
+                        <div className="absolute top-1 right-1 rounded-pill bg-primary text-primary-foreground p-1 shadow">
                           <Check className="w-3 h-3" />
                         </div>
                       )}

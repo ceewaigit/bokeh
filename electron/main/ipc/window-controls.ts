@@ -1,12 +1,11 @@
-import { ipcMain, BrowserWindow, IpcMainInvokeEvent, app, desktopCapturer } from 'electron'
+import { ipcMain, BrowserWindow, IpcMainInvokeEvent, app, desktopCapturer, systemPreferences } from 'electron'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { createMainWindow } from '../windows/main-window'
-import { getAppURL } from '../config'
 import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
 import { showMonitorOverlay, hideMonitorOverlay, showRecordingOverlay, hideRecordingOverlay } from '../windows/monitor-overlay'
 import { showTeleprompterWindow, hideTeleprompterWindow, toggleTeleprompterWindow } from '../windows/teleprompter-window'
 import { showWebcamPreview, hideWebcamPreview } from '../windows/webcam-preview-window'
+import { openWorkspaceWindow } from '../windows/workspace-window'
 
 const execAsync = promisify(exec)
 let countdownWindow: BrowserWindow | null = null
@@ -36,90 +35,22 @@ async function updateSourceCache() {
   }
 }
 
-function sendToMainWindow(channel: string): void {
-  if (!global.mainWindow) return
-  const webContents = global.mainWindow.webContents
-  if (webContents.isLoadingMainFrame()) {
-    webContents.once('did-finish-load', () => {
-      webContents.send(channel)
-    })
-    return
-  }
-  webContents.send(channel)
-}
-
-function openWorkspaceWindow(options?: { openSettings?: boolean }): void {
-  try {
-    console.log('[WindowControls] Opening workspace...')
-
-    // Hide any overlay when opening workspace
-    hideMonitorOverlay()
-
-    const openSettings = options?.openSettings ?? false
-
-    if (!global.mainWindow) {
-      console.log('[WindowControls] Creating new main window')
-      global.mainWindow = createMainWindow()
-
-      const url = getAppURL()
-      console.log('[WindowControls] Loading URL:', url)
-      global.mainWindow.loadURL(url)
-
-      global.mainWindow.once('ready-to-show', () => {
-        console.log('[WindowControls] Main window ready to show')
-        if (global.mainWindow) {
-          if (process.platform === 'darwin') {
-            try {
-              global.mainWindow.setBackgroundColor('#00000000')
-            } catch { }
-          }
-          global.mainWindow.show()
-          global.mainWindow.focus()
-          global.mainWindow.webContents.send('refresh-library')
-          if (openSettings) {
-            sendToMainWindow('open-settings-dialog')
-          }
-          // Hide record button when main window is shown
-          if (global.recordButton) {
-            global.recordButton.hide()
-          }
-        }
-      })
-
-      global.mainWindow.on('closed', () => {
-        console.log('[WindowControls] Main window closed')
-        global.mainWindow = null
-        // Show record button when main window is closed
-        if (global.recordButton && !global.recordButton.isDestroyed()) {
-          global.recordButton.show()
-        }
-      })
-    } else {
-      console.log('[WindowControls] Showing existing main window')
-      // Hide any overlay when showing existing main window
-      hideMonitorOverlay()
-      if (process.platform === 'darwin') {
-        try {
-          global.mainWindow.setBackgroundColor('#00000000')
-        } catch { }
-      }
-      global.mainWindow.show()
-      global.mainWindow.focus()
-      global.mainWindow.webContents.send('refresh-library')
-      if (openSettings) {
-        sendToMainWindow('open-settings-dialog')
-      }
-      // Hide record button when main window is shown
-      if (global.recordButton) {
-        global.recordButton.hide()
-      }
-    }
-  } catch (error) {
-    console.error('[WindowControls] Failed to open workspace:', error)
-  }
-}
-
 export function registerWindowControlHandlers(): void {
+  ipcMain.on('titlebar-double-click', (event) => {
+    if (process.platform !== 'darwin') return
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window) return
+
+    const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string')
+    if (action === 'Minimize') {
+      window.minimize()
+      return
+    }
+
+    if (window.isMaximized()) window.unmaximize()
+    else window.maximize()
+  })
+
   // Handle opening workspace - using ipcMain.on for send/receive pattern
   ipcMain.on('open-workspace', () => {
     openWorkspaceWindow()
