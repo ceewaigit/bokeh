@@ -253,7 +253,9 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   devAssert(fps > 0, `fps must be positive, got ${fps}`)
 
   const startFromFrames = msToFrame(groupStartSourceIn ?? 0, fps);
-  const endAtFrames = Math.max(startFromFrames, startFromFrames + Math.max(1, groupDuration) - 1);
+  // endAt is exclusive in Remotion (video shows frames startFrom to endAt-1)
+  // So we use groupDuration directly without subtracting 1
+  const endAtFrames = Math.max(startFromFrames + 1, startFromFrames + Math.max(1, groupDuration));
 
   // Opacity: purely based on render state (intro/outro/glow).
   const effectiveOpacity = renderState.effectiveOpacity;

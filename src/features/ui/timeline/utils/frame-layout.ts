@@ -1,6 +1,6 @@
 
 import type { Clip, Recording } from '@/types/project';
-import { msToFrameFloor } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
+import { msToFrameCeil, msToFrameFloor } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
 
 export interface PersistedVideoState {
   recording: Recording;
@@ -180,6 +180,16 @@ export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: num
       result.push(item);
     }
   }
+
+  // Boundary protection: if no clips found and frame is at/past the timeline end,
+  // return the last clip to avoid blank frames at the end of the timeline
+  if (result.length === 0 && layout.length > 0) {
+    const lastItem = layout[layout.length - 1];
+    if (frame >= lastItem.endFrame) {
+      result.push(lastItem);
+    }
+  }
+
   return result;
 }
 
@@ -215,8 +225,8 @@ export function buildFrameLayout(
 
   clips.forEach((clip) => {
     const startFrame = msToFrameFloor(clip.startTime, fps);
-    const durationFrames = Math.max(1, Math.ceil((clip.duration / 1000) * fps));
-    const endFrame = startFrame + durationFrames;
+    const endFrame = Math.max(startFrame + 1, msToFrameCeil(clip.startTime + clip.duration, fps));
+    const durationFrames = endFrame - startFrame;
     const recording = recordingsMap.get(clip.recordingId);
 
     // Check for continuity

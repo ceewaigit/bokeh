@@ -37,6 +37,18 @@ export const msToFrameFloor = (ms: number, fps: number): number => {
 };
 
 /**
+ * Convert milliseconds to a frame number (ceiled)
+ * Use this when you need the first frame index *after* the given time,
+ * e.g. to compute an exclusive `endFrame` that fully covers a time range.
+ * @param ms - Time in milliseconds
+ * @param fps - Frames per second
+ * @returns Frame number (ceiled)
+ */
+export const msToFrameCeil = (ms: number, fps: number): number => {
+  return Math.ceil((ms / 1000) * fps);
+};
+
+/**
  * Get the duration of a single frame in milliseconds
  * @param fps - Frames per second
  * @returns Duration of one frame in milliseconds

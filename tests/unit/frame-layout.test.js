@@ -36,4 +36,46 @@ describe('buildFrameLayout', () => {
     expect(Math.abs(layout[0].endFrame - layout[1].startFrame)).toBeLessThanOrEqual(1);
     expect(Math.abs(layout[0].durationFrames - (layout[1].startFrame - layout[0].startFrame))).toBeLessThanOrEqual(1);
   });
+
+  it('covers the full clip end time when startTime is not frame-aligned', () => {
+    const { buildFrameLayout } = require('../../src/features/ui/timeline/utils/frame-layout');
+
+    const fps = 30;
+    const clips = [
+      { id: 'a', recordingId: 'r', startTime: 1, duration: 1000, sourceIn: 1, sourceOut: 1001, playbackRate: 1 },
+    ];
+
+    const recordingsMap = new Map();
+    recordingsMap.set('r', { id: 'r', sourceType: 'video' });
+
+    const layout = buildFrameLayout(clips, fps, recordingsMap);
+    expect(layout).toHaveLength(1);
+
+    // endMs=1001ms -> ceil(1001/1000*30)=31
+    expect(layout[0].startFrame).toBe(0);
+    expect(layout[0].endFrame).toBe(31);
+    expect(layout[0].durationFrames).toBe(31);
+  });
+
+  it('returns last clip when frame equals exclusive endFrame (boundary protection)', () => {
+    const { findActiveFrameLayoutItems, buildFrameLayout } = require('../../src/features/ui/timeline/utils/frame-layout');
+
+    const fps = 30;
+    const clips = [
+      { id: 'a', recordingId: 'r', startTime: 0, duration: 333.33, sourceIn: 0, sourceOut: 333.33, playbackRate: 1 },
+    ];
+
+    const recordingsMap = new Map();
+    recordingsMap.set('r', { id: 'r', sourceType: 'video' });
+
+    const layout = buildFrameLayout(clips, fps, recordingsMap);
+
+    // endFrame is exclusive (e.g., 10 for a 10-frame clip)
+    const endFrame = layout[0].endFrame;
+
+    // Seeking to exactly the endFrame should still return the last clip (not empty)
+    const itemsAtEnd = findActiveFrameLayoutItems(layout, endFrame);
+    expect(itemsAtEnd.length).toBe(1);
+    expect(itemsAtEnd[0].clip.id).toBe('a');
+  });
 });

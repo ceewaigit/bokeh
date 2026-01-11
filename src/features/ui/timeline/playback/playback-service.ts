@@ -41,8 +41,14 @@ export class PlaybackService {
    * Seek to a specific time (clamped to valid range)
    * Automatically notifies timeObserver for UI sync.
    */
-  seek(time: number, duration: number): number {
-    const clamped = Math.max(0, Math.min(duration, time))
+  seek(time: number, duration: number, fps: number = 30): number {
+    // Seeking to the exact end (`time === duration`) can cause the renderer/video to show an
+    // empty/black frame because it maps to the *next* frame boundary in rounding code paths.
+    // Clamp to slightly before the end (center of the last frame) to guarantee a renderable frame.
+    const safeFps = Number.isFinite(fps) && fps > 0 ? fps : 30
+    const frameDurationMs = 1000 / safeFps
+    const safeEndTime = Math.max(0, duration - frameDurationMs * 0.5)
+    const clamped = Math.max(0, Math.min(safeEndTime, time))
     useTimeStore.getState().setTime(clamped)
     return clamped
   }
