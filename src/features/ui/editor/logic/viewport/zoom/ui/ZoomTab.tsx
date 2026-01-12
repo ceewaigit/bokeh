@@ -151,12 +151,6 @@ function ZoomBlockEditor({
                     <span>
                         {isManualFocus ? 'Manual zoom lets you drag the zoom window in the sidebar preview.' : 'Center Lock keeps the view fixed for a clean, professional look.'}
                     </span>
-                    {isManualFocus && (
-                        <span className="inline-flex items-center gap-1.5 rounded-pill bg-background/70 px-2 py-0.5 text-2xs uppercase tracking-[0.2em] text-muted-foreground/80">
-                            <Sparkles className="h-3 w-3" />
-                            Sidebar drag
-                        </span>
-                    )}
                 </div>
             </div>
 
@@ -436,24 +430,6 @@ export function ZoomTab({
                 </AnimatePresence>
             </div>
 
-            {selectedBlock ? (
-                <ZoomBlockEditor
-                    blockId={selectedBlock.id}
-                    zoomData={selectedBlock.data as ZoomEffectData}
-                    sourceDims={sourceDims}
-                    timelineMetadata={timelineMetadata}
-                    cropData={cropData}
-                    blockDurationMs={Math.max(0, selectedBlock.endTime - selectedBlock.startTime)}
-                    onUpdate={onZoomBlockUpdate!}
-                    seedManualTarget={seedManualTargetFromLiveCamera}
-                />
-            ) : (
-                <div className="rounded-md bg-background/40 p-2.5">
-                    <div className="text-xs font-semibold tracking-[-0.01em]">Select a zoom block</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Click a zoom block in the timeline to edit behavior.</p>
-                </div>
-            )}
-
             <div className="rounded-2xl border border-border/30 bg-background/20 backdrop-blur-sm p-3.5 space-y-4 shadow-sm hover:bg-background/30 overflow-hidden">
                 <SectionHeader icon={Activity} title="Motion Blur" subtitle="Natural movement trails" />
                 <SegmentedControl options={motionBlurPresets} value={motionBlurPreset} onChange={id => {
@@ -472,6 +448,24 @@ export function ZoomTab({
                     )}
                 </AnimatePresence>
             </div>
+
+            {selectedBlock ? (
+                <ZoomBlockEditor
+                    blockId={selectedBlock.id}
+                    zoomData={selectedBlock.data as ZoomEffectData}
+                    sourceDims={sourceDims}
+                    timelineMetadata={timelineMetadata}
+                    cropData={cropData}
+                    blockDurationMs={Math.max(0, selectedBlock.endTime - selectedBlock.startTime)}
+                    onUpdate={onZoomBlockUpdate!}
+                    seedManualTarget={seedManualTargetFromLiveCamera}
+                />
+            ) : (
+                <div className="rounded-md bg-background/40 p-2.5">
+                    <div className="text-xs font-semibold tracking-[-0.01em]">Select a zoom block</div>
+                    <p className="mt-1 text-xs text-muted-foreground">Click a zoom block in the timeline to edit behavior.</p>
+                </div>
+            )}
         </div>
     )
 }

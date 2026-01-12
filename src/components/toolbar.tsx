@@ -91,17 +91,11 @@ export function Toolbar({
         <div className="w-px h-4 bg-border/30" />
 
         {/* Left Sidebar Toggle */}
-        <Button
-          variant="ghost"
-          size="icon"
+        <HeaderButton
           onClick={toggleUtilities}
-          className="h-8 w-8 hover:bg-muted/30"
-        >
-          {isUtilitiesOpen ?
-            <PanelLeftClose className="w-3.5 h-3.5" /> :
-            <PanelLeft className="w-3.5 h-3.5" />
-          }
-        </Button>
+          tooltip={isUtilitiesOpen ? "Close Utilities" : "Open Utilities"}
+          icon={isUtilitiesOpen ? PanelLeftClose : PanelLeft}
+        />
 
         <div className="w-px h-4 bg-border/30" />
 

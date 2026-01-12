@@ -171,9 +171,6 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             <div className="text-xs font-semibold leading-none tracking-[-0.01em]">
               Overlays
             </div>
-            <div className="mt-1 text-xs text-muted-foreground leading-snug">
-              Add text, arrows, highlights, glass and redactions
-            </div>
             <div className="mt-0.5 text-xs text-muted-foreground/70 tabular-nums">
               {annotationEffects.length} overlays
             </div>
@@ -182,7 +179,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
             <div className="flex items-start">
               <Dialog>
                 <DialogTrigger asChild>
-                  <button className="text-xs text-muted-foreground/50 hover:text-destructive transition-colors px-2 py-1 rounded hover:bg-destructive/10">
+                  <button className="text-2xs text-muted-foreground/50 hover:text-destructive transition-colors px-2 py-1 rounded hover:bg-destructive/10">
                     Remove All
                   </button>
                 </DialogTrigger>

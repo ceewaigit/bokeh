@@ -255,6 +255,14 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   const { volume, muted } = audio
   const [hoveredControl, setHoveredControl] = React.useState<TimelineControlId | null>(null)
   const [focusedControl, setFocusedControl] = React.useState<TimelineControlId | null>(null)
+  const lastVolumeRef = React.useRef<number>(100) // Default to middle (100/200)
+
+  // Sync ref with volume when not muted so we capture user adjustments
+  React.useEffect(() => {
+    if (!muted && volume > 0) {
+      lastVolumeRef.current = volume
+    }
+  }, [volume, muted])
 
   const isControlActive = React.useCallback((id: TimelineControlId) => (
     hoveredControl === id || focusedControl === id
@@ -322,24 +330,39 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
         >
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <motion.button
                 type="button"
                 onClick={() => {
-                  setAudioSettings({ muted: !muted })
+                  if (muted) {
+                    // Unmute: restore volume
+                    setAudioSettings({
+                      muted: false,
+                      volume: lastVolumeRef.current > 0 ? lastVolumeRef.current : 100
+                    })
+                  } else {
+                    // Mute: stash volume (handled by effect) and set to 0
+                    setAudioSettings({
+                      muted: true,
+                      volume: 0
+                    })
+                  }
                 }}
                 className={cn(
-                  "flex items-center justify-center p-1.5 rounded-full transition-colors relative",
-                  muted ? "text-muted-foreground" : "text-foreground",
-                  !isControlActive(TimelineControlId.Volume) && "hover:bg-muted/50"
+                  "flex items-center justify-center p-1.5 rounded-full transition-colors relative text-foreground",
+                  muted && "text-muted-foreground",
+                  "hover:bg-foreground/10"
                 )}
                 aria-label={muted ? 'Unmute' : 'Mute'}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                transition={springConfig}
               >
                 {muted ? (
                   <VolumeX className="w-3.5 h-3.5" />
                 ) : (
                   <Volume2 className="w-3.5 h-3.5" />
                 )}
-              </button>
+              </motion.button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={4}>
               <span>{muted ? 'Unmute' : 'Mute'} master audio</span>
@@ -501,16 +524,11 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
         >
           <Tooltip>
             <TooltipTrigger asChild>
-              <MotionButton
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 p-0 rounded-pill"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                transition={springConfig}
+              <div
+                className="flex items-center justify-center h-8 w-8 p-0 text-muted-foreground cursor-default"
               >
                 <ZoomIn className="w-4 h-4" />
-              </MotionButton>
+              </div>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={4}>
               <span>Zoom (Cmd+Scroll)</span>
@@ -535,7 +553,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
         </div>
       </div>
-    </div>
+    </div >
   )
 })
 

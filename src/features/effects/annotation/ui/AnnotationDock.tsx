@@ -33,11 +33,69 @@ const REDACTION_PATTERNS = [
     { value: RedactionPattern.Marker, label: 'Marker', icon: '▌' },
 ] as const
 
+const FontPickerContent = ({
+    fontFamily,
+    onSelect
+}: {
+    fontFamily: string | undefined
+    onSelect: (value: string) => void
+}) => {
+    const [hoveredFontId, setHoveredFontId] = useState<string | null>(null)
+
+    return (
+        <div className="flex flex-col" onMouseLeave={() => setHoveredFontId(null)}>
+            {FONT_FAMILIES.map((family) => (
+                <button
+                    key={family.value}
+                    type="button"
+                    className={cn(
+                        "relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none transition-colors",
+                        "text-foreground",
+                        (fontFamily === family.value || hoveredFontId === family.value) && "text-accent-foreground"
+                    )}
+                    onClick={() => onSelect(family.value)}
+                    onMouseEnter={() => setHoveredFontId(family.value)}
+                >
+                    {/* Selected Background (Static) */}
+                    {fontFamily === family.value && (
+                        <div className="absolute inset-0 rounded-sm bg-accent z-0" />
+                    )}
+
+                    {/* Hover Background (Spring) */}
+                    <AnimatePresence>
+                        {hoveredFontId === family.value && (
+                            <motion.div
+                                layoutId="font-picker-hover"
+                                className="absolute inset-0 rounded-sm bg-accent z-10"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            />
+                        )}
+                    </AnimatePresence>
+
+                    <span className="relative z-20 flex items-center w-full">
+                        <Check
+                            className={cn(
+                                "mr-2 h-3 w-3 transition-opacity duration-200",
+                                fontFamily === family.value ? "opacity-100" : "opacity-0"
+                            )}
+                        />
+                        {family.label}
+                    </span>
+                </button>
+            ))}
+        </div>
+    )
+}
+
 export function AnnotationDock() {
     const project = useProjectStore((s) => s.currentProject)
     const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
     const updateEffect = useProjectStore((s) => s.updateEffect)
     const [isFontPopoverOpen, setIsFontPopoverOpen] = useState(false)
+    const [hoveredId, setHoveredId] = useState<string | null>(null)
 
     const dockVariants = useMemo(() => ({
         hidden: { opacity: 0, y: -10, scale: 0.98 },
@@ -125,6 +183,21 @@ export function AnnotationDock() {
 
     const activeFontLabel = FONT_FAMILIES.find(f => f.value === fontFamily)?.label ?? 'System'
 
+    const HoverBackground = ({ id }: { id: string }) => (
+        <AnimatePresence>
+            {hoveredId === id && (
+                <motion.div
+                    layoutId="dock-hover-bg"
+                    className="absolute inset-0 rounded-md bg-accent z-0"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+            )}
+        </AnimatePresence>
+    )
+
     return (
         <div className="absolute left-1/2 top-3 z-[3000] -translate-x-1/2 pointer-events-none">
             <AnimatePresence>
@@ -145,77 +218,85 @@ export function AnnotationDock() {
                         <div className="flex items-center flex-nowrap gap-2 rounded-2xl border border-border/70 bg-background/95 px-3 py-2 shadow-lg backdrop-blur whitespace-nowrap overflow-x-auto text-foreground/90">
                             {showTextControls && (
                                 <>
-                                    <div className="flex items-center rounded-lg border border-border/60 bg-background/70">
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-8 w-8 rounded-none text-foreground/90"
-                                            onClick={() => handleFontSizeChange(fontSize - 1)}
-                                        >
-                                            -
-                                        </Button>
-                                        <input
-                                            type="number"
-                                            min={8}
-                                            max={200}
-                                            value={fontSize}
-                                            onChange={(event) => {
-                                                const next = Number(event.target.value)
-                                                if (Number.isFinite(next)) {
-                                                    handleFontSizeChange(next)
-                                                }
-                                            }}
-                                            className="h-8 w-14 border-0 bg-transparent text-center text-xs text-foreground/90 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                        />
-                                        <Button
-                                            type="button"
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-8 w-8 rounded-none text-foreground/90"
-                                            onClick={() => handleFontSizeChange(fontSize + 1)}
-                                        >
-                                            +
-                                        </Button>
+                                    <div className="flex items-center rounded-lg border border-border/60 bg-background/70 p-0.5">
+                                        <div className="relative isolate flex">
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 rounded-md text-foreground/90 hover:text-accent-foreground hover:bg-transparent"
+                                                onClick={() => handleFontSizeChange(fontSize - 1)}
+                                                onMouseEnter={() => setHoveredId('font-minus')}
+                                                onMouseLeave={() => setHoveredId(null)}
+                                            >
+                                                <HoverBackground id="font-minus" />
+                                                <span className="relative z-10">-</span>
+                                            </Button>
+                                            <div
+                                                className="relative h-8 flex items-center justify-center"
+                                                onMouseEnter={() => setHoveredId('font-input')}
+                                                onMouseLeave={() => setHoveredId(null)}
+                                            >
+                                                <HoverBackground id="font-input" />
+                                                <input
+                                                    type="number"
+                                                    min={8}
+                                                    max={200}
+                                                    value={fontSize}
+                                                    onChange={(event) => {
+                                                        const next = Number(event.target.value)
+                                                        if (Number.isFinite(next)) {
+                                                            handleFontSizeChange(next)
+                                                        }
+                                                    }}
+                                                    className="relative z-10 h-8 w-14 border-0 bg-transparent text-center text-xs text-foreground/90 hover:text-accent-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-pointer transition-colors"
+                                                />
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 rounded-md text-foreground/90 hover:text-accent-foreground hover:bg-transparent"
+                                                onClick={() => handleFontSizeChange(fontSize + 1)}
+                                                onMouseEnter={() => setHoveredId('font-plus')}
+                                                onMouseLeave={() => setHoveredId(null)}
+                                            >
+                                                <HoverBackground id="font-plus" />
+                                                <span className="relative z-10">+</span>
+                                            </Button>
+                                        </div>
                                     </div>
 
-                                    <div>
+                                    <div
+                                        className="relative isolate"
+                                        onMouseEnter={() => setHoveredId('font-family')}
+                                        onMouseLeave={() => setHoveredId(null)}
+                                    >
                                         <Popover open={isFontPopoverOpen} onOpenChange={setIsFontPopoverOpen}>
                                             <PopoverTrigger asChild>
                                                 <Button
                                                     variant="outline"
                                                     role="combobox"
                                                     aria-expanded={isFontPopoverOpen}
-                                                    className="h-8 w-[140px] justify-between text-xs bg-background/70 border-border/60 px-2 text-foreground/90 hover:bg-background/80"
+                                                    className={cn(
+                                                        "relative h-9 w-[140px] justify-between text-xs bg-background/70 border-border/60 px-2 transition-colors",
+                                                        hoveredId === 'font-family' ? "text-accent-foreground" : "text-foreground/90",
+                                                        "hover:bg-background/80 data-[state=open]:bg-background/80 data-[state=open]:border-border/80"
+                                                    )}
                                                 >
-                                                    {activeFontLabel}
-                                                    <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                                    <HoverBackground id="font-family" />
+                                                    <span className="relative z-10 truncate">{activeFontLabel}</span>
+                                                    <ChevronDown className="relative z-10 ml-2 h-3 w-3 shrink-0 opacity-50" />
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-[140px] p-0" align="start">
-                                                <div className="flex flex-col">
-                                                    {FONT_FAMILIES.map((family) => (
-                                                        <button
-                                                            key={family.value}
-                                                            className={cn(
-                                                                "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-                                                                fontFamily === family.value && "bg-accent text-accent-foreground"
-                                                            )}
-                                                            onClick={() => {
-                                                                updateStyle({ fontFamily: family.value })
-                                                                setIsFontPopoverOpen(false)
-                                                            }}
-                                                        >
-                                                            <Check
-                                                                className={cn(
-                                                                    "mr-2 h-3 w-3",
-                                                                    fontFamily === family.value ? "opacity-100" : "opacity-0"
-                                                                )}
-                                                            />
-                                                            {family.label}
-                                                        </button>
-                                                    ))}
-                                                </div>
+                                            <PopoverContent className="w-[140px] p-1" align="start">
+                                                <FontPickerContent
+                                                    fontFamily={fontFamily}
+                                                    onSelect={(val) => {
+                                                        updateStyle({ fontFamily: val })
+                                                        setIsFontPopoverOpen(false)
+                                                    }}
+                                                />
                                             </PopoverContent>
                                         </Popover>
                                     </div>
@@ -225,28 +306,37 @@ export function AnnotationDock() {
                                             type="button"
                                             size="icon"
                                             variant={textAlign === 'left' ? 'secondary' : 'ghost'}
-                                            className="h-8 w-8 text-foreground/90"
+                                            className="relative h-8 w-8 text-foreground/90 hover:text-accent-foreground hover:bg-transparent rounded-md"
                                             onClick={() => updateStyle({ textAlign: 'left' })}
+                                            onMouseEnter={() => setHoveredId('align-left')}
+                                            onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <AlignLeft className="h-4 w-4" />
+                                            <HoverBackground id="align-left" />
+                                            <AlignLeft className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
                                             type="button"
                                             size="icon"
                                             variant={textAlign === 'center' ? 'secondary' : 'ghost'}
-                                            className="h-8 w-8 text-foreground/90"
+                                            className="relative h-8 w-8 text-foreground/90 hover:text-accent-foreground hover:bg-transparent rounded-md"
                                             onClick={() => updateStyle({ textAlign: 'center' })}
+                                            onMouseEnter={() => setHoveredId('align-center')}
+                                            onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <AlignCenter className="h-4 w-4" />
+                                            <HoverBackground id="align-center" />
+                                            <AlignCenter className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
                                             type="button"
                                             size="icon"
                                             variant={textAlign === 'right' ? 'secondary' : 'ghost'}
-                                            className="h-8 w-8 text-foreground/90"
+                                            className="relative h-8 w-8 text-foreground/90 hover:text-accent-foreground hover:bg-transparent rounded-md"
                                             onClick={() => updateStyle({ textAlign: 'right' })}
+                                            onMouseEnter={() => setHoveredId('align-right')}
+                                            onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <AlignRight className="h-4 w-4" />
+                                            <HoverBackground id="align-right" />
+                                            <AlignRight className="relative z-10 h-4 w-4" />
                                         </Button>
                                     </div>
 
@@ -255,28 +345,37 @@ export function AnnotationDock() {
                                             type="button"
                                             size="icon"
                                             variant={isBold ? 'secondary' : 'ghost'}
-                                            className="h-8 w-8 text-foreground/90"
+                                            className="relative h-8 w-8 text-foreground/90 hover:text-accent-foreground hover:bg-transparent rounded-md"
                                             onClick={() => updateStyle({ fontWeight: isBold ? 400 : 700 })}
+                                            onMouseEnter={() => setHoveredId('style-bold')}
+                                            onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <Bold className="h-4 w-4" />
+                                            <HoverBackground id="style-bold" />
+                                            <Bold className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
                                             type="button"
                                             size="icon"
                                             variant={isItalic ? 'secondary' : 'ghost'}
-                                            className="h-8 w-8 text-foreground/90"
+                                            className="relative h-8 w-8 text-foreground/90 hover:text-accent-foreground hover:bg-transparent rounded-md"
                                             onClick={() => updateStyle({ fontStyle: isItalic ? 'normal' : 'italic' })}
+                                            onMouseEnter={() => setHoveredId('style-italic')}
+                                            onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <Italic className="h-4 w-4" />
+                                            <HoverBackground id="style-italic" />
+                                            <Italic className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
                                             type="button"
                                             size="icon"
                                             variant={isUnderline ? 'secondary' : 'ghost'}
-                                            className="h-8 w-8 text-foreground/90"
+                                            className="relative h-8 w-8 text-foreground/90 hover:text-accent-foreground hover:bg-transparent rounded-md"
                                             onClick={() => updateStyle({ textDecoration: isUnderline ? 'none' : 'underline' })}
+                                            onMouseEnter={() => setHoveredId('style-underline')}
+                                            onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <Underline className="h-4 w-4" />
+                                            <HoverBackground id="style-underline" />
+                                            <Underline className="relative z-10 h-4 w-4" />
                                         </Button>
                                     </div>
 
@@ -372,11 +471,14 @@ export function AnnotationDock() {
                                                 type="button"
                                                 size="icon"
                                                 variant={(style.redactionPattern ?? RedactionPattern.Solid) === pattern.value ? 'secondary' : 'ghost'}
-                                                className="h-7 w-7 text-xs font-medium"
+                                                className="relative h-7 w-7 text-xs font-medium hover:text-accent-foreground hover:bg-transparent rounded-md"
                                                 title={pattern.label}
                                                 onClick={() => updateStyle({ redactionPattern: pattern.value })}
+                                                onMouseEnter={() => setHoveredId(`redaction-${pattern.value}`)}
+                                                onMouseLeave={() => setHoveredId(null)}
                                             >
-                                                {pattern.icon}
+                                                <HoverBackground id={`redaction-${pattern.value}`} />
+                                                <span className="relative z-10">{pattern.icon}</span>
                                             </Button>
                                         ))}
                                     </div>

@@ -46,8 +46,8 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     icon: React.ComponentType<{ className?: string }>
   }> = [
       { type: BackgroundType.Wallpaper, label: 'Scenes', description: 'Dynamic wallpaper backgrounds', icon: Monitor },
-      { type: BackgroundType.Parallax, label: 'Depth', description: 'Layered parallax effect', icon: Layers },
-      { type: BackgroundType.Gradient, label: 'Blend', description: 'Smooth color gradients', icon: Droplets },
+      { type: BackgroundType.Parallax, label: 'Parallax', description: 'Layered parallax effect', icon: Layers },
+      { type: BackgroundType.Gradient, label: 'Gradient', description: 'Smooth color gradients', icon: Droplets },
       { type: BackgroundType.Color, label: 'Solid', description: 'Single solid color', icon: Palette },
       { type: BackgroundType.Image, label: 'Photo', description: 'Custom image background', icon: ImageIcon },
     ]
@@ -289,29 +289,29 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     repairedWallpaperKeyRef.current = true
     let cancelled = false
 
-    ;(async () => {
-      for (const candidate of allWallpapers) {
-        if (cancelled) return
-        const candidateKey = candidate.absolutePath || candidate.path
-        if (!candidateKey) continue
-
-        try {
-          const dataUrl = candidate.isPreinstalled && candidate.absolutePath && loadImageAsDataUrl
-            ? await loadImageAsDataUrl(candidate.absolutePath)
-            : loadWallpaperImage
-              ? await loadWallpaperImage(candidate.path)
-              : null
-
+      ; (async () => {
+        for (const candidate of allWallpapers) {
           if (cancelled) return
-          if (dataUrl && dataUrl === bgData.wallpaper) {
-            onUpdateBackground({ wallpaperKey: candidateKey })
-            return
+          const candidateKey = candidate.absolutePath || candidate.path
+          if (!candidateKey) continue
+
+          try {
+            const dataUrl = candidate.isPreinstalled && candidate.absolutePath && loadImageAsDataUrl
+              ? await loadImageAsDataUrl(candidate.absolutePath)
+              : loadWallpaperImage
+                ? await loadWallpaperImage(candidate.path)
+                : null
+
+            if (cancelled) return
+            if (dataUrl && dataUrl === bgData.wallpaper) {
+              onUpdateBackground({ wallpaperKey: candidateKey })
+              return
+            }
+          } catch {
+            // ignore and keep searching
           }
-        } catch {
-          // ignore and keep searching
         }
-      }
-    })()
+      })()
 
     return () => { cancelled = true }
   }, [allWallpapers, backgroundType, bgData?.type, bgData?.wallpaper, bgData?.wallpaperKey, onUpdateBackground])
