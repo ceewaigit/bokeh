@@ -16,15 +16,15 @@ import { useRef, useEffect, useMemo } from 'react'
 import { calculateFrameSnapshot, type FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
 import type { ActiveClipDataAtFrame } from '@/types/remotion'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
-import { getBoundaryOverlapState, findActiveFrameLayoutItems } from '@/features/ui/timeline/utils/frame-layout'
+import { getBoundaryOverlapState } from '@/features/ui/timeline/utils/frame-layout'
 import { useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion'
-import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
+import { useTimelineContext } from '@/features/rendering/renderer/context/RenderingTimelineContext'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { usePlaybackSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext'
 import { useCameraPath } from '@/features/ui/editor/logic/viewport/hooks/useCameraPath'
 import { calculateFullCameraPath } from '@/features/ui/editor/logic/viewport/logic/path-calculator'
 import { frameToMs } from '@/features/rendering/renderer/compositions/utils/time/frame-time'
-import { useLayoutNavigation } from '@/features/rendering/renderer/hooks/use-layout-navigation'
+import { useVisualLayoutNavigation } from '@/features/rendering/renderer/hooks/use-visual-layout-navigation'
 import { getZoomTransformString } from '@/features/rendering/canvas/math/transforms/zoom-transform'
 import type { ZoomTransform } from '@/types'
 
@@ -52,6 +52,10 @@ function useCalculatedSnapshot(
         effects: clipEffects,
         getActiveClipData,
         getRecording,
+        getActiveLayoutIndex,
+        getLayoutItem,
+        getPrevLayoutItem,
+        getNextLayoutItem,
     } = useTimelineContext();
 
     const currentTimeMs = frameToMs(currentFrame, fps);
@@ -69,56 +73,14 @@ function useCalculatedSnapshot(
     // Note: useActiveClipData is just a wrapper around getActiveClipData(currentFrame)
     const activeClipData = useMemo(() => getActiveClipData(currentFrame), [getActiveClipData, currentFrame]);
 
-    // 5. Layout Navigation & Boundary State
-    // We use the helper hook from video-data-context for standard navigation
-    const layoutNav = useLayoutNavigation(currentFrame);
-    const { activeItem: activeLayoutItem, prevItem: prevLayoutItem, nextItem: nextLayoutItem } = layoutNav;
+    // 5. Layout Navigation & Boundary State (inlined from useLayoutNavigation)
+    const activeLayoutIndex = getActiveLayoutIndex(currentFrame);
+    const activeLayoutItem = getLayoutItem(activeLayoutIndex);
+    const prevLayoutItem = getPrevLayoutItem(activeLayoutIndex);
+    const nextLayoutItem = getNextLayoutItem(activeLayoutIndex);
 
-    // Visual Layout Navigation (logic moved from SharedVideoController)
-    // Prefers visual items (video/image) for boundary calculations
-    const visualLayoutNav = useMemo(() => {
-        const isVisualItem = (item: FrameLayoutItem | null) => {
-            if (!item) return false;
-            const recording = recordingsMap.get(item.clip.recordingId);
-            return recording?.sourceType === 'video' || recording?.sourceType === 'image';
-        };
-
-        const activeItems = findActiveFrameLayoutItems(frameLayout, currentFrame);
-        let activeVisualItem: FrameLayoutItem | null = null;
-        for (const item of activeItems) {
-            if (isVisualItem(item) && (!activeVisualItem || item.startFrame > activeVisualItem.startFrame)) {
-                activeVisualItem = item;
-            }
-        }
-
-        const activeVisualIndex = activeVisualItem
-            ? frameLayout.findIndex((item) => item.clip.id === activeVisualItem?.clip.id)
-            : -1;
-
-        let prevVisualItem: FrameLayoutItem | null = null;
-        for (let i = activeVisualIndex - 1; i >= 0; i -= 1) {
-            const candidate = frameLayout[i];
-            if (isVisualItem(candidate)) {
-                prevVisualItem = candidate;
-                break;
-            }
-        }
-
-        let nextVisualItem: FrameLayoutItem | null = null;
-        for (let i = activeVisualIndex + 1; i < frameLayout.length; i += 1) {
-            const candidate = frameLayout[i];
-            if (isVisualItem(candidate)) {
-                nextVisualItem = candidate;
-                break;
-            }
-        }
-
-        return {
-            activeVisualItem,
-            prevVisualItem,
-            nextVisualItem,
-        };
-    }, [frameLayout, recordingsMap, currentFrame]);
+    // Visual Layout Navigation - prefers visual items (video/image) for boundary calculations
+    const visualLayoutNav = useVisualLayoutNavigation(frameLayout, recordingsMap, currentFrame);
 
     const renderActiveLayoutItem = visualLayoutNav.activeVisualItem ?? activeLayoutItem;
     const renderPrevLayoutItem = visualLayoutNav.prevVisualItem ?? prevLayoutItem;
@@ -206,10 +168,14 @@ function useCalculatedSnapshot(
     const lastValidClipDataRef = useRef<ActiveClipDataAtFrame | null>(null);
     const prevRenderableItemsRef = useRef<FrameLayoutItem[]>([]);
 
-    // Clear frozen state when not editing
+    // Clear frozen state and accumulated refs when not editing
+    // This prevents memory accumulation from long editing sessions
     useEffect(() => {
         if (!isEditingCrop) {
             frozenLayoutRef.current = null
+            // Clear accumulated layout data to free memory
+            prevRenderableItemsRef.current = []
+            lastValidClipDataRef.current = null
         }
     }, [isEditingCrop])
 
@@ -252,28 +218,33 @@ function useCalculatedSnapshot(
             isEditingCrop,
         })
 
-        // Populate camera velocity (scaled to pixels)
-        if (cameraPathFrame?.velocity) {
-            const scale = (zoomTransform as any)?.scale ?? 1;
-            snapshot.camera.velocity = {
-                x: cameraPathFrame.velocity.x * snapshot.layout.drawWidth * scale,
-                y: cameraPathFrame.velocity.y * snapshot.layout.drawHeight * scale
-            };
-        }
+        // Use pre-computed velocity from camera path (deterministic - same frame = same velocity)
+        // This is calculated in path-calculator.ts as position[frame] - position[frame-1]
+        const precomputedVelocity = cameraPathFrame?.velocity ?? { x: 0, y: 0 };
+        const scale = (zoomTransform as any)?.scale ?? 1;
+        snapshot.camera.velocity = {
+            x: precomputedVelocity.x * snapshot.layout.drawWidth * scale,
+            y: precomputedVelocity.y * snapshot.layout.drawHeight * scale
+        };
 
-        // SAFETY NET: If renderableItems is empty but we have previous valid items,
-        // use those to prevent black screen during fast scrubbing.
-        // This should rarely trigger after the fix to findActiveFrameLayoutItems,
-        // but provides defense in depth.
+        // Use pre-computed motion blur mix from camera path (deterministic per frame)
+        snapshot.camera.motionBlurMix = cameraPathFrame?.motionBlurMix ?? 0;
+
+        // LEGACY SAFETY NET: These fallbacks should no longer trigger after fixes to:
+        // - findActiveFrameLayoutItems (frame-layout.ts) - never returns empty
+        // - calculateEffectiveClipData (layout-engine.ts) - uses lastValidClipData internally
+        // Dev logging helps verify these are truly redundant before removal.
         if (snapshot.renderableItems.length === 0 && prevRenderableItemsRef.current.length > 0) {
+            if (process.env.NODE_ENV === 'development') {
+                console.warn('[useFrameSnapshot] SAFETY NET triggered: empty renderableItems at frame', currentFrame);
+            }
             snapshot.renderableItems = prevRenderableItemsRef.current;
         }
 
-        // SAFETY NET: If effectiveClipData is null but we have previous valid data,
-        // use that to prevent black screen during fast scrubbing.
-        // This addresses the root cause where the SharedVideoController early return
-        // triggers a black div when effectiveClipData is temporarily null.
         if (!snapshot.effectiveClipData && lastValidClipDataRef.current && !isRendering) {
+            if (process.env.NODE_ENV === 'development') {
+                console.warn('[useFrameSnapshot] SAFETY NET triggered: null effectiveClipData at frame', currentFrame);
+            }
             snapshot.effectiveClipData = lastValidClipDataRef.current;
         }
 

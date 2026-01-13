@@ -11,7 +11,9 @@
  */
 
 import { EffectType } from '@/features/effects/types'
-import { CursorStyle, KeystrokePosition, BackgroundType, ScreenEffectPreset } from '@/types/project'
+import { BackgroundType, ScreenEffectPreset } from '@/types/project'
+import { CursorStyle } from '@/features/effects/cursor/types'
+import { KeystrokePosition } from '@/features/effects/keystroke/types'
 import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
 
 // =============================================================================
@@ -171,12 +173,15 @@ export const SCREEN_SCHEMA: EffectSchema = {
             default: ScreenEffectPreset.Subtle,
             label: 'Preset',
             options: [
-                { value: ScreenEffectPreset.Subtle, label: 'Subtle' },
+                { value: ScreenEffectPreset.TableView, label: 'Table View' },
+                { value: ScreenEffectPreset.Showcase, label: 'Showcase' },
+                { value: ScreenEffectPreset.FloatingCard, label: 'Floating' },
+                { value: ScreenEffectPreset.Subtle, label: 'Smooth' },
+                { value: ScreenEffectPreset.Hero, label: 'Focused' },
                 { value: ScreenEffectPreset.Medium, label: 'Medium' },
                 { value: ScreenEffectPreset.Dramatic, label: 'Dramatic' },
                 { value: ScreenEffectPreset.Window, label: 'Window' },
                 { value: ScreenEffectPreset.Cinematic, label: 'Cinematic' },
-                { value: ScreenEffectPreset.Hero, label: 'Hero' },
                 { value: ScreenEffectPreset.Isometric, label: 'Isometric' },
                 { value: ScreenEffectPreset.Flat, label: 'Flat' },
                 { value: ScreenEffectPreset.TiltLeft, label: 'Tilt Left' },
@@ -206,7 +211,7 @@ export const BACKGROUND_SCHEMA: EffectSchema = {
                 { value: BackgroundType.Parallax, label: 'Parallax' },
             ]
         },
-        padding: { type: 'number', default: 60, label: 'Padding', min: 0, max: 200, step: 5, unit: 'px' },
+        padding: { type: 'number', default: 100, label: 'Padding', min: 0, max: 200, step: 5, unit: 'px' },
         cornerRadius: { type: 'number', default: 15, label: 'Corner Radius', min: 0, max: 50, step: 1, unit: 'px' },
         shadowIntensity: { type: 'number', default: 85, label: 'Shadow', min: 0, max: 100, step: 5, unit: '%' },
         blur: { type: 'number', default: 0, label: 'Blur', min: 0, max: 50, step: 1, unit: 'px' },

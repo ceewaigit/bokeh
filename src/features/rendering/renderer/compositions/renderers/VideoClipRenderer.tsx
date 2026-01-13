@@ -10,7 +10,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
-import { useVideoUrl, isProxySufficientForTarget } from '@/features/rendering/renderer/hooks/media/useVideoUrl';
+import { useVideoUrl } from '@/features/rendering/renderer/hooks/media/useVideoUrl';
 import { usePlaybackSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
 import { useClipRenderState } from '@/features/rendering/renderer/hooks/render/useClipRenderState';
 import { useVideoContainerCleanup } from '@/features/rendering/renderer/hooks/media/useVTDecoderCleanup';
@@ -69,9 +69,59 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     zoomTransform,
     motionBlur,
     maxZoomScale,
-    useParentFade,
+    // useParentFade removed - each renderer calculates its own opacity via useClipRenderState
     refocusBlurPx,
   } = videoPosition;
+
+  // ==========================================================================
+  // SCRUBBING FRAME HOLD: Canvas-based frame capture to prevent blank frames
+  // during fast timeline scrubbing when video element is seeking
+  // ==========================================================================
+  const seekingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isVideoSeeking, setIsVideoSeeking] = useState(false);
+  const lastCapturedFrameRef = useRef<boolean>(false);
+
+  // Capture the current video frame to canvas before seeking starts
+  const captureCurrentFrame = useCallback(() => {
+    const video = videoElementRef.current;
+    const canvas = seekingCanvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    try {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Only resize canvas if dimensions changed
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+      ctx.drawImage(video, 0, 0);
+      lastCapturedFrameRef.current = true;
+    } catch (_e) {
+      // Silently fail - we'll just show the video element as-is
+    }
+  }, []);
+
+  // Handle video seeking start - capture frame before it goes blank
+  const handleVideoSeeking = useCallback(() => {
+    if (isRendering) return;
+    captureCurrentFrame();
+    setIsVideoSeeking(true);
+  }, [isRendering, captureCurrentFrame]);
+
+  // Handle video seek complete - hide canvas overlay
+  const handleVideoSeeked = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
+    if (isRendering) {
+      handleVideoReady(e);
+      return;
+    }
+    // Small delay to ensure the new frame is actually painted
+    requestAnimationFrame(() => {
+      setIsVideoSeeking(false);
+    });
+  }, [isRendering, handleVideoReady]);
 
   // Derive current zoom scale from transform
   const currentZoomScale = (zoomTransform as any)?.scale ?? 1;
@@ -185,6 +235,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // Handle video loaded event (for preview readiness)
   const handleLoaded = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
+    // Store the video element ref for frame capture
+    videoElementRef.current = video;
 
     if (isRendering) {
       handleVideoReady(e);
@@ -192,8 +244,10 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     }
     if (video.readyState >= 2) {
       setPreviewReady(true);
+      // Capture initial frame for scrubbing fallback
+      captureCurrentFrame();
     }
-  }, [isRendering, handleVideoReady, setPreviewReady]);
+  }, [isRendering, handleVideoReady, setPreviewReady, captureCurrentFrame]);
 
   // Handle metadata loaded - check for zombie proxy here (dimensions guaranteed)
   const handleMetadataLoaded = useCallback((_e: SyntheticEvent<HTMLVideoElement>) => {
@@ -232,10 +286,10 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     return null;
   }
 
-  // Sizing
-  const needsHighRes = isHighQualityPlaybackEnabled
-    && !isProxySufficientForTarget(compositionWidth, compositionHeight, currentZoomScale || (maxZoomScale ?? 1) || 1);
-  const useHighResSizing = isRendering || needsHighRes;
+  // Sizing: Only use native resolution for export. Preview quality is handled by useVideoUrl.
+  // Previously this also checked isHighQualityPlaybackEnabled but that caused frame sync
+  // issues with CSS scaling. The useVideoUrl hook handles quality selection correctly.
+  const useHighResSizing = isRendering;
   const playbackRate = clipForVideo.playbackRate && clipForVideo.playbackRate > 0 ? clipForVideo.playbackRate : 1;
 
   const baseWidth = useHighResSizing ? (recording?.width ?? drawWidth) : null;
@@ -264,8 +318,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const endAtFrames = Math.max(startFromFrames + 1, startFromFrames + Math.max(1, groupDuration));
 
   // Opacity: purely based on render state (intro/outro/glow).
+  // Each renderer calculates its own opacity via useClipRenderState - no parent fade needed.
   const effectiveOpacity = renderState.effectiveOpacity;
-  const visualOpacity = useParentFade ? 1 : effectiveOpacity;
   const effectiveVolume = Math.max(0, Math.min(1, previewVolume ?? 1)) * effectiveOpacity;
   const shouldMuteAudio = (!isRendering && (previewMuted || effectiveVolume <= 0 || renderState.isPreloading))
     || !recording?.hasAudio;
@@ -284,7 +338,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           position: 'absolute',
           top: 0,
           left: 0,
-          opacity: visualOpacity,
+          opacity: effectiveOpacity,
         }}>
           {/* Motion blur dimensions must match video render dimensions:
               - Export: video renders at native res, scaled via CSS -> use native dims
@@ -318,49 +372,72 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             isScrubbing={isScrubbing}
           >
             <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
-              <VideoComponent
-                key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
-                src={effectiveUrl || ''}
-                crossOrigin="anonymous"
-                style={{
-                  width: '100%', height: '100%',
-                  objectFit: 'cover',
-                  position: 'absolute', top: 0, left: 0,
-                  borderRadius: `${cornerRadius}px`,
-                  pointerEvents: 'none',
-                  opacity: visualOpacity,
-                }}
-                volume={() => effectiveVolume}
-                muted={shouldMuteAudio}
-                preload={preload}
-                playsInline={true}
-                pauseWhenBuffering={false}
-                startFrom={startFromFrames}
-                endAt={endAtFrames}
-                playbackRate={playbackRate}
-                onLoadedData={handleLoaded}
-                onLoadedMetadata={handleMetadataLoaded}
-                onCanPlay={handleLoaded}
-                onSeeked={isRendering ? handleVideoReady : undefined}
-                onVideoFrame={isRendering && (motionBlur?.enabled ?? false) ? handleVideoFrame : undefined}
-                onError={(e: any) => {
-                  // CRITICAL: Always signal "ready" to Remotion/Thumbnail generator even on error,
-                  // otherwise delayRender() will time out and crash the app/export.
-                  if (typeof handleVideoReady === 'function') {
-                    // Safe to cast - we just need it to stop waiting
-                    handleVideoReady(e as any);
-                  }
+              <div style={{ display: 'contents' }}>
+                <VideoComponent
+                  key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
+                  src={effectiveUrl || ''}
+                  crossOrigin="anonymous"
+                  style={{
+                    width: '100%', height: '100%',
+                    objectFit: 'cover',
+                    position: 'absolute', top: 0, left: 0,
+                    borderRadius: `${cornerRadius}px`,
+                    pointerEvents: 'none',
+                    // Opacity applied on parent wrapper only to avoid double-application
+                  }}
+                  volume={() => effectiveVolume}
+                  muted={shouldMuteAudio}
+                  preload={preload}
+                  playsInline={true}
+                  pauseWhenBuffering={false}
+                  startFrom={startFromFrames}
+                  endAt={endAtFrames}
+                  playbackRate={playbackRate}
+                  onLoadedData={handleLoaded}
+                  onLoadedMetadata={handleMetadataLoaded}
+                  onCanPlay={handleLoaded}
+                  onSeeking={handleVideoSeeking}
+                  onSeeked={handleVideoSeeked}
+                  onVideoFrame={isRendering && (motionBlur?.enabled ?? false) ? handleVideoFrame : undefined}
+                  onError={(e: any) => {
+                    // CRITICAL: Always signal "ready" to Remotion/Thumbnail generator even on error,
+                    // otherwise delayRender() will time out and crash the app/export.
+                    if (typeof handleVideoReady === 'function') {
+                      // Safe to cast - we just need it to stop waiting
+                      handleVideoReady(e as any);
+                    }
 
-                  // Self-healing: fallback to original source instead of crashing
-                  if (!urlFailed) {
-                    console.warn(`[VideoClipRenderer] Video error, falling back to source: ${recording.id}`, e?.target?.error);
-                    setUrlFailed(true);
-                  } else {
-                    // Both proxy and source failed - log error but don't crash
-                    console.error(`[VideoClipRenderer] Both proxy and source failed for ${recording.id}:`, e?.target?.error);
-                  }
-                }}
-              />
+                    // Self-healing: fallback to original source instead of crashing
+                    if (!urlFailed) {
+                      console.warn(`[VideoClipRenderer] Video error, falling back to source: ${recording.id}`, e?.target?.error);
+                      setUrlFailed(true);
+                    } else {
+                      // Both proxy and source failed - log error but don't crash
+                      console.error(`[VideoClipRenderer] Both proxy and source failed for ${recording.id}:`, e?.target?.error);
+                    }
+                  }}
+                />
+                {/* SCRUBBING FRAME HOLD: Canvas overlay shows last captured frame while video is seeking */}
+                {/* This prevents blank/transparent frames during fast timeline scrubbing */}
+                {!isRendering && (
+                  <canvas
+                    ref={seekingCanvasRef}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      borderRadius: `${cornerRadius}px`,
+                      pointerEvents: 'none',
+                      // Parent wrapper handles effectiveOpacity, canvas just toggles visibility
+                      opacity: (isVideoSeeking && isScrubbing && lastCapturedFrameRef.current) ? 1 : 0,
+                      transition: 'opacity 50ms ease-out',
+                    }}
+                  />
+                )}
+              </div>
             </AudioEnhancerWrapper>
           </MotionBlurWrapper>
         </div>

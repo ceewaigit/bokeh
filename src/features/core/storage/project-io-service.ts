@@ -8,7 +8,7 @@ import { precomputeCursorSmoothingCache } from '@/features/effects/cursor/logic/
 import { ProxyService } from '@/features/proxy'
 
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config';
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { InvalidPathError, MissingVideoError } from '@/shared/errors'
 
 /**

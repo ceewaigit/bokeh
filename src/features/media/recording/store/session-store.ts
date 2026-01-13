@@ -9,18 +9,10 @@ interface RecordingStore extends RecordingState {
   countdownActive: boolean
   selectedDisplayId?: number
 
-  // Toggle state for independent webcam/microphone control
-  isWebcamToggledOff: boolean
-  isMicrophoneToggledOff: boolean
-
   // Core state setters
   setRecording: (isRecording: boolean) => void
   setPaused: (isPaused: boolean) => void
   setDuration: (duration: number) => void
-
-  // Toggle state setters
-  setWebcamToggledOff: (toggled: boolean) => void
-  setMicrophoneToggledOff: (toggled: boolean) => void
 
   // Settings management
   updateSettings: (settings: Partial<SessionSettings>) => void
@@ -50,6 +42,12 @@ const clearCountdownInterval = () => {
   }
 }
 
+/**
+ * Clean up any active countdown interval.
+ * Call this from component cleanup to prevent interval leaks.
+ */
+export const cleanupCountdownInterval = clearCountdownInterval
+
 export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   isRecording: false,
   isPaused: false,
@@ -57,26 +55,12 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   settings: defaultSettings,
   countdownActive: false,
   selectedDisplayId: undefined,
-  isWebcamToggledOff: false,
-  isMicrophoneToggledOff: false,
 
-  setRecording: (isRecording) =>
-    set(() => ({
-      isRecording,
-      // Reset toggle states when recording starts/stops
-      ...(isRecording ? {} : { isWebcamToggledOff: false, isMicrophoneToggledOff: false })
-    })),
+  setRecording: (isRecording) => set({ isRecording }),
 
-  setPaused: (isPaused) =>
-    set(() => ({
-      isPaused
-    })),
+  setPaused: (isPaused) => set({ isPaused }),
 
   setDuration: (duration) => set({ duration }),
-
-  setWebcamToggledOff: (toggled) => set({ isWebcamToggledOff: toggled }),
-
-  setMicrophoneToggledOff: (toggled) => set({ isMicrophoneToggledOff: toggled }),
 
   updateSettings: (newSettings) =>
     set((state) => ({
@@ -140,9 +124,7 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
       duration: 0,
       settings: defaultSettings,
       countdownActive: false,
-      selectedDisplayId: undefined,
-      isWebcamToggledOff: false,
-      isMicrophoneToggledOff: false
+      selectedDisplayId: undefined
     })
   }
 }))

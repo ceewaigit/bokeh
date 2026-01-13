@@ -10,8 +10,9 @@ import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import type { ZoomBlock } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { TimelineConfig } from '@/features/ui/timeline/config'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 export class UpdateZoomBlockCommand extends PatchedCommand<{ blockId: string }> {
   private blockId: string
@@ -86,7 +87,7 @@ export class UpdateZoomBlockCommand extends PatchedCommand<{ blockId: string }> 
     if ('mouseFollowAlgorithm' in this.updates) zoomData.mouseFollowAlgorithm = this.updates.mouseFollowAlgorithm
     if ('zoomIntoCursorMode' in this.updates) zoomData.zoomIntoCursorMode = this.updates.zoomIntoCursorMode
 
-    draft.currentProject.modifiedAt = new Date().toISOString()
+    markProjectModified(draft)
 
     this.setResult({ success: true, data: { blockId: this.blockId } })
   }

@@ -1,4 +1,4 @@
-import type { WebcamLayoutData } from '@/types/project'
+import type { WebcamLayoutData } from '@/features/media/webcam/types'
 import { OverlayAnchor } from '@/types/overlays'
 
 export function getWebcamLayout(

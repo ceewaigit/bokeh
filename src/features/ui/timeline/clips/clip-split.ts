@@ -9,7 +9,7 @@ import type { Project, Clip } from '@/types/project'
 import { EffectCreation } from '@/features/effects/core/creation'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getCropEffectForClip } from '@/features/effects/core/filters'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { withMutation } from '@/features/ui/timeline/clips/clip-mutation'
 

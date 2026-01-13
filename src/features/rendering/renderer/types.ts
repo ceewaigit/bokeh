@@ -56,6 +56,8 @@ export type CameraPathFrame = {
     zoomCenter: { x: number; y: number };
     /** Precomputed velocity for motion blur (normalized 0-1 delta per frame) */
     velocity?: { x: number; y: number };
+    /** Precomputed motion blur mix factor (0-1), deterministic per frame */
+    motionBlurMix?: number;
     /** Precomputed zoom transform (SSOT - no render-time calculation needed) */
     zoomTransform: ZoomTransform;
     /** Precomputed CSS transform string for GPU-accelerated rendering */
@@ -156,10 +158,10 @@ export interface VideoPositionContextValue {
 
     // Rendering State (for VideoClipRenderer)
     maxZoomScale?: number;
-    /** Clip fade opacity applied at the container level (when enabled). */
-    clipFadeOpacity?: number;
-    /** Whether parent container is responsible for fade (avoid double fade). */
-    useParentFade?: boolean;
+    // NOTE: clipFadeOpacity and useParentFade were removed.
+    // Each renderer now calculates its own opacity via useClipRenderState.
+    // This fixes the bug where clip-specific opacity was shared globally,
+    // causing random transparency when multiple clips render simultaneously.
     boundaryState?: {
         shouldHoldPrevFrame: boolean;
         isNearBoundaryEnd: boolean;

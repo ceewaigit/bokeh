@@ -2,7 +2,7 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 
 /**
  * Find zoom effect in the project using EffectStore

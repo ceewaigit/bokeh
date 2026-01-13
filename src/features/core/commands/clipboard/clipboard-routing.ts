@@ -1,4 +1,4 @@
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { isGlobalEffectType } from '@/features/effects/core/classification'
 import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectLayerType } from '@/features/effects/types'

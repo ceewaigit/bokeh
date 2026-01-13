@@ -2,8 +2,9 @@ import type { Project, Clip, Effect } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { reflowClips, calculateTimelineDuration } from './clips/clip-reflow'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { TimeRange } from './time/time-range'
+import { markModified } from '@/features/core/stores/store-utils'
 
 interface SpeedUpApplyOptions {
     syncLinkedTracks?: boolean
@@ -268,7 +269,7 @@ export class SpeedUpApplicationService {
 
         // Update timeline duration
         project.timeline.duration = calculateTimelineDuration(project)
-        project.modifiedAt = new Date().toISOString()
+        markModified(project)
 
         // 5. Shift generic effects that are AFTER the modified clip
         // When we speed up a clip, it shortens. We must pull following effects back by the delta.
@@ -412,7 +413,7 @@ export class SpeedUpApplicationService {
 
         if (shifted) {
             project.timeline.duration = calculateTimelineDuration(project)
-            project.modifiedAt = new Date().toISOString()
+            markModified(project)
         }
     }
 }

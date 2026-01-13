@@ -12,7 +12,7 @@
  * - seekFromPlayer no longer needs to skip regions here (handled by usePlayerSync)
  */
 
-import { playbackService } from '@/features/ui/timeline/playback/playback-service'
+import { playbackService } from '@/features/playback/services/playback-service'
 import type { CreatePlaybackSlice, ProjectStore } from './types'
 
 const seekTo = (state: Pick<ProjectStore, 'currentProject'>, time: number): number => {

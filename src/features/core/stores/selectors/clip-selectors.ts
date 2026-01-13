@@ -62,41 +62,6 @@ export function useAudioClips(): Clip[] {
   }, [project])
 }
 
-/**
- * Get video clips sorted by start time.
- */
-export function useSortedVideoClips(): Clip[] {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return []
-    return TimelineDataService.getSortedVideoClips(project)
-  }, [project])
-}
-
-/**
- * Get audio clips sorted by start time.
- */
-export function useSortedAudioClips(): Clip[] {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return []
-    return TimelineDataService.getSortedAudioClips(project)
-  }, [project])
-}
-
-/**
- * Get a clip by ID.
- */
-export function useClipById(clipId: string | null): ClipResult | null {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project || !clipId) return null
-    return ClipLookup.byId(project, clipId)
-  }, [project, clipId])
-}
 
 /**
  * Get the currently selected clip.
@@ -112,31 +77,6 @@ export function useSelectedClip(): ClipResult | null {
   }, [project, selectedClips])
 }
 
-/**
- * Get the selected clip with its associated recording.
- */
-export function useSelectedClipWithRecording(): ClipWithRecording | null {
-  const project = useProjectStore((s) => s.currentProject)
-  const selectedClips = useProjectStore((s) => s.selectedClips)
-
-  return useMemo(() => {
-    if (!project || selectedClips.length === 0) return null
-    const clipId = selectedClips[selectedClips.length - 1]
-    return ClipLookup.withRecording(project, clipId)
-  }, [project, selectedClips])
-}
-
-/**
- * Get recordings as a Map for O(1) lookup.
- */
-export function useRecordingsMap(): Map<string, Recording> {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return new Map()
-    return TimelineDataService.getRecordingsMap(project)
-  }, [project])
-}
 
 /**
  * Get a recording by ID.

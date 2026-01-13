@@ -6,7 +6,7 @@ import { useTimelineColors } from '@/features/ui/timeline/utils/colors'
 import { formatTime } from '@/shared/utils/time'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
-import { useTimelineContext } from './TimelineContext'
+import { useTimelineContext } from './TimelineUIContext'
 
 interface TimelineRulerProps {
   scrollLeft: number

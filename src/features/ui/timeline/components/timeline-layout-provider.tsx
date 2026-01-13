@@ -15,7 +15,7 @@ import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { EffectType } from '@/features/effects/types'
 import { TimelineTrackType, TrackType } from '@/types/project'
 import { EFFECT_TRACK_TYPES, getEffectTrackConfig, getSortedTrackConfigs } from '@/features/ui/timeline/effect-track-registry'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 
 /** Track type that can be used for visibility/active state */
 export type TrackId = TimelineTrackType | EffectType

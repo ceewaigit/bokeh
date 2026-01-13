@@ -21,11 +21,11 @@ import { RecordingsLibrary } from '@/features/media/recording/components/library
 import { UtilitiesSidebar } from '@/features/ui/editor/components/utilities'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
-import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
+import { useProgressStore } from '@/features/core/stores/progress-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { ZoomBlock, ZoomEffectData } from '@/types/project'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
-import { PlayheadService, type PlayheadState } from '@/features/ui/timeline/playback/playhead-service'
+import { PlayheadService, type PlayheadState } from '@/features/playback'
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
@@ -35,7 +35,7 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import { calculateFullCameraPath } from '@/features/ui/editor/logic/viewport/logic/path-calculator'
 import { initializeDefaultWallpaper } from '@/features/effects/background'
 import { EffectLayerType } from '@/features/effects/types'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { applyEffectChange } from '@/features/effects/services/effect-change'
 import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { UpdateZoomBlockCommand } from '@/features/core/commands'
@@ -120,7 +120,7 @@ export function WorkspaceManager() {
   // Auto-fit timeline height based on visible tracks
   const { height: autoTimelineHeight } = useTimelineAutoHeight()
 
-  const isExporting = useProjectStore((s) => s.progress.isProcessing)
+  const isExporting = useProgressStore((s) => s.isProcessing)
   const previewReady = useProjectStore((s) => s.previewReady)
   const setPreviewReady = useProjectStore((s) => s.setPreviewReady)
 
@@ -294,6 +294,8 @@ export function WorkspaceManager() {
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const glowPortalRef = useRef<HTMLDivElement>(null)
+  // Track mounted state to prevent interval leak during rapid unmount/remount
+  const isMountedRef = useRef(true)
 
   // Track unsaved changes by comparing saved timestamp with current
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
@@ -336,11 +338,33 @@ export function WorkspaceManager() {
     storePause()
   }, [storePause])
 
+  // Track mounted state for cleanup
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      // Clear any lingering interval on unmount
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current)
+        playbackIntervalRef.current = null
+      }
+    }
+  }, [])
+
   // Monitor clip boundaries during playback - use reactive playhead clip from store
   useEffect(() => {
     if (!isPlaying || isExporting) return
 
+    // Clear any existing interval first to prevent accumulation
+    if (playbackIntervalRef.current) {
+      clearInterval(playbackIntervalRef.current)
+      playbackIntervalRef.current = null
+    }
+
     const syncInterval = setInterval(() => {
+      // Skip if unmounted to prevent state updates on unmounted component
+      if (!isMountedRef.current) return
+
       const state = useProjectStore.getState()
       if (!state.isPlaying || !state.currentProject) return
 
@@ -370,6 +394,7 @@ export function WorkspaceManager() {
     return () => {
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current)
+        playbackIntervalRef.current = null
       }
     }
   }, [isPlaying, handlePause, isExporting])
@@ -380,8 +405,7 @@ export function WorkspaceManager() {
   }, [storePlay])
 
   const handleSeek = useCallback((time: number) => {
-    // Update both stores in one call - transient (playhead UI) and persistent (player sync)
-    useTimeStore.getState().setTime(time)
+    // Single source of truth - update project store
     storeSeek(time)
   }, [storeSeek])
 

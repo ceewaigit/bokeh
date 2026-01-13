@@ -3,9 +3,74 @@ import * as path from 'path'
 import { promises as fs } from 'fs'
 import * as fsSync from 'fs'
 import { getRecordingsDirectory } from '../config'
+import { isPathWithin } from '../utils/path-validation'
 
 // Active recording file handles for streaming
 const activeRecordings = new Map<string, fsSync.WriteStream>()
+// Track last activity time for each stream to detect idle streams
+const streamLastActivity = new Map<string, number>()
+// Idle stream timeout (5 minutes)
+const STREAM_IDLE_TIMEOUT_MS = 5 * 60 * 1000
+// Cleanup check interval (1 minute)
+const CLEANUP_CHECK_INTERVAL_MS = 60 * 1000
+let streamCleanupInterval: NodeJS.Timeout | null = null
+
+// Start periodic cleanup of idle streams
+function startStreamCleanup(): void {
+  if (streamCleanupInterval) return
+
+  streamCleanupInterval = setInterval(() => {
+    const now = Date.now()
+    const toCleanup: string[] = []
+
+    streamLastActivity.forEach((lastActivity, filePath) => {
+      if (now - lastActivity > STREAM_IDLE_TIMEOUT_MS) {
+        toCleanup.push(filePath)
+      }
+    })
+
+    toCleanup.forEach(filePath => {
+      const stream = activeRecordings.get(filePath)
+      if (stream) {
+        console.warn(`[Recording] Closing idle stream (no activity for ${STREAM_IDLE_TIMEOUT_MS / 1000}s): ${filePath}`)
+        stream.end()
+        activeRecordings.delete(filePath)
+        streamLastActivity.delete(filePath)
+      }
+    })
+  }, CLEANUP_CHECK_INTERVAL_MS)
+}
+
+// Stop cleanup interval when no active recordings
+function stopStreamCleanupIfEmpty(): void {
+  if (activeRecordings.size === 0 && streamCleanupInterval) {
+    clearInterval(streamCleanupInterval)
+    streamCleanupInterval = null
+  }
+}
+
+// Clean up orphaned temp files from previous sessions on startup
+async function cleanupOrphanedTempFiles(): Promise<void> {
+  try {
+    const tempDir = app.getPath('temp')
+    const entries = await fs.readdir(tempDir)
+    const orphanedFiles = entries.filter(
+      name => name.startsWith('bokeh-recording-') || name.startsWith('metadata-')
+    )
+
+    for (const file of orphanedFiles) {
+      const filePath = path.join(tempDir, file)
+      try {
+        await fs.unlink(filePath)
+        console.log(`[Recording] Cleaned up orphaned temp file: ${file}`)
+      } catch {
+        // File may be in use or already deleted, ignore
+      }
+    }
+  } catch (error) {
+    console.warn('[Recording] Failed to clean up orphaned temp files:', error)
+  }
+}
 
 const sanitizeName = (name: string): string =>
   name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
@@ -24,6 +89,9 @@ const ensureUniquePath = async (baseDir: string, baseName: string, extension: st
 }
 
 export function registerRecordingHandlers(): void {
+  // Clean up orphaned temp files from previous sessions
+  cleanupOrphanedTempFiles()
+
   ipcMain.handle('start-recording', async () => {
     return { success: true, recordingsDir: getRecordingsDirectory() }
   })
@@ -115,12 +183,7 @@ export function registerRecordingHandlers(): void {
       }
 
       // Ensure the target is within the recordings directory.
-      const within = (candidate: string, base: string) => {
-        const rel = path.relative(base, candidate)
-        return rel && !rel.startsWith('..') && !path.isAbsolute(rel)
-      }
-
-      if (!within(resolvedProjectFile, recordingsDir)) {
+      if (!isPathWithin(resolvedProjectFile, recordingsDir)) {
         return { success: false, error: 'Path outside recordings directory' }
       }
 
@@ -135,7 +198,7 @@ export function registerRecordingHandlers(): void {
         return { success: true }
       }
 
-      if (!within(projectFolder, recordingsDir)) {
+      if (!isPathWithin(projectFolder, recordingsDir)) {
         return { success: false, error: 'Invalid project folder' }
       }
 
@@ -161,12 +224,7 @@ export function registerRecordingHandlers(): void {
         return { success: false, error: 'Not a project file' }
       }
 
-      const within = (candidate: string, base: string) => {
-        const rel = path.relative(base, candidate)
-        return rel && !rel.startsWith('..') && !path.isAbsolute(rel)
-      }
-
-      if (!within(resolvedProjectFile, recordingsDir)) {
+      if (!isPathWithin(resolvedProjectFile, recordingsDir)) {
         return { success: false, error: 'Path outside recordings directory' }
       }
 
@@ -222,6 +280,12 @@ export function registerRecordingHandlers(): void {
       const stream = fsSync.createWriteStream(tempPath, { flags: 'w' })
       activeRecordings.set(tempPath, stream)
 
+      // Track last activity time for idle stream cleanup
+      streamLastActivity.set(tempPath, Date.now())
+
+      // Start cleanup interval if not already running
+      startStreamCleanup()
+
       console.log(`[Recording] Created temp file: ${tempPath}`)
       return { success: true, data: tempPath }
     } catch (error) {
@@ -239,18 +303,29 @@ export function registerRecordingHandlers(): void {
         throw new Error(`No active stream for ${filePath}`)
       }
 
+      // Update last activity time
+      streamLastActivity.set(filePath, Date.now())
+
       // Convert ArrayBuffer to Buffer if needed
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
 
       return new Promise((resolve) => {
-        stream.write(buffer, (err) => {
+        // Handle backpressure: if write returns false, wait for drain
+        const canContinue = stream.write(buffer, (err) => {
           if (err) {
             console.error(`[Recording] Write error for ${filePath}:`, err)
             resolve({ success: false, error: err.message })
-          } else {
-            resolve({ success: true })
           }
         })
+
+        if (canContinue) {
+          resolve({ success: true })
+        } else {
+          // Backpressure: wait for drain event before resolving
+          stream.once('drain', () => {
+            resolve({ success: true, backpressure: true })
+          })
+        }
       })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -265,12 +340,17 @@ export function registerRecordingHandlers(): void {
       const stream = activeRecordings.get(filePath)
       if (!stream) {
         console.warn(`[Recording] No active stream for ${filePath}, may already be finalized`)
+        // Clean up activity tracking just in case
+        streamLastActivity.delete(filePath)
+        stopStreamCleanupIfEmpty()
         return { success: true }
       }
 
       return new Promise((resolve) => {
         stream.end(() => {
           activeRecordings.delete(filePath)
+          streamLastActivity.delete(filePath)
+          stopStreamCleanupIfEmpty()
           console.log(`[Recording] Finalized: ${filePath}`)
           resolve({ success: true })
         })
@@ -379,11 +459,18 @@ export function registerRecordingHandlers(): void {
 
   // Cleanup any orphaned streams on app quit
   app.on('before-quit', () => {
-    activeRecordings.forEach((stream, path) => {
-      console.log(`[Recording] Cleaning up stream: ${path}`)
+    // Clear cleanup interval
+    if (streamCleanupInterval) {
+      clearInterval(streamCleanupInterval)
+      streamCleanupInterval = null
+    }
+
+    activeRecordings.forEach((stream, filePath) => {
+      console.log(`[Recording] Cleaning up stream: ${filePath}`)
       stream.end()
     })
     activeRecordings.clear()
+    streamLastActivity.clear()
   })
 
   // List metadata files in a recording directory

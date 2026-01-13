@@ -57,3 +57,19 @@ export function easeInOutQuad(t: number): number {
     const x = clamp01(t)
     return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2
 }
+
+/**
+ * Ease out quart - faster deceleration than cubic.
+ */
+export function easeOutQuart(t: number): number {
+    const x = clamp01(t)
+    return 1 - Math.pow(1 - x, 4)
+}
+
+/**
+ * Ease in out quart - symmetric steep easing.
+ */
+export function easeInOutQuart(t: number): number {
+    const x = clamp01(t)
+    return x < 0.5 ? 8 * x * x * x * x : 1 - Math.pow(-2 * x + 2, 4) / 2
+}

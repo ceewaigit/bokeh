@@ -7,12 +7,16 @@ describe('auto zoom generation', () => {
 
     const duration = 5000
     const clickAt = 4800
+    // Use 2 clicks in a cluster to trigger zoom (new cluster-based detection)
     const blocks = detector.detectZoomBlocks(
       [],
       1920,
       1080,
       duration,
-      [{ timestamp: clickAt, x: 100, y: 100 } as any],
+      [
+        { timestamp: clickAt - 500, x: 100, y: 100 } as any,
+        { timestamp: clickAt, x: 100, y: 100 } as any,
+      ],
       [],
       [],
       { maxZoomsPerMinute: 60, minZoomGapMs: 0 }
@@ -35,7 +39,9 @@ describe('auto zoom generation', () => {
       metadata: {
         mouseEvents: [],
         clickEvents: [
-          // Click happens near the end of the recording, but inside the trimmed clip window.
+          // Use 2 clicks in a cluster to trigger zoom (new cluster-based detection)
+          // Clicks happen near the end of the recording, inside the trimmed clip window.
+          { timestamp: 4400, x: 600, y: 400 },
           { timestamp: 4900, x: 600, y: 400 },
         ],
         keyboardEvents: [],

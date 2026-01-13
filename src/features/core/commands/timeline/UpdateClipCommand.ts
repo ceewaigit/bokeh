@@ -12,8 +12,8 @@ import type { ProjectStore } from '@/features/core/stores/project-store'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { updateClipInTrack } from '@/features/ui/timeline/clips/clip-crud'
 import { EffectInitialization } from '@/features/effects/core/initialization'
-import { PlayheadService } from '@/features/ui/timeline/playback/playhead-service'
-import { playbackService } from '@/features/ui/timeline/playback/playback-service'
+import { PlayheadService } from '@/features/playback/services/playhead-service'
+import { playbackService } from '@/features/playback/services/playback-service'
 
 export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
   private clipId: string

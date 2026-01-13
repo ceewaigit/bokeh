@@ -1,7 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { Effect } from '@/types/project'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 
 export class UpdateEffectCommand extends Command {
     private originalData: Partial<Effect> | null = null

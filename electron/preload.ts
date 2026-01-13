@@ -163,13 +163,19 @@ const electronAPI = {
   startKeyboardTracking: () => ipcRenderer.invoke('start-keyboard-tracking'),
   stopKeyboardTracking: () => ipcRenderer.invoke('stop-keyboard-tracking'),
   onKeyboardEvent: (callback: (event: IpcRendererEvent, data: any) => void) => {
-    const wrappedCallback = (event: IpcRendererEvent, data: any) => {
-      if (data && typeof data === 'object') {
-        callback(event, data)
+    // Handle batched keyboard events (performance optimization)
+    // Events are batched every 50ms to reduce IPC overhead
+    const wrappedBatchCallback = (event: IpcRendererEvent, batch: any[]) => {
+      if (!Array.isArray(batch)) return
+      // Dispatch each event in the batch to maintain API compatibility
+      for (const data of batch) {
+        if (data && typeof data === 'object') {
+          callback(event, data)
+        }
       }
     }
-    ipcRenderer.on('keyboard-event', wrappedCallback)
-    return () => ipcRenderer.removeListener('keyboard-event', wrappedCallback)
+    ipcRenderer.on('keyboard-events-batch', wrappedBatchCallback)
+    return () => ipcRenderer.removeListener('keyboard-events-batch', wrappedBatchCallback)
   },
 
   // Window appearance

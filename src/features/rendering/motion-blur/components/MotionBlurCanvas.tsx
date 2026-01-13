@@ -87,12 +87,12 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     renderScale = 1,
     velocityThreshold: _velocityThresholdProp = 0,
     rampRange: _rampRangeProp = 0.5,
-    clampRadius: _clampRadiusProp = 60,
+    clampRadius: _clampRadiusProp = 30,
     smoothWindow: _smoothWindowProp = 6,
     refocusBlurIntensity = 0,
 }) => {
-    // Velocity smoothing ref - persists across renders for fade effect
-    const prevVelocityRef = useRef({ x: 0, y: 0 });
+    // PERFORMANCE: Track allocated canvas dimensions to avoid resize thrashing during zoom-follow-mouse
+    const allocatedSizeRef = useRef({ width: 0, height: 0 });
 
     const enabled = enabledProp && (intensity > 0 || refocusBlurIntensity > 0 || forceRender);
     // Force sRGB to match video color space - P3 causes visible color mismatch
@@ -119,18 +119,17 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
 
         if (!mediaSource && containerRef?.current) {
             const video = containerRef.current.querySelector('video') as HTMLVideoElement | null;
+            // Require readyState >= 2 (HAVE_CURRENT_DATA) to ensure frame is decoded
+            // Using >= 1 caused lag on first play as GPU stalls waiting for decode
             if (video && video.readyState >= 2) {
                 mediaSource = video;
             }
         }
 
         if (!mediaSource) {
-            // If we can't resolve a media source (e.g. during a seek), avoid hiding when
-            // forcing WebGL video so the last good frame stays visible.
-            if (!forceRender) {
-                canvasEl.style.opacity = '0';
-                onVisibilityChange?.(false);
-            }
+            // Video not ready - signal that canvas is not actively rendering
+            // This allows the parent to show the video element instead of blank canvas
+            onVisibilityChange?.(false);
             return;
         }
 
@@ -167,34 +166,28 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         // ========================================================================
         // MOTION BLUR - PHYSICALLY CORRECT
         // Physics: blur_length = velocity × shutter_angle
-        // 180° shutter (0.5) is industry standard for natural motion blur
+        // 45% shutter for more dynamic, responsive blur
         // ========================================================================
-        const SHUTTER_ANGLE = 0.5;
+        const SHUTTER_ANGLE = 0.45;
 
-        // Get raw velocity (already in pixels from use-frame-snapshot.ts)
-        const rawVx = Number.isFinite(velocity.x) ? velocity.x : 0;
-        const rawVy = Number.isFinite(velocity.y) ? velocity.y : 0;
-
-        // Light smoothing to reduce jitter (simple symmetric EMA)
-        const smoothFactor = 0.3;
-        const smoothVx = prevVelocityRef.current.x + (rawVx - prevVelocityRef.current.x) * smoothFactor;
-        const smoothVy = prevVelocityRef.current.y + (rawVy - prevVelocityRef.current.y) * smoothFactor;
-        prevVelocityRef.current = { x: smoothVx, y: smoothVy };
+        // Use raw velocity directly (pre-computed in camera path, deterministic per frame)
+        const vx = Number.isFinite(velocity.x) ? velocity.x : 0;
+        const vy = Number.isFinite(velocity.y) ? velocity.y : 0;
 
         // Calculate speed for response curve
-        const rawSpeed = Math.hypot(smoothVx, smoothVy);
+        const rawSpeed = Math.hypot(vx, vy);
 
         // Non-linear response curve: compress small movements, preserve large ones
         // Formula: response = speed² / (speed² + knee²) - soft knee curve
-        // This suppresses micro-movements while preserving physics for fast motion
-        const KNEE_PX = 15;  // Velocities << 15px are compressed, >> 15px approach 1:1
+        // Higher knee = more threshold before blur activates (20px for dynamic feel)
+        const KNEE_PX = 20;
         const kneeSq = KNEE_PX * KNEE_PX;
         const speedSq = rawSpeed * rawSpeed;
         const responseMultiplier = speedSq / (speedSq + kneeSq);
 
         // Apply response curve to velocity (preserving direction)
-        const scaledVx = smoothVx * responseMultiplier;
-        const scaledVy = smoothVy * responseMultiplier;
+        const scaledVx = vx * responseMultiplier;
+        const scaledVy = vy * responseMultiplier;
 
         // Physical motion blur: velocity × shutter × user_intensity
         const validIntensity = Number.isFinite(intensity) ? intensity : 1.0;
@@ -205,24 +198,26 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const uvVelocityX = blurVx / drawWidth;
         const uvVelocityY = blurVy / drawHeight;
 
-        // Visibility: hide canvas when blur is negligible
+        // Calculate blur magnitude for mix calculations
         const blurMagnitude = Math.hypot(uvVelocityX, uvVelocityY);
-        const hasRefocusBlur = refocusBlurIntensity > 0.001;
-        const isVisible = blurMagnitude > 0.0005 || hasRefocusBlur || forceRender;
 
-        canvasEl.style.visibility = isVisible ? 'visible' : 'hidden';
-        canvasEl.style.opacity = isVisible ? '1' : '0';
-        onVisibilityChange?.(isVisible);
-
-        if (!isVisible) return;
+        // ALWAYS VISIBLE: Don't hide based on velocity threshold
+        // When velocity is 0, the shader's mix parameter will be 0, showing sharp image
+        // This prevents flickering from threshold toggling during deceleration
+        canvasEl.style.visibility = 'visible';
+        canvasEl.style.opacity = '1';
+        onVisibilityChange?.(true);
 
         // Sample count based on blur length (more samples for longer blur)
+        // Higher minimum (16) ensures smooth gradients even for short blur trails
         const blurLengthPx = Math.hypot(blurVx, blurVy);
-        const calculatedSamples = Math.max(8, Math.min(64, Math.ceil(blurLengthPx)));
+        const calculatedSamples = Math.max(16, Math.min(64, Math.ceil(blurLengthPx * 1.5)));
         const finalSamples = samples ?? calculatedSamples;
 
-        // Mix: scale blur blend based on magnitude (full blur when moving)
-        const mixRamp = clamp01(blurMagnitude * 100);
+        // Mix: scale blur blend based on magnitude using smooth ease-in curve
+        // The shader uses this to blend between sharp and blurred - handles smooth fade internally
+        const rawMix = blurMagnitude * 60;
+        const mixRamp = clamp01(rawMix * rawMix / (rawMix * rawMix + 1));
 
         // Render via WebGL controller.
         // IMPORTANT: Render the blur output in *output space* (drawWidth/drawHeight), not source space.
@@ -231,12 +226,26 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const glPixelRatio = outputScale;
 
         // Route video through a 2D canvas to match browser color-managed display.
-        // PERF: Don’t re-rasterize at full source resolution in preview; only render enough pixels
+        // PERF: Don't re-rasterize at full source resolution in preview; only render enough pixels
         // for the output canvas (drawWidth/drawHeight × DPR × renderScale).
+        //
+        // PERFORMANCE: Use hysteresis to prevent resize thrashing during zoom-follow-mouse.
+        // Canvas allocations are expensive (VRAM deallocation + reallocation).
+        // Quantize to 64px boundaries and only resize if change exceeds 5% or 64px.
+        const quantizeSize = (size: number) => Math.ceil(size / 64) * 64;
+        const shouldResize = (current: number, target: number) => {
+            if (current === 0) return true; // Initial allocation
+            const diff = Math.abs(current - target);
+            const percentDiff = diff / Math.max(current, 1);
+            return diff > 64 || percentDiff > 0.05;
+        };
+
         let webglSource: TexImageSource = mediaSource as TexImageSource;
         if (mediaSource && 'videoWidth' in mediaSource) {
-            const targetWidth = targetOutputWidth;
-            const targetHeight = targetOutputHeight;
+            // Quantize target dimensions to reduce resize frequency
+            const targetWidth = quantizeSize(targetOutputWidth);
+            const targetHeight = quantizeSize(targetOutputHeight);
+
             if (!videoCanvasRef.current) {
                 if (typeof OffscreenCanvas !== 'undefined') {
                     videoCanvasRef.current = new OffscreenCanvas(targetWidth, targetHeight);
@@ -246,14 +255,18 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                     canvas.height = targetHeight;
                     videoCanvasRef.current = canvas;
                 }
+                allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
             }
             if (videoCanvasRef.current) {
+                const allocated = allocatedSizeRef.current;
+                // Only resize if change is significant (hysteresis)
                 if (
-                    (videoCanvasRef.current as OffscreenCanvas).width !== targetWidth ||
-                    (videoCanvasRef.current as OffscreenCanvas).height !== targetHeight
+                    shouldResize(allocated.width, targetWidth) ||
+                    shouldResize(allocated.height, targetHeight)
                 ) {
                     (videoCanvasRef.current as OffscreenCanvas).width = targetWidth;
                     (videoCanvasRef.current as OffscreenCanvas).height = targetHeight;
+                    allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
                     videoCtxRef.current = null;
                 }
                 if (!videoCtxRef.current) {
@@ -269,7 +282,10 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                     } catch {
                         // Ignore if unsupported.
                     }
-                    videoCtxRef.current.drawImage(mediaSource, 0, 0, targetWidth, targetHeight);
+                    // Draw using the currently allocated canvas size
+                    const currentWidth = allocatedSizeRef.current.width;
+                    const currentHeight = allocatedSizeRef.current.height;
+                    videoCtxRef.current.drawImage(mediaSource, 0, 0, currentWidth, currentHeight);
                     webglSource = videoCanvasRef.current as TexImageSource;
                 }
             }
@@ -313,6 +329,8 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             }
             onVisibilityChange?.(true);
             if (onRender) onRender();
+        } else {
+            onVisibilityChange?.(false);
         }
         // No per-frame cleanup - let resources persist across frames for performance.
         // Cleanup only happens on unmount (separate effect below).
@@ -372,7 +390,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 height: drawHeight,
                 pointerEvents: 'none',
                 zIndex: 50,  // Below AnnotationLayer (z-index 100) - annotations should always be visible
-                opacity: 0,
+                // opacity managed by effect - start visible since effect will hide if needed
                 clipPath: undefined,
             }}
         />

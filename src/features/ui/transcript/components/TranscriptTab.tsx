@@ -1,11 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, Eye, EyeOff, Loader2, Sparkles } from 'lucide-react'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { sourceToTimeline, getSourceDuration } from '@/features/ui/timeline/time/time-space-converter'
+import { sourceToTimeline } from '@/features/ui/timeline/time/time-space-converter'
+import {
+  getRecordingDuration,
+  getTranscriptionStatus,
+  getClipSourceIn,
+  getClipSourceOut
+} from '@/features/ui/transcript/utils/transcript-accessors'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { TranscriptEditCommand } from '@/features/ui/transcript/commands/TranscriptEditCommand'
 import { TranscriptRestoreCommand } from '@/features/ui/transcript/commands/TranscriptRestoreCommand'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { EffectType, TrackType, TranscriptionStatus } from '@/types/project'
 import type { Clip, Project, Recording, RecordingMetadata, SubtitleEffect, SubtitleEffectData } from '@/types/project'
 import { OverlayAnchor } from '@/types/overlays'
@@ -74,7 +80,7 @@ const createSubtitleEffect = (recording: Recording, project: Project): SubtitleE
     id,
     type: EffectType.Subtitle,
     startTime: 0,
-    endTime: Math.max(project.timeline.duration, recording.duration ?? 0),
+    endTime: Math.max(project.timeline.duration, getRecordingDuration(recording)),
     enabled: true,
     data
   }
@@ -229,8 +235,8 @@ export function TranscriptTab() {
 
 
       clips.forEach(clip => {
-        const sourceIn = clip.sourceIn ?? 0
-        const sourceOut = clip.sourceOut ?? (sourceIn + getSourceDuration(clip))
+        const sourceIn = getClipSourceIn(clip)
+        const sourceOut = getClipSourceOut(clip)
         transcript.words.forEach(word => {
           if (word.startTime < sourceIn || word.startTime >= sourceOut) return
           const timelineStart = sourceToTimeline(word.startTime, clip)
@@ -565,7 +571,7 @@ export function TranscriptTab() {
   const handleTranscribeAll = useCallback(async () => {
     if (!selectedModel || !window.electronAPI?.transcription?.start) return
     const recordingsToTranscribe = eligibleRecordings.filter(recording => {
-      const status = recording.metadata?.transcriptionStatus ?? TranscriptionStatus.None
+      const status = getTranscriptionStatus(recording)
       if (!recording.filePath) return false
       return status !== TranscriptionStatus.Processing && status !== TranscriptionStatus.Pending
     })
@@ -624,7 +630,7 @@ export function TranscriptTab() {
     if (!executorRef.current || !project) return
     const recording = project.recordings.find(r => r.id === recordingId)
     if (!recording) return
-    const duration = recording.duration ?? 0
+    const duration = getRecordingDuration(recording)
     executorRef.current.execute(TranscriptRestoreCommand, recording.id, [
       { startTime: 0, endTime: duration }
     ])
@@ -681,7 +687,7 @@ export function TranscriptTab() {
   const isModelDownloaded = hasSelectedModel && downloadedModels.has(selectedModel)
   const isDownloadingSelected = downloadModelName === selectedModel
   const isProcessingAny = eligibleRecordings.some(recording => {
-    const status = recording.metadata?.transcriptionStatus ?? TranscriptionStatus.None
+    const status = getTranscriptionStatus(recording)
     return status === TranscriptionStatus.Processing || status === TranscriptionStatus.Pending
   })
   const hasTranscripts = eligibleRecordings.some(recording => Boolean(recording.metadata?.transcript?.words?.length))

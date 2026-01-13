@@ -354,6 +354,7 @@ export interface BoundaryOverlapState {
   isNearBoundaryStart: boolean;
   isNearBoundaryEnd: boolean;
   shouldHoldPrevFrame: boolean;
+  shouldHoldNextFrame: boolean;
   overlapFrames: number;
 }
 
@@ -388,9 +389,29 @@ export function getBoundaryOverlapState(opts: {
     !!nextLayoutItem &&
     currentFrame >= activeLayoutItem.startFrame + activeLayoutItem.durationFrames - overlapFrames;
 
-  const shouldHoldPrevFrame = isNearBoundaryStart;
+  // Gap handling: when in a gap between clips (no active item), hold the nearest clip
+  // to prevent transparency during fast scrubbing in either direction
+  const isInGap = !isRendering && !activeLayoutItem && (!!prevLayoutItem || !!nextLayoutItem);
 
-  return { isNearBoundaryStart, isNearBoundaryEnd, shouldHoldPrevFrame, overlapFrames };
+  let shouldHoldPrevFrame = isNearBoundaryStart;
+  let shouldHoldNextFrame = false;
+
+  if (isInGap) {
+    // Determine which clip to hold based on proximity
+    const prevEnd = prevLayoutItem ? prevLayoutItem.startFrame + prevLayoutItem.durationFrames : -Infinity;
+    const nextStart = nextLayoutItem ? nextLayoutItem.startFrame : Infinity;
+
+    const distToPrev = currentFrame - prevEnd;
+    const distToNext = nextStart - currentFrame;
+
+    if (prevLayoutItem && (!nextLayoutItem || distToPrev <= distToNext)) {
+      shouldHoldPrevFrame = true;
+    } else if (nextLayoutItem) {
+      shouldHoldNextFrame = true;
+    }
+  }
+
+  return { isNearBoundaryStart, isNearBoundaryEnd, shouldHoldPrevFrame, shouldHoldNextFrame, overlapFrames };
 }
 
 /**
@@ -405,6 +426,7 @@ export function getVisibleFrameLayout(opts: {
   prevLayoutItem: FrameLayoutItem | null;
   nextLayoutItem: FrameLayoutItem | null;
   shouldHoldPrevFrame: boolean;
+  shouldHoldNextFrame: boolean;
   isNearBoundaryEnd: boolean;
 }): FrameLayoutItem[] {
   const {
@@ -415,6 +437,7 @@ export function getVisibleFrameLayout(opts: {
     prevLayoutItem,
     nextLayoutItem,
     shouldHoldPrevFrame,
+    shouldHoldNextFrame,
     isNearBoundaryEnd,
   } = opts;
 
@@ -431,7 +454,7 @@ export function getVisibleFrameLayout(opts: {
   if (shouldHoldPrevFrame && prevLayoutItem) {
     items.push(prevLayoutItem);
   }
-  if (isNearBoundaryEnd && nextLayoutItem) {
+  if ((isNearBoundaryEnd || shouldHoldNextFrame) && nextLayoutItem) {
     items.push(nextLayoutItem);
   }
 

@@ -19,14 +19,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { formatClockTime } from '@/shared/utils/time'
 import { useTimelineLayout } from './timeline-layout-provider'
-import { useTimelineContext } from './TimelineContext'
+import { useTimelineContext } from './TimelineUIContext'
 import { TimelineTrackType } from '@/types/project'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 import { useSelectedClipIds } from '@/features/core/stores/selectors/clip-selectors'
-import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
-import { useTimelinePlayback } from '@/features/ui/timeline/hooks/use-timeline-playback'
+import { useTimelinePlayback } from '@/features/playback'
 import {
   Scissors,
   Play,
@@ -241,8 +240,8 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
     jumpForward1s
   } = useTimelinePlayback({ enabled: false })
 
-  // DECOUPLED: Use timeStore for timecode display (updates at 60fps)
-  const displayTime = useTimeStore((s) => s.currentTime)
+  // Subscribe to currentTime from single source of truth
+  const displayTime = useProjectStore((s) => s.currentTime)
 
   const isPlaying = useProjectStore((s) => s.isPlaying)
   const selectedClips = useSelectedClipIds()

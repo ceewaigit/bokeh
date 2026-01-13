@@ -82,6 +82,9 @@ const DEFAULT_SETTINGS: DeviceSettings = {
   }
 }
 
+// Store reference to device change handler for cleanup
+let deviceChangeHandler: (() => void) | null = null
+
 // Helper to enumerate devices
 const enumerateDevicesInternal = async (): Promise<DeviceState> => {
   if (!navigator.mediaDevices?.enumerateDevices) {
@@ -152,10 +155,12 @@ export const useDeviceStore = create<DeviceStore>()(
           get().setDevices(deviceState)
 
           if (navigator.mediaDevices?.addEventListener) {
-            navigator.mediaDevices.addEventListener('devicechange', async () => {
+            // Store reference for cleanup
+            deviceChangeHandler = async () => {
               logger.info('[DeviceStore] Device change detected')
               await get().refreshDevices()
-            })
+            }
+            navigator.mediaDevices.addEventListener('devicechange', deviceChangeHandler)
           }
 
           const currentSettings = get().settings
@@ -291,6 +296,12 @@ export const useDeviceStore = create<DeviceStore>()(
 
       cleanup: () => {
         get().stopPreview()
+        // Remove the devicechange listener
+        if (deviceChangeHandler && navigator.mediaDevices?.removeEventListener) {
+          navigator.mediaDevices.removeEventListener('devicechange', deviceChangeHandler)
+          deviceChangeHandler = null
+          logger.info('[DeviceStore] Removed devicechange listener')
+        }
         set(state => {
           state.isInitialized = false
         })
@@ -303,8 +314,3 @@ export const useDeviceStore = create<DeviceStore>()(
   )
 )
 
-// Simple selectors
-export const useWebcamSettings = () => useDeviceStore(state => state.settings.webcam)
-export const useMicrophoneSettings = () => useDeviceStore(state => state.settings.microphone)
-export const useAvailableWebcams = () => useDeviceStore(state => state.webcams)
-export const useAvailableMicrophones = () => useDeviceStore(state => state.microphones)

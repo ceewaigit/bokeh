@@ -8,6 +8,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import type { SpeedUpPeriod } from '@/types/speed-up'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 /**
  * Generate a unique key for a suggestion period
@@ -60,7 +61,7 @@ export class DismissSuggestionCommand extends PatchedCommand<{ dismissed: boolea
     draft.currentProject.timeline.dismissedSuggestions.push(this.suggestionKey)
 
     // Update modified timestamp
-    draft.currentProject.modifiedAt = new Date().toISOString()
+    markProjectModified(draft)
 
     this.setResult({
       success: true,

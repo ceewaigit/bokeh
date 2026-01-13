@@ -12,6 +12,7 @@
 import React, { useRef, useEffect, useMemo, useLayoutEffect, useState } from 'react';
 import { PlayerRef } from '@remotion/player';
 import { useProjectStore } from '@/features/core/stores/project-store';
+import { useProgressStore } from '@/features/core/stores/progress-store';
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults';
 import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store';
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
@@ -20,12 +21,12 @@ import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, PROXY_HEIGHT, PROXY_WIDT
 import type { ZoomSettings } from '@/types/remotion';
 import { assertDefined } from '@/shared/errors';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
-import { EffectStore } from '@/features/effects/core/store';
+import { EffectStore } from '@/features/effects/core/effects-store';
 import { usePlayerSync } from '@/features/ui/editor/components/preview/use-player-sync';
 import { usePreviewVisibility, usePreviewResize, useVideoPreloader } from '@/features/ui/editor/components/preview/use-preview-lifecycle';
 import { PlayerContainer } from '@/features/ui/editor/components/preview/player-container';
 import { PreviewInteractions } from '@/features/ui/editor/components/preview/preview-interactions';
-import { TimelineProvider } from '@/features/rendering/renderer/context/TimelineContext';
+import { TimelineProvider } from '@/features/rendering/renderer/context/RenderingTimelineContext';
 import { PlaybackSettingsProvider } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
 import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
 import { AnnotationDock } from '@/features/effects/annotation/ui/AnnotationDock';
@@ -47,7 +48,7 @@ export function PreviewAreaRemotion({
   // Avoid subscribing to currentTime here as it updates at 60fps.
   const storeIsPlaying = useProjectStore((s) => s.isPlaying);
   const storePause = useProjectStore((s) => s.pause);
-  const isExporting = useProjectStore((s) => s.progress.isProcessing);
+  const isExporting = useProgressStore((s) => s.isProcessing);
 
   // Track document visibility to pause playback when window loses focus.
   const { isDocumentVisible } = usePreviewVisibility(storeIsPlaying, storePause);
@@ -227,10 +228,25 @@ export function PreviewAreaRemotion({
     setGlowPortalRoot(glowPortalRootRef?.current ?? null);
   }, [glowPortalRootRef]);
 
+  // PERFORMANCE: Consolidated glow update using a single RAF-debounced ResizeObserver.
+  // Previously used RAF + setTimeout + 2 ResizeObservers + resize listener, causing massive battery drain.
+  // Now uses a single ResizeObserver with debounced RAF callback.
+  // glowIntensity is read via ref to avoid effect re-runs on slider changes.
+  const glowIntensityRef = useRef(glowIntensity);
+  const glowUpdateRef = useRef<(() => void) | null>(null);
+
+  useLayoutEffect(() => {
+    glowIntensityRef.current = glowIntensity;
+    // Trigger update when intensity changes (if update function is available)
+    glowUpdateRef.current?.();
+  }, [glowIntensity]);
+
   useLayoutEffect(() => {
     const glowRoot = glowPortalRoot;
     const anchor = glowAnchorRef.current;
     if (!glowRoot || !anchor) return;
+
+    let rafPending = false;
 
     const updateGlowStyle = () => {
       const anchorRect = anchor.getBoundingClientRect();
@@ -247,7 +263,9 @@ export function PreviewAreaRemotion({
         ? Math.max((2 * centerY) / anchorRect.height, (2 * (rootRect.height - centerY)) / anchorRect.height)
         : 1;
       const maxScale = Math.max(1, scaleX, scaleY);
-      const intensityStrength = Math.pow(Math.max(0, Math.min(1, glowIntensity)), 1.1);
+      // Read intensity from ref to avoid re-running effect on slider changes
+      const currentIntensity = glowIntensityRef.current;
+      const intensityStrength = Math.pow(Math.max(0, Math.min(1, currentIntensity)), 1.1);
       const scale = 1 + (maxScale - 1) * intensityStrength;
       const next = {
         centerX,
@@ -272,23 +290,32 @@ export function PreviewAreaRemotion({
       });
     };
 
+    // Debounced update: coalesces rapid resize/intensity events into a single RAF
+    const debouncedUpdate = () => {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        updateGlowStyle();
+      });
+    };
+
+    // Expose update function for intensity changes
+    glowUpdateRef.current = debouncedUpdate;
+
+    // Initial update
     updateGlowStyle();
-    const rafId = requestAnimationFrame(updateGlowStyle);
-    const timeoutId = window.setTimeout(updateGlowStyle, 60);
 
-    const resizeObserver = new ResizeObserver(updateGlowStyle);
+    // Single ResizeObserver on anchor (contains all relevant dimensions)
+    // ResizeObserver also fires on initial observe, covering window resize cases
+    const resizeObserver = new ResizeObserver(debouncedUpdate);
     resizeObserver.observe(anchor);
-    resizeObserver.observe(glowRoot);
-
-    window.addEventListener('resize', updateGlowStyle);
 
     return () => {
-      cancelAnimationFrame(rafId);
-      window.clearTimeout(timeoutId);
       resizeObserver.disconnect();
-      window.removeEventListener('resize', updateGlowStyle);
+      glowUpdateRef.current = null;
     };
-  }, [glowPortalRoot, glowIntensity]);
+  }, [glowPortalRoot]);
 
   // Ensure all videos are loaded
   useVideoPreloader(project);

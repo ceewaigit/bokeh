@@ -9,6 +9,7 @@ import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { findNearestAvailableStart } from '@/features/ui/timeline/utils/nearest-gap'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
+import { markModified } from '@/features/core/stores/store-utils'
 
 export const NON_OVERLAPPING_EFFECT_TYPES: ReadonlySet<EffectType> = new Set([
   EffectType.Plugin,
@@ -63,7 +64,7 @@ export const EffectStore = {
     }
 
     project.timeline.effects = [...existing, effect]
-    project.modifiedAt = new Date().toISOString()
+    markModified(project)
   },
 
   addMany(project: Project, effects: Effect[]): void {
@@ -73,7 +74,7 @@ export const EffectStore = {
       console.error('[EffectStore] Skipped effects with invalid timing during addMany')
     }
     project.timeline.effects = [...existing, ...validEffects]
-    project.modifiedAt = new Date().toISOString()
+    markModified(project)
   },
 
   remove(project: Project, effectId: string): boolean {
@@ -81,7 +82,7 @@ export const EffectStore = {
     const nextEffects = effects.filter(e => e.id !== effectId)
     if (nextEffects.length !== effects.length) {
       project.timeline.effects = nextEffects
-      project.modifiedAt = new Date().toISOString()
+      markModified(project)
       return true
     }
     return false
@@ -120,7 +121,7 @@ export const EffectStore = {
     const nextEffects = effects.slice()
     nextEffects[index] = nextEffect
     project.timeline.effects = nextEffects
-    project.modifiedAt = new Date().toISOString()
+    markModified(project)
     return true
   },
 

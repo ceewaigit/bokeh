@@ -1,8 +1,8 @@
 /**
-/**
  * PROJECT SETTINGS: Stored directly on currentProject.settings (single source)
  */
 import type { CreateSettingsSlice } from './types'
+import { markProjectModified, clearCameraPathCache } from '../store-utils'
 
 export const createSettingsSlice: CreateSettingsSlice = (set) => ({
   // =========================================================================
@@ -32,32 +32,28 @@ export const createSettingsSlice: CreateSettingsSlice = (set) => ({
   setResolution: (width, height) => set((state) => {
     if (!state.currentProject) return
     state.currentProject.settings.resolution = { width, height }
-    state.currentProject.modifiedAt = new Date().toISOString()
-    state.cameraPathCache = null
-    state.cameraPathCacheDimensions = null
+    markProjectModified(state)
+    clearCameraPathCache(state)
   }),
 
   setFramerate: (fps) => set((state) => {
     if (!state.currentProject) return
     state.currentProject.settings.frameRate = fps
-    state.currentProject.modifiedAt = new Date().toISOString()
-    state.cameraPathCache = null
-    state.cameraPathCacheDimensions = null
+    markProjectModified(state)
+    clearCameraPathCache(state)
   }),
 
   setAudioSettings: (updates) => set((state) => {
     if (!state.currentProject) return
     Object.assign(state.currentProject.settings.audio, updates)
-    state.currentProject.modifiedAt = new Date().toISOString()
+    markProjectModified(state)
   }),
 
   setCameraSettings: (updates) => set((state) => {
     if (!state.currentProject) return
     Object.assign(state.currentProject.settings.camera, updates)
-    state.currentProject.modifiedAt = new Date().toISOString()
-    // Invalidate camera path cache to trigger recalculation
-    state.cameraPathCache = null
-    state.cameraPathCacheDimensions = null
+    markProjectModified(state)
+    clearCameraPathCache(state)
   }),
 
   // =========================================================================

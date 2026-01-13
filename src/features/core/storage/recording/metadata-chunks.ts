@@ -1,6 +1,6 @@
 import { logger } from '@/shared/utils/logger'
 import type { RecordingMetadata } from '@/types/project'
-import { joinRendererPath } from './renderer-path'
+import { joinRendererPath } from '../renderer-path'
 
 // Filesystem: save metadata as chunked JSON files under recording folder
 export const saveMetadataChunks = async (

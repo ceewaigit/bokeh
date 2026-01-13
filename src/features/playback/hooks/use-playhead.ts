@@ -9,7 +9,7 @@
  */
 import { useRef, useMemo } from 'react'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { PlayheadService, type PlayheadState } from '@/features/ui/timeline/playback/playhead-service'
+import { PlayheadService, type PlayheadState } from '../services/playhead-service'
 
 /**
  * Hook to get computed playhead state.

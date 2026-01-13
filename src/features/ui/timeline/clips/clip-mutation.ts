@@ -1,5 +1,6 @@
 import type { Project, Track } from '@/types/project'
 import { calculateTimelineDuration, reflowClips } from './clip-reflow'
+import { markModified } from '@/features/core/stores/store-utils'
 
 /**
  * Wrapper for clip mutations that handles reflow and timeline duration updates.
@@ -13,7 +14,7 @@ export function withMutation<T>(
   const result = mutation()
   if (track) reflowClips(track)
   project.timeline.duration = calculateTimelineDuration(project)
-  project.modifiedAt = new Date().toISOString()
+  markModified(project)
   return result
 }
 

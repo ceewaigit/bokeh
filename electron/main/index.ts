@@ -14,6 +14,8 @@ import { createRecordButton, setupRecordButton } from './windows/record-button'
 import { PermissionService } from './services/permission-service'
 import { registerRecordingHandlers } from './ipc/recording'
 import { registerSourceHandlers } from './ipc/sources'
+import { registerWallpaperHandlers } from './ipc/wallpapers'
+import { registerImagePickerHandlers } from './ipc/image-picker'
 import { registerAreaSelectionHandlers } from './ipc/area-selection'
 import { registerPermissionHandlers } from './ipc/permissions'
 import { registerMouseTrackingHandlers, cleanupMouseTracking } from './ipc/mouse-tracking'
@@ -21,9 +23,14 @@ import { registerKeyboardTrackingHandlers, cleanupKeyboardTracking } from './ipc
 import { registerFileOperationHandlers } from './ipc/file-operations'
 import { registerDialogHandlers } from './ipc/dialogs'
 import { registerWindowControlHandlers } from './ipc/window-controls'
+import { registerOverlayWindowHandlers } from './ipc/overlay-windows'
+import { registerRecordingWindowHandlers } from './ipc/recording-windows'
+import { registerUtilityWindowHandlers } from './ipc/utility-windows'
+import { registerDesktopIconHandlers } from './ipc/desktop-icons'
 import { registerWindowSurfaceHandlers } from './ipc/window-surface'
 import { setupNativeRecorder } from './ipc/native-recorder'
 import { setupExportHandler, cleanupBundleCache } from './export'
+import { closeVideoServer } from './services/video-http-server'
 import { setupThumbnailHandler } from './ipc/thumbnail'
 import { killRemotionChromiumProcesses } from './utils/remotion-chromium-cleanup'
 import { registerAssetHandlers } from './ipc/assets'
@@ -93,6 +100,8 @@ function registerAllHandlers(): void {
 
   registerRecordingHandlers()
   registerSourceHandlers()
+  registerWallpaperHandlers()
+  registerImagePickerHandlers()
   registerAreaSelectionHandlers()
   registerPermissionHandlers()
   registerMouseTrackingHandlers()
@@ -100,6 +109,10 @@ function registerAllHandlers(): void {
   registerFileOperationHandlers()
   registerDialogHandlers()
   registerWindowControlHandlers()
+  registerOverlayWindowHandlers()
+  registerRecordingWindowHandlers()
+  registerUtilityWindowHandlers()
+  registerDesktopIconHandlers()
   registerWindowSurfaceHandlers()
   registerAssetHandlers()
   registerBokehProcessHandlers()
@@ -245,6 +258,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   // Ensure chromium processes are terminated even if windows remain (macOS).
   killRemotionChromiumProcesses()
+  // Close the video HTTP server
+  closeVideoServer()
 })
 
 process.on('uncaughtException', (error: Error) => {

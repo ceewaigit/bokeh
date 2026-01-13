@@ -3,7 +3,7 @@
  */
 
 import { staticFile, getRemotionEnvironment } from 'remotion';
-import { CursorTheme } from '@/types/project';
+import { CursorTheme } from '../types';
 
 export enum CursorType {
   ARROW = 'arrow',

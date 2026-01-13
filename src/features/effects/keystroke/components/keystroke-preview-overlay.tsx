@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { KeyboardEvent, KeystrokeEffectData } from '@/types/project';
-import { KeystrokePosition } from '@/types/project';
+import { KeystrokePosition } from '../types';
 import { OverlayAnchor } from '@/types/overlays';
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config';
 import { getOverlayAnchorStyle } from '@/features/rendering/overlays/anchor-utils';

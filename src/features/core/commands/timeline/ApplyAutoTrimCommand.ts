@@ -10,13 +10,14 @@ import { CommandContext } from '../base/CommandContext'
 import { EffectType } from '@/types/project'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
-import { ActivityDetectionService } from '@/features/ui/timeline/activity-detection/detection-service'
+import { ActivityDetectionService } from '@/features/media/analysis/detection-service'
 import { SpeedUpType } from '@/types/speed-up'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { reflowClips, calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 export interface AutoTrimOptions {
     trimStart: boolean
@@ -182,7 +183,7 @@ export class ApplyAutoTrimCommand extends PatchedCommand<{
 
         // Update timeline duration
         draft.currentProject.timeline.duration = calculateTimelineDuration(draft.currentProject)
-        draft.currentProject.modifiedAt = new Date().toISOString()
+        markProjectModified(draft)
 
         // Sync keystroke effects
         EffectInitialization.syncKeystrokeEffects(draft.currentProject)

@@ -6,7 +6,7 @@
 import type { Timeline, Clip, Recording, Effect, Project } from '@/types'
 import { TrackType } from '@/types'
 import { logger } from '@/shared/utils/logger'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 
 export interface TimelineSegment {
   id: string

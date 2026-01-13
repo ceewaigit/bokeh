@@ -9,7 +9,10 @@ export enum ScreenEffectPreset {
   Isometric = 'isometric',
   Flat = 'flat',
   TiltLeft = 'tilt-left',
-  TiltRight = 'tilt-right'
+  TiltRight = 'tilt-right',
+  TableView = 'table-view',
+  Showcase = 'showcase',
+  FloatingCard = 'floating-card'
 }
 
 export interface ScreenEffectData {

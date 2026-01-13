@@ -32,7 +32,6 @@ export interface ParsedZoomBlock {
 // Cache parsed zoom blocks per effects array reference.
 // Important: Do NOT sort/reorder blocks here, since overlapping blocks rely on original ordering.
 const zoomBlocksCache = new WeakMap<Effect[], ParsedZoomBlock[]>()
-let lastLookup: { blocks: ParsedZoomBlock[]; result: ParsedZoomBlock | undefined } | null = null
 
 const ZOOM_BLOCK_END_EPSILON_MS = 40
 const ZOOM_BLOCK_START_EPSILON_MS = 40
@@ -208,44 +207,28 @@ function normalizeZoomIntoCursorMode(
  * Supports fuzzy matching for gaps/rounding at block boundaries.
  */
 export function getZoomBlockAtTime(zoomBlocks: ParsedZoomBlock[], timelineMs: number): ParsedZoomBlock | undefined {
-    if (lastLookup?.blocks === zoomBlocks && lastLookup.result) {
-        const block = lastLookup.result
-        if (timelineMs >= block.startTime && timelineMs <= block.endTime) {
-            return block
-        }
-    }
-
     // 1. Strict match (preferred)
     const exact = zoomBlocks.find(b => timelineMs >= b.startTime && timelineMs <= b.endTime)
-    if (exact) {
-        lastLookup = { blocks: zoomBlocks, result: exact }
-        return exact
-    }
+    if (exact) return exact
 
-    // 2. Fuzzy match (gaps/rounding)
-    // Find block with smallest distance to timelineMs
+    // 2. Fuzzy match (gaps/rounding) - find block with smallest distance to timelineMs
     let best: ParsedZoomBlock | undefined
     let minDist = Infinity
 
     for (const b of zoomBlocks) {
         // Check post-roll (timelineMs > endTime)
         const distEnd = timelineMs - b.endTime
-        if (distEnd > 0 && distEnd <= ZOOM_BLOCK_END_EPSILON_MS) {
-            if (distEnd < minDist) {
-                minDist = distEnd
-                best = b
-            }
+        if (distEnd > 0 && distEnd <= ZOOM_BLOCK_END_EPSILON_MS && distEnd < minDist) {
+            minDist = distEnd
+            best = b
         }
 
         // Check pre-roll (timelineMs < startTime)
         const distStart = b.startTime - timelineMs
-        if (distStart > 0 && distStart <= ZOOM_BLOCK_START_EPSILON_MS) {
-            if (distStart < minDist) {
-                minDist = distStart
-                best = b
-            }
+        if (distStart > 0 && distStart <= ZOOM_BLOCK_START_EPSILON_MS && distStart < minDist) {
+            minDist = distStart
+            best = b
         }
     }
-    lastLookup = { blocks: zoomBlocks, result: best }
     return best
 }

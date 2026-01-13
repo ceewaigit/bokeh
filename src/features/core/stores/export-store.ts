@@ -3,7 +3,14 @@ import { ExportFormat } from '@/types/project'
 import { ExportEngine } from '@/features/core/export/export-engine'
 import type { ExportSettings } from '@/types/export'
 import type { Project } from '@/types/project'
-import { useProjectStore } from './project-store'
+import { useProgressStore } from './progress-store'
+
+/**
+ * Export Store
+ *
+ * Manages export operations and state.
+ * Uses the independent useProgressStore for progress updates.
+ */
 
 interface ExportStore {
   engine: ExportEngine | null
@@ -33,6 +40,15 @@ export const useExportStore = create<ExportStore>((set, get) => {
     return engine
   }
 
+  // Helper to update progress with clamping
+  const updateProgress = (progress: { progress: number; message: string; eta?: number }) => {
+    useProgressStore.getState().setProgress(
+      Math.max(0, Math.min(100, progress.progress)),
+      progress.message,
+      progress.eta
+    )
+  }
+
   return {
     engine: null,
     lastExport: null,
@@ -43,8 +59,8 @@ export const useExportStore = create<ExportStore>((set, get) => {
     exportProject: async (project, settings) => {
       set({ lastExport: null, lastExportSettings: settings })
 
-      // Start unified progress
-      useProjectStore.getState().startProcessing('Exporting Project...')
+      // Start progress
+      useProgressStore.getState().startProcessing('Exporting Project...')
 
       try {
         // Use the new unified export engine that handles everything
@@ -53,14 +69,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
         const result = await engine.exportProject(
           project,
           settings,
-          (progress) => {
-            // Update unified progress
-            useProjectStore.getState().setProgress(
-              Math.max(0, Math.min(100, progress.progress)),
-              progress.message,
-              progress.eta
-            )
-          }
+          updateProgress
         )
 
         // Validate result thoroughly
@@ -75,11 +84,11 @@ export const useExportStore = create<ExportStore>((set, get) => {
         })
 
         // Finish unified progress
-        useProjectStore.getState().finishProcessing('Export complete')
+        useProgressStore.getState().finishProcessing('Export complete')
 
       } catch (error) {
         // Fail unified progress
-        useProjectStore.getState().failProcessing(error instanceof Error ? error.message : 'Export failed')
+        useProgressStore.getState().failProcessing(error instanceof Error ? error.message : 'Export failed')
       }
     },
 
@@ -96,20 +105,13 @@ export const useExportStore = create<ExportStore>((set, get) => {
       set({ lastExport: null, lastExportSettings: gifSettings })
 
       // Start unified progress
-      useProjectStore.getState().startProcessing('Exporting GIF...')
+      useProgressStore.getState().startProcessing('Exporting GIF...')
 
       try {
         const result = await engine.exportProject(
           project,
           gifSettings,
-          (progress) => {
-            // Update unified progress
-            useProjectStore.getState().setProgress(
-              Math.max(0, Math.min(100, progress.progress)),
-              progress.message,
-              progress.eta
-            )
-          }
+          updateProgress
         )
 
         if (!result || !(result instanceof Blob)) {
@@ -121,11 +123,11 @@ export const useExportStore = create<ExportStore>((set, get) => {
         })
 
         // Finish unified progress
-        useProjectStore.getState().finishProcessing('GIF export complete')
+        useProgressStore.getState().finishProcessing('GIF export complete')
 
       } catch (error) {
         // Fail unified progress
-        useProjectStore.getState().failProcessing(error instanceof Error ? error.message : 'GIF export failed')
+        useProgressStore.getState().failProcessing(error instanceof Error ? error.message : 'GIF export failed')
       }
     },
 
@@ -137,7 +139,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
       } catch (e) {
         console.error('Failed to cancel export:', e)
       }
-      useProjectStore.getState().resetProgress()
+      useProgressStore.getState().resetProgress()
       set({ lastExport: null })
     },
 
@@ -181,7 +183,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
 
     reset: () => {
       // Reset state - this will release the lastExport blob reference
-      useProjectStore.getState().resetProgress()
+      useProgressStore.getState().resetProgress()
       set({ lastExport: null, lastExportSettings: null })
     }
   }

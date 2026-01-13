@@ -12,7 +12,7 @@ import { EffectType } from '@/types/project'
 import { sourceToTimeline, getSourceDuration } from '@/features/ui/timeline/time/time-space-converter'
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 
 // Configuration
 const MAX_GAP_MS = 2000 // Max gap between keys to be in same cluster

@@ -3,11 +3,11 @@
  *
  * This file now delegates to TimelineContext.tsx.
  * It maintains the existing API (useComposition)
- * but consumes data from the unified TimelineContext.
+ * but consumes data from the unified RenderingTimelineContext.
  */
 
-import { useTimelineContext } from './TimelineContext';
-import type { TimelineContextValue } from './TimelineContext';
+import { useTimelineContext } from './RenderingTimelineContext';
+import type { TimelineContextValue } from './RenderingTimelineContext';
 
 // Re-export the interface (it matches TimelineContextValue structural subset/superset)
 // NOTE: We alias it to keep downstream imports working.

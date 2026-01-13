@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Sun, Moon, Monitor, ChevronRight, Settings2 } from "lucide-react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -40,7 +40,7 @@ interface AppearanceToggleProps {
 }
 
 export function AppearanceToggle({
-    align = "end",
+    align = "start",
     className,
 }: AppearanceToggleProps) {
     const { theme, setTheme } = useTheme()
@@ -80,10 +80,41 @@ export function AppearanceToggle({
 
     const ThemeIcon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor
 
+    const [isOpen, setIsOpen] = useState(false)
+    const containerRef = useRef<HTMLDivElement>(null)
+
+    // Reset advanced panel when dropdown closes
+    const handleOpenChange = (open: boolean) => {
+        setIsOpen(open)
+        if (!open) {
+            setShowAdvanced(false)
+        }
+    }
+
+    // Fallback click-outside handler for Electron drag regions
+    useEffect(() => {
+        if (!isOpen) return
+
+        const handleClickOutside = (e: MouseEvent) => {
+            // Check if click is outside the container
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                // Also check if click is not on the dropdown portal content
+                const dropdownContent = document.querySelector('[data-radix-popper-content-wrapper]')
+                if (dropdownContent && !dropdownContent.contains(e.target as Node)) {
+                    setIsOpen(false)
+                }
+            }
+        }
+
+        // Use capture phase to catch events before drag regions
+        document.addEventListener('mousedown', handleClickOutside, true)
+        return () => document.removeEventListener('mousedown', handleClickOutside, true)
+    }, [isOpen])
+
     return (
-        <div className={cn("flex items-center", className)}>
+        <div ref={containerRef} className={cn("flex items-center", className)}>
             {/* Dropdown for theme + glassmorphism - combined into single button */}
-            <DropdownMenu>
+            <DropdownMenu open={isOpen} onOpenChange={handleOpenChange} modal={true}>
                 <DropdownMenuTrigger asChild>
                     <motion.button
                         className={cn(
@@ -101,7 +132,13 @@ export function AppearanceToggle({
                         <ThemeIcon className="w-3.5 h-3.5" />
                     </motion.button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align={align} className="w-56">
+                <DropdownMenuContent
+                    align={align}
+                    className="w-56"
+                    onPointerDownOutside={() => setIsOpen(false)}
+                    onEscapeKeyDown={() => setIsOpen(false)}
+                    onInteractOutside={() => setIsOpen(false)}
+                >
                     {/* Theme selector */}
                     <DropdownMenuLabel className="text-xs">Theme</DropdownMenuLabel>
                     <DropdownMenuRadioGroup

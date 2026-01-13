@@ -1,11 +1,12 @@
 import type { Project, RecordingMetadata, Clip } from '@/types/project'
 import { EffectType, BackgroundType } from '@/types/project'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { DEFAULT_MOCKUP_DATA } from '@/shared/constants/device-mockups'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { getDefaultWallpaper } from '@/features/effects/background'
 import { detectZoomEffects, DEFAULT_EFFECT_GENERATION_CONFIG, type EffectGenerationConfig } from './effect-detector'
+import { markModified } from '@/features/core/stores/store-utils'
 
 /** Result of regeneration with detected trim opportunities */
 export interface RegenerationResult {
@@ -181,7 +182,7 @@ export function regenerateProjectEffects(
     }
 
     EffectInitialization.syncKeystrokeEffects(project, metadataByRecordingId)
-    project.modifiedAt = new Date().toISOString()
+    markModified(project)
 
     return {
         trimSuggestions: Array.from(trimSuggestions.values())

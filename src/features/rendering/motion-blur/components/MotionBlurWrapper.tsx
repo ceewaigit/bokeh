@@ -11,7 +11,7 @@
  * - Preview: falls back to DOM discovery + requestVideoFrameCallback
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MotionBlurCanvas } from './MotionBlurCanvas';
 
 export interface MotionBlurWrapperProps {
@@ -86,13 +86,11 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     clampRadius,
     smoothWindow,
     refocusBlurIntensity,
-    isScrubbing = false,
+    isScrubbing: _isScrubbing = false,  // No longer used - canvas always renders
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [webglReady, setWebglReady] = useState(false);
-    const [hasFreshFrame, setHasFreshFrame] = useState(false);
     const [canvasVisible, setCanvasVisible] = useState(false);
-    const freshFrameTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (!useWebglVideo) {
@@ -103,45 +101,18 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     const hasRefocusBlur = (refocusBlurIntensity ?? 0) > 0.001;
     const forceRender = Boolean(isRendering && useWebglVideo);
 
-    // Keep canvas mounted whenever blur is enabled - let canvas handle its own opacity via smoothing
-    // This prevents smoothing ref destruction and allows natural fade-out
-    const shouldRenderCanvas = Boolean(enabled && !isScrubbing && ((intensity ?? 1) > 0 || hasRefocusBlur || forceRender));
-    const shouldHideVideo = Boolean(useWebglVideo && enabled && shouldRenderCanvas && !isScrubbing);
+    // SIMPLIFIED: Canvas always renders when enabled - no scrubbing check, no timeouts
+    // Motion blur visibility is determined purely by velocity (deterministic per frame)
+    const shouldRenderCanvas = Boolean(enabled && ((intensity ?? 1) > 0 || hasRefocusBlur || forceRender));
+    const shouldHideVideo = Boolean(useWebglVideo && enabled && shouldRenderCanvas);
+
 
     useEffect(() => {
         if (!shouldHideVideo) {
             setWebglReady(false);
-            setHasFreshFrame(false);
             setCanvasVisible(false);
-            if (freshFrameTimeoutRef.current !== null) {
-                window.clearTimeout(freshFrameTimeoutRef.current);
-                freshFrameTimeoutRef.current = null;
-            }
         }
     }, [shouldHideVideo]);
-
-    const handleCanvasRender = useCallback(() => {
-        setHasFreshFrame(true);
-        if (freshFrameTimeoutRef.current !== null) {
-            window.clearTimeout(freshFrameTimeoutRef.current);
-        }
-        // If WebGL rendering stalls (missing video element during seek, etc.),
-        // fall back to the native <video> so preview never "disappears".
-        // PERF: Increased from 120ms to 250ms to prevent flickering during frame drops
-        freshFrameTimeoutRef.current = window.setTimeout(() => {
-            setHasFreshFrame(false);
-            freshFrameTimeoutRef.current = null;
-        }, 250);
-    }, []);
-
-    useEffect(() => {
-        return () => {
-            if (freshFrameTimeoutRef.current !== null) {
-                window.clearTimeout(freshFrameTimeoutRef.current);
-                freshFrameTimeoutRef.current = null;
-            }
-        };
-    }, []);
 
     return (
         <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -150,13 +121,9 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                 style={{
                     width: '100%',
                     height: '100%',
-                    opacity: shouldHideVideo
-                        ? (
-                            isRendering
-                              ? (webglReady ? 0 : 1)
-                              : (canvasVisible && hasFreshFrame ? 0 : 1)
-                          )
-                        : 1,
+                    // SIMPLIFIED: Hide video when WebGL canvas is visible and ready
+                    // No timeout-based fresh frame tracking - just use canvas visibility state
+                    opacity: shouldHideVideo && canvasVisible && webglReady ? 0 : 1,
                 }}
             >
                 {children}
@@ -177,9 +144,6 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
                     onRender={() => {
                         if (shouldHideVideo) {
                             setWebglReady(true);
-                        }
-                        if (!isRendering) {
-                            handleCanvasRender();
                         }
                     }}
                     onVisibilityChange={setCanvasVisible}

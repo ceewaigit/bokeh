@@ -42,12 +42,47 @@ export class MotionBlurController {
     /**
      * Pre-warm the WebGL context during project loading.
      * Call this before the workspace appears to avoid lag on first frame render.
+     *
+     * IMPORTANT: This now renders a tiny test frame to force shader compilation.
+     * Without this, shaders are compiled lazily on first actual render, causing lag.
      */
     public static warmUp(): void {
         // Force singleton instantiation which triggers initWebGL() in constructor
         const instance = MotionBlurController.instance;
-        // Flush the GPU pipeline to ensure shader compilation is complete
         if (instance.gl && !instance.gl.isContextLost()) {
+            // Force shader compilation by rendering a tiny test frame
+            // This compiles vertex + fragment shaders, links the program,
+            // binds textures, and executes the first draw call - all the
+            // expensive GPU operations that would otherwise cause first-frame lag.
+            try {
+                const dummyCanvas = new OffscreenCanvas(1, 1);
+                const ctx = dummyCanvas.getContext('2d');
+                if (ctx) {
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, 1, 1);
+                }
+
+                // Call render with minimal data to compile shaders
+                instance.render(dummyCanvas, 1, 1, {
+                    uvVelocityX: 0,
+                    uvVelocityY: 0,
+                    intensity: 0,
+                    samples: 1,
+                    mix: 0,
+                    gamma: 1,
+                    blackLevel: 0,
+                    saturation: 1,
+                    colorSpace: 'srgb',
+                    unpackPremultiplyAlpha: false,
+                    linearize: false,
+                    pixelRatio: 1,
+                    refocusBlur: 0,
+                });
+            } catch {
+                // Ignore warmup errors - first render will still work
+            }
+
+            // Flush the GPU pipeline to ensure shader compilation is complete
             instance.gl.flush();
         }
     }

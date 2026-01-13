@@ -16,7 +16,8 @@ import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-appli
 import { syncKeystrokeEffects } from '@/features/effects/sync'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
-import { playbackService } from '@/features/ui/timeline/playback/playback-service'
+import { playbackService } from '@/features/playback/services/playback-service'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 export class ApplySpeedUpCommand extends PatchedCommand<{
   applied: number // number of clips affected
@@ -88,7 +89,7 @@ export class ApplySpeedUpCommand extends PatchedCommand<{
     syncKeystrokeEffects(draft.currentProject)
 
     // Update modified timestamp
-    draft.currentProject.modifiedAt = new Date().toISOString()
+    markProjectModified(draft)
 
     // Ensure playhead is within valid range after timeline changes
     const newTimelineDuration = calculateTimelineDuration(draft.currentProject)

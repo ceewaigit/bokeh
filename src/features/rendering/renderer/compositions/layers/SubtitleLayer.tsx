@@ -4,7 +4,7 @@ import type { Effect, Clip, Recording } from '@/types/project'
 import type { SubtitleEffectData, TranscriptWord } from '@/types/project'
 import { OverlayAnchor } from '@/types/overlays'
 import { EffectType } from '@/types/project'
-import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
+import { useTimelineContext } from '@/features/rendering/renderer/context/RenderingTimelineContext'
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context'
 import { getOverlayAnchorStyle } from '@/features/rendering/overlays/anchor-utils'
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
@@ -13,7 +13,7 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import type { SourceTimeRange } from '@/types/project'
 import { timelineToSource } from '@/features/ui/timeline/time/time-space-converter'
 import { getHighlightWeight, mixColors, scaleAlpha } from './subtitle-highlight'
-import { findSubtitleWordIndex, getVisibleSubtitleWords } from '@/features/rendering/overlays/subtitle-words'
+import { filterWordsByClipBounds, findSubtitleWordIndex, getVisibleSubtitleWords } from '@/features/rendering/overlays/subtitle-words'
 
 function applyOpacity(color: string, opacity?: number): string {
   if (opacity == null) return color
@@ -220,10 +220,17 @@ const SubtitleEffectRenderer = React.memo<{
 
   if (!activeClip) return null
 
-  // 6. Source Time Calculation
+  // 6. Filter words by clip's source window (aligns with TranscriptTab filtering)
+  const sourceIn = activeClip.sourceIn ?? 0
+  const sourceOut = activeClip.sourceOut ?? Infinity
+  const clipBoundedWords = filterWordsByClipBounds(visibleWords, sourceIn, sourceOut)
+
+  if (clipBoundedWords.length === 0) return null
+
+  // 7. Source Time Calculation
   const sourceTimeMs = timelineToSource(currentTimeMs, activeClip)
 
-  const currentIndex = findSubtitleWordIndex(visibleWords, sourceTimeMs)
+  const currentIndex = findSubtitleWordIndex(clipBoundedWords, sourceTimeMs)
   if (currentIndex === -1) return null
 
   // 8. Render Logic (Lightweight)
@@ -231,11 +238,11 @@ const SubtitleEffectRenderer = React.memo<{
   const transitionMs = data.transitionMs ?? 140
   const highlightStyle = data.highlightStyle ?? 'color'
   const { start, end } = getWordWindow(
-    visibleWords,
+    clipBoundedWords,
     currentIndex,
     wordsPerLine
   )
-  const windowWords = visibleWords.slice(start, end)
+  const windowWords = clipBoundedWords.slice(start, end)
 
   // Subtitles span the full composition - they are UI overlays, not video content
   const maxWidthPercent = data.maxWidth ?? 80

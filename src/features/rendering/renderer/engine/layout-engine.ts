@@ -113,6 +113,8 @@ export interface FrameSnapshot {
     camera: {
         zoomTransform: Record<string, unknown> | null
         velocity: { x: number; y: number }
+        /** Precomputed motion blur mix factor (0-1), deterministic per frame */
+        motionBlurMix: number
     }
 
     // Zoom limits
@@ -175,6 +177,7 @@ export interface FrameSnapshotOptions {
         prevLayoutItem: FrameLayoutItem | null;
         nextLayoutItem: FrameLayoutItem | null;
         shouldHoldPrevFrame: boolean;
+        shouldHoldNextFrame?: boolean;
         overlapFrames?: number;
     }
 
@@ -647,6 +650,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
         camera: {
             zoomTransform: isEditingCrop ? null : zoomTransform,
             velocity: { x: 0, y: 0 }, // Caller should update from camera path
+            motionBlurMix: 0, // Caller should update from camera path
         },
 
         maxZoomScale,
@@ -659,6 +663,7 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
             isNearBoundaryStart: boundaryState.isNearBoundaryStart,
             isNearBoundaryEnd: boundaryState.isNearBoundaryEnd,
             shouldHoldPrevFrame: boundaryState.shouldHoldPrevFrame,
+            shouldHoldNextFrame: boundaryState.shouldHoldNextFrame ?? false,
             overlapFrames: boundaryState.overlapFrames || 0
         } : undefined,
 
@@ -740,7 +745,7 @@ function calculateEffectiveClipData(options: {
 
     // 1. BOUNDARY FALLBACK
     if (!clipData && !isRendering && boundaryState) {
-        const { isNearBoundaryStart, isNearBoundaryEnd, prevLayoutItem, nextLayoutItem, activeLayoutItem } = boundaryState;
+        const { isNearBoundaryStart, isNearBoundaryEnd, prevLayoutItem, nextLayoutItem, activeLayoutItem, shouldHoldPrevFrame } = boundaryState;
 
         if (isNearBoundaryStart && prevLayoutItem && activeLayoutItem) {
             clipData = getActiveClipDataAtFrame({
@@ -751,6 +756,26 @@ function calculateEffectiveClipData(options: {
                 getRecording,
             });
         } else if (isNearBoundaryEnd && nextLayoutItem) {
+            clipData = getActiveClipDataAtFrame({
+                frame: nextLayoutItem.startFrame,
+                frameLayout,
+                fps,
+                effects,
+                getRecording,
+            });
+        } else if (!activeLayoutItem && prevLayoutItem && shouldHoldPrevFrame) {
+            // Gap case (closer to prev): hold the previous frame
+            // Use the last frame of the previous clip to prevent transparency during fast scrubbing
+            clipData = getActiveClipDataAtFrame({
+                frame: prevLayoutItem.startFrame + prevLayoutItem.durationFrames - 1,
+                frameLayout,
+                fps,
+                effects,
+                getRecording,
+            });
+        } else if (!activeLayoutItem && nextLayoutItem && boundaryState.shouldHoldNextFrame) {
+            // Gap case (closer to next): hold the next frame
+            // Use the first frame of the next clip to prevent transparency during fast scrubbing backward
             clipData = getActiveClipDataAtFrame({
                 frame: nextLayoutItem.startFrame,
                 frameLayout,
@@ -843,6 +868,7 @@ function calculateRenderableItems(options: FrameSnapshotOptions): FrameLayoutIte
     // Default to safe values if boundary state is missing
     const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false
     const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false
+    const shouldHoldNextFrame = boundaryState?.shouldHoldNextFrame ?? false
     const prevLayoutItem = boundaryState?.prevLayoutItem ?? null
     const nextLayoutItem = boundaryState?.nextLayoutItem ?? null
 
@@ -854,6 +880,7 @@ function calculateRenderableItems(options: FrameSnapshotOptions): FrameLayoutIte
         prevLayoutItem,
         nextLayoutItem,
         shouldHoldPrevFrame,
+        shouldHoldNextFrame,
         isNearBoundaryEnd,
     });
 

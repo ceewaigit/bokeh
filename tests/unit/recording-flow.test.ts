@@ -424,41 +424,6 @@ describe('RecordingService Toggle API', () => {
   })
 })
 
-describe('Session Store Toggle State', () => {
-  it('should track webcam and microphone toggle states', async () => {
-    const { useRecordingSessionStore } = await import('@/features/media/recording/store/session-store')
-
-    const store = useRecordingSessionStore.getState()
-
-    // Initial state
-    expect(store.isWebcamToggledOff).toBe(false)
-    expect(store.isMicrophoneToggledOff).toBe(false)
-
-    // Toggle webcam
-    store.setWebcamToggledOff(true)
-    expect(useRecordingSessionStore.getState().isWebcamToggledOff).toBe(true)
-
-    // Toggle microphone
-    store.setMicrophoneToggledOff(true)
-    expect(useRecordingSessionStore.getState().isMicrophoneToggledOff).toBe(true)
-
-    // Reset via setRecording(false)
-    store.setRecording(false)
-    expect(useRecordingSessionStore.getState().isWebcamToggledOff).toBe(false)
-    expect(useRecordingSessionStore.getState().isMicrophoneToggledOff).toBe(false)
-  })
-
-  it('should reset toggle states on full reset', async () => {
-    const { useRecordingSessionStore } = await import('@/features/media/recording/store/session-store')
-
-    const store = useRecordingSessionStore.getState()
-
-    store.setWebcamToggledOff(true)
-    store.setMicrophoneToggledOff(true)
-
-    store.reset()
-
-    expect(useRecordingSessionStore.getState().isWebcamToggledOff).toBe(false)
-    expect(useRecordingSessionStore.getState().isMicrophoneToggledOff).toBe(false)
-  })
-})
+// Note: Toggle state is now managed solely by RecordingService, not session-store.
+// Session-store only tracks isRecording, isPaused, duration, and settings.
+// Tests for toggle state should use RecordingService directly via the useRecording hook.

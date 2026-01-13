@@ -11,20 +11,12 @@ import { CAMERA_CONFIG } from '@/shared/config/physics-config'
 import { binarySearchEvents } from '@/features/rendering/canvas/math'
 
 const {
-    dwellTriggerMs: DWELL_TRIGGER_MS,
+    dwellTriggerMs: _DWELL_TRIGGER_MS,
 } = CAMERA_CONFIG
 
 /**
  * Calculate Smoothed Attractor Position
- * 
- * Instead of pre-calculating clusters, this function dynamically determines
- * if the camera should "lock" to a dwell point based on instantaneous velocity.
- * 
- * @param mouseEvents - Full history of mouse events
- * @param timeMs - Current playback time
- * @param _videoWidth - Video dimensions (for normalization if needed)
- * @param _videoHeight - Video dimensions
- * @param _smoothingAmount - 0-100 UI value
+ * Simple: return cursor position. Let exponential smoothing handle the rest.
  */
 export function calculateAttractor(
     mouseEvents: MouseEvent[],
@@ -35,47 +27,13 @@ export function calculateAttractor(
 ): { x: number; y: number; velocity: number; isDwelling: boolean } | null {
     if (mouseEvents.length === 0) return null
 
-    // 1. Get current raw position and velocity
-    // We look at a small window around the current time to get instant velocity
-    const windowMs = 100 // Short window for more responsive velocity check
     const currentPos = interpolateMousePosition(mouseEvents, timeMs)
-    const prevPos = interpolateMousePosition(mouseEvents, timeMs - windowMs)
+    if (!currentPos) return null
 
-    if (!currentPos || !prevPos) {
-        return currentPos
-            ? { x: currentPos.x, y: currentPos.y, velocity: 0, isDwelling: true }
-            : null
-    }
-
-    // Calculate velocity (pixels per ms)
-    const dx = currentPos.x - prevPos.x
-    const dy = currentPos.y - prevPos.y
-    const dist = Math.sqrt(dx * dx + dy * dy)
-    const velocity = dist / windowMs
-
-    // 2. Determine State: Locked vs Free
-    // Higher threshold = more sticky. Camera stays put for small/slow movements.
-    // This creates the "polished" feel where only deliberate movements trigger panning.
-    const STICKY_VELOCITY_THRESHOLD = 2.5
-
-    if (velocity < STICKY_VELOCITY_THRESHOLD) {
-        // DWELLING: Return the average position to lock on to the dwell point
-        const avg = getAveragePosition(mouseEvents, timeMs, DWELL_TRIGGER_MS)
-        return {
-            x: avg.x,
-            y: avg.y,
-            velocity,
-            isDwelling: true
-        }
-    }
-
-
-    // MOVING: Return raw position - let spring physics handle all smoothing
-    // Removing averaging here eliminates "double-smoothing" lag
     return {
         x: currentPos.x,
         y: currentPos.y,
-        velocity,
+        velocity: 0,
         isDwelling: false
     }
 }
@@ -85,7 +43,7 @@ export function calculateAttractor(
  * Calculates the average position over a time window.
  * This acts as a low-pass filter (smoothing).
  */
-function getAveragePosition(
+function _getAveragePosition(
     mouseEvents: MouseEvent[],
     endTime: number,
     windowDuration: number

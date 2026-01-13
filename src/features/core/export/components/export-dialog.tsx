@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useExportStore } from '@/features/core/stores/export-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
+import { useProgressStore } from '@/features/core/stores/progress-store'
 import { Button } from '@/components/ui/button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 
@@ -56,7 +57,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   } = useExportStore()
 
   const currentProject = useProjectStore((s) => s.currentProject)
-  const progress = useProjectStore((s) => s.progress)
+  const progress = useProgressStore()
   const isExporting = progress.isProcessing
   const uiSettings = useProjectStore((s) => s.settings)
   const projectSettings = useProjectStore((s) => s.currentProject?.settings ?? DEFAULT_PROJECT_SETTINGS)

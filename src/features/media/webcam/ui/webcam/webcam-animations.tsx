@@ -3,7 +3,7 @@
 import React from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
-import type { WebcamEntryAnimation, WebcamExitAnimation, WebcamPipAnimation } from '@/types/project'
+import type { WebcamEntryAnimation, WebcamExitAnimation, WebcamPipAnimation } from '../../types'
 
 interface WebcamAnimationsProps {
     entryAnimation: WebcamEntryAnimation

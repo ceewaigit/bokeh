@@ -1,6 +1,6 @@
 import type { KeyboardEvent, KeystrokeEffectData } from '@/types/project'
 import { KEYSTROKE_CONFIG } from '@/shared/config/physics-config'
-import { getPrintableCharFromKey, isShortcutModifier, isStandaloneModifierKey } from '@/features/core/keyboard/keyboard-utils'
+import { getPrintableCharFromKey, isShortcutModifier, isShortcutKey, isStandaloneModifierKey } from '@/features/core/keyboard/keyboard-utils'
 
 export type KeystrokeStylePreset = 'default' | 'glass' | 'minimal' | 'terminal' | 'outline'
 
@@ -83,7 +83,7 @@ export function computeKeystrokeSegments(events: KeyboardEvent[], options: Requi
     if (isStandaloneModifierKey(key)) continue
 
     const modifiers = event.modifiers || []
-    const shortcut = allowShortcuts && isShortcutModifier(modifiers)
+    const shortcut = allowShortcuts && isShortcutModifier(modifiers) && isShortcutKey(key)
     const isSpecialKey = key === 'Enter' || key === 'NumpadEnter' || key === 'Tab' || key === 'Escape'
     const isTimeGap = currentBuffer && event.timestamp - currentBuffer.lastKeyTime > bufferTimeoutMs
 

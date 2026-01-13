@@ -77,7 +77,48 @@ export const ZOOM_DETECTION_CONFIG = {
 // ACTION-BASED ZOOM (smart action triggering)
 // =============================================================================
 export const ACTION_ZOOM_CONFIG = {
-    // Action point importance scores (0-1)
+    // -------------------------------------------------------------------------
+    // CLUSTER-BASED DETECTION (like Cursorful/AutoZoom)
+    // Requires multiple signals to trigger zoom, not just single clicks
+    // -------------------------------------------------------------------------
+    /** Minimum clicks in a cluster to trigger zoom (single clicks need "deliberate" signal) */
+    minClicksToTrigger: 2,
+    /** Time window for click clustering (ms) - like Cursorful's 3s window */
+    clickClusterWindowMs: 3000,
+    /** Maximum spatial distance for clicks to be in same cluster (fraction of screen) */
+    clusterSpatialThreshold: 0.2,
+
+    // -------------------------------------------------------------------------
+    // DELIBERATE ACTION DETECTION
+    // Single clicks CAN trigger zoom if they show clear intent signals
+    // -------------------------------------------------------------------------
+    /** Mouse must be idle for this duration before click to count as "deliberate" (ms) */
+    deliberatePauseMs: 800,
+    /** Mouse activity threshold to consider "idle" (0-1, lower = more still) */
+    deliberateActivityThreshold: 0.2,
+    /** Hover time at click location before clicking (ms) */
+    hoverBeforeClickMs: 300,
+
+    // -------------------------------------------------------------------------
+    // CONTEXT-AWARE ZOOM DEPTH
+    // Different zoom ranges for different action types
+    // -------------------------------------------------------------------------
+    zoomScaleByContext: {
+        /** Typing/text input - very shallow, just a gentle focus */
+        typing: { min: 1.15, max: 1.4 },
+        /** Deliberate single click after pause - medium depth */
+        deliberateClick: { min: 1.4, max: 2.0 },
+        /** Cluster of clicks in same area - medium depth */
+        clickCluster: { min: 1.3, max: 1.8 },
+        /** Scroll stop - subtle zoom to new content area */
+        scrollStop: { min: 1.2, max: 1.5 },
+        /** Default fallback */
+        default: { min: 1.3, max: 1.8 },
+    },
+
+    // -------------------------------------------------------------------------
+    // LEGACY: Action point importance scores (kept for compatibility)
+    // -------------------------------------------------------------------------
     /** Base importance for click actions */
     clickImportanceBase: 0.7,
     /** Bonus for click after pause (indicates deliberate action) */
@@ -97,7 +138,9 @@ export const ACTION_ZOOM_CONFIG = {
     /** Base importance for mouse dwell (lowest priority) */
     dwellImportanceBase: 0.2,
 
-    // Timing configuration
+    // -------------------------------------------------------------------------
+    // TIMING CONFIGURATION
+    // -------------------------------------------------------------------------
     /** Anticipation time - start zoom before action (ms) */
     anticipationMs: 300,
     /** Minimum hold time at full zoom (ms) - Bokeh uses long sustained zooms */
@@ -109,21 +152,27 @@ export const ACTION_ZOOM_CONFIG = {
     /** Maximum zooms per minute - allow meaningful clicks but not spam */
     maxZoomsPerMinute: 5,
 
-    // Zoom scale mapping based on importance
+    // -------------------------------------------------------------------------
+    // LEGACY: Zoom scale mapping (replaced by zoomScaleByContext)
+    // -------------------------------------------------------------------------
     /** Maximum zoom scale for highest importance */
     maxZoomScale: 2.5,
     /** Minimum zoom scale for lowest importance */
     minZoomScale: 1.5,
 
-    // Importance thresholds
-    /** Minimum importance score to trigger a zoom - all clicks pass (base 0.7) */
-    minImportanceThreshold: 0.4,
+    // -------------------------------------------------------------------------
+    // IMPORTANCE THRESHOLDS
+    // -------------------------------------------------------------------------
+    /** Minimum importance score to trigger a zoom */
+    minImportanceThreshold: 0.5,
     /** Importance level for "high priority" actions */
     highImportanceThreshold: 0.8,
     /** Minimum importance to trigger 3D effect - very selective */
     min3DImportanceThreshold: 0.9,
 
-    // Area detection
+    // -------------------------------------------------------------------------
+    // AREA DETECTION
+    // -------------------------------------------------------------------------
     /** Pause duration before click to consider "deliberate" (ms) */
     pauseBeforeClickMs: 500,
     /** Distance threshold to consider "new area" (fraction of screen) */
@@ -152,10 +201,10 @@ export const CURSOR_RENDER_CONFIG = {
 // ZOOM TRANSITION (easing and timing for zoom in/out)
 // =============================================================================
 export const ZOOM_TRANSITION_CONFIG = {
-    /** Default intro duration (ms) */
-    defaultIntroMs: 1200,
-    /** Default outro duration (ms) */
-    defaultOutroMs: 1300,
+    /** Default intro duration (ms) - optimized for 2-2.5x zoom (~1000ms feel) */
+    defaultIntroMs: 1000,
+    /** Default outro duration (ms) - slightly longer for smoother exits */
+    defaultOutroMs: 1100,
     /** Minimum transition duration (ms) */
     minTransitionMs: 200,
     /** Maximum transition duration before it feels sluggish (ms) */

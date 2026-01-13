@@ -25,7 +25,7 @@ import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk'
 import { assertDefined } from '@/shared/errors'
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
-import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
+import { useTimelineContext } from '@/features/rendering/renderer/context/RenderingTimelineContext'
 
 interface PluginLayerProps {
   layer?: 'below-cursor' | 'above-cursor'
@@ -105,7 +105,19 @@ interface PluginEffectRendererProps {
   height: number
 }
 
-const PluginEffectRenderer: React.FC<PluginEffectRendererProps> = ({
+/**
+ * PERFORMANCE: Memoized plugin effect renderer.
+ *
+ * Previously, plugin.render() was called fresh on every frame (60fps) with new object
+ * references for frameContext and renderProps, causing heavy calculations to run
+ * unnecessarily even when params hadn't changed.
+ *
+ * Now uses React.memo with useMemo to:
+ * - Only recalculate progress when time/boundaries change
+ * - Memoize frame context and render props
+ * - Cache plugin render output based on stable dependencies
+ */
+const PluginEffectRenderer = React.memo<PluginEffectRendererProps>(({
   effect,
   frame,
   fps,
@@ -119,54 +131,60 @@ const PluginEffectRenderer: React.FC<PluginEffectRendererProps> = ({
     `[PluginLayer] Plugin not found: ${pluginData.pluginId}`
   )
 
-  // Calculate progress through effect duration
-  const duration = effect.endTime - effect.startTime
-  const elapsed = currentTimeMs - effect.startTime
-  const progress = Math.max(0, Math.min(1, elapsed / duration))
-  const durationFrames = Math.round((duration / 1000) * fps)
+  // Memoize progress calculation
+  const { progress, durationFrames } = useMemo(() => {
+    const duration = effect.endTime - effect.startTime
+    const elapsed = currentTimeMs - effect.startTime
+    return {
+      progress: Math.max(0, Math.min(1, elapsed / duration)),
+      durationFrames: Math.round((duration / 1000) * fps)
+    }
+  }, [currentTimeMs, effect.startTime, effect.endTime, fps])
 
-  // Build frame context for plugin
-  const frameContext: PluginFrameContext = {
+  // Memoize frame context - stable reference when values don't change
+  const frameContext = useMemo<PluginFrameContext>(() => ({
     frame,
     fps,
     progress,
     durationFrames,
     width,
     height
-  }
+  }), [frame, fps, progress, durationFrames, width, height])
 
-  // Build render props
-  const renderProps: PluginRenderProps = {
+  // Memoize render props - params reference from pluginData
+  const renderProps = useMemo<PluginRenderProps>(() => ({
     params: pluginData.params as Record<string, unknown>,
     frame: frameContext,
     width,
     height
-  }
+  }), [pluginData.params, frameContext, width, height])
 
-  // Get the plugin to check its category
+  // Memoize plugin render output - only re-render when props actually change
+  const rendered = useMemo(() => plugin.render(renderProps), [plugin, renderProps])
+
+  // Memoize position style
   const isTransition = plugin.category === 'transition'
-
-  // Calculate position style if plugin has position data
-  // For transition plugins, always use fullscreen regardless of position data
-  const positionStyle: React.CSSProperties = (!isTransition && pluginData.position) ? {
-    position: 'absolute',
-    left: `${pluginData.position.x}%`,
-    top: `${pluginData.position.y}%`,
-    transform: 'translate(-50%, -50%)',
-    // Apply width/height if specified
-    ...(pluginData.position.width ? { width: pluginData.position.width } : {}),
-    ...(pluginData.position.height ? { height: pluginData.position.height } : {})
-  } : {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-  }
-
-  const rendered = plugin.render(renderProps)
+  const positionStyle = useMemo<React.CSSProperties>(() => {
+    if (!isTransition && pluginData.position) {
+      return {
+        position: 'absolute',
+        left: `${pluginData.position.x}%`,
+        top: `${pluginData.position.y}%`,
+        transform: 'translate(-50%, -50%)',
+        ...(pluginData.position.width ? { width: pluginData.position.width } : {}),
+        ...(pluginData.position.height ? { height: pluginData.position.height } : {})
+      }
+    }
+    return {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100%',
+      height: '100%',
+    }
+  }, [isTransition, pluginData.position])
 
   return (
     <div
@@ -181,6 +199,8 @@ const PluginEffectRenderer: React.FC<PluginEffectRendererProps> = ({
       {rendered}
     </div>
   )
-}
+})
+
+PluginEffectRenderer.displayName = 'PluginEffectRenderer'
 
 export default PluginLayer

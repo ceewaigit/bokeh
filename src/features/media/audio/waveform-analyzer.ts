@@ -14,8 +14,9 @@ export class WaveformAnalyzer {
   // MEMORY FIX: Skip waveform analysis for large videos to prevent memory bloat
   private static MAX_VIDEO_SIZE_FOR_WAVEFORM = 100 * 1024 * 1024  // 100MB limit
 
-  // Concurrency control
+  // Concurrency control - limit queue to prevent memory accumulation
   private static analysisQueue: Array<() => Promise<void>> = []
+  private static MAX_QUEUE_SIZE = 20  // Max pending analysis tasks
   private static isAnalyzing = false
 
   /**
@@ -32,6 +33,12 @@ export class WaveformAnalyzer {
     const cacheKey = `${clipId}-${startTime}-${duration}-${samplesPerSecond}`
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey)!
+    }
+
+    // Reject if queue is full to prevent memory accumulation
+    if (this.analysisQueue.length >= this.MAX_QUEUE_SIZE) {
+      console.warn('[WaveformAnalyzer] Queue full, rejecting analysis request')
+      return null
     }
 
     // Wrap the actual analysis in a promise that resolves when it's this task's turn

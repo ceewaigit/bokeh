@@ -2,8 +2,10 @@
  * Cursor effect rendering strategy
  */
 
-import type { Effect, CursorEffectData } from '@/types/project'
-import { EffectType, CursorStyle } from '@/types/project'
+import type { Effect } from '@/types/project'
+import { EffectType } from '@/types/project'
+import type { CursorEffectData } from '@/features/effects/cursor/types'
+import { CursorStyle } from '@/features/effects/cursor/types'
 import type { EffectRenderContext } from '../rendering/renderer'
 import type { IEffectStrategy } from './index'
 import { calculateCursorState, getClickTextStyle, getCursorPath, resolveClickEffectConfig } from '@/features/effects/cursor/logic/cursor-logic'

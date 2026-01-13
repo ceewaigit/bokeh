@@ -15,7 +15,7 @@ import { useMemo } from 'react';
 import type { Project } from '@/types/project';
 import type { TimelineCompositionProps } from '@/types';
 import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-store';
-import { EffectStore } from '@/features/effects/core/store';
+import { EffectStore } from '@/features/effects/core/effects-store';
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service';
 
 /**

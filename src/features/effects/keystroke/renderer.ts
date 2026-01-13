@@ -1,5 +1,6 @@
 import type { Effect, KeyboardEvent, KeystrokeEffectData } from '@/types/project'
-import { EffectType, KeystrokePosition } from '@/types/project'
+import { EffectType } from '@/types/project'
+import { KeystrokePosition } from './types'
 import { OverlayAnchor } from '@/types/overlays'
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config'
 import type { EffectRenderContext } from '../rendering/renderer'

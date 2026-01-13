@@ -4,7 +4,8 @@
 
 // Timing constants (in milliseconds)
 export const TIMING = {
-  // Mouse tracking
+  // Mouse tracking - 8ms default (~120 FPS) for smooth cursor capture
+  // Higher sample rates produce smoother cursor rendering on high-DPI displays
   MIN_MOUSE_INTERVAL: 8,
   MAX_MOUSE_INTERVAL: 1000,
   DEFAULT_MOUSE_INTERVAL: 8,

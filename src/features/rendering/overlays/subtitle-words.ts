@@ -1,5 +1,18 @@
 import type { SourceTimeRange, TranscriptWord } from '@/types/project'
 
+/**
+ * Filter words to only those within a clip's source window (sourceIn to sourceOut)
+ */
+export function filterWordsByClipBounds(
+  words: TranscriptWord[],
+  sourceIn: number,
+  sourceOut: number
+): TranscriptWord[] {
+  return words.filter(word =>
+    word.startTime >= sourceIn && word.startTime < sourceOut
+  )
+}
+
 export function getVisibleSubtitleWords(words: TranscriptWord[], hiddenRegions: SourceTimeRange[]): TranscriptWord[] {
   if (words.length === 0 || hiddenRegions.length === 0) return words
 

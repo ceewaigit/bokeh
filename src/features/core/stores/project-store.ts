@@ -10,6 +10,9 @@
  * - selection-slice: Selection state, clipboard
  * - playback-slice: Playback controls, zoom
  * - cache-slice: Centralized caching (camera path, frame layout)
+ * - settings-slice: Quality, format, editing preferences
+ *
+ * Note: Progress state has been moved to useProgressStore for decoupling.
  */
 
 import { create, StateCreator } from 'zustand'
@@ -20,7 +23,6 @@ import { createPlaybackSlice } from './slices/playback-slice'
 import { createTimelineSlice } from './slices/timeline-slice'
 import { createCacheSlice } from './slices/cache-slice'
 import { createSettingsSlice } from './slices/settings-slice'
-import { createProgressSlice } from './slices/progress-slice'
 import type { ProjectStore } from './slices/types'
 
 /**
@@ -70,7 +72,6 @@ export const useProjectStore = create<ProjectStore>()(
       ...createPlaybackSlice(...a),
       ...createCacheSlice(...a),
       ...createSettingsSlice(...a),
-      ...createProgressSlice(...a),
     }))
   )
 )

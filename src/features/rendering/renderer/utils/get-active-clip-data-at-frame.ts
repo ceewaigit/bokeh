@@ -129,17 +129,6 @@ export function resolveClipDataForLayoutItem(args: {
   return { clip, recording, sourceTimeMs, effects: mergedEffects }
 }
 
-/**
- * Clear the active effects cache.
- * @deprecated Use TimelineDataService.invalidateCache() instead for centralized cache management.
- * This function is kept for backward compatibility.
- */
-export function clearActiveEffectsCache(): void {
-  // Delegate to centralized service - requires a project reference
-  // For now, just log a deprecation warning. The actual clearing happens via TimelineDataService.
-  console.warn('[clearActiveEffectsCache] Deprecated - use TimelineDataService.invalidateCache() instead');
-}
-
 function areEffectsSemanticallyEqual(prev: Effect[], next: Effect[]): boolean {
   if (prev.length !== next.length) return false;
   for (let i = 0; i < prev.length; i++) {

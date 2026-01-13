@@ -13,7 +13,7 @@ export type { GlobalSkipRange } from '@/types/skip-ranges'
 import { sourceToTimeline } from '@/features/ui/timeline/time/time-space-converter'
 import { buildFrameLayout, type FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 
 /**
  * Cached timeline data structure.
@@ -213,17 +213,29 @@ export class TimelineDataService {
   /**
    * Get cached active effects for a clip position.
    * Used by get-active-clip-data-at-frame.ts for render optimization.
+   * Updates LRU order on access.
    */
   static getActiveEffectsFromCache(key: string): Effect[] | undefined {
-    return this.activeEffectsCache.get(key)
+    const cached = this.activeEffectsCache.get(key)
+    if (cached !== undefined) {
+      // LRU: Move to end (most recently used) by re-inserting
+      this.activeEffectsCache.delete(key)
+      this.activeEffectsCache.set(key, cached)
+    }
+    return cached
   }
 
   /**
    * Set cached active effects for a clip position.
+   * Uses LRU eviction - removes least recently used entries when at capacity.
    */
   static setActiveEffectsCache(key: string, effects: Effect[]): void {
+    // If key exists, delete first to update LRU order
+    if (this.activeEffectsCache.has(key)) {
+      this.activeEffectsCache.delete(key)
+    }
     this.activeEffectsCache.set(key, effects)
-    // Prune cache to prevent unbounded growth
+    // Prune cache using LRU - first key is least recently used
     if (this.activeEffectsCache.size > 100) {
       const keyToDelete = this.activeEffectsCache.keys().next().value
       if (keyToDelete) this.activeEffectsCache.delete(keyToDelete)

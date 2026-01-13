@@ -5,18 +5,11 @@
  * This file contains ONLY type definitions - no business logic
  */
 
-// Import feature types
-import {
-  WebcamLayoutData,
-  WebcamShape,
-  WebcamAnchor,
-  WebcamEntryAnimation,
-  WebcamExitAnimation,
-  WebcamPipAnimation
-} from '@/features/media/webcam/types';
+// Import feature types - only cross-feature types that are needed in core interfaces
+import { WebcamLayoutData } from '@/features/media/webcam/types';
 import { AnnotationData, Annotation, AnnotationType, AnnotationStyle } from '@/features/effects/annotation/types';
-import { CursorEffectData, CursorStyle, CursorTheme, CursorMotionPreset, ClickEffectStyle, ClickEffectAnimation, ClickTextMode, ClickTextAnimation } from '@/features/effects/cursor/types';
-import { KeystrokeEffectData, KeystrokePosition } from '@/features/effects/keystroke/types';
+import { CursorEffectData, CursorMotionPreset } from '@/features/effects/cursor/types';
+import { KeystrokeEffectData } from '@/features/effects/keystroke/types';
 import { BackgroundEffectData, BackgroundType, ParallaxLayer } from '@/features/effects/background/types';
 import { ScreenEffectData, ScreenEffectPreset } from '@/features/effects/screen/types';
 import { CropEffectData } from '@/features/effects/crop/types';
@@ -70,7 +63,8 @@ export interface TimelineBlockRange {
 }
 
 
-// --- Re-exports (Strictly Types or Enums from Features) ---
+// --- Re-exports (Cross-feature types and enums) ---
+// Note: Feature-internal types should be imported directly from feature modules
 export {
   EffectType,
   EffectLayerType,
@@ -84,29 +78,17 @@ export {
   BackgroundType,
   ScreenEffectPreset,
   AnnotationType,
-  CursorStyle,
-  CursorTheme,
-  KeystrokePosition
 };
 
 export type {
   SelectedEffectLayer,
   ZoomBlockOrigin,
   WebcamLayoutData,
-  WebcamShape,
-  WebcamAnchor,
-  WebcamEntryAnimation,
-  WebcamExitAnimation,
-  WebcamPipAnimation,
   AnnotationData,
   AnnotationStyle,
   Annotation,
   CursorEffectData,
   CursorMotionPreset,
-  ClickEffectStyle,
-  ClickEffectAnimation,
-  ClickTextMode,
-  ClickTextAnimation,
   KeystrokeEffectData,
   BackgroundEffectData,
   ParallaxLayer,

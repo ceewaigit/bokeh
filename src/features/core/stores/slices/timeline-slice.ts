@@ -27,13 +27,14 @@ import {
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
-import { PlayheadService } from '@/features/ui/timeline/playback/playhead-service'
-import { playbackService } from '@/features/ui/timeline/playback/playback-service'
+import { PlayheadService } from '@/features/playback/services/playhead-service'
+import { playbackService } from '@/features/playback/services/playback-service'
 import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { CursorReturnService } from '@/features/effects/cursor/cursor-return-service'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import type { CreateTimelineSlice } from './types'
+import { markModified, markProjectModified } from '../store-utils'
 
 const reflowTimeline = (project: Project): void => {
     EffectInitialization.syncKeystrokeEffects(project)
@@ -138,7 +139,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             videoTrack.clips.splice(safeInsertIndex, 0, clip)
 
             project.timeline.duration = calculateTimelineDuration(project)
-            project.modifiedAt = new Date().toISOString()
+            markModified(project)
 
 
             EffectInitialization.syncKeystrokeEffects(project)
@@ -203,7 +204,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             reflowClips(videoTrack, insertIndex)
 
             project.timeline.duration = calculateTimelineDuration(project)
-            project.modifiedAt = new Date().toISOString()
+            markModified(project)
 
 
             state.selectedClips = [clip.id]
@@ -306,7 +307,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Update timeline metadata
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-            state.currentProject.modifiedAt = new Date().toISOString()
+            markProjectModified(state)
 
 
             // Sync effects
@@ -555,7 +556,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
                 // Update timeline duration
                 state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-                state.currentProject.modifiedAt = new Date().toISOString()
+                markProjectModified(state)
 
                 break
             }
@@ -616,7 +617,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             EffectInitialization.syncKeystrokeEffects(state.currentProject)
 
             // Update modified timestamp
-            state.currentProject.modifiedAt = new Date().toISOString()
+            markProjectModified(state)
 
             // Ensure playhead is within valid range after timeline changes
             const newTimelineDuration = calculateTimelineDuration(state.currentProject)
@@ -700,7 +701,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Use EffectStore as SSOT for adding effects
             EffectStore.add(state.currentProject, effect)
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-            state.currentProject.modifiedAt = new Date().toISOString()
+            markProjectModified(state)
 
         })
     },
@@ -713,7 +714,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             const removed = EffectStore.remove(state.currentProject, effectId)
             if (removed) {
                 state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-                state.currentProject.modifiedAt = new Date().toISOString()
+                markProjectModified(state)
             }
         })
     },
@@ -726,7 +727,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             const updated = EffectStore.update(state.currentProject, effectId, updates)
             if (updated) {
                 state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-                state.currentProject.modifiedAt = new Date().toISOString()
+                markProjectModified(state)
             }
         })
     },
@@ -737,7 +738,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Use force=true to bypass overlap checks during restore
             EffectStore.update(state.currentProject, effect.id, effect, true)
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-            state.currentProject.modifiedAt = new Date().toISOString()
+            markProjectModified(state)
         })
     },
 
@@ -758,7 +759,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
         ] = await Promise.all([
             import('@/features/effects/logic/effect-applier'),
             import('@/features/core/export/metadata-loader'),
-            import('@/features/ui/timeline/activity-detection/idle-detector'),
+            import('@/features/media/analysis/idle-detector'),
         ])
 
         let metadataByRecordingId: Map<string, import('@/types/project').RecordingMetadata> | undefined

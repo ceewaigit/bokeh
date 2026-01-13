@@ -17,12 +17,13 @@ import { EffectInitialization } from '@/features/effects/core/initialization'
 import { normalizeWatermarkEffectData } from '@/features/effects/watermark'
 import { ProjectIOService } from '@/features/core/storage/project-io-service'
 import { ProjectStorage } from '@/features/core/storage/project-storage'
-import { playbackService } from '@/features/ui/timeline/playback/playback-service'
+import { playbackService } from '@/features/playback/services/playback-service'
 import { WaveformAnalyzer } from '@/features/media/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { CommandManager } from '@/features/core/commands/base/CommandManager'
 import type { CreateCoreSlice } from './types'
 import { resetSelectionState, DEFAULT_SETTINGS } from './utils'
+import { markProjectModified } from '../store-utils'
 
 export const createCoreSlice: CreateCoreSlice = (set, get) => ({
   // State
@@ -65,7 +66,7 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
     set((state) => {
       if (state.currentProject) {
         state.currentProject = updater(state.currentProject)
-        state.currentProject.modifiedAt = new Date().toISOString()
+        markProjectModified(state)
       }
     })
   },

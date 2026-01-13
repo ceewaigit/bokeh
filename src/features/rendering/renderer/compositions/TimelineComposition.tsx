@@ -28,9 +28,9 @@ import { WatermarkLayer } from '@/features/effects/watermark';
 
 import { ProjectStorage } from '@/features/core/storage/project-storage';
 import { resolveRecordingPath, createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths';
-import { useTimelineContext } from '../context/TimelineContext';
+import { useTimelineContext } from '../context/RenderingTimelineContext';
 import { findActiveFrameLayoutItems } from '@/features/ui/timeline/utils/frame-layout';
-import { TimelineProvider } from '../context/TimelineContext';
+import { TimelineProvider } from '../context/RenderingTimelineContext';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { calculateFullCameraPath } from '@/features/ui/editor/logic/viewport/logic/path-calculator';
 import { OverlayProvider } from '@/features/rendering/overlays/overlay-context';
@@ -114,7 +114,17 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     return Math.floor(currentTimeMs / 100) * 100;
   }, [currentTimeMs]);
 
+  // PERFORMANCE: Check if subtitle effects exist first (cheap) before heavy computation.
+  // This prevents recalculating hidden regions, word filtering, and clip mapping
+  // every time any effect/clip changes, even when no subtitle effects are present.
+  const hasSubtitleEffects = React.useMemo(() => {
+    return effects.some(e => e.type === EffectType.Subtitle && e.enabled !== false);
+  }, [effects]);
+
   const subtitleResolutionContext = React.useMemo(() => {
+    // Early exit - skip all heavy computation if no subtitle effects exist
+    if (!hasSubtitleEffects) return null;
+
     const subtitleEffects = effects.filter(
       (effect): effect is Effect =>
         effect.type === EffectType.Subtitle && effect.enabled !== false
@@ -191,7 +201,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     }
 
     return { clipsByRecordingId, visibleWordsByRecordingId };
-  }, [effects, audioClips, webcamClips, clips, recordings, getRecording, globalSkipRanges, project]);
+  }, [hasSubtitleEffects, effects, audioClips, webcamClips, clips, recordings, getRecording, globalSkipRanges, project]);
 
   // Get webcam clip that is active at the current time
   // This uses the "Virtual Clips" (transcript-aware) passed from usePlayerConfiguration

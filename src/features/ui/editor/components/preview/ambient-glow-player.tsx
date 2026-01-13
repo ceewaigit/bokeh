@@ -168,28 +168,22 @@ export function AmbientGlowPlayer({
         lastGlowIsPlayingRef.current = false;
     }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, safePlay, playerKey]);
 
+    // CONSOLIDATED: Single sync effect for initial frame and playerKey changes
+    // Previously had redundant RAF + setTimeout patterns
     useEffect(() => {
         if (!timelineMetadata) return;
         const glowPlayer = glowPlayerRef.current;
         if (!glowPlayer) return;
 
         const targetFrame = clampFrame(initialFrame);
-        const syncNow = () => {
-            glowPlayer.seekTo(targetFrame);
-            if (!isPlaying) {
-                glowPlayer.pause();
-            }
-        };
-
-        const rafId = requestAnimationFrame(syncNow);
-        const timeoutId = window.setTimeout(syncNow, 100);
-
-        return () => {
-            cancelAnimationFrame(rafId);
-            window.clearTimeout(timeoutId);
-        };
+        glowPlayer.seekTo(targetFrame);
+        if (!isPlaying) {
+            glowPlayer.pause();
+        }
     }, [playerKey, initialFrame, timelineMetadata, clampFrame, isPlaying]);
 
+    // CONSOLIDATED: Single event-based sync for main player seeks
+    // Removed redundant RAF+setTimeout - event listener is sufficient
     useEffect(() => {
         const glowPlayer = glowPlayerRef.current;
         const mainPlayer = mainPlayerRef.current;
@@ -201,24 +195,17 @@ export function AmbientGlowPlayer({
             if (Math.abs(currentGlowFrame - targetFrame) > 1) {
                 glowPlayer.seekTo(targetFrame);
             }
-            if (!isPlaying) {
-                glowPlayer.pause();
-            }
         };
 
-        const rafId = requestAnimationFrame(syncToMain);
-        const timeoutId = window.setTimeout(syncToMain, 120);
-        const handleSeeked = () => syncToMain();
-
-        mainPlayer.addEventListener('seeked', handleSeeked);
+        // Only need the event listener - no RAF/timeout needed
+        mainPlayer.addEventListener('seeked', syncToMain);
 
         return () => {
-            cancelAnimationFrame(rafId);
-            window.clearTimeout(timeoutId);
-            mainPlayer.removeEventListener('seeked', handleSeeked);
+            mainPlayer.removeEventListener('seeked', syncToMain);
         };
-    }, [mainPlayerRef, timelineMetadata, clampFrame, isPlaying, playerKey]);
+    }, [mainPlayerRef, timelineMetadata, clampFrame, playerKey]);
 
+    // Paused state store sync - only active when not playing
     useEffect(() => {
         if (!timelineMetadata) return;
         if (isPlaying && !isScrubbing) return;
@@ -234,21 +221,23 @@ export function AmbientGlowPlayer({
             throttledSeek(targetFrame);
         });
 
-        const initialFrame = clampFrame(timeToFrame(prevTime));
-        throttledSeek(initialFrame);
+        // Initial sync
+        const initFrame = clampFrame(timeToFrame(prevTime));
+        throttledSeek(initFrame);
 
         return () => unsubscribe();
     }, [timelineMetadata, isPlaying, isScrubbing, clampFrame, timeToFrame, throttledSeek, playerKey]);
 
+    // Throttled frame sync during playback - prevents drift
     useEffect(() => {
         const glowPlayer = glowPlayerRef.current;
         const mainPlayer = mainPlayerRef.current;
         if (!glowPlayer || !mainPlayer || !timelineMetadata) return;
+        if (!isPlaying || isScrubbing) return; // Only during playback
 
         const handleFrameUpdate = (e: { detail: { frame: number } }) => {
-            if (isScrubbing) return;
-
             const now = performance.now();
+            // Throttle to 4Hz (250ms) - glow doesn't need precise sync
             if (now - lastFrameSyncMsRef.current < 250) return;
             lastFrameSyncMsRef.current = now;
 

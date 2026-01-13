@@ -4,12 +4,12 @@ import { useRef, useCallback, useEffect, useState } from 'react'
 import { RecordingService } from '@/features/media/recording'
 import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { ProjectStorage } from '@/features/core/storage/project-storage'
 import { logger } from '@/shared/utils/logger'
 import { RecordingError, RecordingErrorCode, PermissionError, ElectronError } from '@/shared/errors'
 import { buildRecordingSettings } from '@/features/media/recording/logic/settings-builder'
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 import { useTimer } from '@/features/ui/timeline/hooks/use-timeline-timer'
+import { saveRecordingResult } from '@/features/media/recording/services/recording-save-service'
 
 export function useRecording() {
   const recorderRef = useRef<RecordingService | null>(null)
@@ -21,8 +21,6 @@ export function useRecording() {
     setRecording,
     setPaused,
     setDuration,
-    setWebcamToggledOff,
-    setMicrophoneToggledOff,
   } = useRecordingSessionStore()
 
   // Use the simplified timer hook
@@ -166,71 +164,8 @@ export function useRecording() {
         (window as any).__screenRecorderActive = false
       }
 
-      // Use consolidated project saving
-      if (result.videoPath) {
-        // Create a safe filename without slashes or colons
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = String(now.getMonth() + 1).padStart(2, '0')
-        const day = String(now.getDate()).padStart(2, '0')
-        const hours = String(now.getHours()).padStart(2, '0')
-        const minutes = String(now.getMinutes()).padStart(2, '0')
-        const seconds = String(now.getSeconds()).padStart(2, '0')
-        const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
-
-        // Save recording with project using consolidated function
-        const saved = await ProjectStorage.saveRecordingWithProject(
-          result.videoPath,
-          result.metadata,
-          projectName,
-          result.captureArea,
-          result.hasAudio,
-          result.duration,
-          result.webcam,
-          result.microphoneAudio
-        )
-
-        if (saved) {
-          logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
-
-          // Update the project store
-          const projectStore = useProjectStore.getState()
-          // Always set the full project since it was saved to disk
-          projectStore.setProject(saved.project)
-
-          // Create video URL from file path for preview
-          const recordingId = saved.project.recordings[0].id
-          if (window.electronAPI?.getVideoUrl) {
-            const videoUrl = await window.electronAPI.getVideoUrl(result.videoPath)
-            if (videoUrl) {
-              ProjectStorage.setBlobUrl(recordingId, videoUrl)
-            }
-          }
-
-          // Cache webcam video URLs if present (supports multiple segments)
-          const webcamRecordings = saved.project.recordings.filter(r => r.id.startsWith('webcam-'))
-          for (const webcamRecording of webcamRecordings) {
-            if (webcamRecording.folderPath && webcamRecording.filePath && window.electronAPI?.getVideoUrl) {
-              const webcamPath = `${webcamRecording.folderPath}/${webcamRecording.filePath.split('/').pop()}`
-              const webcamUrl = await window.electronAPI.getVideoUrl(webcamPath)
-              if (webcamUrl) {
-                ProjectStorage.setBlobUrl(webcamRecording.id, webcamUrl)
-              }
-            }
-          }
-
-          // Cache microphone audio URL if present
-          if (saved.audioPath) {
-            const audioRecording = saved.project.recordings.find(r => r.id.startsWith('audio-'))
-            if (audioRecording && window.electronAPI?.getVideoUrl) {
-              const audioUrl = await window.electronAPI.getVideoUrl(saved.audioPath)
-              if (audioUrl) {
-                ProjectStorage.setBlobUrl(audioRecording.id, audioUrl)
-              }
-            }
-          }
-        }
-      }
+      // Save recording and update project store
+      await saveRecordingResult(result)
 
       return result
     } catch (error) {
@@ -300,24 +235,22 @@ export function useRecording() {
     if (!recorderRef.current || !isRecording) return
     try {
       await recorderRef.current.toggleWebcamCapture()
-      setWebcamToggledOff(recorderRef.current.isWebcamToggledOff())
       logger.info(`Webcam toggled ${recorderRef.current.isWebcamToggledOff() ? 'OFF' : 'ON'}`)
     } catch (error) {
       logger.error('Failed to toggle webcam:', error)
     }
-  }, [isRecording, setWebcamToggledOff])
+  }, [isRecording])
 
   // Toggle microphone capture on/off (creates segments)
   const toggleMicrophoneCapture = useCallback(async () => {
     if (!recorderRef.current || !isRecording) return
     try {
       await recorderRef.current.toggleMicrophoneCapture()
-      setMicrophoneToggledOff(recorderRef.current.isMicrophoneToggledOff())
       logger.info(`Microphone toggled ${recorderRef.current.isMicrophoneToggledOff() ? 'OFF' : 'ON'}`)
     } catch (error) {
       logger.error('Failed to toggle microphone:', error)
     }
-  }, [isRecording, setMicrophoneToggledOff])
+  }, [isRecording])
 
   // Check toggle states
   const isWebcamToggledOff = useCallback(() => {
@@ -347,30 +280,31 @@ export function useRecording() {
   }, [])
 
   return {
+    // Core controls
     startRecording,
     stopRecording,
     pauseRecording,
     resumeRecording,
     canPause,
     canResume,
-    // Independent webcam toggle (creates segments)
-    toggleWebcamCapture,
-    isWebcamToggledOff,
-    canToggleWebcam,
-    isWebcamRecording,
-    // Independent microphone toggle (creates segments)
-    toggleMicrophoneCapture,
-    isMicrophoneToggledOff,
-    canToggleMicrophone,
-    isMicrophoneRecording,
-    // Legacy
-    screenRecorder: recorderRef.current,
-    isRecording,
-    isPaused,
+
+    // State - Note: Most state is in useRecordingSessionStore for reactivity
     isStartingRecording,
-    isSupported: typeof navigator !== 'undefined' &&
-      typeof navigator.mediaDevices !== 'undefined' &&
-      typeof navigator.mediaDevices.getDisplayMedia === 'function',
-    duration: 0 // Duration is managed by the store, this is kept for compatibility if needed or removed
+
+    // Webcam capture toggle (creates segments during recording)
+    webcam: {
+      toggle: toggleWebcamCapture,
+      isToggledOff: isWebcamToggledOff,
+      canToggle: canToggleWebcam,
+      isRecording: isWebcamRecording,
+    },
+
+    // Microphone capture toggle (creates segments during recording)
+    microphone: {
+      toggle: toggleMicrophoneCapture,
+      isToggledOff: isMicrophoneToggledOff,
+      canToggle: canToggleMicrophone,
+      isRecording: isMicrophoneRecording,
+    },
   }
 }

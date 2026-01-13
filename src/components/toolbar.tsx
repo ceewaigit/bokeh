@@ -28,7 +28,7 @@ import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { toast } from 'sonner'
 import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
 // Spring config for snappy Apple-like animations
@@ -438,7 +438,7 @@ export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
             </PillIconButton>
 
             {/* Theme */}
-            <AppearanceToggle align="end" className="flex items-center" />
+            <AppearanceToggle className="flex items-center" />
           </>
         ) : (
           /* ===== EDITOR MODE ===== */
@@ -563,7 +563,7 @@ export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
               <Settings2 className="w-3.5 h-3.5" />
             </PillIconButton>
 
-            <AppearanceToggle align="end" className="flex items-center" />
+            <AppearanceToggle className="flex items-center" />
 
             <PillIconButton
               onClick={handleToggleProperties}

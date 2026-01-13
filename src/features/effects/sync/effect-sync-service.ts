@@ -13,7 +13,7 @@
 import type { Project, Effect, Clip } from '@/types/project'
 import { EffectType, TrackType } from '@/types/project'
 import type { ClipChange, SegmentMapping } from './types'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { syncKeystrokeEffects } from './keystroke-sync'
 
 // Effect types that should shift with timeline changes

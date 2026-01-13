@@ -4,5 +4,5 @@ export * from './filters'
 export * from './inheritance'
 export * from './initialization'
 export * from './selection'
-export * from './store'
+export * from './effects-store'
 

@@ -172,10 +172,14 @@ async function startVideoServer(): Promise<{
   // Dynamic cleanup based on token expiration times
   // Check more frequently when tokens exist, less when empty
   let cleanupInterval: NodeJS.Timeout | null = null;
-  
+  let serverClosed = false;  // Guard against cleanup after server close
+
   const scheduleCleanup = () => {
+    // CRITICAL: Don't schedule cleanup if server has been closed
+    if (serverClosed) return;
+
     if (cleanupInterval) clearTimeout(cleanupInterval);
-    
+
     if (TOKENS.size === 0) {
       // No tokens, check again in 1 minute
       cleanupInterval = setTimeout(() => {
@@ -222,11 +226,14 @@ async function startVideoServer(): Promise<{
   
   // Clear cleanup on server close
   server.on('close', () => {
+    serverClosed = true;  // Prevent any future cleanup scheduling
     if (cleanupInterval) {
       clearTimeout(cleanupInterval);
       cleanupInterval = null;
     }
     delete (global as any).scheduleCleanup;
+    // Reset serverPromise so getVideoServer() can create a new server if needed
+    serverPromise = null;
   });
   
   return {
@@ -295,3 +302,8 @@ export async function getVideoServer() {
   }
   return serverPromise;
 }
+
+/**
+ * Export closeServer for cleanup on app quit
+ */
+export { closeServer as closeVideoServer };

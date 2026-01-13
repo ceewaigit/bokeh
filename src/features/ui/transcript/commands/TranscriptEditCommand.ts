@@ -3,6 +3,7 @@ import type { ProjectStore } from '@/features/core/stores/project-store'
 import type { Transcript, SourceTimeRange } from '@/types/project'
 import { PatchedCommand } from '@/features/core/commands'
 import type { CommandContext } from '@/features/core/commands'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 /**
  * Merge adjacent or overlapping ranges with optional gap tolerance.
@@ -121,18 +122,9 @@ export class TranscriptEditCommand extends PatchedCommand<void> {
     }
 
     const rangesToRemove = this.calculateRangesToRemove()
-    console.info('[TranscriptEditCommand] Ranges to remove:', { ranges: rangesToRemove, count: rangesToRemove.length })
-
     const newHiddenRegions = addRanges(editState.hiddenRegions ?? [], rangesToRemove)
     editState.hiddenRegions = newHiddenRegions
-
-    console.info('[TranscriptEditCommand] Updated hiddenRegions:', {
-      count: newHiddenRegions.length,
-      recordingId: this.recordingId,
-      ranges: newHiddenRegions
-    })
-
-    draft.currentProject.modifiedAt = new Date().toISOString()
+    markProjectModified(draft)
   }
 
   private calculateRangesToRemove() {
@@ -140,12 +132,6 @@ export class TranscriptEditCommand extends PatchedCommand<void> {
     const words = this.transcript.words.filter(
       w => this.wordIdsToDelete.includes(w.id)
     )
-    console.info('[TranscriptEditCommand] Calculated words to remove:', {
-      found: words.length,
-      requested: this.wordIdsToDelete.length,
-      wordIds: this.wordIdsToDelete
-    })
-
     if (words.length === 0) return []
 
     // Sort words by start time

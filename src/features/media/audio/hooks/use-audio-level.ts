@@ -1,11 +1,22 @@
 /**
  * Hook for monitoring audio level from a microphone device.
+ *
+ * Performance optimizations:
+ * - Throttled to ~15Hz (every 4th frame) instead of 60Hz
+ * - Peak decay integrated into RAF loop (no separate setInterval)
+ * - Reuses Uint8Array buffer instead of allocating each frame
+ * - Only updates state when level changes significantly
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getAudioInputService } from '@/features/media/recording/services/audio-input-service'
 import { getSharedAudioContext } from '@/shared/contexts/audio-context'
 import { logger } from '@/shared/utils/logger'
+
+// Performance constants
+const FRAME_SKIP = 3 // Process every 4th frame (~15Hz at 60fps)
+const LEVEL_CHANGE_THRESHOLD = 0.01 // Only update state if level changed by this much
+const PEAK_DECAY_RATE = 0.008 // Decay per frame (adjusted for 15Hz: 0.02 * 4 / 10)
 
 interface UseAudioLevelOptions {
   deviceId: string | null
@@ -32,23 +43,20 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
   })
 
   const peakRef = useRef(0)
-  const peakDecayRef = useRef<NodeJS.Timeout | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const rafRef = useRef<number | null>(null)
+  const frameCountRef = useRef(0)
+  const dataArrayRef = useRef<Uint8Array | null>(null) // Reusable buffer
+  const lastLevelRef = useRef(0) // Track last reported level for change detection
   const audioInputService = getAudioInputService()
 
   const stopMonitoring = useCallback(() => {
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
-    }
-
-    if (peakDecayRef.current) {
-      clearInterval(peakDecayRef.current)
-      peakDecayRef.current = null
     }
 
     if (sourceRef.current) {
@@ -63,7 +71,10 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
     }
 
     analyserRef.current = null
+    dataArrayRef.current = null
     peakRef.current = 0
+    frameCountRef.current = 0
+    lastLevelRef.current = 0
 
     setState(prev => ({
       ...prev,
@@ -104,36 +115,52 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
 
       setState(prev => ({ ...prev, isMonitoring: true, error: null }))
 
-      // Start peak decay timer
-      peakDecayRef.current = setInterval(() => {
-        peakRef.current = Math.max(0, peakRef.current - 0.02)
-      }, 50)
+      // Initialize reusable buffer
+      dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount)
 
-      // Update loop
+      // Throttled update loop - runs at ~15Hz instead of 60Hz
       const updateLevel = () => {
-        if (!analyserRef.current) return
+        if (!analyserRef.current || !dataArrayRef.current) return
 
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
-        analyserRef.current.getByteFrequencyData(dataArray)
+        frameCountRef.current++
+
+        // Skip frames for throttling (process every 4th frame = ~15Hz)
+        if (frameCountRef.current <= FRAME_SKIP) {
+          rafRef.current = requestAnimationFrame(updateLevel)
+          return
+        }
+        frameCountRef.current = 0
+
+        // Reuse buffer instead of allocating new one
+        analyserRef.current.getByteFrequencyData(dataArrayRef.current)
 
         // Calculate RMS
         let sum = 0
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i] * dataArray[i]
+        const data = dataArrayRef.current
+        for (let i = 0; i < data.length; i++) {
+          sum += data[i] * data[i]
         }
-        const rms = Math.sqrt(sum / dataArray.length)
+        const rms = Math.sqrt(sum / data.length)
         const level = Math.min(1, rms / 128)
 
-        // Update peak
+        // Apply peak decay (integrated into RAF loop, no separate timer)
+        peakRef.current = Math.max(0, peakRef.current - PEAK_DECAY_RATE)
+
+        // Update peak if current level exceeds it
         if (level > peakRef.current) {
           peakRef.current = level
         }
 
-        setState(prev => ({
-          ...prev,
-          level,
-          peak: peakRef.current
-        }))
+        // Only update state if level changed significantly (reduces re-renders)
+        const levelChanged = Math.abs(level - lastLevelRef.current) > LEVEL_CHANGE_THRESHOLD
+        if (levelChanged) {
+          lastLevelRef.current = level
+          setState(prev => ({
+            ...prev,
+            level,
+            peak: peakRef.current
+          }))
+        }
 
         rafRef.current = requestAnimationFrame(updateLevel)
       }
@@ -182,32 +209,37 @@ export function useAudioLevel(options: UseAudioLevelOptions): AudioLevelState {
       error: null
     }))
 
+    // Track last update time for throttled peak decay
+    let lastDecayTime = 0
+    const DECAY_INTERVAL = 67 // ~15Hz (1000ms / 15)
+
     const unsubscribe = audioInputService.onAudioLevel((level) => {
+      // Apply throttled peak decay on each level update
+      const now = performance.now()
+      if (now - lastDecayTime > DECAY_INTERVAL) {
+        peakRef.current = Math.max(0, peakRef.current - 0.02)
+        lastDecayTime = now
+      }
+
       if (level > peakRef.current) {
         peakRef.current = level
       }
 
-      setState(prev => ({
-        ...prev,
-        level,
-        peak: peakRef.current,
-        isMonitoring: audioInputService.isRecording()
-      }))
+      // Only update state if level changed significantly
+      const levelChanged = Math.abs(level - lastLevelRef.current) > LEVEL_CHANGE_THRESHOLD
+      if (levelChanged) {
+        lastLevelRef.current = level
+        setState(prev => ({
+          ...prev,
+          level,
+          peak: peakRef.current,
+          isMonitoring: audioInputService.isRecording()
+        }))
+      }
     })
-
-    if (peakDecayRef.current) {
-      clearInterval(peakDecayRef.current)
-    }
-    peakDecayRef.current = setInterval(() => {
-      peakRef.current = Math.max(0, peakRef.current - 0.02)
-    }, 50)
 
     return () => {
       unsubscribe()
-      if (peakDecayRef.current) {
-        clearInterval(peakDecayRef.current)
-        peakDecayRef.current = null
-      }
     }
   }, [audioInputService, enabled, mode])
 

@@ -14,11 +14,9 @@ import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store'
 import { useRecordingById } from '@/features/core/stores/selectors/clip-selectors'
-import { useTimelineContext } from './TimelineContext'
+import { useTimelineContext } from './TimelineUIContext'
 import { useShallow } from 'zustand/react/shallow'
-import { useClipWaveform } from '@/features/ui/timeline/hooks/use-clip-waveform'
-import { useClipThumbnails } from '@/features/ui/timeline/hooks/use-clip-thumbnails'
-import { useClipTrimInteraction } from '@/features/ui/timeline/hooks/use-clip-trim-interaction'
+import { useTimelineClipAssets } from '@/features/ui/timeline/hooks/use-timeline-clip-assets'
 import { TimelineClipBackground } from './clip/timeline-clip-background'
 import { TimelineClipThumbnails } from './clip/timeline-clip-thumbnails'
 import { TimelineClipWaveform } from './clip/timeline-clip-waveform'
@@ -73,19 +71,6 @@ const TimelineClipComponent = ({
   const interactionClip = useMemo(() =>
     clipIdOverride ? { ...clip, id: clipIdOverride } : clip
     , [clip, clipIdOverride])
-
-  const {
-    trimEdge,
-    trimPreview,
-    handleTrimMouseDown
-  } = useClipTrimInteraction({
-    clip: interactionClip,
-    recording,
-    otherClipsInTrack,
-    pixelsPerMs,
-    onTrimStart,
-    onTrimEnd
-  })
   const groupRef = useRef<Konva.Group>(null)
   const { scrollLeftRef } = useTimelineUI()
 
@@ -152,24 +137,23 @@ const TimelineClipComponent = ({
   const hasHiddenRight = showHiddenIndicator && segmentSourceOut < baseSourceOut - 1
   const cutMarkerWidth = Math.max(2, Math.min(6, clipWidth * 0.08))
 
-  /* ---------------- ASSETS (HOOKS) ---------------- */
-  // Load audio waveform data using extracted hook
-  const waveformData = useClipWaveform({
-    clipId: clip.id,
+  /* ---------------- ASSETS & INTERACTIONS (COMPOSITE HOOK) ---------------- */
+  const {
+    trimEdge,
+    trimPreview,
+    handleTrimMouseDown,
+    waveformData,
+    thumbnails,
+  } = useTimelineClipAssets({
+    clip: interactionClip,
     recording,
-    sourceIn: clip.sourceIn,
-    sourceOut: clip.sourceOut,
-    samplesPerSecond: 50
-  })
-
-  // Load thumbnails using extracted hook
-  const { thumbnails } = useClipThumbnails({
-    clipId: clip.id,
-    recording,
-    sourceIn: clip.sourceIn,
-    sourceOut: clip.sourceOut,
+    otherClipsInTrack,
+    pixelsPerMs,
     clipInnerHeight,
-    enabled: showTimelineThumbnails && trackType === TrackType.Video && !isGeneratedClip
+    showWaveforms,
+    showThumbnails: showTimelineThumbnails && trackType === TrackType.Video && !isGeneratedClip,
+    onTrimStart,
+    onTrimEnd,
   })
 
   // Derived colors and flags

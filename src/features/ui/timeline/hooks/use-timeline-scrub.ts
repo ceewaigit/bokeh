@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { MutableRefObject } from 'react'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { getTimelineTimeFromClientX, getTimelineTimeFromStagePointer } from '@/features/ui/timeline/playback/seek-utils'
+import { getTimelineTimeFromClientX, getTimelineTimeFromStagePointer } from '@/features/playback'
 
 interface TimelineScrubOptions {
   duration: number

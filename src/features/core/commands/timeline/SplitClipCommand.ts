@@ -13,7 +13,7 @@ import type { Clip } from '@/types/project'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { executeSplitClip } from '@/features/ui/timeline/clips/clip-split'
 import { EffectSyncService } from '@/features/effects/sync'
-import { playbackService } from '@/features/ui/timeline/playback/playback-service'
+import { playbackService } from '@/features/playback/services/playback-service'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
 export interface SplitClipResult {

@@ -1,5 +1,5 @@
-import type { CursorEffectData, CursorMotionPreset } from '@/types/project'
-import { CursorStyle, CursorTheme } from '@/types/project'
+import type { CursorEffectData, CursorMotionPreset } from './types'
+import { CursorStyle, CursorTheme } from './types'
 import { CursorType } from './store/cursor-types'
 
 // Cursor theme configuration
@@ -71,7 +71,7 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     motionBlurIntensity: 40,
     idleTimeout: 3000,
     clickEffects: true,
-    clickEffectStyle: 'ripple',
+    clickEffectStyle: 'none',
     hideOnIdle: false, // Default to showing cursor to avoid confusing users
     fadeOnIdle: true,
     motionPreset: 'cinematic',

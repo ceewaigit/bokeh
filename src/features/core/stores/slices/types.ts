@@ -125,23 +125,7 @@ export interface CacheSliceState {
   frameLayoutCache: FrameLayoutItem[] | null
   timelineMutationCounter: number
   previewReady: boolean
-  // NOTE: Proxy URL storage has been moved to src/features/proxy/store/proxy-store.ts
-}
-
-export interface ProgressState {
-  isProcessing: boolean
-  progress: number // 0-100
-  progressLabel: string | null // e.g., "Exporting...", "Processing..."
-  progressStage: 'idle' | 'preparing' | 'rendering' | 'encoding' | 'complete' | 'error'
-  progressMessage?: string // Detailed message
-  eta?: number // Estimated seconds remaining
-  currentFrame?: number
-  totalFrames?: number
-}
-
-export interface ProgressSliceState {
-  progress: ProgressState
-}
+  }
 
 // =============================================================================
 // Slice Action Interfaces
@@ -301,15 +285,6 @@ export interface SettingsSliceActions {
   setCameraSettings: (updates: Partial<Project['settings']['camera']>) => void
 }
 
-export interface ProgressSliceActions {
-  startProcessing: (label: string) => void
-  setProgress: (progress: number, message?: string, eta?: number) => void
-  setProgressDetails: (details: Partial<ProgressState>) => void
-  finishProcessing: (message?: string) => void
-  failProcessing: (error: string) => void
-  resetProgress: () => void
-}
-
 // =============================================================================
 // Combined Store State Type (Full State)
 // =============================================================================
@@ -319,18 +294,15 @@ export type ProjectStoreState =
   SelectionSliceState &
   PlaybackSliceState &
   TimelineSliceState &
-  CacheSliceState &
-  ProgressSliceState
+  CacheSliceState
 
 export type ProjectStoreActions =
   CoreSliceActions &
   TimelineSliceActions &
   SelectionSliceActions &
   PlaybackSliceActions &
-  PlaybackSliceActions &
   CacheSliceActions &
-  SettingsSliceActions &
-  ProgressSliceActions
+  SettingsSliceActions
 
 export type ProjectStore = ProjectStoreState & ProjectStoreActions
 
@@ -347,9 +319,7 @@ export type TimelineSlice = TimelineSliceState & TimelineSliceActions
 export type SelectionSlice = SelectionSliceState & SelectionSliceActions
 export type PlaybackSlice = PlaybackSliceState & PlaybackSliceActions
 export type CacheSlice = CacheSliceState & CacheSliceActions
-export type SettingsSlice = SettingsSliceActions // State is hosted in CoreSlice for now (root.settings)
-export type ProgressSlice = ProgressSliceState & ProgressSliceActions
-
+export type SettingsSlice = SettingsSliceActions
 
 // StateCreator function types
 export type CreateCoreSlice = StateCreator<ProjectStore, ImmerMiddleware, [], CoreSlice>
@@ -358,4 +328,3 @@ export type CreateSelectionSlice = StateCreator<ProjectStore, ImmerMiddleware, [
 export type CreatePlaybackSlice = StateCreator<ProjectStore, ImmerMiddleware, [], PlaybackSlice>
 export type CreateCacheSlice = StateCreator<ProjectStore, ImmerMiddleware, [], CacheSlice>
 export type CreateSettingsSlice = StateCreator<ProjectStore, ImmerMiddleware, [], SettingsSlice>
-export type CreateProgressSlice = StateCreator<ProjectStore, ImmerMiddleware, [], ProgressSlice>

@@ -1,5 +1,5 @@
 import { ipcMain, IpcMainInvokeEvent, WebContents } from 'electron'
-import { getUIohook, startUIohook, stopUIohook } from '../utils/uiohook-manager'
+import { getUIohook, startUIohook, stopUIohook, registerHandler, unregisterAllHandlers, heartbeat } from '../utils/uiohook-manager'
 import { logger as Logger } from '../utils/logger'
 
 // Get uiohook instance from shared manager
@@ -9,6 +9,30 @@ const uIOhook = getUIohook('keyboard-tracking')
 // Keyboard tracking state
 let isKeyboardTracking = false
 let keyboardEventSender: WebContents | null = null
+let keyboardEventSenderId: number | null = null  // Track by ID for reliable comparison
+
+// Event batching for performance - reduces IPC overhead
+const BATCH_INTERVAL_MS = 50 // Flush batched events every 50ms
+let eventBatch: Array<{
+  type: 'keydown' | 'keyup'
+  key: string
+  modifiers?: string[]
+  timestamp: number
+  rawKeycode: number
+}> = []
+let batchFlushTimer: NodeJS.Timeout | null = null
+
+function flushEventBatch(): void {
+  if (eventBatch.length === 0 || !keyboardEventSender) return
+
+  // Send all batched events at once
+  keyboardEventSender.send('keyboard-events-batch', eventBatch)
+  eventBatch = []
+}
+
+function queueKeyboardEvent(event: typeof eventBatch[number]): void {
+  eventBatch.push(event)
+}
 
 /**
  * Comprehensive uiohook-napi keycode → Web KeyboardEvent.code mapping
@@ -157,7 +181,14 @@ function getKeyFromCode(code: unknown): string | null {
 }
 
 export function startKeyboardTracking(sender: WebContents): void {
-  if (isKeyboardTracking) return
+  // Use sender.id for reliable comparison instead of object reference
+  const senderId = sender.id
+
+  // Check if already tracking for this exact sender (by ID)
+  if (isKeyboardTracking && keyboardEventSenderId === senderId) {
+    Logger.debug('Keyboard tracking already active for this sender')
+    return
+  }
 
   // Check if uiohook is available
   if (!uIOhook) {
@@ -165,18 +196,35 @@ export function startKeyboardTracking(sender: WebContents): void {
     return
   }
 
+  // CRITICAL: Clean up any existing keyboard tracking before starting new one
+  // This prevents duplicate timers and handlers when sender changes
+  if (isKeyboardTracking || batchFlushTimer) {
+    Logger.debug('Cleaning up existing keyboard tracking before starting new one')
+    stopKeyboardTracking()
+  }
+
   isKeyboardTracking = true
   keyboardEventSender = sender
+  keyboardEventSenderId = senderId
+
+  // Clean up when sender is destroyed to prevent orphaned timers
+  sender.once('destroyed', () => {
+    if (keyboardEventSenderId === senderId) {
+      Logger.debug('Keyboard tracking sender destroyed, cleaning up')
+      stopKeyboardTracking()
+    }
+  })
 
   try {
     if (!startUIohook('keyboard-tracking')) {
       Logger.error('Failed to start uiohook for keyboard tracking')
       isKeyboardTracking = false
       keyboardEventSender = null
+      keyboardEventSenderId = null
       return
     }
 
-    // Register keyboard event handlers
+    // Register keyboard event handlers - events are batched for performance
     const handleKeyDown = (event: any) => {
       if (!isKeyboardTracking || !keyboardEventSender) return
 
@@ -190,8 +238,8 @@ export function startKeyboardTracking(sender: WebContents): void {
       const key = getKeyFromCode(event.keycode)
       if (!key) return
 
-      // Send keyboard event
-      keyboardEventSender.send('keyboard-event', {
+      // Queue event for batched send (timestamp captured now for accuracy)
+      queueKeyboardEvent({
         type: 'keydown',
         key,
         modifiers,
@@ -206,7 +254,7 @@ export function startKeyboardTracking(sender: WebContents): void {
       const key = getKeyFromCode(event.keycode)
       if (!key) return
 
-      keyboardEventSender.send('keyboard-event', {
+      queueKeyboardEvent({
         type: 'keyup',
         key,
         timestamp: Date.now(),
@@ -214,15 +262,17 @@ export function startKeyboardTracking(sender: WebContents): void {
       })
     }
 
-    // Register the handlers
-    uIOhook.on('keydown', handleKeyDown)
-    uIOhook.on('keyup', handleKeyUp)
+    // Register handlers using type-safe registry
+    registerHandler('keyboard-tracking', 'keydown', handleKeyDown)
+    registerHandler('keyboard-tracking', 'keyup', handleKeyUp)
 
-      // Store handlers for cleanup
-      ; (global as any).uiohookKeyDownHandler = handleKeyDown
-      ; (global as any).uiohookKeyUpHandler = handleKeyUp
+    // Start batch flush timer with heartbeat to prevent stale module cleanup
+    batchFlushTimer = setInterval(() => {
+      flushEventBatch()
+      heartbeat('keyboard-tracking')
+    }, BATCH_INTERVAL_MS)
 
-    Logger.info('Keyboard tracking started successfully')
+    Logger.info('Keyboard tracking started successfully with batching')
 
   } catch (error) {
     Logger.error('Failed to start keyboard tracking:', error)
@@ -231,23 +281,24 @@ export function startKeyboardTracking(sender: WebContents): void {
 }
 
 export function stopKeyboardTracking(): void {
+  // Clear batch timer first (even if not tracking, might have orphaned timer)
+  if (batchFlushTimer) {
+    clearInterval(batchFlushTimer)
+    batchFlushTimer = null
+  }
+
+  // Flush any remaining batched events before stopping
+  if (isKeyboardTracking) {
+    flushEventBatch()
+  }
+
   isKeyboardTracking = false
   keyboardEventSender = null
+  keyboardEventSenderId = null
+  eventBatch = []
 
-  try {
-    if (uIOhook) {
-      if ((global as any).uiohookKeyDownHandler) {
-        uIOhook.off('keydown', (global as any).uiohookKeyDownHandler)
-          ; (global as any).uiohookKeyDownHandler = null
-      }
-      if ((global as any).uiohookKeyUpHandler) {
-        uIOhook.off('keyup', (global as any).uiohookKeyUpHandler)
-          ; (global as any).uiohookKeyUpHandler = null
-      }
-    }
-  } catch (error) {
-    Logger.error('Error stopping keyboard tracking:', error)
-  }
+  // Unregister handlers using type-safe registry
+  unregisterAllHandlers('keyboard-tracking')
 
   // Let the shared manager decide whether to stop the underlying hook.
   stopUIohook('keyboard-tracking')

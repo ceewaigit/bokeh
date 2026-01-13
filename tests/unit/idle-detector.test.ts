@@ -1,7 +1,7 @@
 /**
  * Tests for idle period detection and merging
  */
-import { IdleActivityDetector } from '@/features/ui/timeline/activity-detection/idle-detector'
+import { IdleActivityDetector } from '@/features/media/analysis/idle-detector'
 import { SpeedUpType } from '@/types/speed-up'
 import type { Recording, RecordingMetadata } from '@/types/project'
 

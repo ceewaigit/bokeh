@@ -1,12 +1,10 @@
 /**
  * Cache Slice
  *
- * Manages all application-level caches.
+ * Manages all application-level caches:
  * - Camera path cache
  * - Frame layout cache
  * - Invalidation logic
- * 
- * NOTE: Proxy URL storage has been moved to src/features/proxy/store/proxy-store.ts
  */
 
 import type { CameraPathFrame } from '@/types/remotion'

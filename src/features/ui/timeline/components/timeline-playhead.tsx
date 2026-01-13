@@ -10,8 +10,7 @@ import { formatTime } from '@/shared/utils/time'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { useTimelineLayout } from './timeline-layout-provider'
-import { useTimelineContext } from './TimelineContext'
-import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
+import { useTimelineContext } from './TimelineUIContext'
 import { useTimelineUI } from './timeline-ui-context'
 
 export const TimelinePlayhead = React.memo(() => {
@@ -24,9 +23,8 @@ export const TimelinePlayhead = React.memo(() => {
   const { onSeek } = useTimelineContext()
   const { scrollLeftRef } = useTimelineUI()
 
-  // DECOUPLED: Use useTimeStore hook which subscribes to transient updates
-  // This prevents playhead freezing during heavy store operations
-  const currentTime = useTimeStore((s) => s.currentTime)
+  // Subscribe to currentTime from the single source of truth
+  const currentTime = useProjectStore((s) => s.currentTime)
 
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)
@@ -189,18 +187,15 @@ export const TimelinePlayhead = React.memo(() => {
       onDragMove={(e) => {
         const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH
         const time = TimeConverter.pixelsToMs(newX, pixelsPerMs)
-        // Clamp to maxTime - 1ms to prevent showing empty video frame at the very end
-        // CLAMP FIX: Clamp to center of last frame (see timeline-canvas.tsx)
-        const currentProject = useProjectStore.getState().currentProject
-        const fps = currentProject ? TimelineDataService.getFps(currentProject) : 30
+        // Clamp to center of last frame to prevent empty video frame at end
+        const project = useProjectStore.getState().currentProject
+        const fps = project ? TimelineDataService.getFps(project) : 30
         const frameDuration = 1000 / fps
         const safeEndTime = Math.max(0, maxTime - (frameDuration * 0.5))
 
         const clampedTime = clamp(time, 0, safeEndTime)
 
-        // Push to observer immediately for visual feedback
-        useTimeStore.getState().setTime(clampedTime)
-        // Also update store via onSeek for persistence
+        // Update store via onSeek (single source of truth)
         onSeek(clampedTime)
       }}
       onMouseEnter={() => {

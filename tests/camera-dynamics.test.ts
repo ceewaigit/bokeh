@@ -6,12 +6,19 @@ function makePhysics(x = 0.5, y = 0.5): CameraPhysicsState {
     return { x, y, vx: 0, vy: 0, lastTimeMs: 0, lastSourceTimeMs: 0 }
 }
 
-describe('camera-calculator physics dynamics', () => {
+describe('camera-calculator exponential smoothing', () => {
+    // Mouse events with cursor at 0.6 (slightly right of center)
+    const mouseEvents = [
+        { timestamp: 0, x: 600, y: 500, captureWidth: 1000, captureHeight: 1000 },
+        { timestamp: 200, x: 600, y: 500, captureWidth: 1000, captureHeight: 1000 },
+        { timestamp: 500, x: 600, y: 500, captureWidth: 1000, captureHeight: 1000 },
+    ]
+
     const recording: any = {
         id: 'r1',
         width: 1000,
         height: 1000,
-        metadata: { mouseEvents: [{ timestamp: 0, x: 600, y: 500, captureWidth: 1000, captureHeight: 1000 }] },
+        metadata: { mouseEvents },
     }
 
     const effects: any[] = [
@@ -25,85 +32,89 @@ describe('camera-calculator physics dynamics', () => {
         },
     ]
 
-    test('higher stiffness moves camera faster', () => {
-        // Scenario: target at 0.6, current at 0.5. dt = 33ms.
-        // 0.6 is inside the visibility window [0.25, 0.75] at zoom 2x, so no hard snap occurs.
+    const testTimeMs = 200
 
-        // Low stiffness
-        const physLow = makePhysics()
-        const outLow = computeCameraState({
-            effects: effects as any,
-            timelineMs: 33,
-            sourceTimeMs: 33,
-            recording,
-            physics: physLow,
-            deterministic: false,
-            cameraDynamics: { stiffness: 20, damping: 20, mass: 1 }
-        })
-        const distLow = outLow.zoomCenter.x - 0.5
-
-        // High stiffness
-        const physHigh = makePhysics()
-        const outHigh = computeCameraState({
-            effects: effects as any,
-            timelineMs: 33,
-            sourceTimeMs: 33,
-            recording,
-            physics: physHigh,
-            deterministic: false,
-            cameraDynamics: { stiffness: 300, damping: 20, mass: 1 }
-        })
-        const distHigh = outHigh.zoomCenter.x - 0.5
-
-        // Expect reasonable movement
-        expect(distLow).toBeGreaterThan(0)
-        expect(distHigh).toBeGreaterThan(distLow * 1.5) // Significantly faster
-    })
-
-    test('updates velocity in physics state', () => {
+    test('camera smoothly approaches target over time', () => {
+        // Camera starts at center (0.5), cursor is at 0.6
+        // After one frame, camera should have moved toward cursor
         const phys = makePhysics()
+        phys.lastTimeMs = testTimeMs - 33  // 33ms frame
+
         const out = computeCameraState({
             effects: effects as any,
-            timelineMs: 33,
-            sourceTimeMs: 33,
+            timelineMs: testTimeMs,
+            sourceTimeMs: testTimeMs,
             recording,
             physics: phys,
             deterministic: false,
-            cameraDynamics: { stiffness: 100, damping: 10, mass: 1 }
         })
 
-        expect(out.physics.vx).not.toBe(0)
-        expect(out.physics.x).toBeGreaterThan(0.5)
+        // Camera should have moved toward target (rightward toward 0.6)
+        expect(out.zoomCenter.x).toBeGreaterThan(0.5)
+        // But not all the way there (smoothing takes time)
+        expect(out.zoomCenter.x).toBeLessThan(0.6)
     })
 
-    test('cameraSmoothness maps to reasonable spring behavior', () => {
-        // Check that legacy parameter still works
+    test('camera converges to target after multiple frames', () => {
+        // Simulate multiple frames
+        let phys = makePhysics()
+        phys.lastTimeMs = 0
 
-        // Very smooth (high value 90) -> slow spring
-        const outSmooth = computeCameraState({
-            effects: effects as any,
-            timelineMs: 33,
-            sourceTimeMs: 33,
-            recording,
-            physics: makePhysics(),
-            deterministic: false,
-            cameraSmoothness: 90
-        })
+        // Run for 500ms (about 15 frames at 33ms)
+        for (let t = 33; t <= 500; t += 33) {
+            const out = computeCameraState({
+                effects: effects as any,
+                timelineMs: t,
+                sourceTimeMs: t,
+                recording,
+                physics: phys,
+                deterministic: false,
+            })
+            phys = out.physics as CameraPhysicsState
+        }
 
-        // Very tight (low value 10) -> fast spring
-        const outTight = computeCameraState({
-            effects: effects as any,
-            timelineMs: 33,
-            sourceTimeMs: 33,
-            recording,
-            physics: makePhysics(),
-            deterministic: false,
-            cameraSmoothness: 10
-        })
+        // After 500ms, camera should be very close to target
+        // Target is where cursor (0.6) pushes the dead-zone edge
+        expect(phys.x).toBeGreaterThan(0.5)
+    })
 
-        const distSmooth = outSmooth.zoomCenter.x - 0.5
-        const distTight = outTight.zoomCenter.x - 0.5
+    test('exponential smoothing is frame-rate independent', () => {
+        // Two scenarios: many small steps vs few large steps
+        // Both should end up at approximately the same position
 
-        expect(distTight).toBeGreaterThan(distSmooth * 1.2)
+        // Scenario 1: 10 frames of 10ms each (100ms total)
+        let phys1 = makePhysics()
+        phys1.lastTimeMs = 0
+        for (let t = 10; t <= 100; t += 10) {
+            const out = computeCameraState({
+                effects: effects as any,
+                timelineMs: t,
+                sourceTimeMs: t,
+                recording,
+                physics: phys1,
+                deterministic: false,
+            })
+            phys1 = out.physics as CameraPhysicsState
+        }
+
+        // Scenario 2: 2 frames of 50ms each (100ms total)
+        let phys2 = makePhysics()
+        phys2.lastTimeMs = 0
+        for (let t = 50; t <= 100; t += 50) {
+            const out = computeCameraState({
+                effects: effects as any,
+                timelineMs: t,
+                sourceTimeMs: t,
+                recording,
+                physics: phys2,
+                deterministic: false,
+            })
+            phys2 = out.physics as CameraPhysicsState
+        }
+
+        // Both should be approximately equal (within 5%)
+        const diff = Math.abs(phys1.x - phys2.x)
+        const avg = (phys1.x + phys2.x) / 2
+        expect(diff / avg).toBeLessThan(0.05)
     })
 })

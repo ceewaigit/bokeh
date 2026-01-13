@@ -7,7 +7,7 @@
 
 import type { ProjectStore } from './types'
 import { DEFAULT_STORE_SETTINGS } from '@/features/core/settings/defaults'
-import { playbackService } from '@/features/ui/timeline/playback/playback-service'
+import { playbackService } from '@/features/playback/services/playback-service'
 
 /**
  * Reset selection and zoom state when switching projects.

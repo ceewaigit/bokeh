@@ -11,7 +11,7 @@
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
-import { useTimelineContext } from '../context/TimelineContext';
+import { useTimelineContext } from '../context/RenderingTimelineContext';
 import { useComposition } from '../context/CompositionContext';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { VideoPositionProvider } from '../context/layout/VideoPositionContext';
@@ -19,7 +19,7 @@ import type { SharedVideoControllerProps } from '@/types';
 import { getMaxZoomScale } from '@/features/rendering/renderer/hooks/media/useVideoUrl';
 import { useRenderDelay } from '@/features/rendering/renderer/hooks/render/useRenderDelay';
 import { useFrameSnapshot } from '@/features/rendering/renderer/hooks/use-frame-snapshot';
-import { resolveClipFade } from '@/features/rendering/renderer/compositions/utils/effects/clip-fade';
+// resolveClipFade removed - each renderer now handles its own opacity via useClipRenderState
 
 import { VideoClipRenderer } from './renderers/VideoClipRenderer';
 import { GeneratedClipRenderer } from './renderers/GeneratedClipRenderer';
@@ -85,6 +85,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   // Extract boundary state
   const shouldHoldPrevFrame = boundaryState?.shouldHoldPrevFrame ?? false;
+  const shouldHoldNextFrame = boundaryState?.shouldHoldNextFrame ?? false;
   // Extract layout items
   const { active: activeLayoutItem, prev: prevLayoutItem, next: nextLayoutItem } = layoutItems;
 
@@ -174,19 +175,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // Allow fractional blur for smooth transitions (prevents 0->1px snap blink)
   const effectiveBlurPx = refocusBlurRaw < 0.1 ? 0 : Number(refocusBlurRaw.toFixed(2));
 
-  const { clipFadeOpacity, useParentFade } = useMemo(() => {
-    if (!activeLayoutItem) {
-      return { clipFadeOpacity: 1, useParentFade: false };
-    }
-    return resolveClipFade({
-      clip: activeLayoutItem.clip,
-      layout,
-      currentFrame,
-      startFrame: activeLayoutItem.startFrame,
-      durationFrames: activeLayoutItem.durationFrames,
-      fps,
-    });
-  }, [activeLayoutItem, currentFrame, fps, layout]);
+  // NOTE: clipFadeOpacity and useParentFade were removed from here.
+  // Each VideoClipRenderer now calculates its own opacity via useClipRenderState.
+  // This fixes the bug where clip-specific opacity was shared globally,
+  // causing random transparency when multiple clips render simultaneously.
 
   useEffect(() => {
     // Preview ready when no motion blur (which handles its own readiness)
@@ -300,6 +292,19 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // RETURN
   // ==========================================================================
 
+  // PERFORMANCE: Stabilize velocity reference to prevent unnecessary context recreation
+  // Only update the stable ref when velocity changes significantly (> 0.5px difference)
+  const stableVelocityRef = useRef({ x: 0, y: 0 });
+  const rawVelocity = snapshotCamera.velocity ?? { x: 0, y: 0 };
+  const VELOCITY_CHANGE_THRESHOLD = 0.5;
+  if (
+    Math.abs(rawVelocity.x - stableVelocityRef.current.x) > VELOCITY_CHANGE_THRESHOLD ||
+    Math.abs(rawVelocity.y - stableVelocityRef.current.y) > VELOCITY_CHANGE_THRESHOLD
+  ) {
+    stableVelocityRef.current = { x: rawVelocity.x, y: rawVelocity.y };
+  }
+  const stableVelocity = stableVelocityRef.current;
+
   // Prepare context value
   const videoPositionContextValue = useMemo(() => ({
     ...layout,
@@ -310,7 +315,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     // NEW: Motion blur state for IoC pattern (VideoClipRenderer consumes this)
     motionBlur: {
       enabled: isMotionBlurActive,
-      velocity: snapshotCamera.velocity,
+      velocity: stableVelocity,
       intensity: motionBlurIntensity / 100,
       drawWidth: layout.drawWidth,
       drawHeight: layout.drawHeight,
@@ -340,8 +345,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     videoHeight,
     maxZoomScale: getMaxZoomScale(effects),
     boundaryState,
-    clipFadeOpacity,
-    useParentFade,
+    // clipFadeOpacity and useParentFade removed - each renderer calculates its own
   }), [
     layout,
     zoomTransform,
@@ -349,7 +353,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     has3DTransform,
     effectiveBlurPx,
     isMotionBlurActive,
-    snapshotCamera.velocity,
+    // Use stable velocity primitives to prevent re-renders from minor velocity changes
+    stableVelocity.x,
+    stableVelocity.y,
     motionBlurIntensity,
     cameraSettings,
     motionBlurConfig.velocityThreshold,
@@ -363,14 +369,14 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     videoWidth,
     videoHeight,
     effects,
-    boundaryState,
-    clipFadeOpacity,
-    useParentFade
+    boundaryState
   ]);
 
   // If no active content, render children (overlays) or empty container
   // SCRUBBING SAFETY: During scrubbing, use cached content to prevent black screen
-  if (!resolvedClipData && !shouldHoldPrevFrame) {
+  // ZOOM SAFETY: Don't show black screen while zooming - video may still be resolving
+  const isZooming = ((zoomTransform as any)?.scale ?? 1) > 1.01;
+  if (!resolvedClipData && !shouldHoldPrevFrame && !shouldHoldNextFrame && !isZooming) {
     // During scrubbing, show last known good content instead of black screen
     if (isScrubbing && lastValidContentRef.current) {
       return (
@@ -439,7 +445,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               height: layout.mockupEnabled ? '100%' : layout.drawHeight,
               transform: outerTransform,
               transformOrigin: 'center center',
-              opacity: useParentFade ? clipFadeOpacity : 1,
+              // Opacity now handled per-clip by VideoClipRenderer via useClipRenderState
               // OUTER CONTAINER: Handles positioning, transforms
               // Shadows are now handled by the inner container for performance
               // NOTE: Refocus blur is now handled by WebGL (MotionBlurCanvas) for performance
@@ -516,7 +522,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 height: layout.drawHeight,
                 transform: outerTransform,
                 transformOrigin: 'center center',
-                opacity: useParentFade ? clipFadeOpacity : 1,
+                // Opacity handled per-clip by renderer
                 willChange: isRendering ? undefined : 'transform',
                 transformStyle: has3DTransform ? 'preserve-3d' : undefined,
                 backfaceVisibility: has3DTransform ? 'hidden' : undefined,

@@ -145,6 +145,29 @@ export function isShortcutModifier(modifiers: string[] = []): boolean {
   })
 }
 
+export function isShortcutKey(key: string): boolean {
+  if (!key) return false
+
+  // Single letters (KeyA-KeyZ)
+  if (/^Key[A-Z]$/.test(key)) return true
+
+  // Digits (Digit0-9)
+  if (/^Digit[0-9]$/.test(key)) return true
+
+  // Function keys
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(key)) return true
+
+  // Common shortcut targets
+  const shortcutKeys = new Set([
+    'Space', 'Tab', 'Enter', 'Escape', 'Backspace', 'Delete',
+    'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+    'Home', 'End', 'PageUp', 'PageDown'
+  ])
+  if (shortcutKeys.has(key)) return true
+
+  return false
+}
+
 export function countPrintableCharacters(events: KeyboardEvent[]): number {
   return events.reduce((count, e) => {
     const printable = getPrintableCharFromKey(e.key, e.modifiers)

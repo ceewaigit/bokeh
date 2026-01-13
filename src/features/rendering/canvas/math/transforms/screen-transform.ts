@@ -59,7 +59,11 @@ export function calculateScreenTransform(
 
     // Centering adjustment for certain presets
     let centerAdjust = '';
-    if (
+    if (preset === ScreenEffectPreset.TableView) {
+        // TableView has positive tiltX (45deg forward tilt), needs vertical compensation
+        const ty = -(easedTiltX ?? 0) * 0.1;
+        centerAdjust = ` translate3d(0, ${ty * pixelScale}px, 0)`;
+    } else if (
         preset === ScreenEffectPreset.Cinematic ||
         preset === ScreenEffectPreset.Hero ||
         preset === ScreenEffectPreset.Isometric ||

@@ -12,7 +12,6 @@ import { getDefaultZIndexForCategory } from '@/features/effects/config/plugin-sd
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk';
 import type { Clip, Recording } from '@/types/project';
 import { assertDefined } from '@/shared/errors';
-import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext';
 
 interface GeneratedClipRendererProps {
   clipForVideo: Clip;
@@ -37,8 +36,8 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
     clip: clipForVideo, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
     currentFrame, fps, isRendering
   });
-  const { useParentFade } = useVideoPosition();
-  const visualOpacity = useParentFade ? 1 : renderState.effectiveOpacity;
+  // Each renderer calculates its own opacity via useClipRenderState
+  const effectiveOpacity = renderState.effectiveOpacity;
 
   // Plugin lookup
   const generatedPluginId = assertDefined(
@@ -76,7 +75,7 @@ export const GeneratedClipRenderer: React.FC<GeneratedClipRendererProps> = ({
         position: 'absolute',
         top: 0,
         left: 0,
-        opacity: visualOpacity,
+        opacity: effectiveOpacity,
         zIndex: baseZIndex,
       }}>
         {generatedContent}

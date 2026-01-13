@@ -11,8 +11,9 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { ColorPickerPopover } from '@/components/ui/color-picker'
-import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, CursorMotionPreset, Effect } from '@/types/project'
-import { CursorTheme } from '@/types/project'
+import type { Effect } from '@/types/project'
+import type { ClickEffectAnimation, ClickEffectStyle, ClickTextAnimation, ClickTextMode, CursorEffectData, CursorMotionPreset } from '@/features/effects/cursor/types'
+import { CursorTheme } from '@/features/effects/cursor/types'
 import { EffectType } from '@/types'
 import { CURSOR_MOTION_PRESETS, CURSOR_THEMES, DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { CursorType, getCursorImagePath } from '@/features/effects/cursor/store/cursor-types'
@@ -307,7 +308,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               }}
               onValueCommit={([value]) => onUpdateCursor({ size: value })}
               min={0.5}
-              max={3}
+              max={6}
               step={0.1}
               className="w-full"
             />

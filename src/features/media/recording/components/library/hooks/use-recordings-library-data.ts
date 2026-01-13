@@ -4,12 +4,39 @@ import { useRecordingsLibraryStore, type LibraryRecording, type LibraryRecording
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { PROJECT_EXTENSION, PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
 import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'
+import { markModified } from '@/features/core/stores/store-utils'
+
+// ============================================================================
+// TYPES & CONSTANTS
+// ============================================================================
 
 interface HydrationOptions {
   includeMediaSize: boolean
 }
 
 type ThumbnailVariant = 'default' | 'large'
+
+interface ThumbnailSpec {
+  width: number
+  height: number
+  variant: ThumbnailVariant
+  quality: number
+}
+
+interface HydrationContext {
+  loadToken: number
+  loadTokenRef: React.MutableRefObject<number>
+  hydrationRef: React.MutableRefObject<Record<string, LibraryRecordingHydration>>
+  setHydration: (path: string, hydration: LibraryRecordingHydration) => void
+  generateThumbnail: (rec: LibraryRecording, videoPath: string, options: { width: number; height: number; quality: number; variant: ThumbnailVariant }) => Promise<string | null>
+  loadThumbnailFromDisk: (projectDir: string, variant: ThumbnailVariant) => Promise<string | null>
+  saveThumbnailToDisk: (projectDir: string, dataUrl: string, variant: ThumbnailVariant) => Promise<void>
+  resolveThumbnailSpec: (index: number) => ThumbnailSpec
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 const normalizeSearchValue = (value: string) => (
   value
@@ -19,6 +46,168 @@ const normalizeSearchValue = (value: string) => (
     .replace(/\s+/g, ' ')
     .trim()
 )
+
+const getThumbnailFileName = (variant: ThumbnailVariant) =>
+  variant === 'large' ? 'thumbnail-large.jpg' : 'thumbnail.jpg'
+
+const getDeviceScale = () => {
+  if (typeof window === 'undefined') return 1
+  return Math.min(2, window.devicePixelRatio || 1)
+}
+
+/** Run tasks with concurrency limit */
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  let index = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const next = items[index]
+      index += 1
+      if (!next) return
+      await worker(next)
+    }
+  })
+  await Promise.all(workers)
+}
+
+/** Hydrate a single recording with project info and thumbnail */
+async function hydrateRecording(
+  rec: LibraryRecording,
+  options: HydrationOptions,
+  index: number,
+  ctx: HydrationContext
+): Promise<void> {
+  if (ctx.loadTokenRef.current !== ctx.loadToken) return
+
+  const existingHydration = ctx.hydrationRef.current[rec.path]
+  const thumbSpec = ctx.resolveThumbnailSpec(index)
+  const matchingThumb = existingHydration?.thumbnailVariant === thumbSpec.variant
+    ? existingHydration?.thumbnailUrl
+    : undefined
+
+  if (matchingThumb && existingHydration?.projectInfo) return
+
+  try {
+    let info = existingHydration?.projectInfo
+    let thumb = matchingThumb
+
+    if (!info || !thumb) {
+      if (window.electronAPI?.readLocalFile) {
+        const projectFilePath = await getProjectFilePath(rec.path, window.electronAPI?.fileExists)
+        const result = await window.electronAPI.readLocalFile(projectFilePath)
+        if (result?.success && result.data) {
+          const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
+          const project: Project = JSON.parse(projectData)
+
+          const duration = project.timeline?.duration || project.recordings?.[0]?.duration || 0
+          info = {
+            name: project.name || rec.name,
+            duration,
+            width: project.recordings?.[0]?.width || 0,
+            height: project.recordings?.[0]?.height || 0,
+            recordingCount: project.recordings?.length || 0
+          }
+
+          if (project?.recordings && project.recordings.length > 0) {
+            const projectDir = getProjectDir(rec.path, projectFilePath)
+            const firstRecording = project.recordings[0]
+            let videoPath = firstRecording.filePath
+
+            if (!videoPath || !isValidFilePath(videoPath)) {
+              if (info) {
+                ctx.setHydration(rec.path, { projectInfo: info })
+              }
+              return
+            }
+
+            const resolvedPath = await resolveRecordingMediaPath({
+              projectDir,
+              filePath: videoPath,
+              recordingId: firstRecording.id,
+              fileExists: window.electronAPI?.fileExists
+            })
+            if (resolvedPath) {
+              videoPath = resolvedPath
+            }
+
+            // Load media file sizes if requested
+            if (options.includeMediaSize && !existingHydration?.mediaFileSize && window.electronAPI?.getFileSize) {
+              try {
+                let total = 0
+                for (const r of project.recordings) {
+                  const filePath = r.filePath
+                  if (!filePath || !isValidFilePath(filePath)) continue
+
+                  const resolvedFilePath = await resolveRecordingMediaPath({
+                    projectDir,
+                    filePath,
+                    recordingId: r.id,
+                    fileExists: window.electronAPI?.fileExists
+                  })
+                  if (!resolvedFilePath || !window.electronAPI?.getFileSize) continue
+                  const stat = await window.electronAPI.getFileSize(resolvedFilePath)
+                  if (stat?.success && stat.data?.size) total += stat.data.size
+                }
+
+                if (ctx.loadTokenRef.current === ctx.loadToken && total > 0) {
+                  ctx.setHydration(rec.path, { mediaFileSize: total })
+                }
+              } catch (e) {
+                console.log('Could not get media size:', e)
+              }
+            }
+
+            // Generate or load thumbnail
+            if (!thumb) {
+              try {
+                const savedThumbnail = await ctx.loadThumbnailFromDisk(projectDir, thumbSpec.variant)
+                if (ctx.loadTokenRef.current !== ctx.loadToken) return
+                if (savedThumbnail) {
+                  thumb = savedThumbnail
+                } else if (videoPath) {
+                  const thumbnailUrl = await ctx.generateThumbnail(rec, videoPath, {
+                    width: thumbSpec.width,
+                    height: thumbSpec.height,
+                    quality: thumbSpec.quality,
+                    variant: thumbSpec.variant
+                  })
+                  if (ctx.loadTokenRef.current !== ctx.loadToken) return
+                  if (thumbnailUrl) {
+                    thumb = thumbnailUrl
+                    await ctx.saveThumbnailToDisk(projectDir, thumbnailUrl, thumbSpec.variant)
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to generate thumbnail for', rec.name, error)
+              }
+            }
+          }
+        }
+      }
+
+      if (info || thumb) {
+        const hydrationUpdate: LibraryRecordingHydration = {}
+        if (info) hydrationUpdate.projectInfo = info
+        if (thumb) {
+          hydrationUpdate.thumbnailUrl = thumb
+          hydrationUpdate.thumbnailVariant = thumbSpec.variant
+        }
+        if (Object.keys(hydrationUpdate).length > 0) {
+          ctx.setHydration(rec.path, hydrationUpdate)
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to hydrate recording:', rec.path, e)
+  }
+}
+
+// ============================================================================
+// MAIN HOOK
+// ============================================================================
 
 export const useRecordingsLibraryData = () => {
   const {
@@ -43,6 +232,7 @@ export const useRecordingsLibraryData = () => {
   const [pendingDelete, setPendingDelete] = useState<LibraryRecordingView | null>(null)
   const loadTokenRef = useRef(0)
   const hydrationIndicatorTimeoutRef = useRef<number | null>(null)
+  const loadMoreTimeoutRef = useRef<number | null>(null)
   const recordingsRef = useRef(recordings)
   const hydrationRef = useRef(hydrationByPath)
 
@@ -124,42 +314,18 @@ export const useRecordingsLibraryData = () => {
     hydrationRef.current = hydrationByPath
   }, [hydrationByPath])
 
-  const runWithConcurrency = useCallback(async <T,>(
-    items: T[],
-    limit: number,
-    worker: (item: T) => Promise<void>
-  ) => {
-    let index = 0
-    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (true) {
-        const next = items[index]
-        index += 1
-        if (!next) return
-        await worker(next)
-      }
-    })
-    await Promise.all(workers)
-  }, [])
+  // ──────────────────────────────────────────────────────────────────────────
+  // THUMBNAIL HELPERS
+  // ──────────────────────────────────────────────────────────────────────────
 
-  const getDeviceScale = () => {
-    if (typeof window === 'undefined') return 1
-    return Math.min(2, window.devicePixelRatio || 1)
-  }
-
-  const resolveThumbnailSpec = useCallback((_index: number) => {
-    // Simplified thumbnail spec - all cards get same size thumbnails
+  const resolveThumbnailSpec = useCallback((_index: number): ThumbnailSpec => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
     const baseWidth = Math.min(800, Math.max(400, Math.round(viewportWidth * 0.25)))
     const dpr = getDeviceScale()
     const width = Math.min(Math.round(baseWidth * dpr), 1600)
     const height = Math.round((width * 9) / 16)
-    const variant: ThumbnailVariant = 'default'
-    const quality = 0.8
-    return { width, height, variant, quality }
+    return { width, height, variant: 'default', quality: 0.8 }
   }, [])
-
-  const getThumbnailFileName = (variant: ThumbnailVariant) =>
-    variant === 'large' ? 'thumbnail-large.jpg' : 'thumbnail.jpg'
 
   const generateThumbnail = useCallback(async (
     recording: LibraryRecording,
@@ -169,12 +335,7 @@ export const useRecordingsLibraryData = () => {
     return await ThumbnailGenerator.generateThumbnail(
       videoPath,
       `${recording.path}:${options.variant}`,
-      {
-        width: options.width,
-        height: options.height,
-        quality: options.quality,
-        timestamp: 0.1
-      }
+      { width: options.width, height: options.height, quality: options.quality, timestamp: 0.1 }
     )
   }, [])
 
@@ -193,169 +354,53 @@ export const useRecordingsLibraryData = () => {
     try {
       const base64 = match[2]
       const binary = atob(base64)
-      const len = binary.length
-      const bytes = new Uint8Array(len)
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binary.charCodeAt(i)
-      }
-      const thumbnailPath = `${projectDir}/${getThumbnailFileName(variant)}`
-      await window.electronAPI.saveRecording(thumbnailPath, bytes.buffer)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      await window.electronAPI.saveRecording(`${projectDir}/${getThumbnailFileName(variant)}`, bytes.buffer)
     } catch (error) {
       console.warn('Failed to save thumbnail to disk:', error)
     }
   }, [])
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // HYDRATION EFFECT
+  // ──────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
-    // Map displayed recordings to items with their indices
-    const pageItems = displayedRecordings.map((rec, index) => ({
-      rec,
-      index
-    }))
+    const pageItems = displayedRecordings.map((rec, index) => ({ rec, index }))
     const needsHydration = pageItems.filter(({ rec, index }) => {
       const hydration = hydrationRef.current[rec.path]
       const desiredVariant = resolveThumbnailSpec(index).variant
       const hasMatchingThumb = hydration?.thumbnailUrl && hydration.thumbnailVariant === desiredVariant
       return !hasMatchingThumb || !hydration?.projectInfo
     })
+
     if (needsHydration.length === 0) {
       setIsPageHydrating(false)
       return
     }
+
     const token = ++loadTokenRef.current
     setIsPageHydrating(true)
 
-    const hydrateRecording = async (
-      rec: LibraryRecording,
-      options: HydrationOptions,
-      index: number
-    ) => {
-      if (loadTokenRef.current !== token) return
-      const existingHydration = hydrationRef.current[rec.path]
-      const thumbSpec = resolveThumbnailSpec(index)
-      const matchingThumb = existingHydration?.thumbnailVariant === thumbSpec.variant
-        ? existingHydration?.thumbnailUrl
-        : undefined
-      if (matchingThumb && existingHydration?.projectInfo) return
-
-      try {
-        let info = existingHydration?.projectInfo
-        let thumb = matchingThumb
-
-        if (!info || !thumb) {
-          if (window.electronAPI?.readLocalFile) {
-            const projectFilePath = await getProjectFilePath(rec.path, window.electronAPI?.fileExists)
-            const result = await window.electronAPI.readLocalFile(projectFilePath)
-            if (result?.success && result.data) {
-              const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
-              const project: Project = JSON.parse(projectData)
-
-              const duration = project.timeline?.duration || project.recordings?.[0]?.duration || 0
-              info = {
-                name: project.name || rec.name,
-                duration,
-                width: project.recordings?.[0]?.width || 0,
-                height: project.recordings?.[0]?.height || 0,
-                recordingCount: project.recordings?.length || 0
-              }
-
-              if (project?.recordings && project.recordings.length > 0) {
-                const projectDir = getProjectDir(rec.path, projectFilePath)
-                const firstRecording = project.recordings[0]
-                let videoPath = firstRecording.filePath
-
-                if (!videoPath || !isValidFilePath(videoPath)) {
-                  if (info) {
-                    setHydration(rec.path, { projectInfo: info })
-                  }
-                  return
-                }
-
-                const resolvedPath = await resolveRecordingMediaPath({
-                  projectDir,
-                  filePath: videoPath,
-                  recordingId: firstRecording.id,
-                  fileExists: window.electronAPI?.fileExists
-                })
-                if (resolvedPath) {
-                  videoPath = resolvedPath
-                }
-
-                if (options.includeMediaSize && !existingHydration?.mediaFileSize && window.electronAPI?.getFileSize) {
-                  try {
-                    let total = 0
-                    for (const r of project.recordings) {
-                      const filePath = r.filePath
-                      if (!filePath || !isValidFilePath(filePath)) continue
-
-                      const resolvedFilePath = await resolveRecordingMediaPath({
-                        projectDir,
-                        filePath,
-                        recordingId: r.id,
-                        fileExists: window.electronAPI?.fileExists
-                      })
-                      if (!resolvedFilePath || !window.electronAPI?.getFileSize) continue
-                      const stat = await window.electronAPI.getFileSize(resolvedFilePath)
-                      if (stat?.success && stat.data?.size) total += stat.data.size
-                    }
-
-                    if (loadTokenRef.current === token && total > 0) {
-                      setHydration(rec.path, { mediaFileSize: total })
-                    }
-                  } catch (e) {
-                    console.log('Could not get media size:', e)
-                  }
-                }
-
-                if (!thumb) {
-                  try {
-                    const savedThumbnail = await loadThumbnailFromDisk(projectDir, thumbSpec.variant)
-                    if (loadTokenRef.current !== token) return
-                    if (savedThumbnail) {
-                      thumb = savedThumbnail
-                    } else if (videoPath) {
-                      const thumbnailUrl = await generateThumbnail(rec, videoPath, {
-                        width: thumbSpec.width,
-                        height: thumbSpec.height,
-                        quality: thumbSpec.quality,
-                        variant: thumbSpec.variant
-                      })
-                      if (loadTokenRef.current !== token) return
-                      if (thumbnailUrl) {
-                        thumb = thumbnailUrl
-                        await saveThumbnailToDisk(projectDir, thumbnailUrl, thumbSpec.variant)
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Failed to generate thumbnail for', rec.name, error)
-                  }
-                }
-              }
-            }
-          }
-
-          if (info || thumb) {
-            const hydrationUpdate: LibraryRecordingHydration = {}
-            if (info) hydrationUpdate.projectInfo = info
-            if (thumb) {
-              hydrationUpdate.thumbnailUrl = thumb
-              hydrationUpdate.thumbnailVariant = thumbSpec.variant
-            }
-            if (Object.keys(hydrationUpdate).length > 0) {
-              setHydration(rec.path, hydrationUpdate)
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Failed to hydrate recording:', rec.path, e)
-      }
+    // Create hydration context for the extracted function
+    const ctx: HydrationContext = {
+      loadToken: token,
+      loadTokenRef,
+      hydrationRef,
+      setHydration,
+      generateThumbnail,
+      loadThumbnailFromDisk,
+      saveThumbnailToDisk,
+      resolveThumbnailSpec
     }
 
     const run = async () => {
-      await runWithConcurrency<{ rec: LibraryRecording; index: number }>(
-        needsHydration,
-        4,
-        ({ rec, index }) => hydrateRecording(rec, { includeMediaSize: true }, index)
+      // Hydrate current page
+      await runWithConcurrency(needsHydration, 4, ({ rec, index }) =>
+        hydrateRecording(rec, { includeMediaSize: true }, index, ctx)
       )
+
       if (loadTokenRef.current === token) {
         setIsPageHydrating(false)
       }
@@ -363,16 +408,13 @@ export const useRecordingsLibraryData = () => {
       // Pre-load next batch for smooth infinite scroll
       if (loadTokenRef.current === token) {
         const start = displayedCount
-        const end = start + 24 // Pre-load next batch
-        const nextItems = filteredAndSortedRecordings.slice(start, end).map((rec, index) => ({
+        const nextItems = filteredAndSortedRecordings.slice(start, start + 24).map((rec, i) => ({
           rec,
-          index: start + index
+          index: start + i
         }))
         if (nextItems.length > 0) {
-          await runWithConcurrency<{ rec: LibraryRecording; index: number }>(
-            nextItems,
-            3,
-            ({ rec, index }) => hydrateRecording(rec, { includeMediaSize: false }, index)
+          await runWithConcurrency(nextItems, 3, ({ rec, index }) =>
+            hydrateRecording(rec, { includeMediaSize: false }, index, ctx)
           )
         }
       }
@@ -389,7 +431,6 @@ export const useRecordingsLibraryData = () => {
     generateThumbnail,
     loadThumbnailFromDisk,
     saveThumbnailToDisk,
-    runWithConcurrency,
     displayedRecordings,
     resolveThumbnailSpec,
     searchQuery,
@@ -462,12 +503,27 @@ export const useRecordingsLibraryData = () => {
   const loadMore = useCallback(() => {
     if (isLoadingMore || !hasMore) return
     setIsLoadingMore(true)
+    // Clear any existing timeout to prevent accumulation
+    if (loadMoreTimeoutRef.current !== null) {
+      window.clearTimeout(loadMoreTimeoutRef.current)
+    }
     // Small delay to allow hydration to start
-    setTimeout(() => {
+    loadMoreTimeoutRef.current = window.setTimeout(() => {
+      loadMoreTimeoutRef.current = null
       incrementDisplayed()
       setIsLoadingMore(false)
     }, 100)
   }, [isLoadingMore, hasMore, incrementDisplayed])
+
+  // Cleanup loadMore timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (loadMoreTimeoutRef.current !== null) {
+        window.clearTimeout(loadMoreTimeoutRef.current)
+        loadMoreTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (hydrationIndicatorTimeoutRef.current !== null) {
@@ -516,7 +572,7 @@ export const useRecordingsLibraryData = () => {
       const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
       const project: Project = JSON.parse(projectData)
       project.name = trimmedName
-      project.modifiedAt = new Date().toISOString()
+      markModified(project)
 
       const updatedData = JSON.stringify(project)
       await window.electronAPI.saveRecording(projectFilePath, new TextEncoder().encode(updatedData).buffer)

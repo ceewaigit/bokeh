@@ -7,7 +7,7 @@ import { useShallow } from 'zustand/react/shallow'
 
 import { annotationTrackConfig } from '@/features/effects/annotation/config'
 import { UpdateEffectCommand } from '@/features/core/commands'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'

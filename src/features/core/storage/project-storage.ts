@@ -12,19 +12,19 @@ import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, EffectType 
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getEffectsOfType } from '@/features/effects/core/filters'
 import { regenerateProjectEffects } from '@/features/effects/logic/effect-applier'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { isLikelyKeyboardKey, isStandaloneModifierKey } from '@/features/core/keyboard/keyboard-utils'
 import { getVideoMetadataFromPath } from '@/shared/utils/video-metadata'
 import { normalizeProjectSettings } from '@/features/core/settings/normalize-project-settings'
 import { migrationRunner } from '@/shared/migrations'
 import { normalizeWatermarkEffectData } from '@/features/effects/watermark/config'
-import { recordingMetadataCache } from './recording-metadata-cache'
-import { recordingBlobUrlCache } from './recording-blob-url-cache'
+import { recordingMetadataCache } from './recording/metadata-cache'
+import { recordingBlobUrlCache } from './recording/blob-url-cache'
 import {
   loadMetadataChunks as loadMetadataChunksFromFilesystem,
   saveMetadataChunks as saveMetadataChunksToFilesystem,
   saveTranscriptChunk as saveTranscriptChunkToFilesystem,
-} from './recording-metadata-chunks'
+} from './recording/metadata-chunks'
 import { joinRendererPath } from './renderer-path'
 
 import {
@@ -456,42 +456,21 @@ export class ProjectStorage {
         resolution: { width, height }
       }))
 
-      // Get capture dimensions from first mouse event (they all have it now)
-      const firstMouseEvent = metadata.find(m => m.eventType === 'mouse' && m.captureWidth && m.captureHeight)
-      const expectedScale = captureArea?.scaleFactor || 1
-      const expectedWidth = captureArea?.fullBounds?.width
-        ? Math.round(captureArea.fullBounds.width * expectedScale)
-        : (firstMouseEvent?.captureWidth ? Math.round(firstMouseEvent.captureWidth) : 0)
-      const expectedHeight = captureArea?.fullBounds?.height
-        ? Math.round(captureArea.fullBounds.height * expectedScale)
-        : (firstMouseEvent?.captureHeight ? Math.round(firstMouseEvent.captureHeight) : 0)
-      const needsScaleFix = actualWidth > 0 && actualHeight > 0 &&
-        expectedWidth > 0 && expectedHeight > 0 &&
-        (Math.abs(actualWidth - expectedWidth) > 2 || Math.abs(actualHeight - expectedHeight) > 2)
-      const scaleX = needsScaleFix ? actualWidth / expectedWidth : 1
-      const scaleY = needsScaleFix ? actualHeight / expectedHeight : 1
-
-      const normalizedCaptureWidth = actualWidth || width
-      const normalizedCaptureHeight = actualHeight || height
-
-      const captureWidth = expectedWidth || normalizedCaptureWidth
-      const captureHeight = expectedHeight || normalizedCaptureHeight
-      const applyScaleX = (value: number) => needsScaleFix ? Math.round(value * scaleX) : value
-      const applyScaleY = (value: number) => needsScaleFix ? Math.round(value * scaleY) : value
-
       const firstEventWithBounds = metadata.find(m => m.sourceBounds)
       const sourceBounds = firstEventWithBounds?.sourceBounds
 
+      // Mouse coordinates from tracking service are already in physical pixels relative to capture.
+      // Use each event's own captureWidth/Height - do NOT scale based on video dimensions.
       const rawMouseEvents = metadata
         .filter(m => m.eventType === 'mouse' && m.mouseX !== undefined && m.mouseY !== undefined)
         .map(m => ({
           timestamp: m.timestamp,
-          x: applyScaleX(m.mouseX!),
-          y: applyScaleY(m.mouseY!),
-          screenWidth: applyScaleX(m.screenWidth || captureWidth),
-          screenHeight: applyScaleY(m.screenHeight || captureHeight),
-          captureWidth: normalizedCaptureWidth,
-          captureHeight: normalizedCaptureHeight,
+          x: m.mouseX!,
+          y: m.mouseY!,
+          screenWidth: m.screenWidth || m.captureWidth || width,
+          screenHeight: m.screenHeight || m.captureHeight || height,
+          captureWidth: m.captureWidth || width,
+          captureHeight: m.captureHeight || height,
           cursorType: m.cursorType
         }))
 
@@ -503,15 +482,16 @@ export class ProjectStorage {
         timestamp: m.timestamp - firstEventTime
       }))
 
+      // Click coordinates are also in physical pixels - use event's own dimensions
       const clickEvents = metadata
         .filter(m => m.eventType === 'click' && m.mouseX !== undefined && m.mouseY !== undefined)
         .map(m => ({
           timestamp: m.timestamp - firstEventTime, // Use same offset as mouse events
-          x: applyScaleX(m.mouseX!),
-          y: applyScaleY(m.mouseY!),
+          x: m.mouseX!,
+          y: m.mouseY!,
           button: m.key || 'left' as const,
-          captureWidth: normalizedCaptureWidth,
-          captureHeight: normalizedCaptureHeight
+          captureWidth: m.captureWidth || width,
+          captureHeight: m.captureHeight || height
         }))
 
       const scrollEvents = metadata
@@ -870,7 +850,7 @@ export class ProjectStorage {
       EffectInitialization.ensureGlobalEffects(project)
 
       // Dynamically load IdleActivityDetector to avoid circular dependencies
-      const { IdleActivityDetector } = require('@/features/ui/timeline/activity-detection/idle-detector')
+      const { IdleActivityDetector } = require('@/features/media/analysis/idle-detector')
 
       // Regenerate all auto effects and default framing for new recordings.
       regenerateProjectEffects(

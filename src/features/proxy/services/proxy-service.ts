@@ -292,5 +292,16 @@ export const ProxyService = {
      */
     clear(): void {
         useProxyStore.getState().clear()
+    },
+
+    /**
+     * Clean up the progress listener (call on app shutdown)
+     */
+    cleanup(): void {
+        if (proxyProgressListenerCleanup) {
+            proxyProgressListenerCleanup()
+            proxyProgressListenerCleanup = null
+        }
+        this.clear()
     }
 }

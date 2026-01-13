@@ -9,7 +9,7 @@
 import React, { useMemo, memo, useCallback, useEffect, useRef } from 'react'
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion'
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
-import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext'
+import { useTimelineContext } from '@/features/rendering/renderer/context/RenderingTimelineContext'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useAnnotationEditContextOptional } from '@/features/ui/editor/context/AnnotationEditContext'
 import { EffectType, AnnotationType } from '@/types/project'

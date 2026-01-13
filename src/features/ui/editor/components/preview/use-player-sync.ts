@@ -2,7 +2,6 @@ import { useEffect, useRef, useCallback } from 'react';
 import { PlayerRef } from '@remotion/player';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store';
-import { useTimeStore } from '@/features/ui/timeline/stores/time-store';
 import { useThrottledSeek } from '@/features/ui/timeline/hooks/use-throttled-seek';
 import { msToFrame, frameToMs } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
 import { assertDefined } from '@/shared/errors';
@@ -32,6 +31,8 @@ export function usePlayerSync({
     const playbackSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const lastIsPlayingRef = useRef<boolean>(false);
     const wasPlayingBeforeScrubRef = useRef(false);
+    // Track active RAF to prevent accumulation during rapid state changes
+    const activeRafRef = useRef<number | null>(null);
 
     const throttledSeek = useThrottledSeek(playerRef);
 
@@ -107,7 +108,12 @@ export function usePlayerSync({
         if (!isPlaying || isScrubbing || isExporting) return;
         if (!playerRef.current) return;
 
-        let rafId: number;
+        // Cancel any existing RAF to prevent accumulation during rapid state changes
+        if (activeRafRef.current !== null) {
+            cancelAnimationFrame(activeRafRef.current);
+            activeRafRef.current = null;
+        }
+
         let lastFrame = -1;
         let lastStoreUpdate = 0;
         let lastSkipTime = 0;
@@ -116,7 +122,7 @@ export function usePlayerSync({
         const playbackLoop = () => {
             const player = playerRef.current;
             if (!player) {
-                rafId = requestAnimationFrame(playbackLoop);
+                activeRafRef.current = requestAnimationFrame(playbackLoop);
                 return;
             }
 
@@ -124,17 +130,14 @@ export function usePlayerSync({
 
             // OPTIMIZATION: Skip all work if frame hasn't changed
             if (frame === lastFrame) {
-                rafId = requestAnimationFrame(playbackLoop);
+                activeRafRef.current = requestAnimationFrame(playbackLoop);
                 return;
             }
             lastFrame = frame;
 
             const timeMs = frameToMs(frame, timelineMetadata.fps);
 
-            // Update transient store (every changed frame) - UI Sync
-            useTimeStore.getState().setTime(timeMs);
-
-            // Throttle update to persistent store (30fps)
+            // Throttle update to store (30fps) - single source of truth
             const now = performance.now();
             if (now - lastStoreUpdate >= 33) {
                 lastStoreUpdate = now;
@@ -166,11 +169,16 @@ export function usePlayerSync({
                 }
             }
 
-            rafId = requestAnimationFrame(playbackLoop);
+            activeRafRef.current = requestAnimationFrame(playbackLoop);
         };
 
-        rafId = requestAnimationFrame(playbackLoop);
-        return () => cancelAnimationFrame(rafId);
+        activeRafRef.current = requestAnimationFrame(playbackLoop);
+        return () => {
+            if (activeRafRef.current !== null) {
+                cancelAnimationFrame(activeRafRef.current);
+                activeRafRef.current = null;
+            }
+        };
     }, [isPlaying, isScrubbing, isExporting, timelineMetadata.fps, storeSeekFromPlayer, clampFrame, timeToFrame, safePlay, playerRef]);
 
     // Scrub behavior
@@ -272,8 +280,6 @@ export function usePlayerSync({
             const pausedFrame = clampFrame(playerRef.current.getCurrentFrame());
             const pausedTimeMs = (pausedFrame / timelineMetadata.fps) * 1000;
             storeSeekFromPlayer(pausedTimeMs);
-            // Also sync transient store
-            useTimeStore.getState().setTime(pausedTimeMs);
         }
 
         let prevTime = useProjectStore.getState().currentTime;

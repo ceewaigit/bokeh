@@ -37,8 +37,8 @@ import { TimelineGhostPlayhead } from './timeline-ghost-playhead'
 import { TimelineActivityOverlays } from './timeline-activity-overlays'
 import { ActivitySuggestionPopover } from './activity-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
-import { TimelineContextMenu } from './timeline-context-menu'
-import { TimelineContextProvider } from './TimelineContext'
+import { TimelineContextMenu } from './timeline-clip-menu'
+import { TimelineContextProvider } from './TimelineUIContext'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-store'
@@ -53,10 +53,10 @@ import { useTimelineEffects } from '@/features/core/stores/selectors/timeline-se
 import { TimelineConfig } from '@/features/ui/timeline/config'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { useTimelinePlayback } from '@/features/ui/timeline/hooks/use-timeline-playback'
+import { useTimelinePlayback } from '@/features/playback'
 import { useTimelineColors } from '@/features/ui/timeline/utils/colors'
 import { useTimelineScrub } from '@/features/ui/timeline/hooks/use-timeline-scrub'
-import { getTimelineTimeFromX } from '@/features/ui/timeline/playback/seek-utils'
+import { getTimelineTimeFromX } from '@/features/playback'
 
 // Hooks
 import { useTimelineClipOperations } from '@/features/ui/timeline/hooks/use-timeline-clip-operations'
@@ -65,7 +65,6 @@ import { useAssetDragDrop } from '@/features/ui/editor/hooks/use-asset-drag-drop
 
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
 import { KonvaEventObject } from 'konva/lib/Node'
-import { useTimeStore } from '../stores/time-store'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Build time blocks from clips (for snapping)
@@ -109,7 +108,6 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const isPlaying = useProjectStore((s) => s.isPlaying)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)
   const setHoverTime = useProjectStore((s) => s.setHoverTime)
-  // Note: draggingAsset subscription moved to TimelineAssetDropOverlay to isolate re-renders
 
   const { selectedClips, selectClip, clearSelection } = useProjectStore(
     useShallow((s) => ({
@@ -482,7 +480,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
       const container = scrollContainerRef.current
       if (!container) return
 
-      const time = useTimeStore.getState().currentTime
+      const time = useProjectStore.getState().currentTime
       const playheadX = TimeConverter.msToPixels(time, pixelsPerMs)
       const scrollWidth = container.scrollWidth - container.clientWidth
       const currentScrollLeft = container.scrollLeft

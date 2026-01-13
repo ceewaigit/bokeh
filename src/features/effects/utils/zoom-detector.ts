@@ -15,6 +15,20 @@ interface ActionPoint {
   type: 'click' | 'typing-start' | 'scroll-stop' | 'dwell'
   importance: number
   duration?: number
+  /** Context for determining zoom depth */
+  context?: 'typing' | 'deliberateClick' | 'clickCluster' | 'scrollStop' | 'default'
+  /** Whether this was a deliberate action (single click with clear intent) */
+  isDeliberate?: boolean
+}
+
+// Click cluster for grouping nearby clicks
+interface ClickClusterInfo {
+  clicks: ClickEvent[]
+  startTime: number
+  endTime: number
+  centerX: number
+  centerY: number
+  isDeliberate: boolean
 }
 
 interface ActionCluster {
@@ -159,7 +173,12 @@ export class ZoomDetector {
   }
 
   /**
-   * Extract action points from all event types with importance scoring
+   * Extract action points from all event types with cluster-based detection
+   *
+   * NEW APPROACH (like Cursorful/AutoZoom):
+   * - Clicks are clustered first (2+ clicks in 3s window = zoom trigger)
+   * - Single clicks only trigger zoom if they show "deliberate" intent
+   * - Context determines zoom depth (typing=shallow, deliberate click=medium)
    */
   private extractActionPoints(
     mouseEvents: MouseEvent[],
@@ -170,45 +189,48 @@ export class ZoomDetector {
     screenHeight: number
   ): ActionPoint[] {
     const actions: ActionPoint[] = []
-    let lastClickTime = -Infinity
     let isFirstTypingBurst = true
 
-    // Process clicks - highest priority actions
-    for (let i = 0; i < clickEvents.length; i++) {
-      const click = clickEvents[i]
-      let importance = this.ACTION.clickImportanceBase
+    // Step 1: Cluster clicks by temporal and spatial proximity
+    const clickClusters = this.clusterClickEvents(clickEvents, mouseEvents, screenWidth, screenHeight)
 
-      // Bonus for click after pause (deliberate action)
-      const mouseActivity = this.getMouseActivityBefore(mouseEvents, click.timestamp, this.ACTION.pauseBeforeClickMs)
-      if (mouseActivity < 0.3) {
-        importance += this.ACTION.clickAfterPauseBonus
-      }
+    // Step 2: Process each click cluster
+    for (const cluster of clickClusters) {
+      const hasEnoughClicks = cluster.clicks.length >= this.ACTION.minClicksToTrigger
+      const isDeliberate = cluster.isDeliberate
 
-      // Bonus for click in new area
-      if (i > 0) {
-        const prevClick = clickEvents[i - 1]
-        const distance = this.calculateDistance(
-          click.x, click.y,
-          prevClick.x, prevClick.y,
-          screenWidth, screenHeight
-        )
-        if (distance > this.ACTION.newAreaThreshold) {
-          importance += this.ACTION.clickNewAreaBonus
+      // Only create action point if cluster meets criteria
+      if (hasEnoughClicks || isDeliberate) {
+        let importance = this.ACTION.clickImportanceBase
+
+        // Bonus for deliberate action
+        if (isDeliberate) {
+          importance += this.ACTION.clickAfterPauseBonus
         }
+
+        // Bonus for multiple clicks (higher confidence)
+        if (cluster.clicks.length >= 3) {
+          importance += 0.1
+        }
+
+        // Determine context for zoom depth
+        const context: ActionPoint['context'] = isDeliberate && cluster.clicks.length === 1
+          ? 'deliberateClick'
+          : 'clickCluster'
+
+        actions.push({
+          timestamp: cluster.startTime,
+          x: cluster.centerX,
+          y: cluster.centerY,
+          type: 'click',
+          importance: Math.min(1, importance),
+          context,
+          isDeliberate
+        })
       }
-
-      actions.push({
-        timestamp: click.timestamp,
-        x: click.x,
-        y: click.y,
-        type: 'click',
-        importance: Math.min(1, importance)
-      })
-
-      lastClickTime = click.timestamp
     }
 
-    // Process keyboard events - detect typing bursts
+    // Step 3: Process keyboard events - detect typing bursts
     const typingBursts = this.detectTypingBursts(keyboardEvents)
     for (const burst of typingBursts) {
       let importance = this.ACTION.typingImportanceBase
@@ -219,9 +241,10 @@ export class ZoomDetector {
         isFirstTypingBurst = false
       }
 
-      // Bonus for typing after click
-      if (burst.startTime - lastClickTime < 2000) {
-        importance += this.ACTION.typingAfterClickBonus
+      // Bonus for longer typing sessions (more focused activity)
+      const typingDuration = burst.endTime - burst.startTime
+      if (typingDuration > 2000) {
+        importance += 0.1
       }
 
       // Get mouse position at typing start
@@ -233,11 +256,12 @@ export class ZoomDetector {
         y: mousePos.y,
         type: 'typing-start',
         importance: Math.min(1, importance),
-        duration: burst.endTime - burst.startTime
+        duration: typingDuration,
+        context: 'typing'
       })
     }
 
-    // Process scroll events - detect scroll stops
+    // Step 4: Process scroll events - detect scroll stops (lower priority)
     const scrollStops = this.detectScrollStops(scrollEvents)
     for (const stop of scrollStops) {
       let importance = this.ACTION.scrollStopImportanceBase
@@ -255,7 +279,8 @@ export class ZoomDetector {
         x: mousePos.x,
         y: mousePos.y,
         type: 'scroll-stop',
-        importance: Math.min(1, importance)
+        importance: Math.min(1, importance),
+        context: 'scrollStop'
       })
     }
 
@@ -263,6 +288,150 @@ export class ZoomDetector {
     actions.sort((a, b) => a.timestamp - b.timestamp)
 
     return actions
+  }
+
+  /**
+   * Cluster click events by temporal and spatial proximity
+   * Like Cursorful: requires 2+ clicks in 3s window, OR single deliberate click
+   */
+  private clusterClickEvents(
+    clickEvents: ClickEvent[],
+    mouseEvents: MouseEvent[],
+    screenWidth: number,
+    screenHeight: number
+  ): ClickClusterInfo[] {
+    if (clickEvents.length === 0) return []
+
+    const clusters: ClickClusterInfo[] = []
+    let currentCluster: ClickClusterInfo | null = null
+
+    for (let i = 0; i < clickEvents.length; i++) {
+      const click = clickEvents[i]
+
+      // Check if this click is deliberate (single click with clear intent)
+      const isDeliberate = this.isDeliberateClick(click, mouseEvents, screenWidth, screenHeight)
+
+      if (currentCluster === null) {
+        // Start new cluster
+        currentCluster = {
+          clicks: [click],
+          startTime: click.timestamp,
+          endTime: click.timestamp,
+          centerX: click.x,
+          centerY: click.y,
+          isDeliberate
+        }
+      } else {
+        // Check if click belongs to current cluster
+        const timeDiff = click.timestamp - currentCluster.endTime
+        const distance = this.calculateDistance(
+          click.x, click.y,
+          currentCluster.centerX, currentCluster.centerY,
+          screenWidth, screenHeight
+        )
+
+        const withinTimeWindow = timeDiff <= this.ACTION.clickClusterWindowMs
+        const withinSpatialWindow = distance <= this.ACTION.clusterSpatialThreshold
+
+        if (withinTimeWindow && withinSpatialWindow) {
+          // Add to current cluster
+          currentCluster.clicks.push(click)
+          currentCluster.endTime = click.timestamp
+          // Update center to weighted average
+          const n = currentCluster.clicks.length
+          currentCluster.centerX = currentCluster.clicks.reduce((sum, c) => sum + c.x, 0) / n
+          currentCluster.centerY = currentCluster.clicks.reduce((sum, c) => sum + c.y, 0) / n
+          // Cluster is deliberate if any click in it was deliberate
+          if (isDeliberate) currentCluster.isDeliberate = true
+        } else {
+          // Save current cluster and start new one
+          clusters.push(currentCluster)
+          currentCluster = {
+            clicks: [click],
+            startTime: click.timestamp,
+            endTime: click.timestamp,
+            centerX: click.x,
+            centerY: click.y,
+            isDeliberate
+          }
+        }
+      }
+    }
+
+    // Don't forget last cluster
+    if (currentCluster !== null) {
+      clusters.push(currentCluster)
+    }
+
+    return clusters
+  }
+
+  /**
+   * Determine if a click shows "deliberate" intent
+   * A click is deliberate if the user paused/hovered before clicking
+   */
+  private isDeliberateClick(
+    click: ClickEvent,
+    mouseEvents: MouseEvent[],
+    screenWidth: number,
+    screenHeight: number
+  ): boolean {
+    // Check 1: Was mouse idle before click?
+    const mouseActivity = this.getMouseActivityBefore(
+      mouseEvents,
+      click.timestamp,
+      this.ACTION.deliberatePauseMs
+    )
+    const wasIdle = mouseActivity < this.ACTION.deliberateActivityThreshold
+
+    // Check 2: Did mouse hover at/near click position before clicking?
+    const hoverBehavior = this.checkHoverBeforeClick(
+      mouseEvents,
+      click,
+      screenWidth,
+      screenHeight
+    )
+
+    // Deliberate if: idle before click AND (hover behavior OR in new area)
+    return wasIdle && hoverBehavior
+  }
+
+  /**
+   * Check if mouse was hovering near the click position before clicking
+   */
+  private checkHoverBeforeClick(
+    mouseEvents: MouseEvent[],
+    click: ClickEvent,
+    screenWidth: number,
+    screenHeight: number
+  ): boolean {
+    const windowStart = click.timestamp - this.ACTION.hoverBeforeClickMs
+    const windowEnd = click.timestamp
+
+    // Get mouse events in the hover window
+    const eventsInWindow = mouseEvents.filter(
+      e => e.timestamp >= windowStart && e.timestamp < windowEnd
+    )
+
+    if (eventsInWindow.length < 3) return false
+
+    // Check if mouse stayed near the click position
+    const threshold = 0.05 // 5% of screen distance
+    let nearClickCount = 0
+
+    for (const event of eventsInWindow) {
+      const distance = this.calculateDistance(
+        event.x, event.y,
+        click.x, click.y,
+        screenWidth, screenHeight
+      )
+      if (distance < threshold) {
+        nearClickCount++
+      }
+    }
+
+    // At least 70% of positions should be near the click
+    return nearClickCount / eventsInWindow.length >= 0.7
   }
 
   /**
@@ -427,11 +596,20 @@ export class ZoomDetector {
   ): ZoomBlock {
     const importance = cluster.maxImportance
 
-    // Calculate zoom scale based on importance (more conservative range)
-    const scaleRange = this.ACTION.maxZoomScale - this.ACTION.minZoomScale
+    // Determine context from the primary action in the cluster
+    const primaryAction = cluster.primary
+    const context = primaryAction.context ?? 'default'
+
+    // Get scale range based on context (NEW: context-aware depth)
+    const scaleConfig = this.ACTION.zoomScaleByContext[context] ?? this.ACTION.zoomScaleByContext.default
+    const minScale = scaleConfig.min
+    const maxScale = scaleConfig.max
+
+    // Calculate zoom scale within the context-appropriate range
+    const scaleRange = maxScale - minScale
     const normalizedImportance = (importance - this.ACTION.minImportanceThreshold) /
       (1 - this.ACTION.minImportanceThreshold)
-    const scale = this.ACTION.minZoomScale + (scaleRange * Math.min(1, normalizedImportance))
+    const scale = minScale + (scaleRange * Math.min(1, normalizedImportance))
 
     // Transitions should come from the central timing config (SSOT)
     const introMs = this.TRANSITION.defaultIntroMs

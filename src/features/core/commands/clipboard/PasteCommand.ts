@@ -5,11 +5,12 @@ import { AddZoomBlockCommand } from '../effects/AddZoomBlockCommand'
 import type { Clip, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
 import { EffectType, TrackType, TimelineItemType } from '@/types/project'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { EffectCreation } from '@/features/effects/core/creation'
 import { getBlockEffectDuration } from '@/features/effects/core/classification'
 import { getClipboardEffectRoute, ClipboardRouteType } from './clipboard-routing'
 import { TimelineConfig } from '@/features/ui/timeline/config'
+import { msToFrameFloor, frameToMs } from '@/features/rendering/renderer/compositions/utils/time/frame-time'
 
 export interface PasteResult {
   type: TimelineItemType
@@ -92,11 +93,15 @@ export class PasteCommand extends Command<PasteResult> {
       }
 
       if (route === ClipboardRouteType.Block) {
+        const fps = project?.settings.frameRate ?? 30
+        // Snap to frame boundary so annotation appears immediately on current frame
+        const frameAlignedTime = frameToMs(msToFrameFloor(currentTime, fps), fps)
+
         const blockDuration = Math.max(
           TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS,
           getBlockEffectDuration(effectType, clipboardDuration)
         )
-        const startTime = Math.max(0, currentTime)
+        const startTime = Math.max(0, frameAlignedTime)
 
         const newEffectId = `${effectType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         store.addEffect({

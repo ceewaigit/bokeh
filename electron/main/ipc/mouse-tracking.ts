@@ -2,7 +2,7 @@ import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
 import { initializeCursorDetector } from '../utils/cursor-detector'
 import type { MouseTrackingOptions } from '../../types/electron-shared'
 import { logger as Logger } from '../utils/logger'
-import { getUIohook, stopUIohook } from '../utils/uiohook-manager'
+import { getUIohook, startUIohook, stopUIohook, registerHandler, unregisterAllHandlers } from '../utils/uiohook-manager'
 import { startScrollDetection, stopScrollDetection } from './scroll-tracking'
 import { TIMING, MOUSE_BUTTONS } from '../utils/constants'
 
@@ -18,7 +18,6 @@ let mouseEventSender: WebContents | null = null
 let isMouseTracking = false
 let clickDetectionActive = false
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
-let uiohookStarted = false
 interface MousePosition {
   x: number
   y: number
@@ -34,6 +33,21 @@ interface MousePosition {
 
 export function registerMouseTrackingHandlers(): void {
   ipcMain.handle('start-mouse-tracking', async (event: IpcMainInvokeEvent, options: MouseTrackingOptions = {}) => {
+    // CRITICAL: Clear any existing interval to prevent memory leaks from duplicate intervals
+    if (mouseTrackingInterval) {
+      Logger.debug('Clearing existing mouse tracking interval before starting new one')
+      clearInterval(mouseTrackingInterval)
+      mouseTrackingInterval = null
+    }
+
+    // Also clean up any existing click/scroll detection
+    if (isMouseTracking) {
+      stopClickDetection()
+      stopScrollDetection()
+    }
+
+    // Reset state
+    mouseHistory = []
 
     try {
       // Check accessibility permissions when starting mouse tracking
@@ -59,9 +73,16 @@ export function registerMouseTrackingHandlers(): void {
       const sourceType = options.sourceType || 'screen'
       const sourceId = options.sourceId
 
+      // CRITICAL: Register destroyed listener BEFORE setting state to prevent race condition
+      // If sender is destroyed between state change and listener registration, cleanup would never happen
+      const onDestroyed = () => {
+        Logger.debug('Sender webContents destroyed, cleaning up mouse tracking')
+        cleanupMouseTracking()
+      }
+      event.sender.once('destroyed', onDestroyed)
+
       mouseEventSender = event.sender
       isMouseTracking = true
-
 
       // Start click detection using global mouse hooks with source info
       startClickDetection(sourceType, sourceId)
@@ -255,12 +276,11 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
   clickDetectionActive = true
 
   try {
-    // Start uiohook if not already started
-    if (!uiohookStarted) {
-      Logger.info('Starting uiohook-napi...')
-      uIOhook.start()
-      uiohookStarted = true
-      Logger.info('uiohook-napi started successfully')
+    // Start uiohook using the shared manager
+    if (!startUIohook('mouse-click-detection')) {
+      Logger.error('Failed to start uiohook for click detection')
+      clickDetectionActive = false
+      return
     }
 
     // Register global mouse event handlers
@@ -271,7 +291,6 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
-      // Track mouse down state for cursor detection
       // Get cursor type at click position
       let clickCursorType = 'pointer' // Default for clicks
       if (cursorDetector) {
@@ -289,31 +308,24 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
         button: event.button === MOUSE_BUTTONS.LEFT ? 'left' : event.button === MOUSE_BUTTONS.RIGHT ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
         scaleFactor: scaleFactor,
-        cursorType: clickCursorType,  // Use detected cursor type
+        cursorType: clickCursorType,
         sourceType: sourceType || 'screen',
         sourceId: sourceId,
-        // Store logical coordinates for debugging
         logicalX: event.x,
         logicalY: event.y
       })
-
 
       Logger.debug(`Mouse down at (${event.x}, ${event.y})`)
     }
 
     const handleMouseUp = (event: any) => {
       if (!isMouseTracking) return
-
       Logger.debug(`Mouse up at (${event.x}, ${event.y})`)
     }
 
-    // Register the mouse event listeners
-    uIOhook.on('mousedown', handleMouseDown)
-    uIOhook.on('mouseup', handleMouseUp)
-
-      // Store the handlers for cleanup
-      ; (global as any).uiohookMouseDownHandler = handleMouseDown
-      ; (global as any).uiohookMouseUpHandler = handleMouseUp
+    // Register handlers using type-safe registry
+    registerHandler('mouse-click-detection', 'mousedown', handleMouseDown)
+    registerHandler('mouse-click-detection', 'mouseup', handleMouseUp)
 
     Logger.info('Mouse event handlers registered successfully')
 
@@ -325,20 +337,8 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
 
 function stopClickDetection(): void {
   clickDetectionActive = false
-  try {
-    if (uIOhook) {
-      if ((global as any).uiohookMouseDownHandler) {
-        uIOhook.off('mousedown', (global as any).uiohookMouseDownHandler)
-          ; (global as any).uiohookMouseDownHandler = null
-      }
-      if ((global as any).uiohookMouseUpHandler) {
-        uIOhook.off('mouseup', (global as any).uiohookMouseUpHandler)
-          ; (global as any).uiohookMouseUpHandler = null
-      }
-    }
-  } catch (error) {
-    Logger.error('Error stopping click detection:', error)
-  }
+  // Unregister handlers using type-safe registry
+  unregisterAllHandlers('mouse-click-detection')
 }
 
 

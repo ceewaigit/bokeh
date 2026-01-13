@@ -75,9 +75,20 @@ const KeystrokeStylePreview = React.memo(function KeystrokeStylePreview({
   }, [previewEvents, displayDuration, fadeOutDuration])
 
   const [previewTimeMs, setPreviewTimeMs] = useState(0)
+  const [isTabVisible, setIsTabVisible] = useState(true)
+
+  // PERFORMANCE: Pause animation when tab is not visible (saves battery)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(document.visibilityState === 'visible')
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   useEffect(() => {
-    if (!enabled || previewDurationMs <= 0) {
+    // Only run animation when enabled, visible, and tab is active
+    if (!enabled || previewDurationMs <= 0 || !isTabVisible) {
       setPreviewTimeMs(0)
       return
     }
@@ -86,7 +97,7 @@ const KeystrokeStylePreview = React.memo(function KeystrokeStylePreview({
       setPreviewTimeMs((prev) => (prev + 50) % previewDurationMs)
     }, 50)
     return () => window.clearInterval(interval)
-  }, [enabled, previewDurationMs])
+  }, [enabled, previewDurationMs, isTabVisible])
 
   return (
     <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm overflow-hidden">

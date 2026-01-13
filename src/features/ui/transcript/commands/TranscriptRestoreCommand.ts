@@ -3,6 +3,7 @@ import type { ProjectStore } from '@/features/core/stores/project-store'
 import type { SourceTimeRange } from '@/types/project'
 import { PatchedCommand } from '@/features/core/commands'
 import type { CommandContext } from '@/features/core/commands'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 /**
  * TranscriptRestoreCommand
@@ -47,14 +48,7 @@ export class TranscriptRestoreCommand extends PatchedCommand<void> {
         }
 
         editState.hiddenRegions = resultRanges
-
-        console.info('[TranscriptRestoreCommand] Updated hiddenRegions:', {
-            count: resultRanges.length,
-            recordingId: this.recordingId,
-            restored: this.rangesToRestore.length
-        })
-
-        draft.currentProject.modifiedAt = new Date().toISOString()
+        markProjectModified(draft)
     }
 
     /**

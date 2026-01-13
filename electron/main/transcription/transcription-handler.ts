@@ -71,22 +71,28 @@ export async function transcribeRecording(
     // - Newer (v1.8+): segments[] with words[]
     let words: Array<{ id: string; text: string; startTime: number; endTime: number; confidence: number }> = []
 
-    const mergeTokenWords = (tokens: Array<{ text?: string; offsets?: { from?: number; to?: number }; p?: number }>) => {
+    /**
+     * Merge tokens/words into word-level entries.
+     * Handles both old format (tokens with text/offsets/p) and new format (words with word/start/end/probability).
+     */
+    const mergeWords = <T>(
+      tokens: T[],
+      accessor: (token: T) => { text: string; startTime: number; endTime: number; confidence: number } | null
+    ) => {
       const merged: Array<{ text: string; startTime: number; endTime: number; confidence: number }> = []
       let current: { text: string; startTime: number; endTime: number; confidenceSum: number; count: number } | null = null
 
       for (const token of tokens) {
-        const rawText = String(token.text ?? '')
+        const extracted = accessor(token)
+        if (!extracted) continue
+
+        const { text: rawText, startTime, endTime, confidence } = extracted
         if (!rawText) continue
         if (rawText.startsWith('[') && rawText.endsWith(']')) continue
 
         const startsNewWord = rawText.startsWith(' ')
         const tokenText = startsNewWord ? rawText.trim() : rawText.trimStart()
         if (!tokenText) continue
-
-        const startTime = Math.max(0, token.offsets?.from ?? 0)
-        const endTime = Math.max(0, token.offsets?.to ?? startTime)
-        const confidence = Number(token.p ?? 1)
 
         if (!current || startsNewWord) {
           if (current) {
@@ -124,63 +130,26 @@ export async function transcribeRecording(
       return merged
     }
 
-    const mergeSegmentWords = (tokens: Array<{ word?: string; start?: number; end?: number; probability?: number }>) => {
-      const merged: Array<{ text: string; startTime: number; endTime: number; confidence: number }> = []
-      let current: { text: string; startTime: number; endTime: number; confidenceSum: number; count: number } | null = null
+    // Accessor for old format (v1.7.x): tokens with text/offsets/p
+    const tokenAccessor = (token: { text?: string; offsets?: { from?: number; to?: number }; p?: number }) => ({
+      text: String(token.text ?? ''),
+      startTime: Math.max(0, token.offsets?.from ?? 0),
+      endTime: Math.max(0, token.offsets?.to ?? 0),
+      confidence: Number(token.p ?? 1)
+    })
 
-      for (const token of tokens) {
-        const rawText = String(token.word ?? '')
-        if (!rawText) continue
-        if (rawText.startsWith('[') && rawText.endsWith(']')) continue
-
-        const startsNewWord = rawText.startsWith(' ')
-        const tokenText = startsNewWord ? rawText.trim() : rawText.trimStart()
-        if (!tokenText) continue
-
-        const startTime = Math.max(0, Math.round((token.start ?? 0) * 1000))
-        const endTime = Math.max(0, Math.round((token.end ?? 0) * 1000))
-        const confidence = Number(token.probability ?? 1)
-
-        if (!current || startsNewWord) {
-          if (current) {
-            merged.push({
-              text: current.text,
-              startTime: current.startTime,
-              endTime: current.endTime,
-              confidence: current.count > 0 ? current.confidenceSum / current.count : 1
-            })
-          }
-          current = {
-            text: tokenText,
-            startTime,
-            endTime,
-            confidenceSum: confidence,
-            count: 1
-          }
-        } else {
-          current.text += tokenText
-          current.endTime = Math.max(current.endTime, endTime)
-          current.confidenceSum += confidence
-          current.count += 1
-        }
-      }
-
-      if (current) {
-        merged.push({
-          text: current.text,
-          startTime: current.startTime,
-          endTime: current.endTime,
-          confidence: current.count > 0 ? current.confidenceSum / current.count : 1
-        })
-      }
-
-      return merged
-    }
+    // Accessor for new format (v1.8+): words with word/start/end/probability (times in seconds)
+    const segmentWordAccessor = (token: { word?: string; start?: number; end?: number; probability?: number }) => ({
+      text: String(token.word ?? ''),
+      startTime: Math.max(0, Math.round((token.start ?? 0) * 1000)),
+      endTime: Math.max(0, Math.round((token.end ?? 0) * 1000)),
+      confidence: Number(token.probability ?? 1)
+    })
 
     if (parsed?.segments) {
       // Newer format: segments with words (sometimes tokenized)
       words = (parsed.segments ?? [])
-        .flatMap((segment: any) => mergeSegmentWords(segment.words ?? []))
+        .flatMap((segment: any) => mergeWords(segment.words ?? [], segmentWordAccessor))
         .map((word: any, index: number) => ({
           id: `${options.recordingId}-word-${index}`,
           text: String(word.text ?? '').trim(),
@@ -192,10 +161,7 @@ export async function transcribeRecording(
     } else if (parsed?.transcription) {
       // Older format: transcription array with tokens
       words = (parsed.transcription ?? [])
-        .flatMap((segment: any) => {
-          const tokens = segment.tokens ?? []
-          return mergeTokenWords(tokens)
-        })
+        .flatMap((segment: any) => mergeWords(segment.tokens ?? [], tokenAccessor))
         .map((word: any, index: number) => ({
           id: `${options.recordingId}-word-${index}`,
           text: word.text,

@@ -40,11 +40,20 @@ uniform float u_saturation;  // Saturation (0.0 - 2.0)
 uniform int u_linearize;     // 1 = do sRGB <-> linear conversion for blur math
 uniform float u_refocusBlur; // Omnidirectional (gaussian) blur intensity (0..1)
 
+// Professional motion blur weight function using Gaussian distribution
+// This creates smooth, film-like blur without visible banding or "tearing"
 float shutterWeight(float t) {
-    // Cinematic shutter: bell-shaped exposure with soft edges.
-    float dist = abs(t);
-    float core = smoothstep(0.5, 0.0, dist);
-    return pow(core, 1.6);
+    // Gaussian with sigma=0.3 provides smooth coverage across full -0.5 to 0.5 range
+    // This matches the exposure profile of a 180° rotary shutter
+    float sigma = 0.3;
+    return exp(-(t * t) / (2.0 * sigma * sigma));
+}
+
+// Blue noise hash for sub-pixel jitter (eliminates banding artifacts)
+float hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
 }
 
 // sRGB transfer helpers (approximate spec)
@@ -131,20 +140,29 @@ void main() {
             }
         }
     } else {
-        // DIRECTIONAL (MOTION) BLUR
-        // Original motion blur sampling along velocity vector
-        for (int i = 0; i < u_samples; i++) {
-            // Map i to range -0.5 to 0.5
-            // Use deterministic stratified sampling (no random jitter) to avoid visible grain.
-            float t = ((float(i) + 0.5) / samples) - 0.5;
+        // DIRECTIONAL (MOTION) BLUR - Professional After Effects style
+        // Uses stratified sampling with sub-pixel jitter for smooth, film-like blur
 
+        // Generate per-pixel jitter seed based on screen position
+        // This creates temporally stable noise that doesn't flicker between frames
+        float jitterSeed = hash12(v_texCoord * u_resolution);
+
+        for (int i = 0; i < u_samples; i++) {
+            // Stratified sampling: divide range into equal strata, then jitter within each
+            float stratum = (float(i) + 0.5) / samples;
+
+            // Add subtle jitter within the stratum (±0.4 of stratum width)
+            // This breaks up banding while maintaining overall distribution
+            float jitter = (hash12(v_texCoord * u_resolution + float(i) * 0.1) - 0.5) * 0.8 / samples;
+            float t = stratum + jitter - 0.5;  // Map to -0.5 to 0.5 range
+
+            // Gaussian weight ensures smooth falloff without visible sample boundaries
             float weight = shutterWeight(t);
 
             vec2 offset = u_velocity * t * u_intensity;
             vec2 sampleCoord = v_texCoord + offset;
 
             // Clamp with small margin to avoid sampling undefined edge pixels
-            // This prevents purple/blue artifacts at texture boundaries
             sampleCoord = clamp(sampleCoord, margin, 1.0 - margin);
 
             vec4 sampleColor = texture(u_image, sampleCoord);

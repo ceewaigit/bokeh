@@ -5,7 +5,7 @@ import { EffectType, type KeystrokeEffectData, type Effect, type KeyboardEvent }
 import { useClipContext } from '../../context/timeline/ClipContext';
 import { useSourceTime } from '../../hooks/time/useTimeCoordinates';
 import { useComposition } from '../../context/CompositionContext';
-import { useTimelineContext } from '../../context/TimelineContext';
+import { useTimelineContext } from '../../context/RenderingTimelineContext';
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config';
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config';
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context';

@@ -177,6 +177,10 @@ export class AudioInputService {
    * Stop audio recording and return the result.
    */
   async stop(): Promise<AudioInputResult> {
+    // Clear intervals immediately at start to prevent timer loops even if errors occur
+    this.clearDataInterval()
+    this.cleanupAudioAnalysis()
+
     if (!this._isRecording || !this.mediaRecorder) {
       throw new Error('Audio not recording')
     }
@@ -185,10 +189,6 @@ export class AudioInputService {
     if (this._isPaused) {
       this.resume()
     }
-
-    // Clear intervals immediately to prevent timer loops
-    this.clearDataInterval()
-    this.cleanupAudioAnalysis()
 
     return new Promise((resolve, reject) => {
       // Handle already inactive recorder

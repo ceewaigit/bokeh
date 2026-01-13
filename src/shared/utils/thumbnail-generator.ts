@@ -28,6 +28,7 @@ export class ThumbnailGenerator {
 
   // Video element pool - 2 concurrent decoders (reduced from 4 to save memory)
   private static readonly POOL_SIZE = 2
+  private static readonly MAX_PENDING_REQUESTS = 20  // Prevent unbounded queue growth
   private static videoPool: PooledVideo[] = []
   private static poolInitialized = false
   private static pendingRequests: Array<(video: PooledVideo) => void> = []
@@ -58,6 +59,7 @@ export class ThumbnailGenerator {
 
   /**
    * Acquire a video element from the pool
+   * Throws if queue is full to prevent memory accumulation
    */
   private static async acquireVideo(): Promise<PooledVideo> {
     this.initPool()
@@ -70,6 +72,11 @@ export class ThumbnailGenerator {
     if (freeVideo) {
       freeVideo.inUse = true
       return freeVideo
+    }
+
+    // Reject if queue is full to prevent unbounded growth
+    if (this.pendingRequests.length >= this.MAX_PENDING_REQUESTS) {
+      throw new Error('Thumbnail queue full - try again later')
     }
 
     // If no free element, wait for one
@@ -155,10 +162,14 @@ export class ThumbnailGenerator {
     try {
       // Check file existence early to avoid error spam for deleted files
       if (window.electronAPI?.fileExists) {
-        const exists = await window.electronAPI.fileExists(videoPath)
-        if (!exists) {
-          this.generating.delete(cacheKey)
-          return null
+        // Extract actual filesystem path from video-stream:// URL
+        const fsPath = extractFilePathFromUrl(videoPath)
+        if (fsPath) {
+          const exists = await window.electronAPI.fileExists(fsPath)
+          if (!exists) {
+            this.generating.delete(cacheKey)
+            return null
+          }
         }
       }
 
@@ -488,4 +499,49 @@ export class ThumbnailGenerator {
       )
     }
   }
+}
+
+/**
+ * Extract filesystem path from video-stream:// URL
+ * Returns the raw path for use with filesystem APIs like fileExists
+ *
+ * Handles formats:
+ * - video-stream://local/<encoded-path> -> decoded path
+ * - video-stream://host/path -> decoded path portion
+ * - /absolute/path -> returns as-is
+ * - null/empty -> returns null
+ */
+export function extractFilePathFromUrl(url: string): string | null {
+  if (!url) return null
+
+  // If it's already a filesystem path, return as-is
+  if (url.startsWith('/')) return url
+
+  // Handle video-stream://local/<encoded-path> format
+  if (url.startsWith('video-stream://local/')) {
+    const encodedPath = url.slice('video-stream://local/'.length)
+    try {
+      return decodeURIComponent(encodedPath)
+    } catch {
+      return encodedPath
+    }
+  }
+
+  // Handle other video-stream:// formats
+  if (url.startsWith('video-stream://')) {
+    const withoutProtocol = url.slice('video-stream://'.length)
+    // Try to extract path after any host portion
+    const slashIndex = withoutProtocol.indexOf('/')
+    if (slashIndex !== -1) {
+      const path = withoutProtocol.slice(slashIndex)
+      try {
+        return decodeURIComponent(path)
+      } catch {
+        return path
+      }
+    }
+  }
+
+  // Can't extract path from this URL
+  return null
 }

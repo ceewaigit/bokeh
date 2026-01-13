@@ -12,7 +12,7 @@ import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectLayerType } from '@/features/effects/types'
 import { getCropEffectForClip, getDataOfType, getEffectsOfType } from '@/features/effects/core/filters'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { DEFAULT_ZOOM_DATA } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { ZoomTargetPreview } from './ZoomTargetPreview'
@@ -213,7 +213,7 @@ export function ZoomTab({
     const selectedZoomIntoCursorMode = selectedZoomData?.zoomIntoCursorMode ?? DEFAULT_ZOOM_DATA.zoomIntoCursorMode ?? 'cursor'
     const selectedTransitionStyle = selectedZoomData?.transitionStyle ?? 'smoother'
 
-    const effectiveEase = React.useMemo(() => {
+    const _effectiveEase = React.useMemo(() => {
         return getEffectiveZoomEaseDurations(
             Math.max(0, blockDurationMs),
             selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs,

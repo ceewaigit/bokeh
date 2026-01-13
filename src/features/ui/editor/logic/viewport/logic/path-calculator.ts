@@ -7,7 +7,9 @@ import type { CameraPathFrame } from '@/types'
 import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import { getActiveBackgroundEffect } from '@/features/effects/core/filters'
-import { calculateZoomTransform, getZoomTransformString } from '@/features/rendering/canvas/math/transforms/zoom-transform'
+import { calculateZoomTransform, getZoomTransformString, getMotionBlurConfig } from '@/features/rendering/canvas/math/transforms/zoom-transform'
+import type { MotionBlurConfig } from '@/types'
+import { clamp01 } from '@/features/rendering/canvas/math'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/shared/constants/layout'
 
@@ -162,7 +164,40 @@ export interface CalculateCameraPathArgs {
     effects: Effect[]
     getRecording: (recordingId: string) => Recording | null | undefined
     loadedMetadata?: Map<string, RecordingMetadata>
-    cameraSettings?: { cameraSmoothness?: number; cameraDynamics?: any }
+    cameraSettings?: {
+        cameraSmoothness?: number
+        cameraDynamics?: any
+        motionBlurEnabled?: boolean
+        motionBlurIntensity?: number
+        motionBlurThreshold?: number
+    }
+}
+
+/**
+ * Calculate motion blur mix from velocity (deterministic per frame).
+ * Returns 0-1 value indicating blur intensity.
+ */
+function calculateMotionBlurMix(
+    velocity: { x: number; y: number },
+    blurConfig: MotionBlurConfig,
+    drawWidth: number,
+    drawHeight: number
+): number {
+    if (!blurConfig.enabled) return 0
+
+    // Convert normalized velocity to pixels
+    const velocityPxX = velocity.x * drawWidth
+    const velocityPxY = velocity.y * drawHeight
+    const speed = Math.sqrt(velocityPxX * velocityPxX + velocityPxY * velocityPxY)
+
+    // Threshold in pixels (matches getMotionBlurConfig calculation)
+    const threshold = blurConfig.velocityThreshold * 15
+
+    if (speed <= threshold) return 0
+
+    // Smooth ramp from threshold to full intensity
+    const normalizedSpeed = (speed - threshold) / 100
+    return clamp01(normalizedSpeed)
 }
 
 export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraPathFrame & { path?: CameraPathFrame[] })[] | null {
@@ -194,6 +229,9 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
 
     const totalFrames = frameLayout[frameLayout.length - 1].endFrame
 
+    // Get motion blur config for precomputing blur mix
+    const motionBlurConfig = getMotionBlurConfig(cameraSettings as any)
+
     // OPTIMIZATION: If no camera tracking, skip heavy camera path computation
     // Just return default center coordinates for all frames
     if (!hasCameraTracking) {
@@ -201,6 +239,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             activeZoomBlock: undefined,
             zoomCenter: { x: 0.5, y: 0.5 },
             velocity: { x: 0, y: 0 },
+            motionBlurMix: 0,
             zoomTransform: { scale: 1, panX: 0, panY: 0, scaleCompensationX: 0, scaleCompensationY: 0, refocusBlur: 0 },
             zoomTransformStr: 'translate3d(0px, 0px, 0) scale3d(1, 1, 1)'
         }
@@ -229,6 +268,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
                 activeZoomBlock: undefined,
                 zoomCenter: { x: 0.5, y: 0.5 },
                 velocity: { x: 0, y: 0 },
+                motionBlurMix: 0,
                 zoomTransform: { scale: 1, panX: 0, panY: 0, scaleCompensationX: 0, scaleCompensationY: 0, refocusBlur: 0 },
                 zoomTransformStr: 'translate3d(0px, 0px, 0) scale3d(1, 1, 1)'
             }
@@ -372,10 +412,19 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
 
         const zoomTransformStr = getZoomTransformString(zoomTransform)
 
+        // Precompute motion blur mix (deterministic per frame)
+        const motionBlurMix = calculateMotionBlurMix(
+            velocity,
+            motionBlurConfig,
+            zoomDrawWidth,
+            zoomDrawHeight
+        )
+
         out[f] = {
             activeZoomBlock: computed.activeZoomBlock,
             zoomCenter: computed.zoomCenter,
             velocity,
+            motionBlurMix,
             zoomTransform,
             zoomTransformStr
         }

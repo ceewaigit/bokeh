@@ -5,7 +5,7 @@ import { CommandExecutor, AddEffectCommand, RemoveEffectCommand, UpdateEffectCom
 import { getCropEffectForClip, getDataOfType } from '@/features/effects/core/filters'
 import { EffectType } from '@/types/project'
 import { EffectCreation } from '@/features/effects/core/creation'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { useShallow } from 'zustand/react/shallow'
 
 export interface UseCropManagerReturn {

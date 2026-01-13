@@ -68,6 +68,10 @@ export interface CameraPhysicsState {
   introAnchorY?: number
   introAnchorVX?: number
   introAnchorVY?: number
+  /** Fixed cursor destination captured at intro start (prevents jitter during zoom-in) */
+  introDestX?: number
+  /** Fixed cursor destination captured at intro start (prevents jitter during zoom-in) */
+  introDestY?: number
   cursorStoppedAtMs?: number
   frozenTargetX?: number
   frozenTargetY?: number
@@ -318,7 +322,7 @@ export function computeCameraState({
     }
   })()
 
-  const leadCursor = (cursor: { x: number; y: number }) => {
+  const _leadCursor = (cursor: { x: number; y: number }) => {
     const sx = cursorVelocityVec.vx > 0.001 ? 1 : cursorVelocityVec.vx < -0.001 ? -1 : 0
     const sy = cursorVelocityVec.vy > 0.001 ? 1 : cursorVelocityVec.vy < -0.001 ? -1 : 0
     const zoomAmt = clamp01((currentScale - 1) / 2)
@@ -337,12 +341,19 @@ export function computeCameraState({
     physics.introAnchorY = physics.y  // Starting center Y
     physics.introAnchorVX = cursorVelocityVec.vx
     physics.introAnchorVY = cursorVelocityVec.vy
+    // Capture cursor destination ONCE at intro start (prevents jitter during zoom-in)
+    // Using smoothed cursor to get a stable target position
+    const smoothedDest = getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+    physics.introDestX = smoothedDest.x
+    physics.introDestY = smoothedDest.y
   } else if (!activeZoomBlock) {
     physics.lastZoomBlockId = undefined
     physics.introAnchorX = undefined
     physics.introAnchorY = undefined
     physics.introAnchorVX = undefined
     physics.introAnchorVY = undefined
+    physics.introDestX = undefined
+    physics.introDestY = undefined
   }
 
   const applyMouseAlgorithm = (
@@ -467,30 +478,30 @@ export function computeCameraState({
       const startX = physics.introAnchorX ?? 0.5
       const startY = physics.introAnchorY ?? 0.5
 
-      // End position: use smoothed cursor to prevent snap from sudden cursor movements.
-      // At higher zoom/scale, cursor movements are amplified, so we need MORE smoothing
-      // toward the end of intro (when scale is highest) to prevent visual snap.
-      const smoothedCursor = getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
-      // Use heavy smoothing throughout intro - cursor movements during zoom-in should feel dampened
-      // This prevents the "snap to cursor" effect at end of intro when scale amplifies movements
-      const smoothingBlend = 0.85  // 85% smoothed cursor, 15% live
-      let endX = followCursor.x * (1 - smoothingBlend) + smoothedCursor.x * smoothingBlend
-      let endY = followCursor.y * (1 - smoothingBlend) + smoothedCursor.y * smoothingBlend
+      // Look up the ACTUAL cursor position at intro end time (not a prediction!)
+      // Since mouse events are pre-recorded, we can look ahead to where cursor will be
+      const introRemainingMs = activeZoomBlock!.introMs - introElapsed
+      const sourceTimeAtIntroEnd = sourceTimeMs + introRemainingMs
+      const cursorAtIntroEnd = interpolateMousePosition(mouseEvents, sourceTimeAtIntroEnd)
+      const finalCursorX = cursorAtIntroEnd ? cursorAtIntroEnd.x / sourceWidth : 0.5
+      const finalCursorY = cursorAtIntroEnd ? cursorAtIntroEnd.y / sourceHeight : 0.5
 
-      // For 'lead' mode, predict where cursor is heading
-      if (mode === 'lead') {
-        const vx = cursorVelocityVec.vx
-        const vy = cursorVelocityVec.vy
-        const predictSeconds = Math.min(0.35, Math.max(0.05, (activeZoomBlock?.introMs ?? 250) / 1000 * 0.4))
-        endX += vx * predictSeconds
-        endY += vy * predictSeconds
-      }
+      // Calculate where deadzone algorithm would position camera for final cursor position
+      // Use TARGET half-windows (at final zoom scale) so intro ends exactly where hold expects
+      const deadzoneTarget = calculateFollowTargetNormalized(
+        { x: finalCursorX, y: finalCursorY },
+        { x: startX, y: startY },
+        halfWindowAimX,
+        halfWindowAimY,
+        zoomTargetScale,
+        safeOverscan
+      )
 
-      // Interpolate from start to end using eased progress (same as scale)
-      // This creates unified motion: pan and zoom arrive at destination together
+      // Interpolate from start to deadzone target
+      // This ensures intro ends at the same position hold phase expects
       return {
-        x: startX + (endX - startX) * easedProgress,
-        y: startY + (endY - startY) * easedProgress
+        x: startX + (deadzoneTarget.x - startX) * easedProgress,
+        y: startY + (deadzoneTarget.y - startY) * easedProgress
       }
     })()
 
@@ -525,7 +536,8 @@ export function computeCameraState({
     const baseCenter = { x: 0.5, y: 0.5 }
     targetCenter = applyMouseAlgorithm(cursorInput, baseCenter, hasOverscan)
     if (timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs) {
-      // During intro: interpolate from start center to cursor using same easing as scale
+      // During intro: interpolate from start center to FIXED cursor destination
+      // Using fixed destination prevents jitter during zoom-in
       const introElapsed = timelineMs - activeZoomBlock.startTime
       const introProgress = clamp01(introElapsed / Math.max(1, activeZoomBlock.introMs))
       const easedProgress = smootherStep(introProgress)
@@ -536,11 +548,25 @@ export function computeCameraState({
       } else {
         const startX = physics.introAnchorX ?? 0.5
         const startY = physics.introAnchorY ?? 0.5
-        const cursorTarget = clampCenterToContentBounds(cursorInput, halfWindowAimX, halfWindowAimY, safeOverscan)
-        const endPos = mode === 'lead' ? leadCursor(cursorTarget) : cursorTarget
+        // Look up the ACTUAL cursor position at intro end time
+        const introRemainingMs = activeZoomBlock.introMs - introElapsed
+        const sourceTimeAtIntroEnd = sourceTimeMs + introRemainingMs
+        const cursorAtIntroEnd = interpolateMousePosition(mouseEvents, sourceTimeAtIntroEnd)
+        const finalCursorX = cursorAtIntroEnd ? cursorAtIntroEnd.x / sourceWidth : cursorInput.x
+        const finalCursorY = cursorAtIntroEnd ? cursorAtIntroEnd.y / sourceHeight : cursorInput.y
+        // Calculate where deadzone would position camera for final cursor position
+        const deadzoneTarget = calculateFollowTargetNormalized(
+          { x: finalCursorX, y: finalCursorY },
+          { x: startX, y: startY },
+          halfWindowAimX,
+          halfWindowAimY,
+          zoomTargetScale,
+          safeOverscan
+        )
+        const clampedEnd = clampCenterToContentBounds(deadzoneTarget, halfWindowAimX, halfWindowAimY, safeOverscan)
         targetCenter = {
-          x: startX + (endPos.x - startX) * easedProgress,
-          y: startY + (endPos.y - startY) * easedProgress
+          x: startX + (clampedEnd.x - startX) * easedProgress,
+          y: startY + (clampedEnd.y - startY) * easedProgress
         }
       }
     }
@@ -622,95 +648,43 @@ export function computeCameraState({
   } else {
     const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
 
-    // Default spring parameters (cinematic)
-    let stiffness = 60
-    let damping = 15
-    let mass = 1
+    // SIMPLE EXPONENTIAL SMOOTHING
+    // camera = lerp(camera, target, 1 - exp(-smoothFactor * dt))
+    // This is frame-rate independent and produces smooth, predictable motion.
+    // smoothFactor controls responsiveness: higher = faster tracking
+    //
+    // At high zoom, we reduce smoothFactor for more cinematic/stable camera motion.
+    // This prevents jittery behavior when small cursor movements are amplified.
+    const baseSmoothFactor = 8
+    const zoomDampening = clamp01((currentScale - 1) / 2)  // 0 at 1x, 0.75 at 2.5x
+    const smoothFactor = lerp(baseSmoothFactor, 4, zoomDampening)  // 8 at 1x, ~5 at 2.5x
 
-    if (cameraDynamics) {
-      stiffness = cameraDynamics.stiffness
-      damping = cameraDynamics.damping
-      mass = cameraDynamics.mass || 1
-    } else if (isOutroPhase) {
-      // Outro phase: Stiffer spring to keep pan coupled with deterministic scale deceleration
-      // Pan must keep up with scale easing, otherwise camera lags behind during zoom-out
-      stiffness = 80
-      damping = 20
-    } else if (cameraSmoothness != null) {
-      // Legacy mapping if dynamics not provided
-      const t = clamp01(cameraSmoothness / 100)
-      stiffness = lerp(300, 40, t)
-      damping = lerp(20, 35, t)
-    }
-
-    // Freeze logic dampens velocity significantly
-    if (cursorIsFrozen) {
-      stiffness = 600 // snap effectively
-      damping = 80
-    }
-
-    // Semi-Implicit Euler Integration
-    // F = -k*(x - target) - c*v
     let currentX = physics.x
     let currentY = physics.y
-    let currentVX = physics.vx
-    let currentVY = physics.vy
-
-    // Simulation steps for stability if dt is large
-    const MAX_STEP = 0.016 // ~60fps
-    let remainingDt = dtSeconds
 
     // Cap extremely large time steps (e.g. resume from background)
-    if (remainingDt > 0.5) {
+    if (dtSeconds > 0.5) {
       currentX = targetCenter.x
       currentY = targetCenter.y
-      currentVX = 0
-      currentVY = 0
-      remainingDt = 0
-    }
+    } else {
+      const snapToCenter = activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')
 
-    const snapToCenter = activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')
-
-    while (remainingDt > 0) {
-      const dt = Math.min(remainingDt, MAX_STEP)
-
-      // Position Physics - apply spring simulation for smooth camera pan
       if (snapToCenter) {
-        // Hard lock to center (instantaneous, no physics)
         currentX = 0.5
         currentY = 0.5
-        currentVX = 0
-        currentVY = 0
       } else {
-        const fx = -stiffness * (currentX - targetCenter.x) - damping * currentVX
-        const fy = -stiffness * (currentY - targetCenter.y) - damping * currentVY
-        const ax = fx / mass
-        const ay = fy / mass
-        currentVX += ax * dt
-        currentVY += ay * dt
-        currentX += currentVX * dt
-        currentY += currentVY * dt
+        // Exponential smoothing: smooth approach to target
+        const alpha = 1 - Math.exp(-smoothFactor * dtSeconds)
+        currentX += (targetCenter.x - currentX) * alpha
+        currentY += (targetCenter.y - currentY) * alpha
       }
-
-      // NO PHYSICS FOR SCALE - use deterministic eased value directly.
-      // Scale uses mathematical easing (smootherStep) which already provides smooth transitions.
-      // Adding physics on top creates "double-smoothing" and causes mid-transition jank.
-      // The commandedScale from calculateZoomScale() is our source of truth.
-
-      remainingDt -= dt
     }
-
-    // Snap to zero velocity if very small to prevent micro-jitter
-    if (Math.abs(currentVX) < 0.0001) currentVX = 0
-    if (Math.abs(currentVY) < 0.0001) currentVY = 0
 
     // Snap position if very close
     const dist = Math.sqrt(Math.pow(currentX - targetCenter.x, 2) + Math.pow(currentY - targetCenter.y, 2))
-    if (dist < 0.0001 && Math.abs(currentVX) < 0.001 && Math.abs(currentVY) < 0.001) {
+    if (dist < 0.0001) {
       currentX = targetCenter.x
       currentY = targetCenter.y
-      currentVX = 0
-      currentVY = 0
     }
 
     // Use commandedScale directly (deterministic, no physics simulation)
@@ -719,10 +693,10 @@ export function computeCameraState({
     nextPhysics = {
       x: currentX,
       y: currentY,
-      vx: currentVX,
-      vy: currentVY,
+      vx: 0,
+      vy: 0,
       scale: currentScale,
-      vScale: 0, // No velocity tracking for scale anymore
+      vScale: 0,
       lastTimeMs: timelineMs,
       lastSourceTimeMs: sourceTimeMs
     }

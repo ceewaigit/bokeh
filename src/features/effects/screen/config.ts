@@ -20,7 +20,10 @@ export const SCREEN_EFFECT_PRESETS: Record<string, { tiltX: number; tiltY: numbe
     [ScreenEffectPreset.Isometric]: { tiltX: -25, tiltY: 25, perspective: 950 },
     [ScreenEffectPreset.Flat]: { tiltX: 0, tiltY: 0, perspective: 1200 },
     [ScreenEffectPreset.TiltLeft]: { tiltX: -6, tiltY: -10, perspective: 900 },
-    [ScreenEffectPreset.TiltRight]: { tiltX: -6, tiltY: 10, perspective: 900 }
+    [ScreenEffectPreset.TiltRight]: { tiltX: -6, tiltY: 10, perspective: 900 },
+    [ScreenEffectPreset.TableView]: { tiltX: 45, tiltY: 0, perspective: 1000 },
+    [ScreenEffectPreset.Showcase]: { tiltX: -6, tiltY: 12, perspective: 950 },
+    [ScreenEffectPreset.FloatingCard]: { tiltX: -3, tiltY: 3, perspective: 1200 }
 }
 
 // Screen Track Configuration

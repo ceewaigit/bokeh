@@ -93,7 +93,8 @@ export type {
   TranscriptEditState
 } from './project'
 
-// Re-export enums
+// Re-export enums (cross-feature only)
+// Note: CursorStyle, CursorTheme, KeystrokePosition should be imported directly from feature modules
 export {
   TrackType,
   TimelineTrackType,
@@ -105,10 +106,7 @@ export {
   BackgroundType,
   ScreenEffectPreset,
   AnnotationType,
-  CursorStyle,
-  CursorTheme,
   ZoomFollowStrategy,
-  KeystrokePosition
 } from './project'
 
 // Re-export effect types

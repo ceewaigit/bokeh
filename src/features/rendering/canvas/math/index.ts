@@ -19,6 +19,8 @@ export {
     easeInOutCubic,
     easeOutQuad,
     easeInOutQuad,
+    easeOutQuart,
+    easeInOutQuart,
 } from './easing'
 
 // Binary search

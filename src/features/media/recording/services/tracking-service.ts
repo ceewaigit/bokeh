@@ -344,8 +344,8 @@ export class TrackingService {
     // Start tracking in main process
     const sourceType = (sourceId.startsWith('screen:') ? 'screen' : sourceId.startsWith('area:') ? 'area' : 'window') as RecordingSourceType
     const result = await this.bridge.startMouseTracking({
-      // Higher sampling reduces visible cursor stepping/jitter, especially on high-DPI displays.
-      intervalMs: 16,
+      // Higher sampling (~120fps) reduces visible cursor stepping/jitter, especially on high-DPI displays.
+      intervalMs: 8,
       sourceId,
       sourceType
     })

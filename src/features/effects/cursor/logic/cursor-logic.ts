@@ -7,8 +7,9 @@
  * Mouse events are pre-normalized by the event normalizer.
  */
 
-import type { CursorEffectData, MouseEvent, ClickEvent } from '@/types/project'
-import { CursorStyle } from '@/types/project'
+import type { MouseEvent, ClickEvent } from '@/types/project'
+import type { CursorEffectData } from '../types'
+import { CursorStyle } from '../types'
 import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpolation'
 import { CursorType, electronToCustomCursor } from '../store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
@@ -46,17 +47,6 @@ export function mapSmoothnessToParams(cursorSmoothness: number): { speed: number
     smoothness: lerp(0.15, 0.7, t),   // Low (0.15) → High (0.7) history window
     glide: lerp(0.15, 0.65, t),       // Low (0.15) → High (0.65) inertia
   }
-}
-
-/**
- * Migrate old speed/smoothness/glide values to unified cursorSmoothness.
- * Uses speed as primary signal since it has the most impact on perceived smoothness.
- */
-export function migrateToUnifiedSmoothness(speed?: number, _smoothness?: number, _glide?: number): number {
-  // If no old values, return default (cinematic-ish)
-  if (speed === undefined) return 0.8
-  // Invert: speed 0.01 → cursorSmoothness ~1.0, speed 0.8 → cursorSmoothness ~0.0
-  return clamp01(1 - (speed - 0.01) / 0.79)
 }
 
 /**

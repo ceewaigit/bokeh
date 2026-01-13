@@ -5,7 +5,7 @@ import { getEffectTrackConfig } from '@/features/ui/timeline/effect-track-regist
 import type { Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { clamp } from '@/shared/utils/utils'
-import { getTimelineTimeFromClientX, getTimelineTimeFromStagePointer } from '@/features/ui/timeline/playback/seek-utils'
+import { getTimelineTimeFromClientX, getTimelineTimeFromStagePointer } from '@/features/playback'
 import { TimelineConfig } from '@/features/ui/timeline/config'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'

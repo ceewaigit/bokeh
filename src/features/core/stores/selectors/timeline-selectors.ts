@@ -7,7 +7,7 @@
 
 import { useMemo } from 'react'
 import { useProjectStore } from '../project-store'
-import { EffectStore } from '@/features/effects/core/store'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { EffectType, TrackType } from '@/types/project'
 import type { Effect } from '@/types/project'
 import { EFFECT_TRACK_TYPES } from '@/features/ui/timeline/effect-track-registry'
@@ -136,27 +136,6 @@ export function useTimelineDuration(): number {
   return useProjectStore((s) => s.currentProject?.timeline.duration ?? 0)
 }
 
-/**
- * Get the project FPS.
- */
-export function useProjectFps(): number {
-  return useProjectStore((s) => s.currentProject?.settings.frameRate ?? 60)
-}
-
-/**
- * Get effects that are active at a specific time.
- */
-export function useActiveEffectsAtTime(timeMs: number): Effect[] {
-  const effects = useTimelineEffects()
-
-  return useMemo(() => {
-    return effects.filter(
-      e => e.enabled !== false &&
-        e.startTime <= timeMs &&
-        e.endTime > timeMs
-    )
-  }, [effects, timeMs])
-}
 
 /**
  * Get the count of effects by type.

@@ -1,7 +1,9 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
-import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
-import { CursorTheme, EffectType } from '@/types/project';
+import type { MouseEvent, ClickEvent, Recording } from '@/types/project';
+import { EffectType } from '@/types/project';
+import type { CursorEffectData } from '../types';
+import { CursorTheme } from '../types';
 import {
   CursorType,
   getCursorDimensions,
@@ -13,7 +15,7 @@ import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config';
 import { CURSOR_CONSTANTS } from '@/features/effects/cursor/constants';
 
 import { normalizeClickEvents, normalizeMouseEvents } from '@/features/rendering/renderer/compositions/utils/events/event-normalizer';
-import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext';
+import { useTimelineContext } from '@/features/rendering/renderer/context/RenderingTimelineContext';
 import { getEffectByType } from '@/features/effects/core/filters';
 
 import { useRecordingMetadata } from '@/features/rendering/renderer/hooks/media/useRecordingMetadata';

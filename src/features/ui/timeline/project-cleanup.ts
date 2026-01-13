@@ -3,7 +3,8 @@ import { EffectType, TrackType } from '@/types/project'
 import { WaveformAnalyzer } from '@/features/media/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { ProjectStorage } from '@/features/core/storage/project-storage'
-import { EffectStore, isValidEffectTiming } from '@/features/effects/core/store'
+import { EffectStore, isValidEffectTiming } from '@/features/effects/core/effects-store'
+import { markModified } from '@/features/core/stores/store-utils'
 
 export class ProjectCleanupService {
     /**
@@ -56,7 +57,7 @@ export class ProjectCleanupService {
 
         if (validEffects.length !== effects.length) {
             project.timeline.effects = validEffects
-            project.modifiedAt = new Date().toISOString()
+            markModified(project)
             console.warn(`[ProjectCleanupService] Removed ${effects.length - validEffects.length} invalid effect(s)`)
         }
     }

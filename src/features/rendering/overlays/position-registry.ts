@@ -1,6 +1,6 @@
 import type { Effect, Clip, WebcamLayoutData, SubtitleEffectData } from '@/types/project'
-import { KeystrokePosition } from '@/types/project'
 import { EffectType } from '@/types/project'
+import { KeystrokePosition } from '@/features/effects/keystroke/types'
 import { OverlayAnchor } from '@/types/overlays'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 

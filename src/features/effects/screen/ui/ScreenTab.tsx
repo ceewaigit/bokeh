@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { Target, Wind, Sparkles, Gauge, Zap, CircleOff } from 'lucide-react'
+import React, { useEffect, useState, useMemo } from 'react'
+import { Sparkles, Gauge, Zap, CircleOff } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import type { Clip, Effect, ScreenEffectData } from '@/types/project'
@@ -10,9 +10,63 @@ import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectLayerType, EffectType } from '@/features/effects/types'
 import { AddEffectCommand } from '@/features/core/commands'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
-import { DEFAULT_SCREEN_DATA } from '../config'
+import { DEFAULT_SCREEN_DATA, SCREEN_EFFECT_PRESETS } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { useProjectStore } from '@/features/core/stores/project-store'
+
+interface DepthStylePreviewProps {
+    tiltX: number
+    tiltY: number
+    perspective: number
+    isSelected: boolean
+    isHovered: boolean
+}
+
+function DepthStylePreview({ tiltX, tiltY, perspective, isSelected, isHovered }: DepthStylePreviewProps) {
+    // Scale transforms for preview - use larger scale to make differences visible
+    const previewScale = 0.5
+    const scaledTiltX = tiltX * previewScale
+    const scaledTiltY = tiltY * previewScale
+
+    return (
+        <div
+            className="relative w-full aspect-[16/10] rounded-md overflow-hidden"
+            style={{
+                background: 'linear-gradient(145deg, hsl(var(--muted)/0.3) 0%, hsl(var(--muted)/0.5) 100%)',
+                perspective: `${perspective * 0.5}px`,
+                perspectiveOrigin: 'center center'
+            }}
+        >
+            <div
+                className={cn(
+                    "absolute inset-2 rounded-sm transition-all duration-200",
+                    isSelected
+                        ? "bg-gradient-to-br from-primary/60 to-primary/40 shadow-lg"
+                        : "bg-gradient-to-br from-foreground/25 to-foreground/15 shadow-md",
+                    isHovered && !isSelected && "from-foreground/35 to-foreground/20"
+                )}
+                style={{
+                    // Always show the transform so users can see the style
+                    transform: `rotateX(${scaledTiltX}deg) rotateY(${scaledTiltY}deg)`,
+                    transformStyle: 'preserve-3d',
+                    transformOrigin: 'center center'
+                }}
+            >
+                {/* Simulated screen content lines */}
+                <div className="absolute inset-1.5 flex flex-col gap-1 justify-center items-center">
+                    <div className={cn(
+                        "w-3/4 h-0.5 rounded-full",
+                        isSelected ? "bg-primary-foreground/40" : "bg-foreground/20"
+                    )} />
+                    <div className={cn(
+                        "w-1/2 h-0.5 rounded-full",
+                        isSelected ? "bg-primary-foreground/30" : "bg-foreground/15"
+                    )} />
+                </div>
+            </div>
+        </div>
+    )
+}
 
 interface ScreenTabProps {
     selectedClip: Clip | null
@@ -24,6 +78,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
     const [introMs, setIntroMs] = useState(DEFAULT_SCREEN_DATA.introMs ?? 300)
     const [outroMs, setOutroMs] = useState(DEFAULT_SCREEN_DATA.outroMs ?? 300)
     const [showAdvanced, setShowAdvanced] = useState(false)
+    const [hoveredStyle, setHoveredStyle] = useState<string | null>(null)
     const executorRef = useCommandExecutor()
     const screenEffect = useProjectStore((s) => {
         if (!selectedEffectLayer?.id || selectedEffectLayer.type !== EffectLayerType.Screen) return null
@@ -38,28 +93,38 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
         setOutroMs(screenData?.outroMs ?? DEFAULT_SCREEN_DATA.outroMs ?? 300)
     }, [selectedEffectLayer?.id, screenData?.introMs, screenData?.outroMs])
 
-    const styleOptions: Array<{
-        id: string
-        label: string
-        preset: ScreenEffectPreset
-        description: string
-        icon: React.ComponentType<{ className?: string }>
-    }> = [
-            {
-                id: 'focused',
-                label: 'Focused',
-                preset: ScreenEffectPreset.Hero,
-                description: 'Deeper, more dramatic tilt',
-                icon: Target
-            },
-            {
-                id: 'smooth',
-                label: 'Smooth',
-                preset: ScreenEffectPreset.Subtle,
-                description: 'Gentle depth with soft motion',
-                icon: Wind
-            }
-        ]
+    const styleOptions = useMemo(() => [
+        {
+            id: 'table-view',
+            label: 'Table View',
+            preset: ScreenEffectPreset.TableView,
+            description: 'Flat on desk perspective'
+        },
+        {
+            id: 'showcase',
+            label: 'Showcase',
+            preset: ScreenEffectPreset.Showcase,
+            description: 'Clean product-shot angle'
+        },
+        {
+            id: 'floating',
+            label: 'Floating',
+            preset: ScreenEffectPreset.FloatingCard,
+            description: 'Subtle depth, minimal tilt'
+        },
+        {
+            id: 'smooth',
+            label: 'Smooth',
+            preset: ScreenEffectPreset.Subtle,
+            description: 'Gentle depth with soft motion'
+        },
+        {
+            id: 'focused',
+            label: 'Focused',
+            preset: ScreenEffectPreset.Hero,
+            description: 'Deeper, dramatic tilt'
+        }
+    ], [])
 
     const speedPresets: Array<{
         id: string
@@ -118,35 +183,38 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                 <div className="rounded-2xl bg-background/40 p-3 space-y-3 overflow-hidden">
                     <div className="space-y-2">
                         <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Depth Style</label>
-                        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-1.5">
                             {styleOptions.map((option) => {
-                                const Icon = option.icon
                                 const isSelected = currentPreset === option.preset
+                                const isHovered = hoveredStyle === option.id
+                                const presetValues = SCREEN_EFFECT_PRESETS[option.preset]
                                 return (
                                     <button
                                         key={option.id}
                                         className={cn(
-                                            'group flex min-w-0 flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
+                                            'group flex flex-col gap-1 rounded-lg border p-1.5 text-left transition-all',
                                             isSelected
-                                                ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
-                                                : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                                                ? 'border-primary/60 bg-primary/10 shadow-sm'
+                                                : 'border-border/40 bg-background/40 hover:bg-background/60 hover:border-border/60'
                                         )}
                                         onClick={() => onEffectChange(EffectType.Screen, { preset: option.preset })}
+                                        onMouseEnter={() => setHoveredStyle(option.id)}
+                                        onMouseLeave={() => setHoveredStyle(null)}
                                     >
-                                        <div className="flex items-center justify-between">
+                                        <DepthStylePreview
+                                            tiltX={presetValues?.tiltX ?? 0}
+                                            tiltY={presetValues?.tiltY ?? 0}
+                                            perspective={presetValues?.perspective ?? 1000}
+                                            isSelected={isSelected}
+                                            isHovered={isHovered}
+                                        />
+                                        <div className="px-0.5">
                                             <div className={cn(
-                                                'flex h-7 w-7 items-center justify-center rounded-md border',
-                                                isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
+                                                "text-2xs font-medium leading-tight truncate",
+                                                isSelected ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                                             )}>
-                                                <Icon className="h-3.5 w-3.5" />
+                                                {option.label}
                                             </div>
-                                            {isSelected && (
-                                                <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <div className="text-xs font-semibold leading-tight">{option.label}</div>
-                                            <div className="mt-1 text-2xs leading-snug text-muted-foreground/80">{option.description}</div>
                                         </div>
                                     </button>
                                 )

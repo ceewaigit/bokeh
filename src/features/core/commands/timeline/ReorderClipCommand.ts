@@ -12,6 +12,7 @@ import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { reflowClips, calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 import { EffectSyncService } from '@/features/effects/sync'
 import { TrackType } from '@/types/project'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 export class ReorderClipCommand extends PatchedCommand<{ clipId: string }> {
     private clipId: string
@@ -72,7 +73,7 @@ export class ReorderClipCommand extends PatchedCommand<{ clipId: string }> {
 
         // Update timeline duration
         draft.currentProject.timeline.duration = calculateTimelineDuration(draft.currentProject)
-        draft.currentProject.modifiedAt = new Date().toISOString()
+        markProjectModified(draft)
 
         this.setResult({ success: true, data: { clipId: this.clipId } })
     }

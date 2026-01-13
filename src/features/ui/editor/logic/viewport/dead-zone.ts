@@ -23,12 +23,15 @@ const { deadZoneRatio: CAMERA_DEAD_ZONE_RATIO } = CAMERA_CONFIG
 /**
  * Calculate adaptive dead zone ratio based on zoom scale.
  * At higher zoom levels, reduce dead-zone so the camera tracks tighter.
+ *
+ * NOTE: At very high zoom (2.5x+), we keep a larger minimum dead-zone
+ * to prevent jittery/sensitive camera behavior from small cursor movements.
  */
 export function getAdaptiveDeadZoneRatio(zoomScale: number): number {
-    const maxRatio = CAMERA_DEAD_ZONE_RATIO
-    const minRatio = 0.18
-    const startScale = 1.1
-    const endScale = 2.5
+    const maxRatio = CAMERA_DEAD_ZONE_RATIO  // 0.4 at 1x zoom
+    const minRatio = 0.28                     // Larger minimum for smoother high-zoom tracking
+    const startScale = 1.2                    // Start shrinking later
+    const endScale = 3.0                      // Extend curve for gradual transition
     if (zoomScale <= startScale) return maxRatio
     const t = Math.min(1, (zoomScale - startScale) / (endScale - startScale))
     return maxRatio + (minRatio - maxRatio) * t
@@ -71,8 +74,7 @@ export function getHalfWindows(
 
 /**
  * Calculate follow target with dead-zone behavior.
- * Uses a soft dead-zone: no movement near center, gentle movement near edges.
- * This avoids both "creep" (always moving) and "snap" (discontinuous target).
+ * Simple: cursor inside zone = no movement, cursor outside = track to edge.
  */
 export function calculateFollowTargetNormalized(
     cursorNorm: { x: number; y: number },
@@ -94,12 +96,10 @@ export function calculateFollowTargetNormalized(
     const dx = cursorNorm.x - currentCenterNorm.x
     const dy = cursorNorm.y - currentCenterNorm.y
 
-    // Simple dead-zone: no movement inside zone, linear response outside
-    // Spring physics will handle all the easing - no double-easing
+    // Simple dead-zone: inside = stay put, outside = move so cursor is at edge
     const nextCenterX = (() => {
         const absDx = Math.abs(dx)
         if (absDx <= deadZoneHalfX) return currentCenterNorm.x
-        // Move center so cursor sits at dead zone edge
         const sign = dx < 0 ? -1 : 1
         return cursorNorm.x - sign * deadZoneHalfX
     })()

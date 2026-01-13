@@ -24,7 +24,7 @@ import type { ClipContextValue } from '@/types';
 const ClipContext = createContext<ClipContextValue | null>(null);
 
 import { useRenderSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
-import { useTimelineContext } from '@/features/rendering/renderer/context/TimelineContext';
+import { useTimelineContext } from '@/features/rendering/renderer/context/RenderingTimelineContext';
 
 interface ClipProviderProps {
   clip: Clip;

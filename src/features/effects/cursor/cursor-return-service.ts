@@ -1,6 +1,6 @@
 import { Clip, Recording, Project, Effect, TrackType, EffectType } from '@/types/project'
-import { PlayheadService } from '@/features/ui/timeline/playback/playhead-service'
-import { EffectStore } from '@/features/effects/core/store'
+import { PlayheadService } from '@/features/playback/services/playhead-service'
+import { EffectStore } from '@/features/effects/core/effects-store'
 import { getCropEffectForClip, getActiveCropEffect } from '@/features/effects/core/filters'
 import { captureLastFrame } from '@/shared/utils/frame-capture'
 import { generateCursorReturnFromSource } from '@/features/effects/cursor/synthetic-events'
