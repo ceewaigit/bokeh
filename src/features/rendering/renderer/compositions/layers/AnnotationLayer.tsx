@@ -130,22 +130,25 @@ export const AnnotationLayer: React.FC = memo(() => {
   }, [editContext])
 
   // Handle edit completion - called when user finishes editing
-  const handleEditComplete = useCallback((annotationId: string) => {
-    // Get the transient content if any
-    const transientContent = editContext?.transientState?.id === annotationId
-      ? (editContext.transientState.data as any)?.content
-      : undefined
+  const handleEditComplete = useCallback((annotationId: string, finalContent?: string) => {
+    if (finalContent === undefined) {
+      editContext?.setTransientState(null)
+      editContext?.setIsInlineEditing(false)
+      stopInlineEditing()
+      editStartRef.current = null
+      return
+    }
 
     const beforeContent = editStartRef.current?.id === annotationId
       ? editStartRef.current.content
       : undefined
 
     // Only commit if there's a change
-    if (transientContent !== undefined && transientContent !== beforeContent) {
+    if (finalContent !== beforeContent) {
       if (CommandExecutor.isInitialized()) {
-        void CommandExecutor.getInstance().execute(UpdateEffectCommand, annotationId, { data: { content: transientContent } })
+        void CommandExecutor.getInstance().execute(UpdateEffectCommand, annotationId, { data: { content: finalContent } })
       } else if (!isRendering) {
-        updateEffect(annotationId, { data: { content: transientContent } })
+        updateEffect(annotationId, { data: { content: finalContent } })
       }
     }
 
@@ -225,7 +228,7 @@ export const AnnotationLayer: React.FC = memo(() => {
             isSelected={isSelected}
             isEditing={isEditing}
             onContentChange={(content) => handleContentChange(effect.id, content)}
-            onEditComplete={() => handleEditComplete(effect.id)}
+            onEditComplete={(finalContent) => handleEditComplete(effect.id, finalContent)}
             fadeOpacity={fadeOpacity}
           />
         )

@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo, useState } from 'react'
-import { Rect, Group, Text } from 'react-konva'
+import { Group, Text } from 'react-konva'
 import { useTimelineLayout } from '../timeline-layout-provider'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'

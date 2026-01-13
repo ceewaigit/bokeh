@@ -10,7 +10,6 @@ import { useWorkspaceStore, type UtilityTabId } from '@/features/core/stores/wor
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 
-const tabMotion = { type: "tween", duration: 0.12, ease: [0.2, 0.8, 0.2, 1] } as const
 
 const UTILITY_TABS: { id: UtilityTabId; label: string; icon: React.ElementType }[] = [
     { id: 'import', label: 'Media', icon: Upload },

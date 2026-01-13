@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import Image from "next/image"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { getElectronAssetUrl } from "@/shared/assets/electron-asset-url"
 
@@ -82,11 +83,14 @@ export function WorkspaceLoadingOverlay({
                       "radial-gradient(120% 120% at 15% 0%, hsl(var(--overlay-highlight) / 0.26), transparent 55%), linear-gradient(to bottom, hsl(var(--overlay-highlight) / 0.10), transparent 42%)",
                   }}
                 />
-                <img
+                <Image
                   src={logoSrc}
                   alt=""
+                  width={40}
+                  height={40}
                   className="h-full w-full p-[6px] opacity-95 invert dark:invert-0"
                   draggable={false}
+                  unoptimized
                 />
               </div>
               <div className="min-w-0">

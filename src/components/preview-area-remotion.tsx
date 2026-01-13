@@ -337,6 +337,8 @@ export function PreviewAreaRemotion({
     zoomSettings,
     glowPortalRoot,
     glowPortalStyle,
+    compositionSize.height,
+    compositionSize.width
   ]);
   if (!project) return null;
 

@@ -14,7 +14,7 @@ import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpo
 import { calculateZoomScale } from '@/features/rendering/canvas/math/transforms/zoom-transform'
 import { getCursorDimensions, getCursorHotspot, electronToCustomCursor } from '@/features/effects/cursor/store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
-import { clamp01, lerp, smootherStep } from '@/features/rendering/canvas/math'
+import { clamp01, lerp } from '@/features/rendering/canvas/math'
 import { getSourceDimensions } from '@/features/rendering/canvas/math/coordinates'
 import { CAMERA_CONFIG, CURSOR_STOP_CONFIG } from '@/shared/config/physics-config'
 
@@ -129,6 +129,10 @@ export function computeCameraState({
 }: CameraComputeInput): CameraComputeOutput {
   const effectiveMetadata = metadata ?? recording?.metadata
   const isDeterministic = Boolean(deterministic)
+
+  const dtTimelineFromState = timelineMs - (physics.lastTimeMs ?? timelineMs)
+  const isSeek = !isDeterministic && (Math.abs(dtTimelineFromState) > SEEK_THRESHOLD_MS)
+
   const zoomBlocks = parseZoomBlocks(effects)
   const activeZoomBlock = getZoomBlockAtTime(zoomBlocks, timelineMs)
 
@@ -154,7 +158,8 @@ export function computeCameraState({
 
   // If deterministic (or first run), use commanded scale directly.
   // Otherwise, use physics state or fall back to commanded scale.
-  let currentScale = isDeterministic ? commandedScale : (physics.scale ?? commandedScale)
+  // On seek, we must use the new commanded scale immediately to avoid stale physics state.
+  let currentScale = (isDeterministic || isSeek) ? commandedScale : (physics.scale ?? commandedScale)
 
   const mouseEvents = ((effectiveMetadata as any)?.mouseEvents || []) as MouseEvent[]
   const { sourceWidth, sourceHeight } = getSourceDimensionsAtTime(
@@ -198,19 +203,8 @@ export function computeCameraState({
     : 0
   const smoothingAmount = Math.max(cinematicSmoothing, zoomSmoothing, basePanSmoothing)
 
-  const dtTimelineFromState = timelineMs - (physics.lastTimeMs ?? timelineMs)
-  const isSeek = !isDeterministic && (Math.abs(dtTimelineFromState) > SEEK_THRESHOLD_MS)
-
-  const introBlend = (() => {
-    if (!activeZoomBlock) return 1
-    const introMs = Math.max(0, activeZoomBlock.introMs)
-    if (introMs <= 0) return 1
-    if (timelineMs <= activeZoomBlock.startTime) return 0
-    if (timelineMs >= activeZoomBlock.startTime + introMs) return 1
-    if (zoomTargetScale <= 1.001) return smootherStep((timelineMs - activeZoomBlock.startTime) / introMs)
-    const scaleProgress = (currentScale - 1) / (zoomTargetScale - 1)
-    return clamp01(scaleProgress)
-  })()
+  // const dtTimelineFromState = timelineMs - (physics.lastTimeMs ?? timelineMs)
+  // const isSeek = !isDeterministic && (Math.abs(dtTimelineFromState) > SEEK_THRESHOLD_MS)
 
   // Estimate playback rate for predictive tracking
   // const dtSource = sourceTimeMs - (physics.lastSourceTimeMs ?? sourceTimeMs)
@@ -421,6 +415,13 @@ export function computeCameraState({
     && activeZoomBlock.autoScale !== 'fill'
     && timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs
   )
+
+  // Detect outro phase to apply special physics (crane-like deceleration)
+  const isOutroPhase = Boolean(
+    activeZoomBlock
+    && timelineMs > activeZoomBlock.endTime - (activeZoomBlock.outroMs ?? 0)
+  )
+
   const useFixedIntroWindow = Boolean(
     activeZoomBlock
     && shouldFollowMouse
@@ -428,16 +429,14 @@ export function computeCameraState({
     && (zoomIntoCursorMode ?? 'cursor') !== 'snap'
   )
   if (isIntroPhase) {
-    // "Stripe / product showcase" zoom-in: pick a target once, then move on a clean path.
-    // No chasing the live cursor during the zoom-in (unless explicitly chosen).
+    // "Zoom into cursor" - set target directly to cursor position.
+    // The transform formula pan = (0.5 - cursor) * (scale - 1) handles the zoom-in animation.
+    // This creates ONE smooth motion where the cursor stays fixed on screen.
     const mode = zoomIntoCursorMode ?? 'cursor'
-    const introMs = Math.max(1, activeZoomBlock?.introMs ?? 1)
-    const p = clamp01((timelineMs - (activeZoomBlock?.startTime ?? timelineMs)) / introMs)
-    const t = smootherStep(p)
 
     const anchor = (() => {
       if (mode === 'center') return { x: 0.5, y: 0.5 }
-      if (mode === 'snap') return followCursor // "live" experiment (can look jittery)
+      if (mode === 'snap') return followCursor
 
       const ax = physics.introAnchorX ?? followCursor.x
       const ay = physics.introAnchorY ?? followCursor.y
@@ -449,11 +448,15 @@ export function computeCameraState({
       return { x: ax + vx * predictSeconds, y: ay + vy * predictSeconds }
     })()
 
-    // Clamp once using the FINAL zoom window (target scale), so the aim doesn't "creep"
-    // as the visible window shrinks during the intro.
+    // Clamp to content bounds
     const zoomTarget = clampCenterToContentBounds(anchor, halfWindowAimX, halfWindowAimY, safeOverscan)
-    const zoomAim = mode === 'lead' ? leadCursor(zoomTarget) : zoomTarget
-    targetCenter = { x: lerp(baseCenterForFollow.x, zoomAim.x, t), y: lerp(baseCenterForFollow.y, zoomAim.y, t) }
+    
+    // Set target such that the cursor (or target point) remains fixed on screen during the zoom.
+    // At scale=1, center is 0.5. At scale=S, center approaches the target.
+    // Formula: Center = Target - (Target - 0.5) / Scale
+    const intendedTarget = mode === 'lead' ? leadCursor(zoomTarget) : zoomTarget
+    // Pass raw target position - the transform's pan formula handles keeping it fixed
+    targetCenter = intendedTarget
   }
 
   // Deterministic export with mouse follow uses exponential smoothing
@@ -464,17 +467,10 @@ export function computeCameraState({
     const baseCenter = { x: 0.5, y: 0.5 }
     targetCenter = applyMouseAlgorithm(cursorInput, baseCenter, hasOverscan)
     if (timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs) {
+      // Set target directly to cursor - no lerp! Transform handles the zoom animation.
       const cursorTarget = clampCenterToContentBounds(cursorInput, halfWindowAimX, halfWindowAimY, safeOverscan)
-      const targetForZoom = (zoomIntoCursorMode ?? 'cursor') === 'lead' ? leadCursor(cursorTarget) : cursorTarget
-
       const mode = zoomIntoCursorMode ?? 'cursor'
-      const blend = mode === 'snap'
-        ? 1
-        : mode === 'center'
-          ? 0
-          : clamp01(Math.pow(introBlend, 0.6))
-
-      targetCenter = { x: lerp(0.5, targetForZoom.x, blend), y: lerp(0.5, targetForZoom.y, blend) }
+      targetCenter = mode === 'center' ? { x: 0.5, y: 0.5 } : (mode === 'lead' ? leadCursor(cursorTarget) : cursorTarget)
     }
   }
 
@@ -488,9 +484,9 @@ export function computeCameraState({
   } else if (shouldFollowMouse && isIntroPhase && (zoomIntoCursorMode ?? 'cursor') !== 'center') {
     // Make the zoom-in feel like it aims at the cursor immediately (no spring lag during intro).
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
-  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'smooth') {
+  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'smooth' && !isOutroPhase) {
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
-  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'direct') {
+  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'direct' && !isOutroPhase) {
     // Direct tracking should feel immediate; bypass spring lag.
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
   } else {
@@ -505,6 +501,10 @@ export function computeCameraState({
       stiffness = cameraDynamics.stiffness
       damping = cameraDynamics.damping
       mass = cameraDynamics.mass || 1
+    } else if (isOutroPhase) {
+      // Outro phase: Use softer spring and higher damping for "crane-like" settling
+      stiffness = 30
+      damping = 25
     } else if (cameraSmoothness != null) {
       // Legacy mapping if dynamics not provided
       const t = clamp01(cameraSmoothness / 100)

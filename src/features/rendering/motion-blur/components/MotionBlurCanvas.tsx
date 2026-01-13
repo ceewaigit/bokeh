@@ -90,7 +90,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     clampRadius: clampRadiusProp = 60,
     smoothWindow: smoothWindowProp = 6,
     refocusBlurIntensity = 0,
-    }) => {
+}) => {
     // Config - use props instead of hard-coded values
     const maxBlurRadius = clampRadiusProp > 0 ? clampRadiusProp : 60;
     const velocityThreshold = velocityThresholdProp;  // Default 0 = most sensitive

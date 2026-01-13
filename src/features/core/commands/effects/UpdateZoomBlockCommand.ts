@@ -78,6 +78,7 @@ export class UpdateZoomBlockCommand extends PatchedCommand<{ blockId: string }> 
     if (this.updates.introMs !== undefined) zoomData.introMs = this.updates.introMs
     if (this.updates.outroMs !== undefined) zoomData.outroMs = this.updates.outroMs
     if (this.updates.smoothing !== undefined) zoomData.smoothing = this.updates.smoothing
+    if ('zoomMode' in this.updates) zoomData.zoomMode = this.updates.zoomMode
     if ('followStrategy' in this.updates) zoomData.followStrategy = this.updates.followStrategy
     if ('autoScale' in this.updates) zoomData.autoScale = this.updates.autoScale
     if ('mouseIdlePx' in this.updates) zoomData.mouseIdlePx = this.updates.mouseIdlePx

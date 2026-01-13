@@ -17,7 +17,6 @@ import {
   Loader2,
   Settings2
 } from 'lucide-react'
-import { Button } from './ui/button'
 import { HeaderButton } from './ui/header-button'
 import { WindowHeader } from './ui/window-header'
 import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'

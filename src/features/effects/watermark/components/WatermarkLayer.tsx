@@ -52,8 +52,6 @@ export function WatermarkLayer() {
   const projectWatermark = useProjectStore((s) => s.currentProject?.watermark)
   const data = React.useMemo(() => normalizeWatermarkEffectData(projectWatermark), [projectWatermark])
 
-  if (!data.enabled && !data.forceEnabled) return null
-
   const defaultIconCandidates = React.useMemo(() => getDefaultIconCandidates(), [])
   const [defaultIconIndex, setDefaultIconIndex] = React.useState(0)
   const defaultIconSrc = defaultIconCandidates[Math.min(defaultIconIndex, defaultIconCandidates.length - 1)]
@@ -61,6 +59,8 @@ export function WatermarkLayer() {
   React.useEffect(() => {
     setDefaultIconIndex(0)
   }, [data.iconPath])
+
+  if (!data.enabled && !data.forceEnabled) return null
 
   const minDim = Math.max(1, Math.min(width, height))
   const uiScale = Math.max(0.5, Math.min(2, minDim / 1080))

@@ -149,7 +149,8 @@ export enum ZoomFollowStrategy {
   Manual = 'manual'
 }
 
-export type ZoomTransitionStyle = 'linear' | 'cubic' | 'sine' | 'expo' | 'sigmoid';
+export type ZoomTransitionStyle = 'linear' | 'cubic' | 'sine' | 'expo' | 'sigmoid' | 'smoother';
+export type ZoomMode = 'simple' | 'follow';  // simple = frame scale from center, follow = cursor tracking
 export type ZoomMouseFollowAlgorithm = 'deadzone' | 'direct' | 'smooth' | 'thirds';
 export type ZoomIntoCursorMode = 'center' | 'cursor' | 'snap' | 'lead';
 
@@ -165,6 +166,7 @@ export interface ZoomBlockBase {
   introMs?: number;        // Duration of zoom in animation
   outroMs?: number;        // Duration of zoom out animation
   importance?: number;     // Action importance score (0-1) for 3D effect decisions
+  zoomMode?: ZoomMode;     // 'simple' (frame scale) or 'follow' (cursor tracking)
   followStrategy?: ZoomFollowStrategy;
   autoScale?: 'fill';
   smoothing?: number;
@@ -194,6 +196,8 @@ export interface ZoomEffectData {
   introMs: number;
   outroMs: number;
   smoothing: number;
+  // Zoom mode: 'simple' (frame scale from center) or 'follow' (cursor tracking)
+  zoomMode?: ZoomMode;
   // Follow strategy: mouse or center lock
   followStrategy?: ZoomFollowStrategy;
   autoScale?: 'fill';

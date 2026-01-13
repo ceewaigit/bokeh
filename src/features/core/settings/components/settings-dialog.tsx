@@ -32,8 +32,8 @@ const smoothSpring = {
 type SettingsTab = 'recording' | 'playback' | 'appearance' | 'diagnostics'
 
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
-  { id: 'recording', label: 'Recording', icon: Video },
   { id: 'playback', label: 'Playback', icon: Play },
+  { id: 'recording', label: 'Recording', icon: Video },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity },
 ]
@@ -54,7 +54,7 @@ type BokehProcessSnapshot = {
 export function SettingsDialog() {
   const isOpen = useWorkspaceStore((s) => s.isSettingsOpen)
   const setOpen = useWorkspaceStore((s) => s.setSettingsOpen)
-  const [activeTab, setActiveTab] = useState<SettingsTab>('recording')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('playback')
 
   const isHighQualityPlaybackEnabled = usePreviewSettingsStore((s) => s.highQuality)
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow)

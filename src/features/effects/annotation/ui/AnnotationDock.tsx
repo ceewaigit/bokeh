@@ -183,21 +183,6 @@ export function AnnotationDock() {
 
     const activeFontLabel = FONT_FAMILIES.find(f => f.value === fontFamily)?.label ?? 'System'
 
-    const HoverBackground = ({ id }: { id: string }) => (
-        <AnimatePresence>
-            {hoveredId === id && (
-                <motion.div
-                    layoutId="dock-hover-bg"
-                    className="absolute inset-0 rounded-md bg-accent z-0"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                />
-            )}
-        </AnimatePresence>
-    )
-
     return (
         <div className="absolute left-1/2 top-3 z-[3000] -translate-x-1/2 pointer-events-none">
             <AnimatePresence>
@@ -229,7 +214,7 @@ export function AnnotationDock() {
                                                 onMouseEnter={() => setHoveredId('font-minus')}
                                                 onMouseLeave={() => setHoveredId(null)}
                                             >
-                                                <HoverBackground id="font-minus" />
+                                                <HoverBackground id="font-minus" hoveredId={hoveredId} />
                                                 <span className="relative z-10">-</span>
                                             </Button>
                                             <div
@@ -237,7 +222,7 @@ export function AnnotationDock() {
                                                 onMouseEnter={() => setHoveredId('font-input')}
                                                 onMouseLeave={() => setHoveredId(null)}
                                             >
-                                                <HoverBackground id="font-input" />
+                                                <HoverBackground id="font-input" hoveredId={hoveredId} />
                                                 <input
                                                     type="number"
                                                     min={8}
@@ -261,7 +246,7 @@ export function AnnotationDock() {
                                                 onMouseEnter={() => setHoveredId('font-plus')}
                                                 onMouseLeave={() => setHoveredId(null)}
                                             >
-                                                <HoverBackground id="font-plus" />
+                                                <HoverBackground id="font-plus" hoveredId={hoveredId} />
                                                 <span className="relative z-10">+</span>
                                             </Button>
                                         </div>
@@ -284,7 +269,7 @@ export function AnnotationDock() {
                                                         "hover:bg-background/80 data-[state=open]:bg-background/80 data-[state=open]:border-border/80"
                                                     )}
                                                 >
-                                                    <HoverBackground id="font-family" />
+                                                    <HoverBackground id="font-family" hoveredId={hoveredId} />
                                                     <span className="relative z-10 truncate">{activeFontLabel}</span>
                                                     <ChevronDown className="relative z-10 ml-2 h-3 w-3 shrink-0 opacity-50" />
                                                 </Button>
@@ -311,7 +296,7 @@ export function AnnotationDock() {
                                             onMouseEnter={() => setHoveredId('align-left')}
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <HoverBackground id="align-left" />
+                                            <HoverBackground id="align-left" hoveredId={hoveredId} />
                                             <AlignLeft className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
@@ -323,7 +308,7 @@ export function AnnotationDock() {
                                             onMouseEnter={() => setHoveredId('align-center')}
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <HoverBackground id="align-center" />
+                                            <HoverBackground id="align-center" hoveredId={hoveredId} />
                                             <AlignCenter className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
@@ -335,7 +320,7 @@ export function AnnotationDock() {
                                             onMouseEnter={() => setHoveredId('align-right')}
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <HoverBackground id="align-right" />
+                                            <HoverBackground id="align-right" hoveredId={hoveredId} />
                                             <AlignRight className="relative z-10 h-4 w-4" />
                                         </Button>
                                     </div>
@@ -350,7 +335,7 @@ export function AnnotationDock() {
                                             onMouseEnter={() => setHoveredId('style-bold')}
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <HoverBackground id="style-bold" />
+                                            <HoverBackground id="style-bold" hoveredId={hoveredId} />
                                             <Bold className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
@@ -362,7 +347,7 @@ export function AnnotationDock() {
                                             onMouseEnter={() => setHoveredId('style-italic')}
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <HoverBackground id="style-italic" />
+                                            <HoverBackground id="style-italic" hoveredId={hoveredId} />
                                             <Italic className="relative z-10 h-4 w-4" />
                                         </Button>
                                         <Button
@@ -374,7 +359,7 @@ export function AnnotationDock() {
                                             onMouseEnter={() => setHoveredId('style-underline')}
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
-                                            <HoverBackground id="style-underline" />
+                                            <HoverBackground id="style-underline" hoveredId={hoveredId} />
                                             <Underline className="relative z-10 h-4 w-4" />
                                         </Button>
                                     </div>
@@ -477,7 +462,7 @@ export function AnnotationDock() {
                                                 onMouseEnter={() => setHoveredId(`redaction-${pattern.value}`)}
                                                 onMouseLeave={() => setHoveredId(null)}
                                             >
-                                                <HoverBackground id={`redaction-${pattern.value}`} />
+                                                <HoverBackground id={`redaction-${pattern.value}`} hoveredId={hoveredId} />
                                                 <span className="relative z-10">{pattern.icon}</span>
                                             </Button>
                                         ))}
@@ -524,3 +509,18 @@ export function AnnotationDock() {
         </div>
     )
 }
+
+const HoverBackground = ({ id, hoveredId }: { id: string, hoveredId: string | null }) => (
+    <AnimatePresence>
+        {hoveredId === id && (
+            <motion.div
+                layoutId="dock-hover-bg"
+                className="absolute inset-0 rounded-md bg-accent z-0"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+        )}
+    </AnimatePresence>
+)

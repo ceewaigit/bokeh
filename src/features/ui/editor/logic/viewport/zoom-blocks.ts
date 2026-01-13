@@ -4,7 +4,7 @@
  * Parse and query zoom effects for the camera system.
  */
 
-import type { Effect, ZoomBlockOrigin, ZoomEffectData, ZoomFollowStrategy } from '@/types/project'
+import type { Effect, ZoomBlockOrigin, ZoomEffectData, ZoomFollowStrategy, ZoomMode } from '@/types/project'
 import { EffectType, ZoomFollowStrategy as ZoomFollowStrategyEnum } from '@/types/project'
 
 export interface ParsedZoomBlock {
@@ -20,6 +20,7 @@ export interface ParsedZoomBlock {
     introMs: number
     outroMs: number
     smoothing?: number
+    zoomMode?: ZoomMode
     followStrategy?: ZoomFollowStrategy
     autoScale?: 'fill'
     mouseIdlePx?: number
@@ -60,6 +61,7 @@ export function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
                 introMs: data.introMs,
                 outroMs: data.outroMs,
                 smoothing: data.smoothing,
+                zoomMode: data.zoomMode,
                 followStrategy: data.followStrategy,
                 autoScale: data.autoScale,
                 mouseIdlePx: data.mouseIdlePx,
@@ -153,6 +155,7 @@ function isValidTransitionStyle(style: NonNullable<ZoomEffectData['transitionSty
         || style === 'sine'
         || style === 'expo'
         || style === 'sigmoid'
+        || style === 'smoother'
         || (style as any) === 'cinematic'
         || (style as any) === 'smooth'
         || (style as any) === 'spring'
@@ -161,14 +164,14 @@ function isValidTransitionStyle(style: NonNullable<ZoomEffectData['transitionSty
 function normalizeZoomTransitionStyle(
     style: ZoomEffectData['transitionStyle'] | undefined
 ): NonNullable<ZoomEffectData['transitionStyle']> {
-    if (style === 'linear' || style === 'cubic' || style === 'sine' || style === 'expo' || style === 'sigmoid') {
+    if (style === 'linear' || style === 'cubic' || style === 'sine' || style === 'expo' || style === 'sigmoid' || style === 'smoother') {
         return style
     }
     // Legacy ids from earlier iterations
     if ((style as any) === 'cinematic') return 'cubic'
     if ((style as any) === 'smooth') return 'sine'
     if ((style as any) === 'spring') return 'expo'
-    return 'sine'
+    return 'smoother'  // Default to smoother
 }
 
 function isValidMouseFollowAlgorithm(algo: NonNullable<ZoomEffectData['mouseFollowAlgorithm']>): boolean {

@@ -140,7 +140,7 @@ const ControlContext = React.createContext<{
   setHoveredId: (id: string | null) => void
 } | null>(null)
 
-function ControlGroup({ children, layoutId }: { children: React.ReactNode, layoutId: string }) {
+function ControlGroup({ children }: { children: React.ReactNode }) {
   const [hoveredId, setHoveredId] = React.useState<string | null>(null)
   return (
     <ControlContext.Provider value={{ hoveredId, setHoveredId }}>
@@ -389,7 +389,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
         {/* Single-clip Edit Controls - Hidden when no selection */}
         {hasSingleSelection && (
-          <ControlGroup layoutId="edit-controls">
+          <ControlGroup>
             <ControlButton
               onClick={onSplitSelected}
               icon={Scissors}
@@ -419,7 +419,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
         {/* Always visible but disabled when no selection */}
         <div className="ml-1">
-          <ControlGroup layoutId="delete-control">
+          <ControlGroup>
             <ControlButton
               onClick={onDeleteSelected}
               disabled={!hasSelection}
@@ -446,7 +446,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
 
           {/* Controls */}
           <div className="p-1 rounded-lg border border-border/20 bg-background/40 backdrop-blur-sm shadow-sm">
-            <ControlGroup layoutId="playback-controls">
+            <ControlGroup>
               <ControlButton
                 onClick={jumpBackward1s}
                 icon={SkipBack}

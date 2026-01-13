@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useMemo } from 'react'
-import { Group, Rect, Text } from 'react-konva'
+import { Group, Text } from 'react-konva'
 import { getEffectTrackConfig } from '@/features/ui/timeline/effect-track-registry'
 import { EffectType } from '@/types/project'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'

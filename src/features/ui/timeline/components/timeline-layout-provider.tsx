@@ -343,8 +343,6 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   }, [
     fixedTrackPositions.webcam,
     fixedTrackHeights.webcam,
-    effectTrackExistence,
-    isScreenGroupCollapsed,
     effectTrackHeights,
     annotationTrackHeight
   ])

@@ -25,7 +25,7 @@ interface AnnotationWrapperProps {
     isSelected: boolean
     isEditing: boolean
     onContentChange?: (content: string) => void
-    onEditComplete?: () => void
+    onEditComplete?: (finalContent?: string) => void
     fadeOpacity?: number
 }
 
@@ -49,7 +49,7 @@ interface EditableTextContentProps {
     isEditing: boolean
     constrainWidth?: boolean
     onContentChange?: (content: string) => void
-    onEditComplete?: () => void
+    onEditComplete?: (finalContent?: string) => void
 }
 
 const EditableTextContentImpl: React.FC<EditableTextContentProps> = ({
@@ -118,7 +118,7 @@ const EditableTextContentImpl: React.FC<EditableTextContentProps> = ({
 
             if (didCompleteEditRef.current) return
             didCompleteEditRef.current = true
-            onEditComplete?.()
+            onEditComplete?.(el.textContent ?? '')
         }
 
         document.addEventListener('pointerdown', onDocPointerDownCapture, true)
@@ -128,9 +128,14 @@ const EditableTextContentImpl: React.FC<EditableTextContentProps> = ({
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
-            onEditComplete?.()
+            if (didCompleteEditRef.current) return
+            didCompleteEditRef.current = true
+            onEditComplete?.(contentRef.current?.textContent ?? '')
         }
         if (e.key === 'Escape') {
+            e.preventDefault()
+            if (didCompleteEditRef.current) return
+            didCompleteEditRef.current = true
             onEditComplete?.()
         }
         // Don't propagate to prevent keyboard shortcuts during editing

@@ -61,7 +61,7 @@ export const TimelineAssetGhost = React.memo(function TimelineAssetGhost({
                     // Make visible once positioned
                     containerRef.current.style.opacity = '1'
                 }
-            } catch (e) {
+            } catch {
                 // Silently fail frame
             }
             rafId = requestAnimationFrame(update)

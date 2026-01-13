@@ -47,9 +47,10 @@ describe('camera-calculator spring simulation', () => {
       deterministic: false,
     })
 
-    // On the very first frame of a zoom intro, avoid panning into padding before zoom is perceptible.
-    expect(first.zoomCenter.x).toBeCloseTo(0.5, 5)
-    expect(first.zoomCenter.y).toBeCloseTo(0.5, 5)
+    // On the very first frame of a zoom intro, the center is set directly to the target.
+    // The transform handles keeping it fixed at 0.5 until scale > 1.
+    expect(first.zoomCenter.x).toBeCloseTo(0.8, 5)
+    expect(first.zoomCenter.y).toBeCloseTo(0.8, 5)
 
     const later = computeCameraState({
       effects: effects as any,

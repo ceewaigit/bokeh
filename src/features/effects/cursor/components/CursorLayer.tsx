@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { AbsoluteFill, Img, delayRender, continueRender, useVideoConfig } from 'remotion';
 import type { CursorEffectData, MouseEvent, ClickEvent, Recording } from '@/types/project';
 import { CursorTheme, EffectType } from '@/types/project';
@@ -423,37 +423,65 @@ export const CursorLayer = React.memo(() => {
     if (velocityPx < minVelocity) return 0;
     const t = Math.min(1, Math.max(0, (velocityPx - minVelocity) / (maxVelocity - minVelocity)));
     const eased = t * t;
-    return Math.round(eased * intensity * 2.4 * 10) / 10;
+    return Math.round(eased * intensity * 4.8 * 10) / 10;
   }, [motionBlurEnabled, motionBlurIntensity, motionBlurSample]);
+
+  // Persistent state for trail fade animation
+  const trailOpacityRef = useRef(0);
 
   // Simplified trail: single ghost cursor for clean motion effect
   const motionBlurTrail = useMemo(() => {
-    if (!motionBlurEnabled || !motionBlurSample) return null;
+    if (!motionBlurEnabled || !motionBlurSample) {
+      trailOpacityRef.current = 0;
+      return null;
+    }
+    
+    // We need previous cursor position to calculate direction
     if (previousCursorX == null || previousCursorY == null) return null;
 
     const deltaX = stableCursorX - previousCursorX;
     const deltaY = stableCursorY - previousCursorY;
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    // Only show trail for significant movement
-    if (distance < 16) return null;
-
     const intensity = motionBlurIntensity / 100;
     
     // Convert normalized velocity back to reference pixels for easing
     const velocityPx = motionBlurSample.velocity * CURSOR_REFERENCE_WIDTH;
     
-    const trailOffset = Math.min(12, distance * 0.4);
-    const unitX = deltaX / distance;
-    const unitY = deltaY / distance;
-    const velocityEase = Math.min(1, Math.max(0, (velocityPx - 8) / 24));
-    if (velocityEase < 0.45 || intensity < 0.35) return null;
+    // Lower thresholds for more sensitive activation (User preference)
+    // Old: min=6, max=28. New: min=2, max=18
+    const minVelocity = 2;
+    const maxVelocity = 18;
+    
+    const velocityEase = Math.min(1, Math.max(0, (velocityPx - minVelocity) / (maxVelocity - minVelocity)));
+    
+    // Calculate target visibility based on velocity
+    // Lower gate threshold: 0.45 -> 0.15
+    const shouldShow = velocityEase >= 0.15 && intensity >= 0.15 && distance > 2;
+    const targetOpacity = shouldShow ? 1 : 0;
+    
+    // Smooth fade envelope
+    // Attack (fade in): fast (0.4 ~ 2-3 frames)
+    // Decay (fade out): slow (0.15 ~ 6-8 frames)
+    const smoothing = targetOpacity > trailOpacityRef.current ? 0.4 : 0.15;
+    trailOpacityRef.current += (targetOpacity - trailOpacityRef.current) * smoothing;
+    
+    // Hard cutoff to prevent ghosting at very low opacities
+    if (trailOpacityRef.current < 0.01) return null;
+    
+    const visualOpacity = trailOpacityRef.current;
 
+    const trailOffset = Math.min(12, distance * 0.4);
+    const unitX = deltaX / (distance || 1); // Avoid div by zero
+    const unitY = deltaY / (distance || 1);
+    
     // Single clean ghost trail
     const trailX = stableCursorX - unitX * trailOffset * (0.5 + 0.5 * velocityEase);
     const trailY = stableCursorY - unitY * trailOffset * (0.5 + 0.5 * velocityEase);
-    const trailOpacity = cursorState.opacity * intensity * (0.06 + 0.12 * velocityEase);
-    const trailBlur = 0.9 + intensity * (0.9 + 1.1 * velocityEase);
+    
+    // Modulate opacity with intensity and velocity
+    const finalOpacity = cursorState.opacity * intensity * (0.12 + 0.24 * velocityEase) * visualOpacity;
+    const trailBlur = 0.9 + intensity * (1.8 + 2.2 * velocityEase);
 
     return (
       <div
@@ -462,7 +490,7 @@ export const CursorLayer = React.memo(() => {
           left: 0,
           top: 0,
           transform: `translate3d(${trailX}px, ${trailY}px, 0)`,
-          opacity: trailOpacity,
+          opacity: finalOpacity,
           zIndex: 99,
           pointerEvents: 'none',
         }}

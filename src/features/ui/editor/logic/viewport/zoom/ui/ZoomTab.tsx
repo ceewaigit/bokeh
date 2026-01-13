@@ -83,8 +83,36 @@ function ZoomBlockEditor({
         )
     }, [blockDurationMs, zoomData.introMs, zoomData.outroMs])
 
+    const zoomMode = zoomData.zoomMode ?? 'simple'
+    const isFollowMode = zoomMode === 'follow'
+
     return (
         <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+            {/* Zoom Mode Toggle */}
+            <div className="rounded-md bg-background/40 p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold tracking-[-0.01em]">Zoom Mode</span>
+                    <InfoTooltip content="Simple zooms into cursor with default settings. Follow shows advanced cursor tracking options." />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    {[
+                        { id: 'simple', label: 'Simple', desc: 'Default zoom' },
+                        { id: 'follow', label: 'Advanced', desc: 'Cursor options' }
+                    ].map(mode => (
+                        <button
+                            key={mode.id}
+                            className={cn(
+                                "px-3 py-2 text-xs font-medium rounded-md transition-colors",
+                                zoomMode === mode.id ? "bg-primary text-primary-foreground" : "bg-background/60 text-muted-foreground hover:text-foreground"
+                            )}
+                            onClick={() => onUpdate(blockId, { zoomMode: mode.id as 'simple' | 'follow' })}
+                        >
+                            {mode.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             {/* Scale Control */}
             <div className="rounded-md bg-background/40 p-2.5 space-y-2">
                 <div className="flex items-center justify-between">
@@ -115,7 +143,8 @@ function ZoomBlockEditor({
                 </div>
             </div>
 
-            {/* Focus Mode */}
+            {/* Focus Mode - only shown in Follow mode */}
+            {isFollowMode && (
             <div className="rounded-md bg-background/40 p-2.5 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold tracking-[-0.01em]">Focus Mode</span>
@@ -153,8 +182,9 @@ function ZoomBlockEditor({
                     </span>
                 </div>
             </div>
+            )}
 
-            {isManualFocus && !isFillScreen && (
+            {isFollowMode && isManualFocus && !isFillScreen && (
                 <div className="rounded-md border border-border/40 bg-background/30 p-2.5 space-y-3">
                     <ZoomTargetPreview
                         zoomData={zoomData}
@@ -205,6 +235,8 @@ function ZoomBlockEditor({
                 </div>
             </div>
 
+            {/* Advanced - only shown in Follow mode */}
+            {isFollowMode && (
             <AccordionSection title="Advanced" className="bg-background/30" contentClassName="pt-2.5">
                 {!isFillScreen ? (
                     <div className="rounded-md bg-background/30 p-3 space-y-3">
@@ -224,9 +256,10 @@ function ZoomBlockEditor({
                         <p className="text-xs text-muted-foreground/70">Minimum cursor movement to trigger pan</p>
                     </div>
                 ) : (
-                    <p className="text-xs text-muted-foreground/70">Advanced tracking is disabled when “Fill screen” is enabled.</p>
+                    <p className="text-xs text-muted-foreground/70">Advanced tracking is disabled when &quot;Fill screen&quot; is enabled.</p>
                 )}
             </AccordionSection>
+            )}
         </div>
     )
 }
@@ -291,7 +324,7 @@ export function ZoomTab({
     ] as const), [])
 
     const motionBlurPresets = React.useMemo(() => ([
-        { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 20, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: 0, saturation: 1.0, samples: 16 } },
+        { id: 'subtle', label: 'Subtle', values: { intensity: 25, threshold: 65, gamma: 1.0, smooth: 8, ramp: 0.5, clamp: 45, black: 0, saturation: 1.0, samples: 16 } },
         { id: 'balanced', label: 'Balanced', values: { intensity: 100, threshold: 70, gamma: 1.0, smooth: 6, ramp: 0.5, clamp: 60, black: 0, saturation: 1.0, samples: 32 } },
         { id: 'dynamic', label: 'Dynamic', values: { intensity: 100, threshold: 30, gamma: 1.0, smooth: 5, ramp: 0.3, clamp: 100, black: 0, saturation: 1.0, samples: 48 } },
         { id: 'custom', label: 'Custom', values: null },
@@ -345,10 +378,12 @@ export function ZoomTab({
 
     const selectedBlock = selectedEffectLayer?.type === EffectLayerType.Zoom ? zoomEffects.find(e => e.id === selectedEffectLayer.id) : null
     const selectedZoomData = selectedBlock?.data as ZoomEffectData | undefined
+    const selectedZoomMode = selectedZoomData?.zoomMode ?? 'simple'
     const selectedMouseFollowAlgorithm = selectedZoomData?.mouseFollowAlgorithm ?? DEFAULT_ZOOM_DATA.mouseFollowAlgorithm ?? 'deadzone'
     const selectedZoomIntoCursorMode = selectedZoomData?.zoomIntoCursorMode ?? DEFAULT_ZOOM_DATA.zoomIntoCursorMode ?? 'cursor'
     const shouldShowCursorFraming = Boolean(
         selectedBlock
+        && selectedZoomMode === 'follow'  // Only show when in follow mode
         && (selectedZoomData?.followStrategy ?? ZoomFollowStrategy.Mouse) === ZoomFollowStrategy.Mouse
         && selectedZoomData?.autoScale !== 'fill'
     )
@@ -436,13 +471,13 @@ export function ZoomTab({
                     const v = motionBlurPresets.find(p => p.id === id)?.values
                     if (v) setCameraSettings({ motionBlurIntensity: v.intensity, motionBlurThreshold: v.threshold, motionBlurGamma: v.gamma, motionBlurSmoothWindow: v.smooth, motionBlurRampRange: v.ramp, motionBlurClamp: v.clamp, motionBlurBlackLevel: v.black ?? 0, motionBlurSaturation: v.saturation ?? 1.0, motionBlurSamples: v.samples, motionBlurEnabled: true })
                 }} namespace="motion-blur" />
-                <CompactSlider label="Shutter Angle" value={camera.motionBlurIntensity ?? 50} min={0} max={200} step={5} unit="%" onValueChange={v => setCameraSettings({ motionBlurIntensity: v, motionBlurEnabled: v > 0 })} />
+                <CompactSlider label="Shutter Angle" value={camera.motionBlurIntensity ?? 25} min={0} max={200} step={5} unit="%" onValueChange={v => setCameraSettings({ motionBlurIntensity: v, motionBlurEnabled: v > 0 })} />
                 <button onClick={() => setIsAdvancedBlurOpen(!isAdvancedBlurOpen)} className="flex items-center gap-1.5 text-3xs font-semibold text-muted-foreground hover:text-primary"><ChevronRight className={cn("w-3 h-3 transition-transform", isAdvancedBlurOpen && "rotate-90")} />ADVANCED SETTINGS</button>
                 <AnimatePresence>
                     {isAdvancedBlurOpen && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-4 pb-2 pl-1 border-l-2 border-border/30 ml-1.5">
-                            <CompactSlider label="Threshold" value={camera.motionBlurThreshold ?? 50} min={0} max={100} unit="%" onValueChange={v => setCameraSettings({ motionBlurThreshold: v })} />
-                            <CompactSlider label="Max Radius" value={camera.motionBlurClamp ?? 60} min={10} max={200} unit=" px" onValueChange={v => setCameraSettings({ motionBlurClamp: v })} />
+                            <CompactSlider label="Threshold" value={camera.motionBlurThreshold ?? 20} min={0} max={100} unit="%" onValueChange={v => setCameraSettings({ motionBlurThreshold: v })} />
+                            <CompactSlider label="Max Radius" value={camera.motionBlurClamp ?? 45} min={10} max={200} unit=" px" onValueChange={v => setCameraSettings({ motionBlurClamp: v })} />
                             <div className="flex items-center justify-between py-1 text-2xs text-muted-foreground"><span>WebGL Pipeline</span><Switch checked={camera.motionBlurUseWebglVideo ?? true} onCheckedChange={v => setCameraSettings({ motionBlurUseWebglVideo: v })} /></div>
                         </motion.div>
                     )}

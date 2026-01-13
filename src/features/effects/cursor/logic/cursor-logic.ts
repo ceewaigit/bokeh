@@ -328,10 +328,11 @@ export function calculateCursorState(
     const velocityNormalized = Math.sqrt(dx * dx + dy * dy)
     
     // Thresholds using 1080p reference width (1920)
-    const THRESHOLD = 6 / REFERENCE_WIDTH
+    // Lower threshold to 1px to allow rendering layer to handle fade-in/out logic
+    const THRESHOLD = 1 / REFERENCE_WIDTH
     const CAP = 50 / REFERENCE_WIDTH
 
-    if (velocityNormalized > THRESHOLD) { // Only show blur for significant movement (6px equivalent)
+    if (velocityNormalized > THRESHOLD) { // Only show blur for significant movement
       motionBlur = {
         previousX: referencePosition.x,
         previousY: referencePosition.y,

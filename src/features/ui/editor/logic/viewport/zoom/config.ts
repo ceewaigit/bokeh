@@ -11,9 +11,10 @@ export const DEFAULT_ZOOM_DATA: ZoomEffectData = {
     introMs: ZOOM_TRANSITION_CONFIG.defaultIntroMs,
     outroMs: ZOOM_TRANSITION_CONFIG.defaultOutroMs,
     smoothing: 50,
+    zoomMode: 'simple',  // Simple frame-scale zoom by default
     followStrategy: ZoomFollowStrategy.Mouse,
     mouseIdlePx: 3,
-    transitionStyle: 'sine',
+    transitionStyle: 'smoother',  // Smoother easing for better animation
     mouseFollowAlgorithm: 'deadzone',
     zoomIntoCursorMode: 'cursor'
 }
@@ -41,9 +42,10 @@ export const zoomTrackConfig: EffectTrackConfig = {
             introMs: ZOOM_TRANSITION_CONFIG.defaultIntroMs,
             outroMs: ZOOM_TRANSITION_CONFIG.defaultOutroMs,
             smoothing: 50,
+            zoomMode: 'simple',
             followStrategy: ZoomFollowStrategy.Mouse,
             mouseIdlePx: 3,
-            transitionStyle: 'sine',
+            transitionStyle: 'smoother',
             mouseFollowAlgorithm: 'deadzone',
             zoomIntoCursorMode: 'cursor'
         })

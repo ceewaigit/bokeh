@@ -115,17 +115,22 @@ export const ColorPicker = ({
   const isInteractingRef = useRef(false)
   const lastEmittedRef = useRef<string | null>(null)
 
+  const onInteractionStartRef = useRef(onInteractionStart)
+  onInteractionStartRef.current = onInteractionStart
+  const onInteractionEndRef = useRef(onInteractionEnd)
+  onInteractionEndRef.current = onInteractionEnd
+
   const beginInteraction = useCallback(() => {
     if (isInteractingRef.current) return
     isInteractingRef.current = true
-    onInteractionStart?.()
-  }, [onInteractionStart])
+    onInteractionStartRef.current?.()
+  }, [])
 
   const endInteraction = useCallback(() => {
     if (!isInteractingRef.current) return
     isInteractingRef.current = false
-    onInteractionEnd?.()
-  }, [onInteractionEnd])
+    onInteractionEndRef.current?.()
+  }, [])
 
   useEffect(() => {
     if (isInteractingRef.current) return
@@ -221,58 +226,57 @@ export const ColorPickerSelection = memo(
       setPositionY(y)
     }, [saturation, lightness])
 
+    const updatePosition = useCallback((clientX: number, clientY: number) => {
+      if (!containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const x = Math.max(
+        0,
+        Math.min(1, (clientX - rect.left) / rect.width)
+      )
+      const y = Math.max(
+        0,
+        Math.min(1, (clientY - rect.top) / rect.height)
+      )
+      setPositionX(x)
+      setPositionY(y)
+      setSaturation(x * 100)
+      const topLightness = x < 0.01 ? 100 : 50 + 50 * (1 - x)
+      const nextLightness = topLightness * (1 - y)
+      setLightness(nextLightness)
+    }, [setSaturation, setLightness])
+
     const handlePointerMove = useCallback(
-      (event: PointerEvent | MouseEvent) => {
-        if (!(isDragging && containerRef.current)) {
-          return
-        }
-        const rect = containerRef.current.getBoundingClientRect()
-        const x = Math.max(
-          0,
-          Math.min(1, (event.clientX - rect.left) / rect.width)
-        )
-        const y = Math.max(
-          0,
-          Math.min(1, (event.clientY - rect.top) / rect.height)
-        )
-        setPositionX(x)
-        setPositionY(y)
-        setSaturation(x * 100)
-        const topLightness = x < 0.01 ? 100 : 50 + 50 * (1 - x)
-        const nextLightness = topLightness * (1 - y)
-        setLightness(nextLightness)
+      (event: React.PointerEvent) => {
+        if (!isDragging) return
+        event.preventDefault()
+        updatePosition(event.clientX, event.clientY)
       },
-      [isDragging, setSaturation, setLightness]
+      [isDragging, updatePosition]
+    )
+
+    const handlePointerUp = useCallback(
+      (event: React.PointerEvent) => {
+        if (!isDragging) return
+        event.preventDefault()
+        setIsDragging(false)
+        if (containerRef.current && activePointerIdRef.current !== null) {
+          if (event.pointerId === activePointerIdRef.current) {
+             try {
+               containerRef.current.releasePointerCapture(activePointerIdRef.current)
+             } catch {
+               // Ignore release errors
+             }
+             activePointerIdRef.current = null
+          }
+        }
+        endInteraction?.()
+      },
+      [isDragging, endInteraction]
     )
 
     useEffect(() => {
       syncPositionFromColor()
     }, [syncPositionFromColor])
-
-    useEffect(() => {
-      const handlePointerUp = () => {
-        setIsDragging(false)
-        if (containerRef.current && activePointerIdRef.current !== null) {
-          try {
-            containerRef.current.releasePointerCapture(activePointerIdRef.current)
-          } catch {
-            // Ignore release errors.
-          }
-        }
-        activePointerIdRef.current = null
-        endInteraction?.()
-      }
-      if (isDragging) {
-        window.addEventListener('pointermove', handlePointerMove)
-        window.addEventListener('pointerup', handlePointerUp)
-        window.addEventListener('pointercancel', handlePointerUp)
-      }
-      return () => {
-        window.removeEventListener('pointermove', handlePointerMove)
-        window.removeEventListener('pointerup', handlePointerUp)
-        window.removeEventListener('pointercancel', handlePointerUp)
-      }
-    }, [isDragging, handlePointerMove])
 
     return (
       <div
@@ -289,7 +293,16 @@ export const ColorPickerSelection = memo(
               // Ignore capture errors.
             }
           }
-          handlePointerMove(e.nativeEvent)
+          updatePosition(e.clientX, e.clientY)
+        }}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onLostPointerCapture={(e) => {
+           if (isDragging && e.pointerId === activePointerIdRef.current) {
+              setIsDragging(false)
+              activePointerIdRef.current = null
+              endInteraction?.()
+           }
         }}
         ref={containerRef}
         style={{

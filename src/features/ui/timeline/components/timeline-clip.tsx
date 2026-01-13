@@ -176,10 +176,6 @@ const TimelineClipComponent = ({
   const hasThumbnails = showTimelineThumbnails && thumbnails.length > 0
   const showMissingThumb = trackType === TrackType.Video && !isGeneratedClip && !hasThumbnails
 
-  // Prevent rendering if track is collapsed (height 0) to avoid invalid shape errors
-  // Must be after all hooks to prevent "Rendered fewer hooks" error
-  if (trackHeight <= TimelineConfig.TRACK_PADDING * 2) return null
-
   // ANIMATION: Handle hover effect with Tween
   // We use a useEffect to trigger the animation when hover state changes
   // This avoids re-rendering the whole component but updates the visual state
@@ -216,6 +212,10 @@ const TimelineClipComponent = ({
       // Normal state
     }
   }, [showTrimHandles]) // showTrimHandles follows hover state mostly
+
+  // Prevent rendering if track is collapsed (height 0) to avoid invalid shape errors
+  // Must be after all hooks to prevent "Rendered fewer hooks" error
+  if (trackHeight <= TimelineConfig.TRACK_PADDING * 2) return null
 
 
   // Calculate ghost dimensions for trim preview
