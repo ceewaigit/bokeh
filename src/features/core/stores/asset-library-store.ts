@@ -5,6 +5,7 @@ export interface AssetMetadata {
     width?: number
     height?: number
     duration?: number
+    requiresProxy?: boolean
 }
 
 export interface Asset {

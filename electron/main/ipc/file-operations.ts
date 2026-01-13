@@ -12,10 +12,46 @@ import {
   clearPreviewProxies,
   clearGlowProxies,
   getProxyCacheSize,
-  getVideoDimensions
+  getVideoDimensions,
+  getVideoMetadata,
+  generateThumbnail
 } from '../services/proxy-service'
 
 export function registerFileOperationHandlers(): void {
+  // Generate a thumbnail using ffmpeg (fallback for unsupported formats)
+  ipcMain.handle('generate-video-thumbnail', async (_event: IpcMainInvokeEvent, options: any) => {
+    try {
+      const { path: videoPath, width, height, timestamp } = options
+      const result = await generateThumbnail(videoPath, { width, height, timestamp })
+      return result
+    } catch (error) {
+      console.error('[FileOps] Error generating thumbnail:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // Get video metadata (width, height, duration) using ffprobe
+  // This is reliable even for formats the renderer cannot play directly (e.g. 6K HEVC)
+  ipcMain.handle('get-video-metadata', async (_event: IpcMainInvokeEvent, filePath: string) => {
+    console.log('[FileOps] 🛰️ get-video-metadata called for:', filePath)
+    try {
+      const normalizedPath = path.resolve(filePath)
+      const meta = await getVideoMetadata(normalizedPath)
+      if (meta) {
+        console.log('[FileOps] 📐 Metadata extracted:', meta)
+        return {
+          success: true,
+          ...meta
+        }
+      }
+      console.error('[FileOps] ❌ Failed to extract metadata for:', filePath)
+      return { success: false, error: 'Failed to extract metadata' }
+    } catch (error) {
+      console.error('[FileOps] ❌ Error getting video metadata:', error)
+      return { success: false, error: String(error) }
+    }
+  })
+
   ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: Buffer | ArrayBuffer | string | object, filepath?: string) => {
     try {
       // Determine final save path. If a path is provided but has no extension, default to mp4.

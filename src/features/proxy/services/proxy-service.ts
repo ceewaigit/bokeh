@@ -235,7 +235,8 @@ export const ProxyService = {
 
                 // 2. Determine if proxy is needed
                 const needsProxy = checkResult.needsProxy ||
-                    (typeof recording.width === 'number' && recording.width > MIN_WIDTH_FOR_PREVIEW_PROXY)
+                    (typeof recording.width === 'number' && recording.width > MIN_WIDTH_FOR_PREVIEW_PROXY) ||
+                    recording.capabilities?.requiresProxy
 
                 if (!needsProxy) {
                     // Small video - no proxy needed
@@ -277,14 +278,14 @@ export const ProxyService = {
     needsUserPrompt(recording: Recording): boolean {
         const status = useProxyStore.getState().status[recording.id]
 
-        // Already processing or done
-        if (status === 'generating' || status === 'ready' || status === 'dismissed') {
+        // Already processing, done, or currently checking
+        if (status === 'generating' || status === 'ready' || status === 'dismissed' || status === 'checking') {
             return false
         }
 
         // Check dimensions
         const isLarge = typeof recording.width === 'number' && recording.width > MIN_WIDTH_FOR_PREVIEW_PROXY
-        return isLarge
+        return isLarge || !!recording.capabilities?.requiresProxy
     },
 
     /**

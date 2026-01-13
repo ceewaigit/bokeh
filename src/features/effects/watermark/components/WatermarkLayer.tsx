@@ -6,6 +6,7 @@ import { cn } from '@/shared/utils/utils'
 import { DEFAULT_BOKEH_ICON_PATH, WATERMARK_Z_INDEX, normalizeWatermarkEffectData } from '../config'
 import { WatermarkLayout } from '../types'
 import { calculateWatermarkAnimations } from '../utils/watermark-animations'
+import { DefaultBokehIcon } from './DefaultBokehIcon'
 
 function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
@@ -20,12 +21,17 @@ function uniq<T>(items: T[]): T[] {
 }
 
 function getDefaultIconCandidates(): string[] {
+  // Support data URIs directly
+  if (DEFAULT_BOKEH_ICON_PATH && DEFAULT_BOKEH_ICON_PATH.startsWith('data:')) {
+    return [DEFAULT_BOKEH_ICON_PATH]
+  }
+
   const isElectron =
     typeof navigator !== 'undefined' &&
     typeof navigator.userAgent === 'string' &&
     navigator.userAgent.includes('Electron')
 
-  const direct = DEFAULT_BOKEH_ICON_PATH.startsWith('/')
+  const direct = DEFAULT_BOKEH_ICON_PATH && DEFAULT_BOKEH_ICON_PATH.startsWith('/')
     ? DEFAULT_BOKEH_ICON_PATH
     : `/${DEFAULT_BOKEH_ICON_PATH}`
 
@@ -34,15 +40,13 @@ function getDefaultIconCandidates(): string[] {
   const remotionStatic = staticFile(withoutLeadingSlash)
   const mainWindowDirect = `/main_window${direct}`
 
-  // Some environments (e.g. Remotion Player in Electron Forge dev) compute a static base
-  // that can incorrectly prepend `/main_window`. Use a small fallback chain.
   return isElectron
-    ? uniq([videoStream, direct, mainWindowDirect, remotionStatic])
-    : uniq([direct, remotionStatic, mainWindowDirect, videoStream])
+    ? uniq([remotionStatic, videoStream, direct, mainWindowDirect])
+    : uniq([remotionStatic, direct, mainWindowDirect, videoStream])
 }
 
 function resolveIconSrc(iconPath: string | null): string {
-  if (!iconPath) return getDefaultIconCandidates()[0]
+  if (!iconPath) return ''
   return createVideoStreamUrl(iconPath) || iconPath
 }
 
@@ -51,14 +55,6 @@ export function WatermarkLayer() {
   const { fps, durationInFrames, width, height } = useVideoConfig()
   const projectWatermark = useProjectStore((s) => s.currentProject?.watermark)
   const data = React.useMemo(() => normalizeWatermarkEffectData(projectWatermark), [projectWatermark])
-
-  const defaultIconCandidates = React.useMemo(() => getDefaultIconCandidates(), [])
-  const [defaultIconIndex, setDefaultIconIndex] = React.useState(0)
-  const defaultIconSrc = defaultIconCandidates[Math.min(defaultIconIndex, defaultIconCandidates.length - 1)]
-
-  React.useEffect(() => {
-    setDefaultIconIndex(0)
-  }, [data.iconPath])
 
   if (!data.enabled && !data.forceEnabled) return null
 
@@ -94,6 +90,28 @@ export function WatermarkLayer() {
   const outline = data.textStyle.textOutline?.enabled ? data.textStyle.textOutline : undefined
   const underline = data.textStyle.textUnderline?.enabled ? data.textStyle.textUnderline : undefined
   const bg = data.containerStyle?.background?.enabled ? data.containerStyle.background : null
+
+  const iconStyle: React.CSSProperties = {
+    width: iconPx,
+    height: iconPx,
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45)) drop-shadow(0 0 1px rgba(0,0,0,0.35))',
+    pointerEvents: 'none',
+    flex: '0 0 auto',
+  }
+
+  const renderIcon = () => {
+    if (data.iconPath) {
+      return (
+        <Img
+          src={resolveIconSrc(data.iconPath)}
+          style={iconStyle}
+        />
+      )
+    }
+    // Render the robust inline SVG component for the default logo
+    return <DefaultBokehIcon style={iconStyle} />
+  }
 
   return (
     <AbsoluteFill
@@ -151,43 +169,11 @@ export function WatermarkLayer() {
               </div>
             ) : null}
 
-            {showIcon ? (
-              <Img
-                src={data.iconPath ? resolveIconSrc(data.iconPath) : defaultIconSrc}
-                style={{
-                  width: iconPx,
-                  height: iconPx,
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45)) drop-shadow(0 0 1px rgba(0,0,0,0.35))',
-                  pointerEvents: 'none',
-                  flex: '0 0 auto',
-                }}
-                onError={() => {
-                  if (data.iconPath) return
-                  setDefaultIconIndex((i) => Math.min(i + 1, defaultIconCandidates.length - 1))
-                }}
-              />
-            ) : null}
+            {showIcon ? renderIcon() : null}
           </>
         ) : (
           <>
-            {showIcon ? (
-              <Img
-                src={data.iconPath ? resolveIconSrc(data.iconPath) : defaultIconSrc}
-                style={{
-                  width: iconPx,
-                  height: iconPx,
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45)) drop-shadow(0 0 1px rgba(0,0,0,0.35))',
-                  pointerEvents: 'none',
-                  flex: '0 0 auto',
-                }}
-                onError={() => {
-                  if (data.iconPath) return
-                  setDefaultIconIndex((i) => Math.min(i + 1, defaultIconCandidates.length - 1))
-                }}
-              />
-            ) : null}
+            {showIcon ? renderIcon() : null}
 
             {showText ? (
               <div

@@ -444,6 +444,13 @@ const electronAPI = {
   getVideoUrl: (filePath: string) =>
     ipcRenderer.invoke('get-video-url', filePath),
 
+  // Get video metadata (width, height, duration)
+  getVideoMetadata: (filePath: string) =>
+    ipcRenderer.invoke('get-video-metadata', filePath),
+
+  generateVideoThumbnail: (options: { path: string; width?: number; height?: number; timestamp?: number }) =>
+    ipcRenderer.invoke('generate-video-thumbnail', options),
+
   // Check if a file exists at the given path
   fileExists: (filePath: string): Promise<boolean> =>
     ipcRenderer.invoke('file-exists', filePath),

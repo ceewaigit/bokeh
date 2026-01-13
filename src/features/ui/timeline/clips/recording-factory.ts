@@ -64,6 +64,8 @@ export interface CreateRecordingOptions {
     }
     /** Override capabilities (normally auto-detected) */
     capabilitiesOverride?: RecordingCapabilities
+    /** Whether the recording requires a proxy (e.g. unsupported codec) */
+    requiresProxy?: boolean
 }
 
 // ============================================================================
@@ -108,6 +110,7 @@ function detectCapabilities(options: CreateRecordingOptions): RecordingCapabilit
             hasKeystrokeData: false,
             hasScrollData: false,
             hasScreenData: false,
+            requiresProxy: options.requiresProxy
         }
     }
 

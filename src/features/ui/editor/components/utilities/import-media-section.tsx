@@ -328,7 +328,7 @@ export function ImportMediaSection() {
         let path = (file as File & { path?: string }).path
 
         // Try getting path from electron API first (uses webUtils.getPathForFile)
-        if (window.electronAPI?.getPathForFile) {
+        if (window.electronAPI?.getPathForFile && file instanceof File) {
             try {
                 const electronPath = window.electronAPI.getPathForFile(file)
                 if (electronPath) {
@@ -341,16 +341,46 @@ export function ImportMediaSection() {
 
         path = path || file.name
         const assetId = `asset-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        console.log(`[Import] Ingesting file: ${file.name} (Path: ${path})`)
 
         try {
-            let metadata: { width?: number; height?: number; duration?: number } = {}
+            let metadata: { width?: number; height?: number; duration?: number; requiresProxy?: boolean } = {}
 
             if (type === 'video') {
-                const vidMeta = await getVideoMetadataFromPath(path)
-                metadata = {
-                    width: vidMeta.width,
-                    height: vidMeta.height,
-                    duration: vidMeta.duration
+                // Try to get metadata from Electron API first (supports formats the renderer can't play)
+                if (window.electronAPI?.getVideoMetadata) {
+                    try {
+                        console.log(`[Import] Attempting Electron metadata extraction for: ${path}`)
+                        const meta = await window.electronAPI.getVideoMetadata(path)
+                        if (meta.success && meta.width && meta.height && meta.duration !== undefined) {
+                            console.log(`[Import] Electron metadata success: ${meta.width}x${meta.height}, ${meta.duration}s`)
+                            metadata = {
+                                width: meta.width,
+                                height: meta.height,
+                                duration: meta.duration * 1000, // Convert seconds to ms
+                                requiresProxy: true // Browser likely can't play this if we needed ffprobe
+                            }
+                        } else {
+                            // Fallback to DOM method if API fails
+                            throw new Error(meta.error || 'Metadata extraction failed')
+                        }
+                    } catch (e) {
+                        console.warn(`[Import] Electron metadata failed, falling back to DOM: ${e}`)
+                        const vidMeta = await getVideoMetadataFromPath(path)
+                        metadata = {
+                            width: vidMeta.width,
+                            height: vidMeta.height,
+                            duration: vidMeta.duration
+                        }
+                    }
+                } else {
+                    console.log(`[Import] Electron API not available, using DOM for: ${path}`)
+                    const vidMeta = await getVideoMetadataFromPath(path)
+                    metadata = {
+                        width: vidMeta.width,
+                        height: vidMeta.height,
+                        duration: vidMeta.duration
+                    }
                 }
             } else if (type === 'image') {
                 const imgMeta = await getImageMetadata(path)
@@ -415,6 +445,8 @@ export function ImportMediaSection() {
                 await ingestFile(item.file)
                 setIngestQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'success' } : i))
             } catch (error) {
+                console.error(`[Import] Failed to ingest ${item.file.name}:`, error)
+                toast.error(`Failed to import ${item.file.name}: ${String(error)}`)
                 setIngestQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'error', error: String(error) } : i))
             }
         }
@@ -423,8 +455,9 @@ export function ImportMediaSection() {
             window.clearTimeout(ingestCleanupTimeoutRef.current)
         }
         ingestCleanupTimeoutRef.current = window.setTimeout(() => {
+            // Keep errors visible longer
             setIngestQueue(prev => prev.filter(i => i.status !== 'success'))
-        }, 2000)
+        }, 4000)
 
     }, [ingestFile])
 
@@ -508,7 +541,8 @@ export function ImportMediaSection() {
                     width: asset.metadata.width || 0,
                     height: asset.metadata.height || 0,
                     type: asset.type as 'video' | 'audio' | 'image',
-                    name: asset.name
+                    name: asset.name,
+                    requiresProxy: asset.metadata.requiresProxy
                 }, targetTrackType ? { trackType: targetTrackType } : undefined)
                 return updatedProject
             })
@@ -523,7 +557,8 @@ export function ImportMediaSection() {
                 width: asset.metadata.width || 0,
                 height: asset.metadata.height || 0,
                 type: asset.type as 'video' | 'audio' | 'image',
-                name: asset.name
+                name: asset.name,
+                requiresProxy: asset.metadata.requiresProxy
             },
             options: { trackType }
         })

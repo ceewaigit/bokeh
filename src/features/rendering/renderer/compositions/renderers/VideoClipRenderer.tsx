@@ -110,6 +110,11 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // Self-healing: track if current URL failed, fallback to original source
   const [urlFailed, setUrlFailed] = useState(false);
 
+  // Reset failure state when URL changes (e.g. proxy generated)
+  useEffect(() => {
+    setUrlFailed(false);
+  }, [videoUrl]);
+
   const effectiveUrl = useMemo(() => {
     if (!urlFailed || !recording?.filePath) return videoUrl;
     // Fallback to original source file when proxy fails

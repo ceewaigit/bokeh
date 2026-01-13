@@ -154,10 +154,51 @@ export class ThumbnailGenerator {
 
     try {
       // Direct thumbnail generation using pooled video element
-      const thumbnail = await this.extractVideoFrame(
-        videoPath,
-        { width, height, quality, timestamp }
-      )
+      let thumbnail: string | null = null
+      
+      try {
+        thumbnail = await this.extractVideoFrame(
+          videoPath,
+          { width, height, quality, timestamp }
+        )
+      } catch (domError) {
+        // Fallback to Electron API (ffmpeg) if DOM generation fails (e.g. unsupported format)
+        if (window.electronAPI?.generateVideoThumbnail && window.electronAPI?.getVideoMetadata) {
+          logger.warn(`DOM thumbnail generation failed for ${videoPath}, trying fallback...`)
+          
+          try {
+            // Get duration first to calculate timestamp if it's a percentage
+            const meta = await window.electronAPI.getVideoMetadata(videoPath)
+            let seekTime = 0
+            
+            if (meta?.success && meta.duration) {
+               // Calculate seek time (same logic as resolveSeekTime but using seconds)
+               const duration = meta.duration
+               seekTime = timestamp <= 1 
+                  ? duration * Math.max(0, Math.min(1, timestamp))
+                  : Math.max(0, Math.min(duration, timestamp))
+            }
+
+            const result = await window.electronAPI.generateVideoThumbnail({
+              path: videoPath,
+              width: width || 320,
+              height: height,
+              timestamp: seekTime
+            })
+            
+            if (result.success && result.data) {
+              thumbnail = result.data
+            } else {
+              throw new Error(result.error || 'Fallback generation failed')
+            }
+          } catch (fallbackError) {
+             logger.error(`Thumbnail fallback also failed: ${fallbackError}`)
+             throw domError // Throw original error if fallback fails
+          }
+        } else {
+          throw domError
+        }
+      }
 
       if (thumbnail) {
         // Enforce cache limit

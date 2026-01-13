@@ -208,6 +208,7 @@ export interface RecordingCapabilities {
   hasKeystrokeData?: boolean;
   hasScrollData?: boolean;
   hasScreenData?: boolean;
+  requiresProxy?: boolean;
 }
 
 interface RecordingBase {

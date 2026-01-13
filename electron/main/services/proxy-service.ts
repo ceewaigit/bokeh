@@ -238,16 +238,16 @@ async function runFfmpeg(
 }
 
 /**
- * Get video dimensions using ffprobe
+ * Get video metadata (dimensions + duration) using ffprobe
  */
-export async function getVideoDimensions(videoPath: string): Promise<{ width: number; height: number } | null> {
+export async function getVideoMetadata(videoPath: string): Promise<{ width: number; height: number; duration: number } | null> {
     const ffprobePath = resolveFfprobePath()
 
     return new Promise((resolve) => {
         const args = [
             '-v', 'error',
             '-select_streams', 'v:0',
-            '-show_entries', 'stream=width,height',
+            '-show_entries', 'stream=width,height,duration',
             '-of', 'csv=s=x:p=0',
             videoPath
         ]
@@ -257,7 +257,7 @@ export async function getVideoDimensions(videoPath: string): Promise<{ width: nu
         const timeout = setTimeout(() => {
             proc.kill()
             resolve(null)
-        }, 5000)
+        }, 15000)
 
         proc.stdout?.on('data', (data) => {
             output += data.toString()
@@ -266,9 +266,24 @@ export async function getVideoDimensions(videoPath: string): Promise<{ width: nu
         proc.on('exit', (code) => {
             clearTimeout(timeout)
             if (code === 0) {
-                const match = output.trim().match(/(\d+)x(\d+)/)
+                // Output format: widthxheightxduration (e.g. "1920x1080x12.345")
+                const match = output.trim().match(/(\d+)x(\d+)x([\d\.]+)/)
                 if (match) {
-                    resolve({ width: parseInt(match[1], 10), height: parseInt(match[2], 10) })
+                    resolve({
+                        width: parseInt(match[1], 10),
+                        height: parseInt(match[2], 10),
+                        duration: parseFloat(match[3])
+                    })
+                    return
+                }
+                // Fallback for cases where duration might be missing or format differs
+                const dimMatch = output.trim().match(/(\d+)x(\d+)/)
+                if (dimMatch) {
+                    resolve({
+                        width: parseInt(dimMatch[1], 10),
+                        height: parseInt(dimMatch[2], 10),
+                        duration: 0
+                    })
                     return
                 }
             }
@@ -282,18 +297,67 @@ export async function getVideoDimensions(videoPath: string): Promise<{ width: nu
     })
 }
 
+/**
+ * Get video dimensions using ffprobe
+ */
+export async function getVideoDimensions(videoPath: string): Promise<{ width: number; height: number } | null> {
+    const meta = await getVideoMetadata(videoPath)
+    if (meta) {
+        return { width: meta.width, height: meta.height }
+    }
+    return null
+}
+
+/**
+ * Generate a thumbnail from a video file using ffmpeg
+ */
+export async function generateThumbnail(
+    inputPath: string,
+    options: { width?: number; height?: number; timestamp?: number } = {}
+): Promise<{ success: boolean; data?: string; error?: string }> {
+    const ffmpegPath = resolveFfmpegPath()
+    const timestamp = options.timestamp || 0
+    const width = options.width || 320
+    const height = options.height || -1 // -1 preserves aspect ratio
+
+    try {
+        // Create a temporary file for the thumbnail
+        const tempDir = app.getPath('temp')
+        const thumbPath = path.join(tempDir, `thumb-${crypto.randomUUID()}.jpg`)
+
+        const args = [
+            '-ss', String(timestamp),
+            '-i', inputPath,
+            '-vframes', '1',
+            '-vf', `scale=${width}:${height}`,
+            '-q:v', '2', // High quality JPEG
+            '-y',
+            thumbPath
+        ]
+
+        await runFfmpeg(ffmpegPath, args)
+
+        // Read the file and convert to base64
+        const buffer = await fs.readFile(thumbPath)
+        const base64 = `data:image/jpeg;base64,${buffer.toString('base64')}`
+
+        // Cleanup
+        await fs.unlink(thumbPath).catch(() => { })
+
+        return { success: true, data: base64 }
+    } catch (error) {
+        console.error('[ProxyService] Thumbnail generation failed:', error)
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        }
+    }
+}
+
 // ============================================
 // Core Proxy Generation
 // ============================================
 
-/**
- * Generate a proxy file with the given options
- * This is the core function that handles the actual transcoding
- */
-/**
- * Generate a proxy file with the given options
- * This is the core function that handles the actual transcoding
- */
 /**
  * Generate a proxy file with the given options
  * This is the core function that handles the actual transcoding

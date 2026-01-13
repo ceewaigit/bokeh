@@ -18,6 +18,7 @@ export interface AssetDetails {
     type: 'video' | 'audio' | 'image'
     frameRate?: number
     name?: string
+    requiresProxy?: boolean
 }
 
 /**
@@ -70,6 +71,7 @@ export function addAssetRecording(
             sourceWidth: asset.width,
             sourceHeight: asset.height,
         } : undefined,
+        requiresProxy: asset.requiresProxy
     })
 
     // Determine start time and options

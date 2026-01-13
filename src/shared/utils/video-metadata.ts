@@ -167,7 +167,8 @@ export async function getVideoMetadata(videoUrl: string): Promise<VideoMetadata>
 
       const onError = () => {
         cleanup()
-        reject(new Error('Failed to load video metadata'))
+        const errorDetails = video.error ? ` (Code: ${video.error.code}, Message: ${video.error.message})` : ''
+        reject(new Error(`Failed to load video metadata${errorDetails}`))
       }
 
       video.addEventListener('loadedmetadata', onMetadata)

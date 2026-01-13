@@ -81,6 +81,7 @@ export interface ElectronAPI {
   getFileSize?: (filePath: string) => Promise<{ success: boolean; data?: { size: number }; error?: string }>
   listMetadataFiles?: (folderPath: string) => Promise<{ success: boolean; files?: string[]; error?: string }>
   getVideoUrl?: (filePath: string) => Promise<string | null>
+  getVideoMetadata?: (filePath: string) => Promise<{ success: boolean; width?: number; height?: number; duration?: number; error?: string }>
   fileExists?: (filePath: string) => Promise<boolean>
 
   // Transcription
@@ -192,6 +193,7 @@ export interface ElectronAPI {
   openFile: (filename: string) => Promise<{ success: boolean; data?: any; error?: string }>
   openPath?: (path: string) => Promise<void>
   generateThumbnail?: (options: any) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>
+  generateVideoThumbnail?: (options: { path: string; width?: number; height?: number; timestamp?: number }) => Promise<{ success: boolean; data?: string; error?: string }>
 
   // IPC communication (restricted surface)
   ipc?: {

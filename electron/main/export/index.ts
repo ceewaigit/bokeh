@@ -671,7 +671,7 @@ export function setupExportHandler(): void {
       const outputWidth = settings.resolution?.width || 1920
       const outputHeight = settings.resolution?.height || 1080
 
-      const { width: proxyTargetWidth, height: proxyTargetHeight, needsProxy } =
+      let { width: proxyTargetWidth, height: proxyTargetHeight, needsProxy } =
         calculateProxyDimensions({
           outputWidth,
           outputHeight,
@@ -679,6 +679,15 @@ export function setupExportHandler(): void {
           sourceHeight: nativeSourceHeight,
           maxZoomScale,
         })
+
+      // FORCE PROXY for Motion Blur:
+      // Motion blur requires sampling multiple frames (16+) per output frame.
+      // Standard Long-GOP videos cause massive seek latency/jitter.
+      // Export proxies are All-Intra (-g 1), ensuring instant frame access.
+      if (settings.cameraSettings?.motionBlurEnabled) {
+        console.log('[Export] Forcing proxy for Motion Blur (All-Intra needed for sampling)')
+        needsProxy = true
+      }
 
       console.log('[Export] Proxy resolution decision', {
         outputWidth,
@@ -928,7 +937,11 @@ export function setupExportHandler(): void {
               absPath,
               targetWidth,
               targetHeight,
-              fps,
+              // FORCE FPS PRESERVATION for Motion Blur:
+              // If we clamp to 30fps, the motion blur engine (sampling at ~480hz) sees "steps"
+              // instead of smooth motion, causing jitter/stutter.
+              // Passing undefined keeps the source FPS (e.g. 60fps).
+              settings.cameraSettings?.motionBlurEnabled ? undefined : fps,
               (progress) => {
                 const safeProgress = Number.isFinite(progress) ? progress : 0
                 // Manually update progress during proxy phase (0-10% of total export bar usually reserved for prep)
