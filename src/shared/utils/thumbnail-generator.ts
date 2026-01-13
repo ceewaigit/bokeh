@@ -153,6 +153,15 @@ export class ThumbnailGenerator {
     this.generating.add(cacheKey)
 
     try {
+      // Check file existence early to avoid error spam for deleted files
+      if (window.electronAPI?.fileExists) {
+        const exists = await window.electronAPI.fileExists(videoPath)
+        if (!exists) {
+          this.generating.delete(cacheKey)
+          return null
+        }
+      }
+
       // Direct thumbnail generation using pooled video element
       let thumbnail: string | null = null
       

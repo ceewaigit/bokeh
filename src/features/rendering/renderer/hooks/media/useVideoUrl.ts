@@ -186,20 +186,22 @@ export function useVideoUrl({
     return `video-stream://${recording.id}`;
   }, [recording, isRendering, videoUrls, videoUrlsHighRes, videoFilePaths, preferOffthreadVideo, targetWidth, targetHeight, maxZoomScale, isGlowMode, forceProxy, isHighQualityPlaybackEnabled, isScrubbing, ephemeralProxyUrls]);
 
-  // Use URL locking to prevent mid-playback URL switches that cause video reloads
-  // Merged from useUrlLocking logic:
+  // Use URL locking to prevent mid-playback/scrub URL switches that cause video reloads
   // Include clipId in key so lock invalidates when active clip changes (e.g., after deletion)
   const lockedUrlRef = useRef<string | undefined>(undefined);
   const lockedKeyRef = useRef<string | undefined>(undefined);
   const invalidateKey = `${recording?.id ?? ''}-${clipId ?? ''}`;
 
+  // Lock URL during both playing AND scrubbing to prevent video reload/blink
+  const isLocked = isPlaying || isScrubbing;
+
   if (invalidateKey !== lockedKeyRef.current) {
     // Key changed (different recording or different clip) - lock the new URL
     lockedUrlRef.current = computedUrl;
     lockedKeyRef.current = invalidateKey;
-  } else if (!isPlaying && computedUrl && computedUrl !== lockedUrlRef.current) {
-    // Allow resolution changes (e.g. proxy availability or quality toggle) when NOT PLAYING.
-    // This prevents mid-playback reloads (blink) but allows quality updates when stopped.
+  } else if (!isLocked && computedUrl && computedUrl !== lockedUrlRef.current) {
+    // Allow resolution changes (e.g. proxy availability or quality toggle) when NOT PLAYING/SCRUBBING.
+    // This prevents mid-playback/scrub reloads (blink) but allows quality updates when idle.
     lockedUrlRef.current = computedUrl;
   } else if (!lockedUrlRef.current && computedUrl) {
     // First time getting a valid URL for this recording - lock it

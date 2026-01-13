@@ -9,10 +9,18 @@ interface RecordingStore extends RecordingState {
   countdownActive: boolean
   selectedDisplayId?: number
 
+  // Toggle state for independent webcam/microphone control
+  isWebcamToggledOff: boolean
+  isMicrophoneToggledOff: boolean
+
   // Core state setters
   setRecording: (isRecording: boolean) => void
   setPaused: (isPaused: boolean) => void
   setDuration: (duration: number) => void
+
+  // Toggle state setters
+  setWebcamToggledOff: (toggled: boolean) => void
+  setMicrophoneToggledOff: (toggled: boolean) => void
 
   // Settings management
   updateSettings: (settings: Partial<SessionSettings>) => void
@@ -49,10 +57,14 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   settings: defaultSettings,
   countdownActive: false,
   selectedDisplayId: undefined,
+  isWebcamToggledOff: false,
+  isMicrophoneToggledOff: false,
 
   setRecording: (isRecording) =>
     set(() => ({
-      isRecording
+      isRecording,
+      // Reset toggle states when recording starts/stops
+      ...(isRecording ? {} : { isWebcamToggledOff: false, isMicrophoneToggledOff: false })
     })),
 
   setPaused: (isPaused) =>
@@ -62,13 +74,14 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
 
   setDuration: (duration) => set({ duration }),
 
+  setWebcamToggledOff: (toggled) => set({ isWebcamToggledOff: toggled }),
 
+  setMicrophoneToggledOff: (toggled) => set({ isMicrophoneToggledOff: toggled }),
 
   updateSettings: (newSettings) =>
     set((state) => ({
       settings: { ...state.settings, ...newSettings }
     })),
-
 
   startCountdown: (onComplete, displayId) => {
     clearCountdownInterval()
@@ -127,7 +140,9 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
       duration: 0,
       settings: defaultSettings,
       countdownActive: false,
-      selectedDisplayId: undefined
+      selectedDisplayId: undefined,
+      isWebcamToggledOff: false,
+      isMicrophoneToggledOff: false
     })
   }
 }))

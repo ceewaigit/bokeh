@@ -62,6 +62,8 @@ export interface MotionBlurCanvasProps {
     onVisibilityChange?: (visible: boolean) => void;
     /** Refocus blur intensity (0-1) for omnidirectional blur during zoom transitions */
     refocusBlurIntensity?: number;
+    /** Callback to report smoothed velocity to parent (for fade-out tracking) */
+    onSmoothedVelocityChange?: (velocity: { x: number; y: number }) => void;
 }
 
 export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
@@ -90,6 +92,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     clampRadius: clampRadiusProp = 60,
     smoothWindow: smoothWindowProp = 6,
     refocusBlurIntensity = 0,
+    onSmoothedVelocityChange,
 }) => {
     // Config - use props instead of hard-coded values
     const maxBlurRadius = clampRadiusProp > 0 ? clampRadiusProp : 60;
@@ -173,12 +176,22 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         // Apply velocity smoothing for gradual fade effect
         const rawVx = Number.isFinite(velocity.x) ? velocity.x : 0;
         const rawVy = Number.isFinite(velocity.y) ? velocity.y : 0;
-        const smoothFactor = 1 / Math.max(1, smoothWindowProp);  // Higher window = slower fade
+        const rawSpeed = Math.hypot(rawVx, rawVy);
+        const prevSpeed = Math.hypot(prevVelocityRef.current.x, prevVelocityRef.current.y);
+
+        // Asymmetric smoothing: fast attack (0.25), slow decay (0.06)
+        // This makes blur activate quickly but fade out smoothly
+        const isDecelerating = rawSpeed < prevSpeed;
+        const baseFactor = 1 / Math.max(1, smoothWindowProp);
+        const smoothFactor = isDecelerating ? Math.min(baseFactor, 0.06) : Math.max(baseFactor, 0.25);
 
         // Lerp toward current velocity (creates trailing fade-out effect)
         const smoothVx = prevVelocityRef.current.x + (rawVx - prevVelocityRef.current.x) * smoothFactor;
         const smoothVy = prevVelocityRef.current.y + (rawVy - prevVelocityRef.current.y) * smoothFactor;
         prevVelocityRef.current = { x: smoothVx, y: smoothVy };
+
+        // Report smoothed velocity to parent for mount/unmount decisions
+        onSmoothedVelocityChange?.({ x: smoothVx, y: smoothVy });
 
         const speed = Math.hypot(smoothVx, smoothVy);
 
@@ -187,8 +200,9 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const validThreshold = Number.isFinite(velocityThreshold) ? velocityThreshold : 0;
         const validRamp = Number.isFinite(rampRange) ? rampRange : 0.5;
         const excess = Math.max(0, speed - validThreshold);
-        // For zero threshold, use a small soft knee range to prevent abrupt on/off
-        const softKneeRange = validThreshold > 0 ? Math.max(1, validThreshold * validRamp) : 5;
+        // Wider soft knee range for smoother transitions
+        // For zero threshold, use 8px range; otherwise use at least 2px or threshold * ramp
+        const softKneeRange = validThreshold > 0 ? Math.max(2, validThreshold * validRamp) : 8;
         const rampFactor = smootherStep(clamp01(excess / softKneeRange));
 
         const validIntensity = Number.isFinite(intensity) ? intensity : 0;
@@ -208,14 +222,25 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
 
         // Check if we should render (motion blur OR refocus blur active)
         const hasRefocusBlur = refocusBlurIntensity > 0.001;
-        if (mixRamp < 0.001 && !hasRefocusBlur && !forceRender) {
+
+        // Use gradual opacity transitions instead of instant hide/show
+        // This prevents the abrupt snap-off when motion stops
+        const targetOpacity = (mixRamp < 0.001 && !hasRefocusBlur && !forceRender) ? 0 : 1;
+        const currentOpacity = parseFloat(canvasEl.style.opacity) || 0;
+
+        // Smooth opacity transition: fast fade-in (0.3), slow fade-out (0.08)
+        const opacityFactor = targetOpacity > currentOpacity ? 0.3 : 0.08;
+        const newOpacity = currentOpacity + (targetOpacity - currentOpacity) * opacityFactor;
+
+        // Threshold to consider fully hidden
+        if (newOpacity < 0.01 && !hasRefocusBlur && !forceRender) {
             canvasEl.style.visibility = 'hidden';
             canvasEl.style.opacity = '0';
             onVisibilityChange?.(false);
             return;
         }
         canvasEl.style.visibility = 'visible';
-        canvasEl.style.opacity = '1';
+        canvasEl.style.opacity = String(Math.min(1, newOpacity));
 
         // Calculate blur direction
         let dirX = 0, dirY = 0;

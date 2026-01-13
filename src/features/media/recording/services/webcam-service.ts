@@ -63,11 +63,12 @@ export class WebcamService {
   private dataRequestInterval: NodeJS.Timeout | null = null
   private stateCallbacks: Set<WebcamStateCallback> = new Set()
 
-  // Segment tracking for independent pause/resume
+  // Segment tracking for independent toggle on/off
   private segments: WebcamSegment[] = []
   private segmentStartTime = 0  // When current segment started (relative to main recording)
   private mainRecordingStartTime = 0  // When main recording started
   private lastConfig: WebcamRecordingConfig | null = null  // Store config for resume
+  private _isToggledOff = false  // True when webcam is toggled off but stream is alive
 
   constructor(bridge?: RecordingIpcBridge) {
     this.bridge = bridge ?? getRecordingBridge()
@@ -166,40 +167,15 @@ export class WebcamService {
     this.recordingPath = fileResult.data
     logger.info(`[WebcamService] Streaming to: ${this.recordingPath}`)
 
-    // Select best available codec
-    const mimeType = this.selectMimeType()
+    // Set up and start MediaRecorder
+    this.setupMediaRecorder()
+    logger.info(`[WebcamService] Using codec: ${this.mediaRecorder!.mimeType}`)
 
-    // Create MediaRecorder
-    this.mediaRecorder = new MediaRecorder(this.stream, {
-      mimeType,
-      videoBitsPerSecond: 2500000, // Lower bitrate for webcam (2.5 Mbps)
-      ...(this.hasAudio ? { audioBitsPerSecond: 128000 } : {})
-    })
-
-    logger.info(`[WebcamService] Using codec: ${this.mediaRecorder.mimeType}`)
-
-    // Set up data handling
-    this.mediaRecorder.ondataavailable = async (event) => {
-      if (event.data?.size > 0 && this.recordingPath) {
-        const result = await this.bridge.appendToRecording(this.recordingPath, event.data)
-        if (!result?.success) {
-          logger.error('[WebcamService] Failed to stream chunk:', result?.error)
-        }
-      }
-    }
-
-    this.mediaRecorder.onerror = (event) => {
-      logger.error('[WebcamService] Error:', event)
-      if (this.mediaRecorder?.state === 'recording') {
-        this.stop().catch(() => { })
-      }
-    }
-
-    // Start recording
-    this.mediaRecorder.start()
+    // Initialize recording state
     this.startTime = Date.now()
     this._isRecording = true
     this._isPaused = false
+    this._isToggledOff = false
     this.totalPausedDuration = 0
 
     // Initialize segment tracking
@@ -208,17 +184,6 @@ export class WebcamService {
     this.segmentStartTime = this.mainRecordingStartTime > 0
       ? Date.now() - this.mainRecordingStartTime
       : 0
-
-    // Periodically request data for streaming
-    this.dataRequestInterval = setInterval(() => {
-      if (this.mediaRecorder?.state === 'recording') {
-        try {
-          this.mediaRecorder.requestData()
-        } catch {
-          this.clearDataInterval()
-        }
-      }
-    }, 1000)
 
     this.notifyStateChange()
     logger.info('[WebcamService] Recording started')
@@ -317,18 +282,18 @@ export class WebcamService {
   }
 
   /**
-   * Pause webcam independently by finalizing the current segment.
-   * Unlike pause(), this stops the current recording and allows starting
-   * a new segment later via resumeSegment().
+   * End the current segment by finalizing the recording file.
+   * Unlike pause(), this stops recording to file and allows starting a new segment.
+   * The stream is kept alive for preview and quick restart.
    *
    * @returns The finalized segment, or null if not recording
    */
-  async pauseSegment(): Promise<WebcamSegment | null> {
-    if (!this._isRecording || !this.mediaRecorder) {
+  async endSegment(): Promise<WebcamSegment | null> {
+    if (!this._isRecording || !this.mediaRecorder || this._isToggledOff) {
       return null
     }
 
-    // If already paused via standard pause, resume first
+    // If paused via standard pause, resume first
     if (this._isPaused) {
       this.resume()
     }
@@ -362,17 +327,17 @@ export class WebcamService {
           }
 
           this.segments.push(segment)
-          logger.info(`[WebcamService] Segment paused: ${segmentDuration}ms at offset ${this.segmentStartTime}ms`)
+          logger.info(`[WebcamService] Segment ended: ${segmentDuration}ms at offset ${this.segmentStartTime}ms`)
 
-          // Mark as paused but keep stream alive for preview
-          this._isPaused = true
+          // Mark as toggled off but keep stream alive for preview
+          this._isToggledOff = true
           this.mediaRecorder = null
           this.recordingPath = null
           this.notifyStateChange()
 
           resolve(segment)
         } catch (err) {
-          logger.error('[WebcamService] Error pausing segment:', err)
+          logger.error('[WebcamService] Error ending segment:', err)
           resolve(null)
         }
       }
@@ -386,16 +351,16 @@ export class WebcamService {
   }
 
   /**
-   * Resume webcam recording by starting a new segment.
-   * Call this after pauseSegment() to continue recording.
+   * Start a new segment after endSegment().
+   * Creates a new temp file and MediaRecorder with the same config.
    */
-  async resumeSegment(): Promise<void> {
+  async startNewSegment(): Promise<void> {
     if (!this.stream || !this.lastConfig) {
-      throw new Error('Cannot resume segment: no active stream or config')
+      throw new Error('Cannot start segment: no active stream or config')
     }
 
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      throw new Error('Cannot resume segment: recorder still active')
+    if (!this._isToggledOff) {
+      throw new Error('Cannot start segment: not toggled off')
     }
 
     // Create new temp file for the new segment
@@ -407,31 +372,12 @@ export class WebcamService {
     this.recordingPath = fileResult.data
     logger.info(`[WebcamService] New segment streaming to: ${this.recordingPath}`)
 
-    // Create new MediaRecorder with same settings
-    const mimeType = this.selectMimeType()
-    this.mediaRecorder = new MediaRecorder(this.stream, {
-      mimeType,
-      videoBitsPerSecond: 2500000,
-      ...(this.hasAudio ? { audioBitsPerSecond: 128000 } : {})
-    })
+    // Set up and start MediaRecorder (reuses shared setup logic)
+    this.setupMediaRecorder()
 
-    // Set up data handling
-    this.mediaRecorder.ondataavailable = async (event) => {
-      if (event.data?.size > 0 && this.recordingPath) {
-        const result = await this.bridge.appendToRecording(this.recordingPath, event.data)
-        if (!result?.success) {
-          logger.error('[WebcamService] Failed to stream chunk:', result?.error)
-        }
-      }
-    }
-
-    this.mediaRecorder.onerror = (event) => {
-      logger.error('[WebcamService] Error:', event)
-    }
-
-    // Start new segment
-    this.mediaRecorder.start()
+    // Initialize segment state
     this.startTime = Date.now()
+    this._isToggledOff = false
     this._isPaused = false
     this.totalPausedDuration = 0
 
@@ -440,19 +386,15 @@ export class WebcamService {
       ? Date.now() - this.mainRecordingStartTime
       : 0
 
-    // Restart data request interval
-    this.dataRequestInterval = setInterval(() => {
-      if (this.mediaRecorder?.state === 'recording') {
-        try {
-          this.mediaRecorder.requestData()
-        } catch {
-          this.clearDataInterval()
-        }
-      }
-    }, 1000)
-
     this.notifyStateChange()
     logger.info(`[WebcamService] New segment started at offset ${this.segmentStartTime}ms`)
+  }
+
+  /**
+   * Check if webcam is toggled off (segment ended, waiting for restart).
+   */
+  isToggledOff(): boolean {
+    return this._isToggledOff
   }
 
   /**
@@ -496,6 +438,51 @@ export class WebcamService {
       : ['video/webm;codecs=vp8', 'video/webm;codecs=vp9']
 
     return candidates.find(mime => MediaRecorder.isTypeSupported(mime)) || 'video/webm'
+  }
+
+  /**
+   * Set up MediaRecorder with data handlers and start recording.
+   * Shared logic between start() and startNewSegment().
+   */
+  private setupMediaRecorder(): void {
+    if (!this.stream || !this.recordingPath) {
+      throw new Error('Cannot setup recorder: no stream or recording path')
+    }
+
+    const mimeType = this.selectMimeType()
+    this.mediaRecorder = new MediaRecorder(this.stream, {
+      mimeType,
+      videoBitsPerSecond: 2500000,
+      ...(this.hasAudio ? { audioBitsPerSecond: 128000 } : {})
+    })
+
+    // Set up data handling
+    this.mediaRecorder.ondataavailable = async (event) => {
+      if (event.data?.size > 0 && this.recordingPath) {
+        const result = await this.bridge.appendToRecording(this.recordingPath, event.data)
+        if (!result?.success) {
+          logger.error('[WebcamService] Failed to stream chunk:', result?.error)
+        }
+      }
+    }
+
+    this.mediaRecorder.onerror = (event) => {
+      logger.error('[WebcamService] Error:', event)
+    }
+
+    // Start recording
+    this.mediaRecorder.start()
+
+    // Start data request interval
+    this.dataRequestInterval = setInterval(() => {
+      if (this.mediaRecorder?.state === 'recording') {
+        try {
+          this.mediaRecorder.requestData()
+        } catch {
+          this.clearDataInterval()
+        }
+      }
+    }, 1000)
   }
 
   private async finishRecording(): Promise<WebcamRecordingResult> {
@@ -567,6 +554,7 @@ export class WebcamService {
     this.recordingPath = null
     this._isRecording = false
     this._isPaused = false
+    this._isToggledOff = false
 
     // Reset segment tracking
     this.segments = []

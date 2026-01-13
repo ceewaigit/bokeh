@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { MutableRefObject } from 'react'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { getTimelineTimeFromClientX, getTimelineTimeFromStagePointer } from '@/features/ui/timeline/playback/seek-utils'
-import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
 
 interface TimelineScrubOptions {
   duration: number
@@ -23,8 +22,7 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, scrollLeftRef, onSeek 
     if (!onSeek) return
     const time = getTimelineTimeFromStagePointer(stage, pixelsPerMs, duration, scrollLeftRef.current)
     if (time === null) return
-    // DECOUPLED: Push to timeObserver immediately for playhead UI
-    useTimeStore.getState().setTime(time)
+    // onSeek handles both transient store (playhead UI) and persistent store (player sync)
     onSeek(time)
   }, [duration, onSeek, pixelsPerMs, scrollLeftRef])
 
@@ -32,8 +30,7 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, scrollLeftRef, onSeek 
     if (!onSeek) return
     const time = getTimelineTimeFromClientX(stageRef.current, clientX, pixelsPerMs, duration, scrollLeftRef.current)
     if (time === null) return
-    // DECOUPLED: Push to timeObserver immediately for playhead UI
-    useTimeStore.getState().setTime(time)
+    // onSeek handles both transient store (playhead UI) and persistent store (player sync)
     onSeek(time)
   }, [duration, onSeek, pixelsPerMs, scrollLeftRef])
 

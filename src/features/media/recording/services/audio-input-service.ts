@@ -17,9 +17,24 @@ export interface AudioInputConfig {
   sampleRate?: number
 }
 
+/**
+ * An audio segment represents a continuous recording period.
+ * Multiple segments are created when microphone is toggled on/off independently.
+ */
+export interface AudioSegment {
+  id: string
+  filePath: string
+  startTimeOffsetMs: number  // Relative to main recording start
+  durationMs: number
+}
+
 export interface AudioInputResult {
+  /** Primary audio path (for backward compatibility, uses first segment) */
   audioPath: string
+  /** Total duration across all segments */
   duration: number
+  /** All recorded segments (may be multiple if toggle was used) */
+  segments: AudioSegment[]
 }
 
 type AudioLevelCallback = (level: number) => void
@@ -42,8 +57,24 @@ export class AudioInputService {
   private levelCallbacks: Set<AudioLevelCallback> = new Set()
   private lastLevel = 0
 
+  // Segment tracking for independent toggle on/off
+  private segments: AudioSegment[] = []
+  private currentSegmentStartTime = 0  // When current segment started (relative to main recording)
+  private mainRecordingStartTime = 0   // When main recording started
+  private _isToggledOff = false        // True when microphone is toggled off but stream is alive
+  private lastConfig: AudioInputConfig | null = null  // Store config for resuming
+
   constructor(bridge?: RecordingIpcBridge) {
     this.bridge = bridge ?? getRecordingBridge()
+  }
+
+  /**
+   * Set the main recording start time for segment offset calculation.
+   * Call this right after starting the main screen recording.
+   */
+  setMainRecordingStartTime(time: number): void {
+    this.mainRecordingStartTime = time
+    logger.info(`[AudioInputService] Main recording start time set: ${time}`)
   }
 
   /**
@@ -121,51 +152,23 @@ export class AudioInputService {
     this.recordingPath = fileResult.data
     logger.info(`[AudioInputService] Streaming to: ${this.recordingPath}`)
 
-    // Select audio codec
-    const mimeType = this.selectMimeType()
+    // Set up and start MediaRecorder
+    this.setupMediaRecorder()
+    logger.info(`[AudioInputService] Using codec: ${this.mediaRecorder!.mimeType}`)
 
-    // Create MediaRecorder
-    this.mediaRecorder = new MediaRecorder(this.stream, {
-      mimeType,
-      audioBitsPerSecond: 128000
-    })
-
-    logger.info(`[AudioInputService] Using codec: ${this.mediaRecorder.mimeType}`)
-
-    // Set up data handling
-    this.mediaRecorder.ondataavailable = async (event) => {
-      if (event.data?.size > 0 && this.recordingPath) {
-        const result = await this.bridge.appendToRecording(this.recordingPath, event.data)
-        if (!result?.success) {
-          logger.error('[AudioInputService] Failed to stream chunk:', result?.error)
-        }
-      }
-    }
-
-    this.mediaRecorder.onerror = (event) => {
-      logger.error('[AudioInputService] Error:', event)
-      if (this.mediaRecorder?.state === 'recording') {
-        this.stop().catch(() => { })
-      }
-    }
-
-    // Start recording
-    this.mediaRecorder.start()
+    // Initialize recording state
     this.startTime = Date.now()
     this._isRecording = true
     this._isPaused = false
+    this._isToggledOff = false
     this.totalPausedDuration = 0
 
-    // Periodically request data for streaming
-    this.dataRequestInterval = setInterval(() => {
-      if (this.mediaRecorder?.state === 'recording') {
-        try {
-          this.mediaRecorder.requestData()
-        } catch {
-          this.clearDataInterval()
-        }
-      }
-    }, 1000)
+    // Initialize segment tracking
+    this.lastConfig = config
+    this.segments = []
+    this.currentSegmentStartTime = this.mainRecordingStartTime > 0
+      ? Date.now() - this.mainRecordingStartTime
+      : 0
 
     logger.info('[AudioInputService] Recording started')
   }
@@ -250,6 +253,128 @@ export class AudioInputService {
       this.pauseStartTime = 0
       logger.info(`[AudioInputService] Recording resumed. Paused for ${pausedDuration}ms`)
     }
+  }
+
+  /**
+   * End the current segment by finalizing the recording file.
+   * Unlike pause(), this stops recording to file and allows starting a new segment.
+   * The stream is kept alive for quick restart.
+   *
+   * @returns The finalized segment, or null if not recording
+   */
+  async endSegment(): Promise<AudioSegment | null> {
+    if (!this._isRecording || !this.mediaRecorder || this._isToggledOff) {
+      return null
+    }
+
+    // If paused via standard pause, resume first
+    if (this._isPaused) {
+      this.resume()
+    }
+
+    // Calculate segment duration before stopping
+    const segmentDuration = this.getDuration()
+
+    // Clear data request interval
+    this.clearDataInterval()
+
+    return new Promise((resolve) => {
+      if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') {
+        resolve(null)
+        return
+      }
+
+      this.mediaRecorder.onstop = async () => {
+        try {
+          // Finalize the current segment file
+          if (this.recordingPath) {
+            await this.bridge.finalizeRecording(this.recordingPath)
+          }
+
+          const segment: AudioSegment = {
+            id: `audio-segment-${Date.now()}`,
+            filePath: this.recordingPath || '',
+            startTimeOffsetMs: this.currentSegmentStartTime,
+            durationMs: segmentDuration
+          }
+
+          this.segments.push(segment)
+          logger.info(`[AudioInputService] Segment ended: ${segmentDuration}ms at offset ${this.currentSegmentStartTime}ms`)
+
+          // Mark as toggled off but keep stream alive for quick restart
+          this._isToggledOff = true
+          this.mediaRecorder = null
+          this.recordingPath = null
+
+          resolve(segment)
+        } catch (err) {
+          logger.error('[AudioInputService] Error ending segment:', err)
+          resolve(null)
+        }
+      }
+
+      try {
+        this.mediaRecorder.stop()
+      } catch {
+        resolve(null)
+      }
+    })
+  }
+
+  /**
+   * Start a new segment after endSegment().
+   * Creates a new temp file and MediaRecorder with the same config.
+   */
+  async startNewSegment(): Promise<void> {
+    if (!this.stream || !this.lastConfig) {
+      throw new Error('Cannot start segment: no active stream or config')
+    }
+
+    if (!this._isToggledOff) {
+      throw new Error('Cannot start segment: not toggled off')
+    }
+
+    // Create new temp file for the new segment
+    const fileResult = await this.bridge.createTempRecordingFile('webm')
+    if (!fileResult?.success || !fileResult.data) {
+      throw new Error('Failed to create temp file for new segment')
+    }
+
+    this.recordingPath = fileResult.data
+    logger.info(`[AudioInputService] New segment streaming to: ${this.recordingPath}`)
+
+    // Set up and start MediaRecorder (reuses shared setup logic)
+    this.setupMediaRecorder()
+
+    // Initialize segment state
+    this.startTime = Date.now()
+    this._isToggledOff = false
+    this._isPaused = false
+    this.totalPausedDuration = 0
+
+    // Calculate new segment start time relative to main recording
+    this.currentSegmentStartTime = this.mainRecordingStartTime > 0
+      ? Date.now() - this.mainRecordingStartTime
+      : 0
+
+    logger.info(`[AudioInputService] New segment started at offset ${this.currentSegmentStartTime}ms`)
+  }
+
+  /**
+   * Check if microphone is toggled off (segment ended, waiting for restart).
+   */
+  isToggledOff(): boolean {
+    return this._isToggledOff
+  }
+
+  /**
+   * Get the current recording duration in ms.
+   */
+  private getDuration(): number {
+    if (!this._isRecording || this.startTime === 0) return 0
+    const elapsed = Date.now() - this.startTime
+    const pausedNow = this._isPaused ? (Date.now() - this.pauseStartTime) : 0
+    return elapsed - this.totalPausedDuration - pausedNow
   }
 
   /**
@@ -403,27 +528,92 @@ export class AudioInputService {
     return candidates.find(mime => MediaRecorder.isTypeSupported(mime)) || 'audio/webm'
   }
 
-  private async finishRecording(): Promise<AudioInputResult> {
-    const duration = (Date.now() - this.startTime) - this.totalPausedDuration
-
-    if (!this.recordingPath) {
-      throw new Error('Audio recording path not available')
+  /**
+   * Set up MediaRecorder with data handlers and start recording.
+   * Shared logic between start() and startNewSegment().
+   */
+  private setupMediaRecorder(): void {
+    if (!this.stream || !this.recordingPath) {
+      throw new Error('Cannot setup recorder: no stream or recording path')
     }
 
-    // Finalize the audio file
-    await this.bridge.finalizeRecording(this.recordingPath)
+    const mimeType = this.selectMimeType()
+    this.mediaRecorder = new MediaRecorder(this.stream, {
+      mimeType,
+      audioBitsPerSecond: 128000
+    })
 
-    const audioPath = this.recordingPath
+    // Set up data handling
+    this.mediaRecorder.ondataavailable = async (event) => {
+      if (event.data?.size > 0 && this.recordingPath) {
+        const result = await this.bridge.appendToRecording(this.recordingPath, event.data)
+        if (!result?.success) {
+          logger.error('[AudioInputService] Failed to stream chunk:', result?.error)
+        }
+      }
+    }
 
-    logger.info(`[AudioInputService] Recording stopped: ${duration}ms, path: ${audioPath}`)
+    this.mediaRecorder.onerror = (event) => {
+      logger.error('[AudioInputService] Error:', event)
+    }
+
+    // Start recording
+    this.mediaRecorder.start()
+
+    // Start data request interval
+    this.dataRequestInterval = setInterval(() => {
+      if (this.mediaRecorder?.state === 'recording') {
+        try {
+          this.mediaRecorder.requestData()
+        } catch {
+          this.clearDataInterval()
+        }
+      }
+    }, 1000)
+  }
+
+  private async finishRecording(): Promise<AudioInputResult> {
+    // Calculate duration BEFORE any async operations
+    const calculatedDuration = this.getDuration()
+    const wallClockDuration = this.startTime > 0 ? Date.now() - this.startTime : 0
+
+    // Use wall-clock duration if calculated duration seems wrong (< 100ms for a real recording)
+    const duration = calculatedDuration > 100 ? calculatedDuration : wallClockDuration
+
+    // Add final segment if there's an active recording path (not toggled off)
+    if (this.recordingPath) {
+      // Finalize the audio file
+      await this.bridge.finalizeRecording(this.recordingPath)
+
+      const finalSegment: AudioSegment = {
+        id: `audio-segment-${Date.now()}`,
+        filePath: this.recordingPath,
+        startTimeOffsetMs: this.currentSegmentStartTime,
+        durationMs: duration
+      }
+
+      this.segments.push(finalSegment)
+      logger.info(`[AudioInputService] Final segment: ${duration}ms at offset ${this.currentSegmentStartTime}ms`)
+    }
+
+    // Calculate total duration from all segments
+    const totalDuration = this.segments.reduce((sum, seg) => sum + seg.durationMs, 0)
+
+    // Use first segment as primary audio path for backward compatibility
+    const primaryAudioPath = this.segments.length > 0 ? this.segments[0].filePath : ''
+
+    logger.info(`[AudioInputService] Recording stopped: ${this.segments.length} segment(s), total ${totalDuration}ms`)
+
+    const result: AudioInputResult = {
+      audioPath: primaryAudioPath,
+      duration: totalDuration,
+      segments: [...this.segments]  // Copy to prevent mutation
+    }
 
     // Cleanup
     this.cleanup()
 
-    return {
-      audioPath,
-      duration
-    }
+    return result
   }
 
   private clearDataInterval(): void {
@@ -446,6 +636,12 @@ export class AudioInputService {
     this.recordingPath = null
     this._isRecording = false
     this._isPaused = false
+    this._isToggledOff = false
+
+    // Reset segment tracking
+    this.segments = []
+    this.currentSegmentStartTime = 0
+    this.lastConfig = null
   }
 }
 

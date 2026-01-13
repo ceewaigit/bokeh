@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useCallback, useEffect, useState } from 'react'
-import { ElectronRecorder } from '@/features/media/recording'
+import { RecordingService } from '@/features/media/recording'
 import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { ProjectStorage } from '@/features/core/storage/project-storage'
@@ -12,7 +12,7 @@ import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 import { useTimer } from '@/features/ui/timeline/hooks/use-timeline-timer'
 
 export function useRecording() {
-  const recorderRef = useRef<ElectronRecorder | null>(null)
+  const recorderRef = useRef<RecordingService | null>(null)
   const [isStartingRecording, setIsStartingRecording] = useState(false)
 
   const {
@@ -21,6 +21,8 @@ export function useRecording() {
     setRecording,
     setPaused,
     setDuration,
+    setWebcamToggledOff,
+    setMicrophoneToggledOff,
   } = useRecordingSessionStore()
 
   // Use the simplified timer hook
@@ -32,10 +34,10 @@ export function useRecording() {
   useEffect(() => {
     if (!recorderRef.current) {
       try {
-        recorderRef.current = new ElectronRecorder()
-        logger.info('Screen recorder initialized')
+        recorderRef.current = new RecordingService()
+        logger.info('Recording service initialized')
       } catch (error) {
-        logger.error('Failed to initialize screen recorder:', error)
+        logger.error('Failed to initialize recording service:', error)
         recorderRef.current = null
       }
     }
@@ -99,7 +101,7 @@ export function useRecording() {
       const recordingSettings = buildRecordingSettings(sessionSettings, projectSettings, uiSettings)
 
       // Start recording - wait for native module confirmation
-      await recorderRef.current.startRecording(recordingSettings)
+      await recorderRef.current.start(recordingSettings)
 
       // Only update UI state AFTER native module confirms recording started
       setRecording(true)
@@ -135,7 +137,7 @@ export function useRecording() {
     }
 
     const recorder = recorderRef.current
-    if (!recorder?.isCurrentlyRecording()) {
+    if (!recorder?.isRecording()) {
       logger.debug('useRecording: Recorder not in recording state - ignoring stop call')
       return null
     }
@@ -149,7 +151,7 @@ export function useRecording() {
       timer.stop()
 
       // Stop recording and get result
-      const result = await recorder.stopRecording()
+      const result = await recorder.stop()
       if (!result || !result.videoPath) {
         throw new Error('Invalid recording result')
       }
@@ -256,7 +258,7 @@ export function useRecording() {
       }
 
       try {
-        recorderRef.current.pauseRecording()
+        recorderRef.current.pause()
         setPaused(true)
         timer.pause()
         logger.info('Recording paused')
@@ -274,7 +276,7 @@ export function useRecording() {
       }
 
       try {
-        recorderRef.current.resumeRecording()
+        recorderRef.current.resume()
         setPaused(false)
         timer.resume()
         logger.info('Recording resumed')
@@ -293,58 +295,51 @@ export function useRecording() {
     return recorderRef.current?.canResume() ?? false
   }, [])
 
-  // Independent webcam pause/resume (creates segments)
-  const pauseWebcam = useCallback(async () => {
+  // Toggle webcam capture on/off (creates segments)
+  const toggleWebcamCapture = useCallback(async () => {
     if (!recorderRef.current || !isRecording) return
     try {
-      await recorderRef.current.pauseWebcam()
-      logger.info('Webcam paused independently')
+      await recorderRef.current.toggleWebcamCapture()
+      setWebcamToggledOff(recorderRef.current.isWebcamToggledOff())
+      logger.info(`Webcam toggled ${recorderRef.current.isWebcamToggledOff() ? 'OFF' : 'ON'}`)
     } catch (error) {
-      logger.error('Failed to pause webcam:', error)
+      logger.error('Failed to toggle webcam:', error)
     }
-  }, [isRecording])
+  }, [isRecording, setWebcamToggledOff])
 
-  const resumeWebcam = useCallback(async () => {
+  // Toggle microphone capture on/off (creates segments)
+  const toggleMicrophoneCapture = useCallback(async () => {
     if (!recorderRef.current || !isRecording) return
     try {
-      await recorderRef.current.resumeWebcam()
-      logger.info('Webcam resumed as new segment')
+      await recorderRef.current.toggleMicrophoneCapture()
+      setMicrophoneToggledOff(recorderRef.current.isMicrophoneToggledOff())
+      logger.info(`Microphone toggled ${recorderRef.current.isMicrophoneToggledOff() ? 'OFF' : 'ON'}`)
     } catch (error) {
-      logger.error('Failed to resume webcam:', error)
+      logger.error('Failed to toggle microphone:', error)
     }
-  }, [isRecording])
+  }, [isRecording, setMicrophoneToggledOff])
 
-  const isWebcamPaused = useCallback(() => {
-    return recorderRef.current?.isWebcamPaused() ?? false
+  // Check toggle states
+  const isWebcamToggledOff = useCallback(() => {
+    return recorderRef.current?.isWebcamToggledOff() ?? false
   }, [])
 
+  const isMicrophoneToggledOff = useCallback(() => {
+    return recorderRef.current?.isMicrophoneToggledOff() ?? false
+  }, [])
+
+  // Check if toggles are available
+  const canToggleWebcam = useCallback(() => {
+    return recorderRef.current?.canToggleWebcam() ?? false
+  }, [])
+
+  const canToggleMicrophone = useCallback(() => {
+    return recorderRef.current?.canToggleMicrophone() ?? false
+  }, [])
+
+  // Check if services are recording
   const isWebcamRecording = useCallback(() => {
     return recorderRef.current?.isWebcamRecording() ?? false
-  }, [])
-
-  // Independent microphone pause/resume
-  const pauseMicrophone = useCallback(() => {
-    if (!recorderRef.current || !isRecording) return
-    try {
-      recorderRef.current.pauseMicrophone()
-      logger.info('Microphone paused independently')
-    } catch (error) {
-      logger.error('Failed to pause microphone:', error)
-    }
-  }, [isRecording])
-
-  const resumeMicrophone = useCallback(() => {
-    if (!recorderRef.current || !isRecording) return
-    try {
-      recorderRef.current.resumeMicrophone()
-      logger.info('Microphone resumed')
-    } catch (error) {
-      logger.error('Failed to resume microphone:', error)
-    }
-  }, [isRecording])
-
-  const isMicrophonePaused = useCallback(() => {
-    return recorderRef.current?.isMicrophonePaused() ?? false
   }, [])
 
   const isMicrophoneRecording = useCallback(() => {
@@ -358,15 +353,15 @@ export function useRecording() {
     resumeRecording,
     canPause,
     canResume,
-    // Independent webcam controls
-    pauseWebcam,
-    resumeWebcam,
-    isWebcamPaused,
+    // Independent webcam toggle (creates segments)
+    toggleWebcamCapture,
+    isWebcamToggledOff,
+    canToggleWebcam,
     isWebcamRecording,
-    // Independent microphone controls
-    pauseMicrophone,
-    resumeMicrophone,
-    isMicrophonePaused,
+    // Independent microphone toggle (creates segments)
+    toggleMicrophoneCapture,
+    isMicrophoneToggledOff,
+    canToggleMicrophone,
     isMicrophoneRecording,
     // Legacy
     screenRecorder: recorderRef.current,

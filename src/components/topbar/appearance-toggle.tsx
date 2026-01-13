@@ -1,7 +1,8 @@
 "use client"
 
-import { useCallback, useState } from "react"
-import { Sun, Moon, Monitor, ChevronDown, ChevronRight, Settings2 } from "lucide-react"
+import { useState } from "react"
+import { Sun, Moon, Monitor, ChevronRight, Settings2 } from "lucide-react"
+import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import {
@@ -17,6 +18,9 @@ import { useTheme } from "@/shared/contexts/theme-context"
 import { useWindowSurfaceStore, type WindowSurfaceMode } from "@/features/core/stores/window-surface-store"
 import { WINDOW_SURFACE_PRESETS } from "@/shared/appearance/window-surface"
 import { cn, clamp } from "@/shared/utils/utils"
+
+// Spring config for snappy Apple-like animations (matches toolbar)
+const springConfig = { type: "spring", stiffness: 500, damping: 30 } as const
 
 const FROSTED_PRESETS = {
     light: WINDOW_SURFACE_PRESETS["frosted-light"],
@@ -74,44 +78,53 @@ export function AppearanceToggle({
     const blurMin = 0
     const blurMax = 120
 
-    // Cycle through themes on button click
-    const cycleTheme = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation()
-        const nextTheme = theme === "light" ? "dark" : theme === "dark" ? "system" : "light"
-        setTheme(nextTheme)
-    }, [setTheme, theme])
-
     const ThemeIcon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor
 
     return (
         <div className={cn("flex items-center", className)}>
-            {/* Theme button - cycles through themes */}
-            <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 hover:bg-background/50 rounded-r-none"
-                onClick={cycleTheme}
-                title={`Theme: ${theme} (click to change)`}
-            >
-                <ThemeIcon className="w-3.5 h-3.5" />
-            </Button>
-
-            {/* Dropdown for glassmorphism */}
+            {/* Dropdown for theme + glassmorphism - combined into single button */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-5 hover:bg-background/50 rounded-l-none border-l border-border/30 px-0"
-                        title="Window appearance"
+                    <motion.button
+                        className={cn(
+                            "relative flex items-center justify-center",
+                            "w-7 h-7 rounded-full",
+                            "text-muted-foreground",
+                            "transition-colors duration-100",
+                            "hover:text-foreground hover:bg-foreground/10"
+                        )}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.92 }}
+                        transition={springConfig}
+                        title={`Theme: ${theme}`}
                     >
-                        <ChevronDown className="w-3 h-3 opacity-60" />
-                    </Button>
+                        <ThemeIcon className="w-3.5 h-3.5" />
+                    </motion.button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align={align} className="w-56">
-                    <DropdownMenuLabel className="text-xs">Window Style</DropdownMenuLabel>
+                    {/* Theme selector */}
+                    <DropdownMenuLabel className="text-xs">Theme</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                        value={theme}
+                        onValueChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}
+                    >
+                        <DropdownMenuRadioItem value="light" className="text-xs">
+                            <Sun className="w-3 h-3 mr-2" />
+                            Light
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="dark" className="text-xs">
+                            <Moon className="w-3 h-3 mr-2" />
+                            Dark
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="system" className="text-xs">
+                            <Monitor className="w-3 h-3 mr-2" />
+                            System
+                        </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+
                     <DropdownMenuSeparator />
 
+                    <DropdownMenuLabel className="text-xs">Window Style</DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                         value={mode}
                         onValueChange={(value) => setMode(value as WindowSurfaceMode)}

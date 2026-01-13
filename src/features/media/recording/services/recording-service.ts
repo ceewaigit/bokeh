@@ -17,17 +17,10 @@ import { MediaRecorderStrategy } from '../strategies/media-recorder-strategy'
 import { TrackingService } from './tracking-service'
 import { WebcamService, WebcamRecordingResult } from './webcam-service'
 import { AudioInputService, AudioInputResult } from './audio-input-service'
+import { SourceResolver, CaptureArea } from './source-resolver'
 import { parseAreaSourceId, isAreaSource, isWindowSource } from '@/features/media/recording/logic/area-source-parser'
 import { logger } from '@/shared/utils/logger'
 import { PermissionError, ElectronError } from '@/shared/errors'
-
-interface CaptureArea {
-  fullBounds: { x: number; y: number; width: number; height: number }
-  workArea: { x: number; y: number; width: number; height: number }
-  scaleFactor: number
-  sourceType: RecordingSourceType
-  sourceId: string
-}
 
 // Extended result type to include webcam and microphone recordings
 export interface ExtendedRecordingResult extends ElectronRecordingResult {
@@ -40,15 +33,40 @@ export class RecordingService {
   private trackingService: TrackingService
   private webcamService: WebcamService | null = null
   private audioInputService: AudioInputService | null = null
+  private sourceResolver: SourceResolver
   private captureArea: CaptureArea | undefined
   private captureWidth = 0
   private captureHeight = 0
   private onlySelf = false
   private webcamEnabled = false
   private mainRecordingStartTime = 0  // When main recording started
+  private operationLock: Promise<void> | null = null  // Prevents race conditions on async operations
 
   constructor() {
     this.trackingService = new TrackingService()
+    this.sourceResolver = new SourceResolver()
+  }
+
+  /**
+   * Execute an operation with locking to prevent race conditions.
+   * Queues operations if a previous one is still in progress.
+   */
+  private async withLock<T>(operation: () => Promise<T>): Promise<T> {
+    // Wait for any pending operation to complete
+    while (this.operationLock) {
+      await this.operationLock
+    }
+
+    // Create a lock for this operation
+    let unlock: () => void
+    this.operationLock = new Promise(resolve => { unlock = resolve })
+
+    try {
+      return await operation()
+    } finally {
+      unlock!()
+      this.operationLock = null
+    }
   }
 
   /**
@@ -62,8 +80,12 @@ export class RecordingService {
     }
     this.onlySelf = settings.onlySelf ?? false
 
-    // Get source information
-    const sourceInfo = await this.getSourceInfo(settings)
+    // Resolve source information and capture bounds
+    const sourceResolution = await this.sourceResolver.resolve(settings)
+    this.captureArea = sourceResolution.captureArea
+    this.captureWidth = sourceResolution.captureWidth
+    this.captureHeight = sourceResolution.captureHeight
+
     if (!this.captureArea?.fullBounds) {
       throw new Error('Failed to resolve capture bounds')
     }
@@ -73,6 +95,7 @@ export class RecordingService {
     logger.info(`[RecordingService] Using strategy: ${this.strategy.name}`)
 
     // Parse recording config
+    const sourceInfo = { sourceId: sourceResolution.sourceId, displayId: sourceResolution.displayId }
     const config = this.parseConfig(settings, sourceInfo)
 
     try {
@@ -129,6 +152,9 @@ export class RecordingService {
       const micCapturedViaWebcam = this.webcamEnabled && micIncludedInWebcam
       if (settings.microphone?.enabled && settings.microphone.deviceId && !micCapturedViaWebcam) {
         this.audioInputService = new AudioInputService()
+
+        // Set main recording start time for segment offset calculations
+        this.audioInputService.setMainRecordingStartTime(this.mainRecordingStartTime)
 
         try {
           await this.audioInputService.start({
@@ -261,54 +287,81 @@ export class RecordingService {
   }
 
   /**
-   * Pause ONLY the webcam recording (creates a new segment on resume).
-   * Screen recording and tracking continue uninterrupted.
+   * Toggle webcam capture on/off during recording.
+   * Creates separate segments when toggled off then back on.
+   * Uses operation locking to prevent race conditions.
    */
-  async pauseWebcam(): Promise<void> {
-    if (!this.webcamService) return
-    await this.webcamService.pauseSegment()
-    logger.info('[RecordingService] Webcam paused independently')
+  async toggleWebcamCapture(): Promise<void> {
+    return this.withLock(async () => {
+      if (!this.isRecording()) {
+        throw new Error('Cannot toggle webcam: not recording')
+      }
+      if (!this.webcamService) {
+        logger.warn('[RecordingService] No webcam service available to toggle')
+        return
+      }
+
+      if (this.webcamService.isToggledOff()) {
+        await this.webcamService.startNewSegment()
+        logger.info('[RecordingService] Webcam toggled ON (new segment)')
+      } else {
+        await this.webcamService.endSegment()
+        logger.info('[RecordingService] Webcam toggled OFF (segment ended)')
+      }
+    })
   }
 
   /**
-   * Resume webcam recording (starts a new segment).
-   * Call this after pauseWebcam() to continue recording.
+   * Toggle microphone capture on/off during recording.
+   * Creates separate segments when toggled off then back on.
+   * Uses operation locking to prevent race conditions.
    */
-  async resumeWebcam(): Promise<void> {
-    if (!this.webcamService) return
-    await this.webcamService.resumeSegment()
-    logger.info('[RecordingService] Webcam resumed as new segment')
+  async toggleMicrophoneCapture(): Promise<void> {
+    return this.withLock(async () => {
+      if (!this.isRecording()) {
+        throw new Error('Cannot toggle microphone: not recording')
+      }
+      if (!this.audioInputService) {
+        logger.warn('[RecordingService] No microphone service available to toggle')
+        return
+      }
+
+      if (this.audioInputService.isToggledOff()) {
+        await this.audioInputService.startNewSegment()
+        logger.info('[RecordingService] Microphone toggled ON (new segment)')
+      } else {
+        await this.audioInputService.endSegment()
+        logger.info('[RecordingService] Microphone toggled OFF (segment ended)')
+      }
+    })
   }
 
   /**
-   * Check if webcam is currently paused (independently from main recording).
+   * Check if webcam is currently toggled off (segment ended, waiting for restart).
    */
-  isWebcamPaused(): boolean {
-    return this.webcamService?.isPaused() ?? false
+  isWebcamToggledOff(): boolean {
+    return this.webcamService?.isToggledOff() ?? false
   }
 
   /**
-   * Pause ONLY the microphone recording.
-   * Screen recording, webcam, and tracking continue uninterrupted.
+   * Check if microphone is currently toggled off (segment ended, waiting for restart).
    */
-  pauseMicrophone(): void {
-    this.audioInputService?.pause()
-    logger.info('[RecordingService] Microphone paused independently')
+  isMicrophoneToggledOff(): boolean {
+    return this.audioInputService?.isToggledOff() ?? false
   }
 
   /**
-   * Resume microphone recording.
+   * Check if webcam can be toggled (recording in progress and webcam service available).
    */
-  resumeMicrophone(): void {
-    this.audioInputService?.resume()
-    logger.info('[RecordingService] Microphone resumed')
+  canToggleWebcam(): boolean {
+    return this.isRecording() && this.webcamService !== null && this.operationLock === null
   }
 
   /**
-   * Check if microphone is currently paused.
+   * Check if microphone can be toggled (recording in progress and mic service available).
    */
-  isMicrophonePaused(): boolean {
-    return this.audioInputService?.isPaused() ?? false
+  canToggleMicrophone(): boolean {
+    return this.isRecording() && this.audioInputService !== null && this.operationLock === null
   }
 
   /**
@@ -398,171 +451,6 @@ export class RecordingService {
           'screen'
         )
       }
-    }
-  }
-
-  /**
-   * Gets source information and sets up capture area.
-   */
-  private async getSourceInfo(settings: RecordingSettings): Promise<{ sourceId: string; displayId?: number }> {
-    const sources = await window.electronAPI!.getDesktopSources({
-      types: ['screen', 'window'],
-      thumbnailSize: { width: 150, height: 150 }
-    })
-
-    if (!sources || sources.length === 0) {
-      throw new PermissionError('No screen sources available. Please check permissions.', 'screen')
-    }
-
-    // Find the requested source
-    let primarySource = sources.find(s => s.id === settings.sourceId)
-
-    // Fallback: Electron window IDs often have a suffix (e.g. "window:123:0"), so try prefix match
-    if (!primarySource && settings.sourceId?.startsWith('window:')) {
-      primarySource = sources.find(s => s.id.startsWith(settings.sourceId + ':'))
-    }
-
-    // Area selections are encoded as "area:x,y,w,h[,displayId]" and won't exist in desktopCapturer sources.
-    // Prefer the screen source matching the encoded displayId when possible.
-    if (isAreaSource(settings.sourceId)) {
-      const area = parseAreaSourceId(settings.sourceId!)
-      if (area?.displayId) {
-        const matchingScreen = sources.find(s => s.id.startsWith(`screen:${area.displayId}:`))
-        if (matchingScreen) {
-          primarySource = matchingScreen
-        }
-      }
-    }
-
-    if (!primarySource && settings.onlySelf) {
-      const primaryScreen = sources.find(s => s.id.startsWith('screen:') && s.displayInfo?.isPrimary)
-      primarySource = primaryScreen || sources.find(s => s.id.startsWith('screen:'))
-      if (primarySource) {
-        logger.warn('[RecordingService] App-only source not found; falling back to display capture')
-      }
-    }
-
-    if (!primarySource) {
-      // Auto-select screen for fullscreen/region recording
-      if (settings.area !== RecordingArea.Window) {
-        primarySource = sources.find(s => s.id.startsWith('screen:'))
-      }
-
-      if (!primarySource) {
-        throw new Error('No suitable recording source found')
-      }
-    }
-
-    logger.info(`[RecordingService] Using source: ${primarySource.name} (${primarySource.id})`)
-
-    const rawDisplayId =
-      typeof (primarySource as any).display_id === 'string'
-        ? Number((primarySource as any).display_id)
-        : (primarySource as any).display_id
-    const displayInfoId = (primarySource as any).displayInfo?.id
-
-    // Get source bounds (in Electron display coordinates)
-    if (window.electronAPI?.getSourceBounds) {
-      const rawBounds = await window.electronAPI.getSourceBounds(primarySource.id)
-      if (rawBounds) {
-        let bounds = rawBounds
-        let scaleFactor = 1
-        const resolvedDisplayId =
-          Number.isFinite(rawDisplayId) ? rawDisplayId : (typeof displayInfoId === 'number' ? displayInfoId : undefined)
-
-        // Get display scale factor for screen sources
-        if (primarySource.id.startsWith('screen:') && window.electronAPI?.getScreens) {
-          try {
-            const screens = await window.electronAPI.getScreens()
-            const parts = primarySource.id.split(':')
-            const displayIdFromSource = resolvedDisplayId ?? parseInt(parts[1])
-            const displayInfo = screens?.find((d: { id: number; scaleFactor?: number }) => d.id === displayIdFromSource)
-            if (displayInfo?.scaleFactor && displayInfo.scaleFactor > 0) {
-              scaleFactor = displayInfo.scaleFactor
-            }
-          } catch {
-            // Keep scaleFactor = 1
-          }
-        }
-
-        // For window sources, infer scale factor from the display containing the window bounds.
-        // Some native window-bounds implementations may return physical pixels; normalize back to
-        // Electron display coordinates (DIP) so downstream math can consistently apply scaleFactor.
-        if (!primarySource.id.startsWith('screen:') && window.electronAPI?.getScreens) {
-          try {
-            const screens = await window.electronAPI.getScreens()
-            const centerX = bounds.x + bounds.width / 2
-            const centerY = bounds.y + bounds.height / 2
-
-            const containsPoint = (b: { x: number; y: number; width: number; height: number }, x: number, y: number) =>
-              x >= b.x && y >= b.y && x < b.x + b.width && y < b.y + b.height
-
-            // Pass 1: assume bounds are in DIP
-            const dipDisplay = screens?.find((d: { bounds: any }) => d?.bounds && containsPoint(d.bounds, centerX, centerY))
-            if (dipDisplay?.scaleFactor && dipDisplay.scaleFactor > 0) {
-              scaleFactor = dipDisplay.scaleFactor
-            } else {
-              // Pass 2: assume bounds are in physical pixels; try per-display de-scaling
-              const physicalDisplay = screens?.find((d: { bounds: any; scaleFactor?: number }) => {
-                const sf = d?.scaleFactor && d.scaleFactor > 0 ? d.scaleFactor : 1
-                return d?.bounds && containsPoint(d.bounds, centerX / sf, centerY / sf)
-              })
-              const sf = physicalDisplay?.scaleFactor && physicalDisplay.scaleFactor > 0 ? physicalDisplay.scaleFactor : 1
-              if (physicalDisplay?.bounds) {
-                scaleFactor = sf
-                bounds = {
-                  x: bounds.x / sf,
-                  y: bounds.y / sf,
-                  width: bounds.width / sf,
-                  height: bounds.height / sf
-                }
-              }
-            }
-          } catch {
-            // Keep defaults
-          }
-        }
-
-        let effectiveBounds = bounds
-        let sourceType = primarySource.id.startsWith('screen:') ? RecordingSourceType.Screen : RecordingSourceType.Window
-        let sourceId = primarySource.id
-
-        // For area selections, set capture bounds to the selected region (in global display coordinates).
-        if (isAreaSource(settings.sourceId)) {
-          const area = parseAreaSourceId(settings.sourceId!)
-          if (area) {
-            effectiveBounds = {
-              x: bounds.x + area.x,
-              y: bounds.y + area.y,
-              width: area.width,
-              height: area.height
-            }
-            sourceType = RecordingSourceType.Area
-            sourceId = settings.sourceId!
-          }
-        }
-
-        this.captureArea = {
-          fullBounds: effectiveBounds,
-          workArea: effectiveBounds,
-          scaleFactor,
-          sourceType,
-          sourceId
-        }
-
-        this.captureWidth = Math.round(effectiveBounds.width * scaleFactor)
-        this.captureHeight = Math.round(effectiveBounds.height * scaleFactor)
-      }
-    }
-
-    const parsedDisplayId =
-      Number.isFinite(rawDisplayId)
-        ? rawDisplayId
-        : (typeof displayInfoId === 'number' ? displayInfoId : undefined)
-
-    return {
-      sourceId: primarySource.id,
-      displayId: Number.isFinite(parsedDisplayId) ? parsedDisplayId : undefined
     }
   }
 

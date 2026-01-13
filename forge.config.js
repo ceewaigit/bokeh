@@ -25,7 +25,7 @@ module.exports = {
           LSTypeIsPackage: true,
           LSItemContentTypes: ['com.bokeh.project'],
           CFBundleTypeExtensions: ['bokeh'],
-          CFBundleTypeIconFile: 'icon'
+          CFBundleTypeIconFile: 'dock_icon'
         }
       ],
       UTExportedTypeDeclarations: [

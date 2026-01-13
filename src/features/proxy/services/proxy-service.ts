@@ -8,8 +8,7 @@
 import type { Recording } from '@/types/project'
 import type { ProxyCheckResult, ProxyGenerationResult, EnsureProxyOptions } from '../types'
 import { useProxyStore } from '../store/proxy-store'
-
-const MIN_WIDTH_FOR_PREVIEW_PROXY = 2560
+import { MIN_WIDTH_FOR_PREVIEW_PROXY } from '../constants'
 
 // Active checks to prevent redundant concurrent calls
 const activeChecks = new Map<string, Promise<void>>()

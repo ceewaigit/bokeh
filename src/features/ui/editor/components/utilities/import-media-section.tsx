@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import Image from 'next/image'
-import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera, Library, SearchX } from 'lucide-react'
+import { Upload, Film, Music, Loader2, Check, X, Trash2, Plus, Camera, Library, SearchX, AlertTriangle } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { formatTime } from '@/shared/utils/time'
 import { useProjectStore } from '@/features/core/stores/project-store'
@@ -24,6 +24,7 @@ import { ProjectIOService } from '@/features/core/storage/project-io-service'
 import { CommandExecutor } from '@/features/core/commands/base/CommandExecutor'
 import { MergeProjectCommand } from '@/features/core/commands/timeline/MergeProjectCommand'
 import { AddAssetCommand } from '@/features/core/commands/timeline/AddAssetCommand'
+import { MIN_WIDTH_FOR_PREVIEW_PROXY } from '@/features/proxy/constants'
 
 // --- Metadata Helpers ---
 
@@ -92,10 +93,21 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
     const [thumbnail, setThumbnail] = useState<string | null>(null)
     const [isLoadingThumb, setIsLoadingThumb] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
+    const [isMissing, setIsMissing] = useState(false)
 
-    // Load thumbnail for video
+    // Check if file exists on mount
     useEffect(() => {
-        if (asset.type !== 'video') return
+        if (!window.electronAPI?.fileExists) return
+        let mounted = true
+        window.electronAPI.fileExists(asset.path).then(exists => {
+            if (mounted && !exists) setIsMissing(true)
+        })
+        return () => { mounted = false }
+    }, [asset.path])
+
+    // Load thumbnail for video (skip if file is missing)
+    useEffect(() => {
+        if (asset.type !== 'video' || isMissing) return
 
         const cacheKey = `thumb-${asset.id}-${asset.path}`
         const cached = ThumbnailGenerator.getCachedThumbnail(cacheKey)
@@ -116,9 +128,13 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
             })
 
         return () => { mounted = false }
-    }, [asset.id, asset.path, asset.type])
+    }, [asset.id, asset.path, asset.type, isMissing])
 
     const handleDragStart = (e: React.DragEvent) => {
+        if (isMissing) {
+            e.preventDefault()
+            return
+        }
         setIsHovered(false)
         setDraggingAsset(asset);
         const assetData = {
@@ -133,6 +149,14 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
         e.dataTransfer.effectAllowed = 'copy';
     }
 
+    const handleClick = () => {
+        if (isMissing) {
+            toast.error('This file no longer exists. Remove it from your library.')
+            return
+        }
+        onAdd(asset)
+    }
+
     const handleAddVideo = (e?: React.MouseEvent | Event) => {
         e?.stopPropagation()
         onAdd(asset, TrackType.Video)
@@ -145,13 +169,18 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
 
     return (
         <div
-            draggable={true}
+            draggable={!isMissing}
             onDragStart={handleDragStart}
             onDragEnd={() => setDraggingAsset(null)}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className="group relative aspect-square rounded-md overflow-hidden border border-border/40 bg-muted/10 hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing"
-            onClick={() => onAdd(asset)}
+            className={cn(
+                "group relative aspect-square rounded-md overflow-hidden border border-border/40 bg-muted/10 transition-all",
+                isMissing
+                    ? "cursor-not-allowed opacity-60"
+                    : "hover:border-primary/50 cursor-grab active:cursor-grabbing"
+            )}
+            onClick={handleClick}
         >
             {asset.type === 'image' ? (
                 <Image
@@ -215,9 +244,20 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
                 </div>
             )}
 
+            {/* Missing File Overlay */}
+            {isMissing && (
+                <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1 z-10">
+                    <AlertTriangle className="w-6 h-6 text-amber-400" />
+                    <span className="text-3xs text-white/80 font-medium">File missing</span>
+                </div>
+            )}
+
             {/* Hover Actions */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
-                {asset.type === 'video' ? (
+            <div className={cn(
+                "absolute inset-0 bg-black/40 transition-opacity flex items-center justify-center gap-2 pointer-events-none",
+                isMissing ? "opacity-0 group-hover:opacity-100 z-20" : "opacity-0 group-hover:opacity-100"
+            )}>
+                {!isMissing && asset.type === 'video' ? (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button
@@ -245,7 +285,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                ) : (
+                ) : !isMissing ? (
                     <button
                         className="rounded-md bg-white/10 p-1.5 text-white backdrop-blur-sm transition-colors hover:bg-white/20 pointer-events-auto"
                         title="Add to Project"
@@ -256,7 +296,7 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
                     >
                         <Plus className="w-4 h-4" />
                     </button>
-                )}
+                ) : null}
                 <button
                     onClick={(e) => {
                         e.stopPropagation()
@@ -358,7 +398,8 @@ export function ImportMediaSection() {
                                 width: meta.width,
                                 height: meta.height,
                                 duration: meta.duration * 1000, // Convert seconds to ms
-                                requiresProxy: true // Browser likely can't play this if we needed ffprobe
+                                // Only require proxy for large videos (> 1440p)
+                                requiresProxy: meta.width > MIN_WIDTH_FOR_PREVIEW_PROXY
                             }
                         } else {
                             // Fallback to DOM method if API fails
@@ -370,7 +411,9 @@ export function ImportMediaSection() {
                         metadata = {
                             width: vidMeta.width,
                             height: vidMeta.height,
-                            duration: vidMeta.duration
+                            duration: vidMeta.duration,
+                            // Only require proxy for large videos (> 1440p)
+                            requiresProxy: vidMeta.width > MIN_WIDTH_FOR_PREVIEW_PROXY
                         }
                     }
                 } else {
@@ -379,7 +422,9 @@ export function ImportMediaSection() {
                     metadata = {
                         width: vidMeta.width,
                         height: vidMeta.height,
-                        duration: vidMeta.duration
+                        duration: vidMeta.duration,
+                        // Only require proxy for large videos (> 1440p)
+                        requiresProxy: vidMeta.width > MIN_WIDTH_FOR_PREVIEW_PROXY
                     }
                 }
             } else if (type === 'image') {

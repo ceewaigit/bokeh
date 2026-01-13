@@ -7,6 +7,7 @@ import { logger } from '@/shared/utils/logger'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import type { Project, Recording, Clip, CaptureArea, RecordingMetadata } from '@/types/project'
 import type { WebcamRecordingResult } from '@/features/media/recording/services/webcam-service'
+import type { AudioInputResult } from '@/features/media/recording/services/audio-input-service'
 import { TrackType, ExportFormat, QualityLevel, RecordingSourceType, EffectType } from '@/types/project'
 import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getEffectsOfType } from '@/features/effects/core/filters'
@@ -382,7 +383,7 @@ export class ProjectStorage {
     hasAudio?: boolean,
     durationOverrideMs?: number,
     webcamResult?: WebcamRecordingResult,
-    microphoneResult?: { audioPath: string; duration: number }
+    microphoneResult?: AudioInputResult
   ): Promise<{ project: Project; videoPath: string; projectPath: string; webcamVideoPath?: string; audioPath?: string } | null> {
     if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
       return null
@@ -742,8 +743,77 @@ export class ProjectStorage {
       }
 
       // Handle microphone audio recording if present
+      // Supports multiple segments (from independent toggle on/off) or single file (legacy)
       let audioFilePath: string | undefined
-      if (microphoneResult?.audioPath && window.electronAPI?.moveFile) {
+      const hasAudioSegments = microphoneResult?.segments && microphoneResult.segments.length > 0
+      const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)
+
+      if (hasAudioSegments && window.electronAPI?.moveFile) {
+        // New: Handle multiple audio segments
+        for (let i = 0; i < microphoneResult!.segments.length; i++) {
+          const segment = microphoneResult!.segments[i]
+          const segmentId = `audio-${Date.now()}-${i}`
+          const segmentFolder = `${projectFolder}/${segmentId}`
+          const segmentExt = segment.filePath.toLowerCase().endsWith('.wav') ? 'wav' :
+            segment.filePath.toLowerCase().endsWith('.mp3') ? 'mp3' : 'webm'
+          const segmentFileName = `${segmentId}.${segmentExt}`
+          const segmentAudioPath = `${segmentFolder}/${segmentFileName}`
+
+          try {
+            const moveResult = await window.electronAPI.moveFile(segment.filePath, segmentAudioPath)
+            if (moveResult?.success) {
+              const segmentDuration = segment.durationMs
+
+              // Create Recording for this segment
+              const segmentRecording: Recording = {
+                id: segmentId,
+                filePath: `${segmentId}/${segmentFileName}`,
+                duration: segmentDuration,
+                width: 0,
+                height: 0,
+                frameRate: 0,
+                hasAudio: true,
+                folderPath: segmentFolder,
+                sourceType: 'video', // Use 'video' type since Remotion Audio component handles it
+                effects: []
+              }
+              project.recordings.push(segmentRecording)
+
+              // Create Clip at the correct timeline position
+              const segmentClip: Clip = {
+                id: `audio-clip-${Date.now()}-${i}`,
+                recordingId: segmentId,
+                startTime: segment.startTimeOffsetMs,
+                duration: segmentDuration,
+                sourceIn: 0,
+                sourceOut: segmentDuration
+              }
+
+              if (audioTrack) {
+                audioTrack.clips.push(segmentClip)
+                logger.info(`[ProjectStorage] Audio segment ${i} added:`, {
+                  clipId: segmentClip.id,
+                  startTime: segment.startTimeOffsetMs,
+                  duration: segmentDuration
+                })
+              }
+
+              // Store first segment path for return value (backward compatibility)
+              if (i === 0) {
+                audioFilePath = segmentAudioPath
+              }
+            } else {
+              logger.warn(`[ProjectStorage] Failed to move audio segment ${i}`)
+            }
+          } catch (error) {
+            logger.error(`[ProjectStorage] Error saving audio segment ${i}:`, error)
+          }
+        }
+
+        logger.info(`[ProjectStorage] ${microphoneResult!.segments.length} audio segment(s) saved`)
+
+      } else if (microphoneResult?.audioPath && window.electronAPI?.moveFile) {
+        // Legacy: Handle single audio file (backward compatibility)
         const audioRecordingId = `audio-${Date.now()}`
         const audioFolder = `${projectFolder}/${audioRecordingId}`
         const audioExt = microphoneResult.audioPath.toLowerCase().endsWith('.wav') ? 'wav' :
@@ -781,7 +851,6 @@ export class ProjectStorage {
               sourceOut: Math.min(audioDuration, duration)
             }
 
-            const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)
             if (audioTrack) {
               audioTrack.clips.push(audioClip)
             }

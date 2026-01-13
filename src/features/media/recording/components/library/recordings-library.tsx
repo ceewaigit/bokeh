@@ -1,13 +1,14 @@
 "use client"
 
 import { useMemo, useState } from 'react'
-import { Loader2, SearchX } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, SearchX } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Toolbar } from '@/components/toolbar'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { type LibraryRecording, type LibraryRecordingView } from '@/features/media/recording/store/library-store'
 import { PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
 import { LibraryEmptyState } from './components/library-empty-state'
-import { LibraryHeader } from './components/library-header'
 import { LibraryLoadingState } from './components/library-loading-state'
 import { RecordingsGrid } from './components/recordings-grid'
 import { DeleteRecordingDialog } from './components/delete-recording-dialog'
@@ -114,19 +115,15 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
-      <LibraryHeader
-        totalRecordings={recordings.length}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        canPrev={canPrev}
-        canNext={canNext}
-        onPrevPage={handlePrevPage}
-        onNextPage={handleNextPage}
-        onRefresh={() => loadRecordings(true)}
-        onNewRecording={handleNewRecording}
-        onOpenSettings={() => setSettingsOpen(true)}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+      {/* Unified Floating Pill Toolbar */}
+      <Toolbar
+        mode="library"
+        libraryProps={{
+          totalRecordings: recordings.length,
+          searchQuery,
+          onSearchChange: setSearchQuery,
+          onNewRecording: handleNewRecording,
+        }}
       />
 
       <div
@@ -136,7 +133,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         <div className="mx-auto w-full max-w-[70vw] px-5 py-4 sm:px-6 lg:px-8">
           {recordings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground motion-safe:animate-in motion-safe:fade-in duration-300">
-              <div className="mb-4 h-16 w-16 rounded-pill bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
+              <div className="mb-4 h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
                 <SearchX className="h-8 w-8 opacity-70" />
               </div>
               <p className="text-sm font-medium">No such recording exists</p>
@@ -157,7 +154,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 </div>
                 <div className="flex items-center justify-between gap-3 sm:justify-end">
                   <div className="hidden sm:flex items-center gap-2 text-2xs text-muted-foreground">
-                    <span className="h-2 w-2 rounded-pill bg-primary/70" />
+                    <span className="h-2 w-2 rounded-full bg-primary/70" />
                     <span className="uppercase tracking-[0.2em] text-muted-foreground/70">Sorted</span>
                     <span>{sortLabel}</span>
                   </div>
@@ -185,12 +182,41 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 onRequestRename={setPendingRename}
                 onRequestDuplicate={setPendingDuplicate}
               />
+
+              {/* Pagination Controls - Now in content area */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-4 pb-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 hover:bg-muted/50 rounded-lg"
+                    onClick={handlePrevPage}
+                    disabled={!canPrev}
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-xs text-muted-foreground font-mono px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 hover:bg-muted/50 rounded-lg"
+                    onClick={handleNextPage}
+                    disabled={!canNext}
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
           {showHydrationIndicator && (
             <div className="mt-4 flex justify-center">
-              <div className="bg-muted/60 backdrop-blur-md rounded-pill px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
+              <div className="bg-muted/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
                 <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
                 <span className="text-3xs font-medium text-muted-foreground">Loading page…</span>
               </div>

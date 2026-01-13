@@ -3,8 +3,7 @@
  * Screen recording, media management, and recording utilities
  */
 
-export { ElectronRecorder } from './electron-recorder'
-export type { ExtendedRecordingResult } from './services/recording-service'
+export { RecordingService, type ExtendedRecordingResult } from './services/recording-service'
 export type {
   ElectronRecordingResult,
   ElectronMetadata

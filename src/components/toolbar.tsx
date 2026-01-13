@@ -1,29 +1,28 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
-  Folder,
   Save,
   Download,
-  FolderOpen,
-  FileVideo,
   PanelRightClose,
   PanelRight,
   PanelLeftClose,
   PanelLeft,
-  Library,
+  ArrowLeft,
   Info,
   Camera,
   Loader2,
-  Settings2
+  Settings2,
+  Search,
+  Video,
+  X,
 } from 'lucide-react'
-import { HeaderButton } from './ui/header-button'
-import { WindowHeader } from './ui/window-header'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'
 import { cn } from '@/shared/utils/utils'
 import { formatTime } from '@/shared/utils/time'
 import type { Project } from '@/types/project'
-import { AppearanceControls } from '@/components/topbar/appearance-controls'
+import { AppearanceToggle } from '@/components/topbar/appearance-toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
@@ -32,28 +31,234 @@ import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/ge
 import { EffectStore } from '@/features/effects/core/store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
-interface ToolbarProps {
-  project: Project | null
-  onToggleProperties: () => void
-  onExport: () => void
-  onNewProject?: () => void | Promise<void>
-  onSaveProject: () => Promise<void>
-  onOpenProject?: (path: string) => Promise<void>
-  onBackToLibrary: () => void
-  hasUnsavedChanges?: boolean
+// Spring config for snappy Apple-like animations
+const springConfig = { type: "spring", stiffness: 500, damping: 30 } as const
+
+// Pill button component - compact and minimal
+interface PillButtonProps {
+  onClick?: () => void
+  disabled?: boolean
+  tooltip?: string
+  shortcut?: string
+  active?: boolean
+  primary?: boolean
+  className?: string
+  children: React.ReactNode
 }
 
+function PillButton({
+  onClick,
+  disabled,
+  tooltip,
+  shortcut,
+  active,
+  primary,
+  className,
+  children
+}: PillButtonProps) {
+  const button = (
+    <motion.button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "relative flex items-center justify-center gap-1.5",
+        "h-7 px-3 rounded-full",
+        "text-[11px] font-medium",
+        "transition-colors duration-100",
+        "disabled:opacity-40 disabled:cursor-not-allowed",
+        primary ? [
+          "bg-foreground text-background",
+          "hover:bg-foreground/90",
+        ] : [
+          "text-muted-foreground",
+          "hover:text-foreground hover:bg-foreground/10",
+          active && "text-foreground bg-foreground/10",
+        ],
+        className
+      )}
+      whileHover={disabled ? {} : { scale: 1.02 }}
+      whileTap={disabled ? {} : { scale: 0.97 }}
+      transition={springConfig}
+    >
+      {children}
+    </motion.button>
+  )
 
-export function Toolbar({
-  project,
-  onToggleProperties,
-  onExport,
-  onNewProject,
-  onSaveProject,
-  onOpenProject,
-  onBackToLibrary,
-  hasUnsavedChanges = false
-}: ToolbarProps) {
+  if (!tooltip) return button
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="bottom" className="text-xs flex items-center gap-2">
+        <span>{tooltip}</span>
+        {shortcut && (
+          <span className="text-[10px] text-muted-foreground/70 font-mono bg-muted/30 px-1 py-0.5 rounded">
+            {shortcut}
+          </span>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+// Icon-only button variant
+interface PillIconButtonProps {
+  onClick?: () => void
+  disabled?: boolean
+  tooltip?: string
+  active?: boolean
+  className?: string
+  children: React.ReactNode
+}
+
+function PillIconButton({
+  onClick,
+  disabled,
+  tooltip,
+  active,
+  className,
+  children
+}: PillIconButtonProps) {
+  const button = (
+    <motion.button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "relative flex items-center justify-center",
+        "w-7 h-7 rounded-full",
+        "text-muted-foreground",
+        "transition-colors duration-100",
+        "hover:text-foreground hover:bg-foreground/10",
+        "disabled:opacity-40 disabled:cursor-not-allowed",
+        active && "text-foreground bg-foreground/10",
+        className
+      )}
+      whileHover={disabled ? {} : { scale: 1.05 }}
+      whileTap={disabled ? {} : { scale: 0.92 }}
+      transition={springConfig}
+    >
+      {children}
+    </motion.button>
+  )
+
+  if (!tooltip) return button
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="bottom" className="text-xs">
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+// Subtle divider for visual grouping
+function ToolbarDivider() {
+  return (
+    <div className="h-4 w-px bg-foreground/10 mx-0.5" />
+  )
+}
+
+// Expandable search component
+interface ExpandableSearchProps {
+  query: string
+  onQueryChange: (query: string) => void
+}
+
+function ExpandableSearch({ query, onQueryChange }: ExpandableSearchProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isExpanded && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [isExpanded])
+
+  const handleClose = () => {
+    setIsExpanded(false)
+    onQueryChange('')
+  }
+
+  return (
+    <div className="relative flex items-center">
+      <AnimatePresence mode="wait">
+        {isExpanded ? (
+          <motion.div
+            key="search-field"
+            initial={{ width: 28, opacity: 0 }}
+            animate={{ width: 180, opacity: 1 }}
+            exit={{ width: 28, opacity: 0 }}
+            transition={springConfig}
+            className="flex items-center gap-2 h-7 px-2.5 rounded-full hover:bg-foreground/5 transition-colors"
+          >
+            <Search className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              placeholder="Search..."
+              className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/40 outline-none min-w-0"
+              onBlur={() => {
+                if (!query) setIsExpanded(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') handleClose()
+              }}
+            />
+            {query && (
+              <motion.button
+                onClick={handleClose}
+                className="text-muted-foreground/50 hover:text-foreground transition-colors"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                transition={springConfig}
+              >
+                <X className="w-3 h-3" />
+              </motion.button>
+            )}
+          </motion.div>
+        ) : (
+          <PillIconButton
+            onClick={() => setIsExpanded(true)}
+            tooltip="Search"
+          >
+            <Search className="w-3.5 h-3.5" />
+          </PillIconButton>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// Library mode props
+interface LibraryModeProps {
+  totalRecordings: number
+  searchQuery: string
+  onSearchChange: (query: string) => void
+  onNewRecording: () => void
+}
+
+// Editor mode props
+interface EditorModeProps {
+  project: Project
+  hasUnsavedChanges: boolean
+  onSaveProject: () => Promise<void>
+  onExport: () => void
+  onToggleProperties: () => void
+  onBackToLibrary: () => void
+}
+
+// Main toolbar props
+interface ToolbarProps {
+  mode: 'library' | 'editor'
+  libraryProps?: LibraryModeProps
+  editorProps?: EditorModeProps
+}
+
+export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
   const {
     isRecording,
     duration,
@@ -64,317 +269,318 @@ export function Toolbar({
   const [propertiesOpen, setPropertiesOpen] = useState(true)
   const [isSnapshotting, setIsSnapshotting] = useState(false)
 
-  const { isUtilitiesOpen, toggleUtilities, setSettingsOpen } = useWorkspaceStore()
-  // Timeline-Centric: clips are not sliced, use raw video clips
+  const { isUtilitiesOpen, toggleUtilities, setSettingsOpen, isPropertiesOpen } = useWorkspaceStore()
+
+  const project = editorProps?.project ?? null
+
   const hasVideoClips = project
     ? TimelineDataService.getVideoClips(project).length > 0
     : false
 
   const handleToggleProperties = () => {
     setPropertiesOpen(!propertiesOpen)
-    onToggleProperties()
+    editorProps?.onToggleProperties()
+  }
+
+  const handleSnapshot = async () => {
+    if (!project || !window.electronAPI?.generateThumbnail) return
+
+    useProjectStore.getState().pause()
+
+    const videoClips = TimelineDataService.getVideoClips(project)
+    if (!videoClips.length) {
+      toast.error('No video clips to snapshot')
+      return
+    }
+
+    const currentTime = useProjectStore.getState().currentTime
+    const fps = project.settings.frameRate
+    const frame = Math.round((currentTime / 1000) * fps)
+
+    let outputPath: string | undefined
+    if (window.electronAPI?.showSaveDialog) {
+      const result = await window.electronAPI.showSaveDialog({
+        title: 'Save Snapshot',
+        defaultPath: `thumbnail-${Date.now()}`,
+        filters: [{ name: 'JPEG Image', extensions: ['jpg', 'jpeg'] }]
+      })
+      if (result.canceled || !result.filePath) {
+        return
+      }
+      outputPath = result.filePath
+    }
+
+    setIsSnapshotting(true)
+    const toastId = toast.loading('Generating snapshot...')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    try {
+      const recordingsMap = TimelineDataService.getRecordingsMap(project)
+      const frameLayout = TimelineDataService.getFrameLayout(project, fps, videoClips)
+      const allEffects = EffectStore.getAll(project)
+
+      const active = getActiveClipDataAtFrame({
+        frame,
+        frameLayout,
+        fps,
+        effects: allEffects,
+        getRecording: (recordingId) => recordingsMap.get(recordingId)
+      })
+
+      if (!active) {
+        throw new Error('No active video clip at the current time')
+      }
+
+      const snapshotResolution = active.recording.width && active.recording.height
+        ? { width: active.recording.width, height: active.recording.height }
+        : project.settings.resolution
+
+      const segments = videoClips.map(c => ({
+        clips: [{ clip: c }],
+        effects: [] as any
+      }))
+
+      if (segments.length > 0 && allEffects.length > 0) {
+        segments[0].effects = allEffects
+      }
+
+      const result = await window.electronAPI.generateThumbnail({
+        segments,
+        recordings: project.recordings.map(r => [r.id, r]),
+        metadata: new Map(),
+        settings: {
+          resolution: snapshotResolution,
+          framerate: fps,
+        },
+        projectFilePath: project.filePath,
+        frame,
+        outputPath,
+        preferOffthreadVideo: true,
+        cleanupAfterRender: true
+      })
+
+      if (result.success) {
+        toast.success('Snapshot saved!', { id: toastId })
+      } else if (result.canceled) {
+        toast.dismiss(toastId)
+      } else {
+        toast.error(`Failed: ${result.error}`, { id: toastId })
+      }
+    } catch (error) {
+      console.error('Snapshot failed:', error)
+      toast.error('Failed to generate snapshot', { id: toastId })
+    } finally {
+      setIsSnapshotting(false)
+    }
   }
 
   return (
-    <WindowHeader customDragRegions className="gap-2 overflow-hidden relative">
-      {/* Left Section - Project Controls */}
-      <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        {/* Logo/Brand */}
-        <div className="flex items-center gap-2 px-2.5 h-6 bg-primary/15 rounded-lg">
-          <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-          <span className="font-bold text-xs text-primary tracking-[0.1em] whitespace-nowrap">
-            bokeh workspace
-          </span>
-        </div>
-
-        <div className="w-px h-4 bg-border/30" />
-
-        {/* Left Sidebar Toggle */}
-        <HeaderButton
-          onClick={toggleUtilities}
-          tooltip={isUtilitiesOpen ? "Close Utilities" : "Open Utilities"}
-          icon={isUtilitiesOpen ? PanelLeftClose : PanelLeft}
-        />
-
-        <div className="w-px h-4 bg-border/30" />
-
-        {/* Back to Library Button */}
-        {onBackToLibrary && (
+    <div
+      className="h-14 pt-4 flex items-start justify-center"
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      onDoubleClick={(event) => {
+        const target = event.target as HTMLElement | null
+        if (target?.closest?.('[data-titlebar-no-doubleclick=\"true\"]')) return
+        window.electronAPI?.doubleClickTitleBar?.()
+      }}
+    >
+      {/* Floating Pill */}
+      <motion.div
+        initial={{ opacity: 0, y: -8, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        className={cn(
+          "flex items-center gap-1.5 px-2 py-1.5",
+          "rounded-full",
+          "bg-background/80 backdrop-blur-2xl",
+          "border border-border/50",
+          "shadow-lg shadow-black/10 dark:shadow-black/20",
+          "pointer-events-auto",
+        )}
+        style={{
+          WebkitAppRegion: 'no-drag',
+        } as React.CSSProperties}
+        data-titlebar-no-doubleclick="true"
+      >
+        {mode === 'library' ? (
+          /* ===== LIBRARY MODE ===== */
           <>
-            <HeaderButton
-              onClick={onBackToLibrary}
-              icon={Library}
+            {/* Search */}
+            {libraryProps && (
+              <ExpandableSearch
+                query={libraryProps.searchQuery}
+                onQueryChange={libraryProps.onSearchChange}
+              />
+            )}
+
+            <ToolbarDivider />
+
+            {/* Record - Primary CTA */}
+            {libraryProps && (
+              <PillButton
+                primary
+                onClick={libraryProps.onNewRecording}
+                tooltip="Start Recording"
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span>Record</span>
+              </PillButton>
+            )}
+
+            <ToolbarDivider />
+
+            {/* Settings */}
+            <PillIconButton
+              onClick={() => setSettingsOpen(true)}
+              tooltip="Settings"
             >
-              Library
-            </HeaderButton>
-            <div className="w-px h-4 bg-border/30" />
+              <Settings2 className="w-3.5 h-3.5" />
+            </PillIconButton>
+
+            {/* Theme */}
+            <AppearanceToggle align="end" className="flex items-center" />
+          </>
+        ) : (
+          /* ===== EDITOR MODE ===== */
+          <>
+            {/* Left: Navigation */}
+            <PillIconButton
+              onClick={toggleUtilities}
+              tooltip={isUtilitiesOpen ? "Hide Utilities" : "Show Utilities"}
+              active={isUtilitiesOpen}
+            >
+              {isUtilitiesOpen ? (
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              ) : (
+                <PanelLeft className="w-3.5 h-3.5" />
+              )}
+            </PillIconButton>
+
+            {/* Back to Library */}
+            {editorProps?.onBackToLibrary && (
+              <PillIconButton
+                onClick={editorProps.onBackToLibrary}
+                tooltip="Back to Library"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </PillIconButton>
+            )}
+
+            <ToolbarDivider />
+
+            {/* Center: Project info */}
+            {project && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 px-2 h-7 rounded-full cursor-default">
+                    <span className="text-[11px] font-medium text-foreground/80 max-w-[140px] truncate">
+                      {project.name}
+                    </span>
+                    <Info className="w-3 h-3 text-muted-foreground/40" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="center" className="text-xs">
+                  <div className="space-y-1">
+                    <div className="font-medium">{project.name}</div>
+                    {project.timeline?.duration && project.timeline.duration > 0 && (
+                      <div className="text-muted-foreground">
+                        Duration: <span className="font-mono">{formatTime(project.timeline.duration)}</span>
+                      </div>
+                    )}
+                    {project.recordings?.[0]?.width && project.recordings?.[0]?.height && (
+                      <div className="text-muted-foreground">
+                        {project.recordings[0].width}×{project.recordings[0].height}
+                      </div>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Recording Status */}
+            {status !== 'idle' && (
+              <div className="flex items-center gap-1.5 px-2.5 h-6 rounded-full bg-red-500/20">
+                <div className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  status === 'recording' && "bg-red-500 animate-pulse",
+                  status === 'paused' && "bg-yellow-500"
+                )} />
+                <span className="text-[10px] font-medium text-red-400 uppercase tracking-wide">
+                  {status}
+                </span>
+                {isRecording && (
+                  <span className="font-mono text-[10px] text-red-400/70">
+                    {formatTime(duration / 1000)}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <ToolbarDivider />
+
+            {/* Actions */}
+            <PillButton
+              onClick={editorProps?.onSaveProject}
+              disabled={!project}
+              tooltip="Save"
+              shortcut="⌘S"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {editorProps?.hasUnsavedChanges && (
+                <span className="w-1.5 h-1.5 bg-primary rounded-full" />
+              )}
+            </PillButton>
+
+            <PillIconButton
+              disabled={!project || !hasVideoClips || isSnapshotting}
+              onClick={handleSnapshot}
+              tooltip="Snapshot"
+            >
+              {isSnapshotting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Camera className="w-3.5 h-3.5" />
+              )}
+            </PillIconButton>
+
+            <PillButton
+              primary
+              disabled={!project || !hasVideoClips}
+              onClick={editorProps?.onExport}
+              tooltip="Export"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export</span>
+            </PillButton>
+
+            <ToolbarDivider />
+
+            {/* Preferences */}
+            <PillIconButton
+              onClick={() => setSettingsOpen(true)}
+              tooltip="Settings"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+            </PillIconButton>
+
+            <AppearanceToggle align="end" className="flex items-center" />
+
+            <PillIconButton
+              onClick={handleToggleProperties}
+              tooltip={isPropertiesOpen ? "Hide Properties" : "Show Properties"}
+              active={isPropertiesOpen}
+            >
+              {isPropertiesOpen ? (
+                <PanelRightClose className="w-3.5 h-3.5" />
+              ) : (
+                <PanelRight className="w-3.5 h-3.5" />
+              )}
+            </PillIconButton>
           </>
         )}
-
-        {/* Project Actions */}
-        {onNewProject && (
-          <HeaderButton
-            onClick={onNewProject}
-            icon={Folder}
-          >
-            New
-          </HeaderButton>
-        )}
-
-        {onOpenProject && (
-          <HeaderButton
-            onClick={async () => {
-              if (window.electronAPI?.showOpenDialog) {
-                try {
-                  const result = await window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [
-                      { name: 'Bokeh Projects', extensions: ['bokeh'] },
-                      { name: 'All Files', extensions: ['*'] }
-                    ]
-                  })
-
-                  if (!result.canceled && result.filePaths?.length > 0) {
-                    const projectPath = result.filePaths[0]
-                    await onOpenProject(projectPath)
-                  }
-                } catch (error) {
-                  console.error('Failed to open project:', error)
-                }
-              }
-            }}
-            icon={FolderOpen}
-          >
-            Open
-          </HeaderButton>
-        )}
-
-        <HeaderButton
-          variant="ghost"
-          onClick={onSaveProject}
-          disabled={!project}
-          className={cn(
-            hasUnsavedChanges ? "bg-primary/20 text-primary hover:bg-primary/30" : "hover:bg-muted/30"
-          )}
-          icon={Save}
-          shortcut="⌘S"
-        >
-          Save
-          {hasUnsavedChanges && (
-            <span className="ml-1 w-1.5 h-1.5 bg-primary rounded-pill animate-pulse flex-shrink-0" />
-          )}
-        </HeaderButton>
-      </div>
-
-      {/* Keep left/right pinned; center overlay is truly window-centered */}
-      <div className="flex-1" />
-
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div
-          className="flex items-center justify-center gap-2 min-w-0 overflow-hidden pointer-events-auto"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          {/* Project Name with Metadata Tooltip */}
-          {project && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5 px-2.5 h-6 bg-muted/30 rounded-lg flex-shrink-0 cursor-default">
-                  <span className="text-3xs font-medium text-foreground/90">{project.name}<span className="text-3xs font-normal text-muted-foreground/60 leading-none">.bokeh</span></span>
-                  <Info className="w-2.5 h-2.5 text-muted-foreground/40" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" align="center" className="text-xs">
-                <div className="space-y-1">
-                  <div className="font-medium text-foreground">{project.name}</div>
-                  {project.timeline?.duration && project.timeline.duration > 0 && (
-                    <div className="text-muted-foreground">
-                      Duration: <span className="font-mono">{formatTime(project.timeline.duration)}</span>
-                    </div>
-                  )}
-                  {project.recordings?.[0]?.width && project.recordings?.[0]?.height && (
-                    <div className="text-muted-foreground">
-                      Resolution: <span className="font-mono">{project.recordings[0].width}×{project.recordings[0].height}</span>
-                    </div>
-                  )}
-                  {project.recordings && project.recordings.length > 0 && (
-                    <div className="text-muted-foreground">
-                      Clips: <span className="font-mono">{project.recordings.length}</span>
-                    </div>
-                  )}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* Recording Status */}
-          {status !== 'idle' && (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 rounded-md flex-shrink-0">
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-pill",
-                status === 'recording' && "bg-red-500 animate-pulse",
-                status === 'paused' && "bg-yellow-500"
-              )} />
-              <span className="text-3xs font-medium uppercase tracking-wider">
-                {status}
-              </span>
-              {isRecording && (
-                <span className="font-mono text-3xs text-muted-foreground/70">
-                  {formatTime(duration / 1000)}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right Section - Export and Settings - Not draggable */}
-      <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        <div className="w-px h-4 bg-border/30" />
-
-        {/* Plugin Creator Button */}
-        {/* <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => useWorkspaceStore.getState().setCurrentView('plugin-creator')}
-          className="h-7 px-2 text-2xs font-medium hover:bg-muted/30"
-        >
-          <Sparkles className="w-3 h-3 mr-1 flex-shrink-0 text-amber-400" />
-          <span className="whitespace-nowrap">Plugins</span>
-        </Button> */}
-
-        {/* Export Button */}
-        <HeaderButton
-          variant="default"
-          disabled={!project || !hasVideoClips}
-          onClick={onExport}
-          className="relative rounded-lg bg-gradient-to-b from-primary to-primary/85 text-primary-foreground font-[var(--font-display)] font-semibold tracking-tight shadow-[0_6px_16px_-10px_hsl(var(--primary)/0.7)] ring-1 ring-white/20 border border-primary/30 hover:from-primary/95 hover:to-primary/75 hover:shadow-[0_8px_20px_-12px_hsl(var(--primary)/0.75)] hover:text-primary-foreground active:translate-y-[1px]"
-          icon={Download}
-        >
-          Export
-        </HeaderButton>
-
-        {/* Snapshot Button */}
-        <HeaderButton
-          disabled={!project || !hasVideoClips || isSnapshotting}
-          onClick={async () => {
-            if (!project || !window.electronAPI?.generateThumbnail) return
-
-            // Pause playback first
-            useProjectStore.getState().pause()
-
-            // Timeline-Centric: use raw video clips
-            const videoClips = TimelineDataService.getVideoClips(project)
-            if (!videoClips.length) {
-              toast.error('No video clips to snapshot')
-              return
-            }
-
-            const currentTime = useProjectStore.getState().currentTime
-            const fps = project.settings.frameRate
-            const frame = Math.round((currentTime / 1000) * fps)
-
-            let outputPath: string | undefined
-            if (window.electronAPI?.showSaveDialog) {
-              const result = await window.electronAPI.showSaveDialog({
-                title: 'Save Snapshot',
-                defaultPath: `thumbnail-${Date.now()}`,
-                filters: [{ name: 'JPEG Image', extensions: ['jpg', 'jpeg'] }]
-              })
-              if (result.canceled || !result.filePath) {
-                return
-              }
-              outputPath = result.filePath
-            }
-
-            setIsSnapshotting(true)
-            const toastId = toast.loading('Generating high-quality snapshot...')
-            await new Promise(resolve => setTimeout(resolve, 0))
-
-            try {
-              const recordingsMap = TimelineDataService.getRecordingsMap(project)
-              const frameLayout = TimelineDataService.getFrameLayout(project, fps, videoClips)
-
-              // Get all effects using EffectStore (the SSOT)
-              const allEffects = EffectStore.getAll(project)
-
-              const active = getActiveClipDataAtFrame({
-                frame,
-                frameLayout,
-                fps,
-                effects: allEffects,
-                getRecording: (recordingId) => recordingsMap.get(recordingId)
-              })
-
-              if (!active) {
-                throw new Error('No active video clip at the current time')
-              }
-
-              const snapshotResolution = active.recording.width && active.recording.height
-                ? { width: active.recording.width, height: active.recording.height }
-                : project.settings.resolution
-
-              // Construct segments from timeline tracks
-              const segments = videoClips.map(c => ({
-                clips: [{ clip: c }],
-                effects: [] as any // Using any to avoid complex type matching with Electron API
-              }))
-
-              // Attach global timeline effects to the first segment if they exist
-              if (segments.length > 0 && allEffects.length > 0) {
-                segments[0].effects = allEffects
-              }
-
-              const result = await window.electronAPI.generateThumbnail({
-                segments,
-                recordings: project.recordings.map(r => [r.id, r]),
-                metadata: new Map(), // Metadata is handled by backend resolution
-                settings: {
-                  resolution: snapshotResolution,
-                  framerate: fps,
-                },
-                projectFilePath: project.filePath,
-                frame,
-                outputPath,
-                preferOffthreadVideo: true,
-                cleanupAfterRender: true
-              })
-
-              if (result.success) {
-                toast.success('Snapshot saved!', { id: toastId })
-              } else if (result.canceled) {
-                toast.dismiss(toastId)
-              } else {
-                toast.error(`Failed to save snapshot: ${result.error}`, { id: toastId })
-              }
-            } catch (error) {
-              console.error('Snapshot failed:', error)
-              toast.error('Failed to generate snapshot', { id: toastId })
-            } finally {
-              setIsSnapshotting(false)
-            }
-          }}
-          tooltip="Save Snapshot"
-          icon={isSnapshotting ? Loader2 : Camera}
-          iconClassName={cn(isSnapshotting && "animate-spin")}
-        />
-
-        {/* Settings Button */}
-        <HeaderButton
-          onClick={() => setSettingsOpen(true)}
-          tooltip="Settings"
-          icon={Settings2}
-        />
-
-        {/* Appearance Controls */}
-        <AppearanceControls />
-
-        {/* Properties Toggle */}
-        <HeaderButton
-          onClick={handleToggleProperties}
-          tooltip={propertiesOpen ? "Hide Properties" : "Show Properties"}
-          icon={propertiesOpen ? PanelRightClose : PanelRight}
-        />
-      </div>
-    </WindowHeader>
+      </motion.div>
+    </div>
   )
 }
+
+export type { ToolbarProps, LibraryModeProps, EditorModeProps }

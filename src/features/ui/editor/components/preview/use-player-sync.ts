@@ -101,106 +101,77 @@ export function usePlayerSync({
         return () => unsubscribe();
     }, []);
 
-    // RAF Polling: Sync Player -> Stores
+    // CONSOLIDATED: Combined RAF loop for store sync + skip range detection during playback
+    // Previously two separate RAF loops, now merged for efficiency
     useEffect(() => {
         if (!isPlaying || isScrubbing || isExporting) return;
         if (!playerRef.current) return;
 
         let rafId: number;
+        let lastFrame = -1;
         let lastStoreUpdate = 0;
+        let lastSkipTime = 0;
+        const AUDIO_LOOKAHEAD_MS = 50;
 
-        const poll = () => {
-             const player = playerRef.current;
-             if (!player) return;
-
-             const frame = player.getCurrentFrame();
-             const timeMs = (frame / timelineMetadata.fps) * 1000;
-
-             // 1. Update transient store (60fps) - UI Sync
-             const current = useTimeStore.getState().currentTime;
-             if (Math.abs(current - timeMs) >= 0.5) {
-                 useTimeStore.getState().setTime(timeMs);
-             }
-
-             // 2. Throttle update to persistent store (30fps) - Persistence/Other Sync
-             const now = performance.now();
-             if (now - lastStoreUpdate >= 33) { // ~30fps
-                 lastStoreUpdate = now;
-                 storeSeekFromPlayer(timeMs);
-             }
-
-             rafId = requestAnimationFrame(poll);
-        };
-
-        rafId = requestAnimationFrame(poll);
-        return () => cancelAnimationFrame(rafId);
-    }, [isPlaying, isScrubbing, isExporting, timelineMetadata.fps, storeSeekFromPlayer, playerRef]);
-
-    // Skip range detection during playback
-    // Polls at animation frame rate and skips past hidden regions
-    useEffect(() => {
-        if (!isPlaying || isScrubbing || isExporting) return;
-        if (!playerRef.current) return;
-
-        let rafId: number | null = null;
-        let lastSkipTime = 0; // Debounce to prevent rapid re-seeking
-
-        const checkAndSkip = () => {
+        const playbackLoop = () => {
             const player = playerRef.current;
-            if (!player) return;
+            if (!player) {
+                rafId = requestAnimationFrame(playbackLoop);
+                return;
+            }
 
-            const currentFrame = player.getCurrentFrame();
-            const currentTimeMs = frameToMs(currentFrame, timelineMetadata.fps);
-            const AUDIO_LOOKAHEAD_MS = 50;
+            const frame = player.getCurrentFrame();
 
-            // Find if we're inside a skip range
-            const skipRange = TimelineDataService.findSkipRangeAtTime(
-                currentTimeMs,
-                skipRangesRef.current
-            );
+            // OPTIMIZATION: Skip all work if frame hasn't changed
+            if (frame === lastFrame) {
+                rafId = requestAnimationFrame(playbackLoop);
+                return;
+            }
+            lastFrame = frame;
 
+            const timeMs = frameToMs(frame, timelineMetadata.fps);
+
+            // Update transient store (every changed frame) - UI Sync
+            useTimeStore.getState().setTime(timeMs);
+
+            // Throttle update to persistent store (30fps)
+            const now = performance.now();
+            if (now - lastStoreUpdate >= 33) {
+                lastStoreUpdate = now;
+                storeSeekFromPlayer(timeMs);
+            }
+
+            // Skip range detection - check if we're in a hidden region
+            const skipRange = TimelineDataService.findSkipRangeAtTime(timeMs, skipRangesRef.current);
             if (skipRange) {
-                const now = Date.now();
-                // Debounce: don't skip more than once per 100ms
-                if (now - lastSkipTime > 100) {
-                    lastSkipTime = now;
-
-                    // Seek to the end of the skip range
+                const skipNow = Date.now();
+                if (skipNow - lastSkipTime > 100) { // Debounce
+                    lastSkipTime = skipNow;
                     const targetFrame = clampFrame(timeToFrame(skipRange.end));
-
                     console.debug('[usePlayerSync] Skipping hidden region', {
-                        from: currentTimeMs.toFixed(0),
+                        from: timeMs.toFixed(0),
                         to: skipRange.end.toFixed(0),
                         clipId: skipRange.clipId
                     });
-
                     player.seekTo(targetFrame);
-                    // Ensure playback continues after seek
                     safePlay(player);
                 }
             } else {
-                const nextSkip = TimelineDataService.findNextSkipRange(
-                    currentTimeMs,
-                    skipRangesRef.current
-                );
-                if (nextSkip && (nextSkip.start - currentTimeMs) < AUDIO_LOOKAHEAD_MS) {
+                // Audio lookahead - preemptively skip if approaching a hidden region
+                const nextSkip = TimelineDataService.findNextSkipRange(timeMs, skipRangesRef.current);
+                if (nextSkip && (nextSkip.start - timeMs) < AUDIO_LOOKAHEAD_MS) {
                     const targetFrame = clampFrame(timeToFrame(nextSkip.end));
                     player.seekTo(targetFrame);
                     safePlay(player);
                 }
             }
 
-            rafId = requestAnimationFrame(checkAndSkip);
+            rafId = requestAnimationFrame(playbackLoop);
         };
 
-        rafId = requestAnimationFrame(checkAndSkip);
-
-        return () => {
-            if (rafId !== null) {
-                cancelAnimationFrame(rafId);
-            }
-        };
-    }, [isPlaying, isScrubbing, isExporting, timelineMetadata.fps, clampFrame, timeToFrame, safePlay, playerRef]);
+        rafId = requestAnimationFrame(playbackLoop);
+        return () => cancelAnimationFrame(rafId);
+    }, [isPlaying, isScrubbing, isExporting, timelineMetadata.fps, storeSeekFromPlayer, clampFrame, timeToFrame, safePlay, playerRef]);
 
     // Scrub behavior
     useEffect(() => {

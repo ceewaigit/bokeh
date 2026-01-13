@@ -1,13 +1,16 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { PlayerRef } from '@remotion/player';
 
-// PERFORMANCE: 50ms throttle = ~20 seeks/second for responsive scrubbing
-// Previously 125ms (8 seeks/sec) felt laggy and disconnected from cursor
-const SCRUB_THROTTLE_MS = 50;
+// PERFORMANCE: Adaptive throttling for responsive scrubbing
+// Small seeks (< 10 frames): 16ms (~60fps) for snappy response
+// Large seeks (> 10 frames): 32ms (~30fps) to let decoder catch up
+const BASE_THROTTLE_MS = 16;
+const MAX_THROTTLE_MS = 32;
+const LARGE_SEEK_THRESHOLD = 10; // frames
 
 /**
  * Hook to throttle seek operations on a Remotion Player.
- * Reduces video decoder pressure during rapid scrubbing or frequent updates.
+ * Uses adaptive throttling - smaller seeks get faster response.
  */
 export function useThrottledSeek(playerRef: React.RefObject<PlayerRef | null>) {
   const lastSeekTimeRef = useRef<number>(0);
@@ -17,28 +20,33 @@ export function useThrottledSeek(playerRef: React.RefObject<PlayerRef | null>) {
   const throttledSeek = useCallback((targetFrame: number) => {
     if (!playerRef.current) return;
 
-    // Optimization: If frame is effectively the same, do nothing.
     const currentFrame = playerRef.current.getCurrentFrame();
-    if (Math.abs(currentFrame - targetFrame) <= 1) {
+    const frameDelta = Math.abs(currentFrame - targetFrame);
+
+    // Skip if effectively same frame
+    if (frameDelta <= 1) {
       return;
     }
 
     const now = Date.now();
     const timeSinceLastSeek = now - lastSeekTimeRef.current;
 
+    // Adaptive throttle: smaller seeks = faster response, larger seeks = more time for decoder
+    const dynamicThrottle = frameDelta > LARGE_SEEK_THRESHOLD ? MAX_THROTTLE_MS : BASE_THROTTLE_MS;
+
     // If we're within throttle window, schedule this seek for later
-    if (timeSinceLastSeek < SCRUB_THROTTLE_MS) {
+    if (timeSinceLastSeek < dynamicThrottle) {
       pendingSeekRef.current = targetFrame;
 
-      // Clear existing timeout and set a new one (debounce-ish behavior)
+      // Clear existing timeout and set a new one
       if (scrubTimeoutRef.current) {
         clearTimeout(scrubTimeoutRef.current);
       }
 
+      const remainingTime = dynamicThrottle - timeSinceLastSeek;
       scrubTimeoutRef.current = setTimeout(() => {
         if (pendingSeekRef.current !== null && playerRef.current) {
           const pendingCurrentFrame = playerRef.current.getCurrentFrame();
-          // Double check if we still need to seek
           if (Math.abs(pendingCurrentFrame - pendingSeekRef.current) > 1) {
             playerRef.current.seekTo(pendingSeekRef.current);
             lastSeekTimeRef.current = Date.now();
@@ -46,7 +54,7 @@ export function useThrottledSeek(playerRef: React.RefObject<PlayerRef | null>) {
           pendingSeekRef.current = null;
         }
         scrubTimeoutRef.current = null;
-      }, SCRUB_THROTTLE_MS - timeSinceLastSeek);
+      }, remainingTime);
 
       return;
     }

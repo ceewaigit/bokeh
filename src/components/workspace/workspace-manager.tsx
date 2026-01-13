@@ -21,6 +21,7 @@ import { RecordingsLibrary } from '@/features/media/recording/components/library
 import { UtilitiesSidebar } from '@/features/ui/editor/components/utilities'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
+import { useTimeStore } from '@/features/ui/timeline/stores/time-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { ZoomBlock, ZoomEffectData } from '@/types/project'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
@@ -379,6 +380,8 @@ export function WorkspaceManager() {
   }, [storePlay])
 
   const handleSeek = useCallback((time: number) => {
+    // Update both stores in one call - transient (playhead UI) and persistent (player sync)
+    useTimeStore.getState().setTime(time)
     storeSeek(time)
   }, [storeSeek])
 
@@ -455,14 +458,17 @@ export function WorkspaceManager() {
       <div className="fixed inset-0 flex flex-col bg-zinc-950 z-50">
         <div className="flex-shrink-0">
           <Toolbar
-            project={currentProject}
-            onToggleProperties={toggleProperties}
-            onExport={() => setExportOpen(true)}
-            onSaveProject={handleSaveProject}
-            onBackToLibrary={() => {
-              setCurrentView('editor')
+            mode="editor"
+            editorProps={{
+              project: currentProject!,
+              hasUnsavedChanges,
+              onSaveProject: handleSaveProject,
+              onExport: () => setExportOpen(true),
+              onToggleProperties: toggleProperties,
+              onBackToLibrary: () => {
+                setCurrentView('editor')
+              }
             }}
-            hasUnsavedChanges={hasUnsavedChanges}
           />
         </div>
         <div className="flex-1 overflow-hidden relative">
@@ -486,55 +492,58 @@ export function WorkspaceManager() {
   } else {
     content = (
       <div className="fixed inset-0 flex flex-col bg-transparent" style={{ width: '100vw', height: '100vh' }}>
-        {/* Top Toolbar - Hide during export to save resources */}
+        {/* Top Toolbar - Absolutely positioned to allow glow bleed-through */}
         {!isExporting && (
-          <div className="flex-shrink-0">
+          <div className="absolute top-0 left-0 right-0 z-50 pointer-events-none">
             <Toolbar
-              project={currentProject}
-              onToggleProperties={toggleProperties}
-              onExport={() => setExportOpen(true)}
-              onSaveProject={handleSaveProject}
-              onBackToLibrary={() => {
-                // Clean up resources and navigate back to library
-                const cleanupAndReturn = () => {
-                  // Clean up local state
-                  setHasUnsavedChanges(false)
+              mode="editor"
+              editorProps={{
+                project: currentProject,
+                hasUnsavedChanges,
+                onSaveProject: handleSaveProject,
+                onExport: () => setExportOpen(true),
+                onToggleProperties: toggleProperties,
+                onBackToLibrary: () => {
+                  // Clean up resources and navigate back to library
+                  const cleanupAndReturn = () => {
+                    // Clean up local state
+                    setHasUnsavedChanges(false)
 
-                  // Memory cleanup: clear HEAVY data only (not thumbnails - those are small and should persist)
-                  ProjectStorage.clearMetadataCache()
+                    // Memory cleanup: clear HEAVY data only (not thumbnails - those are small and should persist)
+                    ProjectStorage.clearMetadataCache()
 
-                  // Clean up stores
-                  cleanupProject()
-                  resetWorkspace()
+                    // Clean up stores
+                    cleanupProject()
+                    resetWorkspace()
 
-                  // Clear all rendering caches to free memory
-                  import('@/features/media/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
-                  import('@/features/effects/cursor/logic/cursor-logic').then(m => m.clearCursorCalculatorCache())
-                  import('@/shared/utils/video-metadata').then(m => m.clearDurationCache())
+                    // Clear all rendering caches to free memory
+                    import('@/features/media/audio/waveform-analyzer').then(m => m.WaveformAnalyzer.clearCache())
+                    import('@/features/effects/cursor/logic/cursor-logic').then(m => m.clearCursorCalculatorCache())
+                    import('@/shared/utils/video-metadata').then(m => m.clearDurationCache())
 
-                  // Hide record button when returning to library (main window visible)
-                  if (window.electronAPI?.minimizeRecordButton) {
-                    window.electronAPI.minimizeRecordButton()
+                    // Hide record button when returning to library (main window visible)
+                    if (window.electronAPI?.minimizeRecordButton) {
+                      window.electronAPI.minimizeRecordButton()
+                    }
                   }
-                }
 
-                // If there are unsaved changes, confirm before leaving
-                if (hasUnsavedChanges) {
-                  if (confirm('You have unsaved changes. Do you want to leave without saving?')) {
+                  // If there are unsaved changes, confirm before leaving
+                  if (hasUnsavedChanges) {
+                    if (confirm('You have unsaved changes. Do you want to leave without saving?')) {
+                      cleanupAndReturn()
+                    }
+                  } else {
                     cleanupAndReturn()
                   }
-                } else {
-                  cleanupAndReturn()
                 }
               }}
-              hasUnsavedChanges={hasUnsavedChanges}
             />
           </div>
         )}
 
         {/* Main Content Area */}
         {!isExporting ? (
-          <div className="flex-1 flex flex-col overflow-hidden relative">
+          <div className="flex-1 flex flex-col overflow-hidden relative pt-14">
             <div className="flex flex-col h-full">
               {/* Top Section - Preview and Sidebars (flexible height) */}
               <div className="flex flex-1 min-h-0 relative">

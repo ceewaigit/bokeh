@@ -761,7 +761,7 @@
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
     -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
     backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, var(--window-surface-border-alpha));
+    /* Removed inset shadow for cleaner floating toolbar look */
     border-radius: var(--window-surface-radius);
     overflow: hidden;
   }
@@ -833,7 +833,6 @@
     background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
     -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
     backdrop-filter: blur(var(--window-surface-blur)) saturate(var(--window-surface-saturate)) brightness(var(--window-surface-brightness)) contrast(var(--window-surface-contrast));
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, var(--window-surface-border-alpha));
   }
 
   /* Full-window surface uses the app background token */
