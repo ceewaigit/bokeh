@@ -40,6 +40,19 @@ export class MotionBlurController {
     }
 
     /**
+     * Pre-warm the WebGL context during project loading.
+     * Call this before the workspace appears to avoid lag on first frame render.
+     */
+    public static warmUp(): void {
+        // Force singleton instantiation which triggers initWebGL() in constructor
+        const instance = MotionBlurController.instance;
+        // Flush the GPU pipeline to ensure shader compilation is complete
+        if (instance.gl && !instance.gl.isContextLost()) {
+            instance.gl.flush();
+        }
+    }
+
+    /**
      * Re-initializes WebGL context if lost or not yet created.
      */
     private initWebGL() {

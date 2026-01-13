@@ -62,7 +62,7 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
               onUpdateBackground({ padding: value })
             }}
             min={0}
-            max={200}
+            max={120}
             step={2}
             className="w-full"
           />

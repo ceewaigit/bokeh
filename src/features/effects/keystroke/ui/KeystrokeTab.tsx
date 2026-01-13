@@ -303,7 +303,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
                   onValueChange={([v]) => setLocalScale(v)}
                   onValueCommit={([v]) => onUpdateKeystroke({ scale: v })}
                   min={0.25}
-                  max={2}
+                  max={1.5}
                   step={0.1}
                   className="w-full"
                 />

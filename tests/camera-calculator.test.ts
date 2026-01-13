@@ -47,10 +47,10 @@ describe('camera-calculator spring simulation', () => {
       deterministic: false,
     })
 
-    // On the very first frame of a zoom intro, the center is set directly to the target.
-    // The transform handles keeping it fixed at 0.5 until scale > 1.
-    expect(first.zoomCenter.x).toBeCloseTo(0.8, 5)
-    expect(first.zoomCenter.y).toBeCloseTo(0.8, 5)
+    // On the very first frame of a zoom intro, the center starts at the pre-zoom position (0.5).
+    // It interpolates toward cursor during intro, synced with scale easing.
+    expect(first.zoomCenter.x).toBeCloseTo(0.5, 5)
+    expect(first.zoomCenter.y).toBeCloseTo(0.5, 5)
 
     const later = computeCameraState({
       effects: effects as any,

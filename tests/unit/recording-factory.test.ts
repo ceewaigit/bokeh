@@ -14,7 +14,6 @@ import {
     hasCursorData,
     hasKeystrokeData,
     shouldSkipMetadataLoading,
-    type RecordingSource
 } from '../../src/features/ui/timeline/clips/recording-factory'
 
 describe('Recording Factory', () => {

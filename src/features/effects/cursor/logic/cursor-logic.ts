@@ -35,6 +35,53 @@ function getSmoothingCacheKey(
 }
 
 /**
+ * Map unified cursorSmoothness value (0-1) to internal speed/smoothness/glide parameters.
+ * - cursorSmoothness 0 = responsive/snappy (high internal speed, low smoothing)
+ * - cursorSmoothness 1 = cinematic/buttery (low internal speed, high smoothing)
+ */
+export function mapSmoothnessToParams(cursorSmoothness: number): { speed: number; smoothness: number; glide: number } {
+  const t = clamp01(cursorSmoothness)
+  return {
+    speed: lerp(0.8, 0.01, t),        // Responsive (0.8) → Cinematic (0.01)
+    smoothness: lerp(0.15, 0.7, t),   // Low (0.15) → High (0.7) history window
+    glide: lerp(0.15, 0.65, t),       // Low (0.15) → High (0.65) inertia
+  }
+}
+
+/**
+ * Migrate old speed/smoothness/glide values to unified cursorSmoothness.
+ * Uses speed as primary signal since it has the most impact on perceived smoothness.
+ */
+export function migrateToUnifiedSmoothness(speed?: number, _smoothness?: number, _glide?: number): number {
+  // If no old values, return default (cinematic-ish)
+  if (speed === undefined) return 0.8
+  // Invert: speed 0.01 → cursorSmoothness ~1.0, speed 0.8 → cursorSmoothness ~0.0
+  return clamp01(1 - (speed - 0.01) / 0.79)
+}
+
+/**
+ * Get effective internal parameters from CursorEffectData.
+ * Handles both new unified cursorSmoothness and legacy speed/smoothness/glide.
+ */
+export function getEffectiveMotionParams(cursorData?: CursorEffectData): { speed: number; smoothness: number; glide: number } {
+  if (!cursorData) {
+    return mapSmoothnessToParams(0.8) // default
+  }
+
+  // If cursorSmoothness is set, derive all values from it
+  if (cursorData.cursorSmoothness !== undefined) {
+    return mapSmoothnessToParams(cursorData.cursorSmoothness)
+  }
+
+  // Legacy: use old individual values
+  return {
+    speed: cursorData.speed ?? DEFAULT_CURSOR_DATA.speed,
+    smoothness: cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness,
+    glide: cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75,
+  }
+}
+
+/**
  * Clear the smoothing cache - call when switching projects or recordings
  */
 export function clearCursorCalculatorCache(): void {
@@ -314,11 +361,12 @@ export function calculateCursorState(
   const motionBlurIntensity = cursorData.motionBlurIntensity ?? (cursorData.motionBlur ? (DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40) : 0)
   if (motionBlurIntensity > 0) {
     // Special "ice" friction model used in Bokeh
+    const { speed: effectiveSpeed } = getEffectiveMotionParams(cursorData)
     const referencePosition = sampleHistoricalPosition(
       mouseEvents,
       timestamp,
       position,
-      Math.min(60, (1 - (cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)) * 80 + 20)
+      Math.min(60, (1 - effectiveSpeed) * 80 + 20)
     )
 
     const dx = position.x - referencePosition.x
@@ -387,7 +435,7 @@ function calculateDirectionalTilt(options: {
   // Keep "text" and "precision" cursors stable.
   if (cursorType === CursorType.IBEAM || cursorType === CursorType.CROSSHAIR) return { rotation: 0, tiltX: 0, tiltY: 0 }
 
-  const maxDegRaw = cursorData.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 10
+  const maxDegRaw = cursorData.directionalTiltMaxDeg ?? DEFAULT_CURSOR_DATA.directionalTiltMaxDeg ?? 16
   const maxDeg = Math.max(0, Math.min(25, Number.isFinite(maxDegRaw) ? maxDegRaw : 0))
   if (maxDeg <= 0) return { rotation: 0, tiltX: 0, tiltY: 0 }
 
@@ -538,12 +586,15 @@ function smoothPositionWithHistory(
     return { position: rawPosition }
   }
 
+  // Get effective params (handles cursorSmoothness vs legacy)
+  const { speed, smoothness, glide } = getEffectiveMotionParams(cursorData)
+
   // PERF: Check cache first - key includes timestamp and smoothing params
   const cacheKey = getSmoothingCacheKey(
     timestamp,
-    cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness,
-    cursorData.speed ?? DEFAULT_CURSOR_DATA.speed,
-    cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75,
+    smoothness,
+    speed,
+    glide,
     cursorData.smoothingJumpThreshold ?? DEFAULT_CURSOR_DATA.smoothingJumpThreshold ?? 0.9
   )
   const cached = smoothingCache.get(cacheKey)
@@ -596,16 +647,14 @@ function sampleHistoricalPosition(
 }
 
 function computeHistoryWindowMs(cursorData: CursorEffectData): number {
-  const smoothness = clamp01(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
-  const speed = clamp01(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)
-  const glide = clamp01(cursorData.glide ?? DEFAULT_CURSOR_DATA.glide ?? 0.75)
+  const { speed, smoothness, glide } = getEffectiveMotionParams(cursorData)
 
   const minWindow = 120
   const maxWindow = 420
-  const baseWindow = minWindow + (maxWindow - minWindow) * smoothness
-  const responsiveness = 0.55 + (1 - speed) * 0.4
+  const baseWindow = minWindow + (maxWindow - minWindow) * clamp01(smoothness)
+  const responsiveness = 0.55 + (1 - clamp01(speed)) * 0.4
 
-  const glideFactor = lerp(0.85, 1.35, glide)
+  const glideFactor = lerp(0.85, 1.35, clamp01(glide))
 
   return Math.max(90, baseWindow * responsiveness * glideFactor)
 }
@@ -937,6 +986,7 @@ export interface PreviewMotionOverride {
   smoothness?: number
   glide?: number
   gliding?: boolean
+  cursorSmoothness?: number
 }
 
 export function calculateCursorPreviewConfig(
@@ -945,10 +995,27 @@ export function calculateCursorPreviewConfig(
 ) {
   const defaults = DEFAULT_CURSOR_DATA
 
-  // Resolve effective values (store data + defaults + overrides)
-  const baseSpeed = cursorData?.speed ?? defaults.speed
-  const baseSmoothness = cursorData?.smoothness ?? defaults.smoothness
-  const baseGlide = cursorData?.glide ?? defaults.glide ?? 0.75
+  // Get base motion params from cursorData (handles cursorSmoothness vs legacy)
+  const baseParams = getEffectiveMotionParams(cursorData)
+
+  // Apply overrides if present
+  let effectiveSpeed: number
+  let effectiveSmoothness: number
+  let effectiveGlide: number
+
+  if (override?.cursorSmoothness !== undefined) {
+    // If override has unified smoothness, derive all values from it
+    const overrideParams = mapSmoothnessToParams(override.cursorSmoothness)
+    effectiveSpeed = clamp(overrideParams.speed, 0.01, 1)
+    effectiveSmoothness = clamp(overrideParams.smoothness, 0.1, 1)
+    effectiveGlide = clamp(overrideParams.glide, 0, 1)
+  } else {
+    // Legacy override handling
+    effectiveSpeed = clamp(override?.speed ?? baseParams.speed, 0.01, 1)
+    effectiveSmoothness = clamp(override?.smoothness ?? baseParams.smoothness, 0.1, 1)
+    effectiveGlide = clamp(override?.glide ?? baseParams.glide, 0, 1)
+  }
+
   const baseContinuity = cursorData?.smoothingJumpThreshold ?? defaults.smoothingJumpThreshold ?? 0.9
   const baseSize = cursorData?.size ?? defaults.size
   const baseMotionBlur = typeof cursorData?.motionBlurIntensity === 'number'
@@ -956,9 +1023,6 @@ export function calculateCursorPreviewConfig(
     : (cursorData?.motionBlur === false ? 0 : (defaults.motionBlurIntensity ?? 40))
 
   const glidingEnabled = override?.gliding ?? cursorData?.gliding ?? defaults.gliding
-  const effectiveSpeed = clamp(override?.speed ?? baseSpeed, 0.01, 1)
-  const effectiveSmoothness = clamp(override?.smoothness ?? baseSmoothness, 0.1, 1)
-  const effectiveGlide = clamp(override?.glide ?? baseGlide, 0, 1)
   const effectiveContinuity = clamp(baseContinuity, 0.4, 1.6)
 
   const sizeScale = clamp(baseSize / defaults.size, 0.65, 1.8)

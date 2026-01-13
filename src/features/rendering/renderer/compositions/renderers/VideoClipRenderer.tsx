@@ -309,7 +309,12 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             rampRange={motionBlur?.rampRange}
             clampRadius={motionBlur?.clampRadius}
             smoothWindow={motionBlur?.smoothWindow}
-            refocusBlurIntensity={Math.min(1, (refocusBlurPx ?? 0) / 12)}
+            refocusBlurIntensity={
+              // Motion blur takes priority over refocus blur - disable refocus when velocity > 5px
+              Math.hypot(motionBlur?.velocity?.x ?? 0, motionBlur?.velocity?.y ?? 0) > 5
+                ? 0
+                : Math.min(1, (refocusBlurPx ?? 0) / 12)
+            }
             isScrubbing={isScrubbing}
           >
             <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>

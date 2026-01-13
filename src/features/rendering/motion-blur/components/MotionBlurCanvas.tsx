@@ -10,7 +10,7 @@
  */
 
 import React, { useRef } from 'react';
-import { clamp01, smootherStep } from '@/features/rendering/canvas/math';
+import { clamp01 } from '@/features/rendering/canvas/math';
 import { MotionBlurController } from '../logic/MotionBlurController';
 
 export interface MotionBlurCanvasProps {
@@ -62,8 +62,6 @@ export interface MotionBlurCanvasProps {
     onVisibilityChange?: (visible: boolean) => void;
     /** Refocus blur intensity (0-1) for omnidirectional blur during zoom transitions */
     refocusBlurIntensity?: number;
-    /** Callback to report smoothed velocity to parent (for fade-out tracking) */
-    onSmoothedVelocityChange?: (velocity: { x: number; y: number }) => void;
 }
 
 export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
@@ -87,19 +85,12 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     offsetX,
     offsetY,
     renderScale = 1,
-    velocityThreshold: velocityThresholdProp = 0,
-    rampRange: rampRangeProp = 0.5,
-    clampRadius: clampRadiusProp = 60,
-    smoothWindow: smoothWindowProp = 6,
+    velocityThreshold: _velocityThresholdProp = 0,
+    rampRange: _rampRangeProp = 0.5,
+    clampRadius: _clampRadiusProp = 60,
+    smoothWindow: _smoothWindowProp = 6,
     refocusBlurIntensity = 0,
-    onSmoothedVelocityChange,
 }) => {
-    // Config - use props instead of hard-coded values
-    const maxBlurRadius = clampRadiusProp > 0 ? clampRadiusProp : 60;
-    const velocityThreshold = velocityThresholdProp;  // Default 0 = most sensitive
-    const rampRange = rampRangeProp;
-    const clampRadius = clampRadiusProp;
-
     // Velocity smoothing ref - persists across renders for fade effect
     const prevVelocityRef = useRef({ x: 0, y: 0 });
 
@@ -173,87 +164,65 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         // Keep for future diagnostics/debugging if needed.
         // const sourceSize = resolveSourceSize(mediaSource);
 
-        // Apply velocity smoothing for gradual fade effect
+        // ========================================================================
+        // MOTION BLUR - PHYSICALLY CORRECT
+        // Physics: blur_length = velocity × shutter_angle
+        // 180° shutter (0.5) is industry standard for natural motion blur
+        // ========================================================================
+        const SHUTTER_ANGLE = 0.5;
+
+        // Get raw velocity (already in pixels from use-frame-snapshot.ts)
         const rawVx = Number.isFinite(velocity.x) ? velocity.x : 0;
         const rawVy = Number.isFinite(velocity.y) ? velocity.y : 0;
-        const rawSpeed = Math.hypot(rawVx, rawVy);
-        const prevSpeed = Math.hypot(prevVelocityRef.current.x, prevVelocityRef.current.y);
 
-        // Asymmetric smoothing: fast attack (0.25), slow decay (0.06)
-        // This makes blur activate quickly but fade out smoothly
-        const isDecelerating = rawSpeed < prevSpeed;
-        const baseFactor = 1 / Math.max(1, smoothWindowProp);
-        const smoothFactor = isDecelerating ? Math.min(baseFactor, 0.06) : Math.max(baseFactor, 0.25);
-
-        // Lerp toward current velocity (creates trailing fade-out effect)
+        // Light smoothing to reduce jitter (simple symmetric EMA)
+        const smoothFactor = 0.3;
         const smoothVx = prevVelocityRef.current.x + (rawVx - prevVelocityRef.current.x) * smoothFactor;
         const smoothVy = prevVelocityRef.current.y + (rawVy - prevVelocityRef.current.y) * smoothFactor;
         prevVelocityRef.current = { x: smoothVx, y: smoothVy };
 
-        // Report smoothed velocity to parent for mount/unmount decisions
-        onSmoothedVelocityChange?.({ x: smoothVx, y: smoothVy });
+        // Calculate speed for response curve
+        const rawSpeed = Math.hypot(smoothVx, smoothVy);
 
-        const speed = Math.hypot(smoothVx, smoothVy);
+        // Non-linear response curve: compress small movements, preserve large ones
+        // Formula: response = speed² / (speed² + knee²) - soft knee curve
+        // This suppresses micro-movements while preserving physics for fast motion
+        const KNEE_PX = 15;  // Velocities << 15px are compressed, >> 15px approach 1:1
+        const kneeSq = KNEE_PX * KNEE_PX;
+        const speedSq = rawSpeed * rawSpeed;
+        const responseMultiplier = speedSq / (speedSq + kneeSq);
 
-        canvasEl.style.visibility = 'visible';
+        // Apply response curve to velocity (preserving direction)
+        const scaledVx = smoothVx * responseMultiplier;
+        const scaledVy = smoothVy * responseMultiplier;
 
-        const validThreshold = Number.isFinite(velocityThreshold) ? velocityThreshold : 0;
-        const validRamp = Number.isFinite(rampRange) ? rampRange : 0.5;
-        const excess = Math.max(0, speed - validThreshold);
-        // Wider soft knee range for smoother transitions
-        // For zero threshold, use 8px range; otherwise use at least 2px or threshold * ramp
-        const softKneeRange = validThreshold > 0 ? Math.max(2, validThreshold * validRamp) : 8;
-        const rampFactor = smootherStep(clamp01(excess / softKneeRange));
+        // Physical motion blur: velocity × shutter × user_intensity
+        const validIntensity = Number.isFinite(intensity) ? intensity : 1.0;
+        const blurVx = scaledVx * SHUTTER_ANGLE * validIntensity;
+        const blurVy = scaledVy * SHUTTER_ANGLE * validIntensity;
 
-        const validIntensity = Number.isFinite(intensity) ? intensity : 0;
-        const maxRadius = clampRadius > 0 ? clampRadius : maxBlurRadius;
+        // Convert to UV space for shader (blur direction + magnitude in texture coordinates)
+        const uvVelocityX = blurVx / drawWidth;
+        const uvVelocityY = blurVy / drawHeight;
 
-        // Velocity-proportional scaling with reduced cinematic falloff
-        const velocityRange = maxRadius * 2.0;
-        const velocityRatio = clamp01(excess / Math.max(1, velocityRange));
-        // Reduced exponent (0.8 instead of 1.1) for more linear response at lower velocities
-        const cinematicCurve = Math.pow(velocityRatio, 0.8);
-        const targetRadius = cinematicCurve * validIntensity * maxRadius;
-        const effectiveRadius = Math.min(maxRadius, targetRadius) * rampFactor;
-
-        // Use the ramp to drive in-shader mix instead of CSS opacity to avoid dark overlay blending.
-        const opacityRamp = clamp01(effectiveRadius / 2.0);
-        const mixRamp = clamp01((Number.isFinite(mix) ? mix : 1.0) * opacityRamp);
-
-        // Check if we should render (motion blur OR refocus blur active)
+        // Visibility: hide canvas when blur is negligible
+        const blurMagnitude = Math.hypot(uvVelocityX, uvVelocityY);
         const hasRefocusBlur = refocusBlurIntensity > 0.001;
+        const isVisible = blurMagnitude > 0.0005 || hasRefocusBlur || forceRender;
 
-        // Use gradual opacity transitions instead of instant hide/show
-        // This prevents the abrupt snap-off when motion stops
-        const targetOpacity = (mixRamp < 0.001 && !hasRefocusBlur && !forceRender) ? 0 : 1;
-        const currentOpacity = parseFloat(canvasEl.style.opacity) || 0;
+        canvasEl.style.visibility = isVisible ? 'visible' : 'hidden';
+        canvasEl.style.opacity = isVisible ? '1' : '0';
+        onVisibilityChange?.(isVisible);
 
-        // Smooth opacity transition: fast fade-in (0.3), slow fade-out (0.08)
-        const opacityFactor = targetOpacity > currentOpacity ? 0.3 : 0.08;
-        const newOpacity = currentOpacity + (targetOpacity - currentOpacity) * opacityFactor;
+        if (!isVisible) return;
 
-        // Threshold to consider fully hidden
-        if (newOpacity < 0.01 && !hasRefocusBlur && !forceRender) {
-            canvasEl.style.visibility = 'hidden';
-            canvasEl.style.opacity = '0';
-            onVisibilityChange?.(false);
-            return;
-        }
-        canvasEl.style.visibility = 'visible';
-        canvasEl.style.opacity = String(Math.min(1, newOpacity));
+        // Sample count based on blur length (more samples for longer blur)
+        const blurLengthPx = Math.hypot(blurVx, blurVy);
+        const calculatedSamples = Math.max(8, Math.min(64, Math.ceil(blurLengthPx)));
+        const finalSamples = samples ?? calculatedSamples;
 
-        // Calculate blur direction
-        let dirX = 0, dirY = 0;
-        if (speed > 0.01) {
-            dirX = smoothVx / speed;
-            dirY = smoothVy / speed;
-        }
-        const uvVelocityX = (dirX * effectiveRadius) / drawWidth;
-        const uvVelocityY = (dirY * effectiveRadius) / drawHeight;
-
-        // Dynamic sample count
-        const calculatedSamples = Math.max(8, Math.min(64, Math.ceil(effectiveRadius)));
-        const finalSamples = Math.min(64, samples ?? calculatedSamples);
+        // Mix: scale blur blend based on magnitude (full blur when moving)
+        const mixRamp = clamp01(blurMagnitude * 100);
 
         // Render via WebGL controller.
         // IMPORTANT: Render the blur output in *output space* (drawWidth/drawHeight), not source space.
@@ -348,8 +317,6 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         // No per-frame cleanup - let resources persist across frames for performance.
         // Cleanup only happens on unmount (separate effect below).
     }, [
-        // REMOVED: frame - useLayoutEffect runs after every render anyway,
-        // and having it here caused cleanup to run per-frame
         videoFrame,
         velocity,
         intensity,
@@ -366,11 +333,6 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         drawHeight,
         renderScale,
         containerRef,
-        maxBlurRadius,
-        velocityThreshold,
-        rampRange,
-        clampRadius,
-        smoothWindowProp,
         onVisibilityChange,
         refocusBlurIntensity,
     ]);

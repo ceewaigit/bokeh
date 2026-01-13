@@ -20,16 +20,17 @@ const normalizeSearchValue = (value: string) => (
     .trim()
 )
 
-export const useRecordingsLibraryData = (pageSize: number) => {
+export const useRecordingsLibraryData = () => {
   const {
     recordings,
     hydrationByPath,
-    currentPage,
+    displayedCount,
     searchQuery,
     sortKey,
     sortDirection,
     setRecordings,
-    setCurrentPage,
+    incrementDisplayed,
+    resetDisplayed,
     setHydration,
     removeRecording,
     setSearchQuery,
@@ -93,13 +94,16 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     return result
   }, [recordings, searchQuery, sortKey, sortDirection, hydrationByPath])
 
-  const totalPages = Math.max(1, Math.ceil(filteredAndSortedRecordings.length / pageSize))
-
+  // For infinite scroll - show items up to displayedCount
   const displayedRecordings = useMemo(() => {
-    const start = (currentPage - 1) * pageSize
-    const end = start + pageSize
-    return filteredAndSortedRecordings.slice(start, end)
-  }, [filteredAndSortedRecordings, currentPage, pageSize])
+    return filteredAndSortedRecordings.slice(0, displayedCount)
+  }, [filteredAndSortedRecordings, displayedCount])
+
+  // Whether there are more items to load
+  const hasMore = displayedCount < filteredAndSortedRecordings.length
+
+  // Loading more state (for infinite scroll indicator)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   const displayedRecordingsHydrated = useMemo(() => {
     return displayedRecordings.map((rec) => ({
@@ -142,25 +146,17 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     return Math.min(2, window.devicePixelRatio || 1)
   }
 
-  const resolveThumbnailSpec = useCallback((index: number) => {
-    const isRecentLayout = !searchQuery
-      && currentPage === 1
-      && sortKey === 'date'
-      && sortDirection === 'desc'
+  const resolveThumbnailSpec = useCallback((_index: number) => {
+    // Simplified thumbnail spec - all cards get same size thumbnails
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
-    let baseWidth = 720
-    if (isRecentLayout && index === 0) {
-      baseWidth = Math.min(2000, Math.max(1200, Math.round(viewportWidth * 0.65)))
-    } else if (isRecentLayout && index < 4) {
-      baseWidth = Math.min(1400, Math.max(900, Math.round(viewportWidth * 0.4)))
-    }
+    const baseWidth = Math.min(800, Math.max(400, Math.round(viewportWidth * 0.25)))
     const dpr = getDeviceScale()
-    const width = Math.min(Math.round(baseWidth * dpr), 2400)
+    const width = Math.min(Math.round(baseWidth * dpr), 1600)
     const height = Math.round((width * 9) / 16)
-    const variant: ThumbnailVariant = baseWidth >= 900 ? 'large' : 'default'
-    const quality = variant === 'large' ? 0.9 : 0.8
+    const variant: ThumbnailVariant = 'default'
+    const quality = 0.8
     return { width, height, variant, quality }
-  }, [currentPage, searchQuery, sortDirection, sortKey])
+  }, [])
 
   const getThumbnailFileName = (variant: ThumbnailVariant) =>
     variant === 'large' ? 'thumbnail-large.jpg' : 'thumbnail.jpg'
@@ -210,10 +206,10 @@ export const useRecordingsLibraryData = (pageSize: number) => {
   }, [])
 
   useEffect(() => {
-    const pageStartIndex = (currentPage - 1) * pageSize
+    // Map displayed recordings to items with their indices
     const pageItems = displayedRecordings.map((rec, index) => ({
       rec,
-      index: pageStartIndex + index
+      index
     }))
     const needsHydration = pageItems.filter(({ rec, index }) => {
       const hydration = hydrationRef.current[rec.path]
@@ -364,10 +360,11 @@ export const useRecordingsLibraryData = (pageSize: number) => {
         setIsPageHydrating(false)
       }
 
+      // Pre-load next batch for smooth infinite scroll
       if (loadTokenRef.current === token) {
-        const start = currentPage * pageSize
-        const end = start + pageSize
-        const nextItems = recordingsRef.current.slice(start, end).map((rec, index) => ({
+        const start = displayedCount
+        const end = start + 24 // Pre-load next batch
+        const nextItems = filteredAndSortedRecordings.slice(start, end).map((rec, index) => ({
           rec,
           index: start + index
         }))
@@ -386,8 +383,8 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     })
   }, [
     pageKey,
-    currentPage,
-    pageSize,
+    displayedCount,
+    filteredAndSortedRecordings,
     setHydration,
     generateThumbnail,
     loadThumbnailFromDisk,
@@ -437,14 +434,14 @@ export const useRecordingsLibraryData = (pageSize: number) => {
 
         uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setRecordings(uniqueRecordings)
-        setCurrentPage(1)
+        resetDisplayed()
       }
     } catch (error) {
       console.error('Failed to load recordings:', error)
     } finally {
       setLoading(false)
     }
-  }, [recordings, loading, setRecordings, setCurrentPage])
+  }, [recordings, loading, setRecordings, resetDisplayed])
 
   useEffect(() => {
     if (recordings.length === 0) {
@@ -461,18 +458,16 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     }
   }, [loadRecordings, recordings.length])
 
-  useEffect(() => {
-    // If listings change (due to filter/sort) and we are on an invalid page, reset to page 1
-    // or clamp to last page.
-    if (filteredAndSortedRecordings.length === 0 && currentPage !== 1) {
-      setCurrentPage(1)
-      return
-    }
-    const safePage = Math.min(Math.max(1, currentPage), totalPages)
-    if (safePage !== currentPage) {
-      setCurrentPage(safePage)
-    }
-  }, [pageSize, filteredAndSortedRecordings.length, currentPage, setCurrentPage, totalPages])
+  // Load more function for infinite scroll
+  const loadMore = useCallback(() => {
+    if (isLoadingMore || !hasMore) return
+    setIsLoadingMore(true)
+    // Small delay to allow hydration to start
+    setTimeout(() => {
+      incrementDisplayed()
+      setIsLoadingMore(false)
+    }, 100)
+  }, [isLoadingMore, hasMore, incrementDisplayed])
 
   useEffect(() => {
     if (hydrationIndicatorTimeoutRef.current !== null) {
@@ -555,21 +550,6 @@ export const useRecordingsLibraryData = (pageSize: number) => {
     }
   }, [loadRecordings])
 
-  const canPrev = currentPage > 1
-  const canNext = currentPage < totalPages
-
-  const handlePrevPage = () => {
-    if (canPrev) {
-      setCurrentPage(currentPage - 1)
-    }
-  }
-
-  const handleNextPage = () => {
-    if (canNext) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-
   return {
     searchQuery,
     setSearchQuery,
@@ -579,15 +559,15 @@ export const useRecordingsLibraryData = (pageSize: number) => {
 
     recordings: filteredAndSortedRecordings,
     displayedRecordings: displayedRecordingsHydrated,
-    currentPage,
-    totalPages,
     loading,
     loadRecordings,
     showHydrationIndicator,
-    handlePrevPage,
-    handleNextPage,
-    canPrev,
-    canNext,
+
+    // Infinite scroll
+    hasMore,
+    isLoadingMore,
+    loadMore,
+
     pendingDelete,
     setPendingDelete,
     handleDeleteRecording,

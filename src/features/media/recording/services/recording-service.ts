@@ -10,7 +10,7 @@
 
 import type { RecordingSettings } from '@/types'
 import type { ElectronRecordingResult, ElectronMetadata } from '@/types/recording'
-import { RecordingSourceType, RecordingArea, AudioInput } from '@/types'
+import { RecordingSourceType, AudioInput } from '@/types'
 import { RecordingStrategy, RecordingConfig, RecordingResult, RecordingSourceType as StrategySourceType } from '../types/recording-strategy'
 import { NativeRecordingStrategy } from '../strategies/native-recording-strategy'
 import { MediaRecorderStrategy } from '../strategies/media-recorder-strategy'

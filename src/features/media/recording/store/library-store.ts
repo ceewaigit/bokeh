@@ -36,7 +36,7 @@ interface RecordingsStore {
   // Single source of truth
   recordings: LibraryRecording[]
   hydrationByPath: Record<string, LibraryRecordingHydration>
-  currentPage: number
+  displayedCount: number  // For infinite scroll - how many items are visible
   isHydrated: boolean
 
   // Filter & Sort State
@@ -46,7 +46,8 @@ interface RecordingsStore {
 
   // Actions
   setRecordings: (recordings: LibraryRecording[]) => void
-  setCurrentPage: (page: number) => void
+  incrementDisplayed: (by?: number) => void  // For infinite scroll - load more items
+  resetDisplayed: () => void  // Reset to initial batch
   setHydration: (path: string, updates: LibraryRecordingHydration) => void
   removeRecording: (path: string) => void
   setHydrated: (hydrated: boolean) => void
@@ -58,10 +59,13 @@ interface RecordingsStore {
   reset: () => void
 }
 
+const INITIAL_BATCH_SIZE = 24
+const LOAD_MORE_BATCH_SIZE = 24
+
 export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
   recordings: [],
   hydrationByPath: {},
-  currentPage: 1,
+  displayedCount: INITIAL_BATCH_SIZE,
   isHydrated: false,
 
   searchQuery: '',
@@ -69,7 +73,10 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
   sortDirection: 'desc',
 
   setRecordings: (recordings) => set({ recordings }),
-  setCurrentPage: (page) => set({ currentPage: page }),
+  incrementDisplayed: (by = LOAD_MORE_BATCH_SIZE) => set((state) => ({
+    displayedCount: state.displayedCount + by
+  })),
+  resetDisplayed: () => set({ displayedCount: INITIAL_BATCH_SIZE }),
 
   setHydration: (path, updates) => set((state) => ({
     hydrationByPath: {
@@ -90,13 +97,13 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
 
   setHydrated: (hydrated) => set({ isHydrated: hydrated }),
 
-  setSearchQuery: (query) => set({ searchQuery: query, currentPage: 1 }),
-  setSort: (key, direction) => set({ sortKey: key, sortDirection: direction, currentPage: 1 }),
+  setSearchQuery: (query) => set({ searchQuery: query, displayedCount: INITIAL_BATCH_SIZE }),
+  setSort: (key, direction) => set({ sortKey: key, sortDirection: direction, displayedCount: INITIAL_BATCH_SIZE }),
 
   reset: () => set({
     recordings: [],
     hydrationByPath: {},
-    currentPage: 1,
+    displayedCount: INITIAL_BATCH_SIZE,
     isHydrated: false,
     searchQuery: '',
     sortKey: 'date',
@@ -105,11 +112,10 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
 }))
 
 // Selectors
-export const useFilteredRecordings = (
-  page: number,
-  pageSize: number
-): ((state: RecordingsStore) => LibraryRecording[]) => (state) => {
-  const start = (page - 1) * pageSize
-  const end = start + pageSize
-  return state.recordings.slice(start, end)
+export const selectDisplayedRecordings = (state: RecordingsStore): LibraryRecording[] => {
+  return state.recordings.slice(0, state.displayedCount)
+}
+
+export const selectHasMore = (state: RecordingsStore): boolean => {
+  return state.displayedCount < state.recordings.length
 }

@@ -20,7 +20,7 @@ function uniq<T>(items: T[]): T[] {
   return out
 }
 
-function getDefaultIconCandidates(): string[] {
+function _getDefaultIconCandidates(): string[] {
   // Support data URIs directly
   if (DEFAULT_BOKEH_ICON_PATH && DEFAULT_BOKEH_ICON_PATH.startsWith('data:')) {
     return [DEFAULT_BOKEH_ICON_PATH]

@@ -126,6 +126,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // This makes motion blur clip-agnostic - it always finds the active video
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
+  // SCRUBBING SAFETY: Cache last valid rendered content to prevent black screen
+  // during fast scrubbing when effectiveClipData temporarily becomes null
+  const lastValidContentRef = useRef<React.ReactNode>(null);
+
   // Get motion blur config from camera settings
   const motionBlurConfig = useMemo(
     () => getMotionBlurConfig(cameraSettings),
@@ -285,6 +289,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     isScrubbing,
   ]);
 
+  // SCRUBBING SAFETY: Cache valid rendered content for fallback during fast scrubbing
+  useEffect(() => {
+    if (renderedContent && renderedContent.some(c => c !== null)) {
+      lastValidContentRef.current = renderedContent;
+    }
+  }, [renderedContent]);
+
   // ==========================================================================
   // RETURN
   // ==========================================================================
@@ -358,7 +369,51 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   ]);
 
   // If no active content, render children (overlays) or empty container
+  // SCRUBBING SAFETY: During scrubbing, use cached content to prevent black screen
   if (!resolvedClipData && !shouldHoldPrevFrame) {
+    // During scrubbing, show last known good content instead of black screen
+    if (isScrubbing && lastValidContentRef.current) {
+      return (
+        <AbsoluteFill>
+          <VideoPositionProvider value={videoPositionContextValue}>
+            <AbsoluteFill>
+              <div
+                data-video-transform-container="true"
+                data-scrubbing-fallback="true"
+                style={{
+                  position: 'absolute',
+                  left: layout.mockupEnabled ? 0 : layout.offsetX,
+                  top: layout.mockupEnabled ? 0 : layout.offsetY,
+                  width: layout.mockupEnabled ? '100%' : layout.drawWidth,
+                  height: layout.mockupEnabled ? '100%' : layout.drawHeight,
+                  transform: outerTransform,
+                  transformOrigin: 'center center',
+                  willChange: 'transform',
+                  zIndex: 1,
+                }}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    clipPath: layout.mockupEnabled ? undefined : cropClipPath,
+                    borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
+                    overflow: (cropClipPath || layout.cornerRadius > 0) ? 'hidden' : undefined,
+                    isolation: 'isolate',
+                  }}
+                >
+                  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                    {lastValidContentRef.current}
+                  </div>
+                </div>
+              </div>
+            </AbsoluteFill>
+            {children}
+          </VideoPositionProvider>
+        </AbsoluteFill>
+      );
+    }
+    // Not scrubbing or no cached content - show black fallback
     return (
       <AbsoluteFill>
         <div style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />

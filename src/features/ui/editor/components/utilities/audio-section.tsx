@@ -111,7 +111,7 @@ export function AudioSection() {
                         value={[volume]}
                         onValueChange={([v]) => updateAudioSettings('volume', v)}
                         min={0}
-                        max={200}
+                        max={150}
                         step={1}
                         className="w-full"
                     />
@@ -310,7 +310,7 @@ export function AudioSection() {
                             commitFadeChange('fadeInDuration', before, v)
                         }}
                         min={0}
-                        max={5}
+                        max={3}
                         step={0.1}
                         className="w-full"
                     />
@@ -335,7 +335,7 @@ export function AudioSection() {
                             commitFadeChange('fadeOutDuration', before, v)
                         }}
                         min={0}
-                        max={5}
+                        max={3}
                         step={0.1}
                         className="w-full"
                     />

@@ -111,11 +111,10 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const setHoverTime = useProjectStore((s) => s.setHoverTime)
   // Note: draggingAsset subscription moved to TimelineAssetDropOverlay to isolate re-renders
 
-  const { selectedClips, selectClip, clearEffectSelection, clearSelection } = useProjectStore(
+  const { selectedClips, selectClip, clearSelection } = useProjectStore(
     useShallow((s) => ({
       selectedClips: s.selectedClips,
       selectClip: s.selectClip,
-      clearEffectSelection: s.clearEffectSelection,
       clearSelection: s.clearSelection,
     }))
   )
@@ -562,9 +561,10 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   const handleStageScrubStart = useCallback((e: KonvaEventObject<MouseEvent | TouchEvent>) => {
     const target = e.target
     if (target?.name?.() === 'timeline-ruler') return
-    clearEffectSelection()
+    // Don't clear selection when clicking empty space - selection should persist until
+    // explicitly cleared (Escape) or a new item is selected (standard editor behavior)
     handleScrubStart(e)
-  }, [clearEffectSelection, handleScrubStart])
+  }, [handleScrubStart])
 
   // ─────────────────────────────────────────────────────────────────────────
   // Speed-up popover actions

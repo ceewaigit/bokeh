@@ -100,15 +100,12 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
         }
     }, [useWebglVideo]);
 
-    const speed = Math.hypot(velocity.x, velocity.y);
-    const effectiveThreshold = velocityThreshold ?? 0;
-    // Mount while active; allow MotionBlurCanvas to handle tail fade via smoothing.
-    // Avoid forcing WebGL rendering in preview when blur is inactive (export can still force for determinism).
-    // PERFORMANCE: Skip WebGL blur during scrubbing to prevent video disappearance and improve responsiveness
-    const isActive = speed > effectiveThreshold + 0.001;
     const hasRefocusBlur = (refocusBlurIntensity ?? 0) > 0.001;
     const forceRender = Boolean(isRendering && useWebglVideo);
-    const shouldRenderCanvas = Boolean(enabled && !isScrubbing && (isActive || hasRefocusBlur || forceRender));
+
+    // Keep canvas mounted whenever blur is enabled - let canvas handle its own opacity via smoothing
+    // This prevents smoothing ref destruction and allows natural fade-out
+    const shouldRenderCanvas = Boolean(enabled && !isScrubbing && ((intensity ?? 1) > 0 || hasRefocusBlur || forceRender));
     const shouldHideVideo = Boolean(useWebglVideo && enabled && shouldRenderCanvas && !isScrubbing);
 
     useEffect(() => {

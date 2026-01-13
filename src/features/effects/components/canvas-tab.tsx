@@ -329,7 +329,7 @@ function AspectRatioSection({
               onChange={(e) => onCustomChange(parseInt(e.target.value) || 1920, customHeight)}
               className="w-20 px-2 py-1 text-xs bg-muted/50 rounded-md border"
               min={100}
-              max={7680}
+              max={3840}
             />
             <span className="text-xs text-muted-foreground">x</span>
             <input
@@ -338,7 +338,7 @@ function AspectRatioSection({
               onChange={(e) => onCustomChange(customWidth, parseInt(e.target.value) || 1080)}
               className="w-20 px-2 py-1 text-xs bg-muted/50 rounded-md border"
               min={100}
-              max={4320}
+              max={2160}
             />
           </div>
         </div>

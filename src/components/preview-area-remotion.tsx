@@ -117,7 +117,7 @@ export function PreviewAreaRemotion({
       .join(",") ?? "";
     // Only fps (timing) and recording IDs (source videos) are truly structural
     return `player-${timelineMetadata.fps}-${videoRecordingIds}`;
-  }, [project, timelineMetadata?.fps]);
+  }, [project, timelineMetadata]);
   // Sync hook
   const { lastIsPlayingRef } = usePlayerSync({
     playerRef,

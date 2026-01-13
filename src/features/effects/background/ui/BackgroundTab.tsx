@@ -838,7 +838,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                       onValueChange={([value]) => setLocalBlur(value)}
                       onValueCommit={([value]) => onUpdateBackground({ blur: value })}
                       min={1}
-                      max={50}
+                      max={30}
                       step={1}
                       className="w-full"
                     />

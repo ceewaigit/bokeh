@@ -261,11 +261,30 @@ function useCalculatedSnapshot(
             };
         }
 
+        // SAFETY NET: If renderableItems is empty but we have previous valid items,
+        // use those to prevent black screen during fast scrubbing.
+        // This should rarely trigger after the fix to findActiveFrameLayoutItems,
+        // but provides defense in depth.
+        if (snapshot.renderableItems.length === 0 && prevRenderableItemsRef.current.length > 0) {
+            snapshot.renderableItems = prevRenderableItemsRef.current;
+        }
+
+        // SAFETY NET: If effectiveClipData is null but we have previous valid data,
+        // use that to prevent black screen during fast scrubbing.
+        // This addresses the root cause where the SharedVideoController early return
+        // triggers a black div when effectiveClipData is temporarily null.
+        if (!snapshot.effectiveClipData && lastValidClipDataRef.current && !isRendering) {
+            snapshot.effectiveClipData = lastValidClipDataRef.current;
+        }
+
         // Update stability refs
         if (snapshot.effectiveClipData) {
             lastValidClipDataRef.current = snapshot.effectiveClipData;
         }
-        prevRenderableItemsRef.current = snapshot.renderableItems;
+        // Only update prevRenderableItems if we have valid items
+        if (snapshot.renderableItems.length > 0) {
+            prevRenderableItemsRef.current = snapshot.renderableItems;
+        }
 
         // Freeze layout when first entering crop edit mode
         if (isEditingCrop && !frozenLayoutRef.current) {

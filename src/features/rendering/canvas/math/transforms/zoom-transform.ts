@@ -11,30 +11,76 @@ import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config';
 // Re-export easing functions for backwards compatibility
 export { smoothStep, smootherStep, easeInOutCubic };
 
-const easeInOutSine = (p: number): number => 0.5 - 0.5 * Math.cos(Math.PI * clamp01(p));
+// Exported easing functions - used by rendering-warmup.ts for JIT pre-warming
+export function easeInOutSine(p: number): number {
+  return 0.5 - 0.5 * Math.cos(Math.PI * clamp01(p));
+}
 
-const easeOutExpo = (p: number): number => {
+export function easeOutExpo(p: number): number {
   const x = clamp01(p);
   return x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
-};
+}
 
-const easeInOutExpo = (p: number): number => {
+export function easeInOutExpo(p: number): number {
   const x = clamp01(p);
   if (x === 0) return 0;
   if (x === 1) return 1;
   return x < 0.5
     ? Math.pow(2, 20 * x - 10) / 2
     : (2 - Math.pow(2, -20 * x + 10)) / 2;
-};
+}
 
-const easeInOutSigmoid = (p: number, k: number = 10): number => {
+export function easeInOutSigmoid(p: number, k: number = 10): number {
   const x = clamp01(p);
   const s = (t: number) => 1 / (1 + Math.exp(-k * (t - 0.5)));
   const s0 = s(0);
   const s1 = s(1);
   return (s(x) - s0) / (s1 - s0);
-};
+}
 
+// Ease-out quint - strong deceleration, "settles" into position
+export function easeOutQuint(p: number): number {
+  const x = clamp01(p);
+  return 1 - Math.pow(1 - x, 5);
+}
+
+/**
+ * Hybrid "settle" easing curve optimized for zoom transitions.
+ *
+ * Standard easeOutQuint starts too fast for deep zooms (2.5x+), rushing to ~80%
+ * immediately with no acceleration period. This hybrid curve provides:
+ *
+ * - First 50%: Smooth acceleration via smootherStep (no jarring start)
+ * - 50-85%: Gradual deceleration phase
+ * - Last 15%: Strong ease-out for natural "settling" into final position
+ *
+ * This creates camera-like motion that accelerates smoothly, then settles
+ * elegantly regardless of zoom scale.
+ */
+export function easeSettleHybrid(p: number): number {
+  const x = clamp01(p);
+
+  if (x < 0.5) {
+    // Smooth acceleration phase using scaled smootherStep
+    const t = x / 0.5;  // Map 0-0.5 to 0-1
+    return smootherStep(t) * 0.6;  // Reaches 60% at midpoint
+  } else if (x < 0.85) {
+    // Transition phase - gradual deceleration
+    const t = (x - 0.5) / 0.35;  // Map 0.5-0.85 to 0-1
+    const eased = t * t * (3 - 2 * t);  // smoothStep for smooth blending
+    return 0.6 + eased * 0.3;  // 60% → 90%
+  } else {
+    // Settle phase - strong ease-out for natural settling
+    const t = (x - 0.85) / 0.15;  // Map 0.85-1 to 0-1
+    const easeOut = 1 - Math.pow(1 - t, 3);  // cubic ease-out
+    return 0.9 + easeOut * 0.1;  // 90% → 100%
+  }
+}
+
+/**
+ * Single easing function for zoom transitions.
+ * Used for both intro (zoom in) and outro (zoom out).
+ */
 function easeZoomProgress(style: ZoomTransitionStyle | undefined, progress: number): number {
   const p = clamp01(progress);
   switch (style ?? 'smoother') {
@@ -54,21 +100,36 @@ function easeZoomProgress(style: ZoomTransitionStyle | undefined, progress: numb
   }
 }
 
+/**
+ * Normalize intro/outro durations to ensure they don't overlap and meet minimum
+ * requirements based on zoom scale.
+ *
+ * @param blockDuration - Total duration of the zoom block in ms
+ * @param introMs - Requested intro duration in ms
+ * @param outroMs - Requested outro duration in ms
+ * @param targetScale - Optional zoom scale (1.0+) to enforce minimum durations
+ */
 const normalizeEaseDurations = (
   blockDuration: number,
   introMs: number,
-  outroMs: number
+  outroMs: number,
+  targetScale?: number
 ): { duration: number; intro: number; outro: number } => {
   const duration = Math.max(0, blockDuration);
   if (duration <= 0) {
     return { duration: 0, intro: 0, outro: 0 };
   }
 
-  // Normalize intro/outro so they never overlap (prevents jumps on short blocks).
-  const rawIntro = Math.max(0, introMs);
-  const rawOutro = Math.max(0, outroMs);
+  // Apply scale-based minimum constraints if scale is provided AND user set non-zero values.
+  // If user explicitly sets 0, they want instant zoom - respect that choice.
+  const minDuration = targetScale != null ? getMinDurationForScale(targetScale) : 0;
+  const rawIntro = introMs > 0 ? Math.max(minDuration, introMs) : 0;
+  const rawOutro = outroMs > 0 ? Math.max(minDuration, outroMs) : 0;
+
   let effectiveIntro = rawIntro;
   let effectiveOutro = rawOutro;
+
+  // Normalize intro/outro so they never overlap (prevents jumps on short blocks).
   const totalEase = effectiveIntro + effectiveOutro;
   if (totalEase > duration && totalEase > 0) {
     const ratio = duration / totalEase;
@@ -82,37 +143,52 @@ const normalizeEaseDurations = (
 export function getEffectiveZoomEaseDurations(
   blockDuration: number,
   introMs: number,
-  outroMs: number
+  outroMs: number,
+  targetScale?: number
 ): { introMs: number; outroMs: number } {
-  const { intro, outro } = normalizeEaseDurations(blockDuration, introMs, outroMs);
+  const { intro, outro } = normalizeEaseDurations(blockDuration, introMs, outroMs, targetScale);
   return { introMs: intro, outroMs: outro };
 }
 
 /**
  * Calculate adaptive intro/outro durations based on zoom scale and block duration.
  *
- * Scale mapping:
- * - 1.0x → minimal (400ms)
- * - 1.5x → 800ms
- * - 2.0x+ → 1200ms (capped)
+ * Uses logarithmic scaling to account for the multiplicative nature of zoom:
+ * - A zoom from 1x→2x covers "1 unit" of scale
+ * - A zoom from 2x→4x covers "2 units" but should feel proportionally similar
  *
- * Uses smoothstep interpolation for natural feel.
+ * Scale mapping (with logarithmic scaling):
+ * - 1.0x → 600ms base
+ * - 2.0x → 900ms (1.5x multiplier via log2)
+ * - 4.0x → 1200ms (2x multiplier via log2)
+ * - 7.0x → 1500ms (capped)
+ *
+ * This ensures deep zooms get proportionally more time to maintain smooth motion.
  */
 export function calculateAdaptiveDurations(
   targetScale: number,
-  blockDurationMs: number
+  blockDurationMs: number,
+  userIntroMs?: number,
+  userOutroMs?: number
 ): { introMs: number; outroMs: number } {
-  // Normalize scale to 0-1 range where 1.0x→0, 2.0x→1
-  const t = Math.min(1, Math.max(0, (targetScale - 1) / 1));
+  // Log-based scaling: deeper zooms need proportionally more time
+  // log2(1) = 0, log2(2) = 1, log2(4) = 2
+  // This accounts for the multiplicative nature of zoom perception
+  const clampedScale = Math.max(1, targetScale);
+  const logScale = Math.log2(clampedScale);
+  const scaleMultiplier = 1 + logScale * 0.5;  // 1x→1.0, 2x→1.5, 4x→2.0
 
-  // Smoothstep for natural interpolation
-  const eased = t * t * (3 - 2 * t);
+  // Base timing - use user values if provided, otherwise defaults
+  const baseIntro = userIntroMs ?? 600;
+  const baseOutro = userOutroMs ?? 650;
 
-  // Interpolate from 400ms (at ~1x) to 1200ms (at 2x+)
-  const baseMs = 400 + eased * 800;
+  // Apply logarithmic scaling
+  let introMs = baseIntro * scaleMultiplier;
+  let outroMs = baseOutro * scaleMultiplier;
 
-  let introMs = baseMs;
-  let outroMs = baseMs;
+  // Clamp to reasonable bounds (300ms min to 2500ms max)
+  introMs = Math.max(300, Math.min(2500, introMs));
+  outroMs = Math.max(300, Math.min(2500, outroMs));
 
   // Never exceed 60% of block duration for total transitions
   const maxTotal = blockDurationMs * 0.6;
@@ -124,6 +200,24 @@ export function calculateAdaptiveDurations(
   }
 
   return { introMs, outroMs };
+}
+
+/**
+ * Get minimum transition duration for a given zoom scale.
+ * Deep zooms need more time to look smooth - prevents user from setting
+ * durations too short for the zoom magnitude.
+ *
+ * @param scale - Target zoom scale (1.0+)
+ * @returns Minimum duration in milliseconds
+ */
+export function getMinDurationForScale(scale: number): number {
+  const clampedScale = Math.max(1, scale);
+  if (clampedScale >= 5) return 900;
+  if (clampedScale >= 4) return 800;
+  if (clampedScale >= 3) return 600;
+  if (clampedScale >= 2) return 400;
+  if (clampedScale >= 1.5) return 300;
+  return 200;
 }
 
 /**
@@ -164,7 +258,8 @@ export function calculateZoomScale(
   outroMs: number = ZOOM_TRANSITION_CONFIG.defaultOutroMs,
   transitionStyle?: ZoomTransitionStyle
 ): number {
-  const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(blockDuration, introMs, outroMs);
+  // Pass targetScale to enforce minimum duration constraints for deep zooms
+  const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(blockDuration, introMs, outroMs, targetScale);
   if (duration <= 0) {
     return 1;
   }
@@ -173,20 +268,18 @@ export function calculateZoomScale(
   const clampedElapsed = Math.max(0, Math.min(duration, elapsed));
 
   if (clampedElapsed < effectiveIntro) {
-    // Intro phase - zoom in smoothly
+    // Intro phase - zoom in
     const progress = effectiveIntro > 0 ? Math.min(1, Math.max(0, clampedElapsed / effectiveIntro)) : 1;
     const easedProgress = easeZoomProgress(transitionStyle, progress);
     return 1 + (targetScale - 1) * easedProgress;
   } else if (clampedElapsed > duration - effectiveOutro) {
-    // Outro phase - zoom out smoothly
-    // Fix: Zoom feels linear - Apply exponential ease-out to outro phase
-    // This creates a "crane camera coming to rest" feel
+    // Outro phase - zoom out
     const outroElapsed = clampedElapsed - (duration - effectiveOutro);
     const progress = effectiveOutro > 0 ? Math.min(1, Math.max(0, outroElapsed / effectiveOutro)) : 1;
-    
-    // Always use easeOutExpo for outro to prevent abrupt stop
-    const easedProgress = easeOutExpo(progress);
-    
+
+    // Use same easing for outro
+    const easedProgress = easeZoomProgress(transitionStyle, progress);
+
     return Math.max(1, targetScale - (targetScale - 1) * easedProgress);
   } else {
     // Hold phase - maintain exact zoom scale
@@ -275,7 +368,8 @@ export function calculateZoomTransform(
   const { duration, intro: effectiveIntro, outro: effectiveOutro } = normalizeEaseDurations(
     blockDuration,
     introMs,
-    outroMs
+    outroMs,
+    targetScale
   );
   const clampedElapsed = Math.max(0, Math.min(duration, elapsed));
   const outroProgress = effectiveOutro > 0 && clampedElapsed > duration - effectiveOutro

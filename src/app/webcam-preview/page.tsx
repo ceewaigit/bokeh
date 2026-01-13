@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 /**
@@ -79,5 +79,9 @@ function WebcamPreviewContent() {
 }
 
 export default function WebcamPreviewPage() {
-    return <WebcamPreviewContent />
+    return (
+        <Suspense fallback={<div className="w-full h-full bg-transparent" />}>
+            <WebcamPreviewContent />
+        </Suspense>
+    )
 }

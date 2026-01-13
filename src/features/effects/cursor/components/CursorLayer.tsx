@@ -24,7 +24,8 @@ import { useCoordinateMapping } from '@/features/rendering/renderer/hooks/layout
 const CURSOR_REFERENCE_WIDTH = CURSOR_CONSTANTS.REFERENCE_WIDTH;
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
-class CursorImagePreloader {
+// Exported for pre-warming during project loading
+export class CursorImagePreloader {
   private static instance: CursorImagePreloader;
   private isLoaded = false;
   private loadingPromise: Promise<void> | null = null;

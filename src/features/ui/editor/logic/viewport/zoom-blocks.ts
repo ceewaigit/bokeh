@@ -156,6 +156,7 @@ function isValidTransitionStyle(style: NonNullable<ZoomEffectData['transitionSty
         || style === 'expo'
         || style === 'sigmoid'
         || style === 'smoother'
+        || style === 'settle'
         || (style as any) === 'cinematic'
         || (style as any) === 'smooth'
         || (style as any) === 'spring'
@@ -164,7 +165,7 @@ function isValidTransitionStyle(style: NonNullable<ZoomEffectData['transitionSty
 function normalizeZoomTransitionStyle(
     style: ZoomEffectData['transitionStyle'] | undefined
 ): NonNullable<ZoomEffectData['transitionStyle']> {
-    if (style === 'linear' || style === 'cubic' || style === 'sine' || style === 'expo' || style === 'sigmoid' || style === 'smoother') {
+    if (style === 'linear' || style === 'cubic' || style === 'sine' || style === 'expo' || style === 'sigmoid' || style === 'smoother' || style === 'settle') {
         return style
     }
     // Legacy ids from earlier iterations

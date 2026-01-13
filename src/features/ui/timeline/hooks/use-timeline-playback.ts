@@ -179,6 +179,11 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     seek(clampTime(state.currentTime + 1000, maxTime))
   }, [seek])
 
+  const handleEscape = useCallback(() => {
+    // Clear all selection (clips and effects) when Escape is pressed
+    useProjectStore.getState().clearSelection()
+  }, [])
+
   const bindings = useMemo(() => ([
     { event: 'playPause', handler: handlePlayPause },
     { event: 'shuttleReverse', handler: handleShuttleReverse },
@@ -191,7 +196,8 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     { event: 'timelineStart', handler: handleTimelineStart },
     { event: 'timelineEnd', handler: handleTimelineEnd },
     { event: 'clipPrevious', handler: handleClipPrevious },
-    { event: 'clipNext', handler: handleClipNext }
+    { event: 'clipNext', handler: handleClipNext },
+    { event: 'escape', handler: handleEscape }
   ]), [
     handlePlayPause,
     handleShuttleReverse,
@@ -204,7 +210,8 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     handleTimelineStart,
     handleTimelineEnd,
     handleClipPrevious,
-    handleClipNext
+    handleClipNext,
+    handleEscape
   ])
 
   useKeyboardEvents(bindings, enabled)
@@ -240,7 +247,8 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     clipNext: handleClipNext,
     playPause: handlePlayPause,
     jumpBackward1s: handleJumpBackward1s,
-    jumpForward1s: handleJumpForward1s
+    jumpForward1s: handleJumpForward1s,
+    escape: handleEscape
   }), [
     handleShuttleReverse,
     handleShuttleStop,
@@ -255,6 +263,7 @@ export function useTimelinePlayback({ enabled = true }: UseTimelinePlaybackProps
     handleClipNext,
     handlePlayPause,
     handleJumpBackward1s,
-    handleJumpForward1s
+    handleJumpForward1s,
+    handleEscape
   ])
 }

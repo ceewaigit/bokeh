@@ -12,32 +12,47 @@ import { PRESET_DETAILS } from '@/shared/constants/appearance'
 import Image from 'next/image'
 import { getElectronAssetUrl } from '@/shared/assets/electron-asset-url'
 
-// Snappy, Apple-like animations
-const transition = { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }
+// Apple-style spring configurations
+const SPRING_PRIMARY = { type: "spring" as const, stiffness: 400, damping: 30, mass: 0.8 }
+const SPRING_SNAPPY = { type: "spring" as const, stiffness: 500, damping: 25 }
 
-const fadeUp = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 }
+// Step transition variants
+const stepVariants = {
+  initial: { opacity: 0, scale: 0.96, y: 8 },
+  animate: { opacity: 1, scale: 1, y: 0 },
+  exit: { opacity: 0, scale: 0.98, y: -4 }
 }
 
-// Simple dot progress indicator
+// Shared card styles - using design tokens only
+const cardStyles = cn(
+  "relative w-full max-w-[380px] p-10",
+  "bg-background/80 backdrop-blur-2xl",
+  "border border-border/20",
+  "shadow-2xl",
+  "rounded-[20px]"
+)
+
+// Animated progress dots
 function ProgressDots({ step }: { step: 1 | 2 }) {
   return (
-    <div className="flex items-center justify-center gap-2 mb-10">
-      <div className={cn(
-        "w-2 h-2 rounded-pill transition-all duration-300",
-        step === 1 ? "bg-foreground scale-100" : "bg-muted-foreground/30 scale-75"
-      )} />
-      <div className={cn(
-        "w-2 h-2 rounded-pill transition-all duration-300",
-        step === 2 ? "bg-foreground scale-100" : "bg-muted-foreground/30 scale-75"
-      )} />
+    <div className="flex items-center justify-center gap-3 mb-10">
+      {[1, 2].map((dotStep) => (
+        <motion.div
+          key={dotStep}
+          className="rounded-full bg-foreground"
+          animate={{
+            width: step === dotStep ? 8 : 6,
+            height: step === dotStep ? 8 : 6,
+            opacity: step === dotStep ? 1 : 0.2
+          }}
+          transition={SPRING_SNAPPY}
+        />
+      ))}
     </div>
   )
 }
 
-// Compact permission item
+// Permission item with refined interactions
 interface PermissionItemProps {
   icon: React.ReactNode
   label: string
@@ -48,35 +63,39 @@ interface PermissionItemProps {
 
 function PermissionItem({ icon, label, isGranted, isOptional, onAction }: PermissionItemProps) {
   return (
-    <button
+    <motion.button
       onClick={onAction}
       className={cn(
-        "group flex flex-col items-center gap-2 p-4 rounded-xl transition-all duration-200",
-        "hover:bg-muted/50 active:scale-[0.98]",
-        isGranted && "cursor-pointer"
+        "group flex flex-col items-center gap-3 w-20 py-3 rounded-xl",
+        "transition-colors duration-150"
       )}
+      whileHover={{ backgroundColor: "hsl(var(--foreground) / 0.03)" }}
+      whileTap={{ scale: 0.97 }}
+      transition={SPRING_SNAPPY}
     >
       <div className={cn(
-        "w-11 h-11 rounded-pill flex items-center justify-center transition-all duration-200",
+        "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200",
         isGranted
-          ? "bg-foreground/10"
-          : "bg-muted border border-border/50 group-hover:border-border"
+          ? "bg-primary/10"
+          : "bg-muted/50 border border-border/30 group-hover:border-border/50"
       )}>
         <AnimatePresence mode="wait">
           {isGranted ? (
             <motion.div
               key="check"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              initial={{ scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ ...SPRING_SNAPPY, delay: 0.05 }}
             >
-              <Check size={18} strokeWidth={2.5} className="text-foreground" />
+              <Check size={20} strokeWidth={2.5} className="text-foreground" />
             </motion.div>
           ) : (
             <motion.div
               key="icon"
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={SPRING_SNAPPY}
               className="text-muted-foreground"
             >
               {icon}
@@ -86,18 +105,18 @@ function PermissionItem({ icon, label, isGranted, isOptional, onAction }: Permis
       </div>
       <div className="flex items-center gap-1.5">
         <span className={cn(
-          "text-xs font-medium transition-colors",
+          "text-[11px] font-medium transition-colors duration-150",
           isGranted ? "text-muted-foreground" : "text-foreground"
         )}>
           {label}
         </span>
         {isOptional && (
-          <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wide">
+          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
             opt
           </span>
         )}
       </div>
-    </button>
+    </motion.button>
   )
 }
 
@@ -150,15 +169,18 @@ export function WelcomeScreen({
       {step === 1 ? (
         <motion.div
           key="permissions"
-          {...fadeUp}
-          transition={transition}
-          className="relative w-full max-w-sm p-8 bg-background/95 backdrop-blur-xl border border-border/20 shadow-2xl rounded-2xl"
+          variants={stepVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={SPRING_PRIMARY}
+          className={cardStyles}
         >
           <ProgressDots step={1} />
 
           {/* Header */}
-          <div className="text-center mb-4">
-            <div className="w-14 h-14 mx-auto mb-5 rounded-2xl overflow-hidden bg-foreground/5 flex items-center justify-center">
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 mx-auto mb-5 rounded-2xl overflow-hidden bg-foreground/[0.03] flex items-center justify-center">
               <Image
                 src={getElectronAssetUrl('/brand/bokeh_icon.svg')}
                 alt="Bokeh"
@@ -167,8 +189,8 @@ export function WelcomeScreen({
                 height={40}
               />
             </div>
-            <h1 className="text-2xl font-medium tracking-tight text-foreground mb-2">
-              Let&apos;s get you <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>set up</span>
+            <h1 className="text-[26px] font-[var(--font-display)] tracking-[-0.02em] text-foreground leading-tight mb-3">
+              Let&apos;s get you <span className="italic">set up</span>
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-[260px] mx-auto">
               A few quick permissions to record your screen and audio.
@@ -176,21 +198,21 @@ export function WelcomeScreen({
           </div>
 
           {/* Permission Row */}
-          <div className="flex justify-center gap-1 mb-8">
+          <div className="flex justify-center gap-2 mb-8">
             <PermissionItem
-              icon={<Monitor size={18} />}
+              icon={<Monitor size={22} />}
               label="Screen"
               isGranted={permissions.screenRecording}
               onAction={() => permissions.screenRecording ? openSettings('screen') : onGrantScreenRecording()}
             />
             <PermissionItem
-              icon={<Mic size={18} />}
+              icon={<Mic size={22} />}
               label="Mic"
               isGranted={permissions.microphone}
               onAction={() => permissions.microphone ? openSettings('microphone') : onGrantMicrophone()}
             />
             <PermissionItem
-              icon={<Camera size={18} />}
+              icon={<Camera size={22} />}
               label="Camera"
               isGranted={permissions.camera}
               isOptional
@@ -198,43 +220,55 @@ export function WelcomeScreen({
             />
           </div>
 
-          {/* Continue */}
-          <Button
-            size="lg"
-            onClick={() => requiredGranted && setStep(2)}
-            disabled={!requiredGranted}
-            className={cn(
-              "w-full h-11 rounded-xl text-sm font-medium transition-all",
-              !requiredGranted && "opacity-40"
-            )}
+          {/* Continue Button */}
+          <motion.div
+            animate={{
+              opacity: requiredGranted ? 1 : 0.4,
+              scale: requiredGranted ? 1 : 0.98
+            }}
+            transition={SPRING_PRIMARY}
           >
-            <span className="flex items-center gap-2">
-              Continue
-              <ArrowRight size={15} />
-            </span>
-          </Button>
+            <Button
+              size="lg"
+              onClick={() => requiredGranted && setStep(2)}
+              disabled={!requiredGranted}
+              className={cn(
+                "w-full h-11 rounded-xl text-sm font-medium",
+                "shadow-sm transition-shadow duration-150",
+                requiredGranted && "hover:shadow-md"
+              )}
+            >
+              <span className="flex items-center gap-2">
+                Continue
+                <ArrowRight size={15} />
+              </span>
+            </Button>
+          </motion.div>
 
           <button
             onClick={() => openSettings('screen')}
-            className="flex items-center justify-center gap-1.5 mx-auto mt-4 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            className="flex items-center justify-center gap-1.5 mx-auto mt-5 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-150"
           >
-            <Settings size={11} />
+            <Settings size={12} strokeWidth={1.5} />
             System Settings
           </button>
         </motion.div>
       ) : (
         <motion.div
           key="theme"
-          {...fadeUp}
-          transition={transition}
-          className="relative w-full max-w-md p-8 bg-background/95 backdrop-blur-xl border border-border/20 shadow-2xl rounded-2xl"
+          variants={stepVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={SPRING_PRIMARY}
+          className={cardStyles}
         >
           <ProgressDots step={2} />
 
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-medium tracking-tight text-foreground mb-2">
-              Choose your <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>aesthetic</span>
+            <h1 className="text-[26px] font-[var(--font-display)] tracking-[-0.02em] text-foreground leading-tight mb-2">
+              Choose your <span className="italic">aesthetic</span>
             </h1>
             <p className="text-sm text-muted-foreground">
               Make it yours.
@@ -242,9 +276,9 @@ export function WelcomeScreen({
           </div>
 
           {/* Controls */}
-          <div className="space-y-5 mb-8">
+          <div className="space-y-5 mb-6">
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider ml-1">
+              <label className="text-2xs font-medium text-muted-foreground/70 uppercase tracking-wider ml-1">
                 Appearance
               </label>
               <SegmentedControl
@@ -259,7 +293,7 @@ export function WelcomeScreen({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider ml-1">
+              <label className="text-2xs font-medium text-muted-foreground/70 uppercase tracking-wider ml-1">
                 Window
               </label>
               <SegmentedControl
@@ -274,54 +308,65 @@ export function WelcomeScreen({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider ml-1">
+              <label className="text-2xs font-medium text-muted-foreground/70 uppercase tracking-wider ml-1">
                 Accent
               </label>
-              <div className="grid grid-cols-4 gap-2">
-                {(Object.keys(PRESET_DETAILS) as ColorPreset[]).map((preset) => (
-                  <button
-                    key={preset}
-                    onClick={() => setColorPreset(preset)}
-                    className={cn(
-                      "group flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all duration-150",
-                      colorPreset === preset
-                        ? "bg-muted ring-1 ring-border"
-                        : "hover:bg-muted/50"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-5 h-5 rounded-pill transition-transform group-hover:scale-110",
-                      PRESET_DETAILS[preset].accent
-                    )} />
-                    <span className={cn(
-                      "text-[10px] font-medium transition-colors",
-                      colorPreset === preset ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {PRESET_DETAILS[preset].label}
-                    </span>
-                  </button>
-                ))}
+              <div className="grid grid-cols-4 gap-1.5">
+                {(Object.keys(PRESET_DETAILS) as ColorPreset[]).map((preset) => {
+                  const isSelected = colorPreset === preset
+                  return (
+                    <motion.button
+                      key={preset}
+                      onClick={() => setColorPreset(preset)}
+                      className={cn(
+                        "group flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg",
+                        "transition-colors duration-150",
+                        isSelected ? "bg-muted/60" : "hover:bg-muted/30"
+                      )}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={SPRING_SNAPPY}
+                    >
+                      <div className={cn(
+                        "w-6 h-6 rounded-full transition-all duration-150",
+                        "shadow-sm",
+                        PRESET_DETAILS[preset].accent,
+                        isSelected && "ring-2 ring-foreground/20 ring-offset-2 ring-offset-background"
+                      )} />
+                      <span className={cn(
+                        "text-[10px] font-medium transition-colors duration-150",
+                        isSelected ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {PRESET_DETAILS[preset].label}
+                      </span>
+                    </motion.button>
+                  )
+                })}
               </div>
             </div>
           </div>
 
           {/* Preview */}
           <div className={cn(
-            "relative overflow-hidden rounded-xl mb-6 p-4 h-20",
-            "bg-gradient-to-br", currentPresetDetails.gradient
+            "relative overflow-hidden rounded-xl mb-6 p-5 h-[88px]",
+            "bg-gradient-to-br border border-border/10",
+            currentPresetDetails.gradient
           )}>
             <div className="flex items-center justify-between h-full">
               <div>
                 <div className="text-sm font-semibold text-foreground">
                   {currentPresetDetails.label}
                 </div>
-                <div className="text-[11px] text-foreground/70 mt-0.5">
+                <div className="text-[11px] text-foreground/60 mt-1 max-w-[180px] leading-snug">
                   {currentPresetDetails.description}
                 </div>
               </div>
-              <div className="flex gap-1">
+              <div className="flex flex-col gap-1">
                 {currentPresetDetails.adjectives.slice(0, 2).map(adj => (
-                  <span key={adj} className="px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-background/30 backdrop-blur text-foreground/80">
+                  <span
+                    key={adj}
+                    className="px-2 py-0.5 rounded text-[9px] font-medium uppercase tracking-wide bg-background/20 backdrop-blur-sm text-foreground/70"
+                  >
                     {adj}
                   </span>
                 ))}
@@ -329,11 +374,14 @@ export function WelcomeScreen({
             </div>
           </div>
 
-          {/* Continue */}
+          {/* Get Started Button */}
           <Button
             size="lg"
             onClick={onContinue}
-            className="w-full h-11 rounded-xl text-sm font-medium"
+            className={cn(
+              "w-full h-11 rounded-xl text-sm font-medium",
+              "shadow-sm hover:shadow-md transition-shadow duration-150"
+            )}
           >
             <span className="flex items-center gap-2">
               Get Started

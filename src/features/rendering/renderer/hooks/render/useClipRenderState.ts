@@ -14,6 +14,7 @@
 import { useMemo } from 'react';
 import { usePlaybackSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext';
+import { useProjectStore } from '@/features/core/stores/project-store';
 import { calculateClipFadeDurations, calculateClipFadeOpacity, calculateGlowCrossfadeOpacity } from '../../compositions/utils/effects/clip-fade';
 import type { Clip, Recording } from '@/types/project';
 
@@ -81,6 +82,9 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
     const isNearBoundaryEnd = boundaryState?.isNearBoundaryEnd ?? false;
     const overlapFrames = boundaryState?.overlapFrames ?? 0;
 
+    // During scrubbing, don't hide preloading clips - prevents black screen during fast seeks
+    const isScrubbing = useProjectStore((s) => s.isScrubbing);
+
     return useMemo(() => {
         const {
             clip, recording, startFrame, durationFrames, groupStartFrame, groupDuration,
@@ -137,7 +141,9 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
         // ==========================================================================
         // OPACITY
         // ==========================================================================
-        const effectiveOpacity = isPreloading
+        // During scrubbing, don't set opacity to 0 for preloading clips - this prevents
+        // black screen flashes when React reconciles clips with temporarily wrong timing
+        const effectiveOpacity = (isPreloading && !isScrubbing)
             ? 0
             : (glowOpacityOverride ?? (introFadeDuration > 0 || outroFadeDuration > 0 ? fadeOpacity : 1));
 
@@ -167,6 +173,7 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
         options, glowFadeMode,
         drawWidth, drawHeight,
         activeLayoutItem, prevLayoutItem, nextLayoutItem,
-        shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames
+        shouldHoldPrevFrame, isNearBoundaryEnd, overlapFrames,
+        isScrubbing
     ]);
 }

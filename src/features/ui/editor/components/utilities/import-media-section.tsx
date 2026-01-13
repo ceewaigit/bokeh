@@ -18,7 +18,8 @@ import { LibrarySearch } from '@/features/media/recording/components/library/com
 import { LibrarySort } from '@/features/media/recording/components/library/components/library-sort'
 import { useRecordingsLibraryData } from '@/features/media/recording/components/library/hooks/use-recordings-library-data'
 import { type LibraryRecordingView } from '@/features/media/recording/store/library-store'
-import { RecordingsGrid } from '@/features/media/recording/components/library/components/recordings-grid'
+import { MasonryGrid } from '@/features/media/recording/components/library/components/masonry-grid'
+import { useInfiniteScroll } from '@/features/media/recording/components/library/hooks/use-infinite-scroll'
 import { createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths'
 import { ProjectIOService } from '@/features/core/storage/project-io-service'
 import { CommandExecutor } from '@/features/core/commands/base/CommandExecutor'
@@ -94,6 +95,20 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
     const [isLoadingThumb, setIsLoadingThumb] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
     const [isMissing, setIsMissing] = useState(false)
+    const videoRef = useRef<HTMLVideoElement>(null)
+
+    // Explicitly control video playback based on hover state
+    useEffect(() => {
+        const video = videoRef.current
+        if (!video || asset.type !== 'video') return
+
+        if (isHovered) {
+            video.play().catch(() => {}) // Ignore autoplay errors
+        } else {
+            video.pause()
+            video.currentTime = 0
+        }
+    }, [isHovered, asset.type])
 
     // Check if file exists on mount
     useEffect(() => {
@@ -192,36 +207,44 @@ const AssetItem = React.memo(({ asset, onAdd, onRemove, setDraggingAsset }: Asse
                 />
             ) : asset.type === 'video' ? (
                 <div className="w-full h-full bg-black relative">
-                    {/* Video Player (only on hover) */}
-                    {isHovered ? (
-                        <video
-                            src={createVideoStreamUrl(asset.path) || asset.path}
-                            className="w-full h-full object-cover pointer-events-none"
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
+                    {/* Video Player - always rendered, controlled via ref */}
+                    <video
+                        ref={videoRef}
+                        src={createVideoStreamUrl(asset.path) || asset.path}
+                        className={cn(
+                            "absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-150",
+                            isHovered ? "opacity-100" : "opacity-0"
+                        )}
+                        muted
+                        loop
+                        playsInline
+                        preload="metadata"
+                    />
+
+                    {/* Thumbnail - shown when not hovering */}
+                    {thumbnail ? (
+                        <Image
+                            src={thumbnail}
+                            className={cn(
+                                "object-cover transition-opacity duration-150",
+                                isHovered ? "opacity-0" : "opacity-80"
+                            )}
+                            alt={asset.name}
+                            fill
+                            unoptimized
                         />
                     ) : (
-                        /* Thumbnail Image */
-                        thumbnail ? (
-                            <Image
-                                src={thumbnail}
-                                className="object-cover opacity-80"
-                                alt={asset.name}
-                                fill
-                                unoptimized
-                            />
-                        ) : (
-                            /* Loading / Fallback placeholder */
-                            <div className="w-full h-full flex items-center justify-center bg-zinc-900">
-                                {isLoadingThumb ? (
-                                    <Loader2 className="w-5 h-5 animate-spin text-white/30" />
-                                ) : (
-                                    <Film className="w-8 h-8 text-white/20" />
-                                )}
-                            </div>
-                        )
+                        /* Loading / Fallback placeholder */
+                        <div className={cn(
+                            "w-full h-full flex items-center justify-center bg-zinc-900 transition-opacity duration-150",
+                            isHovered ? "opacity-0" : "opacity-100"
+                        )}>
+                            {isLoadingThumb ? (
+                                <Loader2 className="w-5 h-5 animate-spin text-white/30" />
+                            ) : (
+                                <Film className="w-8 h-8 text-white/20" />
+                            )}
+                        </div>
                     )}
 
                     {/* Overlay Icon (only when not playing) */}
@@ -339,16 +362,21 @@ export function ImportMediaSection() {
         setSort,
         recordings: libraryRecordings,
         displayedRecordings,
-        currentPage,
-        totalPages,
         loading: libraryLoading,
         loadRecordings,
         showHydrationIndicator,
-        handlePrevPage,
-        handleNextPage,
-        canPrev,
-        canNext
-    } = useRecordingsLibraryData(18)
+        hasMore: libraryHasMore,
+        isLoadingMore: libraryIsLoadingMore,
+        loadMore: libraryLoadMore,
+    } = useRecordingsLibraryData()
+
+    // Infinite scroll for library dialog
+    const { sentinelRef: librarySentinelRef } = useInfiniteScroll({
+        hasMore: libraryHasMore,
+        isLoading: libraryIsLoadingMore,
+        onLoadMore: libraryLoadMore,
+        threshold: 200,
+    })
 
     useEffect(() => {
         return () => {
@@ -720,18 +748,17 @@ export function ImportMediaSection() {
                                 <p className="text-2xs text-muted-foreground">
                                     Tip: Click a recording to add it as a full clip.
                                 </p>
-                                <RecordingsGrid
+                                <MasonryGrid
                                     recordings={displayedRecordings}
-                                    gridCapacity={displayedRecordings.length}
-                                    isExpandedLayout={true}
                                     onSelect={handleImportFromLibrary}
-                                    showDeleteAction={false}
                                 />
-                                {showHydrationIndicator && (
+                                {/* Sentinel for infinite scroll */}
+                                <div ref={librarySentinelRef} className="h-px" />
+                                {(showHydrationIndicator || libraryIsLoadingMore) && (
                                     <div className="flex justify-center pt-2">
                                         <div className="bg-muted/60 backdrop-blur-md rounded-pill px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
                                             <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
-                                            <span className="text-3xs font-medium text-muted-foreground">Loading page…</span>
+                                            <span className="text-3xs font-medium text-muted-foreground">Loading...</span>
                                         </div>
                                     </div>
                                 )}
@@ -741,15 +768,9 @@ export function ImportMediaSection() {
 
                     <div className="px-5 py-3 border-t border-border/40 flex items-center justify-between">
                         <div className="text-2xs text-muted-foreground">
-                            Page {currentPage} of {totalPages}
+                            {displayedRecordings.length} of {libraryRecordings.length} recordings
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" disabled={!canPrev} onClick={handlePrevPage}>
-                                Previous
-                            </Button>
-                            <Button variant="outline" size="sm" disabled={!canNext} onClick={handleNextPage}>
-                                Next
-                            </Button>
                             <Button size="sm" onClick={() => setIsLibraryDialogOpen(false)}>
                                 Done
                             </Button>
@@ -828,7 +849,7 @@ export function ImportMediaSection() {
                 {/* Asset Library Grid */}
                 <div className="flex-1 overflow-y-auto min-h-0 bg-transparent">
                     <div className="px-2.5 py-2 bg-transparent">
-                        <h3 className="mb-2 px-1 text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Your Assets ({assets.length})</h3>
+                        <h3 className="mb-2 px-1 text-2xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Your Assets ({assets.length})</h3>
 
                         {assets.length === 0 ? (
                             <div className="text-center py-8 px-4 text-2xs text-muted-foreground/50">

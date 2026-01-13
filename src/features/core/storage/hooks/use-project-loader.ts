@@ -8,6 +8,8 @@ import { EffectStore } from '@/features/effects/core/store'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { calculateCanvasDimensions } from '@/shared/constants/aspect-ratio-presets'
 import { AspectRatioPreset } from '@/types/project'
+import { MotionBlurController } from '@/features/rendering/motion-blur/logic/MotionBlurController'
+import { warmUpRenderingPipeline } from '@/features/rendering/canvas/math/transforms/rendering-warmup'
 
 /**
  * Project Loader Hook
@@ -97,6 +99,12 @@ export function useProjectLoader() {
                     height: canvasDimensions.height,
                 })
             }
+
+            // Pre-warm rendering pipeline to eliminate first-frame lag
+            // This triggers WebGL shader compilation and JIT compilation of easing functions
+            setLoadingMessage('Preparing preview...')
+            MotionBlurController.warmUp()
+            warmUpRenderingPipeline()
 
             // Auto-zoom is handled by the timeline layout (uses real container width).
 

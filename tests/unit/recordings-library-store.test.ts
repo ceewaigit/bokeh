@@ -11,7 +11,7 @@ describe('recordings-library-store', () => {
 
     useRecordingsLibraryStore.setState({
       recordings: [{ ...a }, { ...b }],
-      currentPage: 1,
+      displayedCount: 24,
       isHydrated: true,
     })
 

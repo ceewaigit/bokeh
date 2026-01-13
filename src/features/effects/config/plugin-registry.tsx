@@ -731,30 +731,46 @@ export const SpotlightPlugin: PluginDefinition<SpotlightParams> = {
     }
 }
 
+// =============================================================================
+// APPLE-STYLE PROGRESS BAR
+// =============================================================================
+
 interface ProgressBarParams {
+    style: 'line' | 'pill' | 'ring'
     position: 'top' | 'bottom' | 'center'
-    width: number
-    height: number
     color: string
-    backgroundColor: string
-    borderRadius: number
-    showOverlay: boolean
-    overlayOpacity: number
-    style: 'solid' | 'gradient' | 'glow' | 'glass' | 'neon' | 'segmented'
-    showPercentage: boolean
-    segments: number
+    trackColor: string
+    thickness: number
+    width: number
+    size: number
+    showLabel: boolean
+    labelPosition: 'above' | 'below' | 'center' | 'inside'
+    opacity: number
 }
+
+// Easing for smooth progress animation
+const _easeOutQuad = (t: number) => 1 - (1 - t) * (1 - t)
 
 export const ProgressBarPlugin: PluginDefinition<ProgressBarParams> = {
     id: 'progress-bar',
     name: 'Progress Bar',
-    description: 'Premium progress indicator with multiple styles',
-    icon: 'Minus',
+    description: 'Minimal Apple-style progress indicator',
+    icon: 'Loader',
     category: 'foreground',
     params: {
+        style: {
+            type: 'enum',
+            default: 'line',
+            label: 'Style',
+            options: [
+                { value: 'line', label: 'Line' },
+                { value: 'pill', label: 'Pill' },
+                { value: 'ring', label: 'Ring' },
+            ]
+        },
         position: {
             type: 'enum',
-            default: 'center',
+            default: 'bottom',
             label: 'Position',
             options: [
                 { value: 'top', label: 'Top' },
@@ -762,196 +778,241 @@ export const ProgressBarPlugin: PluginDefinition<ProgressBarParams> = {
                 { value: 'center', label: 'Center' },
             ]
         },
-        width: { type: 'number', default: 50, label: 'Width', min: 20, max: 90, step: 5, unit: '%' },
-        height: { type: 'number', default: 12, label: 'Height', min: 4, max: 48, step: 2, unit: 'px' },
-        color: { type: 'color', default: '#3b82f6', label: 'Color' },
-        backgroundColor: { type: 'color', default: '#1e293b', label: 'Bar BG' },
-        borderRadius: { type: 'number', default: 6, label: 'Roundness', min: 0, max: 24, step: 1, unit: 'px' },
-        showOverlay: { type: 'boolean', default: true, label: 'Show Overlay' },
-        overlayOpacity: { type: 'number', default: 60, label: 'Overlay Opacity', min: 0, max: 100, step: 5, unit: '%' },
-        style: {
+        color: { type: 'color', default: '#000000', label: 'Fill Color' },
+        trackColor: { type: 'color', default: '#e5e5e5', label: 'Track Color' },
+        thickness: { type: 'number', default: 4, label: 'Thickness', min: 2, max: 12, step: 1, unit: 'px' },
+        width: { type: 'number', default: 60, label: 'Width', min: 20, max: 95, step: 5, unit: '%' },
+        size: { type: 'number', default: 15, label: 'Ring Size', min: 8, max: 30, step: 1, unit: '%' },
+        showLabel: { type: 'boolean', default: true, label: 'Show Label' },
+        labelPosition: {
             type: 'enum',
-            default: 'glass',
-            label: 'Style',
+            default: 'below',
+            label: 'Label Position',
             options: [
-                { value: 'solid', label: 'Solid' },
-                { value: 'gradient', label: 'Gradient' },
-                { value: 'glow', label: 'Glow' },
-                { value: 'glass', label: 'Glass' },
-                { value: 'neon', label: 'Neon' },
-                { value: 'segmented', label: 'Segmented' },
+                { value: 'above', label: 'Above' },
+                { value: 'below', label: 'Below' },
+                { value: 'center', label: 'Center' },
+                { value: 'inside', label: 'Inside' },
             ]
         },
-        showPercentage: { type: 'boolean', default: true, label: 'Show %' },
-        segments: { type: 'number', default: 10, label: 'Segments', min: 2, max: 50, step: 1 },
+        opacity: { type: 'number', default: 100, label: 'Opacity', min: 20, max: 100, step: 5, unit: '%' },
     },
     render(props: PluginRenderProps<ProgressBarParams>) {
-        const { params, frame, width: canvasWidth } = props
+        const { params, frame, width: canvasWidth, height: canvasHeight } = props
         const {
-            position,
-            width,
-            height,
-            color,
-            backgroundColor,
-            borderRadius,
-            showOverlay,
-            overlayOpacity,
             style,
-            showPercentage,
-            segments
+            position,
+            color,
+            trackColor,
+            thickness,
+            width,
+            size,
+            showLabel,
+            labelPosition,
+            opacity
         } = params
 
-        const barWidth = (width / 100) * canvasWidth
-        const containerPadding = 24
+        const progress = frame.progress
+        const percentage = Math.round(progress * 100)
+        const containerOpacity = opacity / 100
 
-        // Calculate bar fill based on style
-        let barBackground = color
-        let boxShadow = 'none'
-        let containerBg = backgroundColor
-        let containerBorder = 'none'
-        let containerShadow = 'none'
-        let containerBackdrop = 'none'
-
-        switch (style) {
-            case 'gradient':
-                barBackground = `linear-gradient(90deg, ${color}cc, ${color}, ${color}cc)`
-                break
-            case 'glow':
-                boxShadow = `0 0 ${height * 1.5}px ${color}, 0 0 ${height * 3}px ${color}66`
-                break
-            case 'glass':
-                containerBg = 'rgba(255, 255, 255, 0.08)'
-                containerBorder = '1px solid rgba(255,255,255,0.15)'
-                containerShadow = '0 8px 32px rgba(0,0,0,0.2)'
-                containerBackdrop = 'blur(16px)'
-                barBackground = `linear-gradient(90deg, ${color}dd, ${color})`
-                boxShadow = `0 0 ${height}px ${color}44`
-                break
-            case 'neon':
-                containerBg = '#000000'
-                containerBorder = `1px solid ${color}44`
-                containerShadow = `0 0 20px ${color}22, inset 0 0 20px ${color}11`
-                barBackground = color
-                boxShadow = `0 0 10px ${color}, 0 0 20px ${color}, 0 0 40px ${color}`
-                break
-            case 'segmented':
-                // Handled in render logic below
-                break
+        // Typography - Apple SF Pro style
+        const labelStyle: React.CSSProperties = {
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
+            fontWeight: 400,
+            letterSpacing: '-0.01em',
+            fontVariantNumeric: 'tabular-nums',
+            color: color,
         }
 
-        // Position calculation
-        const isCenter = position === 'center'
-        const positionStyle: React.CSSProperties = isCenter
-            ? {
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-            }
-            : {
-                left: '50%',
-                transform: 'translateX(-50%)',
-                [position]: containerPadding,
-            }
-
-        const percentage = Math.round(frame.progress * 100)
-
-        // Segmented bar logic
-        const renderSegments = () => {
-            const segmentGap = 4
-            const activeSegments = Math.ceil(frame.progress * segments)
+        // Render ring progress (SVG-based)
+        if (style === 'ring') {
+            const ringSize = (size / 100) * Math.min(canvasWidth, canvasHeight)
+            const strokeWidth = thickness * 1.5
+            const radius = (ringSize - strokeWidth) / 2
+            const circumference = 2 * Math.PI * radius
+            const strokeDashoffset = circumference * (1 - progress)
 
             return (
                 <div style={{
+                    position: 'absolute',
+                    inset: 0,
                     display: 'flex',
-                    gap: segmentGap,
-                    width: barWidth,
-                    height,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: containerOpacity,
+                    pointerEvents: 'none',
                 }}>
-                    {Array.from({ length: segments }).map((_, i) => (
-                        <div key={i} style={{
-                            flex: 1,
-                            height: '100%',
-                            background: i < activeSegments ? color : backgroundColor,
-                            borderRadius: borderRadius / 2,
-                            boxShadow: i < activeSegments && style === 'neon' ? `0 0 10px ${color}` : 'none',
-                            opacity: i < activeSegments ? 1 : 0.3,
-                        }} />
-                    ))}
+                    <div style={{
+                        position: 'relative',
+                        width: ringSize,
+                        height: ringSize,
+                    }}>
+                        <svg
+                            width={ringSize}
+                            height={ringSize}
+                            style={{
+                                transform: 'rotate(-90deg)',
+                            }}
+                        >
+                            {/* Track */}
+                            <circle
+                                cx={ringSize / 2}
+                                cy={ringSize / 2}
+                                r={radius}
+                                fill="none"
+                                stroke={trackColor}
+                                strokeWidth={strokeWidth}
+                                opacity={0.3}
+                            />
+                            {/* Progress */}
+                            <circle
+                                cx={ringSize / 2}
+                                cy={ringSize / 2}
+                                r={radius}
+                                fill="none"
+                                stroke={color}
+                                strokeWidth={strokeWidth}
+                                strokeLinecap="round"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={strokeDashoffset}
+                                style={{
+                                    transition: 'stroke-dashoffset 0.1s ease-out',
+                                }}
+                            />
+                        </svg>
+                        {/* Center label */}
+                        {showLabel && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                ...labelStyle,
+                                fontSize: ringSize * 0.22,
+                                fontWeight: 300,
+                            }}>
+                                {percentage}%
+                            </div>
+                        )}
+                    </div>
                 </div>
             )
         }
 
-        return (
-            <>
-                {/* Optional backdrop overlay */}
-                {showOverlay && (
-                    <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: `rgba(0, 0, 0, ${overlayOpacity / 100})`,
-                        backdropFilter: style === 'glass' ? 'blur(8px)' : 'none',
-                        pointerEvents: 'none',
-                    }} />
-                )}
+        // Line and Pill styles
+        const barWidth = (width / 100) * canvasWidth
+        const barHeight = style === 'pill' ? thickness * 2.5 : thickness
+        const borderRadius = style === 'pill' ? barHeight / 2 : thickness / 2
+        const padding = 32
 
-                {/* Progress container */}
-                <div style={{
-                    position: 'absolute',
-                    ...positionStyle,
-                    width: barWidth + containerPadding * 2,
-                    padding: containerPadding,
-                    background: style === 'glass'
-                        ? 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02))'
-                        : 'transparent',
-                    backdropFilter: containerBackdrop,
-                    borderRadius: style === 'glass' ? borderRadius * 2 : borderRadius,
-                    border: containerBorder,
-                    boxShadow: containerShadow,
-                    pointerEvents: 'none',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 16,
-                }}>
-                    {/* Percentage label */}
-                    {showPercentage && (
+        // Position calculation
+        const getPositionStyle = (): React.CSSProperties => {
+            const base: React.CSSProperties = {
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)',
+            }
+
+            if (position === 'center') {
+                return {
+                    ...base,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                }
+            }
+
+            return {
+                ...base,
+                [position]: padding,
+            }
+        }
+
+        // Label positioning
+        const getLabelContainerStyle = (): React.CSSProperties => {
+            const base: React.CSSProperties = {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+            }
+
+            if (labelPosition === 'above' || labelPosition === 'below') {
+                return {
+                    ...base,
+                    flexDirection: labelPosition === 'above' ? 'column-reverse' : 'column',
+                    gap: 8,
+                }
+            }
+
+            return base
+        }
+
+        return (
+            <div style={{
+                ...getPositionStyle(),
+                opacity: containerOpacity,
+                pointerEvents: 'none',
+            }}>
+                <div style={getLabelContainerStyle()}>
+                    {/* Progress bar */}
+                    <div style={{
+                        position: 'relative',
+                        width: barWidth,
+                        height: barHeight,
+                        background: trackColor,
+                        borderRadius,
+                        overflow: 'hidden',
+                        boxShadow: style === 'pill'
+                            ? 'inset 0 1px 2px rgba(0,0,0,0.08)'
+                            : 'none',
+                    }}>
+                        {/* Fill */}
                         <div style={{
-                            color: 'white',
-                            fontSize: Math.max(16, height * 1.2),
-                            fontWeight: 700,
-                            fontFamily: 'system-ui, -apple-system, sans-serif',
-                            textShadow: '0 2px 8px rgba(0,0,0,0.5)',
-                            letterSpacing: '0.02em',
-                            fontVariantNumeric: 'tabular-nums',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            height: '100%',
+                            width: `${progress * 100}%`,
+                            background: color,
+                            borderRadius,
+                            boxShadow: style === 'pill'
+                                ? '0 1px 2px rgba(0,0,0,0.1)'
+                                : 'none',
+                        }} />
+
+                        {/* Inside label */}
+                        {showLabel && labelPosition === 'inside' && style === 'pill' && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                ...labelStyle,
+                                fontSize: barHeight * 0.5,
+                                fontWeight: 500,
+                                color: progress > 0.5 ? '#ffffff' : color,
+                                mixBlendMode: 'difference',
+                            }}>
+                                {percentage}%
+                            </div>
+                        )}
+                    </div>
+
+                    {/* External label */}
+                    {showLabel && labelPosition !== 'inside' && (
+                        <div style={{
+                            ...labelStyle,
+                            fontSize: Math.max(14, barHeight * 1.2),
+                            fontWeight: 300,
+                            opacity: 0.9,
                         }}>
                             {percentage}%
                         </div>
                     )}
-
-                    {/* Progress bar track */}
-                    {style === 'segmented' ? renderSegments() : (
-                        <div style={{
-                            width: barWidth,
-                            height,
-                            background: containerBg,
-                            borderRadius,
-                            overflow: 'hidden',
-                            boxShadow: style === 'glass' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : 'none',
-                            border: style === 'neon' ? `1px solid ${color}33` : 'none',
-                        }}>
-                            {/* Progress bar fill */}
-                            <div style={{
-                                height: '100%',
-                                width: `${frame.progress * 100}%`,
-                                background: barBackground,
-                                borderRadius,
-                                boxShadow,
-                                transition: 'none',
-                            }} />
-                        </div>
-                    )}
                 </div>
-            </>
+            </div>
         )
     }
 }
@@ -1132,8 +1193,414 @@ export const BlankClipPlugin: PluginDefinition<BlankClipParams> = {
     }
 }
 
+// =============================================================================
+// APPLE TEXT REVEAL - Iconic Apple commercial text animations
+// =============================================================================
+
+interface AppleTextRevealParams {
+    // Content
+    text: string
+
+    // Typography
+    fontSize: number
+    fontWeight: 'light' | 'regular' | 'medium' | 'semibold' | 'bold'
+    textColor: string
+    textAlign: 'left' | 'center' | 'right'
+    letterSpacing: number
+    lineHeight: number
+
+    // Background
+    backgroundColor: string
+
+    // Animation
+    animationStyle: 'fade' | 'blur-fade' | 'slide-fade' | 'scale-fade'
+    stagger: 'none' | 'words' | 'lines'
+    staggerDelay: number
+    fadeInDuration: number
+    holdDuration: number
+    fadeOutDuration: number
+    fadeOutStyle: 'together' | 'sequential' | 'reverse'
+
+    // Effects
+    blurAmount: number
+    slideDistance: number
+    scaleFrom: number
+}
+
+export const AppleTextRevealPlugin: PluginDefinition<AppleTextRevealParams> = {
+    id: 'apple-text-reveal',
+    name: 'Text Reveal',
+    description: 'Apple commercial-style text fade in/out animations',
+    icon: 'Type',
+    category: 'transition',
+    params: {
+        text: {
+            type: 'string',
+            default: 'bokeh.',
+            label: 'Text'
+        },
+        fontSize: {
+            type: 'number',
+            default: 8,
+            label: 'Font Size',
+            min: 3,
+            max: 20,
+            step: 0.5,
+            unit: '%'
+        },
+        fontWeight: {
+            type: 'enum',
+            default: 'light',
+            label: 'Weight',
+            options: [
+                { value: 'light', label: 'Light' },
+                { value: 'regular', label: 'Regular' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'semibold', label: 'Semibold' },
+                { value: 'bold', label: 'Bold' },
+            ]
+        },
+        textColor: { type: 'color', default: '#000000', label: 'Text Color' },
+        textAlign: {
+            type: 'enum',
+            default: 'center',
+            label: 'Align',
+            options: [
+                { value: 'left', label: 'Left' },
+                { value: 'center', label: 'Center' },
+                { value: 'right', label: 'Right' },
+            ]
+        },
+        letterSpacing: {
+            type: 'number',
+            default: -0.02,
+            label: 'Letter Spacing',
+            min: -0.1,
+            max: 0.2,
+            step: 0.01,
+            unit: 'em'
+        },
+        lineHeight: {
+            type: 'number',
+            default: 1.2,
+            label: 'Line Height',
+            min: 0.8,
+            max: 2,
+            step: 0.1
+        },
+        backgroundColor: { type: 'color', default: '#ffffff', label: 'Background' },
+        animationStyle: {
+            type: 'enum',
+            default: 'blur-fade',
+            label: 'Animation',
+            options: [
+                { value: 'fade', label: 'Fade' },
+                { value: 'blur-fade', label: 'Blur Fade' },
+                { value: 'slide-fade', label: 'Slide Fade' },
+                { value: 'scale-fade', label: 'Scale Fade' },
+            ]
+        },
+        stagger: {
+            type: 'enum',
+            default: 'words',
+            label: 'Stagger',
+            options: [
+                { value: 'none', label: 'None' },
+                { value: 'words', label: 'Words' },
+                { value: 'lines', label: 'Lines' },
+            ]
+        },
+        staggerDelay: {
+            type: 'number',
+            default: 80,
+            label: 'Stagger Delay',
+            min: 20,
+            max: 300,
+            step: 10,
+            unit: 'ms'
+        },
+        fadeInDuration: {
+            type: 'number',
+            default: 30,
+            label: 'Fade In',
+            min: 10,
+            max: 50,
+            step: 5,
+            unit: '%'
+        },
+        holdDuration: {
+            type: 'number',
+            default: 40,
+            label: 'Hold',
+            min: 10,
+            max: 60,
+            step: 5,
+            unit: '%'
+        },
+        fadeOutDuration: {
+            type: 'number',
+            default: 30,
+            label: 'Fade Out',
+            min: 10,
+            max: 50,
+            step: 5,
+            unit: '%'
+        },
+        fadeOutStyle: {
+            type: 'enum',
+            default: 'reverse',
+            label: 'Fade Out Style',
+            options: [
+                { value: 'together', label: 'Together' },
+                { value: 'sequential', label: 'Sequential' },
+                { value: 'reverse', label: 'Reverse' },
+            ]
+        },
+        blurAmount: {
+            type: 'number',
+            default: 12,
+            label: 'Blur Amount',
+            min: 0,
+            max: 30,
+            step: 2,
+            unit: 'px'
+        },
+        slideDistance: {
+            type: 'number',
+            default: 30,
+            label: 'Slide Distance',
+            min: 0,
+            max: 100,
+            step: 5,
+            unit: 'px'
+        },
+        scaleFrom: {
+            type: 'number',
+            default: 95,
+            label: 'Scale From',
+            min: 80,
+            max: 100,
+            step: 1,
+            unit: '%'
+        },
+    },
+    render(props: PluginRenderProps<AppleTextRevealParams>) {
+        const { params, frame, width: _canvasWidth, height: canvasHeight } = props
+        const {
+            text,
+            fontSize,
+            fontWeight,
+            textColor,
+            textAlign,
+            letterSpacing,
+            lineHeight,
+            backgroundColor,
+            animationStyle,
+            stagger,
+            staggerDelay,
+            fadeInDuration,
+            holdDuration,
+            fadeOutDuration,
+            fadeOutStyle,
+            blurAmount,
+            slideDistance,
+            scaleFrom,
+        } = params
+
+        const progress = frame.progress
+        const fps = frame.fps || 30
+
+        // Easing functions
+        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3)
+        const easeInOutQuad = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+        const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
+
+        // Normalize durations (they should sum to 100%)
+        const totalDuration = fadeInDuration + holdDuration + fadeOutDuration
+        const fadeInEnd = fadeInDuration / totalDuration
+        const holdEnd = (fadeInDuration + holdDuration) / totalDuration
+
+        // Font weight mapping
+        const fontWeightMap: Record<string, number> = {
+            light: 300,
+            regular: 400,
+            medium: 500,
+            semibold: 600,
+            bold: 700,
+        }
+
+        // Parse text into elements based on stagger mode
+        const parseText = (): { type: 'word' | 'line'; content: string; lineIndex: number }[] => {
+            const lines = text.split('\n').filter(l => l.trim())
+            const elements: { type: 'word' | 'line'; content: string; lineIndex: number }[] = []
+
+            if (stagger === 'none') {
+                // Return entire text as single element
+                return [{ type: 'line', content: text, lineIndex: 0 }]
+            }
+
+            if (stagger === 'lines') {
+                return lines.map((line, i) => ({ type: 'line', content: line, lineIndex: i }))
+            }
+
+            // Words mode
+            lines.forEach((line, lineIndex) => {
+                const words = line.split(/\s+/).filter(w => w)
+                words.forEach(word => {
+                    elements.push({ type: 'word', content: word, lineIndex })
+                })
+            })
+
+            return elements
+        }
+
+        const elements = parseText()
+        const elementCount = elements.length
+        const staggerDelayNormalized = staggerDelay / 1000 / (frame.durationFrames / fps) // Convert ms to progress units
+
+        // Calculate animation state for each element
+        const getElementState = (index: number, total: number) => {
+            // Calculate stagger offset
+            const fadeInStaggerOffset = index * staggerDelayNormalized
+
+            // Calculate fade out index based on style
+            let fadeOutIndex = index
+            if (fadeOutStyle === 'reverse') {
+                fadeOutIndex = total - 1 - index
+            } else if (fadeOutStyle === 'together') {
+                fadeOutIndex = 0 // All start at same time
+            }
+            const fadeOutStaggerOffset = fadeOutIndex * staggerDelayNormalized
+
+            // Determine phase and local progress
+            let opacity = 0
+            let blur = blurAmount
+            let translateY = slideDistance
+            let scale = scaleFrom / 100
+
+            if (progress < fadeInEnd) {
+                // Fade in phase
+                const phaseProgress = progress / fadeInEnd
+                const elementProgress = clamp((phaseProgress - fadeInStaggerOffset / fadeInEnd) / (1 - fadeInStaggerOffset), 0, 1)
+                const easedProgress = easeOutCubic(elementProgress)
+
+                opacity = easedProgress
+                blur = blurAmount * (1 - easedProgress)
+                translateY = slideDistance * (1 - easedProgress)
+                scale = (scaleFrom / 100) + ((1 - scaleFrom / 100) * easedProgress)
+            } else if (progress < holdEnd) {
+                // Hold phase - fully visible
+                opacity = 1
+                blur = 0
+                translateY = 0
+                scale = 1
+            } else {
+                // Fade out phase
+                const phaseProgress = (progress - holdEnd) / (1 - holdEnd)
+                const adjustedStagger = fadeOutStyle === 'together' ? 0 : fadeOutStaggerOffset / (1 - holdEnd)
+                const elementProgress = clamp((phaseProgress - adjustedStagger) / (1 - adjustedStagger), 0, 1)
+                const easedProgress = easeInOutQuad(elementProgress)
+
+                opacity = 1 - easedProgress
+                blur = blurAmount * easedProgress
+                translateY = -slideDistance * easedProgress // Slide up on exit
+                scale = 1 - ((1 - scaleFrom / 100) * easedProgress)
+            }
+
+            return { opacity, blur, translateY, scale }
+        }
+
+        // Build transform string based on animation style
+        const getTransform = (state: { translateY: number; scale: number }) => {
+            const transforms: string[] = []
+
+            if (animationStyle === 'slide-fade' || animationStyle === 'scale-fade') {
+                if (animationStyle === 'slide-fade') {
+                    transforms.push(`translateY(${state.translateY}px)`)
+                }
+                if (animationStyle === 'scale-fade') {
+                    transforms.push(`scale(${state.scale})`)
+                }
+            }
+
+            return transforms.length > 0 ? transforms.join(' ') : 'none'
+        }
+
+        // Group elements by line for rendering
+        const lineGroups: Map<number, typeof elements> = new Map()
+        elements.forEach(el => {
+            if (!lineGroups.has(el.lineIndex)) {
+                lineGroups.set(el.lineIndex, [])
+            }
+            lineGroups.get(el.lineIndex)!.push(el)
+        })
+
+        const calculatedFontSize = (fontSize / 100) * canvasHeight
+
+        return (
+            <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: backgroundColor,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start',
+                justifyContent: 'center',
+                padding: '10%',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
+                fontSize: calculatedFontSize,
+                fontWeight: fontWeightMap[fontWeight] || 400,
+                color: textColor,
+                letterSpacing: `${letterSpacing}em`,
+                lineHeight: lineHeight,
+                textAlign: textAlign,
+                overflow: 'hidden',
+            }}>
+                {Array.from(lineGroups.entries()).map(([lineIndex, lineElements]) => (
+                    <div key={lineIndex} style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        justifyContent: textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start',
+                        gap: stagger === 'words' ? `0 ${calculatedFontSize * 0.3}px` : 0,
+                    }}>
+                        {lineElements.map((el, elIndex) => {
+                            // Calculate global index for this element
+                            let globalIndex = 0
+                            for (let i = 0; i < lineIndex; i++) {
+                                globalIndex += lineGroups.get(i)?.length || 0
+                            }
+                            globalIndex += elIndex
+
+                            const state = getElementState(globalIndex, elementCount)
+                            const transform = getTransform(state)
+
+                            return (
+                                <span
+                                    key={`${lineIndex}-${elIndex}`}
+                                    style={{
+                                        display: 'inline-block',
+                                        opacity: state.opacity,
+                                        filter: animationStyle === 'blur-fade' || animationStyle === 'fade'
+                                            ? `blur(${state.blur}px)`
+                                            : 'none',
+                                        transform: transform,
+                                        willChange: 'opacity, filter, transform',
+                                    }}
+                                >
+                                    {el.content}
+                                </span>
+                            )
+                        })}
+                    </div>
+                ))}
+            </div>
+        )
+    }
+}
+
 // Register demo plugins (cast to any to satisfy registry's generic constraint)
 PluginRegistry.register(WindowSlideOverPlugin as PluginDefinition)
 PluginRegistry.register(SpotlightPlugin as PluginDefinition)
 PluginRegistry.register(ProgressBarPlugin as PluginDefinition)
 PluginRegistry.register(BlankClipPlugin as PluginDefinition)
+PluginRegistry.register(AppleTextRevealPlugin as PluginDefinition)

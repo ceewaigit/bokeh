@@ -226,7 +226,7 @@ export function AnnotationDock() {
                                                 <input
                                                     type="number"
                                                     min={8}
-                                                    max={200}
+                                                    max={72}
                                                     value={fontSize}
                                                     onChange={(event) => {
                                                         const next = Number(event.target.value)

@@ -158,6 +158,11 @@ export function findActiveFrameLayoutIndex(layout: FrameLayoutItem[], frame: num
 /**
  * Find ALL clips that are active at a given frame.
  * Essential for overlapping tracks (e.g. video over background).
+ *
+ * IMPORTANT: This function should NEVER return an empty array if there are clips.
+ * During fast scrubbing, empty results cause BLACK SCREEN. When no clip is
+ * technically "active" (e.g., in a gap), we return the nearest clip to ensure
+ * there's always something to render.
  */
 export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: number): FrameLayoutItem[] {
   if (!layout || layout.length === 0) return [];
@@ -171,12 +176,19 @@ export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: num
 
   // Only items with startFrame <= frame can be active.
   const limitIndex = upperBoundLE(startFrames, frame);
-  if (limitIndex < 0) return [];
+
+  // FIX: Before first clip - show first clip instead of black
+  if (limitIndex < 0) return [layout[0]];
 
   // If max end in prefix is <= frame, then everything in that prefix has ended.
   // Find the first index where maxEndPrefix[i] > frame to skip large expired prefixes.
   const startIndex = lowerBoundGT(maxEndPrefix, frame);
-  if (startIndex > limitIndex) return [];
+
+  // FIX: In a "gap" between clips - show the clip that just ended (hold last frame)
+  // This prevents black screen during fast scrubbing
+  if (startIndex > limitIndex) {
+    return [layout[limitIndex]];
+  }
 
   const result: FrameLayoutItem[] = [];
   for (let i = startIndex; i <= limitIndex; i += 1) {
@@ -184,6 +196,11 @@ export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: num
     if (frame < item.endFrame) {
       result.push(item);
     }
+  }
+
+  // FIX: Safety net - if somehow still empty, return nearest clip
+  if (result.length === 0 && limitIndex >= 0) {
+    return [layout[limitIndex]];
   }
 
   return result;

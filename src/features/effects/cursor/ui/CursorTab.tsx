@@ -38,11 +38,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const size = cursorData?.size ?? defaults.size
   const motionPreset = cursorData?.motionPreset ?? defaults.motionPreset ?? 'cinematic'
   const idleTimeoutSec = (cursorData?.idleTimeout ?? defaults.idleTimeout) / 1000
-  const speed = cursorData?.speed ?? defaults.speed
-  const smoothness = cursorData?.smoothness ?? defaults.smoothness
-  const glide = cursorData?.glide ?? defaults.glide ?? 0.75
-  const continuity = cursorData?.smoothingJumpThreshold ?? defaults.smoothingJumpThreshold ?? 0.9
-  const tiltMaxDeg = cursorData?.directionalTiltMaxDeg ?? defaults.directionalTiltMaxDeg ?? 10
+  // Unified smoothness (0 = responsive, 1 = cinematic)
+  const cursorSmoothness = cursorData?.cursorSmoothness ?? defaults.cursorSmoothness ?? 0.8
+  const tiltMaxDeg = cursorData?.directionalTiltMaxDeg ?? defaults.directionalTiltMaxDeg ?? 16
   const clickStyle = cursorData?.clickEffectStyle ?? defaults.clickEffectStyle ?? 'ripple'
   const clickAnimation = cursorData?.clickEffectAnimation ?? defaults.clickEffectAnimation ?? 'expand'
   const clickDurationMs = cursorData?.clickEffectDurationMs ?? defaults.clickEffectDurationMs ?? 480
@@ -67,8 +65,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const hideOnIdle = cursorData?.hideOnIdle ?? defaults.hideOnIdle
   const fadeOnIdle = cursorData?.fadeOnIdle ?? defaults.fadeOnIdle
   const clickEffectsEnabled = cursorData?.clickEffects ?? defaults.clickEffects
-  const showFineTune = useWorkspaceStore((s) => s.cursorTabFineTuneOpen)
-  const setShowFineTune = useWorkspaceStore((s) => s.setCursorTabFineTuneOpen)
+  const _showFineTune = useWorkspaceStore((s) => s.cursorTabFineTuneOpen)
+  const _setShowFineTune = useWorkspaceStore((s) => s.setCursorTabFineTuneOpen)
 
   const [returnDuration, setReturnDuration] = useState(1.0)
   const [previewKey, setPreviewKey] = useState(0)
@@ -106,10 +104,9 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
   const isNear = (value: number, target: number, epsilon = 0.02) => Math.abs(value - target) <= epsilon
 
+  // Raw preset = cursorSmoothness near 0 with gliding disabled
   const isRawPreset = motionPreset === 'custom'
-    && isNear(speed, 1, 0.04)
-    && isNear(smoothness, 0.1, 0.05)
-    && isNear(glide, 0, 0.04)
+    && isNear(cursorSmoothness, 0, 0.05)
     && glidingEnabled === false
   const motionLabel = useMemo(() => {
     if (motionPreset === 'custom') return isRawPreset ? 'Raw' : 'Custom'
@@ -125,7 +122,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
     preset: CursorMotionPreset
     description: string
     icon: React.ComponentType<{ className?: string }>
-    values?: { speed: number; smoothness: number; glide: number }
+    values?: { cursorSmoothness: number }
     gliding?: boolean
   }> = [
       {
@@ -165,23 +162,21 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
         preset: 'custom',
         description: 'No smoothing applied',
         icon: CircleOff,
-        values: { speed: 1, smoothness: 0.1, glide: 0 },
+        values: { cursorSmoothness: 0 },
         gliding: false
       }
     ]
 
   const applyMotionPreset = (
     preset: CursorMotionPreset,
-    values?: { speed: number; smoothness: number; glide: number },
+    values?: { cursorSmoothness: number },
     glidingOverride?: boolean
   ) => {
     if (preset !== 'custom') {
       const presetValues = CURSOR_MOTION_PRESETS[preset]
       onUpdateCursor({
         motionPreset: preset,
-        speed: presetValues.speed,
-        smoothness: presetValues.smoothness,
-        glide: presetValues.glide,
+        cursorSmoothness: presetValues.cursorSmoothness,
         ...(glidingOverride === undefined ? {} : { gliding: glidingOverride })
       })
       return
@@ -190,9 +185,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
     if (values) {
       onUpdateCursor({
         motionPreset: preset,
-        speed: values.speed,
-        smoothness: values.smoothness,
-        glide: values.glide,
+        cursorSmoothness: values.cursorSmoothness,
         ...(glidingOverride === undefined ? {} : { gliding: glidingOverride })
       })
       return
@@ -314,7 +307,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               }}
               onValueCommit={([value]) => onUpdateCursor({ size: value })}
               min={0.5}
-              max={8}
+              max={3}
               step={0.1}
               className="w-full"
             />
@@ -395,45 +388,88 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 {motionLabel}
               </span>
             </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {motionPresetOptions.map((option) => {
-                const Icon = option.icon
-                const isSelected = option.preset === 'custom'
-                  ? (option.id === 'raw' ? isRawPreset : !isRawPreset && motionPreset === 'custom')
-                  : effectiveMotionPreset === option.preset
-                const presetValues = option.values ?? (option.preset !== 'custom' ? CURSOR_MOTION_PRESETS[option.preset] : undefined)
-                const previewOverride = presetValues
-                  ? { speed: presetValues.speed, smoothness: presetValues.smoothness, glide: presetValues.glide, gliding: option.gliding }
-                  : { gliding: option.gliding }
-                return (
-                  <Tooltip key={option.id} delayDuration={400}>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => applyMotionPreset(option.preset, option.values, option.gliding)}
-                        onMouseEnter={() => startPreview(previewOverride, true)}
-                        onFocus={() => startPreview(previewOverride, true)}
-                        className={cn(
-                          'group flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all',
-                          isSelected
-                            ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
-                            : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                        )}
-                      >
-                        <div className={cn(
-                          'flex h-6 w-6 items-center justify-center rounded-md border',
-                          isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
-                        )}>
-                          <Icon className="h-3 w-3" />
-                        </div>
-                        <div className="text-2xs font-medium leading-none">{option.label}</div>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="text-xs">
-                      {option.description}
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              })}
+            <div className="flex items-center gap-1.5">
+              {/* Preset options: Smooth, Medium, Rapid */}
+              <div className="grid grid-cols-3 gap-1.5 flex-1">
+                {motionPresetOptions.slice(0, 3).map((option) => {
+                  const Icon = option.icon
+                  const isSelected = effectiveMotionPreset === option.preset
+                  const presetKey = option.preset as Exclude<CursorMotionPreset, 'custom'>
+                  const presetValues = CURSOR_MOTION_PRESETS[presetKey]
+                  const previewOverride = { cursorSmoothness: presetValues.cursorSmoothness, gliding: option.gliding }
+                  return (
+                    <Tooltip key={option.id} delayDuration={400}>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => applyMotionPreset(option.preset, option.values, option.gliding)}
+                          onMouseEnter={() => startPreview(previewOverride, true)}
+                          onFocus={() => startPreview(previewOverride, true)}
+                          className={cn(
+                            'group flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all',
+                            isSelected
+                              ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
+                              : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                          )}
+                        >
+                          <div className={cn(
+                            'flex h-6 w-6 items-center justify-center rounded-md border',
+                            isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
+                          )}>
+                            <Icon className="h-3 w-3" />
+                          </div>
+                          <div className="text-2xs font-medium leading-none">{option.label}</div>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-xs">
+                        {option.description}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-10 bg-border/40" />
+
+              {/* Custom options: Custom, Raw */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {motionPresetOptions.slice(3).map((option) => {
+                  const Icon = option.icon
+                  const isSelected = option.id === 'raw' ? isRawPreset : !isRawPreset && motionPreset === 'custom'
+                  const presetValues = option.values
+                  const previewOverride = presetValues
+                    ? { cursorSmoothness: presetValues.cursorSmoothness, gliding: option.gliding }
+                    : { gliding: option.gliding }
+                  return (
+                    <Tooltip key={option.id} delayDuration={400}>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => applyMotionPreset(option.preset, option.values, option.gliding)}
+                          onMouseEnter={() => startPreview(previewOverride, true)}
+                          onFocus={() => startPreview(previewOverride, true)}
+                          className={cn(
+                            'group flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all',
+                            isSelected
+                              ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
+                              : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                          )}
+                        >
+                          <div className={cn(
+                            'flex h-6 w-6 items-center justify-center rounded-md border',
+                            isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
+                          )}>
+                            <Icon className="h-3 w-3" />
+                          </div>
+                          <div className="text-2xs font-medium leading-none">{option.label}</div>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="text-xs">
+                        {option.description}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+              </div>
             </div>
             <div className="text-2xs text-muted-foreground/70 italic">
               Tweaking sliders below switches to Custom.
@@ -470,28 +506,32 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </div>
           </div>
 
-          {/* Cursor Movement */}
+          {/* Cursor Smoothness */}
           <div className="rounded-md bg-background/40 p-2.5 space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
-                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cursor Movement</label>
-                <InfoTooltip content="Higher = faster, more direct tracking" />
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Smoothness</label>
+                <InfoTooltip content="How smooth the cursor movement appears. Lower = more responsive, higher = more cinematic" />
               </div>
-              <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{speed.toFixed(2)}</span>
+              <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{cursorSmoothness.toFixed(2)}</span>
             </div>
             <Slider
-              value={[speed]}
+              value={[cursorSmoothness]}
               onValueChange={([value]) => {
-                onUpdateCursor({ speed: value, motionPreset: 'custom' })
+                onUpdateCursor({ cursorSmoothness: value, motionPreset: 'custom' })
               }}
               onValueCommit={([value]) => {
-                onUpdateCursor({ speed: value, motionPreset: 'custom' })
+                onUpdateCursor({ cursorSmoothness: value, motionPreset: 'custom' })
               }}
-              min={0.01}
+              min={0}
               max={1}
               step={0.01}
               className="w-full"
             />
+            <div className="flex justify-between text-[10px] text-muted-foreground/50">
+              <span>Responsive</span>
+              <span>Cinematic</span>
+            </div>
           </div>
 
           <AccordionSection title="Advanced" className="bg-background/30" contentClassName="pt-2.5">
@@ -536,85 +576,6 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                   </div>
                 </div>
               </div>
-
-              {/* Fine-tune Section */}
-              <button
-                onClick={() => setShowFineTune(!showFineTune)}
-                className="w-full flex items-center justify-between px-2 py-1.5 text-xs font-medium text-muted-foreground/70 hover:text-muted-foreground bg-background/20 hover:bg-background/30 rounded transition-colors"
-              >
-                <span>Fine-tune</span>
-                <ChevronRight className={cn("w-2.5 h-2.5 transition-transform duration-200", showFineTune && "rotate-90")} />
-              </button>
-
-              {showFineTune && (
-                <div className="pl-2 space-y-2.5 border-l-2 border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
-                  {/* Smoothness slider */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-muted-foreground/80">Smoothness</label>
-                      <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{smoothness.toFixed(2)}</span>
-                    </div>
-                    <Slider
-                      value={[smoothness]}
-                      onValueChange={([value]) => {
-                        onUpdateCursor({ smoothness: value, motionPreset: 'custom' })
-                      }}
-                      onValueCommit={([value]) => {
-                        onUpdateCursor({ smoothness: value, motionPreset: 'custom' })
-                      }}
-                      min={0.1}
-                      max={1}
-                      step={0.05}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Glide slider */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-muted-foreground/80">Glide</label>
-                      <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{glide.toFixed(2)}</span>
-                    </div>
-                    <Slider
-                      value={[glide]}
-                      onValueChange={([value]) => {
-                        onUpdateCursor({ glide: value, motionPreset: 'custom' })
-                      }}
-                      onValueCommit={([value]) => {
-                        onUpdateCursor({ glide: value, motionPreset: 'custom' })
-                      }}
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Continuity slider */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <label className="text-xs font-medium text-muted-foreground/80">Continuity</label>
-                        <InfoTooltip content="Higher values keep fast motion continuous before snapping." />
-                      </div>
-                      <span className="text-xs text-muted-foreground/60 font-mono tabular-nums">{continuity.toFixed(2)}</span>
-                    </div>
-                    <Slider
-                      value={[continuity]}
-                      onValueChange={([value]) => {
-                        onUpdateCursor({ smoothingJumpThreshold: value, motionPreset: 'custom' })
-                      }}
-                      onValueCommit={([value]) => {
-                        onUpdateCursor({ smoothingJumpThreshold: value, motionPreset: 'custom' })
-                      }}
-                      min={0.4}
-                      max={1.6}
-                      step={0.05}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Click Animation */}
               <div className="border-t border-border/30 pt-2.5 space-y-2">
@@ -700,7 +661,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                             }}
                             onValueCommit={([value]) => onUpdateCursor({ clickEffectMaxRadius: value })}
                             min={10}
-                            max={120}
+                            max={80}
                             step={2}
                           />
                         </div>
@@ -721,7 +682,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                             }}
                             onValueCommit={([value]) => onUpdateCursor({ clickEffectLineWidth: value })}
                             min={1}
-                            max={8}
+                            max={4}
                             step={1}
                           />
                         </div>
@@ -811,7 +772,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                               onValueChange={([value]) => onUpdateCursor({ clickTextSize: value })}
                               onValueCommit={([value]) => onUpdateCursor({ clickTextSize: value })}
                               min={8}
-                              max={48}
+                              max={28}
                               step={1}
                             />
                           </div>
@@ -856,7 +817,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                               onValueChange={([value]) => onUpdateCursor({ clickTextRise: value })}
                               onValueCommit={([value]) => onUpdateCursor({ clickTextRise: value })}
                               min={0}
-                              max={120}
+                              max={60}
                               step={2}
                             />
                           </div>

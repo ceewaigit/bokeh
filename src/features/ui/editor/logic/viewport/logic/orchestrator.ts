@@ -14,7 +14,7 @@ import { interpolateMousePosition } from '@/features/effects/utils/mouse-interpo
 import { calculateZoomScale } from '@/features/rendering/canvas/math/transforms/zoom-transform'
 import { getCursorDimensions, getCursorHotspot, electronToCustomCursor } from '@/features/effects/cursor/store/cursor-types'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
-import { clamp01, lerp } from '@/features/rendering/canvas/math'
+import { clamp01, lerp, smootherStep } from '@/features/rendering/canvas/math'
 import { getSourceDimensions } from '@/features/rendering/canvas/math/coordinates'
 import { CAMERA_CONFIG, CURSOR_STOP_CONFIG } from '@/shared/config/physics-config'
 
@@ -52,6 +52,9 @@ const {
   dwellMs: CURSOR_STOP_DWELL_MS,
   minZoom: CURSOR_STOP_MIN_ZOOM,
 } = CURSOR_STOP_CONFIG
+
+// Transition window: smooth blend from intro anchor to hold deadzone
+const INTRO_TO_HOLD_BLEND_MS = 150
 
 export interface CameraPhysicsState {
   x: number
@@ -167,7 +170,7 @@ export function computeCameraState({
   )
 
   const rawCursorPosForAnchor = interpolateMousePosition(mouseEvents, sourceTimeMs)
-  const rawCursorNormForAnchor = rawCursorPosForAnchor
+  const _rawCursorNormForAnchor = rawCursorPosForAnchor
     ? { x: rawCursorPosForAnchor.x / sourceWidth, y: rawCursorPosForAnchor.y / sourceHeight }
     : null
 
@@ -324,13 +327,14 @@ export function computeCameraState({
     return { x: cursor.x + offX, y: cursor.y + offY }
   }
 
-  // Capture an intro "anchor" on block entry so zoom-in doesn't chase live cursor.
+  // Capture the starting center position on block entry for smooth pan-to-cursor during intro.
+  // Instead of anchoring to cursor position, we pan FROM current center TO cursor.
   const enteringZoomBlock = Boolean(activeZoomBlock && activeZoomBlock.id !== physics.lastZoomBlockId)
   if (enteringZoomBlock && activeZoomBlock) {
     physics.lastZoomBlockId = activeZoomBlock.id
-    const anchor = rawCursorNormForAnchor ?? { x: cursorNormX, y: cursorNormY }
-    physics.introAnchorX = anchor.x
-    physics.introAnchorY = anchor.y
+    // Store where camera center IS (start position for intro interpolation)
+    physics.introAnchorX = physics.x  // Starting center X
+    physics.introAnchorY = physics.y  // Starting center Y
     physics.introAnchorVX = cursorVelocityVec.vx
     physics.introAnchorVY = cursorVelocityVec.vy
   } else if (!activeZoomBlock) {
@@ -422,6 +426,22 @@ export function computeCameraState({
     && timelineMs > activeZoomBlock.endTime - (activeZoomBlock.outroMs ?? 0)
   )
 
+  // Detect intro-to-hold transition window for smooth phase handoff
+  const introEndTime = activeZoomBlock
+    ? activeZoomBlock.startTime + activeZoomBlock.introMs
+    : 0
+  const isIntroToHoldTransition = Boolean(
+    activeZoomBlock
+    && shouldFollowMouse
+    && !isIntroPhase
+    && !isOutroPhase
+    && timelineMs >= introEndTime
+    && timelineMs < introEndTime + INTRO_TO_HOLD_BLEND_MS
+  )
+  const introToHoldProgress = isIntroToHoldTransition
+    ? clamp01((timelineMs - introEndTime) / INTRO_TO_HOLD_BLEND_MS)
+    : 1.0
+
   const useFixedIntroWindow = Boolean(
     activeZoomBlock
     && shouldFollowMouse
@@ -429,34 +449,72 @@ export function computeCameraState({
     && (zoomIntoCursorMode ?? 'cursor') !== 'snap'
   )
   if (isIntroPhase) {
-    // "Zoom into cursor" - set target directly to cursor position.
-    // The transform formula pan = (0.5 - cursor) * (scale - 1) handles the zoom-in animation.
-    // This creates ONE smooth motion where the cursor stays fixed on screen.
+    // "Pan to cursor during zoom" - smoothly pan FROM starting center TO cursor target.
+    // Uses same easing as scale so pan and zoom arrive together.
+    // Uses smoothed cursor to prevent sudden movements from causing end-of-intro snap.
     const mode = zoomIntoCursorMode ?? 'cursor'
 
-    const anchor = (() => {
+    // Calculate intro progress with same easing as scale
+    const introElapsed = timelineMs - activeZoomBlock!.startTime
+    const introProgress = clamp01(introElapsed / Math.max(1, activeZoomBlock!.introMs))
+    const easedProgress = smootherStep(introProgress)  // Match scale easing
+
+    const destination = (() => {
       if (mode === 'center') return { x: 0.5, y: 0.5 }
       if (mode === 'snap') return followCursor
 
-      const ax = physics.introAnchorX ?? followCursor.x
-      const ay = physics.introAnchorY ?? followCursor.y
-      if (mode !== 'lead') return { x: ax, y: ay }
+      // Start position: where camera center WAS when intro started
+      const startX = physics.introAnchorX ?? 0.5
+      const startY = physics.introAnchorY ?? 0.5
 
-      const vx = physics.introAnchorVX ?? cursorVelocityVec.vx
-      const vy = physics.introAnchorVY ?? cursorVelocityVec.vy
-      const predictSeconds = Math.min(0.35, Math.max(0.05, (activeZoomBlock?.introMs ?? 250) / 1000 * 0.4))
-      return { x: ax + vx * predictSeconds, y: ay + vy * predictSeconds }
+      // End position: use smoothed cursor to prevent snap from sudden cursor movements.
+      // At higher zoom/scale, cursor movements are amplified, so we need MORE smoothing
+      // toward the end of intro (when scale is highest) to prevent visual snap.
+      const smoothedCursor = getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+      // Use heavy smoothing throughout intro - cursor movements during zoom-in should feel dampened
+      // This prevents the "snap to cursor" effect at end of intro when scale amplifies movements
+      const smoothingBlend = 0.85  // 85% smoothed cursor, 15% live
+      let endX = followCursor.x * (1 - smoothingBlend) + smoothedCursor.x * smoothingBlend
+      let endY = followCursor.y * (1 - smoothingBlend) + smoothedCursor.y * smoothingBlend
+
+      // For 'lead' mode, predict where cursor is heading
+      if (mode === 'lead') {
+        const vx = cursorVelocityVec.vx
+        const vy = cursorVelocityVec.vy
+        const predictSeconds = Math.min(0.35, Math.max(0.05, (activeZoomBlock?.introMs ?? 250) / 1000 * 0.4))
+        endX += vx * predictSeconds
+        endY += vy * predictSeconds
+      }
+
+      // Interpolate from start to end using eased progress (same as scale)
+      // This creates unified motion: pan and zoom arrive at destination together
+      return {
+        x: startX + (endX - startX) * easedProgress,
+        y: startY + (endY - startY) * easedProgress
+      }
     })()
 
     // Clamp to content bounds
-    const zoomTarget = clampCenterToContentBounds(anchor, halfWindowAimX, halfWindowAimY, safeOverscan)
-    
-    // Set target such that the cursor (or target point) remains fixed on screen during the zoom.
-    // At scale=1, center is 0.5. At scale=S, center approaches the target.
-    // Formula: Center = Target - (Target - 0.5) / Scale
-    const intendedTarget = mode === 'lead' ? leadCursor(zoomTarget) : zoomTarget
-    // Pass raw target position - the transform's pan formula handles keeping it fixed
-    targetCenter = intendedTarget
+    const zoomTarget = clampCenterToContentBounds(destination, halfWindowAimX, halfWindowAimY, safeOverscan)
+    targetCenter = zoomTarget
+  }
+
+  // Intro-to-hold transition: blend from where intro ended to deadzone target for smooth handoff
+  if (isIntroToHoldTransition) {
+    // Calculate what deadzone would give us
+    const algo = mouseFollowAlgorithm ?? 'deadzone'
+    const cursorInput = (algo === 'smooth' && !cursorIsFrozen)
+      ? getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+      : followCursor
+    const deadzoneTarget = applyMouseAlgorithm(cursorInput, baseCenterForFollow, shouldFollowMouse && hasOverscan)
+
+    // Blend from current physics position (where intro ended) to deadzone target
+    const blendProgress = smootherStep(introToHoldProgress)
+    const introEndPos = { x: physics.x, y: physics.y }
+    targetCenter = {
+      x: introEndPos.x + (deadzoneTarget.x - introEndPos.x) * blendProgress,
+      y: introEndPos.y + (deadzoneTarget.y - introEndPos.y) * blendProgress
+    }
   }
 
   // Deterministic export with mouse follow uses exponential smoothing
@@ -467,10 +525,24 @@ export function computeCameraState({
     const baseCenter = { x: 0.5, y: 0.5 }
     targetCenter = applyMouseAlgorithm(cursorInput, baseCenter, hasOverscan)
     if (timelineMs < activeZoomBlock.startTime + activeZoomBlock.introMs) {
-      // Set target directly to cursor - no lerp! Transform handles the zoom animation.
-      const cursorTarget = clampCenterToContentBounds(cursorInput, halfWindowAimX, halfWindowAimY, safeOverscan)
+      // During intro: interpolate from start center to cursor using same easing as scale
+      const introElapsed = timelineMs - activeZoomBlock.startTime
+      const introProgress = clamp01(introElapsed / Math.max(1, activeZoomBlock.introMs))
+      const easedProgress = smootherStep(introProgress)
       const mode = zoomIntoCursorMode ?? 'cursor'
-      targetCenter = mode === 'center' ? { x: 0.5, y: 0.5 } : (mode === 'lead' ? leadCursor(cursorTarget) : cursorTarget)
+
+      if (mode === 'center') {
+        targetCenter = { x: 0.5, y: 0.5 }
+      } else {
+        const startX = physics.introAnchorX ?? 0.5
+        const startY = physics.introAnchorY ?? 0.5
+        const cursorTarget = clampCenterToContentBounds(cursorInput, halfWindowAimX, halfWindowAimY, safeOverscan)
+        const endPos = mode === 'lead' ? leadCursor(cursorTarget) : cursorTarget
+        targetCenter = {
+          x: startX + (endPos.x - startX) * easedProgress,
+          y: startY + (endPos.y - startY) * easedProgress
+        }
+      }
     }
   }
 
@@ -483,7 +555,65 @@ export function computeCameraState({
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
   } else if (shouldFollowMouse && isIntroPhase && (zoomIntoCursorMode ?? 'cursor') !== 'center') {
     // Make the zoom-in feel like it aims at the cursor immediately (no spring lag during intro).
-    nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
+    // Camera center stays at anchor - no velocity since we're not tracking cursor during intro.
+    // The intro-to-hold transition window handles the handoff to deadzone following.
+    nextPhysics = {
+      x: targetCenter.x,
+      y: targetCenter.y,
+      vx: 0,
+      vy: 0,
+      scale: commandedScale,
+      vScale: 0,
+      lastTimeMs: timelineMs,
+      lastSourceTimeMs: sourceTimeMs
+    }
+  } else if (shouldFollowMouse && isIntroToHoldTransition) {
+    // Transition window: gradually ramp up spring physics
+    // Use soft spring at start, ramping to normal stiffness
+    const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
+    const transitionStiffness = lerp(20, 60, introToHoldProgress)
+    const transitionDamping = lerp(30, 15, introToHoldProgress)
+
+    let currentX = physics.x
+    let currentY = physics.y
+    let currentVX = physics.vx
+    let currentVY = physics.vy
+
+    const MAX_STEP = 0.016
+    let remainingDt = dtSeconds
+
+    if (remainingDt > 0.5) {
+      currentX = targetCenter.x
+      currentY = targetCenter.y
+      currentVX = 0
+      currentVY = 0
+      remainingDt = 0
+    }
+
+    while (remainingDt > 0) {
+      const dt = Math.min(remainingDt, MAX_STEP)
+      const fx = -transitionStiffness * (currentX - targetCenter.x) - transitionDamping * currentVX
+      const fy = -transitionStiffness * (currentY - targetCenter.y) - transitionDamping * currentVY
+      currentVX += fx * dt
+      currentVY += fy * dt
+      currentX += currentVX * dt
+      currentY += currentVY * dt
+      remainingDt -= dt
+    }
+
+    if (Math.abs(currentVX) < 0.0001) currentVX = 0
+    if (Math.abs(currentVY) < 0.0001) currentVY = 0
+
+    nextPhysics = {
+      x: currentX,
+      y: currentY,
+      vx: currentVX,
+      vy: currentVY,
+      scale: commandedScale,
+      vScale: 0,
+      lastTimeMs: timelineMs,
+      lastSourceTimeMs: sourceTimeMs
+    }
   } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'smooth' && !isOutroPhase) {
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
   } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'direct' && !isOutroPhase) {
@@ -502,9 +632,10 @@ export function computeCameraState({
       damping = cameraDynamics.damping
       mass = cameraDynamics.mass || 1
     } else if (isOutroPhase) {
-      // Outro phase: Use softer spring and higher damping for "crane-like" settling
-      stiffness = 30
-      damping = 25
+      // Outro phase: Stiffer spring to keep pan coupled with deterministic scale deceleration
+      // Pan must keep up with scale easing, otherwise camera lags behind during zoom-out
+      stiffness = 80
+      damping = 20
     } else if (cameraSmoothness != null) {
       // Legacy mapping if dynamics not provided
       const t = clamp01(cameraSmoothness / 100)

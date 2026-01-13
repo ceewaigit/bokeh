@@ -8,8 +8,8 @@
  * 4. Operations are locked to prevent race conditions
  */
 
-import { AudioInputService, AudioSegment, AudioInputResult } from '@/features/media/recording/services/audio-input-service'
-import { WebcamService, WebcamSegment, WebcamRecordingResult } from '@/features/media/recording/services/webcam-service'
+import { AudioInputService } from '@/features/media/recording/services/audio-input-service'
+import { WebcamService } from '@/features/media/recording/services/webcam-service'
 
 // Mock the bridge for testing
 const createMockBridge = () => ({

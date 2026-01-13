@@ -14,7 +14,7 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import { assertDefined } from '@/shared/errors'
 import { applySkipRangesToClips, applySkipRangesToEffects } from './skip-range-utils'
 
-function buildExportProject(project: Project) {
+export function buildExportProject(project: Project) {
   const skipRanges = TimelineDataService.getGlobalTimelineSkips(project)
   if (skipRanges.length === 0) {
     return { project, skipRanges }

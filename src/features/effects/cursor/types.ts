@@ -76,4 +76,10 @@ export interface CursorEffectData {
    * When set to anything other than 'custom', speed/smoothness/glide are derived from preset.
    */
   motionPreset?: CursorMotionPreset;
+  /**
+   * Unified smoothness value (0 = responsive/snappy, 1 = cinematic/buttery).
+   * When present, this derives internal speed/smoothness/glide values automatically.
+   * Takes precedence over individual speed/smoothness/glide settings.
+   */
+  cursorSmoothness?: number;
 }

@@ -58,16 +58,21 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     theme: CursorTheme.Default,
     size: CURSOR_CONSTANTS.DEFAULT_SIZE,
     color: '#ffffff',
+    // Legacy values (kept for backwards compatibility, but cursorSmoothness takes precedence)
     speed: 0.01,
     smoothness: 0.25,
     glide: 0.15,
+    // New unified smoothness: 0 = responsive/snappy, 1 = cinematic/buttery
+    cursorSmoothness: 0.8,
     gliding: true,
+    directionalTilt: true,
+    directionalTiltMaxDeg: 16,
     motionBlur: false,
     motionBlurIntensity: 40,
     idleTimeout: 3000,
     clickEffects: true,
-    clickEffectStyle: 'none',
-    hideOnIdle: true, // Default to hiding on idle for cleaner look
+    clickEffectStyle: 'ripple',
+    hideOnIdle: false, // Default to showing cursor to avoid confusing users
     fadeOnIdle: true,
     motionPreset: 'cinematic',
     clickEffectAnimation: 'expand',
@@ -77,10 +82,10 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     clickEffectColor: '#ffffff'
 }
 
-// Cursor motion presets - maps preset name to speed/smoothness/glide values
-export const CURSOR_MOTION_PRESETS: Record<Exclude<CursorMotionPreset, 'custom'>, { speed: number; smoothness: number; glide: number }> = {
-    cinematic: { speed: 0.01, smoothness: 0.7, glide: 0.65 },
-    balanced: { speed: 0.5, smoothness: 0.45, glide: 0.4 },
-    smooth: { speed: 0.01, smoothness: 0.7, glide: 0.65 }, // Alias for cinematic if needed or duplicate
-    responsive: { speed: 0.8, smoothness: 0.15, glide: 0.15 } // Gaming/Fast
+// Cursor motion presets - now using unified cursorSmoothness (0 = responsive, 1 = cinematic)
+export const CURSOR_MOTION_PRESETS: Record<Exclude<CursorMotionPreset, 'custom'>, { cursorSmoothness: number }> = {
+    cinematic: { cursorSmoothness: 1.0 },
+    balanced: { cursorSmoothness: 0.5 },
+    smooth: { cursorSmoothness: 1.0 }, // Alias for cinematic
+    responsive: { cursorSmoothness: 0.0 }
 }

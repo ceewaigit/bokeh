@@ -125,6 +125,9 @@ export function ZoomTab({
     const [isTimingOpen, setIsTimingOpen] = React.useState(false)
     const [isAdvancedBlurOpen, setIsAdvancedBlurOpen] = React.useState(false)
 
+    // Track scale before Center mode to restore when switching away
+    const [preZoomScale, setPreZoomScale] = React.useState<number | null>(null)
+
     // Timeout refs for debouncing
     const scaleResetTimeoutRef = React.useRef<number | null>(null)
     const introResetTimeoutRef = React.useRef<number | null>(null)
@@ -158,6 +161,14 @@ export function ZoomTab({
         { id: 'cursor', label: 'Cursor' },
         { id: 'lead', label: 'Predict' },
         { id: 'center', label: 'Center' },
+    ] as const), [])
+
+    const transitionStyleOptions = useMemo(() => ([
+        { id: 'smoother', label: 'Smooth' },
+        { id: 'expo', label: 'Cinematic' },
+        { id: 'sine', label: 'Gentle' },
+        { id: 'cubic', label: 'Sharp' },
+        { id: 'linear', label: 'Linear' },
     ] as const), [])
 
     // Sync preset state with camera settings
@@ -200,14 +211,26 @@ export function ZoomTab({
 
     const selectedMouseFollowAlgorithm = selectedZoomData?.mouseFollowAlgorithm ?? DEFAULT_ZOOM_DATA.mouseFollowAlgorithm ?? 'deadzone'
     const selectedZoomIntoCursorMode = selectedZoomData?.zoomIntoCursorMode ?? DEFAULT_ZOOM_DATA.zoomIntoCursorMode ?? 'cursor'
+    const selectedTransitionStyle = selectedZoomData?.transitionStyle ?? 'smoother'
 
     const effectiveEase = React.useMemo(() => {
         return getEffectiveZoomEaseDurations(
             Math.max(0, blockDurationMs),
             selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs,
-            selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs
+            selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs,
+            selectedZoomData?.scale ?? DEFAULT_ZOOM_DATA.scale
         )
-    }, [blockDurationMs, selectedZoomData?.introMs, selectedZoomData?.outroMs])
+    }, [blockDurationMs, selectedZoomData?.introMs, selectedZoomData?.outroMs, selectedZoomData?.scale])
+
+    // Dynamic slider limits based on block duration
+    // Max for each transition = block duration (system handles overlap gracefully)
+    // Round to nearest 50ms for cleaner UI
+    const introMs = selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs
+    const outroMs = selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs
+    const maxTransitionMs = Math.max(100, Math.ceil(blockDurationMs / 50) * 50)
+    // Ensure the current value is always reachable (in case block was shortened)
+    const introSliderMax = Math.max(maxTransitionMs, introMs)
+    const outroSliderMax = Math.max(maxTransitionMs, outroMs)
 
     const handleBlockUpdate = (updates: Partial<ZoomBlock>) => {
         if (selectedBlock && onZoomBlockUpdate) {
@@ -251,13 +274,13 @@ export function ZoomTab({
                                 scheduleReset(scaleResetTimeoutRef, () => setLocalScale(null), 300)
                             }}
                             min={1}
-                            max={7}
+                            max={3}
                             step={0.1}
                             disabled={isFillScreen}
                         />
                         <div className="flex justify-between text-3xs text-muted-foreground/60 tabular-nums">
                             <span>1x</span>
-                            <span>7x</span>
+                            <span>3x</span>
                         </div>
                     </div>
 
@@ -271,17 +294,51 @@ export function ZoomTab({
                             <InlineOption
                                 label="Track Cursor"
                                 active={isTrackCursor}
-                                onClick={() => handleBlockUpdate({ followStrategy: ZoomFollowStrategy.Mouse, autoScale: undefined })}
+                                onClick={() => {
+                                    // Restore scale if coming from Center mode
+                                    const restoreScale = isCenterLocked && preZoomScale != null ? preZoomScale : undefined
+                                    handleBlockUpdate({
+                                        followStrategy: ZoomFollowStrategy.Mouse,
+                                        autoScale: undefined,
+                                        ...(restoreScale != null && { scale: restoreScale })
+                                    })
+                                    if (restoreScale != null) setPreZoomScale(null)
+                                }}
                             />
                             <InlineOption
                                 label="Manual Point"
                                 active={isManualFocus}
-                                onClick={() => handleBlockUpdate({ followStrategy: ZoomFollowStrategy.Manual, autoScale: undefined, ...seedManualTargetFromLiveCamera() })}
+                                onClick={() => {
+                                    const manualTarget = seedManualTargetFromLiveCamera()
+                                    // Fallback to center with screen dimensions if seeding fails
+                                    const target = manualTarget ?? {
+                                        targetX: (sourceDims?.width ?? 1920) / 2,
+                                        targetY: (sourceDims?.height ?? 1080) / 2,
+                                        screenWidth: sourceDims?.width ?? 1920,
+                                        screenHeight: sourceDims?.height ?? 1080
+                                    }
+                                    // Restore scale if coming from Center mode
+                                    const restoreScale = isCenterLocked && preZoomScale != null ? preZoomScale : undefined
+                                    handleBlockUpdate({
+                                        followStrategy: ZoomFollowStrategy.Manual,
+                                        autoScale: undefined,
+                                        ...target,
+                                        ...(restoreScale != null && { scale: restoreScale })
+                                    })
+                                    if (restoreScale != null) setPreZoomScale(null)
+                                }}
                             />
                             <InlineOption
                                 label="Center"
                                 active={isCenterLocked}
-                                onClick={() => handleBlockUpdate({ followStrategy: ZoomFollowStrategy.Center, scale: 1, autoScale: 'fill' })}
+                                onClick={() => {
+                                    // Save current scale to restore later when leaving Center mode
+                                    const currentScale = selectedZoomData?.scale ?? DEFAULT_ZOOM_DATA.scale
+                                    if (!isCenterLocked && currentScale > 1) {
+                                        setPreZoomScale(currentScale)
+                                    }
+                                    handleBlockUpdate({ followStrategy: ZoomFollowStrategy.Center, scale: 1, autoScale: 'fill' })
+                                }}
                             />
                         </div>
 
@@ -321,6 +378,15 @@ export function ZoomTab({
                                             ))}
                                         </div>
                                     </div>
+                                    <CompactSlider
+                                        label="Dead Zone"
+                                        value={selectedZoomData?.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3}
+                                        min={1}
+                                        max={20}
+                                        step={1}
+                                        unit="px"
+                                        onValueChange={v => handleBlockUpdate({ mouseIdlePx: v })}
+                                    />
                                 </SubSection>
                             )}
                         </AnimatePresence>
@@ -377,45 +443,69 @@ export function ZoomTab({
                                             <div className="flex items-center justify-between text-2xs text-muted-foreground">
                                                 <span>Zoom In</span>
                                                 <span className="font-mono tabular-nums">
-                                                    {localIntroMs ?? (selectedZoomData?.introMs || DEFAULT_ZOOM_DATA.introMs)}ms
+                                                    {(localIntroMs ?? selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs) === 0
+                                                        ? 'Instant'
+                                                        : `${localIntroMs ?? selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs}ms`}
                                                 </span>
                                             </div>
                                             <Slider
-                                                value={[localIntroMs ?? (selectedZoomData?.introMs || DEFAULT_ZOOM_DATA.introMs)]}
+                                                value={[localIntroMs ?? selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs]}
                                                 onValueChange={([v]) => setLocalIntroMs(v)}
                                                 onValueCommit={([v]) => {
                                                     handleBlockUpdate({ introMs: v })
                                                     scheduleReset(introResetTimeoutRef, () => setLocalIntroMs(null), 300)
                                                 }}
                                                 min={0}
-                                                max={2000}
+                                                max={introSliderMax}
                                                 step={50}
                                             />
-                                            <div className="text-3xs text-muted-foreground/50">
-                                                Effective: {Math.round(effectiveEase.introMs / 10) * 10}ms
+                                            <div className="flex justify-between text-3xs text-muted-foreground/50">
+                                                <span>Instant</span>
+                                                <span>{introSliderMax}ms</span>
                                             </div>
                                         </div>
                                         <div className="space-y-1.5">
                                             <div className="flex items-center justify-between text-2xs text-muted-foreground">
                                                 <span>Zoom Out</span>
                                                 <span className="font-mono tabular-nums">
-                                                    {localOutroMs ?? (selectedZoomData?.outroMs || DEFAULT_ZOOM_DATA.outroMs)}ms
+                                                    {(localOutroMs ?? selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs) === 0
+                                                        ? 'Instant'
+                                                        : `${localOutroMs ?? selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs}ms`}
                                                 </span>
                                             </div>
                                             <Slider
-                                                value={[localOutroMs ?? (selectedZoomData?.outroMs || DEFAULT_ZOOM_DATA.outroMs)]}
+                                                value={[localOutroMs ?? selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs]}
                                                 onValueChange={([v]) => setLocalOutroMs(v)}
                                                 onValueCommit={([v]) => {
                                                     handleBlockUpdate({ outroMs: v })
                                                     scheduleReset(outroResetTimeoutRef, () => setLocalOutroMs(null), 300)
                                                 }}
                                                 min={0}
-                                                max={2000}
+                                                max={outroSliderMax}
                                                 step={50}
                                             />
-                                            <div className="text-3xs text-muted-foreground/50">
-                                                Effective: {Math.round(effectiveEase.outroMs / 10) * 10}ms
+                                            <div className="flex justify-between text-3xs text-muted-foreground/50">
+                                                <span>Instant</span>
+                                                <span>{outroSliderMax}ms</span>
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Curve Style */}
+                                    <div className="pt-3 space-y-2 border-t border-border/20 mt-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-2xs text-muted-foreground">Curve Style</span>
+                                            <InfoTooltip content="Controls how the zoom accelerates and decelerates" />
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {transitionStyleOptions.map(opt => (
+                                                <InlineOption
+                                                    key={opt.id}
+                                                    label={opt.label}
+                                                    active={selectedTransitionStyle === opt.id}
+                                                    onClick={() => handleBlockUpdate({ transitionStyle: opt.id as ZoomEffectData['transitionStyle'] })}
+                                                />
+                                            ))}
                                         </div>
                                     </div>
                                 </motion.div>
@@ -456,6 +546,7 @@ export function ZoomTab({
                     options={cameraStylePresets}
                     value={cameraStylePreset}
                     onChange={(id) => {
+                        setCameraStylePreset(id)  // Always update UI state first
                         const preset = cameraStylePresets.find(p => p.id === id)
                         if (preset && preset.id !== 'custom') {
                             setCameraSettings({
@@ -478,8 +569,8 @@ export function ZoomTab({
                                 <CompactSlider
                                     label="Responsiveness"
                                     value={localStiffness ?? camera.cameraDynamics?.stiffness ?? 120}
-                                    min={10}
-                                    max={300}
+                                    min={30}
+                                    max={200}
                                     onValueChange={setLocalStiffness}
                                     onValueCommit={v => setCameraSettings({
                                         cameraDynamics: {
@@ -569,7 +660,7 @@ export function ZoomTab({
                                 label="Shutter Angle"
                                 value={camera.motionBlurIntensity ?? 25}
                                 min={0}
-                                max={200}
+                                max={100}
                                 step={5}
                                 unit="%"
                                 onValueChange={v => setCameraSettings({ motionBlurIntensity: v })}
@@ -604,7 +695,7 @@ export function ZoomTab({
                                                 label="Max Radius"
                                                 value={camera.motionBlurClamp ?? 45}
                                                 min={10}
-                                                max={200}
+                                                max={100}
                                                 unit="px"
                                                 onValueChange={v => setCameraSettings({ motionBlurClamp: v })}
                                             />
