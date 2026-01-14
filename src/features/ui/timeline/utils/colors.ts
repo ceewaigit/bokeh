@@ -141,8 +141,8 @@ export const getTimelineColors = () => {
       : (isDark ? 'rgba(20, 20, 25, 0.85)' : 'rgba(250, 250, 252, 0.9)'),
 
     // Glass-safe text colors (high contrast for glass backgrounds)
-    glassForeground: isDark ? 'hsl(0, 0%, 100%)' : 'hsl(0, 0%, 0%)',
-    glassSecondaryForeground: isDark ? 'hsl(0, 0%, 85%)' : 'hsl(0, 0%, 20%)',
+    glassForeground: getCSSVar('--glass-text') || (isDark ? 'hsl(0, 0%, 100%)' : 'hsl(0, 0%, 0%)'),
+    glassSecondaryForeground: getCSSVar('--glass-text-secondary') || (isDark ? 'hsl(0, 0%, 85%)' : 'hsl(0, 0%, 20%)'),
 
     // Effect block label colors - guaranteed visibility on any background
     effectLabelColor: isDark ? 'hsl(0, 0%, 95%)' : 'hsl(0, 0%, 10%)',
@@ -160,14 +160,14 @@ export const getTimelineColors = () => {
     trackBackground: isGlassMode
       ? (isDark ? 'rgba(50, 50, 60, 0.3)' : 'rgba(255, 255, 255, 0.18)')
       : (isDark ? 'rgba(35, 35, 40, 0.6)' : 'rgba(240, 240, 245, 0.7)'),
-    playhead: getCSSVar('--destructive') || 'hsl(263, 70%, 60%)',
-    zoomBlock: getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
-    screenBlock: getCSSVar('--info') || (isDark ? 'hsl(152, 55%, 45%)' : 'hsl(152, 55%, 35%)'),
-    keystrokeBlock: isDark ? 'hsl(83, 65%, 50%)' : 'hsl(83, 65%, 40%)', // Green for keystrokes
-    annotationBlock: isDark ? 'hsl(45, 90%, 55%)' : 'hsl(45, 90%, 45%)', // Amber/yellow for annotations
+    playhead: getCSSVar('--timeline-playhead') || getCSSVar('--destructive') || 'hsl(263, 70%, 60%)',
+    zoomBlock: getCSSVar('--effect-zoom') || getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
+    screenBlock: getCSSVar('--effect-screen') || (isDark ? 'hsl(152, 55%, 45%)' : 'hsl(152, 55%, 35%)'),
+    keystrokeBlock: getCSSVar('--effect-keystroke') || (isDark ? 'hsl(83, 65%, 50%)' : 'hsl(83, 65%, 40%)'),
+    annotationBlock: getCSSVar('--effect-annotation') || (isDark ? 'hsl(45, 90%, 55%)' : 'hsl(45, 90%, 45%)'),
 
     // Webcam track colors
-    webcamClip: 'hsl(196, 60%, 45%)',
+    webcamClip: getCSSVar('--effect-webcam') || 'hsl(196, 60%, 45%)',
     webcamCircle: 'rgba(255, 255, 255, 0.15)',
     webcamTrack: isDark ? 'rgba(34, 211, 238, 0.12)' : 'rgba(34, 211, 238, 0.09)',
     clipSelected: getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
@@ -189,7 +189,7 @@ export const getTimelineColors = () => {
   }
 }
 
-// Default colors for SSR/fallback
+// Default colors for SSR/fallback (matches dark mode defaults)
 const getDefaultColors = () => ({
   isDark: true,
   isGlassMode: false,
@@ -204,7 +204,7 @@ const getDefaultColors = () => ({
   primaryForeground: 'hsl(240, 5.9%, 10%)',
   secondary: 'hsl(240, 3.7%, 15.9%)',
   secondaryForeground: 'hsl(0, 0%, 98%)',
-  accent: 'hsl(240, 3.7%, 15.9%)',
+  accent: 'hsl(262, 80%, 60%)',
   accentForeground: 'hsl(0, 0%, 98%)',
   destructive: 'hsl(0, 62.8%, 30.6%)',
   destructiveForeground: 'hsl(0, 0%, 98%)',
@@ -216,18 +216,19 @@ const getDefaultColors = () => ({
   glassSecondaryForeground: 'hsl(0, 0%, 85%)',
   effectLabelColor: 'hsl(0, 0%, 95%)',
   effectLabelShadow: 'rgba(0,0,0,0.8)',
-  success: 'hsl(0, 0%, 80%)',
+  success: 'hsl(142, 71%, 45%)',
   ruler: 'rgba(25, 25, 30, 0.9)',
   trackBackground: 'rgba(35, 35, 40, 0.6)',
-  playhead: 'hsl(263, 70%, 60%)',
-  zoomBlock: 'hsl(263, 70%, 65%)',
-  screenBlock: 'hsl(152, 55%, 35%)',
+  // Effect block colors - using CSS variable defaults
+  playhead: 'hsl(262, 80%, 60%)',
+  zoomBlock: 'hsl(262, 80%, 60%)',
+  screenBlock: 'hsl(152, 55%, 45%)',
   keystrokeBlock: 'hsl(83, 65%, 50%)',
   annotationBlock: 'hsl(45, 90%, 55%)',
-  webcamClip: 'hsl(196, 82%, 52%)',
+  webcamClip: 'hsl(196, 60%, 45%)',
   webcamCircle: 'rgba(255, 255, 255, 0.15)',
   webcamTrack: 'rgba(34, 211, 238, 0.12)',
-  clipSelected: 'hsl(263, 70%, 50%)',
+  clipSelected: 'hsl(262, 80%, 60%)',
   speedUpTyping: { base: 'hsl(38, 92%, 50%)', glow: 'hsl(38, 92%, 60%)' },
   speedUpIdle: { base: 'hsl(217, 91%, 60%)', glow: 'hsl(217, 91%, 70%)' },
   trim: { base: 'hsl(0, 72%, 51%)', glow: 'hsl(0, 72%, 60%)' },
@@ -253,19 +254,22 @@ export const useTimelineColors = () => {
     // Initial update
     updateColors()
 
-    // Listen for theme changes via class mutations on document element
+    // Listen for theme changes via class/data attribute mutations on document element
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          // Theme class changed, update colors
-          updateColors()
+        if (mutation.type === 'attributes') {
+          const attr = mutation.attributeName
+          // Theme class, color preset, or window surface changed - update colors
+          if (attr === 'class' || attr === 'data-color-preset' || attr === 'data-window-surface') {
+            updateColors()
+          }
         }
       })
     })
 
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['class']
+      attributeFilter: ['class', 'data-color-preset', 'data-window-surface']
     })
 
     // Also listen for storage events for theme changes from other tabs

@@ -55,7 +55,6 @@ export function calculateScreenTransform(
 
     const easedTiltX = (tiltX ?? -4) * easeFactor;
     const easedTiltY = (tiltY ?? 6) * easeFactor;
-    const scaleComp = 1.03;
 
     // Centering adjustment for certain presets
     let centerAdjust = '';
@@ -75,5 +74,5 @@ export function calculateScreenTransform(
     }
 
     const scaledPerspective = (perspective ?? 900) * pixelScale;
-    return ` perspective(${scaledPerspective}px) rotateX(${easedTiltX}deg) rotateY(${easedTiltY}deg) scale(${scaleComp})${centerAdjust}`;
+    return ` perspective(${scaledPerspective}px) rotateX(${easedTiltX}deg) rotateY(${easedTiltY}deg)${centerAdjust}`;
 }

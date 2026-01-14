@@ -69,7 +69,7 @@ export function PermissionGuard({ children }: PermissionGuardProps) {
         {showWelcome && (
           <motion.div
             key="welcome-modal"
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-md"
+            className="fixed inset-0 z-critical flex items-center justify-center bg-overlay-scrim/30 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

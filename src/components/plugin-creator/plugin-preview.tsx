@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import * as Babel from '@babel/standalone'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Blocks } from 'lucide-react'
 import type { GeneratedPlugin } from './page'
 
 interface PluginPreviewProps {
@@ -268,7 +268,7 @@ export function PluginPreview({
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <div className="bg-background/70 backdrop-blur-xl rounded-3xl p-10 text-center max-w-md border border-border/70 shadow-2xl transform transition-all hover:scale-105 hover:bg-background/80 group-hover:border-border/50">
                             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-background to-muted/60 flex items-center justify-center mx-auto mb-6 border border-border/70 shadow-inner">
-                                <Sparkles className="w-8 h-8 text-foreground" />
+                                <Blocks className="w-8 h-8 text-foreground" />
                             </div>
                             <h3 className="text-2xl font-semibold mb-3 text-foreground tracking-tight">Ready to Create</h3>
                             <p className="text-muted-foreground text-base leading-relaxed">

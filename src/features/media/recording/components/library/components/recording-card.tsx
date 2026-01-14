@@ -8,9 +8,7 @@ import { type LibraryRecordingView } from '@/features/media/recording/store/libr
 import { formatTime } from '@/shared/utils/time'
 import { cn } from '@/shared/utils/utils'
 import { PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
-
-// Snappy, Apple-esque spring config
-const cardSpring = { type: 'spring', stiffness: 400, damping: 25 } as const
+import { springConfig as cardSpring } from '@/shared/constants/animations'
 
 interface RecordingCardProps {
   recording: LibraryRecordingView
@@ -125,13 +123,13 @@ export function RecordingCard({
           onSelect(recording)
         }
       }}
-      whileHover={reduceMotion ? undefined : { y: -2, scale: 1.002 }}
-      whileTap={reduceMotion ? undefined : { scale: 0.998 }}
+      whileHover={reduceMotion ? undefined : { y: -3, scale: 1.01 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
       transition={reduceMotion ? { duration: 0 } : cardSpring}
       className={cn(
         "group relative overflow-hidden rounded-xl",
         "bg-card/50 backdrop-blur-sm border border-border/30",
-        "shadow-sm hover:shadow-md hover:border-border/50",
+        "shadow-sm hover:shadow-lg hover:border-border/50",
         "transition-shadow duration-200 ease-out",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       )}
@@ -171,7 +169,7 @@ export function RecordingCard({
         {/* Duration badge - bottom left */}
         {duration > 0 && (
           <div className="absolute bottom-2 left-2">
-            <span className="px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-md text-white/90 text-[10px] font-mono tracking-wide">
+            <span className="px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-md text-white/90 text-3xs font-mono tracking-wide">
               {formatTime(duration)}
             </span>
           </div>
@@ -190,10 +188,10 @@ export function RecordingCard({
 
       {/* Metadata below thumbnail - refined typography */}
       <div className="p-3">
-        <h3 className="font-medium text-foreground truncate text-[13px] tracking-[-0.008em]">
+        <h3 className="font-medium text-foreground truncate text-ui-sm tracking-[-0.008em]">
           {displayName}
         </h3>
-        <p className="text-muted-foreground/70 mt-1 text-[11px] tracking-normal">
+        <p className="text-muted-foreground/70 mt-1 text-2xs tracking-normal">
           {relativeTime}
         </p>
       </div>

@@ -108,31 +108,32 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
 
 
     useEffect(() => {
-        if (!shouldHideVideo) {
+        // Only reset states when motion blur is fully disabled (enabled prop becomes false)
+        // Don't reset when shouldRenderCanvas toggles - the canvas keeps its content during toggles
+        if (!enabled) {
             setWebglReady(false);
             setCanvasVisible(false);
         }
-    }, [shouldHideVideo]);
+    }, [enabled]);
 
     return (
         <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-            {/* Video always renders */}
+            {/* Video ALWAYS visible as fallback layer - canvas composites on top when active */}
             <div
                 style={{
                     width: '100%',
                     height: '100%',
-                    // SIMPLIFIED: Hide video when WebGL canvas is visible and ready
-                    // No timeout-based fresh frame tracking - just use canvas visibility state
-                    opacity: shouldHideVideo && canvasVisible && webglReady ? 0 : 1,
+                    // Video always at opacity 1 - no more race condition
                 }}
             >
                 {children}
             </div>
 
-            {/* Motion blur canvas overlays when active or when WebGL video is forced */}
-            {shouldRenderCanvas && (
+            {/* Motion blur canvas - always mounted when enabled to preserve content during transitions */}
+            {/* Don't unmount on shouldRenderCanvas toggle to avoid losing rendered content */}
+            {enabled && (
                 <MotionBlurCanvas
-                    enabled={true}
+                    enabled={shouldRenderCanvas}
                     velocity={velocity}
                     intensity={intensity}
                     samples={samples}

@@ -16,8 +16,7 @@ import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { FastForward, Scissors, X } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
-
-const spring = { type: 'spring', stiffness: 500, damping: 30 } as const
+import { springSnappy as spring } from '@/shared/constants/animations'
 
 export interface ActivitySuggestionPopoverProps {
   x: number
@@ -187,7 +186,7 @@ export function ActivitySuggestionPopover({
         <AnimatePresence>
           {isHovered && !disabled && (
             <motion.div
-              className="absolute inset-0 rounded-lg bg-foreground/5 dark:bg-white/10"
+              className="absolute inset-0 rounded-lg bg-muted/40"
               layoutId="activity-popover-hover"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -201,8 +200,8 @@ export function ActivitySuggestionPopover({
           <Icon className={cn("w-4 h-4", iconColorClass)} />
         </div>
         <div className="relative z-10 flex-1 min-w-0">
-          <div className="text-[13px] font-semibold text-foreground tracking-tight">{label}</div>
-          <div className="text-[11px] font-medium text-muted-foreground/80 leading-none mt-0.5">
+          <div className="text-ui-sm font-semibold text-foreground tracking-tight">{label}</div>
+          <div className="text-2xs font-medium text-muted-foreground/80 leading-none mt-0.5">
             {description}
           </div>
         </div>
@@ -217,21 +216,21 @@ export function ActivitySuggestionPopover({
         initial={{ opacity: 0, scale: 0.95, y: 8, filter: 'blur(4px)' }}
         animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
         exit={{ opacity: 0, scale: 0.95, filter: 'blur(2px)' }}
-        transition={spring}
-        className="fixed z-[9999] w-[240px] rounded-2xl bg-popover/85 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden p-1.5"
+        transition={{ ...spring, filter: { type: "tween", duration: 0.2, ease: "easeOut" } }}
+        className="fixed z-max w-[240px] rounded-2xl bg-popover/85 backdrop-blur-xl border border-glass-border shadow-2xl overflow-hidden p-1.5"
         style={{ left: pos.left, top: pos.top }}
         onMouseDown={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-3 pt-2 pb-1.5 mb-1 border-b border-border/10">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
+          <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground/60">
             {typeLabel}
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono text-muted-foreground/50">{stats.duration}</span>
+            <span className="text-2xs font-mono text-muted-foreground/50">{stats.duration}</span>
             <button
               onClick={onClose}
-              className="p-1 -mr-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition-colors"
+              className="p-1 -mr-1 rounded-md hover:bg-overlay-hover text-muted-foreground transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -264,7 +263,7 @@ export function ActivitySuggestionPopover({
             />
           )}
 
-          <div className="my-1 h-px bg-white/5 mx-2" />
+          <div className="my-1 h-px bg-glass-border mx-2" />
 
           <OptionButton
             id="dismiss"
@@ -283,7 +282,7 @@ export function ActivitySuggestionPopover({
             disabled={loading !== null}
             icon={X}
             iconColorClass="text-muted-foreground"
-            iconBgClass="bg-black/5 dark:bg-white/5"
+            iconBgClass="bg-overlay-hover"
             label="Dismiss"
             description="Ignore suggestion"
           />
@@ -293,7 +292,7 @@ export function ActivitySuggestionPopover({
             <motion.button
               onClick={handleApplyAll}
               disabled={loading !== null}
-              className="mt-1 w-full py-2 text-[11px] font-medium text-primary/80 hover:text-primary transition-colors border-t border-border/10"
+              className="mt-1 w-full py-2 text-2xs font-medium text-primary/80 hover:text-primary transition-colors border-t border-border/10"
               whileHover={{ backgroundColor: "rgba(255,255,255,0.05)" }}
             >
               Apply to all ({totalAll} items)

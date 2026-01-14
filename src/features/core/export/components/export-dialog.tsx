@@ -9,7 +9,6 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 
 import {
   Download,
-  Play,
   FileVideo,
   X,
   Check,
@@ -381,7 +380,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-6"
+    <div className="fixed inset-0 bg-overlay-scrim/50 backdrop-blur-[2px] flex items-center justify-center z-floating p-6"
       onClick={() => !isExporting && onClose()}
     >
       <div
@@ -400,7 +399,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-2 border-b border-border/50">
-          <h2 className="text-sm font-semibold text-foreground">Export</h2>
+          <h2 className="text-base font-semibold tracking-[-0.02em] text-foreground">Export</h2>
           <button
             onClick={isExporting ? undefined : onClose}
             disabled={isExporting}
@@ -618,8 +617,10 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                   <Check className="w-4.5 h-4.5 text-accent" strokeWidth={2} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">Export Complete</p>
-                  <p className="text-xs text-muted-foreground">{progress.progressMessage}</p>
+                  <p className="text-base font-display italic tracking-[-0.01em] text-foreground">
+                    Export complete
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{progress.progressMessage}</p>
                 </div>
               </div>
             </div>
@@ -670,7 +671,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
               size="sm"
               onClick={handleExport}
               disabled={!currentProject || isExporting}
-              className="text-xs"
+              className="text-xs tracking-tight"
             >
               {isExporting ? (
                 <>
@@ -679,7 +680,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                 </>
               ) : (
                 <>
-                  <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
                   Export
                 </>
               )}

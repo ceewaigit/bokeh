@@ -59,7 +59,7 @@ export function AccordionSection({
         disabled={disabled}
         onClick={() => setOpen(!isOpen)}
         className={cn(
-          'w-full flex items-center justify-between gap-3 px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground transition-colors duration-150 hover:text-foreground/80',
+          'w-full flex items-center justify-between gap-3 px-3 py-3 text-left text-ui-sm font-semibold tracking-tight text-foreground transition-colors duration-150 hover:text-foreground/80',
           disabled ? "cursor-not-allowed" : "hover:text-foreground/80",
           headerClassName
         )}

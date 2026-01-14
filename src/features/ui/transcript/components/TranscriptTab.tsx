@@ -844,7 +844,7 @@ export function TranscriptTab() {
       {/* Subtitle Appearance */}
       {hasSubtitles && (
         <div className="space-y-4 pt-3 border-t border-border/20">
-          <h3 className="text-[11px] font-medium text-muted-foreground/80">Subtitle Appearance</h3>
+          <h3 className="text-2xs font-medium text-muted-foreground/80">Subtitle Appearance</h3>
 
           <OverlayPositionControl
             anchor={globalAnchor}
@@ -855,7 +855,7 @@ export function TranscriptTab() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-muted-foreground">Highlight Style</span>
+              <span className="text-2xs text-muted-foreground">Highlight Style</span>
               <ColorPickerPopover
                 value={globalHighlightColor}
                 onChange={handleGlobalHighlightColorChange}

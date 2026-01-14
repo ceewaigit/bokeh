@@ -7,8 +7,8 @@ import { useShallow } from 'zustand/react/shallow'
 
 import { annotationTrackConfig } from '@/features/effects/annotation/config'
 import { UpdateEffectCommand } from '@/features/core/commands'
-import { EffectStore } from '@/features/effects/core/effects-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
+import { useAnnotationEffects } from '@/features/core/stores/selectors'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
@@ -77,17 +77,17 @@ export function TimelineAnnotationTrack() {
   const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
   const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
 
+  // Use selector for annotations (single source of truth)
+  const annotationEffects = useAnnotationEffects()
   const annotations = useMemo(() => {
-    if (!currentProject) return []
-    return EffectStore.getAll(currentProject)
-      .filter(e => e.type === EffectType.Annotation)
+    return annotationEffects
       .map(e => ({
         ...e,
         startTime: Math.max(0, e.startTime),
         endTime: Math.min(duration, e.endTime)
       }))
       .sort((a, b) => a.startTime - b.startTime)
-  }, [currentProject, duration])
+  }, [annotationEffects, duration])
 
   const merged = useMemo(
     () => mergeIntervals(annotations.map(a => ({ startTime: a.startTime, endTime: a.endTime }))),

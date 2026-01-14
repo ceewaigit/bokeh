@@ -9,6 +9,7 @@ import { EffectLayerType } from '@/features/effects/types'
 import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { SidebarHeader } from '@/components/ui/sidebar-header'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
@@ -399,29 +400,18 @@ export function EffectsSidebar({
 
         {/* Right content area */}
         <div className="flex-1 min-w-0 flex flex-col bg-transparent">
-          {/* Header */}
-          <div className="h-12 flex items-center px-4 border-b border-border/30 bg-transparent sticky top-0 z-10">
-            <AnimatePresence mode="wait">
-              <motion.h2
-                key={activeTab}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
-                className="text-ui-sm font-semibold tracking-tight font-[var(--font-display)]"
-              >
-                {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
-              </motion.h2>
-            </AnimatePresence>
-            {selectedEffectLayer && (
+          <SidebarHeader
+            tabKey={activeTab}
+            title={SIDEBAR_TABS.find(t => t.id === activeTab)?.label ?? ''}
+            suffix={selectedEffectLayer && (
               <div className="ml-auto max-w-[55%] truncate whitespace-nowrap rounded-pill bg-primary/10 px-2.5 py-0.5 text-2xs font-medium text-primary">
                 {`Editing ${EFFECT_LABELS[selectedEffectLayer.type] ?? 'Layer'}`}
               </div>
             )}
-          </div>
+          />
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-3 scrollbar-none">
             <div className="w-full relative">
               <AnimatePresence mode="wait" initial={false}>
                 {activeTab === SidebarTabId.Screen && (

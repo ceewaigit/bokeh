@@ -502,7 +502,7 @@ export function RecordButtonDock() {
   const springConfig = { type: 'spring', stiffness: 400, damping: 30 } as const
 
   const barStyle = cn(
-    "flex items-center gap-1 px-1.5 py-1.5 rounded-14",
+    "flex items-center gap-1 px-1.5 py-1.5 rounded-dialog",
     "bg-popover/95 backdrop-blur-xl",
     "border border-border/50"
   )
@@ -1120,7 +1120,7 @@ export function RecordButtonDock() {
           onClick={handleStartRecording}
           disabled={!selectedSourceId || isStartingRecording}
           className={cn(
-            "flex items-center justify-center gap-2 h-10 px-5 rounded-10",
+            "flex items-center justify-center gap-2 h-10 px-5 rounded-card",
             "text-2xs font-semibold uppercase tracking-[0.08em]",
             "transition-all duration-150 ease-out",
             selectedSourceId && !isStartingRecording

@@ -31,8 +31,7 @@ import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/ge
 import { EffectStore } from '@/features/effects/core/effects-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
-// Spring config for snappy Apple-like animations
-const springConfig = { type: "spring", stiffness: 500, damping: 30 } as const
+import { springSnappy as springConfig } from '@/shared/constants/animations'
 
 // Pill button component - compact and minimal
 interface PillButtonProps {
@@ -63,7 +62,7 @@ function PillButton({
       className={cn(
         "relative flex items-center justify-center gap-1.5",
         "h-7 px-3 rounded-full",
-        "text-[11px] font-medium",
+        "text-2xs font-medium",
         "transition-colors duration-100",
         "disabled:opacity-40 disabled:cursor-not-allowed",
         primary ? [
@@ -92,7 +91,7 @@ function PillButton({
       <TooltipContent side="bottom" className="text-xs flex items-center gap-2">
         <span>{tooltip}</span>
         {shortcut && (
-          <span className="text-[10px] text-muted-foreground/70 font-mono bg-muted/30 px-1 py-0.5 rounded">
+          <span className="text-3xs text-muted-foreground/70 font-mono bg-muted/30 px-1 py-0.5 rounded">
             {shortcut}
           </span>
         )}
@@ -133,8 +132,8 @@ function PillIconButton({
         active && "text-foreground bg-foreground/10",
         className
       )}
-      whileHover={disabled ? {} : { scale: 1.05 }}
-      whileTap={disabled ? {} : { scale: 0.92 }}
+      whileHover={disabled ? {} : { scale: 1.02 }}
+      whileTap={disabled ? {} : { scale: 0.97 }}
       transition={springConfig}
     >
       {children}
@@ -200,7 +199,7 @@ function ExpandableSearch({ query, onQueryChange }: ExpandableSearchProps) {
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
               placeholder="Search..."
-              className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/40 outline-none min-w-0"
+              className="flex-1 bg-transparent text-2xs text-foreground placeholder:text-muted-foreground/40 outline-none min-w-0"
               onBlur={() => {
                 if (!query) setIsExpanded(false)
               }}
@@ -421,6 +420,7 @@ export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
                 primary
                 onClick={libraryProps.onNewRecording}
                 tooltip="Start Recording"
+                className="tracking-tight"
               >
                 <Video className="w-3.5 h-3.5" />
                 <span>Record</span>
@@ -473,7 +473,7 @@ export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-1.5 px-2 h-7 rounded-full cursor-default">
-                    <span className="text-[11px] font-medium text-foreground/80 max-w-[140px] truncate">
+                    <span className="text-2xs font-medium text-foreground/80 max-w-[140px] truncate">
                       {project.name}
                     </span>
                     <Info className="w-3 h-3 text-muted-foreground/40" />
@@ -505,11 +505,11 @@ export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
                   status === 'recording' && "bg-red-500 animate-pulse",
                   status === 'paused' && "bg-yellow-500"
                 )} />
-                <span className="text-[10px] font-medium text-red-400 uppercase tracking-wide">
+                <span className="text-3xs font-medium text-red-400 uppercase tracking-wide">
                   {status}
                 </span>
                 {isRecording && (
-                  <span className="font-mono text-[10px] text-red-400/70">
+                  <span className="font-mono text-3xs text-red-400/70">
                     {formatTime(duration / 1000)}
                   </span>
                 )}
@@ -548,6 +548,7 @@ export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
               disabled={!project || !hasVideoClips}
               onClick={editorProps?.onExport}
               tooltip="Export"
+              className="tracking-tight"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export</span>

@@ -13,8 +13,7 @@ import type {
   Recording,
   MouseEvent as ProjectMouseEvent,
   QualityLevel,
-  ExportFormat,
-  CameraDynamics
+  ExportFormat
 } from '@/types/project'
 import type { EffectType, TrackType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/features/effects/types'
@@ -32,6 +31,13 @@ export type { ClipboardEffect }
 // Settings Type (used by Core Slice)
 // =============================================================================
 
+/**
+ * StoreSettings - App-level preferences (persisted separately from projects)
+ *
+ * NOTE: Camera settings are NOT here - they live on project.settings.camera
+ * This is intentional: camera settings are project-specific and should be
+ * saved/loaded with each project file.
+ */
 export interface StoreSettings {
   quality: QualityLevel
   format: ExportFormat
@@ -44,23 +50,6 @@ export interface StoreSettings {
   }
   playback: {
     previewSpeed: number
-  }
-  camera: {
-    motionBlurEnabled: boolean
-    motionBlurIntensity: number
-    motionBlurThreshold: number
-    motionBlurSmoothWindow?: number
-    motionBlurRampRange?: number
-    motionBlurClamp?: number
-    motionBlurGamma?: number
-    motionBlurBlackLevel: number
-    motionBlurSaturation: number
-    motionBlurUseWebglVideo?: boolean
-    motionBlurSamples?: number
-    refocusBlurEnabled: boolean
-    refocusBlurIntensity: number
-    cameraSmoothness?: number
-    cameraDynamics?: CameraDynamics
   }
   recording: {
     lowMemoryEncoder: boolean
@@ -268,6 +257,15 @@ export interface CacheSliceActions {
   ) => void
   setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
   setPreviewReady: (ready: boolean) => void
+  /**
+   * Clears caches without incrementing timelineMutationCounter.
+   * Use for effect-only changes that don't require player remount.
+   */
+  invalidateCachesOnly: () => void
+  /**
+   * Clears all caches AND increments timelineMutationCounter.
+   * Use for structural track changes (clip regeneration) that require player remount.
+   */
   invalidateAllCaches: () => void
   // NOTE: Proxy URL actions have been moved to src/features/proxy/store/proxy-store.ts
 }

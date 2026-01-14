@@ -7,24 +7,31 @@ import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
-import type { SpeedUpPeriod } from '@/types/speed-up'
+import { SpeedUpType, type SpeedUpPeriod } from '@/types/speed-up'
 import { markProjectModified } from '@/features/core/stores/store-utils'
 
 /**
- * Generate a unique key for a suggestion period
+ * Generate a unique key for a suggestion period.
+ * Uses recordingId (not clipId) because clip IDs change during split/speed-up operations,
+ * but recording IDs and source timestamps remain stable.
  */
-export function getSuggestionKey(clipId: string, period: SpeedUpPeriod): string {
-  return `${clipId}-${period.type}-${period.startTime}-${period.endTime}`
+export function getSuggestionKey(recordingId: string, period: SpeedUpPeriod): string {
+  // Normalize TrimStart/TrimEnd to 'idle' - these are derived from idle periods
+  // and their edge type can change when clips are split/manipulated
+  const normalizedType = (period.type === SpeedUpType.TrimStart || period.type === SpeedUpType.TrimEnd)
+    ? SpeedUpType.Idle
+    : period.type
+  return `${recordingId}-${normalizedType}-${period.startTime}-${period.endTime}`
 }
 
 export class DismissSuggestionCommand extends PatchedCommand<{ dismissed: boolean }> {
-  private clipId: string
+  private recordingId: string
   private period: SpeedUpPeriod
   private suggestionKey: string
 
   constructor(
     context: CommandContext,
-    clipId: string,
+    recordingId: string,
     period: SpeedUpPeriod
   ) {
     super(context, {
@@ -33,9 +40,9 @@ export class DismissSuggestionCommand extends PatchedCommand<{ dismissed: boolea
       category: 'timeline'
     })
 
-    this.clipId = clipId
+    this.recordingId = recordingId
     this.period = period
-    this.suggestionKey = getSuggestionKey(clipId, period)
+    this.suggestionKey = getSuggestionKey(recordingId, period)
   }
 
   canExecute(): boolean {

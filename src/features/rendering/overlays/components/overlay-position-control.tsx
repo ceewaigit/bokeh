@@ -33,7 +33,7 @@ export function OverlayPositionControl({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-center gap-1.5">
-        <label className="text-[11px] font-medium text-muted-foreground tracking-wide uppercase">
+        <label className="text-2xs font-medium text-muted-foreground tracking-wide uppercase">
           {label}
         </label>
         <InfoTooltip content={description} />

@@ -478,7 +478,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           </div>
 
           <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm overflow-hidden">
-            <div className="px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground">
+            <div className="px-3 py-3 text-left text-ui-sm font-semibold tracking-tight text-foreground">
               Preview
             </div>
             <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">
@@ -529,7 +529,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               step={0.01}
               className="w-full"
             />
-            <div className="flex justify-between text-[10px] text-muted-foreground/50">
+            <div className="flex justify-between text-3xs text-muted-foreground/50">
               <span>Responsive</span>
               <span>Cinematic</span>
             </div>

@@ -7,6 +7,8 @@ import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { getDefaultWallpaper } from '@/features/effects/background'
 import { detectZoomEffects, DEFAULT_EFFECT_GENERATION_CONFIG, type EffectGenerationConfig } from './effect-detector'
 import { markModified } from '@/features/core/stores/store-utils'
+import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
+import { EffectSyncService } from '@/features/effects/sync/effect-sync-service'
 
 /** Result of regeneration with detected trim opportunities */
 export interface RegenerationResult {
@@ -182,6 +184,15 @@ export function regenerateProjectEffects(
     }
 
     EffectInitialization.syncKeystrokeEffects(project, metadataByRecordingId)
+
+    // Clean up effects bound to old clip IDs that no longer exist
+    // This prevents orphaned effect references after regeneration creates new clip IDs
+    EffectSyncService.cleanupOrphanedEffects(project)
+
+    // Clear TimelineDataService caches to ensure frame layout uses fresh clip data
+    // This matches behavior of clip manipulation commands (trim, split, etc.)
+    TimelineDataService.invalidateCache(project)
+
     markModified(project)
 
     return {

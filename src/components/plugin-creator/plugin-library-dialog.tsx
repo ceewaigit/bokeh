@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Trash2, Search, Sparkles } from 'lucide-react'
+import { X, Trash2, Search, Blocks } from 'lucide-react'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import type { GeneratedPlugin } from './page'
 import type { PluginDefinition } from '@/features/effects/config/plugin-sdk'
@@ -84,7 +84,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity"
+                className="absolute inset-0 bg-overlay-scrim/60 backdrop-blur-md transition-opacity"
                 onClick={onClose}
             />
 
@@ -94,7 +94,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                 <div className="relative p-5 border-b border-border/60 flex items-center justify-between bg-card/90 z-10">
                     <div>
                         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-muted-foreground" />
+                            <Blocks className="w-4 h-4 text-muted-foreground" />
                             Plugin Library
                         </h2>
                         <p className="text-sm text-muted-foreground mt-1">
@@ -145,7 +145,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                             >
                                 <div className="flex items-center gap-4">
                                     <div className="w-9 h-9 rounded-md bg-background/70 border border-border/60 flex items-center justify-center">
-                                        <Sparkles className="w-4 h-4 text-muted-foreground" />
+                                        <Blocks className="w-4 h-4 text-muted-foreground" />
                                     </div>
                                     <div>
                                         <h3 className="font-medium text-foreground">

@@ -26,6 +26,7 @@ import { getSuggestionKey } from '@/features/core/commands/timeline/DismissSugge
 interface BarData {
     key: string
     clipId: string
+    recordingId: string
     x: number
     width: number
     period: SpeedUpPeriod
@@ -46,7 +47,7 @@ const SuggestionBar = React.memo(({
 }: {
     bar: BarData
     y: number
-    onOpen: (clipId: string, opts: {
+    onOpen: (clipId: string, recordingId: string, opts: {
         x: number
         y: number
         period: SpeedUpPeriod
@@ -77,7 +78,7 @@ const SuggestionBar = React.memo(({
             onMouseUp={() => setPress(false)}
             onClick={e => {
                 e.cancelBubble = true
-                onOpen(bar.clipId, {
+                onOpen(bar.clipId, bar.recordingId, {
                     x: e.evt.clientX,
                     y: e.evt.clientY - 36,
                     period: bar.period,
@@ -150,8 +151,9 @@ export const TimelineActivityOverlays = React.memo(() => {
         const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip, recording.metadata)
 
         // Filter out dismissed suggestions from all period lists
+        // Use recordingId (not clipId) because dismissal keys are recording-based
         const filterDismissed = (periods: SpeedUpPeriod[]) =>
-            periods.filter(p => !dismissedSuggestions.has(getSuggestionKey(clip.id, p)))
+            periods.filter(p => !dismissedSuggestions.has(getSuggestionKey(clip.recordingId, p)))
 
         const filteredTyping = filterDismissed(suggestions.typing)
         const filteredIdle = filterDismissed(suggestions.idle)
@@ -166,7 +168,7 @@ export const TimelineActivityOverlays = React.memo(() => {
 
         allPeriods.forEach((period, i) => {
             // Skip dismissed suggestions
-            const suggestionKey = getSuggestionKey(clip.id, period)
+            const suggestionKey = getSuggestionKey(clip.recordingId, period)
             if (dismissedSuggestions.has(suggestionKey)) return
 
             const isTrim = period.type === SpeedUpType.TrimStart || period.type === SpeedUpType.TrimEnd
@@ -221,6 +223,7 @@ export const TimelineActivityOverlays = React.memo(() => {
             bars.push({
                 key: `${clip.id}-${period.type}-${i}`,
                 clipId: clip.id,
+                recordingId: clip.recordingId,
                 x: barX,
                 width: barWidth,
                 period,

@@ -26,7 +26,7 @@ export interface TimelineContextValue {
   onContextMenu: (e: { evt: { clientX: number; clientY: number } }, clipId: string) => void
   onTrimStart: (clipId: string, newStartTime: number) => void
   onTrimEnd: (clipId: string, newEndTime: number) => void
-  onOpenSpeedUpSuggestion: (clipId: string, opts: {
+  onOpenSpeedUpSuggestion: (clipId: string, recordingId: string, opts: {
     x: number
     y: number
     period: SpeedUpPeriod

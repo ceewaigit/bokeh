@@ -108,6 +108,8 @@ export function PreviewAreaRemotion({
   // Player key for re-render on truly structural changes only
   // STABLE: Only fps + recording IDs require remount. Duration/dimensions are handled by Remotion.
   // Previously included duration/width/height which caused remounts during edits and scrubbing.
+  // FIX: Include timelineMutationCounter to force remount when clips are regenerated (new clip IDs)
+  const timelineMutationCounter = useProjectStore((s) => s.timelineMutationCounter);
   const playerKey = useMemo(() => {
     if (!project || !timelineMetadata) return "player-empty";
     const videoTrack = project.timeline.tracks.find(t => t.type === 'video');
@@ -117,8 +119,9 @@ export function PreviewAreaRemotion({
       .sort()
       .join(",") ?? "";
     // Only fps (timing) and recording IDs (source videos) are truly structural
-    return `player-${timelineMetadata.fps}-${videoRecordingIds}`;
-  }, [project, timelineMetadata]);
+    // Include mutation counter to force remount when clips are regenerated
+    return `player-${timelineMetadata.fps}-${videoRecordingIds}-${timelineMutationCounter}`;
+  }, [project, timelineMetadata, timelineMutationCounter]);
   // Sync hook
   const { lastIsPlayingRef } = usePlayerSync({
     playerRef,

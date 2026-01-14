@@ -15,6 +15,7 @@ import { RedactionPattern } from '@/features/effects/annotation/types'
 import type { AnnotationData, AnnotationStyle, Effect } from '@/types/project'
 import { cn } from '@/shared/utils/utils'
 import { CommandExecutor, UpdateEffectCommand } from '@/features/core/commands'
+import { springSnappy } from '@/shared/constants/animations'
 
 const FONT_FAMILIES = [
     { label: 'System', value: 'system-ui, -apple-system, sans-serif' },
@@ -70,7 +71,7 @@ const FontPickerContent = ({
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                transition={springSnappy}
                             />
                         )}
                     </AnimatePresence>
@@ -519,7 +520,7 @@ const HoverBackground = ({ id, hoveredId }: { id: string, hoveredId: string | nu
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                transition={springSnappy}
             />
         )}
     </AnimatePresence>

@@ -8,6 +8,7 @@ import { EditingSection } from './editing-section'
 import { PluginsTab } from './plugins-tab'
 import { useWorkspaceStore, type UtilityTabId } from '@/features/core/stores/workspace-store'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { SidebarHeader } from '@/components/ui/sidebar-header'
 import { AnimatePresence, motion } from 'framer-motion'
 
 
@@ -101,24 +102,13 @@ export function UtilitiesSidebar({ className }: { className?: string }) {
 
                 {/* Right content area */}
                 <div className="flex-1 min-w-0 flex flex-col bg-transparent">
-                    {/* Header */}
-                    <div className="h-12 flex items-center px-4 border-b border-border/30 bg-transparent sticky top-0 z-10">
-                        <AnimatePresence mode="wait">
-                            <motion.h2
-                                key={activeUtilityTab}
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -4 }}
-                                transition={{ duration: 0.12, ease: [0.25, 0.1, 0.25, 1] }}
-                                className="text-ui-sm font-semibold tracking-tight font-[var(--font-display)]"
-                            >
-                                {UTILITY_TABS.find(t => t.id === activeUtilityTab)?.label}
-                            </motion.h2>
-                        </AnimatePresence>
-                    </div>
+                    <SidebarHeader
+                        tabKey={activeUtilityTab}
+                        title={UTILITY_TABS.find(t => t.id === activeUtilityTab)?.label ?? ''}
+                    />
 
                     {/* Scrollable Content */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-3">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-3 scrollbar-none">
                         <div className="w-full relative">
                             <AnimatePresence mode="wait" initial={false}>
                                 {activeUtilityTab === 'import' && (

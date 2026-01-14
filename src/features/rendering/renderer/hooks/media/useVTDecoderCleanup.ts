@@ -7,7 +7,7 @@
  * SSOT: All cleanup logic lives here, renderers just use hooks.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -97,68 +97,4 @@ export function useVideoContainerCleanup(videoUrl: string | undefined) {
   }, [videoUrl]);
 
   return containerRef;
-}
-
-interface NativeVideoCleanupOptions {
-  videoUrl: string | undefined;
-  visible?: boolean;
-  onPlay?: () => void;
-  videoRef?: React.RefObject<HTMLVideoElement | null>;
-}
-
-interface NativeVideoCleanupResult {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-  isVideoReady: boolean;
-  setIsVideoReady: (ready: boolean) => void;
-}
-
-/**
- * Hook for VTDecoder cleanup with native video elements.
- * Used by PreviewVideoRenderer for interactive preview.
- *
- * Handles:
- * - Source changes with cleanup
- * - loadedmetadata tracking
- * - Unmount cleanup
- */
-export function useNativeVideoCleanup({
-  videoUrl,
-  onPlay,
-  videoRef: providedRef,
-}: NativeVideoCleanupOptions): NativeVideoCleanupResult {
-  const internalRef = useRef<HTMLVideoElement>(null);
-  const videoRef = providedRef || internalRef;
-  const lastSrcRef = useRef<string | null>(null);
-  const [isVideoReady, setIsVideoReady] = useState(false);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !videoUrl) return;
-
-    const prevUrl = lastSrcRef.current;
-    if (prevUrl !== videoUrl) {
-      setIsVideoReady(false);
-      if (prevUrl) cleanupVideoDecoder(video);
-
-      lastSrcRef.current = videoUrl;
-      video.src = videoUrl;
-      video.preload = 'auto';
-      video.load();
-    }
-
-    const handleLoadedMetadata = () => {
-      setIsVideoReady(true);
-      onPlay?.();
-    };
-
-    if (video.readyState >= 1) setIsVideoReady(true);
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-
-    return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      cleanupVideoDecoder(video);
-    };
-  }, [videoUrl, onPlay, videoRef]);
-
-  return { videoRef, isVideoReady, setIsVideoReady };
 }

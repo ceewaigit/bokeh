@@ -101,7 +101,7 @@ const KeystrokeStylePreview = React.memo(function KeystrokeStylePreview({
 
   return (
     <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm overflow-hidden">
-      <div className="px-3 py-3 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground">
+      <div className="px-3 py-3 text-left text-ui-sm font-semibold tracking-tight text-foreground">
         Preview
       </div>
       <div className="border-t border-border/15 bg-background/60 px-3 pb-3 pt-2">

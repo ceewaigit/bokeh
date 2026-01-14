@@ -18,6 +18,7 @@ import { useProjectStore } from '@/features/core/stores/project-store'
 import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store'
 import { useTheme, type ColorPreset } from '@/shared/contexts/theme-context'
 import { PRESET_DETAILS } from '@/shared/constants/appearance'
+import { springSnappy } from '@/shared/constants/animations'
 import { cn } from '@/shared/utils/utils'
 
 // Subtle, fast transition
@@ -113,11 +114,14 @@ export function SettingsDialog() {
               {SETTINGS_TABS.map((tab) => {
                 const isActive = activeTab === tab.id
                 return (
-                  <button
+                  <motion.button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={springSnappy}
                     className={cn(
-                      "relative w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] transition-colors",
+                      "relative w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-ui-sm transition-colors",
                       isActive
                         ? "text-foreground bg-foreground/[0.06]"
                         : "text-muted-foreground hover:text-foreground hover:bg-foreground/[0.03]"
@@ -125,7 +129,7 @@ export function SettingsDialog() {
                   >
                     <tab.icon className="w-4 h-4" strokeWidth={1.5} />
                     <span>{tab.label}</span>
-                  </button>
+                  </motion.button>
                 )
               })}
             </div>
@@ -192,8 +196,8 @@ export function SettingsDialog() {
                         expandedContent={
                           <div className="pt-3 pb-1">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-[11px] text-muted-foreground">Intensity</span>
-                              <span className="text-[11px] text-muted-foreground tabular-nums">
+                              <span className="text-2xs text-muted-foreground">Intensity</span>
+                              <span className="text-2xs text-muted-foreground tabular-nums">
                                 {Math.round(glowIntensity * 100)}%
                               </span>
                             </div>
@@ -238,7 +242,7 @@ export function SettingsDialog() {
                               )}
                             </div>
                             <span className={cn(
-                              "text-[11px]",
+                              "text-2xs",
                               isSelected ? "text-foreground" : "text-muted-foreground"
                             )}>
                               {details.label}
@@ -266,8 +270,8 @@ export function SettingsDialog() {
                       <div className="flex items-center gap-2.5">
                         <Activity className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
                         <div>
-                          <div className="text-[13px]">System Snapshot</div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-ui-sm">System Snapshot</div>
+                          <div className="text-2xs text-muted-foreground">
                             {processLoading ? 'Scanning...' : 'CPU & memory usage'}
                           </div>
                         </div>
@@ -275,7 +279,7 @@ export function SettingsDialog() {
                     </button>
 
                     {processError && (
-                      <div className="text-[12px] text-destructive px-3 py-2 rounded-lg bg-destructive/10">
+                      <div className="text-xs text-destructive px-3 py-2 rounded-lg bg-destructive/10">
                         {processError}
                       </div>
                     )}
@@ -288,23 +292,23 @@ export function SettingsDialog() {
                       >
                         <div className="grid grid-cols-2 gap-2">
                           <div className="px-3 py-2 rounded-lg bg-foreground/[0.03]">
-                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">CPU</div>
-                            <div className="text-[15px] font-medium tabular-nums">{formatPercent(processSnapshot.totalCpu)}</div>
+                            <div className="text-3xs text-muted-foreground uppercase tracking-wider mb-0.5">CPU</div>
+                            <div className="text-ui-base font-medium tabular-nums">{formatPercent(processSnapshot.totalCpu)}</div>
                           </div>
                           <div className="px-3 py-2 rounded-lg bg-foreground/[0.03]">
-                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Memory</div>
-                            <div className="text-[15px] font-medium tabular-nums">{formatProcessMemory(processSnapshot.totalMemRssBytes)}</div>
+                            <div className="text-3xs text-muted-foreground uppercase tracking-wider mb-0.5">Memory</div>
+                            <div className="text-ui-base font-medium tabular-nums">{formatProcessMemory(processSnapshot.totalMemRssBytes)}</div>
                           </div>
                         </div>
 
                         <div className="rounded-lg overflow-hidden bg-foreground/[0.03]">
                           <div className="px-3 py-1.5 border-b border-border/30 flex items-center justify-between">
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Processes</span>
-                            <span className="text-[10px] text-muted-foreground tabular-nums">{processSnapshot.processes.length}</span>
+                            <span className="text-3xs text-muted-foreground uppercase tracking-wider">Processes</span>
+                            <span className="text-3xs text-muted-foreground tabular-nums">{processSnapshot.processes.length}</span>
                           </div>
                           <div className="max-h-[100px] overflow-y-auto">
                             {processSnapshot.processes.map((p) => (
-                              <div key={p.pid} className="flex items-center justify-between px-3 py-1.5 text-[11px]">
+                              <div key={p.pid} className="flex items-center justify-between px-3 py-1.5 text-2xs">
                                 <span className="text-foreground/80 truncate max-w-[120px]">{p.name}</span>
                                 <span className="text-muted-foreground tabular-nums">
                                   {formatPercent(p.cpu)} · {formatProcessMemory(p.memRss)}
@@ -328,7 +332,7 @@ export function SettingsDialog() {
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <h2 className="text-[13px] font-medium text-foreground/70 mb-1">{title}</h2>
+    <h2 className="text-ui-sm font-medium text-foreground/70 mb-1">{title}</h2>
   )
 }
 
@@ -349,9 +353,9 @@ function SettingRow({
     <div className="py-2">
       <div className="flex items-center justify-between">
         <div className="flex-1 mr-3">
-          <Label className="text-[13px] text-foreground">{label}</Label>
+          <Label className="text-ui-sm text-foreground">{label}</Label>
           {description && (
-            <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
+            <p className="text-2xs text-muted-foreground mt-0.5">{description}</p>
           )}
         </div>
         <Switch checked={checked} onCheckedChange={onChange} />

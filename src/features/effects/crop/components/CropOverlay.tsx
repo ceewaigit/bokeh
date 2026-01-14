@@ -301,7 +301,7 @@ export function CropOverlay({
 
       {showInfo && (
         <div
-          className="absolute px-1.5 py-0.5 text-white/95 text-[10px] rounded z-30 font-medium font-sans pointer-events-none"
+          className="absolute px-1.5 py-0.5 text-white/95 text-3xs rounded z-30 font-medium font-sans pointer-events-none"
           style={{
             left: cropRect.x + cropRect.width / 2,
             top: cropRect.y - 20,
@@ -325,7 +325,7 @@ export function CropOverlay({
         >
           <Button
             onClick={onConfirm}
-            className="gap-2 h-6 text-[11px] font-semibold px-3 rounded-md shadow-sm hover:brightness-110 active:scale-95 transition-all text-white border-0"
+            className="gap-2 h-6 text-2xs font-semibold px-3 rounded-md shadow-sm hover:brightness-110 active:scale-95 transition-all text-white border-0"
             style={{
               backgroundColor: PRIMARY_COLOR,
             }}
@@ -335,7 +335,7 @@ export function CropOverlay({
           <Button
             variant="ghost"
             onClick={onReset}
-            className="gap-2 h-6 text-[11px] font-medium px-2 rounded-md text-white/80 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
+            className="gap-2 h-6 text-2xs font-medium px-2 rounded-md text-white/80 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
           >
             Reset
           </Button>

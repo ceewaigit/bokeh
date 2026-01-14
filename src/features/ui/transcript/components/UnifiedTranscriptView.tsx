@@ -83,7 +83,7 @@ function TranscriptSourceList({
             {sections.slice(0, 4).map((section, i) => (
               <div
                 key={section.recording.id}
-                className={`flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background text-[10px] font-semibold transition-transform z-[${4 - i}] ${section.isCurrent
+                className={`flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background text-3xs font-semibold transition-transform z-[${4 - i}] ${section.isCurrent
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground'
                   }`}
@@ -93,7 +93,7 @@ function TranscriptSourceList({
               </div>
             ))}
             {sections.length > 4 && (
-              <div className="flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background bg-muted text-muted-foreground text-[10px] font-semibold">
+              <div className="flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background bg-muted text-muted-foreground text-3xs font-semibold">
                 +{sections.length - 4}
               </div>
             )}
@@ -103,12 +103,12 @@ function TranscriptSourceList({
               {sections.length} Sources
             </span>
             {activeProcessingCount > 0 && (
-              <span className="text-[10px] text-muted-foreground animate-pulse">
+              <span className="text-3xs text-muted-foreground animate-pulse">
                 Processing {activeProcessingCount}...
               </span>
             )}
             {activeProcessingCount === 0 && needsTranscriptionCount > 0 && (
-              <span className="text-[10px] text-amber-600 dark:text-amber-400">
+              <span className="text-3xs text-amber-600 dark:text-amber-400">
                 {needsTranscriptionCount} needs transcription
               </span>
             )}
@@ -149,7 +149,7 @@ function TranscriptSourceList({
             className="group flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted/30 transition-colors relative"
           >
             {/* Avatar */}
-            <div className={`flex items-center justify-center w-7 h-7 rounded-pill text-[10px] font-semibold ${section.isCurrent ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`flex items-center justify-center w-7 h-7 rounded-pill text-3xs font-semibold ${section.isCurrent ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
               {section.label.charAt(0)}
             </div>
 
@@ -161,13 +161,13 @@ function TranscriptSourceList({
                 </span>
                 {section.isCurrent && <span className="h-1.5 w-1.5 rounded-pill bg-primary" />}
                 {needsTranscription && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-[9px] font-medium text-amber-600 dark:text-amber-400 animate-pulse">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-4xs font-medium text-amber-600 dark:text-amber-400 animate-pulse">
                     <span>Needs Transcription</span>
                   </span>
                 )}
               </div>
               {rangeLabel && (
-                <span className="text-[10px] text-muted-foreground tabular-nums">{rangeLabel}</span>
+                <span className="text-3xs text-muted-foreground tabular-nums">{rangeLabel}</span>
               )}
             </div>
 
@@ -200,7 +200,7 @@ function TranscriptSourceList({
                 <button
                   type="button"
                   onClick={() => onCancelTranscription(section.recording.id)}
-                  className="px-2 py-1 rounded text-[10px] font-medium text-rose-500 hover:bg-rose-500/10 transition-colors"
+                  className="px-2 py-1 rounded text-3xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors"
                 >
                   Cancel
                 </button>
@@ -545,7 +545,7 @@ function UnifiedTranscriptStream({
   return (
     <div
       ref={wordContainerRef}
-      className="relative max-h-[400px] overflow-y-auto px-2 py-4 text-[14px] leading-relaxed text-foreground/90 focus:outline-none scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
+      className="relative max-h-[400px] overflow-y-auto px-2 py-4 text-sm leading-relaxed text-foreground/90 focus:outline-none scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
       style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}
       tabIndex={0}
       onKeyDown={handleKeyDown}
@@ -582,7 +582,7 @@ function UnifiedTranscriptStream({
       {/* Start Marker */}
       <div className="flex items-center justify-center pb-6 opacity-30">
         <div className="h-px w-12 bg-border" />
-        <span className="px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Start</span>
+        <span className="px-2 text-3xs font-medium uppercase tracking-wider text-muted-foreground">Start</span>
         <div className="h-px w-12 bg-border" />
       </div>
 
@@ -592,7 +592,7 @@ function UnifiedTranscriptStream({
           <div key={`${group.clipId}-${groupIndex}`} className="flex gap-4">
             {/* Gutter */}
             <div className="flex-shrink-0 w-12 pt-1 text-right">
-              <span className="text-[10px] font-medium text-muted-foreground/50 tabular-nums select-none">
+              <span className="text-3xs font-medium text-muted-foreground/50 tabular-nums select-none">
                 {formatTime(group.startTime, true)}
               </span>
             </div>
@@ -628,7 +628,7 @@ function UnifiedTranscriptStream({
       {/* End Marker */}
       <div className="flex items-center justify-center pt-8 pb-4 opacity-30">
         <div className="h-px w-12 bg-border" />
-        <span className="px-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">End</span>
+        <span className="px-2 text-3xs font-medium uppercase tracking-wider text-muted-foreground">End</span>
         <div className="h-px w-12 bg-border" />
       </div>
     </div>

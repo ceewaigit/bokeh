@@ -9,7 +9,7 @@
  * - DOM-based video element discovery (reliable across all modes)
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { clamp01 } from '@/features/rendering/canvas/math';
 import { MotionBlurController } from '../logic/MotionBlurController';
 
@@ -102,12 +102,82 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     const bitmapCtxRef = useRef<ImageBitmapRenderingContext | null>(null);
     const videoCanvasRef = useRef<OffscreenCanvas | HTMLCanvasElement | null>(null);
     const videoCtxRef = useRef<CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null>(null);
+    const hasRenderedRef = useRef(false); // Track if we've ever rendered successfully
 
+    // Frame sync: Use requestVideoFrameCallback to trigger re-renders when new video frames are decoded
+    const [frameCounter, setFrameCounter] = useState(0);
+    const frameCallbackIdRef = useRef<number | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+
+    // Register requestVideoFrameCallback to sync canvas updates with video frames
+    // Use a polling approach to find the video element since it might not exist on initial mount
+    useEffect(() => {
+        // Don't return early if containerRef.current is null - let polling find it later
+        let cancelled = false;
+        let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+
+        const setupCallback = (video: HTMLVideoElement) => {
+            if (cancelled) return;
+            videoRef.current = video;
+
+            const requestFrame = () => {
+                if (cancelled) return;
+                if ('requestVideoFrameCallback' in video) {
+                    frameCallbackIdRef.current = (video as any).requestVideoFrameCallback(() => {
+                        if (!cancelled) {
+                            setFrameCounter(c => c + 1); // Trigger re-render on each new video frame
+                            requestFrame(); // Request next frame callback
+                        }
+                    });
+                }
+            };
+
+            requestFrame();
+        };
+
+        const findVideo = () => {
+            // Use optional chaining - containerRef.current may be null initially
+            const video = containerRef?.current?.querySelector('video') as HTMLVideoElement | null;
+            if (video && video !== videoRef.current) {
+                setupCallback(video);
+                if (pollIntervalId) {
+                    clearInterval(pollIntervalId);
+                    pollIntervalId = null;
+                }
+            }
+        };
+
+        // Try immediately
+        findVideo();
+
+        // If not found, poll until we find it (handles initial mount when containerRef.current is null)
+        if (!videoRef.current) {
+            pollIntervalId = setInterval(findVideo, 100);
+        }
+
+        return () => {
+            cancelled = true;
+            if (pollIntervalId) {
+                clearInterval(pollIntervalId);
+            }
+            if (frameCallbackIdRef.current !== null && videoRef.current && 'cancelVideoFrameCallback' in videoRef.current) {
+                (videoRef.current as any).cancelVideoFrameCallback(frameCallbackIdRef.current);
+            }
+            videoRef.current = null;
+        };
+    }, [containerRef]);
 
     // Render effect when the Remotion frame advances (preview/export) or when `videoFrame` changes (export mode).
     React.useLayoutEffect(() => {
         const canvasEl = canvasRef.current;
         if (!canvasEl) return;
+
+        // When disabled, show video element - don't trust stale canvas content
+        if (!enabled) {
+            canvasEl.style.visibility = 'hidden';
+            onVisibilityChange?.(false);
+            return;
+        }
 
         // If the canvas element was remounted, ensure we refresh the context.
         if (bitmapCtxRef.current && (bitmapCtxRef.current as any).canvas !== canvasEl) {
@@ -119,16 +189,18 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
 
         if (!mediaSource && containerRef?.current) {
             const video = containerRef.current.querySelector('video') as HTMLVideoElement | null;
-            // Require readyState >= 2 (HAVE_CURRENT_DATA) to ensure frame is decoded
-            // Using >= 1 caused lag on first play as GPU stalls waiting for decode
-            if (video && video.readyState >= 2) {
+            // Require readyState >= 2 (HAVE_CURRENT_DATA) AND valid dimensions AND not seeking
+            // videoWidth/videoHeight are 0 until the browser has decoded at least one frame
+            // video.seeking is true during scrubbing when the video hasn't decoded the target frame yet
+            // Without these checks, drawImage produces transparent or stale pixels
+            if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0 && !video.seeking) {
                 mediaSource = video;
             }
         }
 
         if (!mediaSource) {
-            // Video not ready - signal that canvas is not actively rendering
-            // This allows the parent to show the video element instead of blank canvas
+            // Video not ready - ALWAYS show the video element, don't trust stale canvas content
+            canvasEl.style.visibility = 'hidden';
             onVisibilityChange?.(false);
             return;
         }
@@ -201,12 +273,9 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         // Calculate blur magnitude for mix calculations
         const blurMagnitude = Math.hypot(uvVelocityX, uvVelocityY);
 
-        // ALWAYS VISIBLE: Don't hide based on velocity threshold
-        // When velocity is 0, the shader's mix parameter will be 0, showing sharp image
-        // This prevents flickering from threshold toggling during deceleration
-        canvasEl.style.visibility = 'visible';
-        canvasEl.style.opacity = '1';
-        onVisibilityChange?.(true);
+        // DON'T set canvas visible yet - wait until AFTER successful render
+        // This prevents showing black/stale content if render fails or produces bad output
+        // Canvas will be made visible after bitmap transfer succeeds
 
         // Sample count based on blur length (more samples for longer blur)
         // Higher minimum (16) ensures smooth gradients even for short blur trails
@@ -327,9 +396,15 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             if (typeof closable === 'function') {
                 closable.call(bitmap);
             }
+            // NOW make canvas visible - only after successful render with valid content
+            canvasEl.style.visibility = 'visible';
+            canvasEl.style.opacity = '1';
+            hasRenderedRef.current = true; // Mark that we've successfully rendered
             onVisibilityChange?.(true);
             if (onRender) onRender();
         } else {
+            // Render failed - hide canvas to show video element underneath
+            canvasEl.style.visibility = 'hidden';
             onVisibilityChange?.(false);
         }
         // No per-frame cleanup - let resources persist across frames for performance.
@@ -353,6 +428,8 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         containerRef,
         onVisibilityChange,
         refocusBlurIntensity,
+        frameCounter, // Triggers re-render on each new video frame via requestVideoFrameCallback
+        enabled, // Control whether to render or preserve last frame
     ]);
 
     // Cleanup GPU resources only on unmount
@@ -371,11 +448,12 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 videoCtxRef.current = null;
             }
             bitmapCtxRef.current = null;
+            hasRenderedRef.current = false; // Reset on unmount
         };
     }, []);
 
-    if (!enabled) return null;
-
+    // Don't unmount when disabled - keep canvas in DOM to preserve rendered content
+    // Just hide it visually. This prevents flash when enabled toggles rapidly.
     return (
         <canvas
             key={desiredColorSpace}
@@ -390,7 +468,9 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 height: drawHeight,
                 pointerEvents: 'none',
                 zIndex: 50,  // Below AnnotationLayer (z-index 100) - annotations should always be visible
-                // opacity managed by effect - start visible since effect will hide if needed
+                // Canvas starts HIDDEN - only becomes visible after successful render
+                // This prevents showing black/stale content when render fails or hasn't completed
+                visibility: 'hidden', // Will be set to 'visible' by effect after successful render
                 clipPath: undefined,
             }}
         />

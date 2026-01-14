@@ -18,9 +18,7 @@ import { useTheme } from "@/shared/contexts/theme-context"
 import { useWindowSurfaceStore, type WindowSurfaceMode } from "@/features/core/stores/window-surface-store"
 import { WINDOW_SURFACE_PRESETS } from "@/shared/appearance/window-surface"
 import { cn, clamp } from "@/shared/utils/utils"
-
-// Spring config for snappy Apple-like animations (matches toolbar)
-const springConfig = { type: "spring", stiffness: 500, damping: 30 } as const
+import { springSnappy as springConfig } from "@/shared/constants/animations"
 
 const FROSTED_PRESETS = {
     light: WINDOW_SURFACE_PRESETS["frosted-light"],

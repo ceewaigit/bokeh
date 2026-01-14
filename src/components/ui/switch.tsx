@@ -15,7 +15,7 @@ const Switch = React.forwardRef<
       "transition-colors duration-150 ease-out",
       "focus-visible:outline-none",
       "disabled:cursor-not-allowed disabled:opacity-40",
-      "data-[state=checked]:bg-primary data-[state=unchecked]:bg-black/10 dark:data-[state=unchecked]:bg-white/15",
+      "data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted/60",
       className
     )}
     {...props}
@@ -24,7 +24,7 @@ const Switch = React.forwardRef<
     <SwitchPrimitives.Thumb
       className={cn(
         "pointer-events-none block h-[18px] w-[18px] rounded-full bg-white",
-        "shadow-[0_1px_3px_rgba(0,0,0,0.15),0_0_0_0.5px_rgba(0,0,0,0.06)]",
+        "shadow-control",
         "transition-transform duration-150 ease-out",
         "data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-[2px]"
       )}

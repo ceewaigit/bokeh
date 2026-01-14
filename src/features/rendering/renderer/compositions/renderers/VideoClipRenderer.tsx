@@ -73,56 +73,6 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     refocusBlurPx,
   } = videoPosition;
 
-  // ==========================================================================
-  // SCRUBBING FRAME HOLD: Canvas-based frame capture to prevent blank frames
-  // during fast timeline scrubbing when video element is seeking
-  // ==========================================================================
-  const seekingCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isVideoSeeking, setIsVideoSeeking] = useState(false);
-  const lastCapturedFrameRef = useRef<boolean>(false);
-
-  // Capture the current video frame to canvas before seeking starts
-  const captureCurrentFrame = useCallback(() => {
-    const video = videoElementRef.current;
-    const canvas = seekingCanvasRef.current;
-    if (!video || !canvas || video.readyState < 2) return;
-    if (video.videoWidth === 0 || video.videoHeight === 0) return;
-
-    try {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      // Only resize canvas if dimensions changed
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-      }
-      ctx.drawImage(video, 0, 0);
-      lastCapturedFrameRef.current = true;
-    } catch (_e) {
-      // Silently fail - we'll just show the video element as-is
-    }
-  }, []);
-
-  // Handle video seeking start - capture frame before it goes blank
-  const handleVideoSeeking = useCallback(() => {
-    if (isRendering) return;
-    captureCurrentFrame();
-    setIsVideoSeeking(true);
-  }, [isRendering, captureCurrentFrame]);
-
-  // Handle video seek complete - hide canvas overlay
-  const handleVideoSeeked = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
-    if (isRendering) {
-      handleVideoReady(e);
-      return;
-    }
-    // Small delay to ensure the new frame is actually painted
-    requestAnimationFrame(() => {
-      setIsVideoSeeking(false);
-    });
-  }, [isRendering, handleVideoReady]);
-
   // Derive current zoom scale from transform
   const currentZoomScale = (zoomTransform as any)?.scale ?? 1;
 
@@ -131,23 +81,6 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const { isPlaying, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
   const { isGlowMode, preferOffthreadVideo, enhanceAudio } = renderSettings;
   const preload = 'auto';
-
-  const exportMotionBlurLoggedRef = useRef(false);
-  useEffect(() => {
-    if (!isRendering) return;
-    if (exportMotionBlurLoggedRef.current) return;
-    exportMotionBlurLoggedRef.current = true;
-    const v = motionBlur?.velocity ?? { x: 0, y: 0 };
-    const speed = Math.hypot(v.x ?? 0, v.y ?? 0);
-    console.log('[ExportDebug] motion-blur-clip', JSON.stringify({
-      recordingId: recording?.id ?? null,
-      enabled: Boolean(motionBlur?.enabled),
-      speed,
-      velocityThreshold: motionBlur?.velocityThreshold ?? null,
-      forceWebglVideo: Boolean(motionBlur?.useWebglVideo),
-      hasOnVideoFrame: Boolean(isRendering && (motionBlur?.enabled ?? false)),
-    }));
-  }, [isRendering, motionBlur?.enabled, motionBlur?.velocity, motionBlur?.velocityThreshold, motionBlur?.useWebglVideo, recording?.id]);
 
   // Video URL resolution
   const videoUrl = useVideoUrl({
@@ -235,7 +168,6 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   // Handle video loaded event (for preview readiness)
   const handleLoaded = useCallback((e: SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
-    // Store the video element ref for frame capture
     videoElementRef.current = video;
 
     if (isRendering) {
@@ -244,28 +176,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     }
     if (video.readyState >= 2) {
       setPreviewReady(true);
-      // Capture initial frame for scrubbing fallback
-      captureCurrentFrame();
     }
-  }, [isRendering, handleVideoReady, setPreviewReady, captureCurrentFrame]);
-
-  // Handle metadata loaded - check for zombie proxy here (dimensions guaranteed)
-  const handleMetadataLoaded = useCallback((_e: SyntheticEvent<HTMLVideoElement>) => {
-    // RELAXED CHECK: Only fail if we have enough data to play but still no dimensions.
-    // Some browsers/codecs might fire metadata before dimensions are fully parsed (rare but possible).
-    // UPDATE: Even H.264 proxies can briefly report 0x0 on load. We will disable this check
-    // for now because the "Zombie" issue was specific to the broken HEVC files.
-    // If a video is truly 0x0, it just won't render, which is better than crashing RAM by forcing 6K source.
-    /*
-    if ((video.videoWidth === 0 || video.videoHeight === 0) && video.readyState >= 2) {
-      // Double-check we're not already using fallback to prevent loops
-      if (!urlFailed) {
-        console.warn(`[VideoClipRenderer] Zombie proxy detected (0×0): ${recording?.id}, falling back to source`);
-        setUrlFailed(true);
-      }
-    }
-    */
-  }, []);
+  }, [isRendering, handleVideoReady, setPreviewReady]);
 
   useEffect(() => {
     if (isRendering) return;
@@ -328,6 +240,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
     <div ref={containerRef} style={{ display: 'contents' }}>
 
       <Sequence from={groupStartFrame} durationInFrames={renderState.finalDuration} premountFor={premountFor} postmountFor={postmountFor}>
+        {/* Video content container with opacity control */}
         <div style={{
           width: useHighResSizing ? (baseWidth ?? '100%') : '100%',
           height: useHighResSizing ? (baseHeight ?? '100%') : '100%',
@@ -374,7 +287,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
               <div style={{ display: 'contents' }}>
                 <VideoComponent
-                  key={`${recording.id}-${urlFailed ? 'fallback' : 'primary'}`}
+                  key={`${recording.id}-${clipForVideo.id}-${urlFailed ? 'fallback' : 'primary'}`}
                   src={effectiveUrl || ''}
                   crossOrigin="anonymous"
                   style={{
@@ -383,6 +296,8 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                     position: 'absolute', top: 0, left: 0,
                     borderRadius: `${cornerRadius}px`,
                     pointerEvents: 'none',
+                    // Black background ensures video element is never transparent during seeking
+                    backgroundColor: '#000',
                     // Opacity applied on parent wrapper only to avoid double-application
                   }}
                   volume={() => effectiveVolume}
@@ -394,10 +309,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                   endAt={endAtFrames}
                   playbackRate={playbackRate}
                   onLoadedData={handleLoaded}
-                  onLoadedMetadata={handleMetadataLoaded}
                   onCanPlay={handleLoaded}
-                  onSeeking={handleVideoSeeking}
-                  onSeeked={handleVideoSeeked}
                   onVideoFrame={isRendering && (motionBlur?.enabled ?? false) ? handleVideoFrame : undefined}
                   onError={(e: any) => {
                     // CRITICAL: Always signal "ready" to Remotion/Thumbnail generator even on error,
@@ -417,26 +329,6 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                     }
                   }}
                 />
-                {/* SCRUBBING FRAME HOLD: Canvas overlay shows last captured frame while video is seeking */}
-                {/* This prevents blank/transparent frames during fast timeline scrubbing */}
-                {!isRendering && (
-                  <canvas
-                    ref={seekingCanvasRef}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      borderRadius: `${cornerRadius}px`,
-                      pointerEvents: 'none',
-                      // Parent wrapper handles effectiveOpacity, canvas just toggles visibility
-                      opacity: (isVideoSeeking && isScrubbing && lastCapturedFrameRef.current) ? 1 : 0,
-                      transition: 'opacity 50ms ease-out',
-                    }}
-                  />
-                )}
               </div>
             </AudioEnhancerWrapper>
           </MotionBlurWrapper>

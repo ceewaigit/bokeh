@@ -34,7 +34,7 @@ export function WorkspaceLoadingOverlay({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center"
+          className="fixed inset-0 z-critical flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={enter}
           exit={exit}
@@ -74,7 +74,7 @@ export function WorkspaceLoadingOverlay({
             />
 
             <div className="relative flex items-center gap-3">
-              <div className="relative h-10 w-10 overflow-hidden rounded-[11px] bg-card/30 ring-1 ring-border/40 shadow-[0_18px_45px_-30px_rgba(0,0,0,0.95)] flex items-center justify-center">
+              <div className="relative h-10 w-10 overflow-hidden rounded-card bg-card/30 ring-1 ring-border/40 shadow-[0_18px_45px_-30px_rgba(0,0,0,0.95)] flex items-center justify-center">
                 <div
                   className="pointer-events-none absolute inset-0"
                   aria-hidden="true"

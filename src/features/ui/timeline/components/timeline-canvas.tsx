@@ -164,6 +164,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     allTypingPeriods: SpeedUpPeriod[]
     allIdlePeriods: SpeedUpPeriod[]
     clipId: string
+    recordingId: string
   } | null>(null)
   const [isScrolling, setIsScrolling] = useState(false)
   const isScrollingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -546,14 +547,14 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, clipId })
   }, [selectClip])
 
-  const handleOpenSpeedUpSuggestion = useCallback((clipId: string, opts: {
+  const handleOpenSpeedUpSuggestion = useCallback((clipId: string, recordingId: string, opts: {
     x: number
     y: number
     period: SpeedUpPeriod
     allTypingPeriods: SpeedUpPeriod[]
     allIdlePeriods: SpeedUpPeriod[]
   }) => {
-    setSpeedUpPopover({ ...opts, clipId })
+    setSpeedUpPopover({ ...opts, clipId, recordingId })
   }, [])
 
   const handleStageScrubStart = useCallback((e: KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -591,9 +592,9 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     setSpeedUpPopover(null)
   }, [executorRef])
 
-  const handleDismissSuggestion = useCallback(async (period: SpeedUpPeriod, clipId: string) => {
+  const handleDismissSuggestion = useCallback(async (period: SpeedUpPeriod, recordingId: string) => {
     if (!executorRef.current) return
-    await executorRef.current.execute(DismissSuggestionCommand, clipId, period)
+    await executorRef.current.execute(DismissSuggestionCommand, recordingId, period)
     setSpeedUpPopover(null)
   }, [executorRef])
 
@@ -960,7 +961,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
                 allIdlePeriods={speedUpPopover.allIdlePeriods}
                 onApply={(p: SpeedUpPeriod) => handleApplySpeedUp(p, speedUpPopover.clipId)}
                 onTrim={(p: SpeedUpPeriod) => handleApplyTrim(p, speedUpPopover.clipId)}
-                onDismiss={(p: SpeedUpPeriod) => handleDismissSuggestion(p, speedUpPopover.clipId)}
+                onDismiss={(p: SpeedUpPeriod) => handleDismissSuggestion(p, speedUpPopover.recordingId)}
                 onApplyAll={handleApplyAllSpeedUps}
                 onClose={() => setSpeedUpPopover(null)}
               />

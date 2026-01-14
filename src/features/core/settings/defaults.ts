@@ -5,8 +5,8 @@ import { ZOOM_VISUAL_CONFIG } from '@/shared/config/physics-config'
 
 export const DEFAULT_CAMERA_SETTINGS = {
   motionBlurEnabled: true,
-  motionBlurIntensity: 25,
-  motionBlurThreshold: 20,
+  motionBlurIntensity: 50,
+  motionBlurThreshold: 15,
   motionBlurSmoothWindow: 8,
   motionBlurRampRange: 0.5,
   motionBlurClamp: 45,
@@ -44,6 +44,12 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   }
 }
 
+/**
+ * DEFAULT_STORE_SETTINGS - App-level preferences (persisted separately from projects)
+ *
+ * NOTE: Camera settings are NOT here - they live on DEFAULT_PROJECT_SETTINGS.camera
+ * Camera settings are project-specific and saved/loaded with each project file.
+ */
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   quality: QualityLevel.High,
   format: ExportFormat.MP4,
@@ -55,7 +61,6 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
     autoRipple: true
   },
   playback: { previewSpeed: 1 },
-  camera: DEFAULT_CAMERA_SETTINGS,
   recording: {
     lowMemoryEncoder: false,
     useMacOSDefaults: true,

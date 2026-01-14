@@ -1,8 +1,19 @@
 /**
- * Effect Store - Single Source of Truth for all effect CRUD operations
+ * Effect Store - Internal implementation for effect CRUD operations
  *
- * This module provides a centralized API for managing effects.
- * All effects live on timeline.effects[] - this is THE ONLY authoritative location.
+ * ⚠️  INTERNAL MODULE - Do not import directly in components!
+ *
+ * For components/hooks, use:
+ * - Read: `useEffectsByType()`, `useBackgroundEffect()` from '@/features/core/stores/selectors'
+ * - Write: `useProjectStore.getState().addEffect()` or Command pattern
+ *
+ * This module provides pure functions for effect operations.
+ * All effects live on project.timeline.effects[] as the single source of truth.
+ *
+ * Used internally by:
+ * - Store actions (timeline-slice.ts)
+ * - Commands (effects/*.ts)
+ * - Initialization services
  */
 
 import type { Effect, Project } from '@/types/project'

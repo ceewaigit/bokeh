@@ -10,8 +10,7 @@ import { getCropEffectForClip, getDataOfType } from '@/features/effects/core/fil
 import { InfoTooltip } from './info-tooltip'
 import { cn } from '@/shared/utils/utils'
 import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager'
-import { useProjectStore } from '@/features/core/stores/project-store'
-import { EffectStore } from '@/features/effects/core/effects-store'
+import { useTimelineEffects } from '@/features/core/stores/selectors'
 
 interface CropTabProps {
   selectedClip: Clip | null
@@ -29,9 +28,8 @@ export function CropTab({
     handleStartEditCrop,
   } = useCropManager(selectedClip)
 
-  // Get effects from store
-  const currentProject = useProjectStore((s) => s.currentProject)
-  const effects = currentProject ? EffectStore.getAll(currentProject) : []
+  // Get effects from selectors (single source of truth)
+  const effects = useTimelineEffects()
 
   // Get crop effect for the selected clip
   const cropEffect = selectedClip

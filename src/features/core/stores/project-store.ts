@@ -54,8 +54,14 @@ const cacheInvalidationMiddleware =
           const effectsChanged = prevTimeline?.effects !== nextTimeline?.effects
           const transcriptEditsChanged = prevTimeline?.transcriptEdits !== nextTimeline?.transcriptEdits
 
-          if (tracksChanged || effectsChanged || transcriptEditsChanged) {
+          if (tracksChanged) {
+            // Structural track change (clip regeneration) - full invalidation with counter increment
+            // This triggers Remotion Player remount to handle new clip IDs
             (get() as ProjectStore).invalidateAllCaches()
+          } else if (effectsChanged || transcriptEditsChanged) {
+            // Non-structural change (effects, annotations, transcript edits)
+            // Only clear caches, no player remount needed
+            (get() as ProjectStore).invalidateCachesOnly()
           }
         },
         get,

@@ -115,12 +115,54 @@
   --timeline-playhead: 262 80% 50%;
   --recording-active: 0 84.2% 60.2%;
   --recording-inactive: 220 8.9% 46.1%;
+
+  /* Effect block colors for timeline */
+  --effect-keystroke: 83 65% 45%;
+  --effect-annotation: 45 90% 50%;
+  --effect-zoom: var(--accent);
+  --effect-screen: 152 55% 40%;
+  --effect-webcam: 196 60% 45%;
+
+  /* Glass mode tokens */
+  --glass-bg: 0 0% 100%;
+  --glass-text: 0 0% 0%;
+  --glass-text-secondary: 0 0% 20%;
+  --glass-border: 0 0% 0%;
+  --glass-border-opacity: 0.08;
+
+  /* Overlay/scrim tokens */
+  --overlay-hover: 0 0% 0%;
+  --overlay-hover-opacity: 0.05;
+
+  /* Shadow tokens */
+  --shadow-color: 0 0% 0%;
+  --shadow-control: 0 1px 3px hsl(var(--shadow-color) / 0.12), 0 0 0 0.5px hsl(var(--shadow-color) / 0.04);
+  --shadow-elevated: 0 4px 16px -4px hsl(var(--shadow-color) / 0.15);
+  --shadow-floating: 0 8px 30px -8px hsl(var(--shadow-color) / 0.25);
+  --shadow-modal: 0 24px 80px -24px hsl(var(--shadow-color) / 0.45);
 }
 
 .dark {
   --window-surface-color: 0 0% 0%;
   --window-surface-brightness: 100%;
   --window-surface-contrast: 103%;
+
+  /* Dark mode effect colors */
+  --effect-keystroke: 83 65% 50%;
+  --effect-annotation: 45 90% 55%;
+  --effect-screen: 152 55% 45%;
+
+  /* Dark mode glass tokens */
+  --glass-bg: 0 0% 0%;
+  --glass-text: 0 0% 100%;
+  --glass-text-secondary: 0 0% 85%;
+  --glass-border: 0 0% 100%;
+  --glass-border-opacity: 0.1;
+
+  /* Dark overlay/scrim tokens */
+  --overlay-scrim: 0 0% 0%;
+  --overlay-hover: 0 0% 100%;
+  --overlay-hover-opacity: 0.05;
 }
 
 /* --- THEME PRESETS --- */
@@ -708,6 +750,19 @@
 }
 
 @layer components {
+  /* Explicit font family utilities to ensure proper cascade */
+  .font-display {
+    font-family: 'Instrument Serif', Georgia, serif !important;
+  }
+
+  .font-sans {
+    font-family: var(--font-geist-sans), system-ui, sans-serif !important;
+  }
+
+  .font-mono {
+    font-family: var(--font-geist-mono), monospace !important;
+  }
+
   .btn-bubble {
     --bubble-color: hsl(var(--foreground) / 0.08);
     position: relative;

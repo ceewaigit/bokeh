@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/shared/utils/utils"
 import { motion, type HTMLMotionProps } from "framer-motion"
 import { type VariantProps } from "class-variance-authority"
+import { springConfig, scaleInteraction } from "@/shared/constants/animations"
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"]
 
@@ -20,7 +21,6 @@ interface HeaderButtonProps extends Omit<HTMLMotionProps<"button">, "size" | "ch
     children?: React.ReactNode
 }
 
-const springConfig = { type: "spring", stiffness: 420, damping: 32 } as const
 const MotionButton = motion.button
 
 export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProps>(
@@ -39,8 +39,8 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                     !children && "w-8 px-0",
                     className
                 )}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: scaleInteraction.hover }}
+                whileTap={{ scale: scaleInteraction.tap }}
                 transition={springConfig}
                 {...props}
             >

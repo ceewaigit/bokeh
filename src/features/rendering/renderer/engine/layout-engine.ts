@@ -181,8 +181,8 @@ export interface FrameSnapshotOptions {
         overlapFrames?: number;
     }
 
-    // Persistence/Fallback (for stability across frames)
-    lastValidClipData?: ActiveClipDataAtFrame | null
+    // Reference stability: If new items match prev items by groupId, return prev array reference.
+    // This prevents React re-renders since React uses reference equality for array dependencies.
     prevRenderableItems?: FrameLayoutItem[]
 
     // Flags
@@ -469,7 +469,6 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
 
         // State
         boundaryState,
-        lastValidClipData,
         isRendering,
         isEditingCrop = false,
     } = options
@@ -488,7 +487,6 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
         getRecording,
         isRendering,
         boundaryState,
-        lastValidClipData
     });
 
     // Use resolved dimensions if available, otherwise fallbacks
@@ -727,7 +725,6 @@ function calculateEffectiveClipData(options: {
     getRecording: (id: string) => Recording | null | undefined
     isRendering: boolean
     boundaryState?: FrameSnapshotOptions['boundaryState']
-    lastValidClipData?: ActiveClipDataAtFrame | null
 }): { effectiveClipData: ActiveClipDataAtFrame | null, persistedVideoState: ResolvedVideoState | null } {
     const {
         activeClipData,
@@ -738,7 +735,6 @@ function calculateEffectiveClipData(options: {
         getRecording,
         isRendering,
         boundaryState,
-        lastValidClipData
     } = options
 
     let clipData = activeClipData;
@@ -784,10 +780,6 @@ function calculateEffectiveClipData(options: {
                 getRecording,
             });
         }
-    }
-
-    if (!clipData && lastValidClipData && !isRendering) {
-        clipData = lastValidClipData;
     }
 
     // 2. RESOLVE PERSISTED/INHERITED VIDEO STATE

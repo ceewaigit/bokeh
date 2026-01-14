@@ -149,12 +149,18 @@ export function useAllClipIds(): string[] {
 /**
  * Get the set of dismissed suggestion keys.
  * Returns a Set for O(1) lookup.
+ *
+ * IMPORTANT: We directly select the dismissedSuggestions array from the store
+ * rather than selecting the whole project. This ensures Zustand properly
+ * detects changes to the array and triggers re-renders.
  */
 export function useDismissedSuggestions(): Set<string> {
-  const project = useProjectStore((s) => s.currentProject)
+  const dismissedSuggestions = useProjectStore(
+    (s) => s.currentProject?.timeline.dismissedSuggestions
+  )
 
   return useMemo(() => {
-    if (!project?.timeline.dismissedSuggestions) return new Set()
-    return new Set(project.timeline.dismissedSuggestions)
-  }, [project?.timeline.dismissedSuggestions])
+    if (!dismissedSuggestions) return new Set()
+    return new Set(dismissedSuggestions)
+  }, [dismissedSuggestions])
 }

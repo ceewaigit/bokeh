@@ -3,8 +3,9 @@
  * Handles file picker dialogs and image loading for custom backgrounds.
  */
 
-import { ipcMain, IpcMainInvokeEvent, BrowserWindow, dialog, nativeImage } from 'electron'
+import { ipcMain, IpcMainInvokeEvent, BrowserWindow, dialog, nativeImage, app } from 'electron'
 import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 
 // Allowed image extensions for validation
@@ -12,6 +13,46 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.web
 
 // Track paths that were selected through the file dialog (security measure)
 const validatedPaths = new Set<string>()
+
+/**
+ * Check if a path is within a trusted app directory.
+ * Trusted directories include bundled resources and the user's Bokeh Captures folder.
+ *
+ * Security: Uses realpathSync to resolve symlinks, preventing symlink traversal attacks.
+ */
+function isTrustedAppPath(imagePath: string): boolean {
+  // Resolve symlinks to get the real path - prevents symlink traversal attacks
+  let realPath: string
+  try {
+    realPath = fsSync.realpathSync(imagePath)
+  } catch {
+    // File doesn't exist or can't be accessed - not trusted
+    return false
+  }
+
+  const normalizedPath = path.normalize(realPath)
+
+  // App resources directory (bundled assets like wallpapers, mockups, parallax)
+  const resourcesPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'public')
+    : path.join(process.cwd(), 'public')
+
+  // User's Bokeh Captures directory (for thumbnails in .bokeh project folders)
+  const userDocuments = app.getPath('documents')
+  const bokehCapturesPath = path.join(userDocuments, 'Bokeh Captures')
+
+  // Check if path is within trusted directories
+  const trustedPaths = [resourcesPath, bokehCapturesPath]
+
+  for (const trusted of trustedPaths) {
+    const normalizedTrusted = path.normalize(trusted)
+    if (normalizedPath.startsWith(normalizedTrusted + path.sep) || normalizedPath === normalizedTrusted) {
+      return true
+    }
+  }
+
+  return false
+}
 
 export function registerImagePickerHandlers(): void {
   // Image selection for custom backgrounds
@@ -53,9 +94,10 @@ export function registerImagePickerHandlers(): void {
         throw new Error(`Invalid file type: ${ext}`)
       }
 
-      // 3. Path should have been selected through the file dialog
-      // This prevents arbitrary file reads from compromised renderers
-      if (!validatedPaths.has(imagePath)) {
+      // 3. Path should either be selected through file dialog OR be within trusted app directories
+      // This prevents arbitrary file reads from compromised renderers while allowing
+      // bundled assets and project thumbnails to be loaded
+      if (!validatedPaths.has(imagePath) && !isTrustedAppPath(imagePath)) {
         console.warn('[ImagePicker] Attempt to load unvalidated path:', imagePath)
         throw new Error('Access denied: path not selected through file picker')
       }

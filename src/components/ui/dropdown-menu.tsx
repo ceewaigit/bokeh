@@ -99,7 +99,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-xl border border-white/10 bg-popover/85 backdrop-blur-xl p-1 text-popover-foreground shadow-xl",
+      "z-floating min-w-[8rem] overflow-hidden rounded-xl border border-glass-border bg-popover/85 backdrop-blur-xl p-1 text-popover-foreground shadow-xl",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-[0.98]",
@@ -128,7 +128,7 @@ const DropdownMenuContent = React.forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-xl border border-white/10 bg-popover/85 backdrop-blur-xl p-1 text-popover-foreground shadow-xl",
+          "z-floating max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-xl border border-glass-border bg-popover/85 backdrop-blur-xl p-1 text-popover-foreground shadow-xl",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-[0.98]",
@@ -324,7 +324,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn("-mx-1 my-1 h-px bg-white/10", className)}
+    className={cn("-mx-1 my-1 h-px bg-glass-border", className)}
     {...props}
   />
 ))

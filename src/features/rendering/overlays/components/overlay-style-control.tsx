@@ -31,8 +31,8 @@ function SliderRow({ label, value, displayValue, onChange, min, max, step }: Sli
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label className="text-[11px] text-muted-foreground">{label}</label>
-        <span className="text-[11px] text-muted-foreground/60 tabular-nums">{displayValue}</span>
+        <label className="text-2xs text-muted-foreground">{label}</label>
+        <span className="text-2xs text-muted-foreground/60 tabular-nums">{displayValue}</span>
       </div>
       <Slider
         value={[value]}

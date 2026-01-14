@@ -29,7 +29,7 @@ export function SegmentedControl<T extends string | number>({
     const instanceId = React.useId()
 
     const sizeClasses = size === 'sm'
-        ? 'text-[11px] py-1.5 px-3'
+        ? 'text-2xs py-1.5 px-3'
         : 'text-xs py-2 px-4'
 
     const containerPadding = size === 'sm' ? 'p-1' : 'p-1.5'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Sparkles, User, Bot } from 'lucide-react'
+import { Send, Loader2, Sparkles, User, Bot, Blocks } from 'lucide-react'
 import type { ChatMessage, GeneratedPlugin } from './page'
 
 interface ChatPanelProps {
@@ -140,7 +140,7 @@ function MessageBubble({
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-md bg-background border border-border/70 flex items-center justify-center">
-                                        <Sparkles className="w-4 h-4 text-muted-foreground" />
+                                        <Blocks className="w-4 h-4 text-muted-foreground" />
                                     </div>
                                     <div>
                                         <div className="font-medium text-sm text-foreground">{message.plugin.name}</div>

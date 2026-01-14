@@ -20,6 +20,8 @@ const config: Config = {
     extend: {
       fontFamily: {
         mono: ["var(--font-geist-mono)", "monospace"],
+        display: ["var(--font-display)", "Georgia", "serif"],
+        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -63,6 +65,23 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        effect: {
+          keystroke: "hsl(var(--effect-keystroke))",
+          annotation: "hsl(var(--effect-annotation))",
+          zoom: "hsl(var(--effect-zoom))",
+          screen: "hsl(var(--effect-screen))",
+          webcam: "hsl(var(--effect-webcam))",
+        },
+        glass: {
+          bg: "hsl(var(--glass-bg))",
+          text: "hsl(var(--glass-text))",
+          "text-secondary": "hsl(var(--glass-text-secondary))",
+          border: "hsl(var(--glass-border) / var(--glass-border-opacity))",
+        },
+        overlay: {
+          scrim: "hsl(var(--overlay-scrim))",
+          hover: "hsl(var(--overlay-hover) / var(--overlay-hover-opacity))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -72,8 +91,30 @@ const config: Config = {
         xl: "var(--radius-lg)", // 12px
         "2xl": "1rem", // 16px
         "3xl": "1.5rem", // 24px
+        // Semantic border radius
+        control: "6px",
+        card: "12px",
+        dialog: "16px",
+        surface: "20px",
+        // DEPRECATED - keep for migration, remove later
         "10": "10px",
         "14": "14px",
+      },
+      zIndex: {
+        ground: "0",
+        elevated: "10",
+        panel: "20",
+        floating: "50",
+        overlay: "60",
+        modal: "70",
+        critical: "100",
+        max: "9999",
+      },
+      boxShadow: {
+        control: "var(--shadow-control)",
+        elevated: "var(--shadow-elevated)",
+        floating: "var(--shadow-floating)",
+        modal: "var(--shadow-modal)",
       },
       fontSize: {
         "4xs": ["9px", { lineHeight: "12px" }],
@@ -84,6 +125,10 @@ const config: Config = {
         "base": ["16px", { lineHeight: "24px" }],
         "ui-sm": ["13px", { lineHeight: "18px" }],
         "ui-base": ["15px", { lineHeight: "22px" }],
+        // Display headings
+        "display-sm": ["20px", { lineHeight: "26px", letterSpacing: "-0.01em" }],
+        "display": ["26px", { lineHeight: "32px", letterSpacing: "-0.02em" }],
+        "display-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em" }],
       },
       spacing: {
         "4.5": "1.125rem", // 18px

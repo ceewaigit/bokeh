@@ -29,7 +29,7 @@ const cardStyles = cn(
   "bg-background/80 backdrop-blur-2xl",
   "border border-border/20",
   "shadow-2xl",
-  "rounded-[20px]"
+  "rounded-surface"
 )
 
 // Animated progress dots
@@ -105,13 +105,13 @@ function PermissionItem({ icon, label, isGranted, isOptional, onAction }: Permis
       </div>
       <div className="flex items-center gap-1.5">
         <span className={cn(
-          "text-[11px] font-medium transition-colors duration-150",
+          "text-2xs font-medium transition-colors duration-150",
           isGranted ? "text-muted-foreground" : "text-foreground"
         )}>
           {label}
         </span>
         {isOptional && (
-          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">
+          <span className="text-4xs text-muted-foreground/50 uppercase tracking-wide">
             opt
           </span>
         )}
@@ -189,8 +189,8 @@ export function WelcomeScreen({
                 height={40}
               />
             </div>
-            <h1 className="text-[26px] font-[var(--font-display)] tracking-[-0.02em] text-foreground leading-tight mb-3">
-              Let&apos;s get you <span className="italic">set up</span>
+            <h1 className="text-display font-display italic tracking-[-0.02em] text-foreground leading-tight mb-3">
+              Let&apos;s get you set up
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-[260px] mx-auto">
               A few quick permissions to record your screen and audio.
@@ -247,7 +247,7 @@ export function WelcomeScreen({
 
           <button
             onClick={() => openSettings('screen')}
-            className="flex items-center justify-center gap-1.5 mx-auto mt-5 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-150"
+            className="flex items-center justify-center gap-1.5 mx-auto mt-5 text-2xs text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-150"
           >
             <Settings size={12} strokeWidth={1.5} />
             System Settings
@@ -267,8 +267,8 @@ export function WelcomeScreen({
 
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-[26px] font-[var(--font-display)] tracking-[-0.02em] text-foreground leading-tight mb-2">
-              Choose your <span className="italic">aesthetic</span>
+            <h1 className="text-display font-display italic tracking-[-0.02em] text-foreground leading-tight mb-2">
+              Choose your aesthetic
             </h1>
             <p className="text-sm text-muted-foreground">
               Make it yours.
@@ -334,7 +334,7 @@ export function WelcomeScreen({
                         isSelected && "ring-2 ring-foreground/20 ring-offset-2 ring-offset-background"
                       )} />
                       <span className={cn(
-                        "text-[10px] font-medium transition-colors duration-150",
+                        "text-3xs font-medium transition-colors duration-150",
                         isSelected ? "text-foreground" : "text-muted-foreground"
                       )}>
                         {PRESET_DETAILS[preset].label}
@@ -357,7 +357,7 @@ export function WelcomeScreen({
                 <div className="text-sm font-semibold text-foreground">
                   {currentPresetDetails.label}
                 </div>
-                <div className="text-[11px] text-foreground/60 mt-1 max-w-[180px] leading-snug">
+                <div className="text-2xs text-foreground/60 mt-1 max-w-[180px] leading-snug">
                   {currentPresetDetails.description}
                 </div>
               </div>
@@ -365,7 +365,7 @@ export function WelcomeScreen({
                 {currentPresetDetails.adjectives.slice(0, 2).map(adj => (
                   <span
                     key={adj}
-                    className="px-2 py-0.5 rounded text-[9px] font-medium uppercase tracking-wide bg-background/20 backdrop-blur-sm text-foreground/70"
+                    className="px-2 py-0.5 rounded text-4xs font-medium uppercase tracking-wide bg-background/20 backdrop-blur-sm text-foreground/70"
                   >
                     {adj}
                   </span>

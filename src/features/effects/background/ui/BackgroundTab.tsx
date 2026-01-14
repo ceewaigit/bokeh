@@ -819,7 +819,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
             <div className="border border-border/20 bg-background/50 shadow-sm rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between gap-3 px-3 py-3">
-                <div className="flex items-center gap-2 text-left font-[var(--font-display)] text-ui-sm font-semibold tracking-tight text-foreground">
+                <div className="flex items-center gap-2 text-left text-ui-sm font-semibold tracking-tight text-foreground">
                   bokeh.
                   <InfoTooltip content="Blur for depth of field" />
                 </div>

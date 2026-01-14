@@ -110,7 +110,13 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
         // ==========================================================================
         const localFrameRaw = currentFrame - startFrame;
         const localFrame = isHoldClip ? Math.min(localFrameRaw, durationFrames - 1) : localFrameRaw;
-        const isPreloading = currentFrame < startFrame;
+        // ARCHITECTURAL FIX: Use GROUP-level start frame for preloading check.
+        // Within a contiguous group, groupStartFrame is STABLE and doesn't change
+        // as you navigate between clips. This eliminates stale memo issues where
+        // currentFrame is fresh but startFrame is from a previous clip.
+        // The video element persists across clip boundaries (keyed by groupId),
+        // so once currentFrame >= groupStartFrame, the video is active for the entire group.
+        const isPreloading = currentFrame < groupStartFrame;
 
         // ==========================================================================
         // FADE CALCULATIONS

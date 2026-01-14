@@ -5,6 +5,12 @@ import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { PROJECT_EXTENSION, PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
 import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'
 import { markModified } from '@/features/core/stores/store-utils'
+import {
+  type DateCategoryId,
+  groupByDateCategory,
+  getCategoryCounts,
+  getNonEmptyCategories,
+} from '../utils/date-grouping'
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -306,6 +312,18 @@ export const useRecordingsLibraryData = () => {
     return displayedRecordings.map((rec) => `${rec.path}:${rec.timestamp.getTime()}`).join('|')
   }, [displayedRecordings])
 
+  // Stable key that only changes when the source recordings list or display parameters change,
+  // NOT when hydration updates. This prevents infinite loops during hydration.
+  const hydrationTriggerKey = useMemo(() => {
+    // Use only stable values that don't change during hydration
+    const recordingIds = recordings.map(r => r.path).join(',')
+    return `${recordingIds}|${searchQuery}|${sortKey}|${sortDirection}|${displayedCount}`
+  }, [recordings, searchQuery, sortKey, sortDirection, displayedCount])
+
+  const filteredAndSortedRef = useRef(filteredAndSortedRecordings)
+  const displayedRecordingsRef = useRef(displayedRecordings)
+  const displayedCountRef = useRef(displayedCount)
+
   useEffect(() => {
     recordingsRef.current = recordings
   }, [recordings])
@@ -313,6 +331,18 @@ export const useRecordingsLibraryData = () => {
   useEffect(() => {
     hydrationRef.current = hydrationByPath
   }, [hydrationByPath])
+
+  useEffect(() => {
+    filteredAndSortedRef.current = filteredAndSortedRecordings
+  }, [filteredAndSortedRecordings])
+
+  useEffect(() => {
+    displayedRecordingsRef.current = displayedRecordings
+  }, [displayedRecordings])
+
+  useEffect(() => {
+    displayedCountRef.current = displayedCount
+  }, [displayedCount])
 
   // ──────────────────────────────────────────────────────────────────────────
   // THUMBNAIL HELPERS
@@ -340,11 +370,21 @@ export const useRecordingsLibraryData = () => {
   }, [])
 
   const loadThumbnailFromDisk = useCallback(async (projectDir: string, variant: ThumbnailVariant) => {
-    if (!window.electronAPI?.fileExists || !window.electronAPI?.loadImageAsDataUrl) return null
+    if (!window.electronAPI?.fileExists || !window.electronAPI?.readLocalFile) return null
     const thumbnailPath = `${projectDir}/${getThumbnailFileName(variant)}`
     const exists = await window.electronAPI.fileExists(thumbnailPath)
     if (!exists) return null
-    return await window.electronAPI.loadImageAsDataUrl(thumbnailPath)
+    // Read the file as binary and convert to data URL
+    const result = await window.electronAPI.readLocalFile(thumbnailPath)
+    if (!result?.success || !result.data) return null
+    const bytes = new Uint8Array(result.data as ArrayBuffer)
+    let binary = ''
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    const base64 = btoa(binary)
+    // Thumbnails are always JPEG format
+    return `data:image/jpeg;base64,${base64}`
   }, [])
 
   const saveThumbnailToDisk = useCallback(async (projectDir: string, dataUrl: string, variant: ThumbnailVariant) => {
@@ -367,7 +407,9 @@ export const useRecordingsLibraryData = () => {
   // ──────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const pageItems = displayedRecordings.map((rec, index) => ({ rec, index }))
+    // Use refs to get current values without creating dependencies that change during hydration
+    const currentDisplayed = displayedRecordingsRef.current
+    const pageItems = currentDisplayed.map((rec, index) => ({ rec, index }))
     const needsHydration = pageItems.filter(({ rec, index }) => {
       const hydration = hydrationRef.current[rec.path]
       const desiredVariant = resolveThumbnailSpec(index).variant
@@ -407,8 +449,9 @@ export const useRecordingsLibraryData = () => {
 
       // Pre-load next batch for smooth infinite scroll
       if (loadTokenRef.current === token) {
-        const start = displayedCount
-        const nextItems = filteredAndSortedRecordings.slice(start, start + 24).map((rec, i) => ({
+        const start = displayedCountRef.current
+        const currentFiltered = filteredAndSortedRef.current
+        const nextItems = currentFiltered.slice(start, start + 24).map((rec, i) => ({
           rec,
           index: start + i
         }))
@@ -423,19 +466,16 @@ export const useRecordingsLibraryData = () => {
     run().catch((error) => {
       console.error('Failed to hydrate recordings page:', error)
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    pageKey,
-    displayedCount,
-    filteredAndSortedRecordings,
+    // Use stable trigger key that doesn't change during hydration
+    hydrationTriggerKey,
+    // Stable callback references (from useCallback)
     setHydration,
     generateThumbnail,
     loadThumbnailFromDisk,
     saveThumbnailToDisk,
-    displayedRecordings,
-    resolveThumbnailSpec,
-    searchQuery,
-    sortKey,
-    sortDirection
+    resolveThumbnailSpec
   ])
 
   const loadRecordings = useCallback(async (forceReload = false) => {
@@ -606,6 +646,51 @@ export const useRecordingsLibraryData = () => {
     }
   }, [loadRecordings])
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // DATE GROUPING
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Group displayed recordings by date category */
+  const groupedRecordings = useMemo(() => {
+    return groupByDateCategory(displayedRecordingsHydrated)
+  }, [displayedRecordingsHydrated])
+
+  /** Category counts for sidebar (from ALL filtered recordings, not just displayed) */
+  const categoryCounts = useMemo(() => {
+    return getCategoryCounts(filteredAndSortedRecordings)
+  }, [filteredAndSortedRecordings])
+
+  /** Non-empty categories for sidebar navigation */
+  const nonEmptyCategories = useMemo(() => {
+    return getNonEmptyCategories(filteredAndSortedRecordings)
+  }, [filteredAndSortedRecordings])
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // LIBRARY STATS
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Calculate total duration from all hydrated recordings */
+  const totalDurationMs = useMemo(() => {
+    return displayedRecordingsHydrated.reduce((sum, rec) => {
+      return sum + (rec.projectInfo?.duration ?? 0)
+    }, 0)
+  }, [displayedRecordingsHydrated])
+
+  /** Calculate total storage from all hydrated recordings */
+  const totalStorageBytes = useMemo(() => {
+    return displayedRecordingsHydrated.reduce((sum, rec) => {
+      return sum + (rec.mediaFileSize ?? 0)
+    }, 0)
+  }, [displayedRecordingsHydrated])
+
+  /** Get the most recent recording date */
+  const lastRecordedDate = useMemo(() => {
+    if (recordings.length === 0) return null
+    return recordings.reduce((latest, rec) => {
+      return rec.timestamp > latest ? rec.timestamp : latest
+    }, recordings[0].timestamp)
+  }, [recordings])
+
   return {
     searchQuery,
     setSearchQuery,
@@ -624,11 +709,21 @@ export const useRecordingsLibraryData = () => {
     isLoadingMore,
     loadMore,
 
+    // Date grouping
+    groupedRecordings,
+    categoryCounts,
+    nonEmptyCategories,
+
     pendingDelete,
     setPendingDelete,
     handleDeleteRecording,
     handleRenameRecording,
     handleDuplicateRecording,
     totalRecordingsCount: recordings.length,
+
+    // Library stats
+    totalDurationMs,
+    totalStorageBytes,
+    lastRecordedDate,
   }
 }

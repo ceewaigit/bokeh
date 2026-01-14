@@ -1,20 +1,25 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Loader2, SearchX } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { cn } from '@/shared/utils/utils'
 import { Toolbar } from '@/components/toolbar'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { type LibraryRecording, type LibraryRecordingView } from '@/features/media/recording/store/library-store'
 import { PROJECT_EXTENSION_REGEX } from '@/features/core/storage/project-paths'
+import { useMediaQuery } from '@/shared/hooks/use-media-query'
 import { LibraryEmptyState } from './components/library-empty-state'
 import { LibraryLoadingState } from './components/library-loading-state'
-import { MasonryGrid } from './components/masonry-grid'
+import { RecordingCard } from './components/recording-card'
 import { DeleteRecordingDialog } from './components/delete-recording-dialog'
 import { RecordingNameDialog } from './components/recording-name-dialog'
-import { LibrarySort } from './components/library-sort'
+import { LibrarySidebar } from './components/library-sidebar'
+import { DateGroupHeader } from './components/date-group-header'
 import { useRecordingsLibraryData } from './hooks/use-recordings-library-data'
 import { useInfiniteScroll } from './hooks/use-infinite-scroll'
+import { useScrollSpy } from './hooks/use-scroll-spy'
+import { DATE_CATEGORIES, type DateCategoryId } from './utils/date-grouping'
 
 interface RecordingsLibraryProps {
   onSelectRecording: (recording: LibraryRecording) => void | Promise<void>
@@ -40,10 +45,33 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     searchQuery,
     setSearchQuery,
     sortKey,
-    sortDirection,
-    setSort,
-    totalRecordingsCount
+    totalRecordingsCount,
+    groupedRecordings,
+    categoryCounts,
+    nonEmptyCategories,
+    totalDurationMs,
+    totalStorageBytes,
+    lastRecordedDate,
   } = useRecordingsLibraryData()
+
+  // Responsive: collapse sidebar on smaller screens
+  const isNarrowScreen = useMediaQuery('(max-width: 900px)')
+  const sidebarCollapsed = isNarrowScreen
+
+  // Scroll container ref for scroll-spy
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Section IDs for scroll-spy (only non-empty categories)
+  const sectionIds = useMemo(
+    () => nonEmptyCategories.map((cat) => cat.id),
+    [nonEmptyCategories]
+  )
+
+  const { activeSection, sectionRefs, scrollToSection } = useScrollSpy({
+    sectionIds,
+    containerRef: scrollContainerRef,
+    offset: 140,
+  })
 
   // Infinite scroll hook
   const { sentinelRef } = useInfiniteScroll({
@@ -56,26 +84,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   const [pendingRename, setPendingRename] = useState<LibraryRecordingView | null>(null)
   const [pendingDuplicate, setPendingDuplicate] = useState<LibraryRecordingView | null>(null)
 
-  const sortLabel = useMemo(() => {
-    switch (sortKey) {
-      case 'name':
-        return sortDirection === 'asc' ? 'Name (A–Z)' : 'Name (Z–A)'
-      case 'size':
-        return sortDirection === 'asc' ? 'Smallest first' : 'Largest first'
-      case 'duration':
-        return sortDirection === 'asc' ? 'Shortest first' : 'Longest first'
-      case 'date':
-      default:
-        return sortDirection === 'asc' ? 'Oldest first' : 'Newest first'
-    }
-  }, [sortKey, sortDirection])
-
   const handleSelect = async (rec: LibraryRecordingView) => {
     onSelectRecording(rec)
   }
 
   const handleNewRecording = () => {
     window.electronAPI?.showRecordButton?.(showRecordButtonOptions)
+  }
+
+  const handleCategoryClick = (categoryId: DateCategoryId) => {
+    scrollToSection(categoryId)
   }
 
   if (loading) {
@@ -85,6 +103,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   if (totalRecordingsCount === 0 && !loading) {
     return <LibraryEmptyState onNewRecording={handleNewRecording} />
   }
+
+  // Check if we're showing grouped view (date sort, no search)
+  const showGroupedView = sortKey === 'date' && !searchQuery
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
@@ -99,80 +120,146 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         }}
       />
 
-      {/* Main scrollable area - full page scroll */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scroll-smooth">
-        <div className="mx-auto w-full max-w-[85vw] px-5 py-4 sm:px-6 lg:px-8">
-          {displayedRecordings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground motion-safe:animate-in motion-safe:fade-in duration-300">
-              <div className="mb-4 h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center ring-1 ring-border/50">
-                <SearchX className="h-8 w-8 opacity-70" />
-              </div>
-              <p className="text-sm font-medium">No recordings found</p>
-              <p className="text-xs text-muted-foreground/60 mt-1 max-w-xs text-center">
-                We couldn&apos;t find any recordings matching &quot;{searchQuery}&quot;
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Header */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between pb-4">
-                <div className="space-y-0.5">
-                  <h1 className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground/80">
-                    Recordings
-                  </h1>
-                  <p className="text-xs text-muted-foreground/60">
-                    {searchQuery ? 'Filtered results based on your search.' : 'Browse and manage your projects.'}
+      {/* Main layout with sidebar */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar area - horizontally centered content */}
+        <div className={cn(
+          "flex-shrink-0 flex items-center justify-center",
+          sidebarCollapsed
+            ? "w-14"
+            : "min-w-[240px] w-[25%]"
+        )}>
+          <LibrarySidebar
+            categories={nonEmptyCategories}
+            counts={categoryCounts}
+            activeCategory={activeSection}
+            onCategoryClick={handleCategoryClick}
+            totalCount={totalRecordingsCount}
+            collapsed={sidebarCollapsed}
+            totalDurationMs={totalDurationMs}
+            totalStorageBytes={totalStorageBytes}
+            lastRecordedDate={lastRecordedDate}
+          />
+        </div>
+
+        {/* Main scrollable content area */}
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto scrollbar-thin scroll-smooth"
+        >
+          {/* Top padding to start content toward vertical center */}
+          <div className="pt-[15vh]" />
+
+          <div className="w-full max-w-4xl mx-auto px-8">
+            {displayedRecordings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 duration-500">
+                <div className="relative mb-8">
+                  <div className="absolute inset-0 bg-muted/20 blur-[40px] rounded-full opacity-50" />
+                  <div className="relative w-20 h-20 rounded-[1.5rem] bg-gradient-to-b from-muted/20 to-muted/5 border border-border/30 backdrop-blur-xl flex items-center justify-center shadow-xl ring-1 ring-border/20">
+                    <SearchX className="w-9 h-9 text-muted-foreground/60" strokeWidth={1.5} />
+                  </div>
+                </div>
+                <div className="space-y-3 text-center">
+                  <h3 className="text-xl font-display italic tracking-[-0.02em] text-foreground">
+                    No matches
+                  </h3>
+                  <p className="text-sm text-muted-foreground/70 max-w-xs leading-relaxed">
+                    We couldn&apos;t find any recordings matching &quot;{searchQuery}&quot;
                   </p>
                 </div>
-                <div className="flex items-center justify-between gap-4 sm:justify-end">
-                  <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
-                    <span className="uppercase tracking-[0.08em] text-muted-foreground/70">Sorted</span>
-                    <span>{sortLabel}</span>
-                  </div>
-                  <LibrarySort sortKey={sortKey} sortDirection={sortDirection} onSortChange={setSort} />
-                </div>
               </div>
+            ) : (
+              <>
+                {/* Content: Grouped or Flat view */}
+                {showGroupedView ? (
+                  // Grouped view with date sections
+                  <div className="space-y-8">
+                    {DATE_CATEGORIES.map((category) => {
+                      const categoryRecordings = groupedRecordings.get(category.id) || []
+                      if (categoryRecordings.length === 0) return null
 
-              {/* Grid */}
-              <MasonryGrid
-                recordings={displayedRecordings}
-                onSelect={handleSelect}
-                onRequestRename={setPendingRename}
-                onRequestDuplicate={setPendingDuplicate}
-                onRequestDelete={setPendingDelete}
-              />
+                      return (
+                        <section
+                          key={category.id}
+                          ref={(el) => {
+                            const ref = sectionRefs[category.id]
+                            if (ref && 'current' in ref) {
+                              (ref as { current: HTMLElement | null }).current = el
+                            }
+                          }}
+                        >
+                          <DateGroupHeader
+                            label={category.label}
+                            count={categoryRecordings.length}
+                          />
 
-              {/* Sentinel element for infinite scroll */}
-              <div ref={sentinelRef} className="h-px" />
-
-              {/* Loading indicator for infinite scroll */}
-              <AnimatePresence>
-                {(isLoadingMore || showHydrationIndicator) && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="flex justify-center py-6"
-                  >
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 backdrop-blur-sm border border-border/30">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                      <span className="text-[11px] font-medium text-muted-foreground">Loading...</span>
-                    </div>
-                  </motion.div>
+                          {/* Recording cards grid - max 4 columns */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {categoryRecordings.map((recording) => (
+                              <RecordingCard
+                                key={recording.path}
+                                recording={recording}
+                                onSelect={handleSelect}
+                                onRequestRename={setPendingRename}
+                                onRequestDuplicate={setPendingDuplicate}
+                                onRequestDelete={setPendingDelete}
+                              />
+                            ))}
+                          </div>
+                        </section>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // Flat view (when searching or sorting by non-date)
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {displayedRecordings.map((recording) => (
+                      <RecordingCard
+                        key={recording.path}
+                        recording={recording}
+                        onSelect={handleSelect}
+                        onRequestRename={setPendingRename}
+                        onRequestDuplicate={setPendingDuplicate}
+                        onRequestDelete={setPendingDelete}
+                      />
+                    ))}
+                  </div>
                 )}
-              </AnimatePresence>
 
-              {/* End of list indicator */}
-              {!hasMore && displayedRecordings.length > 24 && (
-                <div className="flex justify-center py-6">
-                  <span className="text-[11px] text-muted-foreground/50">
-                    {displayedRecordings.length} recordings
-                  </span>
-                </div>
-              )}
-            </>
-          )}
+                {/* Sentinel element for infinite scroll */}
+                <div ref={sentinelRef} className="h-px" />
+
+                {/* Loading indicator for infinite scroll */}
+                <AnimatePresence>
+                  {(isLoadingMore || showHydrationIndicator) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex justify-center py-6"
+                    >
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 backdrop-blur-sm border border-border/30">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                        <span className="text-2xs font-medium text-muted-foreground">Loading...</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* End of list indicator */}
+                {!hasMore && displayedRecordings.length > 24 && (
+                  <div className="flex justify-center py-6">
+                    <span className="text-2xs text-muted-foreground/50">
+                      {displayedRecordings.length} recordings
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Bottom padding */}
+          <div className="pb-[15vh]" />
         </div>
       </div>
 
@@ -224,7 +311,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           if (!open) setPendingDuplicate(null)
         }}
       />
-
     </div>
   )
 }

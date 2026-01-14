@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useMemo } from 'react'
-import { Sparkles, Gauge, Zap, CircleOff } from 'lucide-react'
+import { Feather, Gauge, Zap, CircleOff } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 import type { Clip, Effect, ScreenEffectData } from '@/types/project'
@@ -18,23 +18,32 @@ interface DepthStylePreviewProps {
     tiltX: number
     tiltY: number
     perspective: number
+    preset: ScreenEffectPreset
     isSelected: boolean
     isHovered: boolean
 }
 
-function DepthStylePreview({ tiltX, tiltY, perspective, isSelected, isHovered }: DepthStylePreviewProps) {
-    // Scale transforms for preview - use larger scale to make differences visible
-    const previewScale = 0.5
-    const scaledTiltX = tiltX * previewScale
-    const scaledTiltY = tiltY * previewScale
+function DepthStylePreview({ tiltX, tiltY, perspective, preset, isSelected, isHovered }: DepthStylePreviewProps) {
+    // Use full transform values to match the actual video effect
+    const scaledTiltX = tiltX
+    const scaledTiltY = tiltY
+    const scaledPerspective = perspective
+
+    // Center adjustment for TableView (matching screen-transform.ts)
+    let centerAdjust = ''
+    if (preset === ScreenEffectPreset.TableView) {
+        const ty = -scaledTiltX * 0.1
+        centerAdjust = ` translate3d(0, ${ty}px, 0)`
+    }
+
+    // Use inline perspective() to match the video transform approach
+    const transform = `perspective(${scaledPerspective}px) rotateX(${scaledTiltX}deg) rotateY(${scaledTiltY}deg)${centerAdjust}`
 
     return (
         <div
             className="relative w-full aspect-[16/10] rounded-md overflow-hidden"
             style={{
-                background: 'linear-gradient(145deg, hsl(var(--muted)/0.3) 0%, hsl(var(--muted)/0.5) 100%)',
-                perspective: `${perspective * 0.5}px`,
-                perspectiveOrigin: 'center center'
+                background: 'linear-gradient(145deg, hsl(var(--muted)/0.3) 0%, hsl(var(--muted)/0.5) 100%)'
             }}
         >
             <div
@@ -46,8 +55,7 @@ function DepthStylePreview({ tiltX, tiltY, perspective, isSelected, isHovered }:
                     isHovered && !isSelected && "from-foreground/35 to-foreground/20"
                 )}
                 style={{
-                    // Always show the transform so users can see the style
-                    transform: `rotateX(${scaledTiltX}deg) rotateY(${scaledTiltY}deg)`,
+                    transform,
                     transformStyle: 'preserve-3d',
                     transformOrigin: 'center center'
                 }}
@@ -134,7 +142,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
         description: string
         icon: React.ComponentType<{ className?: string }>
     }> = [
-            { id: 'smooth', label: 'Smooth', introMs: 600, outroMs: 600, description: 'Long, elegant ease', icon: Sparkles },
+            { id: 'smooth', label: 'Smooth', introMs: 600, outroMs: 600, description: 'Long, elegant ease', icon: Feather },
             { id: 'medium', label: 'Medium', introMs: 350, outroMs: 350, description: 'Balanced, natural pace', icon: Gauge },
             { id: 'rapid', label: 'Rapid', introMs: 150, outroMs: 150, description: 'Quick, snappy motion', icon: Zap },
             { id: 'none', label: 'None', introMs: 0, outroMs: 0, description: 'Instant cut', icon: CircleOff }
@@ -205,6 +213,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                                             tiltX={presetValues?.tiltX ?? 0}
                                             tiltY={presetValues?.tiltY ?? 0}
                                             perspective={presetValues?.perspective ?? 1000}
+                                            preset={option.preset}
                                             isSelected={isSelected}
                                             isHovered={isHovered}
                                         />
@@ -224,7 +233,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
                     <div className="space-y-2 pt-1">
                         <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 block">Motion</label>
-                        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
+                        <div className="grid grid-cols-4 gap-1.5">
                             {speedPresets.map((option) => {
                                 const Icon = option.icon
                                 const isSelected = introMs === option.introMs && outroMs === option.outroMs
@@ -232,28 +241,20 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                                     <button
                                         key={option.id}
                                         className={cn(
-                                            'group flex min-w-0 flex-col gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-all',
+                                            'group flex flex-col items-center gap-1.5 rounded-lg border p-2 text-center transition-all',
                                             isSelected
                                                 ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
                                                 : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
                                         )}
                                         onClick={() => applySpeedPreset(option.introMs, option.outroMs)}
                                     >
-                                        <div className="flex items-center justify-between">
-                                            <div className={cn(
-                                                'flex h-7 w-7 items-center justify-center rounded-md border',
-                                                isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
-                                            )}>
-                                                <Icon className="h-3.5 w-3.5" />
-                                            </div>
-                                            {isSelected && (
-                                                <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-primary/80">Active</span>
-                                            )}
+                                        <div className={cn(
+                                            'flex h-6 w-6 items-center justify-center rounded-md border',
+                                            isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
+                                        )}>
+                                            <Icon className="h-3 w-3" />
                                         </div>
-                                        <div>
-                                            <div className="text-xs font-semibold leading-tight">{option.label}</div>
-                                            <div className="mt-1 text-2xs leading-snug text-muted-foreground/80">{option.description}</div>
-                                        </div>
+                                        <div className="text-2xs font-medium leading-tight">{option.label}</div>
                                     </button>
                                 )
                             })}

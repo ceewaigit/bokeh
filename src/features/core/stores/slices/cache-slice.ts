@@ -42,6 +42,16 @@ export const createCacheSlice: CreateCacheSlice = (set) => ({
         })
     },
 
+    invalidateCachesOnly: () => {
+        set((state) => {
+            state.cameraPathCache = null
+            state.cameraPathCacheDimensions = null
+            state.frameLayoutCache = null
+            // NOTE: Does NOT increment timelineMutationCounter
+            // Use for effect-only changes that don't require player remount
+        })
+    },
+
     invalidateAllCaches: () => {
         set((state) => {
             state.cameraPathCache = null

@@ -14,7 +14,6 @@
 
 import { useRef, useEffect, useMemo } from 'react'
 import { calculateFrameSnapshot, type FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
-import type { ActiveClipDataAtFrame } from '@/types/remotion'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import { getBoundaryOverlapState } from '@/features/ui/timeline/utils/frame-layout'
 import { useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion'
@@ -164,8 +163,7 @@ function useCalculatedSnapshot(
     // Frozen layout ref - persists layout during crop editing
     const frozenLayoutRef = useRef<FrameSnapshot | null>(null)
 
-    // Stability/Persistence refs
-    const lastValidClipDataRef = useRef<ActiveClipDataAtFrame | null>(null);
+    // Reference stability: Reuse previous array if groupIds match, preventing React re-renders
     const prevRenderableItemsRef = useRef<FrameLayoutItem[]>([]);
 
     // Clear frozen state and accumulated refs when not editing
@@ -173,11 +171,21 @@ function useCalculatedSnapshot(
     useEffect(() => {
         if (!isEditingCrop) {
             frozenLayoutRef.current = null
-            // Clear accumulated layout data to free memory
             prevRenderableItemsRef.current = []
-            lastValidClipDataRef.current = null
         }
     }, [isEditingCrop])
+
+    // Track effects array changes to clear stale cached data after regeneration
+    // When effects change (regeneration creates new clips with new IDs), we must clear
+    // the cached data to force fresh calculations for ALL frames, not just visited ones
+    const effectsArrayRef = useRef(clipEffects);
+    useEffect(() => {
+        if (effectsArrayRef.current !== clipEffects) {
+            effectsArrayRef.current = clipEffects;
+            prevRenderableItemsRef.current = [];
+            frozenLayoutRef.current = null;
+        }
+    }, [clipEffects]);
 
     return useMemo(() => {
         // Use frozen layout if available during crop editing
@@ -212,11 +220,21 @@ function useCalculatedSnapshot(
                 prevLayoutItem: renderPrevLayoutItem,
                 nextLayoutItem: renderNextLayoutItem,
             },
-            lastValidClipData: lastValidClipDataRef.current,
             prevRenderableItems: prevRenderableItemsRef.current,
             isRendering,
             isEditingCrop,
         })
+
+        // Dev-only assertion: Detect unexpected null clip data during preview
+        // This helps catch edge cases where the fallback was previously masking issues
+        if (process.env.NODE_ENV === 'development' && !isRendering && !isEditingCrop) {
+            if (!snapshot.effectiveClipData && frameLayout.length > 0 && currentFrame >= 0) {
+                console.warn(
+                    `[FrameSnapshot] Missing clip data at frame ${currentFrame}. ` +
+                    `Layout has ${frameLayout.length} items. This may cause visual gaps.`
+                )
+            }
+        }
 
         // Use pre-computed velocity from camera path (deterministic - same frame = same velocity)
         // This is calculated in path-calculator.ts as position[frame] - position[frame-1]
@@ -230,29 +248,7 @@ function useCalculatedSnapshot(
         // Use pre-computed motion blur mix from camera path (deterministic per frame)
         snapshot.camera.motionBlurMix = cameraPathFrame?.motionBlurMix ?? 0;
 
-        // LEGACY SAFETY NET: These fallbacks should no longer trigger after fixes to:
-        // - findActiveFrameLayoutItems (frame-layout.ts) - never returns empty
-        // - calculateEffectiveClipData (layout-engine.ts) - uses lastValidClipData internally
-        // Dev logging helps verify these are truly redundant before removal.
-        if (snapshot.renderableItems.length === 0 && prevRenderableItemsRef.current.length > 0) {
-            if (process.env.NODE_ENV === 'development') {
-                console.warn('[useFrameSnapshot] SAFETY NET triggered: empty renderableItems at frame', currentFrame);
-            }
-            snapshot.renderableItems = prevRenderableItemsRef.current;
-        }
-
-        if (!snapshot.effectiveClipData && lastValidClipDataRef.current && !isRendering) {
-            if (process.env.NODE_ENV === 'development') {
-                console.warn('[useFrameSnapshot] SAFETY NET triggered: null effectiveClipData at frame', currentFrame);
-            }
-            snapshot.effectiveClipData = lastValidClipDataRef.current;
-        }
-
-        // Update stability refs
-        if (snapshot.effectiveClipData) {
-            lastValidClipDataRef.current = snapshot.effectiveClipData;
-        }
-        // Only update prevRenderableItems if we have valid items
+        // Update stability ref for React optimization (same array reference when content matches)
         if (snapshot.renderableItems.length > 0) {
             prevRenderableItemsRef.current = snapshot.renderableItems;
         }
