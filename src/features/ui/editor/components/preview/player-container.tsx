@@ -82,7 +82,12 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
         volume,
     ]);
 
-    const glowNode = isGlowEnabled ? (
+    // BATTERY OPTIMIZATION: Only mount glow player when both enabled AND intensity > 0
+    // This prevents the AmbientGlowPlayer from running its hooks (5 useEffects, store subscriptions)
+    // and mounting a second Remotion Player that decodes video in parallel
+    const shouldRenderGlow = isGlowEnabled && glowIntensity > 0;
+
+    const glowNode = shouldRenderGlow ? (
         <AmbientGlowPlayer
             mainPlayerRef={playerRef}
             timelineMetadata={timelineMetadata}

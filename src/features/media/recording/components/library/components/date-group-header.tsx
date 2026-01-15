@@ -20,20 +20,20 @@ export const DateGroupHeader = forwardRef<HTMLDivElement, DateGroupHeaderProps>(
     return (
       <motion.div
         ref={ref}
-        initial={reduceMotion ? false : { opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
         className={cn(
           "w-full col-span-full",
           "pb-4 first:pt-0",
           className
         )}
       >
-        <div className="flex items-center gap-2.5">
-          <h2 className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/70">
             {label}
           </h2>
-          <span className="text-[10px] text-muted-foreground tabular-nums">
+          <span className="text-[10px] text-muted-foreground/40 tabular-nums">
             {count}
           </span>
         </div>

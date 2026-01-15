@@ -1,5 +1,6 @@
 "use client"
 
+import React from 'react'
 import Image from 'next/image'
 import { Copy, PencilLine, Play, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -23,11 +24,23 @@ const getDisplayName = (recording: LibraryRecordingView) =>
   recording.projectInfo?.name ||
   recording.name.replace(/^Recording_/, '').replace(PROJECT_EXTENSION_REGEX, '')
 
-// Format relative time
-const getRelativeTime = (timestamp: Date) =>
-  formatDistanceToNow(timestamp, { addSuffix: true })
+// Format relative time - Apple-style concise format
+const getRelativeTime = (timestamp: Date) => {
+  const now = new Date()
+  const diff = now.getTime() - timestamp.getTime()
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  if (hours < 24) return `${hours}h ago`
+  if (days < 7) return `${days}d ago`
+
+  return formatDistanceToNow(timestamp, { addSuffix: true })
     .replace('about ', '')
     .replace('less than ', '<')
+}
 
 // Action pill component for rename/duplicate/delete actions
 function ActionPill({
@@ -94,7 +107,8 @@ function ActionPill({
   )
 }
 
-export function RecordingCard({
+// BATTERY OPTIMIZATION: Memoize to prevent rerenders when parent updates but props unchanged
+export const RecordingCard = React.memo(function RecordingCard({
   recording,
   onSelect,
   onRequestRename,
@@ -106,7 +120,7 @@ export function RecordingCard({
   const relativeTime = getRelativeTime(recording.timestamp)
   const duration = recording.projectInfo?.duration || 0
 
-  // Get natural aspect ratio from recording dimensions
+  // Get natural aspect ratio from recording dimensions for masonry grid
   const width = recording.projectInfo?.width || 1920
   const height = recording.projectInfo?.height || 1080
   const aspectRatio = width / height
@@ -134,7 +148,7 @@ export function RecordingCard({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       )}
     >
-      {/* Thumbnail container - natural aspect ratio */}
+      {/* Thumbnail container - natural aspect ratio for masonry grid */}
       <div
         className="relative w-full overflow-hidden"
         style={{ aspectRatio }}
@@ -168,8 +182,8 @@ export function RecordingCard({
 
         {/* Duration badge - bottom left */}
         {duration > 0 && (
-          <div className="absolute bottom-2 left-2">
-            <span className="px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-md text-white/90 text-3xs font-mono tracking-wide">
+          <div className="absolute bottom-2.5 left-2.5">
+            <span className="px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-white/90 text-[11px] font-medium tabular-nums tracking-tight">
               {formatTime(duration)}
             </span>
           </div>
@@ -186,15 +200,16 @@ export function RecordingCard({
         </div>
       </div>
 
-      {/* Metadata below thumbnail - refined typography */}
-      <div className="p-3">
-        <h3 className="font-medium text-foreground truncate text-ui-sm tracking-[-0.008em]">
+      {/* Metadata below thumbnail */}
+      <div className="px-3 py-2.5">
+        <h3 className="font-medium text-foreground/90 truncate text-[13px] tracking-[-0.01em] leading-tight">
           {displayName}
         </h3>
-        <p className="text-muted-foreground/70 mt-1 text-2xs tracking-normal">
+        <p className="text-muted-foreground/50 mt-0.5 text-[11px]">
           {relativeTime}
         </p>
       </div>
+
     </motion.article>
   )
-}
+})

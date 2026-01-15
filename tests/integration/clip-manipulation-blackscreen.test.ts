@@ -9,8 +9,8 @@
  * (all frames have renderable content) rather than internal implementation details.
  */
 
-import type { Project, Clip } from '@/types/project'
-import { TrackType, EffectType } from '@/types/project'
+import type { Project } from '@/types/project'
+import { TrackType } from '@/types/project'
 import { normalizeProjectSettings } from '@/features/core/settings/normalize-project-settings'
 import { regenerateProjectEffects } from '@/features/effects/logic/effect-applier'
 import { splitClipAtTime } from '@/features/ui/timeline/clips/clip-split'

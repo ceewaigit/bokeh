@@ -1,5 +1,28 @@
 import { create } from 'zustand'
 
+// BATTERY OPTIMIZATION: Batch hydration updates to reduce React rerenders
+// Instead of triggering a state update for each individual recording hydration,
+// we accumulate updates and flush them periodically
+let pendingHydrationUpdates: Map<string, LibraryRecordingHydration> = new Map()
+let hydrationFlushTimeoutId: ReturnType<typeof setTimeout> | null = null
+let hydrationFlushScheduled = false
+let flushCallback: (() => void) | null = null
+
+const HYDRATION_BATCH_DELAY_MS = 50 // Flush after 50ms of inactivity
+
+/** Immediately flush any pending hydration updates. Useful for tests. */
+export function flushHydrationUpdates(): void {
+  if (hydrationFlushTimeoutId !== null) {
+    clearTimeout(hydrationFlushTimeoutId)
+    hydrationFlushTimeoutId = null
+  }
+  hydrationFlushScheduled = false
+  if (flushCallback) {
+    flushCallback()
+    flushCallback = null
+  }
+}
+
 /** Lightweight metadata extracted from project for library display only */
 export interface LibraryProjectInfo {
   name: string
@@ -78,15 +101,57 @@ export const useRecordingsLibraryStore = create<RecordingsStore>((set) => ({
   })),
   resetDisplayed: () => set({ displayedCount: INITIAL_BATCH_SIZE }),
 
-  setHydration: (path, updates) => set((state) => ({
-    hydrationByPath: {
-      ...state.hydrationByPath,
-      [path]: {
-        ...(state.hydrationByPath[path] ?? {}),
-        ...updates
+  setHydration: (path, updates) => {
+    // BATTERY OPTIMIZATION: Batch hydration updates to reduce rerenders
+    // Accumulate updates and flush them after a short delay
+    const existing = pendingHydrationUpdates.get(path)
+    pendingHydrationUpdates.set(path, { ...existing, ...updates })
+
+    // Create the flush function that will be called either on schedule or manually
+    const doFlush = () => {
+      hydrationFlushScheduled = false
+      hydrationFlushTimeoutId = null
+      flushCallback = null
+
+      // Flush all pending updates in a single state update
+      if (pendingHydrationUpdates.size > 0) {
+        const batchedUpdates = pendingHydrationUpdates
+        pendingHydrationUpdates = new Map()
+
+        set((state) => {
+          const newHydration = { ...state.hydrationByPath }
+          for (const [p, u] of batchedUpdates) {
+            newHydration[p] = { ...(newHydration[p] ?? {}), ...u }
+          }
+          return { hydrationByPath: newHydration }
+        })
       }
     }
-  })),
+
+    // Store the flush callback so it can be called manually via flushHydrationUpdates()
+    flushCallback = doFlush
+
+    // Schedule a flush if not already scheduled
+    if (!hydrationFlushScheduled) {
+      hydrationFlushScheduled = true
+
+      // Clear any existing timeout
+      if (hydrationFlushTimeoutId !== null) {
+        clearTimeout(hydrationFlushTimeoutId)
+      }
+
+      // Use requestIdleCallback for better battery performance, fallback to setTimeout
+      const scheduleFlush = (callback: () => void) => {
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(callback, { timeout: HYDRATION_BATCH_DELAY_MS * 2 })
+        } else {
+          hydrationFlushTimeoutId = setTimeout(callback, HYDRATION_BATCH_DELAY_MS)
+        }
+      }
+
+      scheduleFlush(doFlush)
+    }
+  },
 
   removeRecording: (path) => set((state) => ({
     recordings: state.recordings.filter(r => r.path !== path),

@@ -1,7 +1,8 @@
-import { useRecordingsLibraryStore, type LibraryRecording } from '@/features/media/recording/store/library-store'
+import { useRecordingsLibraryStore, flushHydrationUpdates, type LibraryRecording } from '@/features/media/recording/store/library-store'
 
 describe('recordings-library-store', () => {
   afterEach(() => {
+    flushHydrationUpdates() // Ensure any pending updates are flushed before reset
     useRecordingsLibraryStore.getState().reset()
   })
 
@@ -16,6 +17,7 @@ describe('recordings-library-store', () => {
     })
 
     useRecordingsLibraryStore.getState().setHydration(a.path, { thumbnailUrl: 'thumb://a' })
+    flushHydrationUpdates() // Flush batched updates immediately for test
 
     expect(useRecordingsLibraryStore.getState().hydrationByPath[a.path]?.thumbnailUrl).toBe('thumb://a')
     expect(useRecordingsLibraryStore.getState().hydrationByPath[b.path]?.thumbnailUrl).toBeUndefined()

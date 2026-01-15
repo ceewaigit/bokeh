@@ -61,13 +61,11 @@ export function TimelineAnnotationTrack() {
   }, [isAnnotationExpanded])
 
   const {
-    currentProject,
     selectedEffectLayer,
     selectEffectLayer,
     clearEffectSelection
   } = useProjectStore(
     useShallow((s) => ({
-      currentProject: s.currentProject,
       selectedEffectLayer: s.selectedEffectLayer,
       selectEffectLayer: s.selectEffectLayer,
       clearEffectSelection: s.clearEffectSelection

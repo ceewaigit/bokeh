@@ -68,7 +68,8 @@ function createProject(): Project {
         clipId: 'clip-original', // Bound to clip
         startTime: 0,
         endTime: 5000,
-        data: { top: 0, left: 0, right: 0, bottom: 0 }
+        enabled: true,
+        data: { x: 0, y: 0, width: 1, height: 1 }
       }]
     },
     settings: normalizeProjectSettings(),
@@ -154,7 +155,8 @@ describe('Regenerate Effects - Black Screen Regression', () => {
       clipId: originalClipId,
       startTime: 0,
       endTime: 5000,
-      data: { top: 10, left: 10, right: 10, bottom: 10 }
+      enabled: true,
+      data: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 }
     }
     project.timeline.effects = [...(project.timeline.effects ?? []), cropEffect]
 

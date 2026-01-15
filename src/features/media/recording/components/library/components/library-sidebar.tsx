@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { cn } from '@/shared/utils/utils'
+import { springSnappy } from '@/shared/constants/animations'
 import { type DateCategory, type DateCategoryId } from '../utils/date-grouping'
 
 // ============================================================================
@@ -151,7 +152,7 @@ export function LibrarySidebar({
               </div>
 
               {/* Greeting */}
-              <h1 className="text-[22px] tracking-[-0.02em] text-foreground leading-tight">
+              <h1 className="text-display-sm xl:text-display tracking-[-0.02em] text-foreground leading-tight">
                 {renderGreeting()}
               </h1>
 
@@ -169,7 +170,7 @@ export function LibrarySidebar({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -4 }}
                       transition={{ duration: 0.1 }}
-                      className="text-xs text-muted-foreground/60 tabular-nums cursor-default"
+                      className="text-xs xl:text-sm text-muted-foreground/60 tabular-nums cursor-default"
                     >
                       {formatDuration(totalDurationMs)} · {formatStorage(totalStorageBytes)}
                     </motion.p>
@@ -181,7 +182,7 @@ export function LibrarySidebar({
                       exit={{ opacity: 0, y: -4 }}
                       transition={{ duration: 0.1 }}
                       className={cn(
-                        "text-xs text-muted-foreground/50",
+                        "text-xs xl:text-sm text-muted-foreground/50",
                         hasStats && "cursor-default"
                       )}
                     >
@@ -234,7 +235,7 @@ function NavItem({ label, count, isActive, collapsed, onClick, reduceMotion }: N
       className={cn(
         "relative flex items-center w-full",
         "py-1.5 pr-2 rounded-md",
-        "text-left text-[13px] font-normal",
+        "text-left text-ui-sm xl:text-sm font-normal",
         "transition-colors duration-100",
         isActive
           ? "text-foreground"
@@ -242,30 +243,22 @@ function NavItem({ label, count, isActive, collapsed, onClick, reduceMotion }: N
         collapsed && "justify-center px-2"
       )}
     >
-      {/* Active indicator */}
+      {/* Active indicator - slides between items */}
       <div className="w-4 flex-shrink-0 flex items-center justify-center">
-        <motion.div
-          className={cn(
-            "w-[3px] h-3 rounded-full",
-            isActive ? "bg-foreground/60" : "bg-transparent"
-          )}
-          initial={false}
-          animate={{
-            scaleY: isActive ? 1 : 0,
-            opacity: isActive ? 1 : 0
-          }}
-          transition={reduceMotion ? { duration: 0 } : {
-            duration: 0.15,
-            ease: [0.25, 0.1, 0.25, 1]
-          }}
-        />
+        {isActive && (
+          <motion.div
+            layoutId="nav-indicator"
+            className="w-[3px] h-3 rounded-full bg-foreground/60"
+            transition={reduceMotion ? { duration: 0 } : springSnappy}
+          />
+        )}
       </div>
 
       {/* Label and count */}
       {!collapsed && (
         <div className="flex items-center justify-between flex-1 min-w-0">
           <span className="truncate">{label}</span>
-          <span className="text-[11px] text-muted-foreground/40 ml-3 tabular-nums">
+          <span className="text-2xs xl:text-xs text-muted-foreground/40 ml-3 tabular-nums">
             {count}
           </span>
         </div>

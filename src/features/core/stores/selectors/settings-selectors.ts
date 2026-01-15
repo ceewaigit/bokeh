@@ -7,7 +7,6 @@
  * - App preferences (persisted separately in localStorage)
  */
 
-import { useMemo } from 'react'
 import { useProjectStore } from '../project-store'
 import { DEFAULT_PROJECT_SETTINGS, DEFAULT_CAMERA_SETTINGS } from '@/features/core/settings/defaults'
 import type { ProjectSettings } from '@/types/project'

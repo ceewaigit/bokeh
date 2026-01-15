@@ -89,8 +89,8 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     isScrubbing: _isScrubbing = false,  // No longer used - canvas always renders
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [webglReady, setWebglReady] = useState(false);
-    const [canvasVisible, setCanvasVisible] = useState(false);
+    const [_webglReady, setWebglReady] = useState(false);
+    const [_canvasVisible, setCanvasVisible] = useState(false);
 
     useEffect(() => {
         if (!useWebglVideo) {
@@ -99,11 +99,14 @@ export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
     }, [useWebglVideo]);
 
     const hasRefocusBlur = (refocusBlurIntensity ?? 0) > 0.001;
-    const forceRender = Boolean(isRendering && useWebglVideo);
+    // PERFORMANCE FIX: Don't force WebGL during export when there's no blur needed
+    // The MotionBlurCanvas will skip itself when velocity is near zero
+    // Previously: const forceRender = Boolean(isRendering && useWebglVideo);
+    const forceRender = false;
 
     // SIMPLIFIED: Canvas always renders when enabled - no scrubbing check, no timeouts
     // Motion blur visibility is determined purely by velocity (deterministic per frame)
-    const shouldRenderCanvas = Boolean(enabled && ((intensity ?? 1) > 0 || hasRefocusBlur || forceRender));
+    const shouldRenderCanvas = Boolean(enabled && ((intensity ?? 1) > 0 || hasRefocusBlur));
     const shouldHideVideo = Boolean(useWebglVideo && enabled && shouldRenderCanvas);
 
 

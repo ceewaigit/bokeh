@@ -103,7 +103,7 @@ export function usePlayerSync({
     }, []);
 
     // CONSOLIDATED: Combined RAF loop for store sync + skip range detection during playback
-    // Previously two separate RAF loops, now merged for efficiency
+    // OPTIMIZATION: Only runs RAF loop when skip ranges exist. Otherwise uses event-driven sync.
     useEffect(() => {
         if (!isPlaying || isScrubbing || isExporting) return;
         if (!playerRef.current) return;
@@ -114,6 +114,30 @@ export function usePlayerSync({
             activeRafRef.current = null;
         }
 
+        const hasSkipRanges = skipRangesRef.current.length > 0;
+
+        // BATTERY OPTIMIZATION: When no skip ranges, use event-driven store sync instead of RAF polling
+        // This allows the CPU to sleep between frames instead of polling at 60fps
+        if (!hasSkipRanges) {
+            let lastStoreUpdate = 0;
+            const handleFrameUpdate = (e: { detail: { frame: number } }) => {
+                const now = performance.now();
+                if (now - lastStoreUpdate >= 33) { // Throttle to 30fps
+                    lastStoreUpdate = now;
+                    const timeMs = frameToMs(e.detail.frame, timelineMetadata.fps);
+                    storeSeekFromPlayer(timeMs);
+                }
+            };
+
+            const player = playerRef.current;
+            player.addEventListener('frameupdate', handleFrameUpdate as any);
+
+            return () => {
+                player.removeEventListener('frameupdate', handleFrameUpdate as any);
+            };
+        }
+
+        // Only use RAF loop when skip ranges exist (need continuous monitoring)
         let lastFrame = -1;
         let lastStoreUpdate = 0;
         let lastSkipTime = 0;

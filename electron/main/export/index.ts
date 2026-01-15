@@ -32,6 +32,7 @@ import {
 import type { ExportJobConfig, CompositionMetadata } from './types'
 
 import { mapRecordingEffectsToTimeline } from './utils/effect-mapper'
+import { exportDirect, exportDirectWithConcat, type DirectExportSettings } from './ffmpeg-direct-export'
 
 // Re-export cleanup function for app lifecycle
 export { cleanupBundleCache }
@@ -369,6 +370,66 @@ export function extractEffectsFromSegments(segments: any[]): any[] {
 }
 
 /**
+ * Check if the export can use the fast FFmpeg path (no Remotion needed)
+ * Returns true if there are no effects that require per-frame rendering
+ */
+export function canUseFastPath(
+  effects: any[],
+  settings: any,
+  webcamClips: any[] = [],
+  audioClips: any[] = []
+): { canUse: boolean; reason?: string } {
+  // Check for zoom effects with scale > 1
+  const hasZoom = effects.some((e: any) =>
+    e?.type === 'zoom' && e?.enabled !== false && ((e?.data?.scale ?? 1) > 1.01)
+  )
+  if (hasZoom) {
+    return { canUse: false, reason: 'has zoom effects' }
+  }
+
+  // Check for motion blur
+  if (settings?.cameraSettings?.motionBlurEnabled) {
+    return { canUse: false, reason: 'motion blur enabled' }
+  }
+
+  // Check for cursor rendering
+  if (settings?.cameraSettings?.showCursor) {
+    return { canUse: false, reason: 'cursor rendering enabled' }
+  }
+
+  // Check for annotations, text overlays, keystrokes
+  const hasAnnotations = effects.some((e: any) =>
+    ['annotation', 'text', 'keystroke', 'subtitle'].includes(e?.type) && e?.enabled !== false
+  )
+  if (hasAnnotations) {
+    return { canUse: false, reason: 'has annotation effects' }
+  }
+
+  // Check for background effects (other than solid black)
+  const hasCustomBackground = effects.some((e: any) =>
+    e?.type === 'background' && e?.enabled !== false && e?.data?.type !== 'none'
+  )
+  if (hasCustomBackground) {
+    return { canUse: false, reason: 'has custom background' }
+  }
+
+  // Check for webcam overlays
+  if (webcamClips && webcamClips.length > 0) {
+    return { canUse: false, reason: 'has webcam clips' }
+  }
+
+  // Multiple audio tracks need Remotion mixing
+  if (audioClips && audioClips.length > 0) {
+    return { canUse: false, reason: 'has separate audio clips' }
+  }
+
+  // Check for speed changes (playback rate != 1)
+  // This could be supported by FFmpeg but adds complexity - skip for now
+
+  return { canUse: true }
+}
+
+/**
  * Sample a smooth mouse event at a specific time by interpolating between
  * surrounding raw events. This avoids snapping to the nearest event, which
  * can introduce jitter when camera follow uses spring physics during export.
@@ -631,6 +692,83 @@ export function setupExportHandler(): void {
       // Extract clips and effects
       const allClips = extractClipsFromSegments(segments)
       const segmentEffects = extractEffectsFromSegments(segments)
+
+      // ======================================================================
+      // FAST PATH: Check if we can use direct FFmpeg export (no Remotion)
+      // ======================================================================
+      const fastPathCheck = canUseFastPath(segmentEffects, settings, webcamClips, audioClips)
+
+      if (fastPathCheck.canUse && allClips.length > 0) {
+        console.log('[Export] Using FAST PATH - direct FFmpeg export (no Remotion)')
+        timing.mark('fast path selected')
+
+        // Get the source video path for the first clip
+        const firstClip = allClips[0]
+        const recordingId = firstClip.recordingId
+        const absolutePath = absolutePaths[recordingId]
+
+        if (absolutePath && fsSync.existsSync(absolutePath)) {
+          const outputPath = path.join(
+            app.getPath('temp'),
+            `export-${Date.now()}.${settings.format || 'mp4'}`
+          )
+
+          const directSettings: DirectExportSettings = {
+            width: settings.resolution?.width || 1920,
+            height: settings.resolution?.height || 1080,
+            fps: settings.framerate || 30,
+            bitrate: dynamicSettings.videoBitrate || '8M',
+            format: settings.format || 'mp4',
+          }
+
+          // Handle trimming if clips don't cover full recording
+          if (firstClip.sourceIn) {
+            directSettings.trimStart = firstClip.sourceIn / 1000
+          }
+          if (firstClip.duration && firstClip.sourceIn !== undefined) {
+            directSettings.trimEnd = (firstClip.sourceIn + firstClip.duration) / 1000
+          }
+
+          // Progress callback
+          const onProgress = (percent: number) => {
+            event.sender.send('export-progress', {
+              progress: percent,
+              stage: 'rendering',
+              message: `Exporting... ${percent}%`,
+            })
+          }
+
+          const result = await exportDirect(
+            absolutePath,
+            outputPath,
+            directSettings,
+            onProgress,
+            abortSignal
+          )
+
+          if (result.success && result.outputPath) {
+            // Read the output file and return as buffer
+            const outputBuffer = await fs.readFile(result.outputPath)
+            await fs.unlink(result.outputPath).catch(() => {})
+
+            timing.summary('fast path export complete')
+            console.log(`[Export] Fast path export complete in ${(result.durationMs || 0) / 1000}s`)
+
+            return outputBuffer
+          } else {
+            console.warn('[Export] Fast path failed, falling back to Remotion:', result.error)
+            // Fall through to Remotion path
+          }
+        } else {
+          console.warn('[Export] Fast path: source file not found, falling back to Remotion')
+        }
+      } else {
+        console.log('[Export] Using Remotion path:', fastPathCheck.reason || 'multiple clips or effects required')
+      }
+
+      // ======================================================================
+      // STANDARD PATH: Remotion-based export with full effect support
+      // ======================================================================
 
       // Calculate max zoom scale for proxy resolution decision
       const maxZoomScale = getMaxZoomScaleFromEffects(segmentEffects)

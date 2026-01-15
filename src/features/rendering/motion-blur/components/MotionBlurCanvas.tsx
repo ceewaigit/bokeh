@@ -9,7 +9,7 @@
  * - DOM-based video element discovery (reliable across all modes)
  */
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { clamp01 } from '@/features/rendering/canvas/math';
 import { MotionBlurController } from '../logic/MotionBlurController';
 
@@ -104,13 +104,267 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     const videoCtxRef = useRef<CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null>(null);
     const hasRenderedRef = useRef(false); // Track if we've ever rendered successfully
 
-    // Frame sync: Use requestVideoFrameCallback to trigger re-renders when new video frames are decoded
-    const [frameCounter, setFrameCounter] = useState(0);
+    // Frame sync: Use refs instead of state to avoid React rerenders on every video frame
+    // The render function is called directly from requestVideoFrameCallback
     const frameCallbackIdRef = useRef<number | null>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
+    // Store props in refs so render callback can access latest values without causing rerenders
+    const propsRef = useRef({
+        enabled,
+        velocity,
+        intensity,
+        mix,
+        samples,
+        desiredColorSpace,
+        gamma,
+        blackLevel,
+        saturation,
+        forceRender,
+        onRender,
+        unpackPremultiplyAlpha,
+        drawWidth,
+        drawHeight,
+        renderScale,
+        onVisibilityChange,
+        refocusBlurIntensity,
+        videoFrame,
+    });
+    // Keep props ref up to date
+    propsRef.current = {
+        enabled,
+        velocity,
+        intensity,
+        mix,
+        samples,
+        desiredColorSpace,
+        gamma,
+        blackLevel,
+        saturation,
+        forceRender,
+        onRender,
+        unpackPremultiplyAlpha,
+        drawWidth,
+        drawHeight,
+        renderScale,
+        onVisibilityChange,
+        refocusBlurIntensity,
+        videoFrame,
+    };
+
+    // BATTERY OPTIMIZATION: Render function called directly from requestVideoFrameCallback
+    // This avoids React rerenders (30-60/sec) by using refs instead of state
+    const renderFrame = useCallback((mediaSource: CanvasImageSource | null) => {
+        const canvasEl = canvasRef.current;
+        if (!canvasEl) return;
+
+        const props = propsRef.current;
+        const {
+            enabled: enabledProp,
+            velocity,
+            intensity,
+            samples,
+            desiredColorSpace,
+            gamma,
+            blackLevel,
+            saturation,
+            onRender,
+            unpackPremultiplyAlpha,
+            drawWidth,
+            drawHeight,
+            renderScale,
+            onVisibilityChange,
+            refocusBlurIntensity,
+        } = props;
+
+        // Recalculate enabled based on current props
+        const isEnabled = enabledProp && (intensity > 0 || refocusBlurIntensity > 0 || props.forceRender);
+
+        // When disabled, show video element - don't trust stale canvas content
+        if (!isEnabled) {
+            canvasEl.style.visibility = 'hidden';
+            onVisibilityChange?.(false);
+            return;
+        }
+
+        // If the canvas element was remounted, ensure we refresh the context.
+        if (bitmapCtxRef.current && (bitmapCtxRef.current as any).canvas !== canvasEl) {
+            bitmapCtxRef.current = null;
+        }
+
+        if (!mediaSource) {
+            canvasEl.style.visibility = 'hidden';
+            onVisibilityChange?.(false);
+            return;
+        }
+
+        // Use bitmaprenderer context - it preserves colors better than 2D context drawImage
+        let bitmapCtx = bitmapCtxRef.current;
+        if (!bitmapCtx) {
+            bitmapCtx = canvasEl.getContext('bitmaprenderer', { alpha: true });
+            bitmapCtxRef.current = bitmapCtx;
+        }
+        if (!bitmapCtx) return;
+        const actualColorSpace = desiredColorSpace;
+
+        const pixelRatio = 1;
+        const clampedRenderScale = Number.isFinite(renderScale)
+            ? Math.max(0.25, Math.min(4, renderScale))
+            : 1;
+        const outputScale = pixelRatio * clampedRenderScale;
+
+        const targetOutputWidth = Math.max(1, Math.round(drawWidth * outputScale));
+        const targetOutputHeight = Math.max(1, Math.round(drawHeight * outputScale));
+
+        // MOTION BLUR - PHYSICALLY CORRECT
+        const SHUTTER_ANGLE = 0.45;
+        const vx = Number.isFinite(velocity.x) ? velocity.x : 0;
+        const vy = Number.isFinite(velocity.y) ? velocity.y : 0;
+        const rawSpeed = Math.hypot(vx, vy);
+
+        // PERFORMANCE OPTIMIZATION: Skip WebGL entirely when there's no blur to apply
+        // This saves significant CPU/GPU cycles on static scenes or low-movement frames
+        const hasRefocus = (refocusBlurIntensity ?? 0) > 0.01;
+        const VELOCITY_THRESHOLD = 0.5; // pixels per frame - below this, blur is imperceptible
+        if (rawSpeed < VELOCITY_THRESHOLD && !hasRefocus && !props.forceRender) {
+            // No blur needed - hide canvas and show video directly
+            canvasEl.style.visibility = 'hidden';
+            onVisibilityChange?.(false);
+            return;
+        }
+
+        const KNEE_PX = 20;
+        const kneeSq = KNEE_PX * KNEE_PX;
+        const speedSq = rawSpeed * rawSpeed;
+        const responseMultiplier = speedSq / (speedSq + kneeSq);
+
+        const scaledVx = vx * responseMultiplier;
+        const scaledVy = vy * responseMultiplier;
+
+        const validIntensity = Number.isFinite(intensity) ? intensity : 1.0;
+        const blurVx = scaledVx * SHUTTER_ANGLE * validIntensity;
+        const blurVy = scaledVy * SHUTTER_ANGLE * validIntensity;
+
+        const uvVelocityX = blurVx / drawWidth;
+        const uvVelocityY = blurVy / drawHeight;
+        const blurMagnitude = Math.hypot(uvVelocityX, uvVelocityY);
+
+        const blurLengthPx = Math.hypot(blurVx, blurVy);
+        const calculatedSamples = Math.max(16, Math.min(64, Math.ceil(blurLengthPx * 1.5)));
+        const finalSamples = samples ?? calculatedSamples;
+
+        const rawMix = blurMagnitude * 60;
+        const mixRamp = clamp01(rawMix * rawMix / (rawMix * rawMix + 1));
+
+        const glPixelRatio = outputScale;
+
+        // Route video through a 2D canvas for hysteresis resize optimization
+        const quantizeSize = (size: number) => Math.ceil(size / 64) * 64;
+        const shouldResize = (current: number, target: number) => {
+            if (current === 0) return true;
+            const diff = Math.abs(current - target);
+            const percentDiff = diff / Math.max(current, 1);
+            return diff > 64 || percentDiff > 0.05;
+        };
+
+        let webglSource: TexImageSource = mediaSource as TexImageSource;
+        if (mediaSource && 'videoWidth' in mediaSource) {
+            const targetWidth = quantizeSize(targetOutputWidth);
+            const targetHeight = quantizeSize(targetOutputHeight);
+
+            if (!videoCanvasRef.current) {
+                if (typeof OffscreenCanvas !== 'undefined') {
+                    videoCanvasRef.current = new OffscreenCanvas(targetWidth, targetHeight);
+                } else if (typeof document !== 'undefined') {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+                    videoCanvasRef.current = canvas;
+                }
+                allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
+            }
+            if (videoCanvasRef.current) {
+                const allocated = allocatedSizeRef.current;
+                if (
+                    shouldResize(allocated.width, targetWidth) ||
+                    shouldResize(allocated.height, targetHeight)
+                ) {
+                    (videoCanvasRef.current as OffscreenCanvas).width = targetWidth;
+                    (videoCanvasRef.current as OffscreenCanvas).height = targetHeight;
+                    allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
+                    videoCtxRef.current = null;
+                }
+                if (!videoCtxRef.current) {
+                    videoCtxRef.current = (videoCanvasRef.current as any).getContext('2d', {
+                        alpha: true,
+                        colorSpace: 'srgb',
+                    });
+                }
+                if (videoCtxRef.current) {
+                    try {
+                        (videoCtxRef.current as any).imageSmoothingEnabled = true;
+                        (videoCtxRef.current as any).imageSmoothingQuality = 'high';
+                    } catch {
+                        // Ignore if unsupported.
+                    }
+                    const currentWidth = allocatedSizeRef.current.width;
+                    const currentHeight = allocatedSizeRef.current.height;
+                    videoCtxRef.current.drawImage(mediaSource, 0, 0, currentWidth, currentHeight);
+                    webglSource = videoCanvasRef.current as TexImageSource;
+                }
+            }
+        }
+
+        const resultCanvas = MotionBlurController.instance.render(
+            webglSource,
+            drawWidth,
+            drawHeight,
+            {
+                uvVelocityX: Number.isFinite(uvVelocityX) ? uvVelocityX : 0,
+                uvVelocityY: Number.isFinite(uvVelocityY) ? uvVelocityY : 0,
+                intensity: 1.0,
+                samples: finalSamples,
+                mix: mixRamp,
+                gamma: Number.isFinite(gamma) ? gamma : 1.0,
+                blackLevel: Math.max(-0.02, Math.min(0.99, blackLevel)),
+                saturation: Number.isFinite(saturation) ? saturation : 1.0,
+                colorSpace: actualColorSpace,
+                unpackPremultiplyAlpha,
+                linearize: actualColorSpace === 'srgb',
+                pixelRatio: glPixelRatio,
+                refocusBlur: refocusBlurIntensity,
+            }
+        );
+
+        if (resultCanvas && 'transferToImageBitmap' in resultCanvas) {
+            const targetWidth = targetOutputWidth;
+            const targetHeight = targetOutputHeight;
+            if (canvasEl.width !== targetWidth || canvasEl.height !== targetHeight) {
+                canvasEl.width = targetWidth;
+                canvasEl.height = targetHeight;
+            }
+            const bitmap = (resultCanvas as OffscreenCanvas).transferToImageBitmap();
+            bitmapCtx.transferFromImageBitmap(bitmap);
+            const closable = (bitmap as { close?: () => void }).close;
+            if (typeof closable === 'function') {
+                closable.call(bitmap);
+            }
+            canvasEl.style.visibility = 'visible';
+            canvasEl.style.opacity = '1';
+            hasRenderedRef.current = true;
+            onVisibilityChange?.(true);
+            if (onRender) onRender();
+        } else {
+            canvasEl.style.visibility = 'hidden';
+            onVisibilityChange?.(false);
+        }
+    }, []); // Empty deps - reads from propsRef
+
+    // Store renderFrame in a ref so requestVideoFrameCallback can access it
+    const renderFrameRef = useRef(renderFrame);
+    renderFrameRef.current = renderFrame;
 
     // Register requestVideoFrameCallback to sync canvas updates with video frames
-    // Use a polling approach to find the video element since it might not exist on initial mount
+    // BATTERY OPTIMIZATION: Calls renderFrame directly instead of triggering React rerenders
     useEffect(() => {
         // Don't return early if containerRef.current is null - let polling find it later
         let cancelled = false;
@@ -125,7 +379,11 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 if ('requestVideoFrameCallback' in video) {
                     frameCallbackIdRef.current = (video as any).requestVideoFrameCallback(() => {
                         if (!cancelled) {
-                            setFrameCounter(c => c + 1); // Trigger re-render on each new video frame
+                            // BATTERY OPTIMIZATION: Call render directly instead of setState
+                            // Check video readiness and call render
+                            if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0 && !video.seeking) {
+                                renderFrameRef.current(video);
+                            }
                             requestFrame(); // Request next frame callback
                         }
                     });
@@ -167,270 +425,26 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         };
     }, [containerRef]);
 
-    // Render effect when the Remotion frame advances (preview/export) or when `videoFrame` changes (export mode).
+    // Export mode: Render when videoFrame prop changes (export provides frames directly)
+    // Preview mode rendering is handled by requestVideoFrameCallback above (no React rerenders)
+    React.useLayoutEffect(() => {
+        // Only run for export mode (when videoFrame is provided)
+        // Preview mode uses requestVideoFrameCallback to avoid React rerenders
+        if (videoFrame) {
+            renderFrame(videoFrame);
+        }
+    }, [videoFrame, renderFrame]);
+
+    // Handle enabled state changes and initial render
     React.useLayoutEffect(() => {
         const canvasEl = canvasRef.current;
         if (!canvasEl) return;
 
-        // When disabled, show video element - don't trust stale canvas content
         if (!enabled) {
             canvasEl.style.visibility = 'hidden';
             onVisibilityChange?.(false);
-            return;
         }
-
-        // If the canvas element was remounted, ensure we refresh the context.
-        if (bitmapCtxRef.current && (bitmapCtxRef.current as any).canvas !== canvasEl) {
-            bitmapCtxRef.current = null;
-        }
-
-        // Determine media source: export uses videoFrame, preview uses DOM fallback
-        let mediaSource: CanvasImageSource | null = videoFrame ?? null;
-
-        if (!mediaSource && containerRef?.current) {
-            const video = containerRef.current.querySelector('video') as HTMLVideoElement | null;
-            // Require readyState >= 2 (HAVE_CURRENT_DATA) AND valid dimensions AND not seeking
-            // videoWidth/videoHeight are 0 until the browser has decoded at least one frame
-            // video.seeking is true during scrubbing when the video hasn't decoded the target frame yet
-            // Without these checks, drawImage produces transparent or stale pixels
-            if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0 && !video.seeking) {
-                mediaSource = video;
-            }
-        }
-
-        if (!mediaSource) {
-            // Video not ready - ALWAYS show the video element, don't trust stale canvas content
-            canvasEl.style.visibility = 'hidden';
-            onVisibilityChange?.(false);
-            return;
-        }
-
-        // Use bitmaprenderer context - it preserves colors better than 2D context drawImage
-        let bitmapCtx = bitmapCtxRef.current;
-        if (!bitmapCtx) {
-            bitmapCtx = canvasEl.getContext('bitmaprenderer', { alpha: true });
-            bitmapCtxRef.current = bitmapCtx;
-        }
-        if (!bitmapCtx) return;
-        const actualColorSpace = desiredColorSpace;
-
-        // IMPORTANT: `drawWidth/drawHeight` are already in composition pixels.
-        // Multiplying by `devicePixelRatio` here effectively supersamples the blur layer (2× on Retina),
-        // which can explode GPU memory during zoom/follow-mouse. Export uses 1× pixels as well.
-        const pixelRatio = 1;
-        // `renderScale` is a resolution multiplier. Allow < 1 to downscale in preview (huge perf win),
-        // but cap to avoid absurd allocations either way.
-        const clampedRenderScale = Number.isFinite(renderScale)
-            ? Math.max(0.25, Math.min(4, renderScale))
-            : 1;
-        const outputScale = pixelRatio * clampedRenderScale;
-
-        // No need to resolve source element dimensions anymore; we render in output space.
-
-        // Source-size resolution logic was previously used to decide whether to render at source size.
-        // We now always render in output space to prevent GPU memory blowups, so this is intentionally removed.
-
-        const targetOutputWidth = Math.max(1, Math.round(drawWidth * outputScale));
-        const targetOutputHeight = Math.max(1, Math.round(drawHeight * outputScale));
-        // Keep for future diagnostics/debugging if needed.
-        // const sourceSize = resolveSourceSize(mediaSource);
-
-        // ========================================================================
-        // MOTION BLUR - PHYSICALLY CORRECT
-        // Physics: blur_length = velocity × shutter_angle
-        // 45% shutter for more dynamic, responsive blur
-        // ========================================================================
-        const SHUTTER_ANGLE = 0.45;
-
-        // Use raw velocity directly (pre-computed in camera path, deterministic per frame)
-        const vx = Number.isFinite(velocity.x) ? velocity.x : 0;
-        const vy = Number.isFinite(velocity.y) ? velocity.y : 0;
-
-        // Calculate speed for response curve
-        const rawSpeed = Math.hypot(vx, vy);
-
-        // Non-linear response curve: compress small movements, preserve large ones
-        // Formula: response = speed² / (speed² + knee²) - soft knee curve
-        // Higher knee = more threshold before blur activates (20px for dynamic feel)
-        const KNEE_PX = 20;
-        const kneeSq = KNEE_PX * KNEE_PX;
-        const speedSq = rawSpeed * rawSpeed;
-        const responseMultiplier = speedSq / (speedSq + kneeSq);
-
-        // Apply response curve to velocity (preserving direction)
-        const scaledVx = vx * responseMultiplier;
-        const scaledVy = vy * responseMultiplier;
-
-        // Physical motion blur: velocity × shutter × user_intensity
-        const validIntensity = Number.isFinite(intensity) ? intensity : 1.0;
-        const blurVx = scaledVx * SHUTTER_ANGLE * validIntensity;
-        const blurVy = scaledVy * SHUTTER_ANGLE * validIntensity;
-
-        // Convert to UV space for shader (blur direction + magnitude in texture coordinates)
-        const uvVelocityX = blurVx / drawWidth;
-        const uvVelocityY = blurVy / drawHeight;
-
-        // Calculate blur magnitude for mix calculations
-        const blurMagnitude = Math.hypot(uvVelocityX, uvVelocityY);
-
-        // DON'T set canvas visible yet - wait until AFTER successful render
-        // This prevents showing black/stale content if render fails or produces bad output
-        // Canvas will be made visible after bitmap transfer succeeds
-
-        // Sample count based on blur length (more samples for longer blur)
-        // Higher minimum (16) ensures smooth gradients even for short blur trails
-        const blurLengthPx = Math.hypot(blurVx, blurVy);
-        const calculatedSamples = Math.max(16, Math.min(64, Math.ceil(blurLengthPx * 1.5)));
-        const finalSamples = samples ?? calculatedSamples;
-
-        // Mix: scale blur blend based on magnitude using smooth ease-in curve
-        // The shader uses this to blend between sharp and blurred - handles smooth fade internally
-        const rawMix = blurMagnitude * 60;
-        const mixRamp = clamp01(rawMix * rawMix / (rawMix * rawMix + 1));
-
-        // Render via WebGL controller.
-        // IMPORTANT: Render the blur output in *output space* (drawWidth/drawHeight), not source space.
-        // Rendering at the source resolution (e.g. 4K/6K) and then downscaling explodes GPU memory
-        // and is the primary cause of “zoomed in = laggy”.
-        const glPixelRatio = outputScale;
-
-        // Route video through a 2D canvas to match browser color-managed display.
-        // PERF: Don't re-rasterize at full source resolution in preview; only render enough pixels
-        // for the output canvas (drawWidth/drawHeight × DPR × renderScale).
-        //
-        // PERFORMANCE: Use hysteresis to prevent resize thrashing during zoom-follow-mouse.
-        // Canvas allocations are expensive (VRAM deallocation + reallocation).
-        // Quantize to 64px boundaries and only resize if change exceeds 5% or 64px.
-        const quantizeSize = (size: number) => Math.ceil(size / 64) * 64;
-        const shouldResize = (current: number, target: number) => {
-            if (current === 0) return true; // Initial allocation
-            const diff = Math.abs(current - target);
-            const percentDiff = diff / Math.max(current, 1);
-            return diff > 64 || percentDiff > 0.05;
-        };
-
-        let webglSource: TexImageSource = mediaSource as TexImageSource;
-        if (mediaSource && 'videoWidth' in mediaSource) {
-            // Quantize target dimensions to reduce resize frequency
-            const targetWidth = quantizeSize(targetOutputWidth);
-            const targetHeight = quantizeSize(targetOutputHeight);
-
-            if (!videoCanvasRef.current) {
-                if (typeof OffscreenCanvas !== 'undefined') {
-                    videoCanvasRef.current = new OffscreenCanvas(targetWidth, targetHeight);
-                } else if (typeof document !== 'undefined') {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = targetWidth;
-                    canvas.height = targetHeight;
-                    videoCanvasRef.current = canvas;
-                }
-                allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
-            }
-            if (videoCanvasRef.current) {
-                const allocated = allocatedSizeRef.current;
-                // Only resize if change is significant (hysteresis)
-                if (
-                    shouldResize(allocated.width, targetWidth) ||
-                    shouldResize(allocated.height, targetHeight)
-                ) {
-                    (videoCanvasRef.current as OffscreenCanvas).width = targetWidth;
-                    (videoCanvasRef.current as OffscreenCanvas).height = targetHeight;
-                    allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
-                    videoCtxRef.current = null;
-                }
-                if (!videoCtxRef.current) {
-                    videoCtxRef.current = (videoCanvasRef.current as any).getContext('2d', {
-                        alpha: true,
-                        colorSpace: 'srgb',
-                    });
-                }
-                if (videoCtxRef.current) {
-                    try {
-                        (videoCtxRef.current as any).imageSmoothingEnabled = true;
-                        (videoCtxRef.current as any).imageSmoothingQuality = 'high';
-                    } catch {
-                        // Ignore if unsupported.
-                    }
-                    // Draw using the currently allocated canvas size
-                    const currentWidth = allocatedSizeRef.current.width;
-                    const currentHeight = allocatedSizeRef.current.height;
-                    videoCtxRef.current.drawImage(mediaSource, 0, 0, currentWidth, currentHeight);
-                    webglSource = videoCanvasRef.current as TexImageSource;
-                }
-            }
-        }
-
-        const resultCanvas = MotionBlurController.instance.render(
-            webglSource,
-            drawWidth,
-            drawHeight,
-            {
-                uvVelocityX: Number.isFinite(uvVelocityX) ? uvVelocityX : 0,
-                uvVelocityY: Number.isFinite(uvVelocityY) ? uvVelocityY : 0,
-                intensity: 1.0,
-                samples: finalSamples,
-                mix: mixRamp,
-                gamma: Number.isFinite(gamma) ? gamma : 1.0,
-                blackLevel: Math.max(-0.02, Math.min(0.99, blackLevel)),
-                saturation: Number.isFinite(saturation) ? saturation : 1.0,
-                colorSpace: actualColorSpace,
-                unpackPremultiplyAlpha,
-                linearize: actualColorSpace === 'srgb',
-                pixelRatio: glPixelRatio,
-                refocusBlur: refocusBlurIntensity,
-            }
-        );
-
-        // Transfer result to display canvas using ImageBitmap (preserves colors without conversion)
-        if (resultCanvas && 'transferToImageBitmap' in resultCanvas) {
-            const targetWidth = targetOutputWidth;
-            const targetHeight = targetOutputHeight;
-            if (canvasEl.width !== targetWidth || canvasEl.height !== targetHeight) {
-                canvasEl.width = targetWidth;
-                canvasEl.height = targetHeight;
-            }
-            // transferToImageBitmap is synchronous and preserves exact colors
-            const bitmap = (resultCanvas as OffscreenCanvas).transferToImageBitmap();
-            bitmapCtx.transferFromImageBitmap(bitmap);
-            const closable = (bitmap as { close?: () => void }).close;
-            if (typeof closable === 'function') {
-                closable.call(bitmap);
-            }
-            // NOW make canvas visible - only after successful render with valid content
-            canvasEl.style.visibility = 'visible';
-            canvasEl.style.opacity = '1';
-            hasRenderedRef.current = true; // Mark that we've successfully rendered
-            onVisibilityChange?.(true);
-            if (onRender) onRender();
-        } else {
-            // Render failed - hide canvas to show video element underneath
-            canvasEl.style.visibility = 'hidden';
-            onVisibilityChange?.(false);
-        }
-        // No per-frame cleanup - let resources persist across frames for performance.
-        // Cleanup only happens on unmount (separate effect below).
-    }, [
-        videoFrame,
-        velocity,
-        intensity,
-        mix,
-        samples,
-        desiredColorSpace,
-        gamma,
-        blackLevel,
-        saturation,
-        forceRender,
-        onRender,
-        unpackPremultiplyAlpha,
-        drawWidth,
-        drawHeight,
-        renderScale,
-        containerRef,
-        onVisibilityChange,
-        refocusBlurIntensity,
-        frameCounter, // Triggers re-render on each new video frame via requestVideoFrameCallback
-        enabled, // Control whether to render or preserve last frame
-    ]);
+    }, [enabled, onVisibilityChange]);
 
     // Cleanup GPU resources only on unmount
     React.useEffect(() => {

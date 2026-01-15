@@ -23,15 +23,55 @@ export const TimelinePlayhead = React.memo(() => {
   const { onSeek } = useTimelineContext()
   const { scrollLeftRef } = useTimelineUI()
 
-  // Subscribe to currentTime from the single source of truth
-  const currentTime = useProjectStore((s) => s.currentTime)
-
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const setScrubbing = useProjectStore((s) => s.setScrubbing)
 
-  const x = TimeConverter.msToPixels(currentTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+  // Ref for imperative position updates (avoids React re-renders during playback)
+  const groupRef = useRef<Konva.Group>(null)
+  const textRef = useRef<Konva.Text>(null)
+
+  // Cache pixelsPerMs in a ref for the subscription callback
+  const pixelsPerMsRef = useRef(pixelsPerMs)
+  useEffect(() => {
+    pixelsPerMsRef.current = pixelsPerMs
+  }, [pixelsPerMs])
+
+  // PERFORMANCE: Imperative position updates via store subscription
+  // This avoids React re-renders during playback (30fps -> 0 re-renders)
+  useEffect(() => {
+    // Set initial position
+    const initialTime = useProjectStore.getState().currentTime
+    const initialX = TimeConverter.msToPixels(initialTime, pixelsPerMsRef.current) + TimelineConfig.TRACK_LABEL_WIDTH
+    groupRef.current?.x(initialX)
+    if (textRef.current) {
+      textRef.current.text(formatTime(initialTime, true))
+    }
+
+    const unsubscribe = useProjectStore.subscribe((state, prevState) => {
+      // Skip if time hasn't changed
+      if (state.currentTime === prevState.currentTime) return
+
+      const newX = TimeConverter.msToPixels(state.currentTime, pixelsPerMsRef.current) + TimelineConfig.TRACK_LABEL_WIDTH
+      groupRef.current?.x(newX)
+
+      // Update time badge text imperatively
+      if (textRef.current) {
+        textRef.current.text(formatTime(state.currentTime, true))
+      }
+    })
+
+    return unsubscribe
+  }, []) // Empty deps - subscription handles all updates
+
+  // Recalculate position when pixelsPerMs changes (zoom)
+  useEffect(() => {
+    const currentTime = useProjectStore.getState().currentTime
+    const newX = TimeConverter.msToPixels(currentTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+    groupRef.current?.x(newX)
+  }, [pixelsPerMs])
+
   const isActive = isHovered || isDragging
 
   // Time badge dimensions
@@ -162,9 +202,16 @@ export const TimelinePlayhead = React.memo(() => {
     }
   }, [isActive])
 
+  // Initial position for first render (will be updated imperatively)
+  const initialX = TimeConverter.msToPixels(
+    useProjectStore.getState().currentTime,
+    pixelsPerMs
+  ) + TimelineConfig.TRACK_LABEL_WIDTH
+
   return (
     <Group
-      x={x}
+      ref={groupRef}
+      x={initialX}
       y={0}
       draggable
       dragBoundFunc={(pos) => {
@@ -250,10 +297,11 @@ export const TimelinePlayhead = React.memo(() => {
 
         {/* Time text */}
         <Text
+          ref={textRef}
           x={-badgeWidth / 2}
           y={5}
           width={badgeWidth}
-          text={formatTime(currentTime, true)}
+          text={formatTime(useProjectStore.getState().currentTime, true)}
           fontSize={11}
           fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display'"
           fontStyle="600"

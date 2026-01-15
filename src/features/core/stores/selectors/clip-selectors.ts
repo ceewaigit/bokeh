@@ -14,7 +14,7 @@
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore } from '../project-store'
-import { ClipLookup, type ClipResult, type ClipWithRecording } from '@/features/ui/timeline/clips/clip-lookup'
+import { ClipLookup, type ClipResult } from '@/features/ui/timeline/clips/clip-lookup'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import type { Clip, Recording } from '@/types/project'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'

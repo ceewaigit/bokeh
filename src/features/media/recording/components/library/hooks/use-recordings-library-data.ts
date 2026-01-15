@@ -6,7 +6,6 @@ import { PROJECT_EXTENSION, PROJECT_EXTENSION_REGEX } from '@/features/core/stor
 import { getProjectDir, getProjectFilePath, isValidFilePath, resolveRecordingMediaPath } from '../utils/recording-paths'
 import { markModified } from '@/features/core/stores/store-utils'
 import {
-  type DateCategoryId,
   groupByDateCategory,
   getCategoryCounts,
   getNonEmptyCategories,
@@ -308,7 +307,7 @@ export const useRecordingsLibraryData = () => {
     }))
   }, [displayedRecordings, hydrationByPath])
 
-  const pageKey = useMemo(() => {
+  const _pageKey = useMemo(() => {
     return displayedRecordings.map((rec) => `${rec.path}:${rec.timestamp.getTime()}`).join('|')
   }, [displayedRecordings])
 
@@ -466,7 +465,7 @@ export const useRecordingsLibraryData = () => {
     run().catch((error) => {
       console.error('Failed to hydrate recordings page:', error)
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [
     // Use stable trigger key that doesn't change during hydration
     hydrationTriggerKey,
