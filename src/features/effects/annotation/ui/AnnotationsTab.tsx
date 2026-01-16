@@ -4,7 +4,7 @@ import React, { useCallback } from 'react'
 import { cn } from '@/shared/utils/utils'
 import { Button } from '@/components/ui/button'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { EffectStore } from '@/features/effects/core/effects-store'
+import { useEffectsOfType } from '@/features/core/stores/selectors/timeline-selectors'
 import { getDefaultAnnotationSize } from '../config'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
@@ -96,26 +96,20 @@ function AnnotationTypeButton({ type, label, description, icon: Icon, onAdd }: A
 }
 
 export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: AnnotationsTabProps) {
-  const project = useProjectStore((s) => s.currentProject)
-  const currentTime = useProjectStore((s) => s.currentTime)
+  // PERF: Use granular selector - only re-renders when annotation effects change
+  // Instead of subscribing to ALL effects and filtering
+  const annotationEffects = useEffectsOfType(EffectType.Annotation) as (Effect & { type: typeof EffectType.Annotation })[]
   const addEffect = useProjectStore((s) => s.addEffect)
   const removeEffect = useProjectStore((s) => s.removeEffect)
-
-  // Get all annotation effects
-  const annotationEffects = React.useMemo(() => {
-    if (!project) return []
-    return EffectStore.getAll(project).filter(
-      (e): e is Effect & { type: typeof EffectType.Annotation } =>
-        e.type === EffectType.Annotation
-    )
-  }, [project])
 
   // Get annotation data if selected
   const selectedData = selectedAnnotation?.data as AnnotationData | undefined
 
   // Add new annotation
+  // PERF: Get currentTime imperatively when button is clicked, not via subscription
+  // This avoids 60fps re-renders during playback (currentTime updates every frame)
   const handleAddAnnotation = useCallback((type: AnnotationType) => {
-    const startTime = currentTime
+    const startTime = useProjectStore.getState().currentTime
     const endTime = startTime + 3000 // 3 second default duration
     const defaultSize = getDefaultAnnotationSize(type)
 
@@ -149,7 +143,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
       addEffect(effect)
     }
     onSelectAnnotation?.(effect)
-  }, [currentTime, addEffect, onSelectAnnotation])
+  }, [addEffect, onSelectAnnotation])
 
   // Delete annotation
   const handleDelete = useCallback(() => {

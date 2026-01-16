@@ -26,6 +26,7 @@ import { useOverlayContext } from '@/features/rendering/overlays/overlay-context
 import { useComposition } from '../../context/CompositionContext';
 import { useVideoUrl } from '../../hooks/media/useVideoUrl';
 import { useProjectStore } from '@/features/core/stores/project-store';
+import { useShallow } from 'zustand/react/shallow';
 import { isProxySufficientForTarget } from '@/shared/utils/resolution-utils';
 
 interface WebcamClipRendererProps {
@@ -35,6 +36,7 @@ interface WebcamClipRendererProps {
     playback: PlaybackSettings;
     fps: number;
     globalOpacity?: number;
+    isActive?: boolean;  // Whether this clip should be visible (used to hide non-active clips in multi-clip scenarios)
 }
 
 /**
@@ -62,9 +64,18 @@ export const WebcamClipRenderer = React.memo(({
     playback,
     fps,
     globalOpacity = 1,
+    isActive = true,  // Default to true for backward compatibility
 }: WebcamClipRendererProps) => {
     const { videoWidth, videoHeight } = useComposition();
-    const isScrubbing = useProjectStore((s) => s.isScrubbing);
+    // Read playback state directly from store for consistency
+    // NOTE: The playback prop has hardcoded isPlaying: false (for Remotion internal use),
+    // but we need the actual playback state for URL locking and frame sync
+    const { isScrubbing, isPlaying } = useProjectStore(
+        useShallow((s) => ({
+            isScrubbing: s.isScrubbing,
+            isPlaying: s.isPlaying
+        }))
+    );
     const frame = useCurrentFrame();
     const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
     const { displacedEffectIds, resolvedAnchors } = useOverlayContext();
@@ -138,8 +149,8 @@ export const WebcamClipRenderer = React.memo(({
         targetHeight: webcamTargetSize.height,
         isHighQualityPlaybackEnabled: playback.isHighQualityPlaybackEnabled,
         forceProxy,
-        isPlaying: playback.isPlaying,
-        isScrubbing,
+        isPlaying,      // From store (not playback.isPlaying which is hardcoded false)
+        isScrubbing,    // From store
     });
 
     const webcamContainerRef = useVideoContainerCleanup(videoUrl);
@@ -299,7 +310,8 @@ export const WebcamClipRenderer = React.memo(({
     const zoomInfluence = data.zoomInfluence ?? 1;
     const effectiveScale = 1 + (inverseCameraScale - 1) * zoomInfluence;
     const finalScale = animationScale * effectiveScale;
-    const finalOpacity = animationOpacity * globalOpacity;
+    // Only show opacity when this is the active clip (prevents wrong frames from non-active clips)
+    const finalOpacity = animationOpacity * globalOpacity * (isActive ? 1 : 0);
     const finalTranslateY = translateY * overlayScale;
 
     return (

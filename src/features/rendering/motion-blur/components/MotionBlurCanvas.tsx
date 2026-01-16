@@ -91,14 +91,14 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     refocusBlurIntensity = 0,
 }) => {
     // PERFORMANCE: Track allocated canvas dimensions to avoid resize thrashing during zoom-follow-mouse
-    const allocatedSizeRef = useRef({ width: 0, height: 0 });
+    const _allocatedSizeRef = useRef({ width: 0, height: 0 });
 
     const enabled = enabledProp && (intensity > 0 || refocusBlurIntensity > 0 || forceRender);
-    // Force sRGB to match video color space - P3 causes visible color mismatch
+    // Use sRGB to match how video is typically encoded - avoids P3↔sRGB conversion darkening
     const desiredColorSpace: PredefinedColorSpace = colorSpace ?? 'srgb';
 
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const bitmapCtxRef = useRef<ImageBitmapRenderingContext | null>(null);
+    const ctx2dRef = useRef<CanvasRenderingContext2D | null>(null);
     const videoCanvasRef = useRef<OffscreenCanvas | HTMLCanvasElement | null>(null);
     const videoCtxRef = useRef<CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null>(null);
     const hasRenderedRef = useRef(false); // Track if we've ever rendered successfully
@@ -195,8 +195,8 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         }
 
         // If the canvas element was remounted, ensure we refresh the context.
-        if (bitmapCtxRef.current && (bitmapCtxRef.current as any).canvas !== canvasEl) {
-            bitmapCtxRef.current = null;
+        if (ctx2dRef.current && (ctx2dRef.current as any).canvas !== canvasEl) {
+            ctx2dRef.current = null;
         }
 
         if (!mediaSource) {
@@ -205,13 +205,17 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             return;
         }
 
-        // Use bitmaprenderer context - it preserves colors better than 2D context drawImage
-        let bitmapCtx = bitmapCtxRef.current;
-        if (!bitmapCtx) {
-            bitmapCtx = canvasEl.getContext('bitmaprenderer', { alpha: true });
-            bitmapCtxRef.current = bitmapCtx;
+        // Use 2D context with display-p3 colorSpace to match video element display
+        // bitmaprenderer has no colorSpace control, causing color mismatch on P3 displays
+        let ctx2d = ctx2dRef.current;
+        if (!ctx2d) {
+            ctx2d = canvasEl.getContext('2d', {
+                alpha: true,
+                colorSpace: desiredColorSpace,
+            });
+            ctx2dRef.current = ctx2d;
         }
-        if (!bitmapCtx) return;
+        if (!ctx2d) return;
         const actualColorSpace = desiredColorSpace;
 
         const pixelRatio = 1;
@@ -238,16 +242,17 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const vy = (Number.isFinite(velocity.y) ? velocity.y : 0) * drawHeight;
         const rawSpeed = Math.hypot(vx, vy);
 
-        // SMOOTH BLUR FADE - No hard cutoff!
-        // The soft knee curve handles smooth fade to zero at low speeds.
-        // Only skip rendering when truly zero motion (performance optimization).
-        const hasRefocus = (refocusBlurIntensity ?? 0) > 0.01;
-        const ZERO_MOTION_THRESHOLD = 0.1;  // Very low - only skip when essentially static
-        if (rawSpeed < ZERO_MOTION_THRESHOLD && !hasRefocus && !props.forceRender) {
-            canvasEl.style.visibility = 'hidden';
-            onVisibilityChange?.(false);
-            return;
-        }
+        // Always render through WebGL for consistent color output
+        // This ensures no visible color shift when transitioning between motion/no-motion states
+        const _hasRefocus = (refocusBlurIntensity ?? 0) > 0.01;
+
+        // VELOCITY RAMP - Smooth blur fade-in to avoid jarring appearance
+        // Blur fades in from threshold to full strength over a range
+        const BLUR_RAMP_START = 3.0;   // Blur starts fading in
+        const BLUR_RAMP_END = 10.0;    // Blur reaches full strength
+        const velocityFactor = rawSpeed <= BLUR_RAMP_START
+            ? 0
+            : Math.min(1, (rawSpeed - BLUR_RAMP_START) / (BLUR_RAMP_END - BLUR_RAMP_START));
 
         // SIMPLE LINEAR: Apply shutter angle directly to velocity (no knee curve)
         // blur_length = velocity × shutter_fraction - matches real camera physics
@@ -259,8 +264,9 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const rawBlurLengthPx = Math.hypot(blurVx, blurVy);
         const maxBlurPx = clampRadius > 0 ? clampRadius : 60;  // Default 60px max
         const blurScale = rawBlurLengthPx > maxBlurPx ? maxBlurPx / rawBlurLengthPx : 1;
-        const clampedBlurVx = blurVx * blurScale;
-        const clampedBlurVy = blurVy * blurScale;
+        // Apply velocity ramp to blur vectors for smooth fade-in
+        const clampedBlurVx = blurVx * blurScale * velocityFactor;
+        const clampedBlurVy = blurVy * blurScale * velocityFactor;
 
         const uvVelocityX = clampedBlurVx / drawWidth;
         const uvVelocityY = clampedBlurVy / drawHeight;
@@ -278,62 +284,10 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
 
         const glPixelRatio = outputScale;
 
-        // Route video through a 2D canvas for hysteresis resize optimization
-        const quantizeSize = (size: number) => Math.ceil(size / 64) * 64;
-        const shouldResize = (current: number, target: number) => {
-            if (current === 0) return true;
-            const diff = Math.abs(current - target);
-            const percentDiff = diff / Math.max(current, 1);
-            return diff > 64 || percentDiff > 0.05;
-        };
-
-        let webglSource: TexImageSource = mediaSource as TexImageSource;
-        if (mediaSource && 'videoWidth' in mediaSource) {
-            const targetWidth = quantizeSize(targetOutputWidth);
-            const targetHeight = quantizeSize(targetOutputHeight);
-
-            if (!videoCanvasRef.current) {
-                if (typeof OffscreenCanvas !== 'undefined') {
-                    videoCanvasRef.current = new OffscreenCanvas(targetWidth, targetHeight);
-                } else if (typeof document !== 'undefined') {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = targetWidth;
-                    canvas.height = targetHeight;
-                    videoCanvasRef.current = canvas;
-                }
-                allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
-            }
-            if (videoCanvasRef.current) {
-                const allocated = allocatedSizeRef.current;
-                if (
-                    shouldResize(allocated.width, targetWidth) ||
-                    shouldResize(allocated.height, targetHeight)
-                ) {
-                    (videoCanvasRef.current as OffscreenCanvas).width = targetWidth;
-                    (videoCanvasRef.current as OffscreenCanvas).height = targetHeight;
-                    allocatedSizeRef.current = { width: targetWidth, height: targetHeight };
-                    videoCtxRef.current = null;
-                }
-                if (!videoCtxRef.current) {
-                    videoCtxRef.current = (videoCanvasRef.current as any).getContext('2d', {
-                        alpha: true,
-                        colorSpace: 'srgb',
-                    });
-                }
-                if (videoCtxRef.current) {
-                    try {
-                        (videoCtxRef.current as any).imageSmoothingEnabled = true;
-                        (videoCtxRef.current as any).imageSmoothingQuality = 'high';
-                    } catch {
-                        // Ignore if unsupported.
-                    }
-                    const currentWidth = allocatedSizeRef.current.width;
-                    const currentHeight = allocatedSizeRef.current.height;
-                    videoCtxRef.current.drawImage(mediaSource, 0, 0, currentWidth, currentHeight);
-                    webglSource = videoCanvasRef.current as TexImageSource;
-                }
-            }
-        }
+        // BYPASS intermediate 2D canvas - pass video directly to WebGL
+        // The 2D canvas with colorSpace: 'srgb' was causing color darkening
+        // WebGL can accept HTMLVideoElement directly via texImage2D
+        const webglSource: TexImageSource = mediaSource as TexImageSource;
 
         const resultCanvas = MotionBlurController.instance.render(
             webglSource,
@@ -350,25 +304,30 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 saturation: Number.isFinite(saturation) ? saturation : 1.0,
                 colorSpace: actualColorSpace,
                 unpackPremultiplyAlpha,
-                linearize: actualColorSpace === 'srgb',
+                // Disable linearization to preserve raw sRGB values through the pipeline
+                // This ensures 1:1 color matching with the video element
+                linearize: false,
                 pixelRatio: glPixelRatio,
                 refocusBlur: refocusBlurIntensity,
             }
         );
 
-        if (resultCanvas && 'transferToImageBitmap' in resultCanvas) {
+        if (resultCanvas) {
             const targetWidth = targetOutputWidth;
             const targetHeight = targetOutputHeight;
             if (canvasEl.width !== targetWidth || canvasEl.height !== targetHeight) {
                 canvasEl.width = targetWidth;
                 canvasEl.height = targetHeight;
+                // Reset context after resize
+                ctx2dRef.current = canvasEl.getContext('2d', {
+                    alpha: true,
+                    colorSpace: desiredColorSpace,
+                });
+                ctx2d = ctx2dRef.current;
+                if (!ctx2d) return;
             }
-            const bitmap = (resultCanvas as OffscreenCanvas).transferToImageBitmap();
-            bitmapCtx.transferFromImageBitmap(bitmap);
-            const closable = (bitmap as { close?: () => void }).close;
-            if (typeof closable === 'function') {
-                closable.call(bitmap);
-            }
+            // Use drawImage instead of bitmaprenderer for colorSpace control
+            ctx2d.drawImage(resultCanvas, 0, 0, targetWidth, targetHeight);
             canvasEl.style.visibility = 'visible';
             canvasEl.style.opacity = '1';
             hasRenderedRef.current = true;
@@ -385,11 +344,10 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     renderFrameRef.current = renderFrame;
 
     // Register requestVideoFrameCallback to sync canvas updates with video frames
-    // BATTERY OPTIMIZATION: Calls renderFrame directly instead of triggering React rerenders
+    // BATTERY OPTIMIZATION: Uses MutationObserver instead of polling for video element discovery
     useEffect(() => {
-        // Don't return early if containerRef.current is null - let polling find it later
         let cancelled = false;
-        let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+        let observer: MutationObserver | null = null;
 
         const setupCallback = (video: HTMLVideoElement) => {
             if (cancelled) return;
@@ -415,30 +373,29 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         };
 
         const findVideo = () => {
-            // Use optional chaining - containerRef.current may be null initially
             const video = containerRef?.current?.querySelector('video') as HTMLVideoElement | null;
             if (video && video !== videoRef.current) {
                 setupCallback(video);
-                if (pollIntervalId) {
-                    clearInterval(pollIntervalId);
-                    pollIntervalId = null;
-                }
+                observer?.disconnect();
+                observer = null;
+                return true;
             }
+            return false;
         };
 
         // Try immediately
-        findVideo();
-
-        // If not found, poll until we find it (handles initial mount when containerRef.current is null)
-        if (!videoRef.current) {
-            pollIntervalId = setInterval(findVideo, 100);
+        if (!findVideo() && containerRef?.current) {
+            // BATTERY OPTIMIZATION: Use MutationObserver instead of polling
+            // This is event-driven and doesn't wake the CPU unnecessarily
+            observer = new MutationObserver(() => {
+                findVideo();
+            });
+            observer.observe(containerRef.current, { childList: true, subtree: true });
         }
 
         return () => {
             cancelled = true;
-            if (pollIntervalId) {
-                clearInterval(pollIntervalId);
-            }
+            observer?.disconnect();
             if (frameCallbackIdRef.current !== null && videoRef.current && 'cancelVideoFrameCallback' in videoRef.current) {
                 (videoRef.current as any).cancelVideoFrameCallback(frameCallbackIdRef.current);
             }
@@ -482,7 +439,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
                 videoCanvasRef.current = null;
                 videoCtxRef.current = null;
             }
-            bitmapCtxRef.current = null;
+            ctx2dRef.current = null;
             hasRenderedRef.current = false; // Reset on unmount
         };
     }, []);

@@ -4,7 +4,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { motion } from 'framer-motion'
 import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2, Zap } from 'lucide-react'
-import { useTimelineContext } from './TimelineUIContext'
+import { useTimelineOperations } from './timeline-operations-context'
 
 const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const
 
@@ -31,7 +31,7 @@ export const TimelineContextMenu = React.memo(({
     onPasteClip,
     onDeleteClip,
     onSpeedUpClip
-  } = useTimelineContext()
+  } = useTimelineOperations()
   const menuRef = useRef<HTMLDivElement>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [position, setPosition] = useState<{ left: number; top: number }>({ left: x, top: y })

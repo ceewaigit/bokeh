@@ -371,9 +371,16 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
 
         // Calculate velocity from previous frame's zoom center (deterministic)
         const prevCenter = f > 0 && out[f - 1] ? out[f - 1].zoomCenter : computed.zoomCenter
+
+        // Scale velocity by (scale - 1) to match actual visual motion
+        // At scale=1, there's no visual pan so velocity should be 0
+        // This matches zoom-transform.ts: pan = (0.5 - center) * size * (scale - 1)
+        const currentScale = computed.physics.scale ?? 1
+        const visualMotionFactor = Math.max(0, currentScale - 1)
+
         const velocity = {
-            x: computed.zoomCenter.x - prevCenter.x,
-            y: computed.zoomCenter.y - prevCenter.y,
+            x: (computed.zoomCenter.x - prevCenter.x) * visualMotionFactor,
+            y: (computed.zoomCenter.y - prevCenter.y) * visualMotionFactor,
         }
 
         // PRECOMPUTE TRANSFORMS (SSOT)

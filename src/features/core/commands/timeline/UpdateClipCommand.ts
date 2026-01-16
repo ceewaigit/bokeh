@@ -1,21 +1,19 @@
 /**
  * UpdateClipCommand - Update clip properties.
- * 
- * Uses PatchedCommand for automatic undo/redo via Immer patches.
  */
 
-import { PatchedCommand } from '../base/PatchedCommand'
+import { TimelineCommand } from '../base/TimelineCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
-import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { updateClipInTrack } from '@/features/ui/timeline/clips/clip-crud'
-import { EffectInitialization } from '@/features/effects/core/initialization'
+import { TimelineSyncService, syncKeystrokeEffects } from '@/features/effects/sync'
 import { PlayheadService } from '@/features/playback/services/playhead-service'
 import { playbackService } from '@/features/playback/services/playback-service'
+import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
-export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
+export class UpdateClipCommand extends TimelineCommand<{ clipId: string }> {
   private clipId: string
   private updates: Partial<Clip>
   private options?: { exact?: boolean; maintainContiguous?: boolean }
@@ -28,7 +26,7 @@ export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
   ) {
     super(context, {
       name: 'UpdateClip',
-      description: `Update clip ${clipId}`,
+      description: 'Update clip',
       category: 'timeline',
       coalesceKey: `UpdateClip:${clipId}`,
       coalesceWindowMs: 1000
@@ -43,41 +41,16 @@ export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
   }
 
   protected mutate(draft: WritableDraft<ProjectStore>): void {
-    if (!draft.currentProject) {
-      throw new Error('No active project')
-    }
+    const project = draft.currentProject
+    if (!project) throw new Error('No active project')
 
-    // Get clip info before update for playhead tracking
-    const result = ClipLookup.byId(draft.currentProject, this.clipId)
-    if (!result) {
-      throw new Error(`Clip ${this.clipId} not found`)
-    }
+    const lookup = this.findClip(project, this.clipId)
+    if (!lookup) throw new Error(`Clip ${this.clipId} not found`)
 
-    // Use the service to update the clip
-    if (!updateClipInTrack(draft.currentProject, this.clipId, this.updates, this.options, result.track)) {
-      throw new Error('updateClip: Failed to update clip')
-    }
+    const { clip, track } = lookup
+    const beforeState = this.buildClipState(clip)
 
-    // Clip timing/position can change; keep derived keystroke blocks aligned.
-    EffectInitialization.syncKeystrokeEffects(draft.currentProject)
-
-    // Maintain playhead relative position inside the edited clip
-    const updatedResult = ClipLookup.byId(draft.currentProject, this.clipId)
-    if (updatedResult) {
-      const newTime = PlayheadService.trackPlayheadDuringClipEdit(
-        draft.currentTime,
-        result.clip, // Note: result.clip reference in draft might be updated in-place by updateClipInTrack.
-        // For exact precision we might need a copy, but PlayheadService logic usually handles bounds.
-        updatedResult.clip
-      )
-      if (newTime !== null) {
-        draft.currentTime = playbackService.seek(newTime, draft.currentProject.timeline.duration)
-      }
-    }
-
-    // Only clamp current time when clip timing properties changed
-    // This avoids unnecessary store mutations for layout-only updates (e.g., crop, styling)
-    // which would otherwise trigger cascading re-renders and video blink
+    // Check if timing properties will change
     const timingChanged =
       this.updates.startTime !== undefined ||
       this.updates.duration !== undefined ||
@@ -85,11 +58,37 @@ export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
       this.updates.sourceOut !== undefined ||
       this.updates.playbackRate !== undefined
 
-    if (timingChanged) {
-      draft.currentTime = playbackService.seek(
-        draft.currentTime,
-        draft.currentProject.timeline.duration
+    // Use the service to update the clip
+    if (!updateClipInTrack(project, this.clipId, this.updates, this.options, track)) {
+      throw new Error('updateClip: Failed to update clip')
+    }
+
+    const updatedLookup = this.findClip(project, this.clipId)
+
+    // Sync effects based on what changed
+    if (timingChanged && updatedLookup) {
+      const clipChange = TimelineSyncService.buildUpdateChange(
+        updatedLookup.clip, beforeState, track.type
       )
+      this.setPendingChange(draft, clipChange)
+    } else {
+      // Non-timing update: sync keystroke effects and invalidate cache
+      syncKeystrokeEffects(project)
+      TimelineDataService.invalidateCache(project)
+    }
+
+    // Maintain playhead relative position
+    if (updatedLookup) {
+      const newTime = PlayheadService.trackPlayheadDuringClipEdit(
+        draft.currentTime, clip, updatedLookup.clip
+      )
+      if (newTime !== null) {
+        draft.currentTime = playbackService.seek(newTime, project.timeline.duration)
+      }
+    }
+
+    if (timingChanged) {
+      this.clampPlayhead(draft)
     }
 
     this.setResult({ success: true, data: { clipId: this.clipId } })

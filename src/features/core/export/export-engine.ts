@@ -86,6 +86,8 @@ export class ExportEngine {
       throw new Error('Export already in progress')
     }
 
+    // NOTE: Keystroke sync is now synchronous via middleware - no flush needed
+
     this.isExporting = true
     this.abortController = new AbortController()
     const startTime = performance.now()

@@ -98,8 +98,23 @@ export function useRecording() {
 
       const recordingSettings = buildRecordingSettings(sessionSettings, projectSettings, uiSettings)
 
+      // Get pre-warmed streams from session store (warmed during countdown)
+      const sessionStore = useRecordingSessionStore.getState()
+      const prewarmedStreams = sessionStore.getPrewarmedStreams()
+
+      if (prewarmedStreams) {
+        logger.info('[use-recording] Using pre-warmed streams:', {
+          hasWebcam: !!prewarmedStreams.webcam,
+          hasMicrophone: !!prewarmedStreams.microphone
+        })
+      }
+
       // Start recording - wait for native module confirmation
-      await recorderRef.current.start(recordingSettings)
+      // Pass pre-warmed streams for synchronized start
+      await recorderRef.current.start(recordingSettings, prewarmedStreams ?? undefined)
+
+      // Clear pre-warmed streams (they're now owned by recording services)
+      sessionStore.clearPrewarmedStreams()
 
       // Only update UI state AFTER native module confirms recording started
       setRecording(true)
@@ -119,6 +134,8 @@ export function useRecording() {
       if (typeof window !== 'undefined') {
         (window as any).__screenRecorderActive = false
       }
+      // Also clear pre-warmed streams on error
+      useRecordingSessionStore.getState().clearPrewarmedStreams()
     } finally {
       setIsStartingRecording(false)
     }

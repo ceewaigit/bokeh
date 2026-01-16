@@ -322,6 +322,7 @@ export interface ElectronAPI {
   onRecordingStarted: (callback: () => void) => () => void
   onRecordingStopped: (callback: () => void) => () => void
   onRecordingError: (callback: (error: string) => void) => () => void
+  onAbortCountdown?: (callback: () => void) => () => void
   removeAllListeners: (channel: string) => void
 
   // Native recorder API (macOS 12.3+ with ScreenCaptureKit)

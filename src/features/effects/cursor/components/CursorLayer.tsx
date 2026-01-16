@@ -503,8 +503,10 @@ export const CursorLayer = React.memo(() => {
           style={{
             width: renderedWidth,
             height: renderedHeight,
-            transform: `scale(${clickScale * 0.95})`,
+            transform: `perspective(${cursorPerspective}px) rotateX(${cursorTiltX}deg) rotateY(${cursorTiltY}deg) rotateZ(${cursorRotation}deg) scale(${clickScale * 0.95})`,
             transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
+            transformStyle: 'preserve-3d',
+            backfaceVisibility: 'hidden',
             filter: `blur(${trailBlur}px)`,
           }}
         />
@@ -512,8 +514,12 @@ export const CursorLayer = React.memo(() => {
     );
   }, [
     clickScale,
+    cursorPerspective,
+    cursorRotation,
     cursorState.opacity,
     cursorTheme,
+    cursorTiltX,
+    cursorTiltY,
     cursorType,
     hotspot.x,
     hotspot.y,

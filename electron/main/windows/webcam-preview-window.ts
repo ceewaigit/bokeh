@@ -32,7 +32,7 @@ export function showWebcamPreview(deviceId: string): void {
         resizable: true,
         movable: true,
         skipTaskbar: true,
-        hasShadow: true,
+        hasShadow: false,
         webPreferences: {
             preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
             contextIsolation: true,
@@ -43,7 +43,7 @@ export function showWebcamPreview(deviceId: string): void {
     webcamPreviewWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     webcamPreviewWindow.setAspectRatio(1) // Keep it square
 
-    const url = getAppURL(`/webcam-preview?deviceId=${encodeURIComponent(deviceId)}`)
+    const url = getAppURL(`/webcam-preview/${encodeURIComponent(deviceId)}`)
     console.log('[WebcamPreview] Loading URL:', url)
     webcamPreviewWindow.loadURL(url)
 

@@ -26,6 +26,7 @@ import {
 } from '@/features/ui/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { EffectInitialization } from '@/features/effects/core/initialization'
+import { TimelineSyncService } from '@/features/effects/sync'
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
 import { PlayheadService } from '@/features/playback/services/playhead-service'
 import { playbackService } from '@/features/playback/services/playback-service'
@@ -36,6 +37,7 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import type { CreateTimelineSlice } from './types'
 import { markModified, markProjectModified } from '../store-utils'
 
+// NOTE: Keystroke sync is now handled by middleware - just invalidate cache
 const reflowTimeline = (project: Project): void => {
     EffectInitialization.syncKeystrokeEffects(project)
     TimelineDataService.invalidateCache(project)
@@ -79,6 +81,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 const recording = state.currentProject.recordings.find(r => r.id === recordingId)
 
                 // Only sync if strictly necessary - this prevents global scan lag on every paste
+                // PERF: Use debounced sync to coalesce rapid operations
                 if (recording && (recording.metadata?.keyboardEvents?.length || 0) > 0) {
                     EffectInitialization.syncKeystrokeEffects(state.currentProject)
                 }
@@ -141,7 +144,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             project.timeline.duration = calculateTimelineDuration(project)
             markModified(project)
 
-
+            // PERF: Use debounced sync to coalesce rapid operations
             EffectInitialization.syncKeystrokeEffects(project)
 
             state.selectedClips = [clip.id]
@@ -309,8 +312,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
             markProjectModified(state)
 
-
-            // Sync effects
+            // PERF: Use debounced sync to coalesce rapid operations
             EffectInitialization.syncKeystrokeEffects(state.currentProject)
         })
     },
@@ -357,8 +359,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Clip timing/position can change; keep derived keystroke blocks aligned.
+            // PERF: Use debounced sync to coalesce rapid operations
             EffectInitialization.syncKeystrokeEffects(state.currentProject)
-
 
             // Maintain playhead relative position inside the edited clip
             const updatedResult = ClipLookup.byId(state.currentProject, clipId)
@@ -460,8 +462,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             newClipId = newClip.id
 
             // Duplicated clips should get matching derived keystroke blocks.
+            // PERF: Use debounced sync to coalesce rapid operations
             EffectInitialization.syncKeystrokeEffects(state.currentProject)
-
 
             // Select the duplicated clip
             state.selectedClips = [newClip.id]
@@ -518,22 +520,22 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                         EffectType.Zoom,
                         EffectType.Screen,
                         EffectType.Plugin,
-                        EffectType.Keystroke
+                        EffectType.Annotation
                     ])
 
+                    // Time-based effects: shift based on which clip they "belong to"
+                    // This is specialized for reorder where multiple clips shift differently
                     for (const effect of effects) {
-                        if (effect.clipId && deltaByClipId.has(effect.clipId)) {
-                            const delta = deltaByClipId.get(effect.clipId) ?? 0
-                            effect.startTime += delta
-                            effect.endTime += delta
-                            continue
-                        }
+                        // Skip clip-bound effects - they'll be synced below
+                        if (effect.clipId) continue
 
                         if (!shiftableTypes.has(effect.type)) continue
 
+                        // Find which clip "owns" this effect by where it starts
+                        // (handles effects that span multiple clips - they follow their start clip)
                         const owningClip = oldRanges.find(range =>
                             effect.startTime >= range.startTime &&
-                            effect.endTime <= range.endTime
+                            effect.startTime < range.endTime
                         )
                         if (!owningClip) continue
                         const delta = deltaByClipId.get(owningClip.id)
@@ -543,12 +545,26 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                         effect.endTime += delta
                     }
 
+                    // Sync clip-bound effects to match their bound clips' positions
+                    // Build a dummy change for the reorder operation
+                    const reorderedClip = track.clips.find(c => c.id === clipId)
+                    if (reorderedClip) {
+                        const dummyChange = TimelineSyncService.buildReorderChange(
+                            reorderedClip,
+                            oldRanges.find(r => r.id === clipId)?.startTime ?? 0,
+                            reorderedClip.startTime
+                        )
+                        TimelineSyncService.syncClipBoundEffects(state.currentProject, dummyChange)
+                    }
+
                     if (effects.length > 0) {
                         state.currentProject.timeline.effects = [...effects]
                     }
 
-                    // Start times changed; rebuild derived keystroke blocks.
+                    // Start times changed; rebuild derived keystroke blocks and invalidate cache
+                    // PERF: Use debounced sync to coalesce rapid operations
                     EffectInitialization.syncKeystrokeEffects(state.currentProject)
+                    TimelineDataService.invalidateCache(state.currentProject)
                 }
 
                 // Force new array reference
@@ -614,6 +630,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             )
 
             // Speed-up can change durations/time-remaps; rebuild derived keystroke blocks.
+            // PERF: Use debounced sync to coalesce rapid operations
             EffectInitialization.syncKeystrokeEffects(state.currentProject)
 
             // Update modified timestamp
@@ -700,9 +717,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
 
             // Use EffectStore as SSOT for adding effects
             EffectStore.add(state.currentProject, effect)
-            state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+            // PERF: Effects don't extend timeline duration - only clips do.
+            // See calculateTimelineDuration() which only considers clips.
             markProjectModified(state)
-
         })
     },
 
@@ -713,7 +730,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Use EffectStore as SSOT for removing effects
             const removed = EffectStore.remove(state.currentProject, effectId)
             if (removed) {
-                state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+                // PERF: Effects don't affect timeline duration
                 markProjectModified(state)
             }
         })
@@ -726,7 +743,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             // Use EffectStore as SSOT for updating effects
             const updated = EffectStore.update(state.currentProject, effectId, updates)
             if (updated) {
-                state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+                // PERF: Effects don't affect timeline duration
                 markProjectModified(state)
             }
         })
@@ -737,7 +754,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (!state.currentProject) return
             // Use force=true to bypass overlap checks during restore
             EffectStore.update(state.currentProject, effect.id, effect, true)
-            state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+            // PERF: Effects don't affect timeline duration
             markProjectModified(state)
         })
     },

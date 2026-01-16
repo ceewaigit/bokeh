@@ -35,6 +35,7 @@ import {
 import {
   calculateCursorVelocity,
   getExponentiallySmoothedCursorNorm,
+  type CursorVelocityResult,
 } from '../cursor-velocity'
 import {
   normalizeSmoothingAmount,
@@ -56,6 +57,51 @@ const {
 
 // Transition window for smooth target blending from intro to hold phase
 const INTRO_TO_HOLD_BLEND_MS = 150
+
+// PERF: Per-frame cursor computation cache
+// Avoids recomputing expensive cursor data when sourceTimeMs hasn't changed
+interface CursorComputeCache {
+  sourceTimeMs: number
+  mouseEventsRef: MouseEvent[] | null
+  sourceWidth: number
+  sourceHeight: number
+  attractor: { x: number; y: number } | null
+  velocity: CursorVelocityResult
+  smoothedCursorNorm: { x: number; y: number }
+}
+let cursorCache: CursorComputeCache | null = null
+
+function getCachedCursorData(
+  mouseEvents: MouseEvent[],
+  sourceTimeMs: number,
+  sourceWidth: number,
+  sourceHeight: number,
+  smoothingAmount: number,
+  jitterThresholdPx: number
+): CursorComputeCache {
+  // Check if cache is valid
+  if (
+    cursorCache &&
+    cursorCache.sourceTimeMs === sourceTimeMs &&
+    cursorCache.mouseEventsRef === mouseEvents &&
+    cursorCache.sourceWidth === sourceWidth &&
+    cursorCache.sourceHeight === sourceHeight
+  ) {
+    return cursorCache
+  }
+
+  // Compute fresh data
+  cursorCache = {
+    sourceTimeMs,
+    mouseEventsRef: mouseEvents,
+    sourceWidth,
+    sourceHeight,
+    attractor: calculateAttractor(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount),
+    velocity: calculateCursorVelocity(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, jitterThresholdPx),
+    smoothedCursorNorm: getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight),
+  }
+  return cursorCache
+}
 
 /**
  * Unified spring physics update.
@@ -212,11 +258,6 @@ export function computeCameraState({
     mouseEvents, sourceTimeMs, recording, effectiveMetadata ?? undefined
   )
 
-  const rawCursorPosForAnchor = interpolateMousePosition(mouseEvents, sourceTimeMs)
-  const _rawCursorNormForAnchor = rawCursorPosForAnchor
-    ? { x: rawCursorPosForAnchor.x / sourceWidth, y: rawCursorPosForAnchor.y / sourceHeight }
-    : null
-
   const { halfWindowX, halfWindowY } = getHalfWindows(
     currentScale, sourceWidth, sourceHeight, outputWidth, outputHeight
   )
@@ -257,7 +298,12 @@ export function computeCameraState({
   // const playbackRateEstimate = dtTimelineFromState > 1 ? dtSource / dtTimelineFromState : 1
   // const rate = Math.max(0.5, Math.min(3, playbackRateEstimate || 1))
 
-  const activeAttractor = calculateAttractor(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount)
+  // PERF: Get cached cursor data to avoid recomputing expensive cursor computations
+  const jitterThresholdPx = activeZoomBlock?.mouseIdlePx ?? 2
+  const cachedCursor = getCachedCursorData(
+    mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, smoothingAmount, jitterThresholdPx
+  )
+  const activeAttractor = cachedCursor.attractor
 
   let cursorNormX = 0.5, cursorNormY = 0.5
 
@@ -288,9 +334,8 @@ export function computeCameraState({
   cursorNormX = clampCursorX(cursorNormX)
   cursorNormY = clampCursorY(cursorNormY)
 
-  // Cursor velocity for stop detection
-  const jitterThresholdPx = activeZoomBlock?.mouseIdlePx ?? 2
-  const cursorVelocity = calculateCursorVelocity(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight, jitterThresholdPx)
+  // PERF: Use cached cursor velocity from getCachedCursorData
+  const cursorVelocity = cachedCursor.velocity
 
   // Determine if cursor is frozen (stopped while zoomed)
   const shouldApplyStopDetection = currentScale >= CURSOR_STOP_MIN_ZOOM
@@ -328,6 +373,11 @@ export function computeCameraState({
   const shouldFollowMouse = followStrategy === 'mouse' || followStrategy == null
   const shouldCenterLock = followStrategy === 'center'
   const isManualFocus = followStrategy === 'manual'
+
+  // PERF: Use cached smoothed cursor from getCachedCursorData
+  const smoothedCursorNorm = shouldFollowMouse
+    ? cachedCursor.smoothedCursorNorm
+    : { x: cursorNormX, y: cursorNormY }
   const mouseFollowAlgorithm = (activeZoomBlock as any)?.mouseFollowAlgorithm as
     | 'deadzone'
     | 'direct'
@@ -361,15 +411,6 @@ export function computeCameraState({
     }
   })()
 
-  const _leadCursor = (cursor: { x: number; y: number }) => {
-    const sx = cursorVelocityVec.vx > 0.001 ? 1 : cursorVelocityVec.vx < -0.001 ? -1 : 0
-    const sy = cursorVelocityVec.vy > 0.001 ? 1 : cursorVelocityVec.vy < -0.001 ? -1 : 0
-    const zoomAmt = clamp01((currentScale - 1) / 2)
-    const offX = sx * (halfWindowX * 0.33) * zoomAmt
-    const offY = sy * (halfWindowY * 0.33) * zoomAmt
-    return { x: cursor.x + offX, y: cursor.y + offY }
-  }
-
   // Capture the starting center position on block entry for smooth pan-to-cursor during intro.
   // Instead of anchoring to cursor position, we pan FROM current center TO cursor.
   const enteringZoomBlock = Boolean(activeZoomBlock && activeZoomBlock.id !== physics.lastZoomBlockId)
@@ -382,9 +423,9 @@ export function computeCameraState({
     physics.introAnchorVY = cursorVelocityVec.vy
     // Capture cursor destination ONCE at intro start (prevents jitter during zoom-in)
     // Using smoothed cursor to get a stable target position
-    const smoothedDest = getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
-    physics.introDestX = smoothedDest.x
-    physics.introDestY = smoothedDest.y
+    // PERF: Use cached smoothedCursorNorm instead of calling function again
+    physics.introDestX = smoothedCursorNorm.x
+    physics.introDestY = smoothedCursorNorm.y
   } else if (!activeZoomBlock) {
     physics.lastZoomBlockId = undefined
     physics.introAnchorX = undefined
@@ -456,8 +497,9 @@ export function computeCameraState({
     targetCenter = clampCenterToContentBounds(targetCenter, halfWindowX, halfWindowY, safeOverscan)
   } else {
     const algo = mouseFollowAlgorithm ?? 'deadzone'
+    // PERF: Use cached smoothedCursorNorm instead of calling function again
     const cursorInput = (algo === 'smooth' && !cursorIsFrozen)
-      ? getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+      ? smoothedCursorNorm
       : followCursor
     targetCenter = applyMouseAlgorithm(cursorInput, baseCenterForFollow, shouldFollowMouse && hasOverscan)
   }
@@ -553,8 +595,9 @@ export function computeCameraState({
   if (isIntroToHoldTransition) {
     // Calculate what deadzone would give us
     const algo = mouseFollowAlgorithm ?? 'deadzone'
+    // PERF: Use cached smoothedCursorNorm instead of calling function again
     const cursorInput = (algo === 'smooth' && !cursorIsFrozen)
-      ? getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+      ? smoothedCursorNorm
       : followCursor
     const deadzoneTarget = applyMouseAlgorithm(cursorInput, baseCenterForFollow, shouldFollowMouse && hasOverscan)
 
@@ -570,7 +613,8 @@ export function computeCameraState({
   // Deterministic export with mouse follow uses exponential smoothing
   if (isDeterministic && shouldFollowMouse && activeZoomBlock) {
     const algo = mouseFollowAlgorithm ?? 'deadzone'
-    const smoothedCursor = cursorIsFrozen && frozenTarget ? frozenTarget : getExponentiallySmoothedCursorNorm(mouseEvents, sourceTimeMs, sourceWidth, sourceHeight)
+    // PERF: Use cached smoothedCursorNorm instead of calling function again
+    const smoothedCursor = cursorIsFrozen && frozenTarget ? frozenTarget : smoothedCursorNorm
     const cursorInput = algo === 'smooth' ? smoothedCursor : followCursor
     const baseCenter = { x: 0.5, y: 0.5 }
     targetCenter = applyMouseAlgorithm(cursorInput, baseCenter, hasOverscan)

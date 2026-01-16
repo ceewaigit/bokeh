@@ -312,7 +312,13 @@ export function usePlayerSync({
 
             if (!state.isPlaying && !isExporting) {
                 const frame = clampFrame(timeToFrame(state.currentTime));
-                throttledSeek(frame);
+                // During scrubbing, the timeline already RAF-throttles updates.
+                // Use direct seek to avoid double-throttling and reduce latency.
+                if (state.isScrubbing) {
+                    playerRef.current?.seekTo(frame);
+                } else {
+                    throttledSeek(frame);
+                }
             }
         });
 

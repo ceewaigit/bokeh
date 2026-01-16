@@ -244,21 +244,14 @@ export function WebcamTab() {
     return next
   }, [webcamAspectRatio])
 
-  // Get the setLayoutOnlyUpdate action for marking layout-only updates
-  const setLayoutOnlyUpdate = useProjectStore((s) => s.setLayoutOnlyUpdate)
-
   const handleCropChange = useCallback((nextCrop: CropEffectData) => {
     const normalized = mirror ? flipCropX(nextCrop) : nextCrop
-    // Mark as layout-only to prevent player remount and video blink
-    setLayoutOnlyUpdate(true)
     handleUpdate({ sourceCrop: constrainCropToSquare(normalized) })
-  }, [constrainCropToSquare, flipCropX, handleUpdate, mirror, setLayoutOnlyUpdate])
+  }, [constrainCropToSquare, flipCropX, handleUpdate, mirror])
 
   const handleCropReset = useCallback(() => {
-    // Mark as layout-only to prevent player remount and video blink
-    setLayoutOnlyUpdate(true)
     handleUpdate({ sourceCrop: DEFAULT_CROP_DATA })
-  }, [handleUpdate, setLayoutOnlyUpdate])
+  }, [handleUpdate])
 
 
   if (!hasWebcamFootage) {

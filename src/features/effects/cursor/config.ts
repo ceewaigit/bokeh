@@ -68,7 +68,7 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
     directionalTilt: true,
     directionalTiltMaxDeg: 16,
     motionBlur: false,
-    motionBlurIntensity: 40,
+    motionBlurIntensity: 50,
     idleTimeout: 3000,
     clickEffects: true,
     clickEffectStyle: 'none',

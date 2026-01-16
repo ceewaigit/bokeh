@@ -13,11 +13,11 @@ import { OverlayAnchor } from '@/types/overlays'
 import { DEFAULT_KEYSTROKE_DATA } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { getEffectsOfType } from '@/features/effects/core/filters'
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
+import { useEffectsOfType, useTimelineEffects } from '@/features/core/stores/selectors/timeline-selectors'
 import { KeystrokePreviewOverlay } from '@/features/effects/keystroke/components/keystroke-preview-overlay'
 import { OverlayPositionControl } from '@/features/rendering/overlays/components/overlay-position-control'
 import { OverlayStyleControl } from '@/features/rendering/overlays/components/overlay-style-control'
-import { useShallow } from 'zustand/react/shallow'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 interface KeystrokeTabProps {
@@ -41,7 +41,6 @@ const PREVIEW_TEXT = 'bokeh.'
 const PREVIEW_CHAR_INTERVAL_MS = 120
 const PREVIEW_PAUSE_MS = 900
 
-const EMPTY_EFFECTS: Effect[] = []
 const EMPTY_RECORDINGS: Recording[] = []
 
 const buildPreviewEvents = (text: string, intervalMs: number): KeyboardEvent[] => {
@@ -76,6 +75,8 @@ const KeystrokeStylePreview = React.memo(function KeystrokeStylePreview({
 
   const [previewTimeMs, setPreviewTimeMs] = useState(0)
   const [isTabVisible, setIsTabVisible] = useState(true)
+  // PERF: Stop animation when sidebar is closed (saves battery)
+  const isSidebarOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
 
   // PERFORMANCE: Pause animation when tab is not visible (saves battery)
   useEffect(() => {
@@ -87,8 +88,8 @@ const KeystrokeStylePreview = React.memo(function KeystrokeStylePreview({
   }, [])
 
   useEffect(() => {
-    // Only run animation when enabled, visible, and tab is active
-    if (!enabled || previewDurationMs <= 0 || !isTabVisible) {
+    // Only run animation when enabled, visible, tab is active, AND sidebar is open
+    if (!enabled || previewDurationMs <= 0 || !isTabVisible || !isSidebarOpen) {
       setPreviewTimeMs(0)
       return
     }
@@ -97,7 +98,7 @@ const KeystrokeStylePreview = React.memo(function KeystrokeStylePreview({
       setPreviewTimeMs((prev) => (prev + 50) % previewDurationMs)
     }, 50)
     return () => window.clearInterval(interval)
-  }, [enabled, previewDurationMs, isTabVisible])
+  }, [enabled, previewDurationMs, isTabVisible, isSidebarOpen])
 
   return (
     <div className="rounded-2xl border border-border/20 bg-background/50 shadow-sm overflow-hidden">
@@ -128,14 +129,14 @@ KeystrokeStylePreview.displayName = 'KeystrokeStylePreview'
 
 export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChange, onBulkToggleKeystrokes }: KeystrokeTabProps) {
   const keystrokeData = keystrokeEffect?.data as KeystrokeEffectData | undefined
-  const { effects, recordings } = useProjectStore(useShallow((s) => ({
-    effects: s.currentProject?.timeline.effects ?? EMPTY_EFFECTS,
-    recordings: s.currentProject?.recordings ?? EMPTY_RECORDINGS,
-  })))
+  // PERF: Use granular selectors - only re-render when keystroke effects change
+  const allKeystrokeEffects = useEffectsOfType(EffectType.Keystroke)
+  const allEffects = useTimelineEffects() // Still needed for occupiedAnchors
+  const recordings = useProjectStore((s) => s.currentProject?.recordings ?? EMPTY_RECORDINGS)
 
   const keystrokeEffects = useMemo(() => {
-    return getEffectsOfType(effects, EffectType.Keystroke, false).filter(e => e.id !== KEYSTROKE_STYLE_EFFECT_ID)
-  }, [effects])
+    return allKeystrokeEffects.filter(e => e.id !== KEYSTROKE_STYLE_EFFECT_ID)
+  }, [allKeystrokeEffects])
 
   const hasEnabledKeystrokes = React.useMemo(() => {
     return keystrokeEffects.some(e => e.enabled)
@@ -188,7 +189,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
 
   const occupiedAnchors = useMemo(() => {
     const occupied = new Set<OverlayAnchor>()
-    for (const effect of effects) {
+    for (const effect of allEffects) {
       if (effect.enabled === false) continue
       if (effect.type !== EffectType.Subtitle && effect.type !== EffectType.Keystroke) continue
       if (effect.type === EffectType.Keystroke && effect.id === keystrokeEffect?.id) continue
@@ -196,7 +197,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
       if (anchor) occupied.add(anchor)
     }
     return occupied
-  }, [effects, keystrokeEffect?.id])
+  }, [allEffects, keystrokeEffect?.id])
 
   return (
     <div className="space-y-2.5">

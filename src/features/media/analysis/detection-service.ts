@@ -113,8 +113,10 @@ export class ActivityDetectionService {
       }
     }
 
-    // Combine all periods
-    const all = [...allTyping, ...midIdle, ...edgeIdle].sort((a, b) => a.startTime - b.startTime)
+    // Combine all periods and resolve overlaps
+    // Typing and idle periods can naturally overlap - deduplicate by preferring faster multiplier
+    const combined = [...allTyping, ...midIdle, ...edgeIdle].sort((a, b) => a.startTime - b.startTime)
+    const all = this.resolveOverlaps(combined)
 
     return {
       typing: allTyping,

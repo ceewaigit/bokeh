@@ -4,12 +4,11 @@
  * Handles synchronization of keystroke effects with clip layout.
  * Clusters keyboard events in SOURCE SPACE, then projects to TIMELINE SPACE.
  *
- * Managed effects:
- * - IDs: `keystroke|<recordingId>|<clusterIndex>|<rangeIndex>`
+ * Managed effects have IDs: `keystroke|<recordingId>|<clusterIndex>|<rangeIndex>`
  */
 import type { Effect, Project, KeystrokeEffectData, RecordingMetadata } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { sourceToTimeline, getSourceDuration } from '@/features/ui/timeline/time/time-space-converter'
+import { sourceRangeToTimelineRange } from '@/features/ui/timeline/time/time-space-converter'
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 import { EffectStore } from '@/features/effects/core/effects-store'
@@ -184,11 +183,6 @@ export function syncKeystrokeEffects(
 
     // Collect timeline ranges for each cluster from all clips
     for (const clip of clipsForRecording) {
-      const clipStart = clip.startTime
-      const clipEnd = clip.startTime + clip.duration
-      const clipSourceIn = clip.sourceIn ?? 0
-      const clipSourceOut = clip.sourceOut ?? (clipSourceIn + getSourceDuration(clip))
-
       clusters.forEach((cluster, clusterIndex) => {
         const key = `${recording.id}::${clusterIndex}`
         if (suppressedClusters.has(key)) return
@@ -196,22 +190,20 @@ export function syncKeystrokeEffects(
         const paddedSourceStart = cluster.startTime - PADDING_MS
         const paddedSourceEnd = cluster.endTime + PADDING_MS
 
-        // Skip if cluster doesn't intersect this clip's SOURCE range.
-        if (paddedSourceEnd <= clipSourceIn || paddedSourceStart >= clipSourceOut) return
+        // Use canonical converter that handles clamping BEFORE conversion
+        // This prevents multiple out-of-range clusters from collapsing to the same point
+        const timelineRange = sourceRangeToTimelineRange(
+          { startTime: paddedSourceStart, endTime: paddedSourceEnd },
+          clip
+        )
 
-        // Map source → timeline using the canonical converter
-        const timelineStart = sourceToTimeline(paddedSourceStart, clip)
-        const timelineEnd = sourceToTimeline(paddedSourceEnd, clip)
-
-        // Clamp to this clip's timeline bounds.
-        const effectStart = Math.max(clipStart, Math.min(clipEnd, timelineStart))
-        const effectEnd = Math.max(effectStart, Math.min(clipEnd, timelineEnd))
-        if (effectEnd - effectStart < MIN_DURATION_MS) return
+        if (!timelineRange) return
+        if (timelineRange.end - timelineRange.start < MIN_DURATION_MS) return
 
         if (!clusterTimelineRanges.has(key)) {
           clusterTimelineRanges.set(key, [])
         }
-        clusterTimelineRanges.get(key)!.push({ start: effectStart, end: effectEnd })
+        clusterTimelineRanges.get(key)!.push(timelineRange)
       })
     }
 

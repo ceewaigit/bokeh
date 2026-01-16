@@ -29,19 +29,45 @@ export interface ParsedZoomBlock {
     zoomIntoCursorMode?: NonNullable<ZoomEffectData['zoomIntoCursorMode']>
 }
 
-// Cache parsed zoom blocks per effects array reference.
+// PERF: Content-based cache instead of reference-based WeakMap
+// This prevents cache invalidation when Immer produces new array references
+// but the actual zoom effects haven't changed.
 // Important: Do NOT sort/reorder blocks here, since overlapping blocks rely on original ordering.
-const zoomBlocksCache = new WeakMap<Effect[], ParsedZoomBlock[]>()
+interface ZoomBlocksCacheEntry {
+    hash: string
+    parsed: ParsedZoomBlock[]
+}
+let zoomBlocksCacheEntry: ZoomBlocksCacheEntry | null = null
+
+/**
+ * Generate a hash key from zoom effects for content-based caching.
+ * Only includes fields that affect camera behavior.
+ */
+function getZoomEffectsHash(effects: Effect[]): string {
+    const zoomEffects = effects.filter(e => e.type === EffectType.Zoom && e.enabled)
+    if (zoomEffects.length === 0) return ''
+
+    // Include all fields that affect the parsed output
+    return zoomEffects.map(e => {
+        const d = e.data as ZoomEffectData
+        // Use a compact representation for performance
+        return `${e.id}|${e.startTime}|${e.endTime}|${d?.scale}|${d?.introMs}|${d?.outroMs}|${d?.followStrategy}|${d?.targetX}|${d?.targetY}|${d?.transitionStyle}|${d?.mouseFollowAlgorithm}|${d?.zoomIntoCursorMode}|${d?.autoScale}|${d?.mouseIdlePx}`
+    }).join(';')
+}
 
 const ZOOM_BLOCK_END_EPSILON_MS = 40
 const ZOOM_BLOCK_START_EPSILON_MS = 40
 
 /**
  * Parse zoom effects into structured blocks.
+ * Uses content-based caching to avoid re-parsing when only non-zoom effects change.
  */
 export function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
-    const cached = zoomBlocksCache.get(effects)
-    if (cached) return cached
+    // PERF: Content-based cache check - survives array reference changes
+    const hash = getZoomEffectsHash(effects)
+    if (zoomBlocksCacheEntry && zoomBlocksCacheEntry.hash === hash) {
+        return zoomBlocksCacheEntry.parsed
+    }
 
     const parsed = effects
         .filter(e => e.type === EffectType.Zoom && e.enabled)
@@ -70,7 +96,7 @@ export function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
             }
         })
 
-    zoomBlocksCache.set(effects, parsed)
+    zoomBlocksCacheEntry = { hash, parsed }
     return parsed
 }
 

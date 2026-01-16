@@ -4,7 +4,7 @@
  * ⚠️  INTERNAL MODULE - Do not import directly in components!
  *
  * For components/hooks, use:
- * - Read: `useEffectsByType()`, `useBackgroundEffect()` from '@/features/core/stores/selectors'
+ * - Read: `useEffectsContext()` from RenderingTimelineContext for pre-computed effect lookups
  * - Write: `useProjectStore.getState().addEffect()` or Command pattern
  *
  * This module provides pure functions for effect operations.

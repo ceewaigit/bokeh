@@ -26,7 +26,7 @@ import { TimelineLayoutProvider, useTimelineLayout } from './timeline-layout-pro
 import { TimelineEffectTracks } from './tracks/timeline-effect-track'
 import { TimelineAnnotationTrack } from './tracks/timeline-annotation-track'
 import { TimelineWebcamTrack } from './tracks/timeline-webcam-track'
-import { TimelineUIProvider, useTimelineUI } from './timeline-ui-context'
+import { useTimelineScroll } from './timeline-layout-provider'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -38,7 +38,7 @@ import { TimelineActivityOverlays } from './timeline-activity-overlays'
 import { ActivitySuggestionPopover } from './activity-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-clip-menu'
-import { TimelineContextProvider } from './TimelineUIContext'
+import { TimelineContextProvider } from './timeline-operations-context'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { useWindowSurfaceStore } from '@/features/core/stores/window-surface-store'
@@ -103,14 +103,20 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   onZoomChange
 }: TimelineCanvasProps) {
   // ─────────────────────────────────────────────────────────────────────────
-  // Store subscriptions
+  // Store subscriptions - PERF: All consolidated to prevent cascading re-renders
   // ─────────────────────────────────────────────────────────────────────────
-  const isPlaying = useProjectStore((s) => s.isPlaying)
-  const isScrubbing = useProjectStore((s) => s.isScrubbing)
-  const setHoverTime = useProjectStore((s) => s.setHoverTime)
-
-  const { selectedClips, selectClip, clearSelection } = useProjectStore(
+  const {
+    isPlaying,
+    isScrubbing,
+    setHoverTime,
+    selectedClips,
+    selectClip,
+    clearSelection
+  } = useProjectStore(
     useShallow((s) => ({
+      isPlaying: s.isPlaying,
+      isScrubbing: s.isScrubbing,
+      setHoverTime: s.setHoverTime,
       selectedClips: s.selectedClips,
       selectClip: s.selectClip,
       clearSelection: s.clearSelection,
@@ -151,7 +157,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     scrollTopRef,
     onScroll,
     scrollContainerRef
-  } = useTimelineUI()
+  } = useTimelineScroll()
 
   // ─────────────────────────────────────────────────────────────────────────
   // Local state
@@ -368,6 +374,26 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   // Merge drag preview from asset drop with clip drag preview
   const effectiveDragPreview = assetDragDrop.dragPreview ?? dragPreview
 
+  // PERF: Pre-cache hidden regions per recording (doesn't change during drag)
+  // This avoids expensive TimelineDataService.getHiddenRegionsForRecording calls during drag
+  const baseHiddenRegionsMap = useMemo(() => {
+    if (!currentProject) return new Map<string, any[]>()
+    const map = new Map<string, any[]>()
+    const seenRecordings = new Set<string>()
+
+    for (const track of currentProject.timeline.tracks) {
+      for (const clip of track.clips) {
+        if (seenRecordings.has(clip.recordingId)) continue
+        seenRecordings.add(clip.recordingId)
+        const regions = TimelineDataService.getHiddenRegionsForRecording(currentProject, clip.recordingId)
+        if (regions.length > 0) {
+          map.set(clip.recordingId, regions)
+        }
+      }
+    }
+    return map
+  }, [currentProject])
+
   // Get Global Timeline Skips for "Hazard Zone" visualization
   // These represent potential jump points in the timeline
   // UPDATED: Now reactive to DRAG PREVIEW so red lines move with the clip!
@@ -382,7 +408,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 
     // IF DRAGGING: We must re-compute to show the red lines moving!
     // We can't use the service cache because we're injecting temporary state.
-    // This is "expensive" but necessary for UX, and only happens during drag.
+    // PERF: Use pre-cached hidden regions map instead of calling service per clip
 
     // 1. Get all base clips
     const allClips = currentProject.timeline.tracks.flatMap(track => track.clips)
@@ -401,12 +427,13 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
       return clip
     })
 
-    // 3. Project manually (simplified logic from Service)
+    // 3. Project manually using cached hidden regions
     const projectedRanges: any[] = []
 
     for (const clip of effectiveClips) {
-      const hiddenRegions = TimelineDataService.getHiddenRegionsForRecording(currentProject, clip.recordingId)
-      if (hiddenRegions.length === 0) continue
+      // PERF: Use cached regions instead of calling TimelineDataService
+      const hiddenRegions = baseHiddenRegionsMap.get(clip.recordingId)
+      if (!hiddenRegions || hiddenRegions.length === 0) continue
 
       for (const region of hiddenRegions) {
         // Use the public static projection method
@@ -424,7 +451,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
     // Sort logic inline (simplified)
     return projectedRanges.sort((a, b) => a.start - b.start)
 
-  }, [currentProject, dragPreview])
+  }, [currentProject, dragPreview, baseHiddenRegionsMap])
 
   // ─────────────────────────────────────────────────────────────────────────
   // Keyboard shortcuts
@@ -443,11 +470,17 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 
   // ─────────────────────────────────────────────────────────────────────────
   // Hover time updates (RAF-throttled)
+  // PERF: Added lastHoverTimeRef to skip scheduling when time unchanged
   // ─────────────────────────────────────────────────────────────────────────
   const hoverRafRef = React.useRef<number | null>(null)
   const pendingHoverRef = React.useRef<number | null>(null)
+  const lastHoverTimeRef = React.useRef<number | null>(null)
 
   const scheduleHoverUpdate = useCallback((nextTime: number | null) => {
+    // PERF: Skip if time hasn't changed (prevents RAF spam on every mousemove)
+    if (nextTime === lastHoverTimeRef.current) return
+    lastHoverTimeRef.current = nextTime
+
     pendingHoverRef.current = nextTime
     if (hoverRafRef.current !== null) return
     hoverRafRef.current = requestAnimationFrame(() => {
@@ -472,7 +505,9 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
   }, [setHoverTime])
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Auto-scroll during playback (10Hz)
+  // Auto-scroll during playback
+  // PERF: 4Hz interval (250ms) is sufficient for smooth auto-scroll UX
+  // Previously used 10Hz (100ms) which woke CPU more than necessary
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isPlaying) return
@@ -492,7 +527,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
       }
     }
 
-    const interval = setInterval(checkAutoScroll, 100)
+    const interval = setInterval(checkAutoScroll, 250) // 4Hz instead of 10Hz
     return () => clearInterval(interval)
   }, [isPlaying, pixelsPerMs, stageWidth, scrollContainerRef])
 
@@ -979,9 +1014,7 @@ const TimelineCanvasContent = React.memo(function TimelineCanvasContent({
 export const TimelineCanvas = React.memo(function TimelineCanvas(props: TimelineCanvasProps) {
   return (
     <TimelineLayoutProvider>
-      <TimelineUIProvider>
-        <TimelineCanvasContent {...props} />
-      </TimelineUIProvider>
+      <TimelineCanvasContent {...props} />
     </TimelineLayoutProvider>
   )
 })

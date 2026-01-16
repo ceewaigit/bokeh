@@ -4,7 +4,7 @@ import { markModified } from '@/features/core/stores/store-utils'
 
 /**
  * Wrapper for clip mutations that handles reflow and timeline duration updates.
- * Effect sync is now handled by individual commands via EffectSyncService.
+ * Timeline sync is now handled by individual commands via TimelineSyncService.
  */
 export function withMutation<T>(
   project: Project,

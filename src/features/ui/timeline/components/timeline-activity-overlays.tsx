@@ -16,10 +16,10 @@ import { TimelineTrackType } from '@/types/project'
 import { ActivityDetectionService } from '@/features/media/analysis/detection-service'
 import { useVideoClips, useRecordings, useDismissedSuggestions } from '@/features/core/stores/selectors/clip-selectors'
 import { TimelineConfig } from '@/features/ui/timeline/config'
-import { useTimelineContext } from './TimelineUIContext'
+import { useTimelineOperations } from './timeline-operations-context'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
-import { sourceToTimeline } from '@/features/ui/timeline/time/time-space-converter'
+import { sourceRangeToTimelineRange } from '@/features/ui/timeline/time/time-space-converter'
 import { withAlpha, useTimelineColors } from '@/features/ui/timeline/utils/colors'
 import { getSuggestionKey } from '@/features/core/commands/timeline/DismissSuggestionCommand'
 
@@ -127,7 +127,7 @@ export const TimelineActivityOverlays = React.memo(() => {
         showTypingSuggestions
     } = useTimelineLayout()
 
-    const { onOpenSpeedUpSuggestion } = useTimelineContext()
+    const { onOpenSpeedUpSuggestion } = useTimelineOperations()
     const videoClips = useVideoClips()
     const recordings = useRecordings()
     const colors = useTimelineColors()
@@ -190,13 +190,17 @@ export const TimelineActivityOverlays = React.memo(() => {
                     barX = clipEndX - barWidth
                 }
             } else {
-                // Regular speed-up positioning
-                const absStart = sourceToTimeline(period.startTime, clip)
-                const absEnd = sourceToTimeline(period.endTime, clip)
-                const clampedStart = Math.max(absStart, clip.startTime)
-                const clampedEnd = Math.min(absEnd, clip.startTime + clip.duration)
-                const relStart = Math.max(0, clampedStart - clip.startTime)
-                const relDuration = Math.max(0, clampedEnd - clampedStart)
+                // Regular speed-up positioning - use canonical converter
+                // This handles clamping BEFORE conversion to prevent overlaps
+                const timelineRange = sourceRangeToTimelineRange(
+                    { startTime: period.startTime, endTime: period.endTime },
+                    clip
+                )
+
+                if (!timelineRange) return
+
+                const relStart = Math.max(0, timelineRange.start - clip.startTime)
+                const relDuration = timelineRange.end - timelineRange.start
 
                 const clipX = (clip.startTime * pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
                 barX = clipX + (relStart * pixelsPerMs)

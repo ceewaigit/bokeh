@@ -5,7 +5,7 @@ import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import type { Asset } from '@/features/core/stores/asset-library-store'
 import type { TrackType } from '@/types/project'
 import { createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths'
-import { useTimelineUI } from './timeline-ui-context'
+import { useTimelineScroll } from './timeline-layout-provider'
 
 interface TimelineAssetGhostProps {
     draggingAsset: Asset | null
@@ -26,15 +26,19 @@ export const TimelineAssetGhost = React.memo(function TimelineAssetGhost({
     pixelsPerMs,
     scrollContainerRef
 }: TimelineAssetGhostProps) {
-    const { scrollLeftRef, scrollTopRef } = useTimelineUI()
+    const { scrollLeftRef, scrollTopRef } = useTimelineScroll()
     const containerRef = React.useRef<HTMLDivElement>(null)
 
+    // BATTERY OPTIMIZATION: Only run RAF loop when actively dragging
     // Imperative update loop to follow scroll position smoothly and convert to screen coordinates
     React.useEffect(() => {
+        // Early exit - don't start RAF loop if nothing to drag
+        if (!draggingAsset || dragTime === null || !trackType) return
+
         let rafId: number
         const update = () => {
             try {
-                if (containerRef.current && dragTime !== null) {
+                if (containerRef.current) {
                     const scrollContainer = scrollContainerRef.current
                     if (!scrollContainer) {
                         // Fallback if ref not ready (should settle quickly)

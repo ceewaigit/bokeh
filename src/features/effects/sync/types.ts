@@ -1,20 +1,23 @@
 /**
  * Effect Sync Types
- * 
- * Defines the ClipChange interface used by EffectSyncService
+ *
+ * Defines the ClipChange interface used by TimelineSyncService
  * to understand what changed and how to update effects accordingly.
  */
 
+import { TrackType } from '@/types/project'
+
 /**
  * Describes a clip change operation for effect synchronization.
- * 
- * The EffectSyncService uses this to determine how to update effects:
+ *
+ * The TimelineSyncService uses this to determine how to update effects:
  * - clip-bound effects (Crop) follow their clipId
  * - time-based effects shift/compress based on timelineDelta and segmentMapping
  * - keystroke effects get regenerated from metadata
+ * - linked webcam clips sync with video track changes
  */
 export interface ClipChange {
-    type: 'trim-start' | 'trim-end' | 'speed-up' | 'delete' | 'reorder' | 'split' | 'add'
+    type: 'trim-start' | 'trim-end' | 'speed-up' | 'delete' | 'reorder' | 'split' | 'add' | 'rate-change' | 'update'
 
     /** ID of the clip that was modified */
     clipId: string
@@ -36,6 +39,9 @@ export interface ClipChange {
 
     /** For speed-up: segment mapping for proportional effect adjustment */
     segmentMapping?: SegmentMapping
+
+    /** Track type of the source clip (prevents recursion in webcam sync) */
+    sourceTrackType?: TrackType
 }
 
 export interface ClipState {

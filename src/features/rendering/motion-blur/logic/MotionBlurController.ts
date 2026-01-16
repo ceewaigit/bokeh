@@ -246,27 +246,20 @@ export class MotionBlurController {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
 
-        // Align WebGL drawing buffer with the rest of the render pipeline (native video / canvas).
-        // This also influences how drawImage() converts between canvases.
+        // Set drawing buffer color space to match the output canvas
+        // This ensures the WebGL output is interpreted correctly when composited
         if (uniforms.colorSpace) {
             try {
                 gl.drawingBufferColorSpace = uniforms.colorSpace;
             } catch {
-                // Ignore if unsupported.
+                // Fall back if not supported
             }
         }
 
-        if (uniforms.colorSpace) {
-            try {
-                (gl as any).unpackColorSpace = uniforms.colorSpace;
-            } catch {
-                // Ignore if unsupported.
-            }
-        }
-
-        // Disable implicit color conversion to preserve exact sRGB source values.
+        // Disable implicit color conversion on texture upload - preserve raw sRGB bytes
         gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, uniforms.unpackPremultiplyAlpha ? 1 : 0);
+        // Use RGBA8 with raw bytes - shader handles any color conversions explicitly
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, source);
 
         // 4. Set Uniforms

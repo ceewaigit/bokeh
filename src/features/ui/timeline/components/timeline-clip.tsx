@@ -14,14 +14,14 @@ import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings-store'
 import { useRecordingById } from '@/features/core/stores/selectors/clip-selectors'
-import { useTimelineContext } from './TimelineUIContext'
+import { useTimelineOperations } from './timeline-operations-context'
 import { useShallow } from 'zustand/react/shallow'
 import { useTimelineClipAssets } from '@/features/ui/timeline/hooks/use-timeline-clip-assets'
 import { TimelineClipBackground } from './clip/timeline-clip-background'
 import { TimelineClipThumbnails } from './clip/timeline-clip-thumbnails'
 import { TimelineClipWaveform } from './clip/timeline-clip-waveform'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
-import { useTimelineUI } from './timeline-ui-context'
+import { useTimelineScroll } from './timeline-layout-provider'
 import { ContinuousRect } from './konva/continuous-rect'
 import { drawSquircleRectPath } from '@/features/ui/timeline/utils/corners'
 
@@ -53,7 +53,7 @@ const TimelineClipComponent = ({
     onContextMenu,
     onTrimStart,
     onTrimEnd
-  } = useTimelineContext()
+  } = useTimelineOperations()
 
   // Use selectors that are less likely to trigger unnecessary re-renders
   // Note: We use useRecordingById which is memoized in the selector system
@@ -72,13 +72,14 @@ const TimelineClipComponent = ({
     clipIdOverride ? { ...clip, id: clipIdOverride } : clip
     , [clip, clipIdOverride])
   const groupRef = useRef<Konva.Group>(null)
-  const { scrollLeftRef } = useTimelineUI()
+  const { scrollLeftRef } = useTimelineScroll()
 
   /* ---------------- THEME & SETTINGS ---------------- */
   const colors = useTimelineColors()
   // PERFORMANCE FIX: Don't subscribe to full project!
-  // const project = useProjectStore((s) => s.currentProject) 
-  const showWaveforms = useProjectStore(useShallow((s) => s.settings.editing.showWaveforms ?? true))
+  // const project = useProjectStore((s) => s.currentProject)
+  // Note: No useShallow needed for primitive boolean - shallow comparison adds overhead
+  const showWaveforms = useProjectStore((s) => s.settings.editing.showWaveforms ?? true)
   const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
 
   /* ---------------- COMPUTED VALUES ---------------- */

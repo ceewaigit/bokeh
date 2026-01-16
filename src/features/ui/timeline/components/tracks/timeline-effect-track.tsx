@@ -11,10 +11,10 @@ import React, { useMemo } from 'react'
 import { Rect } from 'react-konva'
 import { TimelineEffectBlock } from '../timeline-effect-block'
 import { useTimelineLayout } from '../timeline-layout-provider'
-import { useTimelineUI } from '@/features/ui/timeline/components/timeline-ui-context'
+import { useTimelineScroll } from '../timeline-layout-provider'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
-import { EffectStore } from '@/features/effects/core/effects-store'
+import { useTimelineEffects } from '@/features/core/stores/selectors/timeline-selectors'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
 import type { Effect } from '@/features/effects/types'
@@ -50,7 +50,7 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
     effectTrackExistence,
     setActiveTrack
   } = useTimelineLayout()
-  const { scrollLeftRef } = useTimelineUI()
+  const { scrollLeftRef } = useTimelineScroll()
 
   const {
     selectedEffectLayer,
@@ -236,13 +236,14 @@ interface TimelineEffectTracksProps {
 
 export function TimelineEffectTracks({ visibleStartTime, visibleEndTime }: TimelineEffectTracksProps) {
   const { effectTrackExistence } = useTimelineLayout()
-  const currentProject = useProjectStore((s) => s.currentProject)
+  // PERF: Use granular selector instead of full project subscription
+  // This prevents re-renders when unrelated project state changes (clips, settings, etc.)
+  const timelineEffects = useTimelineEffects()
 
   const effectsByType = useMemo(() => {
     const map = new Map<EffectType, Effect[]>()
-    if (!currentProject) return map
 
-    for (const effect of EffectStore.getAll(currentProject)) {
+    for (const effect of timelineEffects) {
       const existing = map.get(effect.type)
       if (existing) {
         existing.push(effect)
@@ -251,13 +252,14 @@ export function TimelineEffectTracks({ visibleStartTime, visibleEndTime }: Timel
       }
     }
 
+    // Filter out the keystroke style effect (it's a global config, not a timeline block)
     const keystrokes = map.get(EffectType.Keystroke)
     if (keystrokes) {
       map.set(EffectType.Keystroke, keystrokes.filter(e => e.id !== KEYSTROKE_STYLE_EFFECT_ID))
     }
 
     return map
-  }, [currentProject])
+  }, [timelineEffects])
 
   return (
     <>

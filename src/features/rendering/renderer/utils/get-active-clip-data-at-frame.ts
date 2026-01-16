@@ -1,4 +1,4 @@
-import type { Clip, Effect, Recording } from '@/types/project'
+import type { Clip, Effect, Recording, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 import type { ActiveClipDataAtFrame } from '@/types'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
@@ -55,8 +55,9 @@ export function getActiveClipDataAtFrame(args: {
   fps: number
   effects: Effect[]
   getRecording: (recordingId: string) => Recording | null | undefined
+  project?: Project
 }): ActiveClipDataAtFrame | null {
-  const { frame, frameLayout, fps, effects, getRecording } = args
+  const { frame, frameLayout, fps, effects, getRecording, project } = args
   if (!frameLayout || frameLayout.length === 0) return null
 
   const layoutIndex = findActiveFrameLayoutIndex(frameLayout, frame)
@@ -69,7 +70,8 @@ export function getActiveClipDataAtFrame(args: {
     frameLayout,
     fps,
     effects,
-    getRecording
+    getRecording,
+    project
   })
 }
 
@@ -85,8 +87,9 @@ export function resolveClipDataForLayoutItem(args: {
   fps: number
   effects: Effect[]
   getRecording: (recordingId: string) => Recording | null | undefined
+  project?: Project
 }): ActiveClipDataAtFrame | null {
-  const { frame, layoutItem, frameLayout, fps, effects, getRecording } = args
+  const { frame, layoutItem, frameLayout, fps, effects, getRecording, project } = args
 
   const clip = layoutItem.clip
   const recording = getRecording(clip.recordingId)
@@ -116,15 +119,18 @@ export function resolveClipDataForLayoutItem(args: {
   // This is critical for keeping usePrecomputedCameraPath from re-running heavy physics
   // Use clip.startTime (clip property) instead of layoutItem.startFrame (layout-derived)
   // to ensure stable cache keys after clip deletion/reorder operations
+  // Only use cache if project is available (prevents memory leak from unscoped cache)
   const cacheKey = `${clip.id}-${clip.startTime}`;
-  const prev = TimelineDataService.getActiveEffectsFromCache(cacheKey);
+  if (project) {
+    const prev = TimelineDataService.getActiveEffectsFromCache(project, cacheKey);
 
-  // Check if IDs and enabled states match exactly
-  if (prev && areEffectsSemanticallyEqual(prev, mergedEffects)) {
-    return { clip, recording, sourceTimeMs, effects: prev };
+    // Check if IDs and enabled states match exactly
+    if (prev && areEffectsSemanticallyEqual(prev, mergedEffects)) {
+      return { clip, recording, sourceTimeMs, effects: prev };
+    }
+
+    TimelineDataService.setActiveEffectsCache(project, cacheKey, mergedEffects);
   }
-
-  TimelineDataService.setActiveEffectsCache(cacheKey, mergedEffects);
 
   return { clip, recording, sourceTimeMs, effects: mergedEffects }
 }

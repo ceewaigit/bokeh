@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { formatClockTime } from '@/shared/utils/time'
 import { useTimelineLayout } from './timeline-layout-provider'
-import { useTimelineContext } from './TimelineUIContext'
+import { useTimelineOperations } from './timeline-operations-context'
 import { TimelineTrackType } from '@/types/project'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
@@ -230,7 +230,7 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
     onTrimEndSelected,
     onDeleteSelected,
     onDuplicateSelected,
-  } = useTimelineContext()
+  } = useTimelineOperations()
   const { zoom, duration } = useTimelineLayout()
 
   // Use the unified playback hook (disabled because we don't want duplicate keyboard listeners here)

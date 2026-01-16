@@ -76,6 +76,7 @@ float gaussianWeight(float dist, float sigma) {
 
 void main() {
     vec4 baseSample = texture(u_image, v_texCoord);
+
     vec3 baseRgb = baseSample.rgb;
     if (u_linearize == 1) {
         baseRgb = toLinear(baseRgb);
@@ -176,7 +177,30 @@ void main() {
     }
 
     vec4 blurred = accumulatedColor / totalWeight;
-    vec3 corrected = mix(baseRgb, blurred.rgb, u_mix);
+
+    // TRAILING SHADOW - DISABLED for brightness investigation
+    // TODO: Re-enable once base color matching is confirmed
+    vec3 blurredWithShadow = blurred.rgb;
+    /*
+    if (!useRefocusBlur && blurMagnitude > 0.001) {
+        // Sample from behind the motion (trailing edge)
+        vec2 shadowOffset = -u_velocity * u_intensity * 0.7;  // 70% behind motion
+        vec2 shadowCoord = clamp(v_texCoord + shadowOffset, margin, 1.0 - margin);
+        vec4 shadowSample = texture(u_image, shadowCoord);
+        vec3 shadowRgb = shadowSample.rgb;
+        if (u_linearize == 1) {
+            shadowRgb = toLinear(shadowRgb);
+        }
+        // Darken the shadow sample (30% darker)
+        shadowRgb *= 0.7;
+        // Blend shadow underneath using screen-inverse (shadow shows through blur)
+        // Strength based on blur magnitude for subtle effect
+        float shadowStrength = min(0.3, blurMagnitude * 2.0);
+        blurredWithShadow = mix(blurred.rgb, min(blurred.rgb, shadowRgb), shadowStrength);
+    }
+    */
+
+    vec3 corrected = mix(baseRgb, blurredWithShadow, u_mix);
 
     if (u_blackLevel != 0.0) {
         corrected = max(vec3(0.0), corrected - u_blackLevel) / (1.0 - u_blackLevel);

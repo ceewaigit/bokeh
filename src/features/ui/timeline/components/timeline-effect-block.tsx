@@ -6,7 +6,7 @@ import { useTimelineColors, withAlpha } from '@/features/ui/timeline/utils/color
 import { getNearestAvailableDragX, validatePosition } from '@/features/ui/timeline/utils/drag-positioning'
 import { EffectType } from '@/types/project'
 import Konva from 'konva'
-import { useTimelineUI } from './timeline-ui-context'
+import { useTimelineScroll } from './timeline-layout-provider'
 import { ContinuousRect } from './konva/continuous-rect'
 
 interface TimelineTimeBlock {
@@ -68,7 +68,7 @@ export const TimelineEffectBlock = React.memo(({
   onUpdate,
   onHover
 }: TimelineEffectBlockProps) => {
-  const { scrollLeftRef } = useTimelineUI()
+  const { scrollLeftRef } = useTimelineScroll()
   // Determine if block is in expanded track for enhanced styling
   const isExpanded = !isCompact
   // Prevent rendering if collapsed/invalid bounds to avoid invalid shape errors

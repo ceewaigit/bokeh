@@ -1,12 +1,9 @@
 /**
- * Generic command to apply speed-up suggestions to clips
+ * ApplySpeedUpCommand - Apply speed-up suggestions to clips.
  * Works with any SpeedUpPeriod type (typing, idle, etc.)
- * 
- * Uses PatchedCommand for automatic undo/redo via Immer patches.
- * This eliminates the need for manual state tracking and restoration.
  */
 
-import { PatchedCommand } from '../base/PatchedCommand'
+import { TimelineCommand } from '../base/TimelineCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
@@ -14,14 +11,12 @@ import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
 import { syncKeystrokeEffects } from '@/features/effects/sync'
-import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 import { playbackService } from '@/features/playback/services/playback-service'
 import { markProjectModified } from '@/features/core/stores/store-utils'
+import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 
-export class ApplySpeedUpCommand extends PatchedCommand<{
-  applied: number // number of clips affected
-}> {
+export class ApplySpeedUpCommand extends TimelineCommand<{ applied: number }> {
   private sourceClipId: string
   private periods: SpeedUpPeriod[]
   private speedUpTypes: SpeedUpType[]
@@ -33,7 +28,6 @@ export class ApplySpeedUpCommand extends PatchedCommand<{
     periods: SpeedUpPeriod[],
     speedUpTypes: SpeedUpType[] = []
   ) {
-    // Determine types from periods if not provided
     if (speedUpTypes.length === 0) {
       const types = new Set(periods.map(p => p.type))
       speedUpTypes = Array.from(types)
@@ -58,41 +52,31 @@ export class ApplySpeedUpCommand extends PatchedCommand<{
   }
 
   protected mutate(draft: WritableDraft<ProjectStore>): void {
-    if (!draft.currentProject) {
-      throw new Error('No project found')
-    }
+    const project = draft.currentProject
+    if (!project) throw new Error('No project found')
 
-    // Verify clip exists
-    const sourceResult = ClipLookup.byId(draft.currentProject, this.sourceClipId)
-    if (!sourceResult) {
-      throw new Error(`Clip ${this.sourceClipId} not found`)
-    }
+    const lookup = this.findClip(project, this.sourceClipId)
+    if (!lookup) throw new Error(`Clip ${this.sourceClipId} not found`)
 
-    // Convert SpeedUpType to legacy string format for the service
+    // Convert SpeedUpType to legacy string format
     const legacyTypes = this.speedUpTypes.map(t =>
       t === SpeedUpType.Typing ? 'typing' as const : 'idle' as const
     )
 
     // Apply speed-up using the unified service
-    // SpeedUpApplicationService handles clip splitting and effect remapping
     const result = SpeedUpApplicationService.applySpeedUpToClip(
-      draft.currentProject,
-      this.sourceClipId,
-      this.periods,
-      legacyTypes
+      project, this.sourceClipId, this.periods, legacyTypes
     )
 
-    // Track affected clips for composite commands
     this.affectedClipIds = result.affectedClips
 
-    // Speed-up can change durations/time-remaps; rebuild derived keystroke blocks
-    syncKeystrokeEffects(draft.currentProject)
-
-    // Update modified timestamp
+    // Sync keystroke effects and invalidate caches
+    syncKeystrokeEffects(project)
+    TimelineDataService.invalidateCache(project)
     markProjectModified(draft)
 
-    // Ensure playhead is within valid range after timeline changes
-    const newTimelineDuration = calculateTimelineDuration(draft.currentProject)
+    // Ensure playhead is within valid range
+    const newTimelineDuration = calculateTimelineDuration(project)
     if (draft.currentTime >= newTimelineDuration) {
       draft.currentTime = playbackService.seek(
         Math.max(0, newTimelineDuration - 1),
@@ -100,10 +84,7 @@ export class ApplySpeedUpCommand extends PatchedCommand<{
       )
     }
 
-    this.setResult({
-      success: true,
-      data: { applied: result.affectedClips.length }
-    })
+    this.setResult({ success: true, data: { applied: result.affectedClips.length } })
   }
 
   getSpeedUpTypes(): SpeedUpType[] {

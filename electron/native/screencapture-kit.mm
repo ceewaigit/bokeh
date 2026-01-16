@@ -396,49 +396,27 @@
             if (windowWidth < 100) windowWidth = 100;
             if (windowHeight < 100) windowHeight = 100;
 
-            // Derive backing scale for the window so cursor coordinates (tracked in physical pixels)
-            // align with the recorded video dimensions.
+            // Derive backing scale for the window from the display it's on.
+            // We use the display mode to get the physical/logical pixel ratio.
+            // Note: The previous approach compared CGWindowListCopyWindowInfo bounds with
+            // SCWindow.frame, but both are in points (DIP), so the ratio was always ~1.0.
             CGFloat backingScale = 1.0;
-            CGRect windowBounds = CGRectNull;
-            CFArrayRef windowInfoArray = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, windowID);
-            if (windowInfoArray) {
-                NSArray *infoArray = (__bridge_transfer NSArray *)windowInfoArray;
-                NSDictionary *info = infoArray.firstObject;
-                NSDictionary *boundsDict = info[(id)kCGWindowBounds];
-                if (boundsDict) {
-                    CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)boundsDict, &windowBounds);
-                }
+            CGPoint center = CGPointMake(CGRectGetMidX(targetWindow.frame), CGRectGetMidY(targetWindow.frame));
+            CGDirectDisplayID displayID = CGMainDisplayID();
+            uint32_t displayCount = 0;
+            CGDirectDisplayID displays[8];
+            if (CGGetDisplaysWithPoint(center, 8, displays, &displayCount) == kCGErrorSuccess && displayCount > 0) {
+                displayID = displays[0];
             }
 
-            if (!CGRectIsNull(windowBounds) && windowWidth > 0 && windowHeight > 0) {
-                const CGFloat sx = windowBounds.size.width / windowWidth;
-                const CGFloat sy = windowBounds.size.height / windowHeight;
-                if (sx > 0.5 && sx < 4.0 && sy > 0.5 && sy < 4.0) {
-                    backingScale = (fabs(sx - sy) < 0.05) ? sx : sx;
+            CGDisplayModeRef mode = CGDisplayCopyDisplayMode(displayID);
+            if (mode) {
+                const size_t ptW = CGDisplayModeGetWidth(mode);
+                const size_t pxW = CGDisplayModeGetPixelWidth(mode);
+                if (ptW > 0 && pxW > 0) {
+                    backingScale = (CGFloat)pxW / (CGFloat)ptW;
                 }
-            } else {
-                // Fallback: infer from the display mode.
-                CGPoint center = CGPointMake(CGRectGetMidX(targetWindow.frame), CGRectGetMidY(targetWindow.frame));
-                CGDirectDisplayID displayID = CGMainDisplayID();
-                uint32_t displayCount = 0;
-                CGDirectDisplayID displays[8];
-                if (CGGetDisplaysWithPoint(center, 8, displays, &displayCount) == kCGErrorSuccess && displayCount > 0) {
-                    displayID = displays[0];
-                }
-
-                CGDisplayModeRef mode = CGDisplayCopyDisplayMode(displayID);
-                if (mode) {
-                    const size_t ptW = CGDisplayModeGetWidth(mode);
-                    const size_t ptH = CGDisplayModeGetHeight(mode);
-                    const size_t pxW = CGDisplayModeGetPixelWidth(mode);
-                    const size_t pxH = CGDisplayModeGetPixelHeight(mode);
-                    if (ptW > 0 && ptH > 0 && pxW > 0 && pxH > 0) {
-                        const CGFloat sx = (CGFloat)pxW / (CGFloat)ptW;
-                        const CGFloat sy = (CGFloat)pxH / (CGFloat)ptH;
-                        backingScale = (fabs(sx - sy) < 0.01) ? sx : sx;
-                    }
-                    CFRelease(mode);
-                }
+                CFRelease(mode);
             }
 
             const CGFloat captureScale = (lowMemory && backingScale > 1.0) ? 1.0 : backingScale;

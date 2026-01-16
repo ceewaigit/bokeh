@@ -10,8 +10,8 @@ import { formatTime } from '@/shared/utils/time'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { useTimelineLayout } from './timeline-layout-provider'
-import { useTimelineContext } from './TimelineUIContext'
-import { useTimelineUI } from './timeline-ui-context'
+import { useTimelineOperations } from './timeline-operations-context'
+import { useTimelineScroll } from './timeline-layout-provider'
 
 export const TimelinePlayhead = React.memo(() => {
   const {
@@ -20,8 +20,8 @@ export const TimelinePlayhead = React.memo(() => {
     timelineWidth,
     duration: maxTime
   } = useTimelineLayout()
-  const { onSeek } = useTimelineContext()
-  const { scrollLeftRef } = useTimelineUI()
+  const { onSeek } = useTimelineOperations()
+  const { scrollLeftRef } = useTimelineScroll()
 
   const colors = useTimelineColors()
   const [isHovered, setIsHovered] = useState(false)

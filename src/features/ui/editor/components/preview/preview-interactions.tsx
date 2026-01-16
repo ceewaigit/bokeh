@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
 import { SidebarTabId } from '@/features/effects/components/constants';
@@ -60,14 +61,30 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     playerRef,
     children,
 }) => {
-    const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer);
-    const selectClip = useProjectStore((s) => s.selectClip);
-    const addEffect = useProjectStore((s) => s.addEffect);
-    const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay);
-    const inlineEditingId = useProjectStore((s) => s.inlineEditingId);
-    const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen);
-    const toggleProperties = useWorkspaceStore((s) => s.toggleProperties);
-    const setActiveSidebarTab = useWorkspaceStore((s) => s.setActiveSidebarTab);
+    // PERF: Consolidated subscriptions to prevent cascading re-renders
+    const {
+        selectEffectLayer,
+        selectClip,
+        addEffect,
+        startEditingOverlay,
+        inlineEditingId
+    } = useProjectStore(useShallow((s) => ({
+        selectEffectLayer: s.selectEffectLayer,
+        selectClip: s.selectClip,
+        addEffect: s.addEffect,
+        startEditingOverlay: s.startEditingOverlay,
+        inlineEditingId: s.inlineEditingId
+    })));
+
+    const {
+        isPropertiesOpen,
+        toggleProperties,
+        setActiveSidebarTab
+    } = useWorkspaceStore(useShallow((s) => ({
+        isPropertiesOpen: s.isPropertiesOpen,
+        toggleProperties: s.toggleProperties,
+        setActiveSidebarTab: s.setActiveSidebarTab
+    })));
 
     const isPlayingRef = useRef(isPlaying);
     useEffect(() => {
@@ -149,29 +166,76 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
 
     const webcamClipId = activeWebcamClip?.id ?? null;
 
+    // PERF: Pre-build clip time index for O(log n) lookup instead of O(n*m) per frame
+    const clipTimeIndex = useMemo(() => {
+        if (!project) return null;
+        const intervals: Array<{
+            startTime: number;
+            endTime: number;
+            clipId: string;
+            recordingId: string;
+            sourceIn: number;
+            trackIndex: number;
+        }> = [];
+
+        project.timeline.tracks.forEach((track, trackIndex) => {
+            track.clips.forEach(clip => {
+                intervals.push({
+                    startTime: clip.startTime,
+                    endTime: clip.startTime + clip.duration,
+                    clipId: clip.id,
+                    recordingId: clip.recordingId,
+                    sourceIn: clip.sourceIn,
+                    trackIndex
+                });
+            });
+        });
+
+        // Sort by startTime for binary search
+        intervals.sort((a, b) => a.startTime - b.startTime);
+        return intervals;
+    }, [project]);
+
     // Resolve Active Clip for Hit Testing (Cursor)
     const activeClipData = useMemo(() => {
-        if (!project) return null;
+        if (!project || !clipTimeIndex || clipTimeIndex.length === 0) return null;
         const timeMs = (currentFrame / timelineMetadata.fps) * 1000;
 
-        // Find visible clip at current time. Search tracks in reverse order to prioritize top-most.
-        for (let i = project.timeline.tracks.length - 1; i >= 0; i--) {
-            const track = project.timeline.tracks[i];
-            const clip = track.clips.find(c => timeMs >= c.startTime && timeMs < c.startTime + c.duration);
-            if (clip) {
-                const offset = timeMs - clip.startTime;
-                const sourceTimeMs = clip.sourceIn + offset;
-                const recording = project.recordings.find(r => r.id === clip.recordingId) ?? null;
+        // Binary search for clips that could contain timeMs
+        let lo = 0, hi = clipTimeIndex.length - 1;
+        let result: typeof clipTimeIndex[0] | null = null;
 
-                return {
-                    recording,
-                    sourceTimeMs,
-                    clipId: clip.id
-                };
+        // Find all clips containing timeMs, prefer highest trackIndex (top-most)
+        while (lo <= hi) {
+            const mid = (lo + hi) >>> 1;
+            const interval = clipTimeIndex[mid];
+
+            if (interval.startTime > timeMs) {
+                hi = mid - 1;
+            } else {
+                // Check if this interval contains timeMs
+                if (timeMs < interval.endTime) {
+                    // Found a match - prefer higher track indices (top-most)
+                    if (!result || interval.trackIndex > result.trackIndex) {
+                        result = interval;
+                    }
+                }
+                lo = mid + 1;
             }
         }
-        return null;
-    }, [project, currentFrame, timelineMetadata.fps]);
+
+        if (!result) return null;
+
+        const offset = timeMs - result.startTime;
+        const sourceTimeMs = result.sourceIn + offset;
+        const recording = project.recordings.find(r => r.id === result.recordingId) ?? null;
+
+        return {
+            recording,
+            sourceTimeMs,
+            clipId: result.clipId
+        };
+    }, [project, currentFrame, timelineMetadata.fps, clipTimeIndex]);
 
     const canSelectBackground = Boolean(backgroundEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
     const canSelectCursor = Boolean(cursorEffectId) && !isEditingCrop && !zoomSettings?.isEditing;

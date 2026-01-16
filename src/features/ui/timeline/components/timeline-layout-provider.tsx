@@ -8,14 +8,14 @@
  */
 
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback, type RefObject } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { useEffectTrackExistence, useMediaTrackExistence, useTimelineDuration } from '@/features/core/stores/selectors/timeline-selectors'
+import { useEffectTrackExistence, useMediaTrackExistence, useTimelineDuration, useEffectsOfType } from '@/features/core/stores/selectors/timeline-selectors'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 import { EffectType } from '@/features/effects/types'
-import { TimelineTrackType, TrackType } from '@/types/project'
+import { TimelineTrackType, TrackType, type Recording } from '@/types/project'
 import { EFFECT_TRACK_TYPES, getEffectTrackConfig, getSortedTrackConfigs } from '@/features/ui/timeline/effect-track-registry'
-import { EffectStore } from '@/features/effects/core/effects-store'
 
 /** Track type that can be used for visibility/active state */
 export type TrackId = TimelineTrackType | EffectType
@@ -96,6 +96,12 @@ export interface TimelineLayoutContextValue {
   isVideoTrackExpanded: boolean
   /** Get track bounds for rendering clips */
   getTrackBounds: (trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam) => TrackBounds
+  // Scroll state (merged from TimelineScrollContext)
+  scrollLeftRef: React.MutableRefObject<number>
+  scrollTopRef: React.MutableRefObject<number>
+  setScrollPos: (left: number, top: number) => void
+  onScroll: (e: React.UIEvent<HTMLDivElement>) => void
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
 const TimelineLayoutContext = createContext<TimelineLayoutContextValue | null>(null)
@@ -112,15 +118,32 @@ export function useTimelineLayoutOptional(): TimelineLayoutContextValue | null {
   return useContext(TimelineLayoutContext)
 }
 
+/** Backward-compatible scroll hook - now delegates to layout context */
+export function useTimelineScroll() {
+  const ctx = useContext(TimelineLayoutContext)
+  if (!ctx) {
+    throw new Error('[useTimelineScroll] Must be used within TimelineLayoutProvider')
+  }
+  return {
+    scrollLeftRef: ctx.scrollLeftRef,
+    scrollTopRef: ctx.scrollTopRef,
+    setScrollPos: ctx.setScrollPos,
+    onScroll: ctx.onScroll,
+    scrollContainerRef: ctx.scrollContainerRef
+  }
+}
+
 interface TimelineLayoutProviderProps {
   children: React.ReactNode
 }
 
-function detectSpeedUpSuggestions(project: { recordings?: Array<{ metadata?: { detectedTypingPeriods?: unknown[]; detectedIdlePeriods?: unknown[] } }> } | null): { typing: boolean; idle: boolean } {
-  if (!project?.recordings) return { typing: false, idle: false }
+// PERF: Accept recordings array directly instead of full project
+// This allows using a granular selector that only triggers when recordings change
+function detectSpeedUpSuggestions(recordings: Recording[] | undefined): { typing: boolean; idle: boolean } {
+  if (!recordings) return { typing: false, idle: false }
   let hasTyping = false
   let hasIdle = false
-  for (const recording of project.recordings) {
+  for (const recording of recordings) {
     if (recording.metadata?.detectedTypingPeriods?.length) hasTyping = true
     if (recording.metadata?.detectedIdlePeriods?.length) hasIdle = true
     if (hasTyping && hasIdle) break
@@ -133,6 +156,25 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const hasMeasuredContainerRef = useRef(false)
   const [containerSize, setContainerSize] = useState({ width: 800, height: 300 })
   const [isScreenGroupCollapsed, setIsScreenGroupCollapsed] = useState(false)
+
+  // Scroll state (merged from TimelineScrollContext)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const scrollLeftRef = useRef(0)
+  const scrollTopRef = useRef(0)
+
+  const onScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget
+    scrollLeftRef.current = target.scrollLeft
+    scrollTopRef.current = target.scrollTop
+  }, [])
+
+  const setScrollPos = useCallback((left: number, top: number) => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo(left, top)
+      scrollLeftRef.current = left
+      scrollTopRef.current = top
+    }
+  }, [])
 
   // Track visibility - all tracks visible by default
   const [visibleTracks, setVisibleTracks] = useState<Set<TrackId>>(() => {
@@ -156,7 +198,14 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   const zoomManuallyAdjusted = useProjectStore((s) => s.zoomManuallyAdjusted)
   const zoom = useProjectStore((s) => s.zoom)
   const showTypingSuggestions = useProjectStore((s) => s.settings.showTypingSuggestions)
-  const currentProject = useProjectStore((s) => s.currentProject)
+  // PERF: Use granular selectors instead of full project subscription
+  // This prevents re-renders when clips, settings, or other state changes
+  // Using useShallow to only trigger when recordings array elements actually change
+  const recordings = useProjectStore(
+    useShallow((s) => s.currentProject?.recordings)
+  ) as Recording[] | undefined
+  // PERF: Only subscribe to annotation effects for count - not all effects
+  const annotationEffects = useEffectsOfType(EffectType.Annotation)
   const duration = useTimelineDuration()
   const effectTrackExistence = useEffectTrackExistence()
   const mediaTrackExistence = useMediaTrackExistence()
@@ -202,8 +251,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
   }, [expandedEffectTrack])
 
   const hasSpeedUpSuggestions = useMemo(
-    () => detectSpeedUpSuggestions(currentProject),
-    [currentProject]
+    () => detectSpeedUpSuggestions(recordings),
+    [recordings]
   )
 
   const pixelsPerMs = useMemo(
@@ -274,10 +323,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     return heights as Record<EffectType, number>
   }, [effectTrackExistence, isScreenGroupCollapsed, visibleTracks, expandedEffectTrack])
 
-  const annotationCount = useMemo(() => {
-    if (!currentProject) return 0
-    return EffectStore.getAll(currentProject).filter(e => e.type === EffectType.Annotation).length
-  }, [currentProject])
+  // PERF: Already filtered by useEffectsOfType - no need to filter again
+  const annotationCount = annotationEffects.length
 
   const annotationTrackHeight = useMemo(() => {
     const visible = (effectTrackExistence[EffectType.Annotation] ?? false) && !isScreenGroupCollapsed && visibleTracks.has(TimelineTrackType.Annotation)
@@ -460,7 +507,13 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     toggleEffectTrackExpanded,
     toggleVideoTrackExpanded,
     isVideoTrackExpanded,
-    getTrackBounds
+    getTrackBounds,
+    // Scroll state
+    scrollLeftRef,
+    scrollTopRef,
+    setScrollPos,
+    onScroll,
+    scrollContainerRef
   }), [
     timelineWidth, containerSize, totalContentHeight, duration, zoom, pixelsPerMs,
     fixedTrackHeights, fixedTrackPositions, effectTrackHeights, effectTrackPositions,
@@ -469,7 +522,8 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     isAnnotationExpanded, toggleAnnotationExpanded,
     toggleScreenGroupCollapsed, visibleTracks, activeTrack, toggleTrackVisibility,
     setActiveTrackWithMemory, isTrackExpanded, toggleEffectTrackExpanded,
-    toggleVideoTrackExpanded, isVideoTrackExpanded, getTrackBounds
+    toggleVideoTrackExpanded, isVideoTrackExpanded, getTrackBounds,
+    setScrollPos, onScroll
   ])
 
   return (

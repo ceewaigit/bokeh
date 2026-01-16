@@ -13,6 +13,7 @@ import { EffectCreation } from '@/features/effects/core/creation'
 import { getDataOfType } from '@/features/effects/core/filters'
 import { getPluginDefaults } from '@/features/effects/config/plugin-sdk'
 import { EffectStore } from '@/features/effects/core/effects-store'
+import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore, useSelectedClipId } from '@/features/core/stores/project-store'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import type { ParamDef, NumberParam, EnumParam, StringParam } from '@/features/effects/config/plugin-sdk'
@@ -81,12 +82,21 @@ export function PluginsTab() {
     const [plugins, setPlugins] = useState<PluginDefinition[]>(() => PluginRegistry.getAll())
     const [hideGeneratedClipEditor, setHideGeneratedClipEditor] = useState(false)
 
-    const currentProject = useProjectStore((s) => s.currentProject)
+    // PERF: Consolidated subscriptions to prevent cascading re-renders
+    const {
+        currentProject,
+        selectedEffectLayer,
+        updateEffect,
+        clearEffectSelection,
+        updateProjectData
+    } = useProjectStore(useShallow((s) => ({
+        currentProject: s.currentProject,
+        selectedEffectLayer: s.selectedEffectLayer,
+        updateEffect: s.updateEffect,
+        clearEffectSelection: s.clearEffectSelection,
+        updateProjectData: s.updateProjectData
+    })))
     const selectedClipId = useSelectedClipId()
-    const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
-    const updateEffect = useProjectStore((s) => s.updateEffect)
-    const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection)
-    const updateProjectData = useProjectStore((s) => s.updateProjectData)
     // Find selected plugin effect
     const selectedPluginEffect = React.useMemo(() => {
         if (selectedEffectLayer?.type === EffectLayerType.Plugin && selectedEffectLayer.id && currentProject) {

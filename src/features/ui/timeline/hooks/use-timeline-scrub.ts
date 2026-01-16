@@ -81,13 +81,33 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, scrollLeftRef, onSeek 
   useEffect(() => {
     if (!isScrubbing) return
 
+    // RAF throttling state - batches mouse events to single RAF tick
+    // This ensures both playhead and player update at the same rate
+    let rafId: number | null = null
+    let pendingClientX: number | null = null
+
     const endScrub = () => setScrubbing(false)
-    const handleMouseMove = (event: MouseEvent) => {
-      seekFromClientX(event.clientX)
+
+    const processScrub = () => {
+      rafId = null
+      if (pendingClientX !== null) {
+        seekFromClientX(pendingClientX)
+      }
     }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      pendingClientX = event.clientX
+      if (rafId === null) {
+        rafId = requestAnimationFrame(processScrub)
+      }
+    }
+
     const handleTouchMove = (event: TouchEvent) => {
       if (event.touches.length === 0) return
-      seekFromClientX(event.touches[0].clientX)
+      pendingClientX = event.touches[0].clientX
+      if (rafId === null) {
+        rafId = requestAnimationFrame(processScrub)
+      }
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -97,6 +117,9 @@ export const useTimelineScrub = ({ duration, pixelsPerMs, scrollLeftRef, onSeek 
     window.addEventListener('touchcancel', endScrub)
 
     return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('mouseup', endScrub)

@@ -6,7 +6,7 @@ import { useTimelineColors } from '@/features/ui/timeline/utils/colors'
 import { formatTime } from '@/shared/utils/time'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useTimelineLayout } from './timeline-layout-provider'
-import { useTimelineContext } from './TimelineUIContext'
+import { useTimelineOperations } from './timeline-operations-context'
 
 interface TimelineRulerProps {
   scrollLeft: number
@@ -26,7 +26,7 @@ export const TimelineRuler = React.memo(({ scrollLeft }: TimelineRulerProps) => 
     onScrubStart,
     onScrubMove,
     onScrubEnd,
-  } = useTimelineContext()
+  } = useTimelineOperations()
   const colors = useTimelineColors()
   const [isHovering, setIsHovering] = React.useState(false)
   const isScrubbing = useProjectStore((s) => s.isScrubbing)

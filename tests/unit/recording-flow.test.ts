@@ -211,29 +211,32 @@ describe('Recording Flow Mental Model', () => {
   })
 
   describe('Global Pause vs Source Toggle Distinction', () => {
-    it('global pause should NOT create new segments', async () => {
+    it('global pause creates segments for reliability (segment-based pause)', async () => {
       const bridge = createMockBridge()
       const service = new AudioInputService(bridge as any)
 
       service.setMainRecordingStartTime(Date.now())
       await service.start({ deviceId: 'test-device' })
 
-      // Use global pause/resume (not toggle)
+      // Use global pause/resume - now uses segment-based approach for reliability
+      // (MediaRecorder.pause() is unreliable across platforms)
       service.pause()
       expect(service.isPaused()).toBe(true)
-      expect(service.isToggledOff()).toBe(false) // NOT toggled off
+      expect(service.isToggledOff()).toBe(false) // Still marked as paused, not toggled off
 
-      await new Promise(r => setTimeout(r, 30))
+      await new Promise(r => setTimeout(r, 50))
 
       service.resume()
-      expect(service.isPaused()).toBe(false)
 
-      await new Promise(r => setTimeout(r, 30))
+      // Wait for async segment-based resume to complete
+      await new Promise(r => setTimeout(r, 50))
+
+      expect(service.isPaused()).toBe(false)
 
       const result = await service.stop()
 
-      // Should still have only 1 segment (pause doesn't create segments)
-      expect(result.segments).toHaveLength(1)
+      // Segment-based pause/resume creates 2 segments (one before pause, one after resume)
+      expect(result.segments).toHaveLength(2)
     })
 
     it('source toggle should create new segments', async () => {

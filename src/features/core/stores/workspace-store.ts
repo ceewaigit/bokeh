@@ -1,6 +1,45 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { SidebarTabId } from '@/features/effects/components/constants'
+
+/**
+ * BATTERY OPTIMIZATION: Debounced storage adapter for workspace persistence.
+ * Batches rapid localStorage writes (e.g., panel resizing) into a single write
+ * after the specified delay. This prevents CPU wake-ups for every slider drag.
+ */
+const createDebouncedStorage = (debounceMs = 500) => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let pendingValue: string | null = null
+
+  const baseStorage = {
+    getItem: (name: string) => {
+      return localStorage.getItem(name)
+    },
+    setItem: (name: string, value: string) => {
+      pendingValue = value
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        if (pendingValue !== null) {
+          localStorage.setItem(name, pendingValue)
+          pendingValue = null
+        }
+        timeoutId = null
+      }, debounceMs)
+    },
+    removeItem: (name: string) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      pendingValue = null
+      localStorage.removeItem(name)
+    },
+  }
+
+  return createJSONStorage(() => baseStorage)
+}
+
+const debouncedStorage = createDebouncedStorage(500)
 
 export type UtilityTabId = 'import' | 'audio' | 'guides' | 'plugins' | 'advanced'
 
@@ -216,6 +255,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     {
       name: 'workspace-storage',
       version: 7,
+      storage: debouncedStorage, // BATTERY OPTIMIZATION: Debounce localStorage writes
       migrate: (persistedState: unknown, version: number) => {
         if (!persistedState || typeof persistedState !== 'object') return persistedState
 

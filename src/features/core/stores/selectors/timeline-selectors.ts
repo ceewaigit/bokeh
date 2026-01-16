@@ -6,23 +6,45 @@
  */
 
 import { useMemo } from 'react'
-import { useProjectStore } from '../project-store'
-import { EffectStore } from '@/features/effects/core/effects-store'
+import { useProjectStore, type ProjectStore } from '../project-store'
 import { EffectType, TrackType } from '@/types/project'
 import type { Effect } from '@/types/project'
 import { EFFECT_TRACK_TYPES } from '@/features/ui/timeline/effect-track-registry'
+// PERF: Import at module level instead of inside useMemo to avoid dynamic import overhead
+import { TimelineConfig } from '@/features/ui/timeline/config'
+
+// PERF: Narrow selectors to only trigger on specific array changes, not any project change
+// CRITICAL: Use constant empty arrays to avoid infinite loop in useSyncExternalStore
+const EMPTY_EFFECTS: Effect[] = []
+const EMPTY_TRACKS: { type: TrackType; clips: { id: string }[] }[] = []
+
+const selectEffects = (s: ProjectStore): Effect[] =>
+  s.currentProject?.timeline?.effects ?? EMPTY_EFFECTS
+
+const selectTracks = (s: ProjectStore) =>
+  s.currentProject?.timeline?.tracks ?? EMPTY_TRACKS
 
 /**
  * Get all timeline effects from the current project.
- * Single source of truth - uses EffectStore.
+ * Single source of truth.
  */
 export function useTimelineEffects(): Effect[] {
-  const project = useProjectStore((s) => s.currentProject)
+  // PERF: Only re-run when effects array reference changes
+  return useProjectStore(selectEffects)
+}
 
+/**
+ * PERF: Get effects of a specific type only.
+ * Components using this will only re-render when effects of that type change.
+ * Use this instead of useTimelineEffects() + filter for better performance.
+ */
+export function useEffectsOfType(type: EffectType): Effect[] {
+  const effects = useProjectStore(selectEffects)
   return useMemo(() => {
-    if (!project) return []
-    return EffectStore.getAll(project)
-  }, [project])
+    // Some effects need enabled check for display purposes
+    const needsEnabledCheck = [EffectType.Zoom, EffectType.Screen, EffectType.Crop, EffectType.Background].includes(type)
+    return effects.filter(e => e.type === type && (needsEnabledCheck ? e.enabled : true))
+  }, [effects, type])
 }
 
 /**
@@ -76,23 +98,22 @@ export interface MediaTrackExistence {
 }
 
 export function useMediaTrackExistence(): MediaTrackExistence {
-  const project = useProjectStore((s) => s.currentProject)
+  // PERF: Use granular selector instead of full project subscription
+  const tracks = useProjectStore(selectTracks)
   const effectsByType = useEffectsByType()
 
   const hasWebcamTrack = useMemo(() => {
-    if (!project?.timeline?.tracks) return false
-    return project.timeline.tracks.some(t => t.type === TrackType.Webcam)
-  }, [project?.timeline?.tracks])
+    return tracks.some(t => t.type === TrackType.Webcam)
+  }, [tracks])
 
   const { hasAudioContent, hasWebcamContent } = useMemo(() => {
-    if (!project?.timeline?.tracks) return { hasAudioContent: false, hasWebcamContent: false }
-    const audioTrack = project.timeline.tracks.find(t => t.type === TrackType.Audio)
-    const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)
+    const audioTrack = tracks.find(t => t.type === TrackType.Audio)
+    const webcamTrack = tracks.find(t => t.type === TrackType.Webcam)
     return {
       hasAudioContent: (audioTrack?.clips?.length ?? 0) > 0,
       hasWebcamContent: (webcamTrack?.clips?.length ?? 0) > 0
     }
-  }, [project?.timeline?.tracks])
+  }, [tracks])
 
   return useMemo(() => ({
     hasWebcamTrack,
@@ -164,10 +185,8 @@ export function useTimelineContentHeight(): number {
   const effectTrackExistence = useEffectTrackExistence()
   const mediaTrackExistence = useMediaTrackExistence()
   const effectCounts = useEffectCounts()
-  const { TimelineConfig } = require('@/features/ui/timeline/config')
 
   return useMemo(() => {
-    // Import config lazily to avoid circular dependency at module level
     let height = 0
 
     // Ruler
@@ -202,6 +221,6 @@ export function useTimelineContentHeight(): number {
     height += TimelineConfig.SCROLL.BOTTOM_PADDING
 
     return height
-  }, [effectTrackExistence, mediaTrackExistence, effectCounts, TimelineConfig])
+  }, [effectTrackExistence, mediaTrackExistence, effectCounts])
 }
 

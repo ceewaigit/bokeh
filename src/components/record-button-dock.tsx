@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRecording } from '@/features/media/recording/hooks/use-recording'
 import { usePermissions } from '@/shared/hooks/use-permissions'
-import { useRecordingSessionStore } from '@/features/media/recording/store/session-store'
+import { useRecordingSessionStore, cleanupCountdownInterval, type CountdownDeviceSettings } from '@/features/media/recording/store/session-store'
 import { useDeviceStore } from '@/features/core/stores/device-store'
 import { cn } from '@/shared/utils/utils'
 import { formatTime } from '@/shared/utils/time'
@@ -78,6 +78,7 @@ export function RecordButtonDock() {
   const [panel, setPanel] = useState<DockPanel | null>(null)
   const [panelPhase, setPanelPhase] = useState<'closed' | 'opening' | 'open' | 'closing'>('closed')
   const [windowSearch, setWindowSearch] = useState('')
+  const [webcamPreviewVisible, setWebcamPreviewVisible] = useState(true)
   const showWindowPicker = panel === 'windows'
   const showDevicePicker = panel === 'devices'
 
@@ -106,7 +107,7 @@ export function RecordButtonDock() {
   }, [isPermissionsLoading, screenRecording])
 
   const { startRecording, stopRecording, isStartingRecording } = useRecording()
-  const { isRecording, isPaused, duration, updateSettings, startCountdown, prepareRecording } = useRecordingSessionStore()
+  const { isRecording, isPaused, duration, countdownActive, updateSettings, startCountdown, abortCountdown, prepareRecording, syncFromMain } = useRecordingSessionStore()
   const setRecordingSettings = useProjectStore((s) => s.setRecordingSettings)
 
   // Device store - only for device enumeration, not permissions
@@ -121,6 +122,12 @@ export function RecordButtonDock() {
     selectWebcam,
     selectMicrophone
   } = useDeviceStore()
+
+  // On mount: sync state with main process to recover from stuck states (e.g., refresh during countdown)
+  useEffect(() => {
+    logger.debug('[RecordButtonDock] Mounted, syncing state with main process')
+    syncFromMain()
+  }, [syncFromMain])
 
   useEffect(() => {
     prevBodyStylesRef.current = {
@@ -150,11 +157,19 @@ export function RecordButtonDock() {
     if (root) root.style.background = 'transparent'
 
     return () => {
-      const { isRecording } = useRecordingSessionStore.getState()
-      if (isRecording) {
-        logger.warn('RecordButtonDock unmounting while recording - forcing stop')
+      // Clean up any active countdown interval
+      cleanupCountdownInterval()
+
+      const state = useRecordingSessionStore.getState()
+      if (state.isRecording) {
+        logger.warn('[RecordButtonDock] Unmounting while recording - forcing stop')
         useRecordingSessionStore.getState().setRecording(false)
         useRecordingSessionStore.getState().setPaused(false)
+      }
+      if (state.countdownActive) {
+        logger.warn('[RecordButtonDock] Unmounting during countdown - aborting')
+        // Note: abortCountdown is async but we can't await in cleanup
+        // The cleanupCountdownInterval above stops the timer immediately
       }
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
@@ -175,7 +190,20 @@ export function RecordButtonDock() {
     }
   }, [])
 
+  // Listen for global Escape key abort from main process (when dock window doesn't have focus)
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onAbortCountdown?.(() => {
+      if (countdownActive) {
+        logger.debug('[RecordButtonDock] Received abort-countdown from main process')
+        abortCountdown()
+      }
+    })
+    return () => unsubscribe?.()
+  }, [countdownActive, abortCountdown])
+
   // Local timer logic
+  // PERF: 250ms interval (4Hz) is sufficient for smooth timer display
+  // Previously used 100ms (10Hz) which woke CPU more than necessary
   useEffect(() => {
     if (isRecording && !isPaused) {
       if (!startTimeRef.current) {
@@ -186,7 +214,7 @@ export function RecordButtonDock() {
         if (startTimeRef.current) {
           setLocalDuration(Date.now() - startTimeRef.current)
         }
-      }, 100)
+      }, 250)
     } else {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
@@ -229,14 +257,14 @@ export function RecordButtonDock() {
     }
   }, [devicesInitialized, initializeDevices])
 
-  // Show webcam preview when recording with webcam enabled
+  // Show webcam preview when recording with webcam enabled and preview visible
   useEffect(() => {
-    if (isRecording && deviceSettings.webcam.enabled && deviceSettings.webcam.deviceId) {
+    if (isRecording && deviceSettings.webcam.enabled && deviceSettings.webcam.deviceId && webcamPreviewVisible) {
       window.electronAPI?.showWebcamPreview?.(deviceSettings.webcam.deviceId)
     } else {
       window.electronAPI?.hideWebcamPreview?.()
     }
-  }, [isRecording, deviceSettings.webcam.enabled, deviceSettings.webcam.deviceId])
+  }, [isRecording, deviceSettings.webcam.enabled, deviceSettings.webcam.deviceId, webcamPreviewVisible])
 
   // Notify main process of recording state for window management guards
   useEffect(() => {
@@ -282,12 +310,26 @@ export function RecordButtonDock() {
     await setRecordButtonWindowSize(size)
   }, [measureContentSize, setRecordButtonWindowSize])
 
-  // Keep the BrowserWindow sized to content for major state changes.
+  // Auto-resize window when content changes using ResizeObserver (macOS-like behavior)
   useEffect(() => {
-    if (panelPhase !== 'closed') return
-    if (windowResizeInFlightRef.current) return
-    void fitWindowToCurrentContent()
-  }, [panelPhase, isRecording, isLoadingSources, fitWindowToCurrentContent])
+    const container = containerRef.current
+    if (!container) return
+
+    let timeout: NodeJS.Timeout | null = null
+    const observer = new ResizeObserver(() => {
+      if (timeout) clearTimeout(timeout)
+      timeout = setTimeout(() => {
+        if (windowResizeInFlightRef.current) return
+        void fitWindowToCurrentContent()
+      }, 16) // ~1 frame at 60fps debounce
+    })
+
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [fitWindowToCurrentContent])
 
   const openDockPanel = useCallback((nextPanel: DockPanel) => {
     if (panelPhase === 'opening' || panelPhase === 'closing') return
@@ -409,6 +451,12 @@ export function RecordButtonDock() {
   }
 
   const handleStartRecording = async () => {
+    // Guard against rapid clicks or starting during active countdown
+    if (countdownActive || isStartingRecording || isRecording) {
+      logger.debug('[RecordButtonDock] Start recording blocked:', { countdownActive, isStartingRecording, isRecording })
+      return
+    }
+
     if (!screenRecording) {
       requestScreenRecording()
       return
@@ -438,7 +486,23 @@ export function RecordButtonDock() {
     }
 
     prepareRecording(finalSourceId, finalDisplayId)
-    startCountdown(startRecording, finalDisplayId)
+
+    // Prepare device settings for pre-warming streams during countdown
+    const countdownDeviceSettings: CountdownDeviceSettings = {
+      webcam: {
+        enabled: deviceSettings.webcam.enabled,
+        deviceId: deviceSettings.webcam.deviceId ?? undefined,
+        resolution: deviceSettings.webcam.resolution
+      },
+      microphone: {
+        enabled: deviceSettings.microphone.enabled,
+        deviceId: deviceSettings.microphone.deviceId ?? undefined,
+        echoCancellation: deviceSettings.microphone.echoCancellation,
+        noiseSuppression: deviceSettings.microphone.noiseSuppression
+      }
+    }
+
+    startCountdown(startRecording, finalDisplayId, countdownDeviceSettings)
   }
 
   const handleStop = async () => {
@@ -619,6 +683,30 @@ export function RecordButtonDock() {
                 <CameraOff className="w-4 h-4" />
               )}
             </motion.button>
+
+            {/* Webcam Preview Visibility Toggle - only show when webcam is enabled */}
+            {deviceSettings.webcam.enabled && (
+              <motion.button
+                type="button"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                onClick={() => setWebcamPreviewVisible(!webcamPreviewVisible)}
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-md transition-colors",
+                  webcamPreviewVisible
+                    ? "text-foreground hover:bg-accent/50"
+                    : "text-muted-foreground hover:bg-accent/50"
+                )}
+                title={webcamPreviewVisible ? 'Hide Preview' : 'Show Preview'}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {webcamPreviewVisible ? (
+                  <Eye className="w-4 h-4" />
+                ) : (
+                  <EyeOff className="w-4 h-4" />
+                )}
+              </motion.button>
+            )}
           </div>
 
           <div className="w-px h-6 bg-border/50" />
@@ -631,7 +719,7 @@ export function RecordButtonDock() {
               "flex items-center gap-1.5 h-9 px-3.5 rounded-lg",
               "bg-muted/50 hover:bg-muted",
               "text-foreground/85 text-xs font-medium",
-              "transition-all duration-100"
+              "transition-colors duration-100"
             )}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
@@ -1090,7 +1178,7 @@ export function RecordButtonDock() {
           type="button"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           onClick={() => window.electronAPI?.toggleTeleprompterWindow?.()}
-          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground/50 hover:text-foreground hover:bg-accent/50 transition-all duration-100"
+          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground/50 hover:text-foreground hover:bg-accent/50 transition-colors duration-100"
           title="Recording Notes"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -1104,7 +1192,7 @@ export function RecordButtonDock() {
           type="button"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           onClick={() => window.electronAPI?.openWorkspace?.()}
-          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground/50 hover:text-foreground hover:bg-accent/50 transition-all duration-100"
+          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted-foreground/50 hover:text-foreground hover:bg-accent/50 transition-colors duration-100"
           title="Open Library"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -1118,26 +1206,26 @@ export function RecordButtonDock() {
           type="button"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           onClick={handleStartRecording}
-          disabled={!selectedSourceId || isStartingRecording}
+          disabled={!selectedSourceId || isStartingRecording || countdownActive}
           className={cn(
             "flex items-center justify-center gap-2 h-10 px-5 rounded-card",
             "text-2xs font-semibold uppercase tracking-[0.08em]",
-            "transition-all duration-150 ease-out",
-            selectedSourceId && !isStartingRecording
+            "transition-colors duration-150 ease-out",
+            selectedSourceId && !isStartingRecording && !countdownActive
               ? "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_3px_rgba(0,0,0,0.2)] hover:brightness-110 active:scale-[0.97]"
               : "bg-muted/40 text-muted-foreground/20 cursor-not-allowed"
           )}
-          whileHover={selectedSourceId && !isStartingRecording ? { scale: 1.02 } : undefined}
-          whileTap={selectedSourceId && !isStartingRecording ? { scale: 0.98 } : undefined}
+          whileHover={selectedSourceId && !isStartingRecording && !countdownActive ? { scale: 1.02 } : undefined}
+          whileTap={selectedSourceId && !isStartingRecording && !countdownActive ? { scale: 0.98 } : undefined}
           transition={springConfig}
         >
           <span className={cn(
             "w-2 h-2 rounded-pill",
-            selectedSourceId && !isStartingRecording
+            selectedSourceId && !isStartingRecording && !countdownActive
               ? "bg-primary-foreground shadow-[0_0_8px_rgba(255,255,255,0.5)]"
               : "bg-muted-foreground/30"
           )} />
-          <span>{isStartingRecording ? 'Starting' : 'Record'}</span>
+          <span>{isStartingRecording || countdownActive ? 'Starting' : 'Record'}</span>
         </motion.button>
       </div>
     </div>

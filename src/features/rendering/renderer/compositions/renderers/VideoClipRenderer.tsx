@@ -78,7 +78,11 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
 
   // Get settings from context
   const { playback, renderSettings, resources } = usePlaybackSettings();
-  const { isPlaying, isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
+  const { isHighQualityPlaybackEnabled, previewMuted, previewVolume } = playback;
+  // Read isPlaying directly from store for consistency
+  // NOTE: The playback context has hardcoded isPlaying: false (for Remotion internal use),
+  // but we need the actual playback state for URL locking
+  const isPlaying = useProjectStore((s) => s.isPlaying);
   const { isGlowMode, preferOffthreadVideo, enhanceAudio } = renderSettings;
   const preload = 'auto';
 

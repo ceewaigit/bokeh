@@ -387,11 +387,34 @@ export class SpeedUpApplicationService {
             )
 
             const syncedClipIds = new Set<string>()
-            for (const clip of overlapping) {
+            for (const webcamClip of overlapping) {
+                // Transform periods from main video source time to webcam source time
+                // This ensures webcam segments align with main video segments on the timeline
+                // even when the clips have different sourceIn or startTime values
+                const mainSourceIn = sourceClip.sourceIn || 0
+                const mainStartTime = sourceClip.startTime || 0
+                const webcamSourceIn = webcamClip.sourceIn || 0
+                const webcamStartTime = webcamClip.startTime || 0
+
+                // Calculate offset: transform periods from main video source time to webcam source time
+                // At timeline T, main shows source: S_main = (T - main.startTime) + main.sourceIn
+                // At timeline T, webcam shows source: S_webcam = (T - webcam.startTime) + webcam.sourceIn
+                // For the same timeline T: S_webcam = S_main + (main.startTime - webcam.startTime) + (webcam.sourceIn - main.sourceIn)
+                // So: webcam_source = main_source + offset
+                const sourceOffset = (mainStartTime - webcamStartTime) + (webcamSourceIn - mainSourceIn)
+
+                const transformedPeriods = sourceOffset === 0
+                    ? periods  // Fast path: no transformation needed
+                    : periods.map(p => ({
+                        startTime: p.startTime + sourceOffset,
+                        endTime: p.endTime + sourceOffset,
+                        suggestedSpeedMultiplier: p.suggestedSpeedMultiplier
+                    }))
+
                 const result = SpeedUpApplicationService.applySpeedUpToClip(
                     project,
-                    clip.id,
-                    periods,
+                    webcamClip.id,
+                    transformedPeriods,
                     speedUpTypes,
                     { syncLinkedTracks: false, updateEffects: false }
                 )

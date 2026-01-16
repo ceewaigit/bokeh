@@ -51,10 +51,10 @@ export interface TimelineContextValue {
 
 const TimelineContext = createContext<TimelineContextValue | null>(null)
 
-export function useTimelineContext(): TimelineContextValue {
+export function useTimelineOperations(): TimelineContextValue {
   const ctx = useContext(TimelineContext)
   if (!ctx) {
-    throw new Error('[useTimelineContext] Must be used within TimelineContextProvider')
+    throw new Error('[useTimelineOperations] Must be used within TimelineContextProvider')
   }
   return ctx
 }

@@ -2,13 +2,13 @@
  * Store Selectors
  *
  * Centralized exports for all store selectors.
- * Use these instead of inline useMemo derivations or direct EffectStore imports.
+ * Use these instead of inline useMemo derivations.
  *
  * Categories:
  * - Timeline: useTimelineEffects, useEffectsByType, useTrackExistence
  * - Clips: useVideoClips, useSelectedClip, useFrameLayout
  * - Settings: useCameraSettings, useEditingSettings, useRecordingSettings
- * - Effects: useBackgroundEffect, useCursorEffect, useZoomEffects, etc.
+ * - Effects: useEffectsContext (via RenderingTimelineContext)
  */
 
 export * from './timeline-selectors'

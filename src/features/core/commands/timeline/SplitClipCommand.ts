@@ -1,20 +1,14 @@
 /**
  * SplitClipCommand - Split a clip at a specific time point.
- * 
- * Uses PatchedCommand for automatic undo/redo via Immer patches.
  */
 
-import { PatchedCommand } from '../base/PatchedCommand'
+import { TimelineCommand } from '../base/TimelineCommand'
 import { CommandContext } from '../base/CommandContext'
 import { timelineToClipRelative } from '@/features/ui/timeline/time/time-space-converter'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
-import type { Clip } from '@/types/project'
-import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { executeSplitClip } from '@/features/ui/timeline/clips/clip-split'
-import { EffectSyncService } from '@/features/effects/sync'
-import { playbackService } from '@/features/playback/services/playback-service'
-import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
+import { TimelineSyncService } from '@/features/effects/sync'
 
 export interface SplitClipResult {
   originalClipId: string
@@ -22,11 +16,9 @@ export interface SplitClipResult {
   rightClipId: string
 }
 
-export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
+export class SplitClipCommand extends TimelineCommand<SplitClipResult> {
   private clipId: string
   private splitTime: number
-  private leftClipId?: string
-  private rightClipId?: string
 
   constructor(
     context: CommandContext,
@@ -35,7 +27,7 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
   ) {
     super(context, {
       name: 'SplitClip',
-      description: `Split clip ${clipId} at ${splitTime}ms`,
+      description: `Split clip at ${splitTime}ms`,
       category: 'timeline'
     })
     this.clipId = clipId
@@ -52,40 +44,35 @@ export class SplitClipCommand extends PatchedCommand<SplitClipResult> {
   }
 
   protected mutate(draft: WritableDraft<ProjectStore>): void {
-    if (!draft.currentProject) {
-      throw new Error('No active project')
-    }
+    const project = draft.currentProject
+    if (!project) throw new Error('No active project')
 
-    // Capture original clip info BEFORE split for effect sync
-    const originalResult = ClipLookup.byId(draft.currentProject, this.clipId)
-    const originalClip: Clip | null = originalResult ? { ...originalResult.clip } : null
+    const lookup = this.findClip(project, this.clipId)
+    if (!lookup) throw new Error('Clip not found')
 
-    const result = executeSplitClip(draft.currentProject, this.clipId, this.splitTime)
-    if (!result) {
-      throw new Error('Split failed')
-    }
+    const _beforeState = this.buildClipState(lookup.clip)
+    const originalTrackType = lookup.track.type
+
+    const result = executeSplitClip(project, this.clipId, this.splitTime)
+    if (!result) throw new Error('Split failed')
 
     const { firstClip, secondClip } = result
 
-    // Unified effect sync - handles crop duplication and keystroke regeneration
-    if (originalClip) {
-      const clipChange = EffectSyncService.buildSplitChange(originalClip, firstClip.id, secondClip.id)
-      EffectSyncService.syncAfterClipChange(draft.currentProject, clipChange)
-    }
+    // Build and set pending change for middleware
+    const clipChange = TimelineSyncService.buildSplitChange(
+      lookup.clip,
+      firstClip.id,
+      secondClip.id,
+      originalTrackType
+    )
+    this.setPendingChange(draft, clipChange)
 
-    // Select the left clip to keep focus at the split point
-    draft.selectedClips = [firstClip.id]
-
-    // Move playhead to just before the split point
+    // Select left clip and adjust playhead
+    this.selectClip(draft, firstClip.id)
     if (draft.currentTime >= this.splitTime) {
-      draft.currentTime = playbackService.seek(this.splitTime - 1, draft.currentProject.timeline.duration)
+      draft.currentTime = this.splitTime - 1
     }
-
-    // Clear render caches to prevent stale data after split
-    TimelineDataService.invalidateCache(draft.currentProject)
-
-    this.leftClipId = firstClip.id
-    this.rightClipId = secondClip.id
+    this.clampPlayhead(draft)
 
     this.setResult({
       success: true,

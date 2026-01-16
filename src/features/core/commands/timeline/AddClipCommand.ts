@@ -1,21 +1,17 @@
 /**
  * AddClipCommand - Add a clip to the timeline.
- * 
- * Uses PatchedCommand for automatic undo/redo via Immer patches.
  */
 
-import { PatchedCommand } from '../base/PatchedCommand'
+import { TimelineCommand } from '../base/TimelineCommand'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip, TrackType } from '@/types/project'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { addClipToTrack } from '@/features/ui/timeline/clips/clip-crud'
-import { EffectInitialization } from '@/features/effects/core/initialization'
 
-export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
+export class AddClipCommand extends TimelineCommand<{ clipId: string }> {
   private clipOrRecordingId: Clip | string
   private startTime?: number
-  private createdClipId?: string
 
   constructor(
     context: CommandContext,
@@ -25,9 +21,7 @@ export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
   ) {
     super(context, {
       name: 'AddClip',
-      description: typeof clipOrRecordingId === 'string'
-        ? `Add clip from recording ${clipOrRecordingId}`
-        : `Add clip ${clipOrRecordingId.id}`,
+      description: 'Add clip to timeline',
       category: 'timeline'
     })
     this.clipOrRecordingId = clipOrRecordingId
@@ -49,19 +43,16 @@ export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
     if (!project) throw new Error('No active project')
 
     let clip: Clip
-
     if (typeof this.clipOrRecordingId === 'object') {
       clip = this.clipOrRecordingId
     } else {
       const recordingId = this.clipOrRecordingId as string
       const recording = project.recordings.find(r => r.id === recordingId)
-      if (!recording) {
-        throw new Error(`Recording ${recordingId} not found`)
-      }
+      if (!recording) throw new Error(`Recording ${recordingId} not found`)
 
       clip = {
         id: `clip-${Date.now()}`,
-        recordingId: recordingId,
+        recordingId,
         startTime: this.startTime ?? project.timeline.duration,
         duration: recording.duration,
         sourceIn: 0,
@@ -70,27 +61,19 @@ export class AddClipCommand extends PatchedCommand<{ clipId: string }> {
     }
 
     const addedClip = addClipToTrack(project, clip, clip.startTime, { trackType: this.options?.trackType })
-    if (!addedClip) {
-      throw new Error('Failed to add clip (no video track found)')
-    }
+    if (!addedClip) throw new Error('Failed to add clip (no video track found)')
 
-    // Logic from timeline-slice.ts:
-    // Determine if we need to sync keystrokes (only if recording has metadata)
-    const recordingId = addedClip.recordingId
-    const recording = project.recordings.find(r => r.id === recordingId)
+    // Set pending change for middleware
+    this.setPendingChange(draft, this.buildAddChange(addedClip))
 
-    if (recording && (recording.metadata?.keyboardEvents?.length || 0) > 0) {
-      EffectInitialization.syncKeystrokeEffects(project)
-    }
-
-    draft.selectedClips = [addedClip.id]
+    this.selectClip(draft, addedClip.id)
 
     // Enable waveforms by default if the recording has audio
+    const recording = project.recordings.find(r => r.id === addedClip.recordingId)
     if (recording?.hasAudio) {
       draft.settings.editing.showWaveforms = true
     }
 
-    this.createdClipId = addedClip.id
-    this.result = { success: true, data: { clipId: addedClip.id } }
+    this.setResult({ success: true, data: { clipId: addedClip.id } })
   }
 }

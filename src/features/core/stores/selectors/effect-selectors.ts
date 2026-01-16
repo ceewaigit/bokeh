@@ -1,224 +1,59 @@
 /**
  * Effect Selectors
  *
- * Centralized selectors for effect-related state.
- * These provide a clean API for components to access effects
- * without directly importing EffectStore.
+ * Lightweight selectors for effect-related state.
+ * For most use cases, prefer useTimelineEffects() or useEffectsByType()
+ * from timeline-selectors.ts - those provide the grouped data.
  *
- * Usage:
- *   const backgroundEffect = useBackgroundEffect()
- *   const cursorEffect = useCursorEffect()
- *   const zoomEffects = useZoomEffects()
+ * This file only contains selectors that are actually used.
  */
 
 import { useMemo } from 'react'
-import { useProjectStore } from '../project-store'
-import { EffectStore } from '@/features/effects/core/effects-store'
+import { useProjectStore, type ProjectStore } from '../project-store'
 import { EffectType } from '@/types/project'
-import type { Effect, BackgroundEffect, CursorEffect, KeystrokeEffect, ZoomEffect, ScreenEffect, CropEffect, AnnotationEffect, PluginEffect } from '@/types/project'
-import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
+import type { Effect, AnnotationEffect } from '@/types/project'
 
-// =============================================================================
-// SINGLE GLOBAL EFFECTS (only one instance per project)
-// =============================================================================
-
-/**
- * Get the background effect (only one per project).
- */
-export function useBackgroundEffect(): BackgroundEffect | null {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return null
-    const effects = EffectStore.getAll(project)
-    return (effects.find(e => e.type === EffectType.Background) as BackgroundEffect) ?? null
-  }, [project])
-}
-
-/**
- * Get the cursor effect (only one per project).
- */
-export function useCursorEffect(): CursorEffect | null {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return null
-    const effects = EffectStore.getAll(project)
-    return (effects.find(e => e.type === EffectType.Cursor) as CursorEffect) ?? null
-  }, [project])
-}
-
-/**
- * Get the keystroke style effect (global styling, only one per project).
- */
-export function useKeystrokeStyleEffect(): KeystrokeEffect | null {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return null
-    const effects = EffectStore.getAll(project)
-    return (effects.find(e => e.id === KEYSTROKE_STYLE_EFFECT_ID) as KeystrokeEffect) ?? null
-  }, [project])
-}
-
-// =============================================================================
-// MULTIPLE EFFECTS (can have many instances)
-// =============================================================================
-
-/**
- * Get all zoom effects.
- */
-export function useZoomEffects(): ZoomEffect[] {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return []
-    const effects = EffectStore.getAll(project)
-    return effects.filter(e => e.type === EffectType.Zoom) as ZoomEffect[]
-  }, [project])
-}
-
-/**
- * Get all screen effects.
- */
-export function useScreenEffects(): ScreenEffect[] {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return []
-    const effects = EffectStore.getAll(project)
-    return effects.filter(e => e.type === EffectType.Screen) as ScreenEffect[]
-  }, [project])
-}
-
-/**
- * Get all crop effects.
- */
-export function useCropEffects(): CropEffect[] {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return []
-    const effects = EffectStore.getAll(project)
-    return effects.filter(e => e.type === EffectType.Crop) as CropEffect[]
-  }, [project])
-}
+// PERF: Narrow selector to only trigger on effects array changes, not any project change
+// CRITICAL: Use constant empty array to avoid infinite loop in useSyncExternalStore
+const EMPTY_EFFECTS: Effect[] = []
+const selectEffects = (s: ProjectStore): Effect[] =>
+  s.currentProject?.timeline?.effects ?? EMPTY_EFFECTS
 
 /**
  * Get all annotation effects.
+ * Used by timeline-annotation-track.tsx
  */
 export function useAnnotationEffects(): AnnotationEffect[] {
-  const project = useProjectStore((s) => s.currentProject)
+  // PERF: Only re-run when effects array changes, not on any project change
+  const effects = useProjectStore(selectEffects)
 
   return useMemo(() => {
-    if (!project) return []
-    const effects = EffectStore.getAll(project)
     return effects.filter(e => e.type === EffectType.Annotation) as AnnotationEffect[]
-  }, [project])
+  }, [effects])
 }
-
-/**
- * Get all plugin effects.
- */
-export function usePluginEffects(): PluginEffect[] {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return []
-    const effects = EffectStore.getAll(project)
-    return effects.filter(e => e.type === EffectType.Plugin) as PluginEffect[]
-  }, [project])
-}
-
-/**
- * Get all keystroke effects (individual keystrokes, NOT the style effect).
- */
-export function useKeystrokeEffects(): KeystrokeEffect[] {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return []
-    const effects = EffectStore.getAll(project)
-    return effects.filter(e =>
-      e.type === EffectType.Keystroke && e.id !== KEYSTROKE_STYLE_EFFECT_ID
-    ) as KeystrokeEffect[]
-  }, [project])
-}
-
-// =============================================================================
-// BY ID / FILTERED
-// =============================================================================
 
 /**
  * Get an effect by ID.
  */
 export function useEffectById(effectId: string | null): Effect | null {
-  const project = useProjectStore((s) => s.currentProject)
+  // PERF: Only re-run when effects array changes
+  const effects = useProjectStore(selectEffects)
 
   return useMemo(() => {
-    if (!project || !effectId) return null
-    return EffectStore.get(project, effectId)
-  }, [project, effectId])
+    if (!effectId) return null
+    return effects.find(e => e.id === effectId) ?? null
+  }, [effects, effectId])
 }
 
 /**
  * Get effects for a specific clip.
  */
 export function useEffectsForClip(clipId: string | null): Effect[] {
-  const project = useProjectStore((s) => s.currentProject)
+  // PERF: Only re-run when effects array changes
+  const effects = useProjectStore(selectEffects)
 
   return useMemo(() => {
-    if (!project || !clipId) return []
-    const effects = EffectStore.getAll(project)
+    if (!clipId) return []
     return effects.filter(e => e.clipId === clipId)
-  }, [project, clipId])
-}
-
-/**
- * Get enabled zoom effects only.
- */
-export function useEnabledZoomEffects(): ZoomEffect[] {
-  const zoomEffects = useZoomEffects()
-  return useMemo(() => zoomEffects.filter(e => e.enabled), [zoomEffects])
-}
-
-/**
- * Get enabled crop effects only.
- */
-export function useEnabledCropEffects(): CropEffect[] {
-  const cropEffects = useCropEffects()
-  return useMemo(() => cropEffects.filter(e => e.enabled), [cropEffects])
-}
-
-// =============================================================================
-// COUNTS & EXISTS
-// =============================================================================
-
-/**
- * Check if any zoom effects exist.
- */
-export function useHasZoomEffects(): boolean {
-  const zoomEffects = useZoomEffects()
-  return zoomEffects.length > 0
-}
-
-/**
- * Check if any annotation effects exist.
- */
-export function useHasAnnotationEffects(): boolean {
-  const annotationEffects = useAnnotationEffects()
-  return annotationEffects.length > 0
-}
-
-/**
- * Get the count of effects by type.
- */
-export function useEffectCount(type: EffectType): number {
-  const project = useProjectStore((s) => s.currentProject)
-
-  return useMemo(() => {
-    if (!project) return 0
-    const effects = EffectStore.getAll(project)
-    return effects.filter(e => e.type === type).length
-  }, [project, type])
+  }, [effects, clipId])
 }

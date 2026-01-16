@@ -11,6 +11,7 @@
 
 import React, { useRef, useEffect, useMemo, useLayoutEffect, useState } from 'react';
 import { PlayerRef } from '@remotion/player';
+import { useShallow } from 'zustand/react/shallow';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { useProgressStore } from '@/features/core/stores/progress-store';
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults';
@@ -44,11 +45,31 @@ export function PreviewAreaRemotion({
   zoomSettings,
   glowPortalRootRef,
 }: PreviewAreaRemotionProps) {
-  // Subscribe directly to store to avoid WorkspaceManager re-renders.
-  // Avoid subscribing to currentTime here as it updates at 60fps.
-  const storeIsPlaying = useProjectStore((s) => s.isPlaying);
+  // BATTERY OPTIMIZATION: Batch state selectors to reduce subscription overhead.
+  // Uses useShallow for structural equality - component only re-renders when values actually change.
+  // Avoids subscribing to currentTime here as it updates at 60fps.
+  const {
+    storeIsPlaying,
+    isScrubbing,
+    project,
+    selectedEffectLayer,
+    timelineMutationCounter,
+  } = useProjectStore(useShallow((s) => ({
+    storeIsPlaying: s.isPlaying,
+    isScrubbing: s.isScrubbing,
+    project: s.currentProject,
+    selectedEffectLayer: s.selectedEffectLayer,
+    timelineMutationCounter: s.timelineMutationCounter,
+  })));
+  // Keep function selectors separate (not state)
   const storePause = useProjectStore((s) => s.pause);
   const isExporting = useProgressStore((s) => s.isProcessing);
+
+  // Derive settings from project (avoids extra subscriptions)
+  const projectSettings = project?.settings;
+  const volume = projectSettings?.audio.volume ?? DEFAULT_PROJECT_SETTINGS.audio.volume;
+  const muted = projectSettings?.audio.muted ?? DEFAULT_PROJECT_SETTINGS.audio.muted;
+  const cameraSettings = projectSettings?.camera ?? DEFAULT_PROJECT_SETTINGS.camera;
 
   // Track document visibility to pause playback when window loses focus.
   const { isDocumentVisible } = usePreviewVisibility(storeIsPlaying, storePause);
@@ -70,16 +91,6 @@ export function PreviewAreaRemotion({
   } | null>(null);
 
   const previewViewportSize = usePreviewResize(previewViewportRef);
-
-  const isScrubbing = useProjectStore((s) => s.isScrubbing);
-
-  const project = useProjectStore((s) => s.currentProject);
-  const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer);
-  const projectSettings = useProjectStore((s) => s.currentProject?.settings);
-  const volume = projectSettings?.audio.volume ?? DEFAULT_PROJECT_SETTINGS.audio.volume;
-  const muted = projectSettings?.audio.muted ?? DEFAULT_PROJECT_SETTINGS.audio.muted;
-  // Subscribe directly to camera to ensure re-renders when camera settings change
-  const cameraSettings = useProjectStore((s) => s.currentProject?.settings.camera) ?? DEFAULT_PROJECT_SETTINGS.camera;
   const isHighQualityPlaybackEnabled = usePreviewSettingsStore((s) => s.highQuality);
   const isGlowEnabled = usePreviewSettingsStore((s) => s.showGlow);
   const glowIntensity = usePreviewSettingsStore((s) => s.glowIntensity);
@@ -109,7 +120,6 @@ export function PreviewAreaRemotion({
   // STABLE: Only fps + recording IDs require remount. Duration/dimensions are handled by Remotion.
   // Previously included duration/width/height which caused remounts during edits and scrubbing.
   // FIX: Include timelineMutationCounter to force remount when clips are regenerated (new clip IDs)
-  const timelineMutationCounter = useProjectStore((s) => s.timelineMutationCounter);
   const playerKey = useMemo(() => {
     if (!project || !timelineMetadata) return "player-empty";
     const videoTrack = project.timeline.tracks.find(t => t.type === 'video');

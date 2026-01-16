@@ -10,7 +10,7 @@ import type { Project, Clip, Recording, Effect, SourceTimeRange } from '@/types/
 import { TrackType } from '@/types/project'
 import type { GlobalSkipRange } from '@/types/skip-ranges'
 export type { GlobalSkipRange } from '@/types/skip-ranges'
-import { sourceToTimeline } from '@/features/ui/timeline/time/time-space-converter'
+import { sourceToTimeline as _sourceToTimeline, sourceRangeToTimelineRange } from '@/features/ui/timeline/time/time-space-converter'
 import { buildFrameLayout, type FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { EffectStore } from '@/features/effects/core/effects-store'
@@ -55,8 +55,9 @@ export class TimelineDataService {
   private static sortedClipsCache = new WeakMap<Project, { video: Clip[]; audio: Clip[] }>()
 
   // Cache for active effects at clip positions (was orphaned in get-active-clip-data-at-frame.ts)
-  // Key: `{clipId}-{startTime}`, Value: effects array for that clip position
-  private static activeEffectsCache = new Map<string, Effect[]>()
+  // Key: Project reference -> Map of `{clipId}-{startTime}` -> effects array
+  // Using WeakMap to avoid memory leaks when switching projects
+  private static activeEffectsCache = new WeakMap<Project, Map<string, Effect[]>>()
 
   /**
    * Get all video clips from the project.
@@ -206,8 +207,8 @@ export class TimelineDataService {
   static invalidateCache(project: Project): void {
     this.recordingsMapCache.delete(project)
     this.sortedClipsCache.delete(project)
-    // Clear global caches that depend on clip structure
-    this.activeEffectsCache.clear()
+    // Clear project-specific active effects cache
+    this.activeEffectsCache.delete(project)
   }
 
   /**
@@ -215,12 +216,15 @@ export class TimelineDataService {
    * Used by get-active-clip-data-at-frame.ts for render optimization.
    * Updates LRU order on access.
    */
-  static getActiveEffectsFromCache(key: string): Effect[] | undefined {
-    const cached = this.activeEffectsCache.get(key)
+  static getActiveEffectsFromCache(project: Project, key: string): Effect[] | undefined {
+    const projectCache = this.activeEffectsCache.get(project)
+    if (!projectCache) return undefined
+
+    const cached = projectCache.get(key)
     if (cached !== undefined) {
       // LRU: Move to end (most recently used) by re-inserting
-      this.activeEffectsCache.delete(key)
-      this.activeEffectsCache.set(key, cached)
+      projectCache.delete(key)
+      projectCache.set(key, cached)
     }
     return cached
   }
@@ -229,16 +233,22 @@ export class TimelineDataService {
    * Set cached active effects for a clip position.
    * Uses LRU eviction - removes least recently used entries when at capacity.
    */
-  static setActiveEffectsCache(key: string, effects: Effect[]): void {
-    // If key exists, delete first to update LRU order
-    if (this.activeEffectsCache.has(key)) {
-      this.activeEffectsCache.delete(key)
+  static setActiveEffectsCache(project: Project, key: string, effects: Effect[]): void {
+    let projectCache = this.activeEffectsCache.get(project)
+    if (!projectCache) {
+      projectCache = new Map<string, Effect[]>()
+      this.activeEffectsCache.set(project, projectCache)
     }
-    this.activeEffectsCache.set(key, effects)
+
+    // If key exists, delete first to update LRU order
+    if (projectCache.has(key)) {
+      projectCache.delete(key)
+    }
+    projectCache.set(key, effects)
     // Prune cache using LRU - first key is least recently used
-    if (this.activeEffectsCache.size > 100) {
-      const keyToDelete = this.activeEffectsCache.keys().next().value
-      if (keyToDelete) this.activeEffectsCache.delete(keyToDelete)
+    if (projectCache.size > 100) {
+      const keyToDelete = projectCache.keys().next().value
+      if (keyToDelete) projectCache.delete(keyToDelete)
     }
   }
 
@@ -352,46 +362,14 @@ export class TimelineDataService {
   /**
    * Project a source-space range to timeline-space for a given clip.
    * Returns null if the range doesn't overlap with the clip's source window.
-   * 
-   * FORMULA:
-   *   offset = Clip.startTime - Clip.sourceIn
-   *   timelineStart = max(Clip.startTime, Range.start + offset)
-   *   timelineEnd = min(Clip.endTime, Range.end + offset)
+   *
+   * Delegates to the canonical sourceRangeToTimelineRange utility.
    */
   public static projectSourceRangeToTimeline(
     sourceRange: SourceTimeRange,
     clip: Clip
   ): { start: number; end: number } | null {
-    const clipSourceIn = clip.sourceIn ?? 0
-    const clipSourceOut = clip.sourceOut ?? (clipSourceIn + (clip.duration * (clip.playbackRate ?? 1)))
-
-    // Check if range overlaps with clip's source window
-    if (sourceRange.endTime <= clipSourceIn || sourceRange.startTime >= clipSourceOut) {
-      return null // No overlap
-    }
-
-    // Clamp range to clip's source window
-    const clampedSourceStart = Math.max(sourceRange.startTime, clipSourceIn)
-    const clampedSourceEnd = Math.min(sourceRange.endTime, clipSourceOut)
-
-    if (clampedSourceEnd <= clampedSourceStart) {
-      return null
-    }
-
-    // Project to timeline using sourceToTimeline (accounts for playback rate)
-    const timelineStart = sourceToTimeline(clampedSourceStart, clip)
-    const timelineEnd = sourceToTimeline(clampedSourceEnd, clip)
-
-    // Clamp to clip bounds on timeline
-    const clipEnd = clip.startTime + clip.duration
-    const finalStart = Math.max(clip.startTime, Math.min(timelineStart, timelineEnd))
-    const finalEnd = Math.min(clipEnd, Math.max(timelineStart, timelineEnd))
-
-    if (finalEnd <= finalStart) {
-      return null
-    }
-
-    return { start: finalStart, end: finalEnd }
+    return sourceRangeToTimelineRange(sourceRange, clip)
   }
 
   /**

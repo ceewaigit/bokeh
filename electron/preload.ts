@@ -537,6 +537,13 @@ const electronAPI = {
     return () => ipcRenderer.removeListener('recording-error', wrappedCallback)
   },
 
+  // Countdown abort (triggered by global Escape shortcut)
+  onAbortCountdown: (callback: () => void) => {
+    const wrappedCallback = () => callback()
+    ipcRenderer.on('abort-countdown', wrappedCallback)
+    return () => ipcRenderer.removeListener('abort-countdown', wrappedCallback)
+  },
+
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel)
   },

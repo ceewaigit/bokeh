@@ -20,7 +20,7 @@ const hash = window.location.hash;
 const isRecordButton = hash === '#/record-button';
 const isAreaSelection = hash === '#/area-selection';
 const isTeleprompter = hash === '#/teleprompter';
-const isWebcamPreview = hash === '#/webcam-preview';
+const isWebcamPreview = hash.startsWith('#/webcam-preview');
 
 const App = () => {
   if (isRecordButton) {

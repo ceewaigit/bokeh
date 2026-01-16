@@ -60,6 +60,10 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     const mainPlayerInputProps = useMemo(() => {
         return buildTimelineCompositionInput(playerConfig, {
             playback: {
+                // NOTE: These are hardcoded because Remotion Player controls playback state internally.
+                // The Player's play()/pause() methods drive actual playback, not these props.
+                // Components that need actual playback state for URL locking or sync decisions
+                // should read from useProjectStore directly (isPlaying, isScrubbing).
                 isPlaying: false,
                 isScrubbing: false,
                 isHighQualityPlaybackEnabled,

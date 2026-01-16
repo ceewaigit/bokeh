@@ -268,6 +268,9 @@ describe('WebcamService (black box)', () => {
       service.pause()
       service.resume()
 
+      // Wait for async segment-based resume to complete
+      await new Promise(r => setTimeout(r, 50))
+
       expect(service.isPaused()).toBe(false)
     })
 

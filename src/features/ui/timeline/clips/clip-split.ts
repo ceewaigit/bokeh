@@ -7,7 +7,6 @@
 
 import type { Project, Clip } from '@/types/project'
 import { EffectCreation } from '@/features/effects/core/creation'
-import { EffectInitialization } from '@/features/effects/core/initialization'
 import { getCropEffectForClip } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/effects-store'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
@@ -148,12 +147,7 @@ export function executeSplitClip(
         }
     })
 
-    // Sync keystroke effects
-    try {
-        EffectInitialization.syncKeystrokeEffects(project)
-    } catch (e) {
-        console.error('Failed to sync keystroke effects during split', e)
-    }
+    // Note: Sync is handled automatically by middleware via _pendingClipChange
 
     return mutationResult
 }

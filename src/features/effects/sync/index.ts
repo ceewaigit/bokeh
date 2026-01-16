@@ -1,9 +1,13 @@
 /**
- * Effect Sync Module
- * 
- * Provides unified effect synchronization after clip operations.
+ * Timeline Sync Module
+ *
+ * Provides unified timeline synchronization after clip operations.
+ * Handles effects, webcam clips, and other linked timeline state.
  */
 
-export { EffectSyncService } from './effect-sync-service'
-export { syncKeystrokeEffects, createKeystrokeEffect } from './keystroke-sync'
+export { TimelineSyncService } from './timeline-sync-service'
+export {
+    syncKeystrokeEffects,
+    createKeystrokeEffect,
+} from './keystroke-sync'
 export type { ClipChange, ClipState, SegmentMapping } from './types'

@@ -13,6 +13,7 @@ import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-e
 import { DEFAULT_SCREEN_DATA, SCREEN_EFFECT_PRESETS } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { useProjectStore } from '@/features/core/stores/project-store'
+import { useEffectById } from '@/features/core/stores/selectors/effect-selectors'
 
 interface DepthStylePreviewProps {
     tiltX: number
@@ -88,10 +89,12 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
     const [showAdvanced, setShowAdvanced] = useState(false)
     const [hoveredStyle, setHoveredStyle] = useState<string | null>(null)
     const executorRef = useCommandExecutor()
-    const screenEffect = useProjectStore((s) => {
-        if (!selectedEffectLayer?.id || selectedEffectLayer.type !== EffectLayerType.Screen) return null
-        return s.currentProject?.timeline.effects?.find((effect) => effect.id === selectedEffectLayer.id) ?? null
-    })
+    // PERF: Use granular selector instead of searching entire effects array
+    // This prevents re-renders when unrelated effects change
+    const selectedScreenId = selectedEffectLayer?.type === EffectLayerType.Screen
+        ? (selectedEffectLayer.id ?? null)
+        : null
+    const screenEffect = useEffectById(selectedScreenId)
     const screenData = screenEffect?.data as ScreenEffectData | undefined
     const currentPreset = screenData?.preset ?? DEFAULT_SCREEN_DATA.preset
 

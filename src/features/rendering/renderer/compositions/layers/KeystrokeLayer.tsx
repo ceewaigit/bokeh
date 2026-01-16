@@ -16,13 +16,14 @@ import { OverlayAnchor } from '@/types/overlays';
 
 export const KeystrokeLayer: React.FC = () => {
   const sourceTimeMs = useSourceTime();
-  const { keystrokeEvents, clip, effects } = useClipContext();
+  const { keystrokeEvents, clip } = useClipContext();
   const { width, height } = useVideoConfig();
   const { fps } = useComposition();
   const frame = useCurrentFrame();
   const { resolvedAnchors } = useOverlayContext();
   const videoPosition = useVideoPosition();
-  const { getRecording } = useTimelineContext();
+  // PERF: Use pre-computed keystrokeStyleEffect and effectsByType from context
+  const { getRecording, keystrokeStyleEffect, effectsByType } = useTimelineContext();
   const overlayScale = useMemo(() => {
     const scaleFactor = videoPosition.scaleFactor;
     if (typeof scaleFactor === 'number' && Number.isFinite(scaleFactor) && scaleFactor > 0) {
@@ -42,24 +43,21 @@ export const KeystrokeLayer: React.FC = () => {
     return calculateVideoPosition(width, height, recording.width, recording.height, padding);
   }, [clip.recordingId, getRecording, width, height, videoPosition.paddingScaled]);
 
-
-  const keystrokeStyleEffect = useMemo(() => {
-    return effects.find(e => e.type === EffectType.Keystroke && e.id === KEYSTROKE_STYLE_EFFECT_ID);
-  }, [effects]);
+  // PERF: Use pre-computed keystroke effects from context instead of filtering all effects
+  const keystrokeEffects = effectsByType.get(EffectType.Keystroke) ?? [];
 
   const activeKeystrokeEffects = useMemo(() => {
     const frameDurationMs = 1000 / fps;
     const timelineTimeMs = clip.startTime + ((frame + 0.5) / fps) * 1000;
     const tolerance = frameDurationMs;
 
-    return effects.filter(e =>
-      e.type === EffectType.Keystroke &&
+    return keystrokeEffects.filter(e =>
       e.id !== KEYSTROKE_STYLE_EFFECT_ID &&
       e.enabled &&
       timelineTimeMs + tolerance >= e.startTime &&
       timelineTimeMs <= e.endTime + tolerance
     );
-  }, [effects, clip.startTime, frame, fps]);
+  }, [keystrokeEffects, clip.startTime, frame, fps]);
 
   if (activeKeystrokeEffects.length === 0) {
     return null;

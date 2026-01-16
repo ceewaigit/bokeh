@@ -18,15 +18,8 @@ export const createCacheSlice: CreateCacheSlice = (set) => ({
     frameLayoutCache: null,
     timelineMutationCounter: 0,
     previewReady: false,
-    _layoutOnlyUpdate: false,
 
     // Actions
-    setLayoutOnlyUpdate: (value: boolean) => {
-        set((state) => {
-            state._layoutOnlyUpdate = value
-        })
-    },
-
     setCameraPathCache: (
         cache: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null,
         dimensions?: { width: number; height: number } | null

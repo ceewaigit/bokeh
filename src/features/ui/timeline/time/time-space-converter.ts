@@ -564,6 +564,54 @@ export function calculateAdaptiveZoomLimits(
 }
 
 /**
+ * Convert a source-space range to timeline-space for a given clip.
+ * Returns null if the range doesn't overlap with the clip's source window.
+ *
+ * This is the CORRECT pattern for converting source ranges:
+ * 1. Check overlap with clip's source window
+ * 2. Clamp source range BEFORE conversion (critical to prevent overlaps!)
+ * 3. Convert clamped values
+ * 4. Clamp result to clip timeline bounds
+ *
+ * @param sourceRange - Range in source space (recording timestamps)
+ * @param clip - The clip to project onto
+ * @returns Timeline range { start, end } in milliseconds, or null if no overlap
+ */
+export function sourceRangeToTimelineRange(
+  sourceRange: { startTime: number; endTime: number },
+  clip: Clip
+): { start: number; end: number } | null {
+  const sourceIn = clip.sourceIn ?? 0
+  const playbackRate = clip.playbackRate ?? 1
+  const sourceOut = clip.sourceOut ?? (sourceIn + clip.duration * playbackRate)
+
+  // Check overlap - return null if range doesn't intersect clip's source window
+  if (sourceRange.endTime <= sourceIn || sourceRange.startTime >= sourceOut) {
+    return null
+  }
+
+  // Clamp source range to clip's source window BEFORE conversion
+  // This prevents multiple out-of-range periods from collapsing to the same point
+  const clampedSourceStart = Math.max(sourceRange.startTime, sourceIn)
+  const clampedSourceEnd = Math.min(sourceRange.endTime, sourceOut)
+
+  if (clampedSourceEnd <= clampedSourceStart) {
+    return null
+  }
+
+  // Convert clamped values to timeline space
+  const timelineStart = sourceToTimeline(clampedSourceStart, clip)
+  const timelineEnd = sourceToTimeline(clampedSourceEnd, clip)
+
+  // Final clamp to clip timeline bounds (safety net)
+  const clipEnd = clip.startTime + clip.duration
+  return {
+    start: Math.max(clip.startTime, Math.min(timelineStart, timelineEnd)),
+    end: Math.min(clipEnd, Math.max(timelineStart, timelineEnd))
+  }
+}
+
+/**
  * TimeConverter namespace - groups all time conversion functions.
  */
 export const TimeConverter = {
@@ -579,6 +627,7 @@ export const TimeConverter = {
   isTimelinePositionInClip,
   isSourceTimeInClip,
   findClipAtTimelinePosition,
+  sourceRangeToTimelineRange,
 
   // Pixel conversions
   calculatePixelsPerMs,

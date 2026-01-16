@@ -18,10 +18,8 @@
 import React, { useMemo } from 'react'
 import { AbsoluteFill, useCurrentFrame } from 'remotion'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
-import { getEffectsOfType } from '@/features/effects/core/filters'
-import { EffectType } from '@/types/project'
 import { frameToMs } from '../utils/time/frame-time'
-import type { Effect, PluginEffect, PluginEffectData } from '@/types/project'
+import type { Effect, PluginEffectData } from '@/types/project'
 import type { PluginFrameContext, PluginRenderProps } from '@/features/effects/config/plugin-sdk'
 import { assertDefined } from '@/shared/errors'
 import { useVideoPosition } from '@/features/rendering/renderer/context/layout/VideoPositionContext'
@@ -37,51 +35,34 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
   // Pull core state from contexts
   // Use VideoPositionContext for consistency with other layers
   const { videoWidth, videoHeight } = useVideoPosition()
-  const { effects, fps } = useTimelineContext()
+  // PERF: Use pre-computed pluginEffects from context (already filtered by layer and sorted)
+  const { pluginEffects, fps } = useTimelineContext()
   const currentFrame = useCurrentFrame()
 
   const width = videoWidth
   const height = videoHeight
   const currentTimeMs = frameToMs(currentFrame, fps)
 
-  // Effects list is typically stable while playing; avoid re-filtering/sorting every frame.
-  const allPluginEffects = useMemo(() => getEffectsOfType(effects, EffectType.Plugin, false), [effects])
+  // PERF: O(1) lookup for pre-filtered & pre-sorted effects by layer
+  // Only time filtering remains (unavoidable, but on much smaller pre-filtered array)
+  const layerEffects = layer === 'above-cursor'
+    ? pluginEffects.aboveCursor
+    : pluginEffects.belowCursor
 
-  // Filter to active effects at current time that are enabled
-  const activePluginEffects = useMemo(() => {
-    return allPluginEffects.filter(effect => {
-      if (!effect.enabled) return false
-      return currentTimeMs >= effect.startTime && currentTimeMs <= effect.endTime
-    })
-  }, [allPluginEffects, currentTimeMs])
+  // Filter to active effects at current time (this is the only per-frame filter needed)
+  const activeEffects = useMemo(() => {
+    return layerEffects.filter(effect =>
+      currentTimeMs >= effect.startTime && currentTimeMs <= effect.endTime
+    )
+  }, [layerEffects, currentTimeMs])
 
-  // Filter by layer (below cursor: z < 100, above cursor: z >= 100)
-  const layerThreshold = 100
-  const layerFilteredEffects = useMemo(() => {
-    return activePluginEffects.filter(effect => {
-      const isPlugin = effect.type === EffectType.Plugin
-      const data = isPlugin ? (effect as PluginEffect).data : null
-      const zIndex = data?.zIndex ?? 50
-      return layer === 'above-cursor' ? zIndex >= layerThreshold : zIndex < layerThreshold
-    })
-  }, [activePluginEffects, layer])
-
-  // Sort by z-index (lower z-index renders first, higher renders on top)
-  const sortedEffects = useMemo(() => {
-    return [...layerFilteredEffects].sort((a, b) => {
-      const aData = a.type === EffectType.Plugin ? (a as PluginEffect).data : null
-      const bData = b.type === EffectType.Plugin ? (b as PluginEffect).data : null
-      return (aData?.zIndex ?? 50) - (bData?.zIndex ?? 50)
-    })
-  }, [layerFilteredEffects])
-
-  if (sortedEffects.length === 0) {
+  if (activeEffects.length === 0) {
     return null
   }
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
-      {sortedEffects.map(effect => (
+      {activeEffects.map(effect => (
         <PluginEffectRenderer
           key={effect.id}
           effect={effect}

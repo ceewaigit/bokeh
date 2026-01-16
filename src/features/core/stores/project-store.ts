@@ -3,16 +3,6 @@
  *
  * Main Zustand store composed from focused slices.
  * Each slice handles a specific domain of functionality.
- *
- * Slices:
- * - core-slice: Project lifecycle, settings, recordings
- * - timeline-slice: Clip & Effect operations (merged)
- * - selection-slice: Selection state, clipboard
- * - playback-slice: Playback controls, zoom
- * - cache-slice: Centralized caching (camera path, frame layout)
- * - settings-slice: Quality, format, editing preferences
- *
- * Note: Progress state has been moved to useProgressStore for decoupling.
  */
 
 import { create, StateCreator } from 'zustand'
@@ -24,55 +14,74 @@ import { createTimelineSlice } from './slices/timeline-slice'
 import { createCacheSlice } from './slices/cache-slice'
 import { createSettingsSlice } from './slices/settings-slice'
 import type { ProjectStore } from './slices/types'
+import { TimelineSyncService } from '@/features/effects/sync/timeline-sync-service'
+import type { ClipChange as _ClipChange } from '@/features/effects/sync/types'
+
+/** Check if track structure is the same (same clips in same order) */
+function isTrackStructureSame(
+  prevTracks: { clips: { id: string }[] }[] | undefined,
+  nextTracks: { clips: { id: string }[] }[] | undefined
+): boolean {
+  if (!prevTracks || !nextTracks) return prevTracks === nextTracks
+  if (prevTracks.length !== nextTracks.length) return false
+
+  for (let i = 0; i < prevTracks.length; i++) {
+    const prevClips = prevTracks[i].clips
+    const nextClips = nextTracks[i].clips
+    if (prevClips.length !== nextClips.length) return false
+    for (let j = 0; j < prevClips.length; j++) {
+      if (prevClips[j].id !== nextClips[j].id) return false
+    }
+  }
+  return true
+}
 
 /**
- * Cache Invalidation Middleware
- * 
- * PERFORMANCE OPTIMIZATION: Only invalidate caches on STRUCTURAL changes.
- * - Structural = tracks array, timeline.effects array
- * - Non-structural = modifiedAt, recordings metadata, settings
- * 
- * This prevents unnecessary cache rebuilds during:
- * - Playback (time updates)
- * - Proxy generation (recording URL updates)  
- * - Project save (modifiedAt updates)
+ * Middleware that handles timeline sync and cache invalidation.
+ * Commands set _pendingClipChange, middleware runs TimelineSyncService.commit().
  */
-const cacheInvalidationMiddleware =
+const timelineSyncMiddleware =
   <T extends ProjectStore>(config: StateCreator<T, any, any>): StateCreator<T, any, any> =>
     (set, get, api) =>
       config(
         (args, replace) => {
           const prevTimeline = (get() as ProjectStore).currentProject?.timeline
-          // Check if this is a layout-only update BEFORE the mutation
-          const isLayoutOnly = (get() as ProjectStore)._layoutOnlyUpdate
 
           set(args, replace as any)
 
-          const nextTimeline = (get() as ProjectStore).currentProject?.timeline
+          const state = get() as ProjectStore
+          const nextTimeline = state.currentProject?.timeline
 
-          // Clear the layout-only flag after mutation is processed
-          if (isLayoutOnly) {
-            (get() as ProjectStore).setLayoutOnlyUpdate(false)
+          // Process pending clip change
+          const pendingChange = state._pendingClipChange
+          if (pendingChange && state.currentProject) {
+            // Cast needed: immer middleware accepts void-returning mutators,
+            // but generic middleware types don't reflect this
+            (api.setState as any)((draft: any) => {
+              if (draft.currentProject) {
+                TimelineSyncService.commit(draft.currentProject, pendingChange)
+              }
+              draft._pendingClipChange = null
+            })
           }
 
-          // OPTIMIZED: Only invalidate on structural changes
-          // tracks or effects arrays changed (Immer produces new refs on mutation)
-          const tracksChanged = prevTimeline?.tracks !== nextTimeline?.tracks
-          const effectsChanged = prevTimeline?.effects !== nextTimeline?.effects
-          const transcriptEditsChanged = prevTimeline?.transcriptEdits !== nextTimeline?.transcriptEdits
+          // Skip cache invalidation if timeline unchanged
+          if (!prevTimeline || !nextTimeline || prevTimeline === nextTimeline) {
+            return
+          }
 
-          if (tracksChanged) {
-            if (isLayoutOnly) {
-              // Layout-only change (crop, styling) - only clear caches, no player remount
-              (get() as ProjectStore).invalidateCachesOnly()
-            } else {
-              // Structural track change (clip regeneration) - full invalidation with counter increment
-              // This triggers Remotion Player remount to handle new clip IDs
+          const tracksRefChanged = prevTimeline.tracks !== nextTimeline.tracks
+          const effectsChanged = prevTimeline.effects !== nextTimeline.effects
+          const transcriptEditsChanged = prevTimeline.transcriptEdits !== nextTimeline.transcriptEdits
+
+          if (tracksRefChanged) {
+            const isStructuralChange = !isTrackStructureSame(prevTimeline?.tracks, nextTimeline?.tracks)
+            if (isStructuralChange) {
               (get() as ProjectStore).invalidateAllCaches()
+            } else {
+              (get() as ProjectStore).invalidateCachesOnly()
             }
           } else if (effectsChanged || transcriptEditsChanged) {
-            // Non-structural change (effects, annotations, transcript edits)
-            // Only clear caches, no player remount needed
             (get() as ProjectStore).invalidateCachesOnly()
           }
         },
@@ -82,7 +91,7 @@ const cacheInvalidationMiddleware =
 
 // Compose all slices into the main store
 export const useProjectStore = create<ProjectStore>()(
-  cacheInvalidationMiddleware(
+  timelineSyncMiddleware(
     immer((...a) => ({
       ...createCoreSlice(...a),
       ...createTimelineSlice(...a),

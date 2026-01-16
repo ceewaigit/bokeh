@@ -219,6 +219,29 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     }) ?? null;
   }, [webcamClips, currentTimeMs]);
 
+  // Filter webcam clips to only those near current time to prevent wrong frames
+  // from being rendered when multiple clips exist (e.g., from speed-up operations)
+  const visibleWebcamClips = React.useMemo(() => {
+    if (!webcamClips.length) return [];
+
+    const { isRendering } = getRemotionEnvironment();
+
+    // For export: only render the active clip (no buffering needed)
+    if (isRendering) {
+      return activeWebcamClip ? [activeWebcamClip] : [];
+    }
+
+    // For preview: include clips within buffer range for smooth transitions
+    const bufferMs = (60 / fps) * 1000; // 60 frames buffer (matches premountFor)
+    const rangeStart = currentTimeMs - bufferMs;
+    const rangeEnd = currentTimeMs + bufferMs;
+
+    return webcamClips.filter(clip => {
+      const clipEnd = clip.startTime + clip.duration;
+      return clipEnd > rangeStart && clip.startTime < rangeEnd;
+    });
+  }, [webcamClips, activeWebcamClip, currentTimeMs, fps]);
+
   const { displacedEffectIds, resolvedAnchors } = React.useMemo(
     () => {
       const isSubtitleVisibleAtTime = subtitleResolutionContext
@@ -409,8 +432,9 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
 
             {/* Webcam clips: Per-clip rendering with stable Sequences
                 Each clip gets its own Video element with stable timing, matching VideoClipRenderer architecture.
-                This prevents unmount/remount issues when switching between clips. */}
-            {!renderSettings.isGlowMode && webcamClips.map((clip) => {
+                This prevents unmount/remount issues when switching between clips.
+                Only visible clips (near current time) are rendered to prevent wrong frames from speed-up clips. */}
+            {!renderSettings.isGlowMode && visibleWebcamClips.map((clip) => {
               const recording = getRecording(clip.recordingId);
               if (!recording) return null;
               return (
@@ -422,6 +446,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
                   playback={playback}
                   fps={fps}
                   globalOpacity={visibilityOpacity}
+                  isActive={clip.id === activeWebcamClip?.id}
                 />
               );
             })}

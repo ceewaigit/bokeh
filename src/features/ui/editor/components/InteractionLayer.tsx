@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useRef, useState, useCallback, useMemo, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useCanvasDrag, type DragType, type CanvasDragDelta } from '@/features/ui/editor/hooks/use-canvas-drag'
@@ -246,20 +247,40 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     // --- Stores & Context ---
     const overlayRef = useRef<HTMLDivElement>(null)
 
-    // Store Access (selection only - NOT transient state)
-    const selectedEffectLayer = useProjectStore((s) => s.selectedEffectLayer)
-    const selectEffectLayer = useProjectStore((s) => s.selectEffectLayer)
-    const clearEffectSelection = useProjectStore((s) => s.clearEffectSelection)
-    const startEditingOverlay = useProjectStore((s) => s.startEditingOverlay)
-    const stopEditingOverlay = useProjectStore((s) => s.stopEditingOverlay)
-    const updateEffect = useProjectStore((s) => s.updateEffect)
-    const project = useProjectStore((s) => s.currentProject)
-    const updateProjectData = useProjectStore((s) => s.updateProjectData)
-    const startInlineEditing = useProjectStore((s) => s.startInlineEditing)
-    const isPropertiesOpen = useWorkspaceStore((s) => s.isPropertiesOpen)
-    const toggleProperties = useWorkspaceStore((s) => s.toggleProperties)
-    const setActiveSidebarTab = useWorkspaceStore((s) => s.setActiveSidebarTab)
-    const activeSidebarTab = useWorkspaceStore((s) => s.activeSidebarTab)
+    // Store Access - PERF: Consolidated into single subscription to prevent cascading re-renders
+    const {
+        selectedEffectLayer,
+        selectEffectLayer,
+        clearEffectSelection,
+        startEditingOverlay,
+        stopEditingOverlay,
+        updateEffect,
+        project,
+        updateProjectData,
+        startInlineEditing
+    } = useProjectStore(useShallow((s) => ({
+        selectedEffectLayer: s.selectedEffectLayer,
+        selectEffectLayer: s.selectEffectLayer,
+        clearEffectSelection: s.clearEffectSelection,
+        startEditingOverlay: s.startEditingOverlay,
+        stopEditingOverlay: s.stopEditingOverlay,
+        updateEffect: s.updateEffect,
+        project: s.currentProject,
+        updateProjectData: s.updateProjectData,
+        startInlineEditing: s.startInlineEditing
+    })))
+
+    const {
+        isPropertiesOpen,
+        toggleProperties,
+        setActiveSidebarTab,
+        activeSidebarTab
+    } = useWorkspaceStore(useShallow((s) => ({
+        isPropertiesOpen: s.isPropertiesOpen,
+        toggleProperties: s.toggleProperties,
+        setActiveSidebarTab: s.setActiveSidebarTab,
+        activeSidebarTab: s.activeSidebarTab
+    })))
 
     // SSOT: Use isolated annotation editing context for transient state
     // This ensures video rendering is never affected by annotation drag/resize
@@ -271,6 +292,37 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     const shiftKeyRef = useRef(false)
     const lastCursorRef = useRef<string>('default')
     const didJustDragRef = useRef(false) // Tracks if drag just ended to prevent click-after-drag from deselecting
+    const selectionBoundsRafRef = useRef<number>(0) // Track RAF ID to prevent accumulation
+
+    // PERF: Cache hit test results for 16ms (one frame) to deduplicate across move/down/click events
+    const lastHitTestRef = useRef<{
+        clientX: number
+        clientY: number
+        result: ReturnType<typeof hitTestAnnotationsFromPoint>
+        timestamp: number
+    } | null>(null)
+
+    const cachedHitTest = useCallback((clientX: number, clientY: number) => {
+        const cached = lastHitTestRef.current
+        const now = performance.now()
+
+        // Cache valid for 16ms and within 2px tolerance
+        if (
+            cached &&
+            now - cached.timestamp < 16 &&
+            Math.abs(cached.clientX - clientX) < 2 &&
+            Math.abs(cached.clientY - clientY) < 2
+        ) {
+            return cached.result
+        }
+
+        const result = hitTestAnnotationsFromPoint(clientX, clientY, {
+            ignoreElement: overlayRef.current
+        })
+
+        lastHitTestRef.current = { clientX, clientY, result, timestamp: now }
+        return result
+    }, [])
 
     // Track Shift key for rotation snapping
     useEffect(() => {
@@ -373,6 +425,12 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
     }, [selectedAnnotation])
 
     useEffect(() => {
+        // Cancel any existing RAF to prevent accumulation when deps change
+        if (selectionBoundsRafRef.current) {
+            window.cancelAnimationFrame(selectionBoundsRafRef.current)
+            selectionBoundsRafRef.current = 0
+        }
+
         if (!selectedAnnotation) {
             setSelectionBounds(null)
             return
@@ -385,30 +443,40 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             return
         }
 
-        let rafId = 0
         const tick = () => {
             updateSelectionBounds()
-            rafId = window.requestAnimationFrame(tick)
+            selectionBoundsRafRef.current = window.requestAnimationFrame(tick)
         }
 
-        rafId = window.requestAnimationFrame(tick)
-        return () => window.cancelAnimationFrame(rafId)
+        selectionBoundsRafRef.current = window.requestAnimationFrame(tick)
+        return () => {
+            if (selectionBoundsRafRef.current) {
+                window.cancelAnimationFrame(selectionBoundsRafRef.current)
+                selectionBoundsRafRef.current = 0
+            }
+        }
     }, [selectedAnnotation, updateSelectionBounds, mode])
 
+    // PERF: Watermark bounds - update once on change, use ResizeObserver for dynamic updates
+    // Previously used 60Hz RAF loop which drained battery when watermark tab was open
     useEffect(() => {
         if (!canInteractWatermark) {
             setWatermarkBounds(null)
             return
         }
 
-        let rafId = 0
-        const tick = () => {
-            updateWatermarkBounds()
-            rafId = window.requestAnimationFrame(tick)
-        }
+        // Update once immediately
+        updateWatermarkBounds()
 
-        rafId = window.requestAnimationFrame(tick)
-        return () => window.cancelAnimationFrame(rafId)
+        // Use ResizeObserver for event-driven updates (no polling)
+        const overlayEl = overlayRef.current
+        if (!overlayEl) return
+
+        const observer = new ResizeObserver(() => {
+            updateWatermarkBounds()
+        })
+        observer.observe(overlayEl)
+        return () => observer.disconnect()
     }, [canInteractWatermark, updateWatermarkBounds])
 
     // Force mode reset if selection cleared externally
@@ -836,9 +904,8 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         const overlayElement = overlayRef.current
         if (!overlayElement) return
 
-        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
-            ignoreElement: overlayElement
-        })
+        // PERF: Use cached hit test to avoid redundant DOM traversals
+        const domHit = cachedHitTest(e.clientX, e.clientY)
 
         if (domHit?.kind === 'handle') {
             setOverlayCursor(getCursorForHandle(domHit.handle))
@@ -923,9 +990,8 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
             }
         }
 
-        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
-            ignoreElement: overlayRef.current
-        })
+        // PERF: Use cached hit test to avoid redundant DOM traversals
+        const domHit = cachedHitTest(e.clientX, e.clientY)
 
         const startBounds =
             domHit && overlayRef.current
@@ -1138,9 +1204,8 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         const mouseX = e.clientX - rect.left
         const mouseY = e.clientY - rect.top
 
-        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
-            ignoreElement: overlayRef.current
-        })
+        // PERF: Use cached hit test to avoid redundant DOM traversals
+        const domHit = cachedHitTest(e.clientX, e.clientY)
         const pluginEffects = interactableEffects.filter((effect) => effect.type === EffectType.Plugin)
         const hit = domHit
             ? {
@@ -1164,9 +1229,8 @@ export const InteractionLayer: React.FC<InteractionLayerProps> = ({
         const overlayElement = overlayRef.current
         if (!overlayElement) return
 
-        const domHit = hitTestAnnotationsFromPoint(e.clientX, e.clientY, {
-            ignoreElement: overlayElement
-        })
+        // PERF: Use cached hit test to avoid redundant DOM traversals
+        const domHit = cachedHitTest(e.clientX, e.clientY)
         const hit = domHit && domHit.kind === 'annotation'
             ? {
                 effectId: domHit.annotationId,

@@ -99,9 +99,9 @@ export interface PlaybackSliceState {
 }
 
 export interface TimelineSliceState {
-  // Timeline state is currently derived or hosted in Core/Project,
-  // but this slice exists for future expansion of view-specific state.
   _placeholder?: never
+  /** Pending clip change for middleware-driven sync */
+  _pendingClipChange?: import('@/features/effects/sync/types').ClipChange | null
 }
 
 export interface CacheSliceState {
@@ -112,15 +112,20 @@ export interface CacheSliceState {
    */
   cameraPathCacheDimensions: { width: number; height: number } | null
   frameLayoutCache: FrameLayoutItem[] | null
+  /**
+   * Counter incremented on STRUCTURAL timeline changes (clips added/removed/reordered).
+   * Used by PreviewAreaRemotion to force player remount when clip IDs change.
+   *
+   * IMPORTANT: This counter is NOT incremented for property-only changes like:
+   * - Clip layout updates (crop, styling, position)
+   * - Clip timing updates (trim, duration) on existing clips
+   * - Effect property changes
+   *
+   * The cache invalidation middleware in project-store.ts uses isTrackStructureSame()
+   * to distinguish structural changes from property changes.
+   */
   timelineMutationCounter: number
   previewReady: boolean
-  /**
-   * Transient flag to indicate the next mutation is layout-only (e.g., crop, styling).
-   * When true, cache invalidation middleware will use invalidateCachesOnly() instead of
-   * invalidateAllCaches(), preventing unnecessary player remounts.
-   * Auto-cleared after the mutation is processed.
-   */
-  _layoutOnlyUpdate: boolean
 }
 
 // =============================================================================
@@ -265,18 +270,15 @@ export interface CacheSliceActions {
   setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
   setPreviewReady: (ready: boolean) => void
   /**
-   * Mark the next mutation as layout-only to prevent player remount.
-   * Call this BEFORE executing a command that only changes layout properties.
-   */
-  setLayoutOnlyUpdate: (value: boolean) => void
-  /**
    * Clears caches without incrementing timelineMutationCounter.
-   * Use for effect-only changes that don't require player remount.
+   * Use for property-only changes that don't require player remount.
+   * Called automatically by middleware for non-structural track changes.
    */
   invalidateCachesOnly: () => void
   /**
    * Clears all caches AND increments timelineMutationCounter.
-   * Use for structural track changes (clip regeneration) that require player remount.
+   * Use for structural track changes (clip add/remove/reorder) that require player remount.
+   * Called automatically by middleware when clip IDs change.
    */
   invalidateAllCaches: () => void
   // NOTE: Proxy URL actions have been moved to src/features/proxy/store/proxy-store.ts
