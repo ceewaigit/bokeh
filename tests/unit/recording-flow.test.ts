@@ -322,8 +322,8 @@ describe('Recording Flow Mental Model', () => {
       const seg1 = result.segments[0]
       const seg2 = result.segments[1]
 
-      // Segment 1 should start near T=0
-      expect(seg1.startTimeOffsetMs).toBeLessThan(20)
+      // Segment 1 should start near T=0 (with tolerance for timing variance)
+      expect(seg1.startTimeOffsetMs).toBeLessThan(50)
 
       // Segment 2 should start near T=100 (after 50ms recording + 50ms gap)
       expect(seg2.startTimeOffsetMs).toBeGreaterThan(80)

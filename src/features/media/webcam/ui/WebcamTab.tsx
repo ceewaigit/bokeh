@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Video, ChevronRight } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Switch } from '@/components/ui/switch'
@@ -10,7 +10,7 @@ import { DEFAULT_WEBCAM_DATA, WEBCAM_SHAPE_PRESETS } from '../config'
 import { DEFAULT_CROP_DATA, clampCropData, isFullFrameCrop } from '@/features/rendering/canvas/math/transforms/crop-transform'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
-import { resolveRecordingPath, createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths'
+import { createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths'
 import { useOverlayState } from '@/features/rendering/overlays/hooks/use-overlay-state'
 import { OverlayAnchor } from '@/types/overlays'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
@@ -143,10 +143,35 @@ export function WebcamTab() {
     return webcamClips.some(clip => recordingsMap.has(clip.recordingId))
   }, [webcamClips, recordingsMap])
 
+  // Extract primitive path values (stable strings that don't change when object refs change)
+  const recordingFilePath = webcamRecording?.filePath
+  const recordingFolderPath = webcamRecording?.folderPath
+
+  // Only recalculate when the actual PATH VALUES change, not object references
+  // This prevents video from blinking when crop changes trigger project updates
   const webcamPreviewSrc = useMemo(() => {
-    const resolvedPath = resolveRecordingPath(webcamRecording)
+    if (!recordingFilePath) return null
+
+    // Inline path resolution using primitive values only
+    let resolvedPath: string
+    if (recordingFilePath.startsWith('/') || recordingFilePath.startsWith('data:')) {
+      resolvedPath = recordingFilePath
+    } else if (recordingFolderPath) {
+      const basename = recordingFilePath.split('/').pop() || recordingFilePath
+      resolvedPath = `${recordingFolderPath.replace(/\/$/, '')}/${basename}`
+    } else {
+      resolvedPath = recordingFilePath
+    }
+
     return createVideoStreamUrl(resolvedPath) || resolvedPath
-  }, [webcamRecording])
+  }, [recordingFilePath, recordingFolderPath])
+
+  // Cache last valid src to prevent unmount during transient null states in update cycle
+  const lastValidSrcRef = useRef<string | null>(null)
+  if (webcamPreviewSrc) {
+    lastValidSrcRef.current = webcamPreviewSrc
+  }
+  const stablePreviewSrc = lastValidSrcRef.current
 
   const webcamAspectRatio = useMemo(() => {
     if (webcamRecording?.width && webcamRecording?.height) {
@@ -219,14 +244,21 @@ export function WebcamTab() {
     return next
   }, [webcamAspectRatio])
 
+  // Get the setLayoutOnlyUpdate action for marking layout-only updates
+  const setLayoutOnlyUpdate = useProjectStore((s) => s.setLayoutOnlyUpdate)
+
   const handleCropChange = useCallback((nextCrop: CropEffectData) => {
     const normalized = mirror ? flipCropX(nextCrop) : nextCrop
+    // Mark as layout-only to prevent player remount and video blink
+    setLayoutOnlyUpdate(true)
     handleUpdate({ sourceCrop: constrainCropToSquare(normalized) })
-  }, [constrainCropToSquare, flipCropX, handleUpdate, mirror])
+  }, [constrainCropToSquare, flipCropX, handleUpdate, mirror, setLayoutOnlyUpdate])
 
   const handleCropReset = useCallback(() => {
+    // Mark as layout-only to prevent player remount and video blink
+    setLayoutOnlyUpdate(true)
     handleUpdate({ sourceCrop: DEFAULT_CROP_DATA })
-  }, [handleUpdate])
+  }, [handleUpdate, setLayoutOnlyUpdate])
 
 
   if (!hasWebcamFootage) {
@@ -287,10 +319,10 @@ export function WebcamTab() {
             onPositionUpdate={handlePositionUpdate}
           />
 
-          {webcamPreviewSrc && (
+          {stablePreviewSrc && (
             <WebcamPreview
               webcamData={webcamData}
-              previewSrc={webcamPreviewSrc}
+              previewSrc={stablePreviewSrc}
               aspectRatio={webcamAspectRatio}
               displayCrop={displayCrop}
               onCropChange={handleCropChange}

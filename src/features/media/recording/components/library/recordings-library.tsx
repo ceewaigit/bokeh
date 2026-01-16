@@ -12,7 +12,6 @@ import {
   List,
   Loader2,
   SearchX,
-  SlidersHorizontal,
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Masonry from 'react-masonry-css'
@@ -32,7 +31,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { LibraryEmptyState } from './components/library-empty-state'

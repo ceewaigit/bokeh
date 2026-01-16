@@ -32,7 +32,7 @@ import {
 import type { ExportJobConfig, CompositionMetadata } from './types'
 
 import { mapRecordingEffectsToTimeline } from './utils/effect-mapper'
-import { exportDirect, exportDirectWithConcat, type DirectExportSettings } from './ffmpeg-direct-export'
+import { exportDirect, exportDirectWithZoom, type DirectExportSettings, type ZoomSegment } from './ffmpeg-direct-export'
 
 // Re-export cleanup function for app lifecycle
 export { cleanupBundleCache }
@@ -430,6 +430,129 @@ export function canUseFastPath(
 }
 
 /**
+ * Zoom segment that can be rendered by FFmpeg
+ */
+export interface FFmpegZoomSegment {
+  startTimeMs: number
+  endTimeMs: number
+  scale: number
+  targetX: number  // 0-1 normalized
+  targetY: number  // 0-1 normalized
+  introMs: number
+  outroMs: number
+}
+
+/**
+ * Check if zoom effects can be handled by FFmpeg's zoompan filter
+ * Static zooms (fixed target, center mode) can be done without Remotion
+ * Cursor-following zooms require per-frame rendering
+ */
+export function canZoomBeHandledByFFmpeg(effects: any[]): {
+  canHandle: boolean
+  reason?: string
+  zoomSegments: FFmpegZoomSegment[]
+} {
+  const zoomEffects = effects.filter((e: any) =>
+    e?.type === 'zoom' && e?.enabled !== false && ((e?.data?.scale ?? 1) > 1.01)
+  )
+
+  if (zoomEffects.length === 0) {
+    return { canHandle: true, zoomSegments: [] }
+  }
+
+  const zoomSegments: FFmpegZoomSegment[] = []
+
+  for (const effect of zoomEffects) {
+    const data = effect.data
+
+    // Reject if cursor-following mode
+    if (data?.followStrategy === 'mouse') {
+      return { canHandle: false, reason: 'zoom uses mouse following', zoomSegments: [] }
+    }
+    if (data?.zoomMode === 'follow') {
+      return { canHandle: false, reason: 'zoom uses follow mode', zoomSegments: [] }
+    }
+    if (data?.zoomIntoCursorMode === 'cursor' || data?.zoomIntoCursorMode === 'lead') {
+      return { canHandle: false, reason: 'zoom follows cursor position', zoomSegments: [] }
+    }
+
+    // Static zoom - can be handled by FFmpeg
+    // Normalize target position to 0-1 range
+    const screenWidth = data?.screenWidth ?? 1920
+    const screenHeight = data?.screenHeight ?? 1080
+    const targetX = data?.targetX !== undefined ? data.targetX / screenWidth : 0.5
+    const targetY = data?.targetY !== undefined ? data.targetY / screenHeight : 0.5
+
+    zoomSegments.push({
+      startTimeMs: effect.startTime,
+      endTimeMs: effect.endTime,
+      scale: data?.scale ?? 2,
+      targetX: Math.max(0, Math.min(1, targetX)),
+      targetY: Math.max(0, Math.min(1, targetY)),
+      introMs: data?.introMs ?? 600,
+      outroMs: data?.outroMs ?? 650,
+    })
+  }
+
+  return { canHandle: true, zoomSegments }
+}
+
+/**
+ * Enhanced fast path check that includes static zoom support
+ * Returns zoom segments if they can be handled by FFmpeg
+ */
+export function canUseEnhancedFastPath(
+  effects: any[],
+  settings: any,
+  webcamClips: any[] = [],
+  audioClips: any[] = []
+): { canUse: boolean; reason?: string; zoomSegments?: FFmpegZoomSegment[] } {
+  // Check for motion blur
+  if (settings?.cameraSettings?.motionBlurEnabled) {
+    return { canUse: false, reason: 'motion blur enabled' }
+  }
+
+  // Check for cursor rendering
+  if (settings?.cameraSettings?.showCursor) {
+    return { canUse: false, reason: 'cursor rendering enabled' }
+  }
+
+  // Check for annotations, text overlays, keystrokes
+  const hasAnnotations = effects.some((e: any) =>
+    ['annotation', 'text', 'keystroke', 'subtitle'].includes(e?.type) && e?.enabled !== false
+  )
+  if (hasAnnotations) {
+    return { canUse: false, reason: 'has annotation effects' }
+  }
+
+  // Check for background effects (other than solid black)
+  const hasCustomBackground = effects.some((e: any) =>
+    e?.type === 'background' && e?.enabled !== false && e?.data?.type !== 'none'
+  )
+  if (hasCustomBackground) {
+    return { canUse: false, reason: 'has custom background' }
+  }
+
+  // Check for webcam overlays
+  if (webcamClips && webcamClips.length > 0) {
+    return { canUse: false, reason: 'has webcam clips' }
+  }
+
+  // Multiple audio tracks need Remotion mixing
+  if (audioClips && audioClips.length > 0) {
+    return { canUse: false, reason: 'has separate audio clips' }
+  }
+
+  // Check if zoom effects can be handled by FFmpeg
+  const zoomCheck = canZoomBeHandledByFFmpeg(effects)
+  if (!zoomCheck.canHandle) {
+    return { canUse: false, reason: zoomCheck.reason }
+  }
+
+  return { canUse: true, zoomSegments: zoomCheck.zoomSegments }
+}
+
+/**
  * Sample a smooth mouse event at a specific time by interpolating between
  * surrounding raw events. This avoids snapping to the nearest event, which
  * can introduce jitter when camera follow uses spring physics during export.
@@ -696,10 +819,21 @@ export function setupExportHandler(): void {
       // ======================================================================
       // FAST PATH: Check if we can use direct FFmpeg export (no Remotion)
       // ======================================================================
+
+      // Try original fast path first (no effects at all)
       const fastPathCheck = canUseFastPath(segmentEffects, settings, webcamClips, audioClips)
 
-      if (fastPathCheck.canUse && allClips.length > 0) {
-        console.log('[Export] Using FAST PATH - direct FFmpeg export (no Remotion)')
+      // If original fast path fails, try enhanced fast path (static zooms supported)
+      const enhancedFastPathCheck = !fastPathCheck.canUse
+        ? canUseEnhancedFastPath(segmentEffects, settings, webcamClips, audioClips)
+        : null
+
+      const useFastPath = fastPathCheck.canUse || enhancedFastPathCheck?.canUse
+      const zoomSegments = enhancedFastPathCheck?.zoomSegments || []
+
+      if (useFastPath && allClips.length > 0) {
+        const hasZoom = zoomSegments.length > 0
+        console.log(`[Export] Using FAST PATH - direct FFmpeg export ${hasZoom ? '(with static zoom)' : '(no effects)'}`)
         timing.mark('fast path selected')
 
         // Get the source video path for the first clip
@@ -738,13 +872,23 @@ export function setupExportHandler(): void {
             })
           }
 
-          const result = await exportDirect(
-            absolutePath,
-            outputPath,
-            directSettings,
-            onProgress,
-            abortSignal
-          )
+          // Use zoom-enabled export if we have zoom segments, otherwise use basic export
+          const result = hasZoom
+            ? await exportDirectWithZoom(
+                absolutePath,
+                outputPath,
+                directSettings,
+                zoomSegments as ZoomSegment[],
+                onProgress,
+                abortSignal
+              )
+            : await exportDirect(
+                absolutePath,
+                outputPath,
+                directSettings,
+                onProgress,
+                abortSignal
+              )
 
           if (result.success && result.outputPath) {
             // Read the output file and return as buffer
@@ -763,7 +907,8 @@ export function setupExportHandler(): void {
           console.warn('[Export] Fast path: source file not found, falling back to Remotion')
         }
       } else {
-        console.log('[Export] Using Remotion path:', fastPathCheck.reason || 'multiple clips or effects required')
+        const reason = fastPathCheck.reason || enhancedFastPathCheck?.reason || 'multiple clips or effects required'
+        console.log('[Export] Using Remotion path:', reason)
       }
 
       // ======================================================================
@@ -1055,58 +1200,92 @@ export function setupExportHandler(): void {
             target: { width: proxyTargetWidth, height: proxyTargetHeight },
             fps
           })
-          for (const [recordingId, absPath] of Object.entries(absolutePaths)) {
+
+          // PERFORMANCE: Parallel proxy generation with concurrency limit
+          // Running 3 FFmpeg processes in parallel is optimal - more can overwhelm the system
+          const PROXY_CONCURRENCY = 3
+
+          // Filter to only recordings that need proxies
+          const proxyTasks = Object.entries(absolutePaths).filter(([recordingId]) => {
             const codecForced = codecProxyRecordings.has(recordingId)
-            if (!needsProxy && !codecForced) continue
+            return needsProxy || codecForced
+          })
 
-            const dimensions = codecForced && !needsProxy ? await getVideoDimensions(absPath) : null
-            const targetWidth = dimensions?.width ?? proxyTargetWidth
-            const targetHeight = dimensions?.height ?? proxyTargetHeight
-            const bitrateMbps = estimateH264BitrateMbps({ width: targetWidth, height: targetHeight, fps })
-            const proxyOverrides = codecForced && !needsProxy ? {
-              // Higher bitrate when transcoding purely for compatibility to keep output close to preview.
-              videoBitrate: `${bitrateMbps}M`,
-              // Better quality for SW fallback (non-mac or HW encode failure).
-              crf: 18,
-              preset: 'fast' as const,
-            } : undefined
+          // Track progress across all proxies
+          const proxyProgress: Record<string, number> = {}
+          const totalProxies = proxyTasks.length
+          let completedProxies = 0
 
-            const proxyPath = await ensureExportProxy(
-              absPath,
-              targetWidth,
-              targetHeight,
-              // FORCE FPS PRESERVATION for Motion Blur:
-              // If we clamp to 30fps, the motion blur engine (sampling at ~480hz) sees "steps"
-              // instead of smooth motion, causing jitter/stutter.
-              // Passing undefined keeps the source FPS (e.g. 60fps).
-              settings.cameraSettings?.motionBlurEnabled ? undefined : fps,
-              (progress) => {
-                const safeProgress = Number.isFinite(progress) ? progress : 0
-                // Manually update progress during proxy phase (0-10% of total export bar usually reserved for prep)
-                // But since we don't have a tracker yet, just send text update or minor progress
-                event.sender.send('export-progress', {
-                  progress: 5 + (safeProgress * 0.05), // Map 0-100% proxy to 5-10% total
-                  stage: 'preparing',
-                  message: `Generating high-quality proxies: ${Math.round(safeProgress)}%`
-                })
-              }
-              ,
-              proxyOverrides
+          const updateOverallProgress = () => {
+            // Calculate weighted progress: completed proxies + partial progress of in-flight
+            const inFlightProgress = Object.values(proxyProgress).reduce((sum, p) => sum + p, 0)
+            const overallProgress = ((completedProxies * 100) + inFlightProgress) / totalProxies
+            const safeProgress = Number.isFinite(overallProgress) ? overallProgress : 0
+
+            event.sender.send('export-progress', {
+              progress: 5 + (safeProgress * 0.05), // Map 0-100% proxy to 5-10% total
+              stage: 'preparing',
+              message: `Generating proxies: ${Math.round(safeProgress)}% (${completedProxies}/${totalProxies})`
+            })
+          }
+
+          // Process in batches for controlled concurrency
+          const results: Array<{ recordingId: string; proxyUrl: string; codecForced: boolean }> = []
+
+          for (let i = 0; i < proxyTasks.length; i += PROXY_CONCURRENCY) {
+            const batch = proxyTasks.slice(i, i + PROXY_CONCURRENCY)
+
+            const batchResults = await Promise.all(
+              batch.map(async ([recordingId, absPath]) => {
+                const codecForced = codecProxyRecordings.has(recordingId)
+
+                const dimensions = codecForced && !needsProxy ? await getVideoDimensions(absPath) : null
+                const targetWidth = dimensions?.width ?? proxyTargetWidth
+                const targetHeight = dimensions?.height ?? proxyTargetHeight
+                const bitrateMbps = estimateH264BitrateMbps({ width: targetWidth, height: targetHeight, fps })
+                const proxyOverrides = codecForced && !needsProxy ? {
+                  videoBitrate: `${bitrateMbps}M`,
+                  crf: 18,
+                  preset: 'fast' as const,
+                } : undefined
+
+                proxyProgress[recordingId] = 0
+
+                const proxyPath = await ensureExportProxy(
+                  absPath,
+                  targetWidth,
+                  targetHeight,
+                  settings.cameraSettings?.motionBlurEnabled ? undefined : fps,
+                  (progress) => {
+                    proxyProgress[recordingId] = Number.isFinite(progress) ? progress : 0
+                    updateOverallProgress()
+                  },
+                  proxyOverrides
+                )
+
+                delete proxyProgress[recordingId]
+                completedProxies++
+                updateOverallProgress()
+
+                const proxyUrl = await makeVideoSrc(proxyPath, 'export')
+                return { recordingId, proxyUrl, codecForced }
+              })
             )
-            const proxyUrl = await makeVideoSrc(proxyPath, 'export')
-            // If we're forcing a codec-safe proxy, prefer it over preview proxies to keep export quality high.
+
+            results.push(...batchResults)
+          }
+
+          // Apply results to URL maps
+          for (const { recordingId, proxyUrl, codecForced } of results) {
+            // If we're forcing a codec-safe proxy, prefer it over preview proxies
             if (!previewProxyUrls[recordingId] || (codecForced && !needsProxy)) {
               videoUrls[recordingId] = proxyUrl
             }
-
-            // High-res proxy covers maxZoom while staying smaller than source.
-            // Low-res stays on preview proxies when available to keep decode lightweight.
             videoUrlsHighRes[recordingId] = proxyUrl
-
-            // OffthreadVideo should use HTTP sources for compositor compatibility
             videoFilePaths[recordingId] = proxyUrl
           }
-          console.log('[Export] Proxies ready')
+
+          console.log(`[Export] Proxies ready (${totalProxies} processed in parallel batches)`)
           timing.mark('proxies ready')
         } catch (error) {
           console.warn('[Export] Proxy generation failed, falling back to original media', error)
@@ -1290,18 +1469,30 @@ export function setupExportHandler(): void {
         const stats = await fs.stat(outputPath)
         const fileSize = stats.size
 
-        if (fileSize < 50 * 1024 * 1024) {
+        // PERFORMANCE FIX: Use different transfer methods based on file size
+        // - Small (<10MB): Base64 inline (simple, fast enough)
+        // - Medium (10-50MB): Direct buffer transfer (Electron IPC handles Buffer efficiently)
+        // - Large (>50MB): Streaming with direct buffer chunks
+        if (fileSize < 10 * 1024 * 1024) {
+          // Small files: base64 is fine, minimal overhead
           const buffer = await fs.readFile(outputPath)
           const base64 = buffer.toString('base64')
           await fs.unlink(outputPath).catch(() => { })
           return { success: true, data: base64, isStream: false }
+        } else if (fileSize < 50 * 1024 * 1024) {
+          // Medium files: Use direct Buffer transfer (Electron serializes efficiently)
+          const buffer = await fs.readFile(outputPath)
+          await fs.unlink(outputPath).catch(() => { })
+          return { success: true, buffer: buffer, isBuffer: true, isStream: false }
         }
 
+        // Large files: stream with direct buffer chunks
         return {
           success: true,
           filePath: outputPath,
           fileSize,
-          isStream: true
+          isStream: true,
+          useBufferChunks: true // Signal renderer to use buffer-based streaming
         }
       } else {
         await fs.unlink(outputPath).catch(() => { })
@@ -1339,7 +1530,7 @@ export function setupExportHandler(): void {
     return cancelExport()
   })
 
-  // Handle stream requests for large files
+  // Handle stream requests for large files (legacy base64 for compatibility)
   ipcMain.handle('export-stream-chunk', async (_event, { filePath, offset, length }) => {
     try {
       const buffer = Buffer.alloc(length)
@@ -1347,6 +1538,24 @@ export function setupExportHandler(): void {
       await fd.read(buffer, 0, length, offset)
       await fd.close()
       return { success: true, data: buffer.toString('base64') }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Stream failed'
+      }
+    }
+  })
+
+  // PERFORMANCE: Direct buffer streaming - no base64 encoding overhead
+  // Electron IPC serializes Buffer/Uint8Array efficiently
+  ipcMain.handle('export-stream-buffer-chunk', async (_event, { filePath, offset, length }) => {
+    try {
+      const buffer = Buffer.alloc(length)
+      const fd = await fs.open(filePath, 'r')
+      await fd.read(buffer, 0, length, offset)
+      await fd.close()
+      // Return raw buffer - Electron IPC handles this efficiently
+      return { success: true, buffer: buffer }
     } catch (error) {
       return {
         success: false,

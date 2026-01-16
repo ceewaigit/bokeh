@@ -75,11 +75,22 @@ export class UpdateClipCommand extends PatchedCommand<{ clipId: string }> {
       }
     }
 
-    // Clamp current time inside new timeline bounds
-    draft.currentTime = playbackService.seek(
-      draft.currentTime,
-      draft.currentProject.timeline.duration
-    )
+    // Only clamp current time when clip timing properties changed
+    // This avoids unnecessary store mutations for layout-only updates (e.g., crop, styling)
+    // which would otherwise trigger cascading re-renders and video blink
+    const timingChanged =
+      this.updates.startTime !== undefined ||
+      this.updates.duration !== undefined ||
+      this.updates.sourceIn !== undefined ||
+      this.updates.sourceOut !== undefined ||
+      this.updates.playbackRate !== undefined
+
+    if (timingChanged) {
+      draft.currentTime = playbackService.seek(
+        draft.currentTime,
+        draft.currentProject.timeline.duration
+      )
+    }
 
     this.setResult({ success: true, data: { clipId: this.clipId } })
   }

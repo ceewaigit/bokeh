@@ -1,10 +1,12 @@
 /**
  * Dead Zone Module
- * 
+ *
  * Camera follow logic with adaptive dead-zone behavior.
+ * Uses soft transitions at the dead zone boundary to prevent abrupt camera snaps.
  */
 
 import { CAMERA_CONFIG } from '@/shared/config/physics-config'
+import { smootherStep } from '@/features/rendering/canvas/math/easing'
 
 
 export interface OutputOverscan {
@@ -73,8 +75,14 @@ export function getHalfWindows(
 }
 
 /**
- * Calculate follow target with dead-zone behavior.
- * Simple: cursor inside zone = no movement, cursor outside = track to edge.
+ * Calculate follow target with soft dead-zone behavior.
+ *
+ * Instead of discrete "inside = stay, outside = snap" logic, we use a smooth
+ * transition zone that prevents abrupt camera jerks when cursor crosses the boundary.
+ *
+ * - Inside dead zone: camera stays still (t=0)
+ * - In transition zone (1x to 1.5x dead zone): smooth blend using smootherStep
+ * - Outside transition zone: full tracking to keep cursor at dead zone edge (t=1)
  */
 export function calculateFollowTargetNormalized(
     cursorNorm: { x: number; y: number },
@@ -88,6 +96,10 @@ export function calculateFollowTargetNormalized(
     const deadZoneHalfX = halfWindowX * deadZoneRatio
     const deadZoneHalfY = halfWindowY * deadZoneRatio
 
+    // Transition zone extends 50% beyond dead zone for smooth blending
+    const transitionHalfX = deadZoneHalfX * 1.5
+    const transitionHalfY = deadZoneHalfY * 1.5
+
     const clampX = (c: number) =>
         Math.max(halfWindowX - overscan.left, Math.min(1 - halfWindowX + overscan.right, c))
     const clampY = (c: number) =>
@@ -95,21 +107,32 @@ export function calculateFollowTargetNormalized(
 
     const dx = cursorNorm.x - currentCenterNorm.x
     const dy = cursorNorm.y - currentCenterNorm.y
+    const absDx = Math.abs(dx)
+    const absDy = Math.abs(dy)
 
-    // Simple dead-zone: inside = stay put, outside = move so cursor is at edge
-    const nextCenterX = (() => {
-        const absDx = Math.abs(dx)
-        if (absDx <= deadZoneHalfX) return currentCenterNorm.x
-        const sign = dx < 0 ? -1 : 1
-        return cursorNorm.x - sign * deadZoneHalfX
-    })()
+    // Calculate soft transition factor for each axis
+    // t=0: inside dead zone (no movement)
+    // t=1: at or beyond transition zone edge (full tracking)
+    const calcTransitionFactor = (absD: number, deadHalf: number, transHalf: number): number => {
+        if (absD <= deadHalf) return 0
+        if (absD >= transHalf) return 1
+        // Smooth interpolation in the transition zone
+        const raw = (absD - deadHalf) / (transHalf - deadHalf)
+        return smootherStep(raw)
+    }
 
-    const nextCenterY = (() => {
-        const absDy = Math.abs(dy)
-        if (absDy <= deadZoneHalfY) return currentCenterNorm.y
-        const sign = dy < 0 ? -1 : 1
-        return cursorNorm.y - sign * deadZoneHalfY
-    })()
+    const tx = calcTransitionFactor(absDx, deadZoneHalfX, transitionHalfX)
+    const ty = calcTransitionFactor(absDy, deadZoneHalfY, transitionHalfY)
+
+    // Target position if we were doing full tracking (cursor at dead zone edge)
+    const signX = dx < 0 ? -1 : 1
+    const signY = dy < 0 ? -1 : 1
+    const fullTrackX = cursorNorm.x - signX * deadZoneHalfX
+    const fullTrackY = cursorNorm.y - signY * deadZoneHalfY
+
+    // Blend between current position (t=0) and full tracking (t=1)
+    const nextCenterX = currentCenterNorm.x + (fullTrackX - currentCenterNorm.x) * tx
+    const nextCenterY = currentCenterNorm.y + (fullTrackY - currentCenterNorm.y) * ty
 
     return { x: clampX(nextCenterX), y: clampY(nextCenterY) }
 }

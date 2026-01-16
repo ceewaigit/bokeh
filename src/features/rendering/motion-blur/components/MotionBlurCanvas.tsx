@@ -10,13 +10,12 @@
  */
 
 import React, { useRef, useEffect, useCallback } from 'react';
-import { clamp01 } from '@/features/rendering/canvas/math';
 import { MotionBlurController } from '../logic/MotionBlurController';
 
 export interface MotionBlurCanvasProps {
     /** Whether motion blur feature is enabled */
     enabled?: boolean;
-    /** Velocity vector in pixels per frame */
+    /** Velocity vector normalized (0-1) - converted to pixels internally using drawWidth/Height */
     velocity: { x: number; y: number };
     /** Intensity multiplier (0-1) */
     intensity?: number;
@@ -85,10 +84,10 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
     offsetX,
     offsetY,
     renderScale = 1,
-    velocityThreshold: _velocityThresholdProp = 0,
-    rampRange: _rampRangeProp = 0.5,
-    clampRadius: _clampRadiusProp = 30,
-    smoothWindow: _smoothWindowProp = 6,
+    velocityThreshold = 0,
+    rampRange = 0.5,
+    clampRadius = 30,
+    smoothWindow = 6,
     refocusBlurIntensity = 0,
 }) => {
     // PERFORMANCE: Track allocated canvas dimensions to avoid resize thrashing during zoom-follow-mouse
@@ -128,6 +127,10 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         onVisibilityChange,
         refocusBlurIntensity,
         videoFrame,
+        velocityThreshold,
+        rampRange,
+        clampRadius,
+        smoothWindow,
     });
     // Keep props ref up to date
     propsRef.current = {
@@ -149,6 +152,10 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         onVisibilityChange,
         refocusBlurIntensity,
         videoFrame,
+        velocityThreshold,
+        rampRange,
+        clampRadius,
+        smoothWindow,
     };
 
     // BATTERY OPTIMIZATION: Render function called directly from requestVideoFrameCallback
@@ -174,6 +181,7 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
             renderScale,
             onVisibilityChange,
             refocusBlurIntensity,
+            clampRadius,
         } = props;
 
         // Recalculate enabled based on current props
@@ -215,45 +223,58 @@ export const MotionBlurCanvas: React.FC<MotionBlurCanvasProps> = ({
         const targetOutputWidth = Math.max(1, Math.round(drawWidth * outputScale));
         const targetOutputHeight = Math.max(1, Math.round(drawHeight * outputScale));
 
-        // MOTION BLUR - PHYSICALLY CORRECT
-        const SHUTTER_ANGLE = 0.45;
-        const vx = Number.isFinite(velocity.x) ? velocity.x : 0;
-        const vy = Number.isFinite(velocity.y) ? velocity.y : 0;
+        // MOTION BLUR - FILM-ACCURATE SHUTTER ANGLE
+        // Velocity comes in as NORMALIZED (0-1) for resolution independence.
+        // Convert to pixels using actual render dimensions (drawWidth/Height).
+        // This ensures preview at 1080p matches export at 4K exactly.
+        //
+        // Shutter angle: intensity (0-1) maps to 0-180° shutter angle
+        // At 180° (100%), shutter is open for half the frame → blur = velocity * 0.5
+        // This matches how real film cameras work.
+        const shutterAngleDegrees = (Number.isFinite(intensity) ? intensity : 0.5) * 180;
+        const shutterAngleFraction = shutterAngleDegrees / 360;  // 0-0.5 range
+
+        const vx = (Number.isFinite(velocity.x) ? velocity.x : 0) * drawWidth;
+        const vy = (Number.isFinite(velocity.y) ? velocity.y : 0) * drawHeight;
         const rawSpeed = Math.hypot(vx, vy);
 
-        // PERFORMANCE OPTIMIZATION: Skip WebGL entirely when there's no blur to apply
-        // This saves significant CPU/GPU cycles on static scenes or low-movement frames
+        // SMOOTH BLUR FADE - No hard cutoff!
+        // The soft knee curve handles smooth fade to zero at low speeds.
+        // Only skip rendering when truly zero motion (performance optimization).
         const hasRefocus = (refocusBlurIntensity ?? 0) > 0.01;
-        const VELOCITY_THRESHOLD = 0.5; // pixels per frame - below this, blur is imperceptible
-        if (rawSpeed < VELOCITY_THRESHOLD && !hasRefocus && !props.forceRender) {
-            // No blur needed - hide canvas and show video directly
+        const ZERO_MOTION_THRESHOLD = 0.1;  // Very low - only skip when essentially static
+        if (rawSpeed < ZERO_MOTION_THRESHOLD && !hasRefocus && !props.forceRender) {
             canvasEl.style.visibility = 'hidden';
             onVisibilityChange?.(false);
             return;
         }
 
-        const KNEE_PX = 20;
-        const kneeSq = KNEE_PX * KNEE_PX;
-        const speedSq = rawSpeed * rawSpeed;
-        const responseMultiplier = speedSq / (speedSq + kneeSq);
+        // SIMPLE LINEAR: Apply shutter angle directly to velocity (no knee curve)
+        // blur_length = velocity × shutter_fraction - matches real camera physics
+        // No non-linear curves that cause unpredictable/jerky behavior
+        const blurVx = vx * shutterAngleFraction;
+        const blurVy = vy * shutterAngleFraction;
 
-        const scaledVx = vx * responseMultiplier;
-        const scaledVy = vy * responseMultiplier;
+        // Clamp blur length to max radius from UI settings
+        const rawBlurLengthPx = Math.hypot(blurVx, blurVy);
+        const maxBlurPx = clampRadius > 0 ? clampRadius : 60;  // Default 60px max
+        const blurScale = rawBlurLengthPx > maxBlurPx ? maxBlurPx / rawBlurLengthPx : 1;
+        const clampedBlurVx = blurVx * blurScale;
+        const clampedBlurVy = blurVy * blurScale;
 
-        const validIntensity = Number.isFinite(intensity) ? intensity : 1.0;
-        const blurVx = scaledVx * SHUTTER_ANGLE * validIntensity;
-        const blurVy = scaledVy * SHUTTER_ANGLE * validIntensity;
+        const uvVelocityX = clampedBlurVx / drawWidth;
+        const uvVelocityY = clampedBlurVy / drawHeight;
 
-        const uvVelocityX = blurVx / drawWidth;
-        const uvVelocityY = blurVy / drawHeight;
-        const blurMagnitude = Math.hypot(uvVelocityX, uvVelocityY);
-
-        const blurLengthPx = Math.hypot(blurVx, blurVy);
+        const blurLengthPx = Math.hypot(clampedBlurVx, clampedBlurVy);
         const calculatedSamples = Math.max(16, Math.min(64, Math.ceil(blurLengthPx * 1.5)));
         const finalSamples = samples ?? calculatedSamples;
 
-        const rawMix = blurMagnitude * 60;
-        const mixRamp = clamp01(rawMix * rawMix / (rawMix * rawMix + 1));
+        // FILM-ACCURATE: Always use full blur blend (mix = 1.0)
+        // Real film cameras don't "blend" - they accumulate light continuously.
+        // At low speeds, blur samples are close together, naturally producing a sharp result.
+        // At high speeds, samples spread out, naturally producing motion blur.
+        // No artificial mixing/fading needed - the physics handles it.
+        const mixRamp = 1.0;
 
         const glPixelRatio = outputScale;
 

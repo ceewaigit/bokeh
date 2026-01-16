@@ -1,13 +1,145 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { Slider } from '@/components/ui/slider'
 import type { BackgroundEffectData, Effect } from '@/types/project'
-import { InfoTooltip } from './info-tooltip'
+import { BackgroundType } from '@/types/project'
+
+type Corner = 'tl' | 'tr' | 'bl' | 'br'
 
 interface ShapeTabProps {
   backgroundEffect: Effect | undefined
   onUpdateBackground: (updates: Partial<BackgroundEffectData>) => void
+}
+
+// Corner preview - zoomed square view showing padding gap and shadow
+function CornerPreview({
+  padding,
+  cornerRadius,
+  shadowIntensity,
+  bgData,
+}: {
+  padding: number
+  cornerRadius: number
+  shadowIntensity: number
+  bgData: BackgroundEffectData | undefined
+}) {
+  const [selectedCorner, setSelectedCorner] = useState<Corner>('tr')
+
+  const corners: { id: Corner; label: string }[] = [
+    { id: 'tl', label: 'TL' },
+    { id: 'tr', label: 'TR' },
+    { id: 'bl', label: 'BL' },
+    { id: 'br', label: 'BR' },
+  ]
+
+  // Background style based on current background type
+  const backgroundStyle = useMemo((): React.CSSProperties => {
+    if (!bgData) {
+      return { background: 'linear-gradient(135deg, #3a3a4a 0%, #2a2a3a 100%)' }
+    }
+
+    switch (bgData.type) {
+      case BackgroundType.Gradient:
+        if (bgData.gradient?.colors) {
+          return {
+            background: `linear-gradient(${bgData.gradient.angle || 135}deg, ${bgData.gradient.colors[0]}, ${bgData.gradient.colors[1]})`,
+          }
+        }
+        return { background: 'linear-gradient(135deg, #3a3a4a 0%, #2a2a3a 100%)' }
+
+      case BackgroundType.Color:
+        return { background: bgData.color || '#2a2a3a' }
+
+      case BackgroundType.Wallpaper:
+      case BackgroundType.Image:
+        if (bgData.wallpaper || bgData.image) {
+          return {
+            backgroundImage: `url(${bgData.wallpaper || bgData.image})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }
+        }
+        return { background: 'linear-gradient(135deg, #4a4a5a 0%, #2a2a3a 100%)' }
+
+      default:
+        return { background: 'linear-gradient(135deg, #3a3a4a 0%, #2a2a3a 100%)' }
+    }
+  }, [bgData])
+
+  // Scale padding for preview (maps 0-200px to 0-40px visible range)
+  const scaledPadding = (padding / 200) * 40
+
+  // Shadow style
+  const shadowStyle = useMemo(() => {
+    if (shadowIntensity <= 0) return 'none'
+    const blur = 8 + shadowIntensity * 0.3
+    const spread = shadowIntensity * 0.05
+    const opacity = 0.2 + (shadowIntensity / 100) * 0.5
+    return `0 ${blur * 0.4}px ${blur}px ${spread}px rgba(0,0,0,${opacity})`
+  }, [shadowIntensity])
+
+  return (
+    <div className="space-y-2.5">
+      {/* Header with corner tabs */}
+      <div className="flex items-center justify-end">
+        <div className="inline-flex p-0.5 rounded-lg bg-black/20 backdrop-blur-sm">
+          {corners.map((corner) => {
+            const isSelected = selectedCorner === corner.id
+            return (
+              <button
+                key={corner.id}
+                onClick={() => setSelectedCorner(corner.id)}
+                className="relative px-2.5 py-1 text-[11px] font-medium tracking-tight rounded-md transition-colors"
+              >
+                {isSelected && (
+                  <motion.div
+                    layoutId="corner-tab"
+                    className="absolute inset-0 bg-white/10 rounded-md"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className={`relative z-10 ${isSelected ? 'text-white' : 'text-white/40'}`}>
+                  {corner.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Preview - half-square rectangle */}
+      <div
+        className="relative w-full rounded-xl overflow-hidden"
+        style={{ ...backgroundStyle, aspectRatio: '2 / 1' }}
+      >
+        {/* Video element - square, extends beyond bounds */}
+        <motion.div
+          key={selectedCorner}
+          initial={false}
+          animate={{
+            x: selectedCorner.includes('r') ? 0 : undefined,
+            y: selectedCorner.includes('b') ? 0 : undefined,
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="absolute"
+          style={{
+            width: '150%',
+            height: '150%',
+            backgroundColor: '#111113',
+            boxShadow: shadowStyle,
+            borderRadius: cornerRadius,
+            // Position based on corner
+            ...(selectedCorner === 'tl' && { top: scaledPadding, left: scaledPadding }),
+            ...(selectedCorner === 'tr' && { top: scaledPadding, right: scaledPadding }),
+            ...(selectedCorner === 'bl' && { bottom: scaledPadding, left: scaledPadding }),
+            ...(selectedCorner === 'br' && { bottom: scaledPadding, right: scaledPadding }),
+          }}
+        />
+      </div>
+    </div>
+  )
 }
 
 export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps) {
@@ -15,7 +147,6 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
 
   const [padding, setPadding] = useState(bgData?.padding ?? 40)
   const [cornerRadius, setCornerRadius] = useState(bgData?.cornerRadius ?? 15)
-  // Use mockup shadow if enabled, otherwise background shadow
   const isMockupEnabled = bgData?.mockup?.enabled ?? false
   const currentShadow = isMockupEnabled ? (bgData?.mockup?.shadowIntensity ?? 0) : (bgData?.shadowIntensity ?? 85)
   const [shadowIntensity, setShadowIntensity] = useState(currentShadow)
@@ -40,20 +171,22 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
   }
 
   return (
-    <div className="space-y-2.5">
-      <p className="text-xs text-muted-foreground leading-snug">
-        Controls padding, corner radius, and shadow.
-      </p>
+    <div className="space-y-4">
+      {/* Corner Preview */}
+      <CornerPreview
+        padding={padding}
+        cornerRadius={cornerRadius}
+        shadowIntensity={shadowIntensity}
+        bgData={bgData}
+      />
 
-      <div className="rounded-2xl bg-background/40 p-2.5 space-y-3 overflow-hidden">
-        {/* Padding slider */}
-        <div className="space-y-1.5">
+      {/* Controls */}
+      <div className="space-y-3">
+        {/* Padding */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Padding</label>
-              <InfoTooltip content="Adds space around the screen recording." />
-            </div>
-            <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{padding}px</span>
+            <label className="text-[11px] font-medium text-muted-foreground/80">Padding</label>
+            <span className="text-[11px] text-muted-foreground/50 tabular-nums">{padding}px</span>
           </div>
           <Slider
             value={[padding]}
@@ -62,20 +195,17 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
               onUpdateBackground({ padding: value })
             }}
             min={0}
-            max={120}
+            max={200}
             step={2}
             className="w-full"
           />
         </div>
 
-        {/* Corner Radius slider */}
-        <div className="border-t border-border/30 pt-2.5 space-y-1.5">
+        {/* Corner Radius */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Corner Radius</label>
-              <InfoTooltip content="Makes the corners of the video rounded." />
-            </div>
-            <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{cornerRadius}px</span>
+            <label className="text-[11px] font-medium text-muted-foreground/80">Corner Radius</label>
+            <span className="text-[11px] text-muted-foreground/50 tabular-nums">{cornerRadius}px</span>
           </div>
           <Slider
             value={[cornerRadius]}
@@ -91,14 +221,11 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
           />
         </div>
 
-        {/* Shadow Intensity slider */}
-        <div className="border-t border-border/30 pt-2.5 space-y-1.5">
+        {/* Shadow */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Shadow</label>
-              <InfoTooltip content="Adjusts the strength of the shadow behind the video." />
-            </div>
-            <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{shadowIntensity}%</span>
+            <label className="text-[11px] font-medium text-muted-foreground/80">Shadow</label>
+            <span className="text-[11px] text-muted-foreground/50 tabular-nums">{shadowIntensity}%</span>
           </div>
           <Slider
             value={[shadowIntensity]}

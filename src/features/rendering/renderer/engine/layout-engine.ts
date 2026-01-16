@@ -112,6 +112,7 @@ export interface FrameSnapshot {
     // Camera/Zoom state
     camera: {
         zoomTransform: Record<string, unknown> | null
+        /** Camera velocity normalized (0-1) - resolution independent */
         velocity: { x: number; y: number }
         /** Precomputed motion blur mix factor (0-1), deterministic per frame */
         motionBlurMix: number

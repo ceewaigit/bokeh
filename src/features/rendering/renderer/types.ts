@@ -102,7 +102,7 @@ export interface VideoPositionContextValue {
     motionBlur?: {
         /** Whether motion blur is enabled globally */
         enabled: boolean;
-        /** Camera velocity in pixels per frame (precomputed from camera path) */
+        /** Camera velocity normalized (0-1) - resolution independent, converted to pixels by MotionBlurCanvas */
         velocity: { x: number; y: number };
         /** Intensity multiplier 0-1 (from camera settings) */
         intensity: number;

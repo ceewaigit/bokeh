@@ -21,7 +21,7 @@ export interface MotionBlurWrapperProps {
     enabled: boolean;
     /** Whether user is actively scrubbing the timeline */
     isScrubbing?: boolean;
-    /** Camera velocity in pixels per frame */
+    /** Camera velocity normalized (0-1) - resolution independent */
     velocity: { x: number; y: number };
     /** Intensity multiplier (0-1) */
     intensity?: number;
@@ -65,7 +65,7 @@ export interface MotionBlurWrapperProps {
  * Video is never hidden - blur overlays on top.
  */
 export const MotionBlurWrapper: React.FC<MotionBlurWrapperProps> = ({
-    isRendering = false,
+    isRendering: _isRendering = false,
     enabled,
     velocity,
     intensity = 1.0,

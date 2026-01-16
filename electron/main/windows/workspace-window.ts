@@ -3,16 +3,16 @@ import { getAppURL } from '../config'
 import { createMainWindow } from './main-window'
 import { hideMonitorOverlay } from './monitor-overlay'
 
-function sendToMainWindow(channel: string): void {
+function sendToMainWindow(channel: string, data?: unknown): void {
   if (!global.mainWindow) return
   const webContents = global.mainWindow.webContents
   if (webContents.isLoadingMainFrame()) {
     webContents.once('did-finish-load', () => {
-      webContents.send(channel)
+      webContents.send(channel, data)
     })
     return
   }
-  webContents.send(channel)
+  webContents.send(channel, data)
 }
 
 function shouldPreventCloseToHide(): boolean {
@@ -34,13 +34,14 @@ function ensureMainWindowCloseHidesToRecorder(window: BrowserWindow): void {
   })
 }
 
-export function openWorkspaceWindow(options?: { openSettings?: boolean }): void {
+export function openWorkspaceWindow(options?: { openSettings?: boolean; projectPath?: string }): void {
   try {
-    console.log('[WorkspaceWindow] Opening workspace...')
+    console.log('[WorkspaceWindow] Opening workspace...', options)
 
     hideMonitorOverlay()
 
     const openSettings = options?.openSettings ?? false
+    const projectPath = options?.projectPath
 
     if (!global.mainWindow) {
       console.log('[WorkspaceWindow] Creating new main window')
@@ -61,7 +62,14 @@ export function openWorkspaceWindow(options?: { openSettings?: boolean }): void 
         }
         global.mainWindow.show()
         global.mainWindow.focus()
-        global.mainWindow.webContents.send('refresh-library')
+
+        // Send project path if provided, otherwise refresh library
+        if (projectPath) {
+          sendToMainWindow('open-project-from-path', projectPath)
+        } else {
+          global.mainWindow.webContents.send('refresh-library')
+        }
+
         if (openSettings) sendToMainWindow('open-settings-dialog')
         if (global.recordButton) global.recordButton.hide()
       })
@@ -83,7 +91,14 @@ export function openWorkspaceWindow(options?: { openSettings?: boolean }): void 
       }
       global.mainWindow.show()
       global.mainWindow.focus()
-      global.mainWindow.webContents.send('refresh-library')
+
+      // Send project path if provided, otherwise refresh library
+      if (projectPath) {
+        sendToMainWindow('open-project-from-path', projectPath)
+      } else {
+        global.mainWindow.webContents.send('refresh-library')
+      }
+
       if (openSettings) sendToMainWindow('open-settings-dialog')
       if (global.recordButton) global.recordButton.hide()
     }

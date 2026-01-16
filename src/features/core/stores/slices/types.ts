@@ -114,7 +114,14 @@ export interface CacheSliceState {
   frameLayoutCache: FrameLayoutItem[] | null
   timelineMutationCounter: number
   previewReady: boolean
-  }
+  /**
+   * Transient flag to indicate the next mutation is layout-only (e.g., crop, styling).
+   * When true, cache invalidation middleware will use invalidateCachesOnly() instead of
+   * invalidateAllCaches(), preventing unnecessary player remounts.
+   * Auto-cleared after the mutation is processed.
+   */
+  _layoutOnlyUpdate: boolean
+}
 
 // =============================================================================
 // Slice Action Interfaces
@@ -257,6 +264,11 @@ export interface CacheSliceActions {
   ) => void
   setFrameLayoutCache: (cache: FrameLayoutItem[] | null) => void
   setPreviewReady: (ready: boolean) => void
+  /**
+   * Mark the next mutation as layout-only to prevent player remount.
+   * Call this BEFORE executing a command that only changes layout properties.
+   */
+  setLayoutOnlyUpdate: (value: boolean) => void
   /**
    * Clears caches without incrementing timelineMutationCounter.
    * Use for effect-only changes that don't require player remount.

@@ -550,85 +550,15 @@ export function calculateCameraMotionBlurFromCenters(
 
 /**
  * Get motion blur config from camera settings.
+ * Note: Threshold is now handled by soft knee curve in MotionBlurCanvas.
+ * The intensity maps directly to shutter angle (50% = 90°, 100% = 180°).
  */
 export function getMotionBlurConfig(settings?: CameraSettings): MotionBlurConfig {
-  const intensity = settings?.motionBlurIntensity ?? 25;
-  const threshold = settings?.motionBlurThreshold ?? 20;
+  const _intensity = settings?.motionBlurIntensity ?? 50;
   return {
     enabled: settings?.motionBlurEnabled ?? true,
-    maxBlurRadius: (intensity / 100) * 40, // Slightly increased max range
-    velocityThreshold: (threshold / 100) * 10, // Reduced from 40 to 10 to catch slower cinematic pans
-    // Adjusted multiplier for more consistent shutter-angle feel
-    intensityMultiplier: 2.0 + (intensity / 100) * 4.0,
+    maxBlurRadius: settings?.motionBlurClamp ?? 40,
+    velocityThreshold: 0,  // Deprecated - soft knee handles smooth fade
+    intensityMultiplier: 1.0,  // Shutter angle is now film-accurate in MotionBlurCanvas
   };
-}
-
-/**
- * Motion blur intensity result for CSS integration.
- */
-export interface MotionBlurIntensity {
-  /** Blur radius in pixels (0 = no blur) */
-  blurPx: number;
-  /** Scale factor for X-axis (1 = no stretch) */
-  scaleX: number;
-  /** Scale factor for Y-axis (1 = no stretch) */
-  scaleY: number;
-}
-
-/**
- * Calculate motion blur intensity with smooth easing to prevent flickering.
- * Uses exponential moving average for smooth transitions.
- * 
- * @param velocity - Camera velocity in pixels per frame
- * @param config - Motion blur configuration
- * @param prevIntensity - Previous frame's blur intensity (for smoothing)
- * @returns Blur parameters for CSS integration
- */
-export function calculateMotionBlurIntensity(
-  velocity: { x: number; y: number },
-  config: MotionBlurConfig,
-  prevIntensity: number = 0
-): MotionBlurIntensity {
-  if (!config.enabled) {
-    return { blurPx: 0, scaleX: 1, scaleY: 1 };
-  }
-
-  const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-
-  // Smooth easing factor (exponential moving average)
-  // Lower = smoother transitions, higher = more responsive
-  const easingFactor = 0.25; // Slower easing for subtler transitions
-
-  // Velocity threshold in pixels per frame (higher = requires more speed to trigger)
-  const threshold = config.velocityThreshold * 15;
-
-  // Target intensity based on velocity - MUCH more subtle
-  // Max blur capped at 3-4px for subtle effect (was up to 30px)
-  const maxSubtleBlur = Math.min(4, config.maxBlurRadius * 0.15);
-  const targetIntensity = speed > threshold
-    ? clamp01((speed - threshold) / 100) * maxSubtleBlur // Increased divisor for gentler curve
-    : 0;
-
-  // Smoothly transition to target (prevents abrupt on/off flickering)
-  const smoothedIntensity = prevIntensity + (targetIntensity - prevIntensity) * easingFactor;
-
-  // Only apply blur if above minimum threshold (prevents micro-blur noise)
-  const blurPx = smoothedIntensity < 0.3 ? 0 : Math.round(smoothedIntensity * 10) / 10;
-
-  // Direction-based scale stretch (enhanced for more noticeable directionality)
-  // Since blur is subtle, we rely more on directional stretching
-  if (blurPx > 0 && speed > 0.1) {
-    const normalizedX = velocity.x / speed;
-    const normalizedY = velocity.y / speed;
-    // Slightly more stretch to compensate for reduced blur radius
-    const stretchAmount = Math.min(0.008, blurPx * 0.002);
-
-    return {
-      blurPx,
-      scaleX: 1 + Math.abs(normalizedX) * stretchAmount,
-      scaleY: 1 + Math.abs(normalizedY) * stretchAmount,
-    };
-  }
-
-  return { blurPx, scaleX: 1, scaleY: 1 };
 }

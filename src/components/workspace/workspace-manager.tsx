@@ -18,6 +18,7 @@ import { EffectsSidebar } from '@/features/effects/components'
 import { EffectsSidebarProvider } from '@/features/effects/components/EffectsSidebarContext'
 import { ExportDialog } from '@/features/core/export/components/export-dialog'
 import { RecordingsLibrary } from '@/features/media/recording/components/library/recordings-library'
+import type { LibraryRecording } from '@/features/media/recording/store/library-store'
 import { UtilitiesSidebar } from '@/features/ui/editor/components/utilities'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
@@ -306,6 +307,29 @@ export function WorkspaceManager() {
       setHasUnsavedChanges(currentProject.modifiedAt !== lastSavedAt)
     }
   }, [currentProject?.modifiedAt, lastSavedAt])
+
+  // Listen for open-project-from-path IPC event (file association / double-click .bokeh)
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onOpenProjectFromPath?.(async (projectPath) => {
+      console.log('[WorkspaceManager] Opening project from path:', projectPath)
+
+      // Create a minimal LibraryRecording object for the loader
+      const recording: LibraryRecording = {
+        name: projectPath.split('/').pop()?.replace('.bokeh', '') || 'Untitled',
+        path: projectPath,
+        timestamp: new Date(),
+      }
+
+      const success = await loadRecording(recording, setLastSavedAt)
+      if (!success) {
+        console.error('[WorkspaceManager] Failed to load project from path:', projectPath)
+      }
+    })
+
+    return () => {
+      unsubscribe?.()
+    }
+  }, [loadRecording])
 
   // Consolidated save function
   const handleSaveProject = useCallback(async () => {

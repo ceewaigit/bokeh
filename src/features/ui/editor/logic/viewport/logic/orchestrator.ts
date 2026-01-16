@@ -17,6 +17,7 @@ import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { clamp01, lerp, smootherStep } from '@/features/rendering/canvas/math'
 import { getSourceDimensions } from '@/features/rendering/canvas/math/coordinates'
 import { CAMERA_CONFIG, CURSOR_STOP_CONFIG } from '@/shared/config/physics-config'
+import { getEffectiveDynamics } from '@/features/core/settings/defaults'
 
 // Import from core camera modules
 import {
@@ -53,8 +54,46 @@ const {
   minZoom: CURSOR_STOP_MIN_ZOOM,
 } = CURSOR_STOP_CONFIG
 
-// Transition window: smooth blend from intro anchor to hold deadzone
+// Transition window for smooth target blending from intro to hold phase
 const INTRO_TO_HOLD_BLEND_MS = 150
+
+/**
+ * Unified spring physics update.
+ *
+ * Uses semi-implicit Euler integration for stability.
+ * Returns both new position and velocity (velocity is used for motion blur).
+ */
+function _updateSpringPhysics(
+  current: { x: number; y: number },
+  velocity: { x: number; y: number },
+  target: { x: number; y: number },
+  dynamics: CameraDynamics,
+  dt: number
+): { position: { x: number; y: number }; velocity: { x: number; y: number } } {
+  const { stiffness, damping, mass } = dynamics
+
+  // Spring force: F = -k * (position - target) - c * velocity
+  const dx = current.x - target.x
+  const dy = current.y - target.y
+
+  const ax = (-stiffness * dx - damping * velocity.x) / mass
+  const ay = (-stiffness * dy - damping * velocity.y) / mass
+
+  // Semi-implicit Euler: update velocity first, then position
+  const newVx = velocity.x + ax * dt
+  const newVy = velocity.y + ay * dt
+  const newX = current.x + newVx * dt
+  const newY = current.y + newVy * dt
+
+  // Zero out very small velocities to prevent floating point drift
+  const finalVx = Math.abs(newVx) < 0.0001 ? 0 : newVx
+  const finalVy = Math.abs(newVy) < 0.0001 ? 0 : newVy
+
+  return {
+    position: { x: newX, y: newY },
+    velocity: { x: finalVx, y: finalVy }
+  }
+}
 
 export interface CameraPhysicsState {
   x: number
@@ -574,128 +613,69 @@ export function computeCameraState({
 
   if (forceFollowCursor) targetCenter = followCursor
 
+  // CAMERA SMOOTHING: Applied during path pre-computation (frame-by-frame)
+  //
+  // The path is computed sequentially: frame 0 → 1 → 2 → ...
+  // Physics state (position) carries from frame N to frame N+1
+  // This allows exponential smoothing to create gimbal-like lag
+  //
+  // Both preview and export use this same pre-computed path.
   let nextPhysics: CameraPhysicsState
-  if (isDeterministic) {
+
+  if (isSeek) {
+    // Seek: snap to target immediately, reset velocity
     nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
-  } else if (isSeek) {
-    nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
-  } else if (shouldFollowMouse && isIntroPhase && (zoomIntoCursorMode ?? 'cursor') !== 'center') {
-    // Make the zoom-in feel like it aims at the cursor immediately (no spring lag during intro).
-    // Camera center stays at anchor - no velocity since we're not tracking cursor during intro.
-    // The intro-to-hold transition window handles the handoff to deadzone following.
-    nextPhysics = {
-      x: targetCenter.x,
-      y: targetCenter.y,
-      vx: 0,
-      vy: 0,
-      scale: commandedScale,
-      vScale: 0,
-      lastTimeMs: timelineMs,
-      lastSourceTimeMs: sourceTimeMs
-    }
-  } else if (shouldFollowMouse && isIntroToHoldTransition) {
-    // Transition window: gradually ramp up spring physics
-    // Use soft spring at start, ramping to normal stiffness
+  } else {
+    // EXPONENTIAL SMOOTHING for gimbal-like camera feel
+    // Camera smoothly follows target with configurable lag
     const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
-    const transitionStiffness = lerp(20, 60, introToHoldProgress)
-    const transitionDamping = lerp(30, 15, introToHoldProgress)
+
+    // Get spring dynamics from settings
+    const dynamics = getEffectiveDynamics(cameraDynamics, cameraSmoothness)
+
+    // Special cases that need immediate response (no smoothing)
+    const algo = mouseFollowAlgorithm ?? 'deadzone'
+    const needsImmediateResponse = algo === 'direct' || shouldCenterLock || (activeZoomBlock?.autoScale === 'fill')
 
     let currentX = physics.x
     let currentY = physics.y
-    let currentVX = physics.vx
-    let currentVY = physics.vy
 
-    const MAX_STEP = 0.016
-    let remainingDt = dtSeconds
-
-    if (remainingDt > 0.5) {
+    // Cap extremely large time steps (e.g. resume from background, or first frame)
+    if (dtSeconds > 0.5 || dtSeconds <= 0) {
       currentX = targetCenter.x
       currentY = targetCenter.y
-      currentVX = 0
-      currentVY = 0
-      remainingDt = 0
-    }
-
-    while (remainingDt > 0) {
-      const dt = Math.min(remainingDt, MAX_STEP)
-      const fx = -transitionStiffness * (currentX - targetCenter.x) - transitionDamping * currentVX
-      const fy = -transitionStiffness * (currentY - targetCenter.y) - transitionDamping * currentVY
-      currentVX += fx * dt
-      currentVY += fy * dt
-      currentX += currentVX * dt
-      currentY += currentVY * dt
-      remainingDt -= dt
-    }
-
-    if (Math.abs(currentVX) < 0.0001) currentVX = 0
-    if (Math.abs(currentVY) < 0.0001) currentVY = 0
-
-    nextPhysics = {
-      x: currentX,
-      y: currentY,
-      vx: currentVX,
-      vy: currentVY,
-      scale: commandedScale,
-      vScale: 0,
-      lastTimeMs: timelineMs,
-      lastSourceTimeMs: sourceTimeMs
-    }
-  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'smooth' && !isOutroPhase) {
-    nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
-  } else if (shouldFollowMouse && (mouseFollowAlgorithm ?? 'deadzone') === 'direct' && !isOutroPhase) {
-    // Direct tracking should feel immediate; bypass spring lag.
-    nextPhysics = { x: targetCenter.x, y: targetCenter.y, vx: 0, vy: 0, scale: commandedScale, vScale: 0, lastTimeMs: timelineMs, lastSourceTimeMs: sourceTimeMs }
-  } else {
-    const dtSeconds = Math.max(0, dtTimelineFromState / 1000)
-
-    // SIMPLE EXPONENTIAL SMOOTHING
-    // camera = lerp(camera, target, 1 - exp(-smoothFactor * dt))
-    // This is frame-rate independent and produces smooth, predictable motion.
-    // smoothFactor controls responsiveness: higher = faster tracking
-    //
-    // At high zoom, we reduce smoothFactor for more cinematic/stable camera motion.
-    // This prevents jittery behavior when small cursor movements are amplified.
-    const baseSmoothFactor = 8
-    const zoomDampening = clamp01((currentScale - 1) / 2)  // 0 at 1x, 0.75 at 2.5x
-    const smoothFactor = lerp(baseSmoothFactor, 4, zoomDampening)  // 8 at 1x, ~5 at 2.5x
-
-    let currentX = physics.x
-    let currentY = physics.y
-
-    // Cap extremely large time steps (e.g. resume from background)
-    if (dtSeconds > 0.5) {
+    } else if (needsImmediateResponse) {
+      // Direct/center modes: no smoothing, snap to target
       currentX = targetCenter.x
       currentY = targetCenter.y
     } else {
-      const snapToCenter = activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')
+      // GIMBAL SMOOTHING: Exponential ease toward target
+      // smoothFactor derived from spring stiffness (higher stiffness = faster tracking)
+      const baseSmoothFactor = Math.sqrt(dynamics.stiffness)
 
-      if (snapToCenter) {
-        currentX = 0.5
-        currentY = 0.5
-      } else {
-        // Exponential smoothing: smooth approach to target
-        const alpha = 1 - Math.exp(-smoothFactor * dtSeconds)
-        currentX += (targetCenter.x - currentX) * alpha
-        currentY += (targetCenter.y - currentY) * alpha
-      }
+      // At high zoom, reduce smoothFactor for more stable/cinematic motion
+      // This prevents micro-jitter when small cursor movements are amplified
+      const zoomDampening = clamp01((currentScale - 1) / 2)  // 0 at 1x, 0.75 at 2.5x+
+      const smoothFactor = lerp(baseSmoothFactor, baseSmoothFactor * 0.5, zoomDampening)
+
+      const alpha = 1 - Math.exp(-smoothFactor * dtSeconds)
+      currentX += (targetCenter.x - currentX) * alpha
+      currentY += (targetCenter.y - currentY) * alpha
     }
 
-    // Snap position if very close
+    // Snap position if very close to target
     const dist = Math.sqrt(Math.pow(currentX - targetCenter.x, 2) + Math.pow(currentY - targetCenter.y, 2))
     if (dist < 0.0001) {
       currentX = targetCenter.x
       currentY = targetCenter.y
     }
 
-    // Use commandedScale directly (deterministic, no physics simulation)
-    currentScale = commandedScale
-
     nextPhysics = {
       x: currentX,
       y: currentY,
-      vx: 0,
+      vx: 0,  // Velocity calculated from frame deltas in path-calculator.ts
       vy: 0,
-      scale: currentScale,
+      scale: commandedScale,
       vScale: 0,
       lastTimeMs: timelineMs,
       lastSourceTimeMs: sourceTimeMs

@@ -360,8 +360,9 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             mockupScreenPosition,
             forceFollowCursor: Boolean(mockupEnabled && mockupPosition),
             physics,
-            // We simulate sequentially into a lookup table, so stateful physics is safe here.
-            deterministic: false,
+            // Use deterministic mode to ensure same zoomCenter/velocity for same frame
+            // regardless of scrub direction (forward vs backward)
+            deterministic: true,
             cameraSmoothness: cameraSettings?.cameraSmoothness,
             cameraDynamics: cameraSettings?.cameraDynamics
         })

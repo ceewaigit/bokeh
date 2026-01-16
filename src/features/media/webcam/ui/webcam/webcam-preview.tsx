@@ -33,13 +33,6 @@ export function WebcamPreview({
     // Use preview crop during drag, otherwise use committed displayCrop
     const activeCrop = previewCrop ?? displayCrop
 
-    const handleCropPreviewLoaded = (event: React.SyntheticEvent<HTMLVideoElement>) => {
-        const video = event.currentTarget
-        if (!Number.isFinite(video.duration)) return
-        video.currentTime = 0
-        video.pause()
-    }
-
     // Handle live preview during drag
     const handleCropPreview = useCallback((crop: CropEffectData) => {
         setPreviewCrop(crop)
@@ -70,18 +63,23 @@ export function WebcamPreview({
         return () => observer.disconnect()
     }, [])
 
-    // Sidebar video style - video fills container 1:1 so CropOverlay coordinates match exactly
-    // Use 'fill' not 'cover' so the normalized crop coordinates map directly to pixels
     const videoStyle = useMemo<React.CSSProperties>(() => ({
-        position: 'absolute' as const,
+        position: 'absolute',
         top: 0,
         left: 0,
         width: '100%',
         height: '100%',
-        objectFit: 'fill' as const, // Fill exactly so overlay coords match 1:1
+        objectFit: 'fill' as const,
         transform: mirror ? 'scaleX(-1)' : undefined,
         transformOrigin: 'center',
     }), [mirror])
+
+    const handleVideoLoad = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
+        const video = event.currentTarget
+        if (!Number.isFinite(video.duration)) return
+        video.currentTime = 0
+        video.pause()
+    }, [])
 
     if (!previewSrc) return null
 
@@ -112,8 +110,8 @@ export function WebcamPreview({
                     muted
                     playsInline
                     preload="metadata"
-                    onLoadedMetadata={handleCropPreviewLoaded}
-                    onLoadedData={handleCropPreviewLoaded}
+                    onLoadedMetadata={handleVideoLoad}
+                    onLoadedData={handleVideoLoad}
                 />
                 {cropPreviewSize.width > 0 && cropPreviewSize.height > 0 && (
                     <CropOverlay

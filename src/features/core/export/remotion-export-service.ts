@@ -138,9 +138,12 @@ export class RemotionExportService {
         success: boolean;
         error?: string;
         data?: string;
+        buffer?: ArrayBuffer | Uint8Array; // Direct buffer transfer (medium files)
+        isBuffer?: boolean;
         isStream?: boolean;
         filePath?: string;
         fileSize?: number;
+        useBufferChunks?: boolean; // Use buffer-based streaming instead of base64
       }>('export-video', exportData);
 
       // Clean up listener
@@ -151,8 +154,18 @@ export class RemotionExportService {
       }
 
       let blob: Blob;
+      const mimeType = settings.format === 'webm' ? 'video/webm' : 'video/mp4';
 
-      if (result.isStream && result.fileSize && result.filePath) {
+      if (result.isBuffer && result.buffer) {
+        // PERFORMANCE: Direct buffer transfer for medium files (10-50MB)
+        // No base64 encoding/decoding overhead
+        logger.info(`Direct buffer transfer: ${result.buffer.byteLength} bytes`);
+        const bytes = result.buffer instanceof Uint8Array
+          ? result.buffer
+          : new Uint8Array(result.buffer);
+        blob = new Blob([bytes], { type: mimeType });
+
+      } else if (result.isStream && result.fileSize && result.filePath) {
         // Handle streaming for large files
         logger.info(`Streaming large file: ${result.fileSize} bytes`);
 
@@ -160,33 +173,52 @@ export class RemotionExportService {
         const chunkSize = 5 * 1024 * 1024; // 5MB chunks
         let offset = 0;
 
+        // Use buffer-based streaming if available (much faster)
+        const useBufferChunks = result.useBufferChunks;
+
         while (offset < result.fileSize) {
           // Check for abort
           if (this.abortSignal?.aborted || this.isAborting) {
-            // Clean up temp file
             await ipc.invoke('export-cleanup', { filePath: result.filePath }).catch(() => { });
             throw new Error('Export aborted during streaming');
           }
 
           const length = Math.min(chunkSize, result.fileSize - offset);
 
-          const chunkResult = await ipc.invoke<{ success: boolean; data?: string }>('export-stream-chunk', {
-            filePath: result.filePath,
-            offset,
-            length
-          });
+          if (useBufferChunks) {
+            // PERFORMANCE: Direct buffer streaming - no base64 overhead
+            const chunkResult = await ipc.invoke<{ success: boolean; buffer?: ArrayBuffer | Uint8Array }>('export-stream-buffer-chunk', {
+              filePath: result.filePath,
+              offset,
+              length
+            });
 
-          if (!chunkResult.success || !chunkResult.data) {
-            throw new Error('Failed to stream file chunk');
-          }
+            if (!chunkResult.success || !chunkResult.buffer) {
+              throw new Error('Failed to stream file buffer chunk');
+            }
 
-          // Decode chunk
-          const binaryString = atob(chunkResult.data);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+            const bytes = chunkResult.buffer instanceof Uint8Array
+              ? chunkResult.buffer
+              : new Uint8Array(chunkResult.buffer);
+            chunks.push(bytes);
+          } else {
+            // Legacy base64 streaming (fallback)
+            const chunkResult = await ipc.invoke<{ success: boolean; data?: string }>('export-stream-chunk', {
+              filePath: result.filePath,
+              offset,
+              length
+            });
+
+            if (!chunkResult.success || !chunkResult.data) {
+              throw new Error('Failed to stream file chunk');
+            }
+
+            // PERFORMANCE: Use Uint8Array.from() instead of manual charCodeAt loop
+            // This is ~10x faster for large strings
+            const binaryString = atob(chunkResult.data);
+            const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+            chunks.push(bytes);
           }
-          chunks.push(bytes);
 
           offset += length;
 
@@ -200,23 +232,18 @@ export class RemotionExportService {
         }
 
         // Combine chunks into blob
-        blob = new Blob(chunks as BlobPart[], {
-          type: settings.format === 'webm' ? 'video/webm' : 'video/mp4'
-        });
+        blob = new Blob(chunks as BlobPart[], { type: mimeType });
 
         // Clean up temp file
         await ipc.invoke('export-cleanup', { filePath: result.filePath });
+
       } else if (result.data) {
         // Small file - use base64 directly
+        // PERFORMANCE: Use Uint8Array.from() instead of manual charCodeAt loop
         const binaryString = atob(result.data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
+        const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+        blob = new Blob([bytes], { type: mimeType });
 
-        blob = new Blob([bytes], {
-          type: settings.format === 'webm' ? 'video/webm' : 'video/mp4'
-        });
       } else {
         throw new Error('Export result missing data');
       }

@@ -49,11 +49,49 @@ app.on('browser-window-created', (_event, window) => {
   installNativeContextMenu(window)
 })
 
+// Store file path if app receives open-file before ready (macOS cold start)
+let pendingOpenFile: string | null = null
+
+// Helper to open a .bokeh project from a file path
+function openProjectFromPath(filePath: string): void {
+  console.log('[OpenFile] Opening project from path:', filePath)
+  openWorkspaceWindow({ projectPath: filePath })
+}
+
+// macOS: Handle file open events (double-click .bokeh in Finder)
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  console.log('[OpenFile] Received file path:', filePath)
+
+  // Validate it's a .bokeh file/folder
+  if (!filePath.endsWith('.bokeh')) {
+    console.warn('[OpenFile] Ignoring non-.bokeh file:', filePath)
+    return
+  }
+
+  if (app.isReady()) {
+    // App is already running - open the project
+    openProjectFromPath(filePath)
+  } else {
+    // App is starting - store for later
+    pendingOpenFile = filePath
+  }
+})
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, commandLine) => {
+    // Check for .bokeh file in command line args (Windows/Linux file association)
+    const bokehFilePath = commandLine.find(arg => arg.endsWith('.bokeh'))
+
+    if (bokehFilePath) {
+      console.log('[SecondInstance] Opening project from command line:', bokehFilePath)
+      openProjectFromPath(bokehFilePath)
+      return
+    }
+
     // Prefer the main workspace; fall back to recorder overlay.
     if (global.mainWindow && !global.mainWindow.isDestroyed()) {
       if (global.mainWindow.isMinimized()) global.mainWindow.restore()
@@ -208,6 +246,20 @@ async function initializeApp(): Promise<void> {
       setupRecordButton(newRecordButton)
     }
   })
+
+  // Check for pending file from macOS open-file event (cold start)
+  if (pendingOpenFile) {
+    const filePath = pendingOpenFile
+    pendingOpenFile = null
+    // Delay to allow window initialization
+    setTimeout(() => openProjectFromPath(filePath), 100)
+  } else {
+    // Check for command-line file path (Windows/Linux cold start)
+    const cmdLineFile = process.argv.find(arg => arg.endsWith('.bokeh'))
+    if (cmdLineFile) {
+      setTimeout(() => openProjectFromPath(cmdLineFile), 100)
+    }
+  }
 }
 
 app.whenReady().then(initializeApp)

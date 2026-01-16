@@ -71,8 +71,11 @@ export function useScrollSpy({
     const container = containerRef.current
     if (!container || sectionIds.length === 0) return
 
+    // Capture ref value for cleanup
+    const visibleSections = visibleSectionsRef.current
+
     // Reset visible sections when sectionIds change
-    visibleSectionsRef.current.clear()
+    visibleSections.clear()
 
     // Calculate rootMargin to account for offset
     // Negative top margin means "trigger later" (when element is further into view)
@@ -85,9 +88,9 @@ export function useScrollSpy({
           if (!sectionId) return
 
           if (entry.isIntersecting) {
-            visibleSectionsRef.current.add(sectionId)
+            visibleSections.add(sectionId)
           } else {
-            visibleSectionsRef.current.delete(sectionId)
+            visibleSections.delete(sectionId)
           }
         })
 
@@ -120,7 +123,7 @@ export function useScrollSpy({
     return () => {
       observer.disconnect()
       container.removeEventListener('scroll', handleScroll)
-      visibleSectionsRef.current.clear()
+      visibleSections.clear()
     }
   }, [sectionIds, containerRef, offset, sectionRefs, updateActiveSection])
 

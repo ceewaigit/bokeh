@@ -499,6 +499,16 @@ const electronAPI = {
     return () => ipcRenderer.removeListener('refresh-library', wrappedCallback)
   },
 
+  onOpenProjectFromPath: (callback: (projectPath: string) => void) => {
+    const wrappedCallback = (_event: IpcRendererEvent, projectPath: string) => {
+      if (typeof projectPath === 'string' && projectPath.endsWith('.bokeh')) {
+        callback(projectPath)
+      }
+    }
+    ipcRenderer.on('open-project-from-path', wrappedCallback)
+    return () => ipcRenderer.removeListener('open-project-from-path', wrappedCallback)
+  },
+
   onOpenSettingsDialog: (callback: () => void) => {
     const wrappedCallback = () => callback()
     ipcRenderer.on('open-settings-dialog', wrappedCallback)

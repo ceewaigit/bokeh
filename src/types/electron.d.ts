@@ -316,6 +316,7 @@ export interface ElectronAPI {
 
   // Recording events
   onRefreshLibrary?: (callback: () => void) => () => void
+  onOpenProjectFromPath?: (callback: (projectPath: string) => void) => () => void
   onOpenSettingsDialog?: (callback: () => void) => () => void
   consumePendingSettingsOpen?: () => boolean
   onRecordingStarted: (callback: () => void) => () => void

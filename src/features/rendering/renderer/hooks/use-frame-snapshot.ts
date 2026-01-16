@@ -238,12 +238,14 @@ function useCalculatedSnapshot(
 
         // Use pre-computed velocity from camera path (deterministic - same frame = same velocity)
         // This is calculated in path-calculator.ts as position[frame] - position[frame-1]
+        // IMPORTANT: Velocity is kept NORMALIZED (0-1) for resolution independence.
+        // This follows industry standard (DaVinci Resolve, After Effects, Final Cut Pro).
+        // MotionBlurCanvas converts to pixels using actual render dimensions, ensuring
+        // preview at 1080p matches export at 4K exactly.
+        // NOTE: Do NOT scale velocity by zoom - velocity represents camera movement in
+        // normalized screen space, not source space. Zoom affects framing, not camera speed.
         const precomputedVelocity = cameraPathFrame?.velocity ?? { x: 0, y: 0 };
-        const scale = (zoomTransform as any)?.scale ?? 1;
-        snapshot.camera.velocity = {
-            x: precomputedVelocity.x * snapshot.layout.drawWidth * scale,
-            y: precomputedVelocity.y * snapshot.layout.drawHeight * scale
-        };
+        snapshot.camera.velocity = precomputedVelocity;
 
         // Use pre-computed motion blur mix from camera path (deterministic per frame)
         snapshot.camera.motionBlurMix = cameraPathFrame?.motionBlurMix ?? 0;

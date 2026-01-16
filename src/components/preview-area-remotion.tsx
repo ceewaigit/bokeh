@@ -123,7 +123,7 @@ export function PreviewAreaRemotion({
     return `player-${timelineMetadata.fps}-${videoRecordingIds}-${timelineMutationCounter}`;
   }, [project, timelineMetadata, timelineMutationCounter]);
   // Sync hook
-  const { lastIsPlayingRef } = usePlayerSync({
+  const { lastIsPlayingRef, safePlay } = usePlayerSync({
     playerRef,
     timelineMetadata,
     isPlaying,
@@ -134,9 +134,21 @@ export function PreviewAreaRemotion({
   });
 
   // Reset playback state ref when the Remotion Player remounts
+  // AND resume playback if it was playing before the remount
   useEffect(() => {
     lastIsPlayingRef.current = false;
-  }, [playerKey, lastIsPlayingRef]);
+
+    // If the store says we should be playing, restart playback after remount
+    // Use a small delay to ensure the new player is fully mounted
+    if (isPlaying && playerRef.current) {
+      const timeoutId = setTimeout(() => {
+        if (playerRef.current && useProjectStore.getState().isPlaying) {
+          safePlay(playerRef.current);
+        }
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [playerKey, lastIsPlayingRef, isPlaying, safePlay, playerRef]);
 
 
   // Build partial player configuration props

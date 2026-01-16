@@ -292,18 +292,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // RETURN
   // ==========================================================================
 
-  // PERFORMANCE: Stabilize velocity reference to prevent unnecessary context recreation
-  // Only update the stable ref when velocity changes significantly (> 0.5px difference)
-  const stableVelocityRef = useRef({ x: 0, y: 0 });
-  const rawVelocity = snapshotCamera.velocity ?? { x: 0, y: 0 };
-  const VELOCITY_CHANGE_THRESHOLD = 0.5;
-  if (
-    Math.abs(rawVelocity.x - stableVelocityRef.current.x) > VELOCITY_CHANGE_THRESHOLD ||
-    Math.abs(rawVelocity.y - stableVelocityRef.current.y) > VELOCITY_CHANGE_THRESHOLD
-  ) {
-    stableVelocityRef.current = { x: rawVelocity.x, y: rawVelocity.y };
-  }
-  const stableVelocity = stableVelocityRef.current;
+  // Use velocity directly from camera path - it's deterministic (same frame = same velocity)
+  // No caching/filtering - this ensures scrubbing to the same frame always looks identical
+  // Memoized to ensure referential stability
+  const velocity = useMemo(() => snapshotCamera.velocity ?? { x: 0, y: 0 }, [snapshotCamera.velocity]);
 
   // Prepare context value
   const videoPositionContextValue = useMemo(() => ({
@@ -315,7 +307,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     // NEW: Motion blur state for IoC pattern (VideoClipRenderer consumes this)
     motionBlur: {
       enabled: isMotionBlurActive,
-      velocity: stableVelocity,
+      velocity: velocity,
       intensity: motionBlurIntensity / 100,
       drawWidth: layout.drawWidth,
       drawHeight: layout.drawHeight,
@@ -353,9 +345,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     has3DTransform,
     effectiveBlurPx,
     isMotionBlurActive,
-    // Use stable velocity primitives to prevent re-renders from minor velocity changes
-    stableVelocity.x,
-    stableVelocity.y,
+    velocity,
     motionBlurIntensity,
     cameraSettings,
     motionBlurConfig.velocityThreshold,

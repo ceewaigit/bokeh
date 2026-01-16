@@ -90,32 +90,26 @@ export const TimelineEffectBlock = React.memo(({
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // PERFORMANCE: Store tween ref to cancel before creating new one
   const hoverTweenRef = useRef<Konva.Tween | null>(null)
-  // Use token color if no custom fill is provided
-  const baseStroke = fillColor || colors.muted
-  const handleWidth = 6
+  // Use token color if no custom fill is provided (use rgba fallback for Konva)
+  const baseColor = fillColor || colors.muted || 'rgba(128, 100, 200, 1)'
+  const handleWidth = 4
   const handleHeight = 14
 
-  // Define colors using tokens
-  // Enhanced styling for expanded state - more depth and polish
-  const blockFill = baseStroke
+  // OUTLINED style - subtle fill with prominent border
+  const blockFillOpacity = isExpanded ? 0.12 : 0.08
 
-  // Enhanced shadow configuration for expanded state
-  const shadowConfig = {
-    blur: isExpanded ? (isSelected ? 12 : 8) : (isSelected ? 4 : 1),
-    opacity: isExpanded ? (isSelected ? 0.35 : 0.25) : (isSelected ? 0.15 : 0.05),
-    offsetY: isExpanded ? 3 : 1
-  }
+  // Border is the main visual - high contrast
+  const borderOpacity = isDarkMode ? 0.9 : 0.8
 
-  // Use glass-safe colors for maximum contrast on any background
-  const labelFill = isEnabled
-    ? colors.foreground
-    : colors.glassSecondaryForeground
+  // Typography - with safe fallbacks (use rgba for Konva compatibility)
+  const foregroundColor = colors.foreground || 'rgba(250, 250, 250, 1)'
+  const labelFill = isEnabled ? foregroundColor : (colors.glassSecondaryForeground || 'rgba(200, 200, 200, 1)')
+  const labelShadowColor = colors.effectLabelShadow || 'rgba(0, 0, 0, 0.8)'
 
-  const curveStroke = withAlpha(colors.foreground, isEnabled ? (isDarkMode ? 0.9 : 0.7) : 0.35)
+  // Curve stroke - with fallback
+  const curveStroke = withAlpha(foregroundColor, isEnabled ? 0.5 : 0.25) || 'rgba(255, 255, 255, 0.5)'
 
-  const handleFill = colors.foreground
-  // Always use text shadow for glass mode legibility
-  const labelShadowColor = colors.effectLabelShadow
+  const handleFill = foregroundColor || 'rgba(255, 255, 255, 0.9)'
 
   const safeWidth = Math.max(1, currentWidth)
   const safeHeight = Math.max(1, height)
@@ -187,52 +181,19 @@ export const TimelineEffectBlock = React.memo(({
     }
   }, [isSelected, isHovering])
 
-  // Animation effect on hover
-  // PERFORMANCE: Cancel existing tween before creating new one to prevent accumulation
+  // Hover animation - simple opacity change
   useEffect(() => {
     const node = rectRef.current
     if (!node) return
 
-    // Cancel any existing tween before creating new one
+    // Cancel any existing tween
     if (hoverTweenRef.current) {
       hoverTweenRef.current.destroy()
       hoverTweenRef.current = null
     }
 
-    // Enhanced depth and lift effect - more pronounced when expanded
-    const baseBlur = isExpanded ? shadowConfig.blur : (isSelected ? 4 : 1)
-    const baseOpacity = isExpanded ? shadowConfig.opacity : (isSelected ? 0.15 : 0.05)
-
-    const targetShadowBlur = isHovering && !isDragging && !isTransforming
-      ? (isExpanded ? 16 : 8)  // Higher lift on hover, even more when expanded
-      : baseBlur
-    const targetShadowOpacity = isHovering && !isDragging && !isTransforming
-      ? (isExpanded ? 0.4 : 0.2)  // Deeper shadow on hover
-      : baseOpacity
-
-    hoverTweenRef.current = new Konva.Tween({
-      node,
-      duration: 0.18, // Slightly longer for smooth physics feel
-      scaleX: 1,
-      scaleY: 1,
-      shadowBlur: targetShadowBlur,
-      shadowOpacity: targetShadowOpacity,
-      easing: Konva.Easings.EaseOut, // Snappy ease out
-      onFinish: () => {
-        // Clear ref when tween completes naturally
-        hoverTweenRef.current = null
-      }
-    })
-    hoverTweenRef.current.play()
-
-    // Cleanup on unmount
-    return () => {
-      if (hoverTweenRef.current) {
-        hoverTweenRef.current.destroy()
-        hoverTweenRef.current = null
-      }
-    }
-  }, [isHovering, isDragging, isTransforming, isSelected, isExpanded, shadowConfig.blur, shadowConfig.opacity])
+    // No animation needed - just ensure proper state
+  }, [isHovering, isDragging, isTransforming])
 
   const generateZoomCurve = () => {
     if (!scale) return [] as number[]
@@ -363,7 +324,7 @@ export const TimelineEffectBlock = React.memo(({
         onMouseLeave={handleMouseLeave}
         listening={true}
       >
-        {/* Main block - Colored fill with gradient overlay for depth */}
+        {/* Main block - OUTLINED style with subtle inner fill */}
         <ContinuousRect
           ref={rectRef}
           x={0}
@@ -371,65 +332,58 @@ export const TimelineEffectBlock = React.memo(({
           width={safeWidth}
           height={safeHeight}
           cornerRadius={isExpanded ? 10 : 8}
-          fill={withAlpha(blockFill, isExpanded ? 0.15 : 0.1)}
-          // Enhanced border - slightly thicker and more prominent for outline look
+          fill={withAlpha(baseColor, blockFillOpacity) || 'rgba(128, 128, 128, 0.1)'}
+          // Border is the main visual element
           stroke={isSelected
-            ? (isDarkMode ? 'rgba(255,255,255,0.95)' : colors.primary)
-            : withAlpha(blockFill, isDarkMode ? 0.8 : 0.7)
+            ? (isDarkMode ? 'rgba(255, 255, 255, 0.95)' : (colors.primary || 'rgba(128, 128, 255, 0.9)'))
+            : (withAlpha(baseColor, borderOpacity) || 'rgba(128, 128, 128, 0.8)')
           }
           strokeWidth={isSelected ? 2 : 1.5}
-          opacity={!isEnabled ? 0.4 : (isDragging ? 0.9 : 1)}
+          opacity={!isEnabled ? 0.5 : (isDragging ? 0.85 : 1)}
           listening={true}
         />
 
 
-        {/* Resize handles - Modern Pill Shape with enhanced styling */}
+
+        {/* Resize handles - Minimal pill shape */}
         {(isHovering || isSelected) && (
           <>
-            {/* Left Handle */}
             <Rect
-              x={-handleWidth / 2}
-              y={safeHeight / 2 - (isExpanded ? handleHeight * 1.2 : handleHeight) / 2}
+              x={4}
+              y={safeHeight / 2 - handleHeight / 2}
               width={handleWidth}
-              height={isExpanded ? handleHeight * 1.2 : handleHeight}
-              fill={isSelected ? (isDarkMode ? '#ffffff' : colors.primary) : handleFill}
-              cornerRadius={handleWidth / 2} // Pill shape
+              height={handleHeight}
+              fill={handleFill}
+              cornerRadius={handleWidth / 2}
+              opacity={0.7}
               listening={false}
-              shadowColor="black"
-              shadowBlur={isExpanded ? 6 : 4}
-              shadowOpacity={isExpanded ? 0.3 : 0.2}
             />
-            {/* Right Handle */}
             <Rect
-              x={safeWidth - handleWidth / 2}
-              y={safeHeight / 2 - (isExpanded ? handleHeight * 1.2 : handleHeight) / 2}
+              x={safeWidth - handleWidth - 4}
+              y={safeHeight / 2 - handleHeight / 2}
               width={handleWidth}
-              height={isExpanded ? handleHeight * 1.2 : handleHeight}
-              fill={isSelected ? (isDarkMode ? '#ffffff' : colors.primary) : handleFill}
-              cornerRadius={handleWidth / 2} // Pill shape
+              height={handleHeight}
+              fill={handleFill}
+              cornerRadius={handleWidth / 2}
+              opacity={0.7}
               listening={false}
-              shadowColor="black"
-              shadowBlur={isExpanded ? 6 : 4}
-              shadowOpacity={isExpanded ? 0.3 : 0.2}
             />
           </>
         )}
 
-        {/* Only show curve in non-compact mode */}
+        {/* Zoom curve visualization - subtle waveform-like texture */}
         {!isCompact && curvePoints.length > 0 && (
-          <>
-            <Line
-              points={curvePoints}
-              stroke={curveStroke}
-              strokeWidth={1.5}
-              lineCap="round"
-              lineJoin="round"
-              listening={false}
-            />
-          </>
+          <Line
+            points={curvePoints}
+            stroke={curveStroke}
+            strokeWidth={1.5}
+            lineCap="round"
+            lineJoin="round"
+            listening={false}
+          />
         )}
 
-        {/* Label / Metadata - simple centered layout */}
+        {/* Label - Clean typography */}
         {(label || metaLabel) && (
           <Text
             x={0}

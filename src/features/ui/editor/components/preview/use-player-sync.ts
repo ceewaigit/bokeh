@@ -265,12 +265,11 @@ export function usePlayerSync({
 
         if (isPlaying) {
             if (!lastIsPlayingRef.current) {
-                const playerFrame = playerRef.current.getCurrentFrame();
+                // ALWAYS seek player to store position when starting playback
+                // This ensures we don't play from a scrubOnHover preview position
                 const currentStoreTime = useProjectStore.getState().currentTime;
                 const storeFrame = clampFrame(timeToFrame(currentStoreTime));
-                if (Math.abs(playerFrame - storeFrame) > 1) {
-                    playerRef.current.seekTo(storeFrame);
-                }
+                playerRef.current.seekTo(storeFrame);
             }
 
             if (muted) {

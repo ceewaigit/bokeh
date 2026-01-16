@@ -658,7 +658,7 @@ export function ZoomTab({
                         >
                             <CompactSlider
                                 label="Shutter Angle"
-                                value={camera.motionBlurIntensity ?? 25}
+                                value={camera.motionBlurIntensity ?? 50}
                                 min={0}
                                 max={100}
                                 step={5}
@@ -684,16 +684,8 @@ export function ZoomTab({
                                     >
                                         <div className="space-y-3 pl-3 border-l-2 border-border/30">
                                             <CompactSlider
-                                                label="Threshold"
-                                                value={camera.motionBlurThreshold ?? 20}
-                                                min={0}
-                                                max={100}
-                                                unit="%"
-                                                onValueChange={v => setCameraSettings({ motionBlurThreshold: v })}
-                                            />
-                                            <CompactSlider
                                                 label="Max Radius"
-                                                value={camera.motionBlurClamp ?? 45}
+                                                value={camera.motionBlurClamp ?? 40}
                                                 min={10}
                                                 max={100}
                                                 unit="px"

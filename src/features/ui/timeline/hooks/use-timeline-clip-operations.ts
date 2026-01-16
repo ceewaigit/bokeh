@@ -64,10 +64,11 @@ export function useTimelineClipOperations(): TimelineClipOperations {
     const getCurrentTime = () => useProjectStore.getState().currentTime
 
     // Helper to execute command if executor is available
-    const withExecutor = async <R>(fn: (executor: NonNullable<typeof executorRef.current>) => Promise<R>): Promise<R | void> => {
+    // Memoized since executorRef is a stable ref
+    const withExecutor = useCallback(async <R>(fn: (executor: NonNullable<typeof executorRef.current>) => Promise<R>): Promise<R | void> => {
         if (!executorRef.current) return
         return fn(executorRef.current)
-    }
+    }, [executorRef])
 
     // ─────────────────────────────────────────────────────────────────────────
     // Context menu operations (operate on specific clipId)
@@ -75,36 +76,36 @@ export function useTimelineClipOperations(): TimelineClipOperations {
 
     const handleClipSplit = useCallback(async (clipId: string) => {
         await withExecutor(e => e.execute(SplitClipCommand, clipId, getCurrentTime()))
-    }, [])
+    }, [withExecutor])
 
     const handleClipTrimStart = useCallback(async (clipId: string) => {
         await withExecutor(e => e.execute(TrimCommand, clipId, getCurrentTime(), 'start'))
-    }, [])
+    }, [withExecutor])
 
     const handleClipTrimEnd = useCallback(async (clipId: string) => {
         await withExecutor(e => e.execute(TrimCommand, clipId, getCurrentTime(), 'end'))
-    }, [])
+    }, [withExecutor])
 
     const handleClipDuplicate = useCallback(async (clipId: string) => {
         await withExecutor(e => e.execute(DuplicateClipCommand, clipId))
-    }, [])
+    }, [withExecutor])
 
     const handleClipCopy = useCallback(async (clipId: string) => {
         await withExecutor(e => e.execute(CopyCommand, clipId))
-    }, [])
+    }, [withExecutor])
 
     const handleClipCut = useCallback(async (clipId: string) => {
         await withExecutor(e => e.execute(CutCommand, clipId))
-    }, [])
+    }, [withExecutor])
 
     const handleClipDelete = useCallback(async (clipId: string) => {
         await withExecutor(e => e.execute(RemoveClipCommand, clipId))
-    }, [])
+    }, [withExecutor])
 
     const handleClipSpeedUp = useCallback(async (clipId: string) => {
         selectClip(clipId)
         await withExecutor(e => e.execute(ChangePlaybackRateCommand, clipId, 2.0))
-    }, [selectClip])
+    }, [selectClip, withExecutor])
 
     // ─────────────────────────────────────────────────────────────────────────
     // Selection-based operations (operate on selectedClips)
@@ -113,17 +114,17 @@ export function useTimelineClipOperations(): TimelineClipOperations {
     const handleSplit = useCallback(async () => {
         if (selectedClips.length !== 1) return
         await withExecutor(e => e.execute(SplitClipCommand, selectedClips[0], getCurrentTime()))
-    }, [selectedClips])
+    }, [selectedClips, withExecutor])
 
     const handleTrimStart = useCallback(async () => {
         if (selectedClips.length !== 1) return
         await withExecutor(e => e.execute(TrimCommand, selectedClips[0], getCurrentTime(), 'start'))
-    }, [selectedClips])
+    }, [selectedClips, withExecutor])
 
     const handleTrimEnd = useCallback(async () => {
         if (selectedClips.length !== 1) return
         await withExecutor(e => e.execute(TrimCommand, selectedClips[0], getCurrentTime(), 'end'))
-    }, [selectedClips])
+    }, [selectedClips, withExecutor])
 
     const handleDelete = useCallback(async () => {
         await withExecutor(async (executor) => {
@@ -134,16 +135,16 @@ export function useTimelineClipOperations(): TimelineClipOperations {
             if (selectedClips.length > 1) await executor.endGroup()
             clearSelection()
         })
-    }, [selectedClips, clearSelection])
+    }, [selectedClips, clearSelection, withExecutor])
 
     const handleDuplicate = useCallback(async () => {
         if (selectedClips.length !== 1) return
         await withExecutor(e => e.execute(DuplicateClipCommand, selectedClips[0]))
-    }, [selectedClips])
+    }, [selectedClips, withExecutor])
 
     const handlePaste = useCallback(async () => {
         await withExecutor(e => e.execute(PasteCommand, getCurrentTime()))
-    }, [])
+    }, [withExecutor])
 
     // ─────────────────────────────────────────────────────────────────────────
     // Edge trim handlers (direct store mutations, not commands)
@@ -151,11 +152,11 @@ export function useTimelineClipOperations(): TimelineClipOperations {
 
     const handleEdgeTrimStart = useCallback(async (clipId: string, newStartTime: number) => {
         await withExecutor(e => e.execute(TrimCommand, clipId, newStartTime, 'start'))
-    }, [])
+    }, [withExecutor])
 
     const handleEdgeTrimEnd = useCallback(async (clipId: string, newEndTime: number) => {
         await withExecutor(e => e.execute(TrimCommand, clipId, newEndTime, 'end'))
-    }, [])
+    }, [withExecutor])
 
     return {
         // Context menu operations

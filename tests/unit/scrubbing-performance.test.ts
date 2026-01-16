@@ -155,6 +155,152 @@ describe('Player Key Stability', () => {
   })
 })
 
+describe('Player Remount Resume Logic', () => {
+  /**
+   * Regression test for: Playback state mismatch when applying speed-up suggestions
+   *
+   * Bug: When clips are modified during playback (e.g., applying speed-up),
+   * the player remounts but doesn't resume playback, causing UI to show
+   * "playing" while the player is actually paused.
+   *
+   * Fix: After player remount, check if isPlaying is true and restart playback.
+   */
+
+  type MockPlayerRef = { current: { play: jest.Mock } | null }
+  type MockStoreState = { isPlaying: boolean }
+
+  const createRemountResumeLogic = () => {
+    let lastPlayerKey = ''
+    let safePlayCalled = false
+
+    return {
+      // Simulates the effect that runs on playerKey change
+      onPlayerKeyChange: (
+        newPlayerKey: string,
+        isPlaying: boolean,
+        playerRef: MockPlayerRef,
+        safePlay: (player: unknown) => void,
+        getStoreState: () => MockStoreState
+      ) => {
+        if (newPlayerKey === lastPlayerKey) {
+          return { remounted: false, resumedPlayback: false }
+        }
+
+        lastPlayerKey = newPlayerKey
+        safePlayCalled = false
+
+        // This is the fix logic: resume playback after remount if playing
+        if (isPlaying && playerRef.current) {
+          // Simulating setTimeout behavior - check latest store state
+          const latestState = getStoreState()
+          if (playerRef.current && latestState.isPlaying) {
+            safePlay(playerRef.current)
+            safePlayCalled = true
+          }
+        }
+
+        return { remounted: true, resumedPlayback: safePlayCalled }
+      },
+      reset: () => {
+        lastPlayerKey = ''
+        safePlayCalled = false
+      }
+    }
+  }
+
+  it('resumes playback when player remounts during playback', () => {
+    const logic = createRemountResumeLogic()
+    const mockPlay = jest.fn()
+    const playerRef: MockPlayerRef = { current: { play: mockPlay } }
+    const safePlay = jest.fn()
+    const getStoreState = () => ({ isPlaying: true })
+
+    // Initial mount
+    const result1 = logic.onPlayerKeyChange('key-1', true, playerRef, safePlay, getStoreState)
+    expect(result1.remounted).toBe(true)
+    expect(result1.resumedPlayback).toBe(true)
+    expect(safePlay).toHaveBeenCalledWith(playerRef.current)
+  })
+
+  it('does NOT resume playback when player remounts while paused', () => {
+    const logic = createRemountResumeLogic()
+    const playerRef: MockPlayerRef = { current: { play: jest.fn() } }
+    const safePlay = jest.fn()
+    const getStoreState = () => ({ isPlaying: false })
+
+    const result = logic.onPlayerKeyChange('key-1', false, playerRef, safePlay, getStoreState)
+    expect(result.remounted).toBe(true)
+    expect(result.resumedPlayback).toBe(false)
+    expect(safePlay).not.toHaveBeenCalled()
+  })
+
+  it('does NOT resume if store state changed to paused before timeout', () => {
+    const logic = createRemountResumeLogic()
+    const playerRef: MockPlayerRef = { current: { play: jest.fn() } }
+    const safePlay = jest.fn()
+    // isPlaying was true at effect start, but false when checked in timeout
+    const getStoreState = () => ({ isPlaying: false })
+
+    // Pass isPlaying=true to simulate effect running while playing
+    // but getStoreState returns false to simulate user paused during timeout
+    const result = logic.onPlayerKeyChange('key-1', true, playerRef, safePlay, getStoreState)
+    expect(result.remounted).toBe(true)
+    expect(result.resumedPlayback).toBe(false)
+    expect(safePlay).not.toHaveBeenCalled()
+  })
+
+  it('does NOT resume if player ref is null', () => {
+    const logic = createRemountResumeLogic()
+    const playerRef: MockPlayerRef = { current: null }
+    const safePlay = jest.fn()
+    const getStoreState = () => ({ isPlaying: true })
+
+    const result = logic.onPlayerKeyChange('key-1', true, playerRef, safePlay, getStoreState)
+    expect(result.remounted).toBe(true)
+    expect(result.resumedPlayback).toBe(false)
+    expect(safePlay).not.toHaveBeenCalled()
+  })
+
+  it('handles multiple consecutive remounts correctly', () => {
+    const logic = createRemountResumeLogic()
+    const playerRef: MockPlayerRef = { current: { play: jest.fn() } }
+    const safePlay = jest.fn()
+    const getStoreState = () => ({ isPlaying: true })
+
+    // First remount
+    logic.onPlayerKeyChange('key-1', true, playerRef, safePlay, getStoreState)
+    expect(safePlay).toHaveBeenCalledTimes(1)
+
+    // Second remount with new key
+    logic.onPlayerKeyChange('key-2', true, playerRef, safePlay, getStoreState)
+    expect(safePlay).toHaveBeenCalledTimes(2)
+
+    // Same key - no remount
+    logic.onPlayerKeyChange('key-2', true, playerRef, safePlay, getStoreState)
+    expect(safePlay).toHaveBeenCalledTimes(2) // No additional call
+  })
+
+  it('scenario: apply speed-up during playback resumes correctly', () => {
+    const logic = createRemountResumeLogic()
+    const playerRef: MockPlayerRef = { current: { play: jest.fn() } }
+    const safePlay = jest.fn()
+    let storeIsPlaying = true
+    const getStoreState = () => ({ isPlaying: storeIsPlaying })
+
+    // Initial state - playing
+    logic.onPlayerKeyChange('player-30-rec1-0', true, playerRef, safePlay, getStoreState)
+    expect(safePlay).toHaveBeenCalledTimes(1)
+
+    // Speed-up applied -> timelineMutationCounter increments -> playerKey changes
+    // This triggers a remount during playback
+    logic.onPlayerKeyChange('player-30-rec1-1', true, playerRef, safePlay, getStoreState)
+    expect(safePlay).toHaveBeenCalledTimes(2)
+
+    // Verify playback continues (safePlay was called to resume)
+    expect(storeIsPlaying).toBe(true)
+  })
+})
+
 describe('RAF Optimization - Frame Skip Logic', () => {
   it('should skip work when frame has not changed', () => {
     let workDone = 0

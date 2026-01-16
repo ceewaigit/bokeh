@@ -303,3 +303,231 @@ export async function exportDirectWithConcat(
     }
   }
 }
+
+/**
+ * Zoom segment for FFmpeg-based zoom rendering
+ */
+export interface ZoomSegment {
+  startTimeMs: number
+  endTimeMs: number
+  scale: number
+  targetX: number  // 0-1 normalized
+  targetY: number  // 0-1 normalized
+  introMs: number
+  outroMs: number
+}
+
+/**
+ * Build FFmpeg zoompan filter expression for multiple zoom segments
+ * Uses smooth easing (sine) to match Remotion's zoom transitions
+ *
+ * The zoompan filter syntax:
+ * zoompan=z='expr':x='expr':y='expr':d=frames:s=size:fps=fps
+ *
+ * Where expressions can use:
+ * - t: current time in seconds (since zoompan start)
+ * - in_t: input video time in seconds
+ * - frame: current frame number
+ * - on_frame: output frame number
+ * - iw, ih: input width/height
+ * - zoom: current zoom value
+ */
+function buildZoompanFilter(
+  zoomSegments: ZoomSegment[],
+  fps: number,
+  inputWidth: number,
+  inputHeight: number
+): string {
+  if (zoomSegments.length === 0) {
+    return ''
+  }
+
+  // Sort segments by start time
+  const sortedSegments = [...zoomSegments].sort((a, b) => a.startTimeMs - b.startTimeMs)
+
+  // Build the zoom expression using FFmpeg's conditional syntax
+  // if(between(t,start,end),value,else)
+  const zoomExprParts: string[] = []
+  const xExprParts: string[] = []
+  const yExprParts: string[] = []
+
+  for (const seg of sortedSegments) {
+    const startSec = seg.startTimeMs / 1000
+    const endSec = seg.endTimeMs / 1000
+    const introSec = seg.introMs / 1000
+    const outroSec = seg.outroMs / 1000
+    const introEndSec = startSec + introSec
+    const outroStartSec = endSec - outroSec
+    const scale = seg.scale
+
+    // Smooth easing using sine function (matches Remotion's default)
+    // During intro: zoom from 1 to scale using sin((t-start)/intro * PI/2)
+    // During hold: stay at scale
+    // During outro: zoom from scale to 1 using sin((t-outroStart)/outro * PI/2 + PI/2)
+
+    // Intro phase (zoom in)
+    const introPhase = `between(in_t,${startSec.toFixed(4)},${introEndSec.toFixed(4)})`
+    const introProgress = `(in_t-${startSec.toFixed(4)})/${introSec.toFixed(4)}`
+    const introZoom = `1+(${scale}-1)*sin(${introProgress}*PI/2)`
+
+    // Hold phase (full zoom)
+    const holdPhase = `between(in_t,${introEndSec.toFixed(4)},${outroStartSec.toFixed(4)})`
+
+    // Outro phase (zoom out)
+    const outroPhase = `between(in_t,${outroStartSec.toFixed(4)},${endSec.toFixed(4)})`
+    const outroProgress = `(in_t-${outroStartSec.toFixed(4)})/${outroSec.toFixed(4)}`
+    const outroZoom = `${scale}-(${scale}-1)*sin(${outroProgress}*PI/2)`
+
+    // Combined zoom expression for this segment
+    zoomExprParts.push(`if(${introPhase},${introZoom},if(${holdPhase},${scale},if(${outroPhase},${outroZoom},1)))`)
+
+    // Pan expressions: center the zoom on the target point
+    // x = (targetX * iw) - (iw / zoom / 2)
+    // y = (targetY * ih) - (ih / zoom / 2)
+    const targetXPx = seg.targetX * inputWidth
+    const targetYPx = seg.targetY * inputHeight
+
+    // During zoom phases, calculate pan position
+    const fullPhase = `between(in_t,${startSec.toFixed(4)},${endSec.toFixed(4)})`
+    xExprParts.push(`if(${fullPhase},(${targetXPx.toFixed(1)})-(iw/zoom/2),iw/2-iw/zoom/2)`)
+    yExprParts.push(`if(${fullPhase},(${targetYPx.toFixed(1)})-(ih/zoom/2),ih/2-ih/zoom/2)`)
+  }
+
+  // Combine all segment expressions
+  // For multiple segments, nest them with else clauses defaulting to zoom=1
+  let zoomExpr = '1'
+  let xExpr = 'iw/2-iw/zoom/2'
+  let yExpr = 'ih/2-ih/zoom/2'
+
+  // Build nested if-else chain
+  for (let i = zoomExprParts.length - 1; i >= 0; i--) {
+    const seg = sortedSegments[i]
+    const startSec = seg.startTimeMs / 1000
+    const endSec = seg.endTimeMs / 1000
+    const phase = `between(in_t,${startSec.toFixed(4)},${endSec.toFixed(4)})`
+
+    zoomExpr = `if(${phase},${zoomExprParts[i]},${zoomExpr})`
+    xExpr = `if(${phase},${xExprParts[i]},${xExpr})`
+    yExpr = `if(${phase},${yExprParts[i]},${yExpr})`
+  }
+
+  // Build the zoompan filter
+  // Note: zoompan processes at input fps, outputs at specified fps
+  return `zoompan=z='${zoomExpr}':x='${xExpr}':y='${yExpr}':d=1:s=${inputWidth}x${inputHeight}:fps=${fps}`
+}
+
+/**
+ * Export video with static zoom effects using FFmpeg
+ * This is much faster than Remotion for zoom effects that don't follow the cursor
+ */
+export async function exportDirectWithZoom(
+  inputPath: string,
+  outputPath: string,
+  settings: DirectExportSettings,
+  zoomSegments: ZoomSegment[],
+  onProgress?: (percent: number) => void,
+  abortSignal?: AbortSignal
+): Promise<DirectExportResult> {
+  const startTime = Date.now()
+
+  console.log('[DirectExport] Starting STATIC ZOOM fast path export:', {
+    input: path.basename(inputPath),
+    output: path.basename(outputPath),
+    resolution: `${settings.width}x${settings.height}`,
+    zoomSegments: zoomSegments.length,
+  })
+
+  try {
+    const args: string[] = [
+      '-hide_banner',
+      '-y', // Overwrite output
+    ]
+
+    // Trim start (before input for fast seeking)
+    if (settings.trimStart && settings.trimStart > 0) {
+      args.push('-ss', settings.trimStart.toString())
+    }
+
+    // Input file
+    args.push('-i', inputPath)
+
+    // Trim end (after input for duration)
+    if (settings.trimEnd && settings.trimEnd > 0) {
+      args.push('-to', settings.trimEnd.toString())
+    }
+
+    // Build filter chain
+    const filters: string[] = []
+
+    // Apply zoompan filter if we have zoom segments
+    if (zoomSegments.length > 0) {
+      const zoompanFilter = buildZoompanFilter(
+        zoomSegments,
+        settings.fps,
+        settings.width,
+        settings.height
+      )
+      filters.push(zoompanFilter)
+    }
+
+    // Scale to output resolution (after zoompan to maintain quality)
+    filters.push(`scale=${settings.width}:${settings.height}:force_original_aspect_ratio=decrease`)
+    filters.push(`pad=${settings.width}:${settings.height}:(ow-iw)/2:(oh-ih)/2`)
+
+    // Apply filter chain
+    args.push('-vf', filters.join(','))
+
+    // Framerate
+    args.push('-r', settings.fps.toString())
+
+    // Try hardware encoding first (macOS VideoToolbox)
+    if (process.platform === 'darwin') {
+      args.push(
+        '-c:v', 'h264_videotoolbox',
+        '-allow_sw', '1', // Allow software fallback
+        '-profile:v', 'high',
+        '-b:v', settings.bitrate,
+      )
+    } else {
+      // Software encoding fallback
+      args.push(
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-crf', '23',
+        '-b:v', settings.bitrate,
+      )
+    }
+
+    // Audio (pass through or re-encode)
+    args.push(
+      '-c:a', 'aac',
+      '-b:a', '192k',
+    )
+
+    // Output optimizations
+    args.push(
+      '-pix_fmt', 'yuv420p',
+      '-movflags', '+faststart',
+    )
+
+    // Output file
+    args.push(outputPath)
+
+    await runFfmpegWithProgress(args, onProgress, abortSignal)
+
+    const durationMs = Date.now() - startTime
+    console.log(`[DirectExport] Static zoom export complete in ${(durationMs / 1000).toFixed(1)}s`)
+
+    return {
+      success: true,
+      outputPath,
+      durationMs,
+    }
+  } catch (error) {
+    console.error('[DirectExport] Static zoom export failed:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}

@@ -161,13 +161,14 @@ export const getTimelineColors = () => {
       ? (isDark ? 'rgba(50, 50, 60, 0.3)' : 'rgba(255, 255, 255, 0.18)')
       : (isDark ? 'rgba(35, 35, 40, 0.6)' : 'rgba(240, 240, 245, 0.7)'),
     playhead: getCSSVar('--timeline-playhead') || getCSSVar('--destructive') || 'hsl(263, 70%, 60%)',
-    zoomBlock: getCSSVar('--effect-zoom') || getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
-    screenBlock: getCSSVar('--effect-screen') || (isDark ? 'hsl(152, 55%, 45%)' : 'hsl(152, 55%, 35%)'),
-    keystrokeBlock: getCSSVar('--effect-keystroke') || (isDark ? 'hsl(83, 65%, 50%)' : 'hsl(83, 65%, 40%)'),
+    // Effect colors - refined for outlined style
+    zoomBlock: getCSSVar('--effect-zoom') || getCSSVar('--accent') || (isDark ? 'hsl(263, 70%, 60%)' : 'hsl(263, 70%, 50%)'),
+    screenBlock: getCSSVar('--effect-screen') || (isDark ? 'hsl(152, 55%, 50%)' : 'hsl(152, 55%, 40%)'),
+    keystrokeBlock: getCSSVar('--effect-keystroke') || (isDark ? 'hsl(83, 65%, 55%)' : 'hsl(83, 65%, 45%)'),
     annotationBlock: getCSSVar('--effect-annotation') || (isDark ? 'hsl(45, 90%, 55%)' : 'hsl(45, 90%, 45%)'),
 
     // Webcam track colors
-    webcamClip: getCSSVar('--effect-webcam') || 'hsl(196, 60%, 45%)',
+    webcamClip: getCSSVar('--effect-webcam') || (isDark ? 'hsl(196, 60%, 50%)' : 'hsl(196, 60%, 45%)'),
     webcamCircle: 'rgba(255, 255, 255, 0.15)',
     webcamTrack: isDark ? 'rgba(34, 211, 238, 0.12)' : 'rgba(34, 211, 238, 0.09)',
     clipSelected: getCSSVar('--accent') || 'hsl(263, 70%, 50%)',
@@ -219,13 +220,13 @@ const getDefaultColors = () => ({
   success: 'hsl(142, 71%, 45%)',
   ruler: 'rgba(25, 25, 30, 0.9)',
   trackBackground: 'rgba(35, 35, 40, 0.6)',
-  // Effect block colors - using CSS variable defaults
+  // Effect block colors - refined for outlined style
   playhead: 'hsl(262, 80%, 60%)',
-  zoomBlock: 'hsl(262, 80%, 60%)',
-  screenBlock: 'hsl(152, 55%, 45%)',
-  keystrokeBlock: 'hsl(83, 65%, 50%)',
+  zoomBlock: 'hsl(263, 70%, 60%)',
+  screenBlock: 'hsl(152, 55%, 50%)',
+  keystrokeBlock: 'hsl(83, 65%, 55%)',
   annotationBlock: 'hsl(45, 90%, 55%)',
-  webcamClip: 'hsl(196, 60%, 45%)',
+  webcamClip: 'hsl(196, 60%, 50%)',
   webcamCircle: 'rgba(255, 255, 255, 0.15)',
   webcamTrack: 'rgba(34, 211, 238, 0.12)',
   clipSelected: 'hsl(262, 80%, 60%)',
