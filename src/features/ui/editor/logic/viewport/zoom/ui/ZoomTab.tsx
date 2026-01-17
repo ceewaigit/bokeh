@@ -7,11 +7,11 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import type { Clip, Effect, ZoomEffectData, ZoomBlock, CropEffectData } from '@/types/project'
+import type { Clip, Effect, ZoomEffectData, ZoomBlock, CropEffectData, BackgroundEffectData } from '@/types/project'
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectLayerType } from '@/features/effects/types'
-import { getCropEffectForClip, getDataOfType, getEffectsOfType } from '@/features/effects/core/filters'
+import { getCropEffectForClip, getDataOfType, getEffectsOfType, getBackgroundEffect } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/effects-store'
 import { DEFAULT_ZOOM_DATA } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
@@ -102,6 +102,16 @@ export function ZoomTab({
     const zoomEffects = effects ? getEffectsOfType(effects, EffectType.Zoom) : []
     const cropEffect = selectedClip && effects ? getCropEffectForClip(effects, selectedClip) : null
     const cropData = cropEffect ? getDataOfType<CropEffectData>(cropEffect, EffectType.Crop) : null
+
+    // Check if there's background padding - if so, allow manual target to reveal it
+    const backgroundEffect = effects ? getBackgroundEffect(effects) : null
+    const backgroundData = backgroundEffect ? getDataOfType<BackgroundEffectData>(backgroundEffect, EffectType.Background) : null
+    const backgroundPadding = backgroundData?.padding ?? 0
+    const hasBackgroundPadding = backgroundPadding > 0
+    // Calculate padding ratio for visual preview (padding as fraction of smaller dimension)
+    const paddingRatio = hasBackgroundPadding && timelineMetadata
+        ? backgroundPadding / Math.min(timelineMetadata.width, timelineMetadata.height)
+        : 0
 
     const activeRecording = useMemo(() => {
         if (!project?.recordings?.length) return null
@@ -408,6 +418,8 @@ export function ZoomTab({
                                             outputWidth={timelineMetadata?.width ?? 1920}
                                             outputHeight={timelineMetadata?.height ?? 1080}
                                             cropData={cropData}
+                                            allowOverscanReveal={hasBackgroundPadding}
+                                            paddingRatio={paddingRatio}
                                             onCommit={(updates) => handleBlockUpdate(updates)}
                                         />
                                         {!hasManualTarget && (
@@ -439,10 +451,10 @@ export function ZoomTab({
                                     className="overflow-hidden"
                                 >
                                     <div className="grid grid-cols-2 gap-3 pt-2">
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between text-2xs text-muted-foreground">
-                                                <span>Zoom In</span>
-                                                <span className="font-mono tabular-nums">
+                                        <div className="group space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Zoom In</span>
+                                                <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                                                     {(localIntroMs ?? selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs) === 0
                                                         ? 'Instant'
                                                         : `${localIntroMs ?? selectedZoomData?.introMs ?? DEFAULT_ZOOM_DATA.introMs}ms`}
@@ -459,15 +471,11 @@ export function ZoomTab({
                                                 max={introSliderMax}
                                                 step={50}
                                             />
-                                            <div className="flex justify-between text-3xs text-muted-foreground/50">
-                                                <span>Instant</span>
-                                                <span>{introSliderMax}ms</span>
-                                            </div>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between text-2xs text-muted-foreground">
-                                                <span>Zoom Out</span>
-                                                <span className="font-mono tabular-nums">
+                                        <div className="group space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Zoom Out</span>
+                                                <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                                                     {(localOutroMs ?? selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs) === 0
                                                         ? 'Instant'
                                                         : `${localOutroMs ?? selectedZoomData?.outroMs ?? DEFAULT_ZOOM_DATA.outroMs}ms`}
@@ -484,10 +492,6 @@ export function ZoomTab({
                                                 max={outroSliderMax}
                                                 step={50}
                                             />
-                                            <div className="flex justify-between text-3xs text-muted-foreground/50">
-                                                <span>Instant</span>
-                                                <span>{outroSliderMax}ms</span>
-                                            </div>
                                         </div>
                                     </div>
 
@@ -556,6 +560,8 @@ export function ZoomTab({
                         }
                     }}
                     namespace="camera-style"
+                    wrap
+                    columns={3}
                 />
                 <AnimatePresence>
                     {cameraStylePreset === 'custom' && (

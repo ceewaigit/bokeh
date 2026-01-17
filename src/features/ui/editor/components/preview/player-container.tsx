@@ -4,9 +4,11 @@ import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/features/rendering/renderer/compositions/TimelineComposition';
 import { AmbientGlowPlayer } from './ambient-glow-player';
 import { buildTimelineCompositionInput } from '@/features/rendering/renderer/utils/composition-input';
+import { useGlowContext } from '@/features/ui/editor/context/GlowContext';
+import { usePlaybackSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import type { PlayerConfiguration } from '@/types/project';
-import type { ZoomSettings } from '@/types/remotion';
+import type { ZoomSettings } from '@/features/ui/editor/types';
 
 interface PlayerContainerProps {
     playerRef: React.RefObject<PlayerRef | null>;
@@ -15,25 +17,9 @@ interface PlayerContainerProps {
     playerConfig: PlayerConfiguration;
     playerKey: string;
     initialFrame: number;
-    isHighQualityPlaybackEnabled: boolean;
     compositionWidth: number;
     compositionHeight: number;
-    muted: boolean;
-    volume: number;
-    isGlowEnabled: boolean;
-    glowIntensity: number;
-    isPlaying: boolean;
-    isScrubbing: boolean;
-    isEditingCrop: boolean;
     zoomSettings?: ZoomSettings;
-    glowPortalRoot?: HTMLElement | null;
-    glowPortalStyle?: {
-        centerX: number;
-        centerY: number;
-        width: number;
-        height: number;
-        scale: number;
-    } | null;
 }
 
 const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
@@ -43,20 +29,18 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
     playerConfig,
     playerKey,
     initialFrame,
-    isHighQualityPlaybackEnabled,
     compositionWidth,
     compositionHeight,
-    muted,
-    volume,
-    isGlowEnabled,
-    glowIntensity,
-    isPlaying,
-    isScrubbing,
-    isEditingCrop,
     zoomSettings,
-    glowPortalRoot,
-    glowPortalStyle,
 }) => {
+    // Get glow settings from context
+    const { isEnabled: isGlowEnabled, intensity: glowIntensity, portal } = useGlowContext();
+    const { root: glowPortalRoot, style: glowPortalStyle } = portal;
+
+    // Get playback and render settings from context
+    const { playback, renderSettings } = usePlaybackSettings();
+    const { isPlaying, isScrubbing, isHighQualityPlaybackEnabled, previewMuted: muted, previewVolume } = playback;
+    const { isEditingCrop } = renderSettings;
     const mainPlayerInputProps = useMemo(() => {
         return buildTimelineCompositionInput(playerConfig, {
             playback: {
@@ -68,7 +52,7 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
                 isScrubbing: false,
                 isHighQualityPlaybackEnabled,
                 previewMuted: muted,
-                previewVolume: Math.min(volume / 100, 1),
+                previewVolume,
             },
             renderSettings: {
                 isGlowMode: false,
@@ -83,7 +67,7 @@ const PlayerContainerComp: React.FC<PlayerContainerProps> = ({
         zoomSettings,
         isHighQualityPlaybackEnabled,
         muted,
-        volume,
+        previewVolume,
     ]);
 
     // BATTERY OPTIMIZATION: Only mount glow player when both enabled AND intensity > 0

@@ -101,31 +101,3 @@ export class MockIpcBridge implements IpcBridge {
     return this.handlers.has(channel)
   }
 }
-
-/**
- * Create a pre-configured mock bridge with common handlers
- * @returns MockIpcBridge with common handlers
- */
-export function createMockIpcBridge(): MockIpcBridge {
-  const bridge = new MockIpcBridge()
-
-  // Register common handlers with default responses
-  bridge.registerHandler('export-video', async () => ({
-    success: true,
-    data: '',
-    isStream: false
-  }))
-
-  bridge.registerHandler('export-cancel', async () => ({
-    success: true
-  }))
-
-  bridge.registerHandler('get-recordings-directory', async () => '/mock/recordings')
-
-  bridge.registerHandler('read-local-file', async () => ({
-    success: true,
-    data: null
-  }))
-
-  return bridge
-}

@@ -4,9 +4,10 @@
 export const TimelineConfig = {
   // Layout dimensions
   RULER_HEIGHT: 24,
-  SPEED_UP_BAR_SPACE: 40, // Extra space for speed-up suggestion bars (increased to 40 to clear ruler + shadows)
+  SPEED_UP_BAR_SPACE: 0, // Bars overlap video track, no dedicated space
   TRACK_LABEL_WIDTH: 0, // Labels removed, so width is 0
-  TRACK_PADDING: 4,
+  TRACK_PADDING: 1,
+  TRACK_GAP: 4, // Consistent gap between tracks
   MIN_CLIP_WIDTH: 1,
   MAX_TRACK_HEIGHT: 120,
   LAYOUT_PADDING: 16,

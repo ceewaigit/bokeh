@@ -1,86 +1,58 @@
-import { Command, CommandResult } from '../base/Command'
-import { CommandContext } from '../base/CommandContext'
-import { Effect } from '@/types/project'
-import { EffectStore } from '@/features/effects/core/effects-store'
+/**
+ * UpdateEffectCommand - Update an effect in the project.
+ *
+ * Uses PatchedCommand for automatic undo/redo via Immer patches.
+ * No longer needs manual originalData tracking.
+ */
 
-export class UpdateEffectCommand extends Command {
-    private originalData: Partial<Effect> | null = null
+import { PatchedCommand } from '../base/PatchedCommand'
+import { CommandContext } from '../base/CommandContext'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/features/core/stores/project-store'
+import type { Effect } from '@/types/project'
+import { EffectStore } from '@/features/effects/core/effects-store'
+import { markProjectModified } from '@/features/core/stores/store-utils'
+
+export class UpdateEffectCommand extends PatchedCommand<{ effectId: string }> {
+    private effectId: string
+    private updates: Partial<Effect>
 
     constructor(
-        private context: CommandContext,
-        private effectId: string,
-        private updates: Partial<Effect>
+        context: CommandContext,
+        effectId: string,
+        updates: Partial<Effect>
     ) {
-        super({
+        super(context, {
             name: 'UpdateEffect',
             description: `Update effect ${effectId}`,
+            category: 'effects',
             coalesceKey: `UpdateEffect:${effectId}`,
             coalesceWindowMs: 1000
         })
+        this.effectId = effectId
+        this.updates = updates
     }
 
     canExecute(): boolean {
-        return !!this.context.getProject()
-    }
-
-    async doExecute(): Promise<CommandResult> {
         const project = this.context.getProject()
-        if (!project) return { success: false, error: 'No active project' }
-
-        // Use EffectStore to find the effect (searches both timeline and legacy recording.effects)
-        const located = EffectStore.find(project, this.effectId)
-        if (!located) {
-            return { success: false, error: 'Effect not found' }
-        }
-
-        const effect = located.effect
-
-        // Capture only the properties that are being updated
-        this.originalData = {}
-        for (const key in this.updates) {
-            if (Object.prototype.hasOwnProperty.call(this.updates, key)) {
-                // @ts-expect-error - Partial<Effect> index signature mismatch
-                this.originalData[key] = effect[key]
-            }
-        }
-
-        // Capture only the data keys being updated (avoid deep-cloning large effect payloads).
-        if (this.updates.data && effect.data) {
-            const prevData = effect.data as Record<string, unknown>
-            const nextData = this.updates.data as Record<string, unknown>
-            const originalDataForKeys: Record<string, unknown> = {}
-
-            for (const dataKey of Object.keys(nextData)) {
-                const prevValue = prevData[dataKey]
-                if (prevValue && typeof prevValue === 'object') {
-                    // Best-effort deep clone for nested values (keep undo correct without cloning unrelated huge blobs).
-                    // `structuredClone` is available in modern runtimes; fall back to JSON for plain objects.
-                    try {
-                        originalDataForKeys[dataKey] = typeof structuredClone === 'function'
-                            ? structuredClone(prevValue)
-                            : JSON.parse(JSON.stringify(prevValue))
-                    } catch {
-                        originalDataForKeys[dataKey] = prevValue
-                    }
-                } else {
-                    originalDataForKeys[dataKey] = prevValue
-                }
-            }
-
-            this.originalData.data = originalDataForKeys as any
-        }
-
-        // NOTE: Webcam effect handling removed - webcam styling now lives on clip.layout
-
-        this.context.getStore().updateEffect(this.effectId, this.updates)
-        return { success: true }
+        if (!project) return false
+        return EffectStore.exists(project, this.effectId)
     }
 
-    async doUndo(): Promise<CommandResult> {
-        if (this.originalData) {
-            this.context.getStore().updateEffect(this.effectId, this.originalData)
-            return { success: true }
+    protected mutate(draft: WritableDraft<ProjectStore>): void {
+        if (!draft.currentProject) {
+            throw new Error('No active project')
         }
-        return { success: false, error: 'No original data to restore' }
+
+        const located = EffectStore.find(draft.currentProject, this.effectId)
+        if (!located) {
+            throw new Error('Effect not found')
+        }
+
+        // Update effect using EffectStore - Immer patches will capture the old state
+        EffectStore.update(draft.currentProject, this.effectId, this.updates)
+        markProjectModified(draft)
+
+        this.setResult({ success: true, data: { effectId: this.effectId } })
     }
 }

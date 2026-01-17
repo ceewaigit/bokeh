@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Slider } from '@/components/ui/slider'
 import type { BackgroundEffectData, Effect } from '@/types/project'
 import { BackgroundType } from '@/types/project'
+import { cn } from '@/shared/utils/utils'
 
 type Corner = 'tl' | 'tr' | 'bl' | 'br'
 
@@ -81,26 +82,26 @@ function CornerPreview({
   }, [shadowIntensity])
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2">
       {/* Header with corner tabs */}
       <div className="flex items-center justify-end">
-        <div className="inline-flex p-0.5 rounded-lg bg-black/20 backdrop-blur-sm">
+        <div className="inline-flex p-0.5 rounded-lg bg-black/[0.06] dark:bg-white/[0.06]">
           {corners.map((corner) => {
             const isSelected = selectedCorner === corner.id
             return (
               <button
                 key={corner.id}
                 onClick={() => setSelectedCorner(corner.id)}
-                className="relative px-2.5 py-1 text-[11px] font-medium tracking-tight rounded-md transition-colors"
+                className="relative px-2.5 py-1 text-2xs font-medium rounded-md transition-colors"
               >
                 {isSelected && (
                   <motion.div
                     layoutId="corner-tab"
-                    className="absolute inset-0 bg-white/10 rounded-md"
+                    className="absolute inset-0 bg-white dark:bg-white/10 rounded-md shadow-sm"
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
-                <span className={`relative z-10 ${isSelected ? 'text-white' : 'text-white/40'}`}>
+                <span className={cn("relative z-10", isSelected ? 'text-foreground' : 'text-muted-foreground/60')}>
                   {corner.label}
                 </span>
               </button>
@@ -183,10 +184,14 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
       {/* Controls */}
       <div className="space-y-3">
         {/* Padding */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium text-muted-foreground/80">Padding</label>
-            <span className="text-[11px] text-muted-foreground/50 tabular-nums">{padding}px</span>
+        <div className="group space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+              Padding
+            </label>
+            <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors group-hover:text-foreground/80">
+              {padding}px
+            </span>
           </div>
           <Slider
             value={[padding]}
@@ -197,15 +202,18 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             min={0}
             max={200}
             step={2}
-            className="w-full"
           />
         </div>
 
         {/* Corner Radius */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium text-muted-foreground/80">Corner Radius</label>
-            <span className="text-[11px] text-muted-foreground/50 tabular-nums">{cornerRadius}px</span>
+        <div className="group space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+              Corner Radius
+            </label>
+            <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors group-hover:text-foreground/80">
+              {cornerRadius}px
+            </span>
           </div>
           <Slider
             value={[cornerRadius]}
@@ -216,16 +224,19 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             min={0}
             max={48}
             step={1}
-            className="w-full"
             disabled={isMockupEnabled}
           />
         </div>
 
         {/* Shadow */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium text-muted-foreground/80">Shadow</label>
-            <span className="text-[11px] text-muted-foreground/50 tabular-nums">{shadowIntensity}%</span>
+        <div className="group space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+              Shadow
+            </label>
+            <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors group-hover:text-foreground/80">
+              {shadowIntensity}%
+            </span>
           </div>
           <Slider
             value={[shadowIntensity]}
@@ -233,7 +244,6 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             min={0}
             max={100}
             step={1}
-            className="w-full"
           />
         </div>
       </div>

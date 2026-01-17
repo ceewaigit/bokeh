@@ -217,37 +217,37 @@ export function ActivitySuggestionPopover({
         animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
         exit={{ opacity: 0, scale: 0.95, filter: 'blur(2px)' }}
         transition={{ ...spring, filter: { type: "tween", duration: 0.2, ease: "easeOut" } }}
-        className="fixed z-max w-[240px] rounded-2xl bg-popover/85 backdrop-blur-xl border border-glass-border shadow-2xl overflow-hidden p-1.5"
+        className="fixed z-max w-[260px] rounded-2xl bg-popover/90 backdrop-blur-xl border border-glass-border shadow-2xl overflow-hidden"
         style={{ left: pos.left, top: pos.top }}
         onMouseDown={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-3 pt-2 pb-1.5 mb-1 border-b border-border/10">
-          <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground/60">
-            {typeLabel}
-          </span>
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
           <div className="flex items-center gap-2">
-            <span className="text-2xs font-mono text-muted-foreground/50">{stats.duration}</span>
-            <button
-              onClick={onClose}
-              className="p-1 -mr-1 rounded-md hover:bg-overlay-hover text-muted-foreground transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground/60">
+              {typeLabel}
+            </span>
+            <span className="text-2xs font-mono text-muted-foreground/40">{stats.duration}</span>
           </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 -mr-1.5 rounded-lg hover:bg-overlay-hover text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        {/* Options List */}
-        <div className="space-y-0.5">
+        {/* Primary Actions */}
+        <div className="px-2 pb-2 space-y-0.5">
           <OptionButton
             id="speedup"
             onClick={handleSpeedUp}
             disabled={loading !== null}
             icon={FastForward}
-            iconColorClass="text-sky-500"
-            iconBgClass="bg-sky-500/10"
+            iconColorClass="text-sky-400"
+            iconBgClass="bg-sky-500/15"
             label="Speed Up"
-            description={<>{stats.multiplier}× <span className="mx-1">·</span> Saves {stats.speedUpSaved}</>}
+            description={<>{stats.multiplier}× <span className="mx-1 opacity-50">·</span> Saves {stats.speedUpSaved}</>}
           />
 
           {canTrim && (
@@ -256,47 +256,64 @@ export function ActivitySuggestionPopover({
               onClick={handleTrim}
               disabled={loading !== null}
               icon={Scissors}
-              iconColorClass="text-rose-500"
-              iconBgClass="bg-rose-500/10"
+              iconColorClass="text-rose-400"
+              iconBgClass="bg-rose-500/15"
               label="Trim Segment"
-              description={<>Remove <span className="mx-1">·</span> Saves {stats.trimSaved}</>}
+              description={<>Remove <span className="mx-1 opacity-50">·</span> Saves {stats.trimSaved}</>}
             />
           )}
+        </div>
 
-          <div className="my-1 h-px bg-glass-border mx-2" />
-
-          <OptionButton
-            id="dismiss"
-            onClick={async () => {
-              if (onDismiss) {
-                setLoading('speedup')
-                try {
-                  await onDismiss(period)
-                } finally {
+        {/* Footer Actions */}
+        <div className="flex items-center border-t border-border/10 bg-muted/20">
+          {showApplyAll ? (
+            <>
+              <button
+                onClick={handleApplyAll}
+                disabled={loading !== null}
+                className="flex-1 py-2.5 text-xs font-medium text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+              >
+                Apply all ({totalAll})
+              </button>
+              <div className="w-px h-5 bg-border/20" />
+              <button
+                onClick={async () => {
+                  if (onDismiss) {
+                    setLoading('speedup')
+                    try {
+                      await onDismiss(period)
+                    } finally {
+                      onClose()
+                    }
+                  } else {
+                    onClose()
+                  }
+                }}
+                disabled={loading !== null}
+                className="flex-1 py-2.5 text-xs font-medium text-muted-foreground/70 hover:text-muted-foreground hover:bg-muted/30 transition-colors disabled:opacity-50"
+              >
+                Skip
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={async () => {
+                if (onDismiss) {
+                  setLoading('speedup')
+                  try {
+                    await onDismiss(period)
+                  } finally {
+                    onClose()
+                  }
+                } else {
                   onClose()
                 }
-              } else {
-                onClose()
-              }
-            }}
-            disabled={loading !== null}
-            icon={X}
-            iconColorClass="text-muted-foreground"
-            iconBgClass="bg-overlay-hover"
-            label="Dismiss"
-            description="Ignore suggestion"
-          />
-
-          {/* Apply All Footer */}
-          {showApplyAll && (
-            <motion.button
-              onClick={handleApplyAll}
+              }}
               disabled={loading !== null}
-              className="mt-1 w-full py-2 text-2xs font-medium text-primary/80 hover:text-primary transition-colors border-t border-border/10"
-              whileHover={{ backgroundColor: "rgba(255,255,255,0.05)" }}
+              className="w-full py-2.5 text-xs font-medium text-muted-foreground/70 hover:text-muted-foreground hover:bg-muted/30 transition-colors disabled:opacity-50"
             >
-              Apply to all ({totalAll} items)
-            </motion.button>
+              Dismiss
+            </button>
           )}
         </div>
       </motion.div>

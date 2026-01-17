@@ -3,8 +3,9 @@
  * Uses deterministic, frame-perfect easing without spring physics
  */
 
-import type { ZoomBlock, ZoomTransitionStyle } from '@/types/project';
-import type { CameraMotionBlurState, CameraSettings, MotionBlurConfig, ZoomTransform } from '@/types';
+import type { ZoomBlock, ZoomTransitionStyle, CameraSettings } from '@/types/project';
+import type { CameraMotionBlurState, MotionBlurConfig } from '@/features/rendering/motion-blur/types';
+import type { ZoomTransform } from '@/features/rendering/renderer/types';
 import { smoothStep, smootherStep, easeInOutCubic, clamp01 } from '@/features/rendering/canvas/math';
 import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config';
 
@@ -296,9 +297,9 @@ export function calculateZoomTransform(
   currentTimeMs: number,
   videoWidth: number,
   videoHeight: number,
-  zoomCenter: { x: number; y: number }, // Fixed zoom center (normalized 0-1)
+  zoomCenter: { x: number; y: number }, // Camera center (normalized, can exceed 0-1 with overscan)
   overrideScale?: number,
-  /** Padding amount in pixels - used to calculate pan for revealing padding */
+  /** @deprecated Padding is handled via overscan in orchestrator. Kept for API compatibility. */
   _padding?: number,
   /** Disable refocus blur regardless of timing */
   disableRefocusBlur: boolean = false,
@@ -413,7 +414,9 @@ export function calculateZoomTransform(
     | 'lead'
     | undefined;
 
-  // Revert to center-origin math as SharedVideoController uses transformOrigin: 'center center'
+  // Pan calculation: camera center to translate position
+  // blendedCenter can go beyond 0-1 when allowOverscanReveal is true,
+  // allowing the zoom to pan into the background/padding area
   const rawPanX = (0.5 - blendedCenter.x) * videoWidth * scale;
   const rawPanY = (0.5 - blendedCenter.y) * videoHeight * scale;
 

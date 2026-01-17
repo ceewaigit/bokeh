@@ -76,6 +76,7 @@ interface WorkspaceStore {
   clipTabFadeAdvancedOpen: boolean
   cursorTabFineTuneOpen: boolean
   motionTabAdvancedOpen: boolean
+  webcamTabSpeedAdvancedOpen: boolean
 
   // Workspace Actions
   toggleProperties: () => void
@@ -97,6 +98,7 @@ interface WorkspaceStore {
   setClipTabFadeAdvancedOpen: (open: boolean) => void
   setCursorTabFineTuneOpen: (open: boolean) => void
   setMotionTabAdvancedOpen: (open: boolean) => void
+  setWebcamTabSpeedAdvancedOpen: (open: boolean) => void
 
   // Workspace Presets
   loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => void
@@ -124,6 +126,7 @@ const defaultWorkspaceState = {
   clipTabFadeAdvancedOpen: false,
   cursorTabFineTuneOpen: false,
   motionTabAdvancedOpen: false,
+  webcamTabSpeedAdvancedOpen: false,
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -211,6 +214,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
       setMotionTabAdvancedOpen: (open: boolean) => {
         set({ motionTabAdvancedOpen: open })
+      },
+
+      setWebcamTabSpeedAdvancedOpen: (open: boolean) => {
+        set({ webcamTabSpeedAdvancedOpen: open })
       },
 
       loadWorkspacePreset: (preset: 'minimal' | 'standard' | 'advanced') => {
@@ -318,6 +325,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         clipTabFadeAdvancedOpen: state.clipTabFadeAdvancedOpen,
         cursorTabFineTuneOpen: state.cursorTabFineTuneOpen,
         motionTabAdvancedOpen: state.motionTabAdvancedOpen,
+        webcamTabSpeedAdvancedOpen: state.webcamTabSpeedAdvancedOpen,
       }),
     }
   )

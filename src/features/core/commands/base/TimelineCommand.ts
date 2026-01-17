@@ -5,7 +5,10 @@
  * - findClip(): Lookup clip by ID
  * - selectClip()/selectClips(): Update selection after operation
  * - clampPlayhead(): Keep playhead within valid bounds
- * - buildClipChange(): Build ClipChange for middleware sync
+ * - deferClipChange(): Queue a ClipChange for inline sync processing
+ *
+ * IMPORTANT: Sync happens INLINE within the same transaction (not via middleware).
+ * This ensures sync changes are captured in Immer patches for proper undo/redo.
  */
 
 import { WritableDraft } from 'immer'
@@ -13,10 +16,13 @@ import { PatchedCommand } from './PatchedCommand'
 import { CommandContext } from './CommandContext'
 import { CommandMetadata } from './Command'
 import type { ProjectStore } from '@/features/core/stores/slices/types'
-import type { Project, Clip, Track } from '@/types/project'
-import type { ClipChange, ClipState } from '@/features/effects/sync/types'
+import type { Project, Clip, Track, TrackType } from '@/types/project'
+import type { ClipChange, ClipState, SegmentMapping } from '@/features/effects/sync/types'
+import { ClipChangeBuilder } from '@/features/effects/sync/clip-change-builder'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
+import { ClipUtils } from '@/features/ui/timeline/time/clip-utils'
 import { playbackService } from '@/features/playback/services/playback-service'
+import { TimelineSyncOrchestrator } from '@/features/effects/sync'
 
 export interface ClipLookupResult {
   clip: Clip
@@ -25,11 +31,37 @@ export interface ClipLookupResult {
 }
 
 export abstract class TimelineCommand<TResult = any> extends PatchedCommand<TResult> {
+  /** Deferred clip change to be processed after doMutate() */
+  private _deferredClipChange: ClipChange | null = null
+
   constructor(
     context: CommandContext,
     metadata: Partial<CommandMetadata> = {}
   ) {
     super(context, metadata)
+  }
+
+  /**
+   * Subclasses must implement doMutate() to perform state changes.
+   * After doMutate() returns, any deferred clip change is processed inline.
+   */
+  protected abstract doMutate(draft: WritableDraft<ProjectStore>): void
+
+  /**
+   * Template method: calls doMutate() then processes sync inline.
+   * This ensures sync changes are captured in the same Immer transaction.
+   */
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    // Reset deferred change before each execution
+    this._deferredClipChange = null
+
+    // Execute subclass mutation logic
+    this.doMutate(draft)
+
+    // Process sync inline (same transaction = patches captured for undo/redo)
+    if (this._deferredClipChange && draft.currentProject) {
+      TimelineSyncOrchestrator.commit(draft.currentProject, this._deferredClipChange)
+    }
   }
 
   /** Find a clip by ID in the project */
@@ -66,109 +98,79 @@ export abstract class TimelineCommand<TResult = any> extends PatchedCommand<TRes
     )
   }
 
-  /** Build ClipState from a clip */
+  /** Build ClipState from a clip (delegates to ClipUtils) */
   protected buildClipState(clip: Clip): ClipState {
-    return {
-      startTime: clip.startTime,
-      endTime: clip.startTime + clip.duration,
-      playbackRate: clip.playbackRate ?? 1,
-      sourceIn: clip.sourceIn ?? 0,
-      sourceOut: clip.sourceOut ?? clip.duration
-    }
+    return ClipUtils.buildState(clip)
   }
 
-  /** Set pending clip change for middleware to process */
-  protected setPendingChange(draft: WritableDraft<ProjectStore>, change: ClipChange): void {
-    draft._pendingClipChange = change
+  /** Check if a clip exists in the current project (convenience for canExecute) */
+  protected clipExists(clipId: string): boolean {
+    return this.context.findClip(clipId) !== null
   }
 
-  /** Build ClipChange for add operation */
+  /**
+   * Queue a clip change for inline sync processing.
+   * The change is processed after doMutate() returns, within the same transaction.
+   */
+  protected deferClipChange(change: ClipChange): void {
+    this._deferredClipChange = change
+  }
+
+  /** Build ClipChange for add operation. Delegates to ClipChangeBuilder. */
   protected buildAddChange(clip: Clip): ClipChange {
-    return {
-      type: 'add',
-      clipId: clip.id,
-      recordingId: clip.recordingId,
-      before: null,
-      after: this.buildClipState(clip),
-      timelineDelta: clip.duration
-    }
+    return ClipChangeBuilder.buildAddChange(clip)
   }
 
-  /** Build ClipChange for delete operation */
+  /** Build ClipChange for delete operation. Delegates to ClipChangeBuilder. */
   protected buildDeleteChange(clip: Clip): ClipChange {
-    return {
-      type: 'delete',
-      clipId: clip.id,
-      recordingId: clip.recordingId,
-      before: this.buildClipState(clip),
-      after: null,
-      timelineDelta: -clip.duration
-    }
+    return ClipChangeBuilder.buildDeleteChange(clip)
   }
 
-  /** Build ClipChange for trim-start operation */
+  /** Build ClipChange for trim-start operation. Delegates to ClipChangeBuilder. */
   protected buildTrimStartChange(
     clip: Clip,
     beforeState: ClipState,
     timelineDelta: number
   ): ClipChange {
-    return {
-      type: 'trim-start',
-      clipId: clip.id,
-      recordingId: clip.recordingId,
-      before: beforeState,
-      after: this.buildClipState(clip),
-      timelineDelta
-    }
+    return ClipChangeBuilder.buildTrimStartChange(clip, beforeState, timelineDelta)
   }
 
-  /** Build ClipChange for trim-end operation */
+  /** Build ClipChange for trim-end operation. Delegates to ClipChangeBuilder. */
   protected buildTrimEndChange(
     clip: Clip,
     beforeState: ClipState,
     timelineDelta: number
   ): ClipChange {
-    return {
-      type: 'trim-end',
-      clipId: clip.id,
-      recordingId: clip.recordingId,
-      before: beforeState,
-      after: this.buildClipState(clip),
-      timelineDelta
-    }
+    return ClipChangeBuilder.buildTrimEndChange(clip, beforeState, timelineDelta)
   }
 
-  /** Build ClipChange for split operation */
+  /** Build ClipChange for split operation. Delegates to ClipChangeBuilder. */
   protected buildSplitChange(
     originalClip: Clip,
     beforeState: ClipState,
     firstClip: Clip,
     secondClip: Clip
   ): ClipChange {
-    return {
-      type: 'split',
-      clipId: originalClip.id,
-      recordingId: originalClip.recordingId,
-      before: beforeState,
-      after: this.buildClipState(firstClip),
-      timelineDelta: 0,
-      newClipIds: [firstClip.id, secondClip.id]
-    }
+    return ClipChangeBuilder.buildSplitChangeFromState(originalClip, beforeState, firstClip, secondClip)
   }
 
-  /** Build ClipChange for update operation */
+  /** Build ClipChange for update operation. Delegates to ClipChangeBuilder. */
   protected buildUpdateChange(
     clip: Clip,
     beforeState: ClipState,
     timelineDelta: number = 0
   ): ClipChange {
-    return {
-      type: 'update',
-      clipId: clip.id,
-      recordingId: clip.recordingId,
-      before: beforeState,
-      after: this.buildClipState(clip),
-      timelineDelta
-    }
+    return ClipChangeBuilder.buildUpdateChangeFromState(clip, beforeState, timelineDelta)
+  }
+
+  /** Build ClipChange for speed-up operation. Delegates to ClipChangeBuilder. */
+  protected buildSpeedUpChange(
+    clipId: string,
+    recordingId: string,
+    beforeState: ClipState,
+    segmentMapping: SegmentMapping | null,
+    sourceTrackType?: TrackType
+  ): ClipChange {
+    return ClipChangeBuilder.buildSpeedUpChange(clipId, recordingId, beforeState, segmentMapping, sourceTrackType)
   }
 }

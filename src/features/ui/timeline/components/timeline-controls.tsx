@@ -27,15 +27,10 @@ import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 import { useSelectedClipIds } from '@/features/core/stores/selectors/clip-selectors'
 import { useTimelinePlayback } from '@/features/playback'
 import {
-  Scissors,
   Play,
   Pause,
   SkipBack,
   SkipForward,
-  Trash2,
-  ChevronsLeft,
-  ChevronsRight,
-  Layers,
   Monitor,
   Eye,
   Volume2,
@@ -223,14 +218,7 @@ interface TimelineControlsProps {
 }
 
 export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineControlsProps) => {
-  const {
-    onZoomChange,
-    onSplitSelected,
-    onTrimStartSelected,
-    onTrimEndSelected,
-    onDeleteSelected,
-    onDuplicateSelected,
-  } = useTimelineOperations()
+  const { onZoomChange } = useTimelineOperations()
   const { zoom, duration } = useTimelineLayout()
 
   // Use the unified playback hook (disabled because we don't want duplicate keyboard listeners here)
@@ -248,7 +236,6 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
   const previewScale = useWorkspaceStore((s) => s.previewScale)
   const setPreviewScale = useWorkspaceStore((s) => s.setPreviewScale)
   const hasSelection = selectedClips.length > 0
-  const hasSingleSelection = selectedClips.length === 1
   const audio = useProjectStore((s) => s.currentProject?.settings.audio ?? DEFAULT_PROJECT_SETTINGS.audio)
   const setAudioSettings = useProjectStore((s) => s.setAudioSettings)
   const { volume, muted } = audio
@@ -384,51 +371,15 @@ export const TimelineControls = React.memo(({ minZoom, maxZoom }: TimelineContro
           </div>
         </div>
 
-        <div className="w-px h-4 bg-border/40 mx-1.5" />
-
-        {/* Single-clip Edit Controls - Hidden when no selection */}
-        {hasSingleSelection && (
-          <ControlGroup>
-            <ControlButton
-              onClick={onSplitSelected}
-              icon={Scissors}
-              label="Split at playhead (S)"
-              layoutId="edit-controls"
-            />
-            <ControlButton
-              onClick={onTrimStartSelected}
-              icon={ChevronsLeft}
-              label="Trim start to playhead (Q)"
-              layoutId="edit-controls"
-            />
-            <ControlButton
-              onClick={onTrimEndSelected}
-              icon={ChevronsRight}
-              label="Trim end to playhead (W)"
-              layoutId="edit-controls"
-            />
-            <ControlButton
-              onClick={onDuplicateSelected}
-              icon={Layers}
-              label="Duplicate (⌘D)"
-              layoutId="edit-controls"
-            />
-          </ControlGroup>
+        {/* Subtle hint for clip actions */}
+        {hasSelection && (
+          <>
+            <div className="w-px h-4 bg-border/40 mx-1.5" />
+            <span className="text-xs text-muted-foreground/50 font-serif italic select-none">
+              right-click selection for more
+            </span>
+          </>
         )}
-
-        {/* Always visible but disabled when no selection */}
-        <div className="ml-1">
-          <ControlGroup>
-            <ControlButton
-              onClick={onDeleteSelected}
-              disabled={!hasSelection}
-              icon={Trash2}
-              label="Delete selected (Del)"
-              layoutId="delete-control"
-              variant="destructive"
-            />
-          </ControlGroup>
-        </div>
 
       </div>
 

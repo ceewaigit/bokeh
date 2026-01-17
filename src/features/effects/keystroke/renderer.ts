@@ -3,7 +3,6 @@ import { EffectType } from '@/types/project'
 import { KeystrokePosition } from './types'
 import { OverlayAnchor } from '@/types/overlays'
 import { DEFAULT_KEYSTROKE_DATA } from '@/features/effects/keystroke/config'
-import type { EffectRenderContext } from '../rendering/renderer'
 import {
   computeKeystrokeSegments,
   getKeystrokeDisplayState,
@@ -15,6 +14,15 @@ import {
 } from './utils'
 
 import { getOverlayAnchorPosition } from '@/features/rendering/overlays/anchor-utils'
+
+/** Context for rendering effects (locally defined to avoid circular deps) */
+export interface EffectRenderContext {
+  canvas: HTMLCanvasElement
+  timestamp: number
+  width: number
+  height: number
+  keyboardEvents?: KeyboardEvent[]
+}
 
 export type KeystrokeDrawRect = { x: number; y: number; width: number; height: number }
 

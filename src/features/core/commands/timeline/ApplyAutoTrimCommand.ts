@@ -10,7 +10,8 @@ import { ActivityDetectionService } from '@/features/media/analysis/detection-se
 import { SpeedUpType } from '@/types/speed-up'
 import { reflowClips, calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 import { markProjectModified } from '@/features/core/stores/store-utils'
-import { TimelineSyncService } from '@/features/effects/sync/timeline-sync-service'
+import { ClipChangeBuilder } from '@/features/effects/sync'
+import type { Clip, Recording } from '@/types/project'
 
 export interface AutoTrimOptions {
     trimStart: boolean
@@ -43,6 +44,26 @@ export class ApplyAutoTrimCommand extends TimelineCommand<{ trimmedMs: number }>
         this.options = options
     }
 
+    private calculateTrimInfo(recording: Recording, clip: Clip): TrimInfo | null {
+        const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip)
+        const edgeIdle = suggestions.edgeIdle
+        if (edgeIdle.length === 0) return null
+
+        const info: TrimInfo = { startTrimMs: 0, endTrimMs: 0 }
+        for (const period of edgeIdle) {
+            if (period.type === SpeedUpType.TrimStart && this.options.trimStart) {
+                info.startTrimMs = period.metadata?.trimSavedMs || (period.endTime - period.startTime)
+                info.newSourceIn = period.metadata?.newSourceIn || period.endTime
+            }
+            if (period.type === SpeedUpType.TrimEnd && this.options.trimEnd) {
+                info.endTrimMs = period.metadata?.trimSavedMs || (period.endTime - period.startTime)
+                info.newSourceOut = period.metadata?.newSourceOut || period.startTime
+            }
+        }
+
+        return (info.startTrimMs > 0 || info.endTrimMs > 0) ? info : null
+    }
+
     canExecute(): boolean {
         const project = this.context.getProject()
         if (!project) return false
@@ -53,26 +74,11 @@ export class ApplyAutoTrimCommand extends TimelineCommand<{ trimmedMs: number }>
         const recording = project.recordings.find(r => r.id === result.clip.recordingId)
         if (!recording) return false
 
-        const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, result.clip)
-        const edgeIdle = suggestions.edgeIdle
-        if (edgeIdle.length === 0) return false
-
-        this.trimInfo = { startTrimMs: 0, endTrimMs: 0 }
-        for (const period of edgeIdle) {
-            if (period.type === SpeedUpType.TrimStart && this.options.trimStart) {
-                this.trimInfo.startTrimMs = period.metadata?.trimSavedMs || (period.endTime - period.startTime)
-                this.trimInfo.newSourceIn = period.metadata?.newSourceIn || period.endTime
-            }
-            if (period.type === SpeedUpType.TrimEnd && this.options.trimEnd) {
-                this.trimInfo.endTrimMs = period.metadata?.trimSavedMs || (period.endTime - period.startTime)
-                this.trimInfo.newSourceOut = period.metadata?.newSourceOut || period.startTime
-            }
-        }
-
-        return (this.trimInfo.startTrimMs > 0 || this.trimInfo.endTrimMs > 0)
+        this.trimInfo = this.calculateTrimInfo(recording, result.clip)
+        return this.trimInfo !== null
     }
 
-    protected mutate(draft: WritableDraft<ProjectStore>): void {
+    protected doMutate(draft: WritableDraft<ProjectStore>): void {
         const project = draft.currentProject
         if (!project) throw new Error('No active project')
 
@@ -81,23 +87,12 @@ export class ApplyAutoTrimCommand extends TimelineCommand<{ trimmedMs: number }>
 
         const { clip, track } = lookup
 
-        // Recalculate trim info if needed
+        // Recalculate trim info if not cached from canExecute
         if (!this.trimInfo) {
             const recording = project.recordings.find(r => r.id === clip.recordingId)
             if (!recording) throw new Error('Recording not found')
-
-            const suggestions = ActivityDetectionService.getSuggestionsForClip(recording, clip)
-            this.trimInfo = { startTrimMs: 0, endTrimMs: 0 }
-            for (const period of suggestions.edgeIdle) {
-                if (period.type === SpeedUpType.TrimStart && this.options.trimStart) {
-                    this.trimInfo.startTrimMs = period.metadata?.trimSavedMs || (period.endTime - period.startTime)
-                    this.trimInfo.newSourceIn = period.metadata?.newSourceIn || period.endTime
-                }
-                if (period.type === SpeedUpType.TrimEnd && this.options.trimEnd) {
-                    this.trimInfo.endTrimMs = period.metadata?.trimSavedMs || (period.endTime - period.startTime)
-                    this.trimInfo.newSourceOut = period.metadata?.newSourceOut || period.startTime
-                }
-            }
+            this.trimInfo = this.calculateTrimInfo(recording, clip)
+            if (!this.trimInfo) throw new Error('No trim info available')
         }
 
         const playbackRate = clip.playbackRate || 1
@@ -131,12 +126,12 @@ export class ApplyAutoTrimCommand extends TimelineCommand<{ trimmedMs: number }>
         markProjectModified(draft)
 
         const trimSide = this.options.trimStart ? 'start' : 'end'
-        const trimChange = TimelineSyncService.buildTrimChange(
+        const trimChange = ClipChangeBuilder.buildTrimChange(
             clip, trimSide,
             { startTime: originalStart, endTime: originalEnd, sourceIn: oldSourceIn, sourceOut: oldSourceOut },
             track.type
         )
-        this.setPendingChange(draft, trimChange)
+        this.deferClipChange(trimChange)
 
         this.setResult({ success: true, data: { trimmedMs: totalTrimmed } })
     }

@@ -7,6 +7,7 @@ import { useShallow } from 'zustand/react/shallow'
 import type { Clip, Effect, Recording, SourceTimeRange, SubtitleEffectData, TranscriptWord } from '@/types/project'
 import { timelineToSource } from '@/features/ui/timeline/time/time-space-converter'
 import { findSubtitleWordIndex, getVisibleSubtitleWords } from '@/features/rendering/overlays/subtitle-words'
+import { orderWebcamClipsForSelection, selectActiveWebcamClipAtTime } from '@/features/media/webcam/utils/active-webcam-clip'
 
 export function useOverlayState() {
   const { project, currentTime } = useProjectStore(useShallow((s) => ({
@@ -68,11 +69,8 @@ export function useOverlayState() {
 
     // Get active webcam clip
     const webcamClips = TimelineDataService.getWebcamClips(project)
-    const activeWebcamClip = webcamClips.find(clip => {
-      const clipStart = clip.startTime
-      const clipEnd = clip.startTime + clip.duration
-      return currentTime >= clipStart && currentTime < clipEnd
-    }) ?? null
+    const orderedWebcamClips = orderWebcamClipsForSelection(webcamClips)
+    const activeWebcamClip = selectActiveWebcamClipAtTime(orderedWebcamClips, currentTime)
 
     const isSubtitleVisibleAtTime = subtitleResolutionContext
       ? (effect: Effect, timeMs: number) => {

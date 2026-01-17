@@ -161,7 +161,7 @@ export function ScreenTab({
                 disabled={!selectedClip}
                 disabledTooltip="Select a clip on the timeline to adjust speed and fade settings"
             >
-                {selectedClip && <ClipTab selectedClip={selectedClip} />}
+                {selectedClip && <ClipTab />}
             </CollapsibleSection>
 
             {/* Crop section - collapsible, only when video clip selected */}
@@ -173,11 +173,7 @@ export function ScreenTab({
                 disabledTooltip="Select a video clip on the timeline to crop the frame"
                 badge={isEditingCrop ? 'Editing' : undefined}
             >
-                {isVideoClipSelected && (
-                    <CropTab
-                        selectedClip={selectedClip}
-                    />
-                )}
+                {isVideoClipSelected && <CropTab />}
             </CollapsibleSection>
         </div>
     )

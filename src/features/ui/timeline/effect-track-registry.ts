@@ -70,11 +70,6 @@ export function getEffectTrackConfig(type: EffectType): EffectTrackConfig | unde
   return EFFECT_TRACK_REGISTRY[type]
 }
 
-/** Check if an effect type has a timeline track */
-export function hasEffectTrack(type: EffectType): boolean {
-  return type in EFFECT_TRACK_REGISTRY
-}
-
 /** Get all track configs sorted by order */
 export function getSortedTrackConfigs(): Array<{ type: EffectType; config: EffectTrackConfig }> {
   return EFFECT_TRACK_TYPES

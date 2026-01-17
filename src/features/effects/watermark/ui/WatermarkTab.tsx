@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import { Stamp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -165,13 +164,6 @@ export function WatermarkTab() {
       <div className="rounded-xl border border-glass-border bg-white/50 dark:bg-black/20 backdrop-blur-xl p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Stamp className="h-4 w-4 text-primary" />
-              <div className="text-sm font-semibold tracking-tight">Watermark</div>
-              <span className="text-3xs uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
-                Free
-              </span>
-            </div>
             <div className="text-xs text-muted-foreground/80 leading-relaxed font-medium">
               Watermark settings are saved with your project.
             </div>
@@ -291,10 +283,10 @@ export function WatermarkTab() {
               <InfoTooltip content="Adjust opacity and logo size. Position is draggable in the preview (when available)." />
             </div>
 
-            <div className="space-y-3">
+            <div className="group space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-                <span className="text-xs text-muted-foreground/70 tabular-nums font-mono">{Math.round(watermark.opacity * 100)}%</span>
+                <label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Opacity</label>
+                <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{Math.round(watermark.opacity * 100)}%</span>
               </div>
               <Slider
                 value={[watermark.opacity]}
@@ -302,14 +294,13 @@ export function WatermarkTab() {
                 min={0.3}
                 max={1}
                 step={0.01}
-                className="py-2"
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="group space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">Icon Size</label>
-                <span className="text-xs text-muted-foreground/70 tabular-nums font-mono">{watermark.iconSize.toFixed(0)}%</span>
+                <label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Icon Size</label>
+                <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{watermark.iconSize.toFixed(0)}%</span>
               </div>
               <Slider
                 value={[watermark.iconSize]}
@@ -317,7 +308,6 @@ export function WatermarkTab() {
                 min={5}
                 max={20}
                 step={1}
-                className="py-2"
               />
             </div>
           </div>
@@ -339,8 +329,8 @@ export function WatermarkTab() {
               />
             </div>
             {showUpgradeOverlay ? (
-              <div className="text-2xs text-muted-foreground/70 leading-snug">
-                More customization will unlock later.
+              <div className="font-display text-2xs italic text-muted-foreground/60 leading-snug">
+                More customization coming soon
               </div>
             ) : null}
           </div>
@@ -398,8 +388,8 @@ export function WatermarkTab() {
 
                 {(watermark.textStyle.textShadow?.enabled ?? false) ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1.5">
-                      <label className="text-2xs text-muted-foreground">Blur</label>
+                    <div className="group space-y-1.5">
+                      <label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Blur</label>
                       <Slider
                         value={[watermark.textStyle.textShadow?.blur ?? 0]}
                         onValueChange={([v]) =>
@@ -410,8 +400,8 @@ export function WatermarkTab() {
                         step={1}
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-2xs text-muted-foreground">Y Offset</label>
+                    <div className="group space-y-1.5">
+                      <label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Y Offset</label>
                       <Slider
                         value={[watermark.textStyle.textShadow?.offsetY ?? 0]}
                         onValueChange={([v]) =>
@@ -434,10 +424,10 @@ export function WatermarkTab() {
                 </div>
 
                 {(watermark.textStyle.textOutline?.enabled ?? false) ? (
-                  <div className="space-y-1.5">
+                  <div className="group space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-2xs text-muted-foreground">Width</label>
-                      <span className="text-2xs text-muted-foreground/70 tabular-nums">
+                      <label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Width</label>
+                      <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                         {(watermark.textStyle.textOutline?.width ?? 0).toFixed(0)}px
                       </span>
                     </div>
@@ -465,10 +455,10 @@ export function WatermarkTab() {
 
                 {(watermark.textStyle.textUnderline?.enabled ?? false) ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1.5">
+                    <div className="group space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-2xs text-muted-foreground">Thickness</label>
-                        <span className="text-2xs text-muted-foreground/70 tabular-nums">
+                        <label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Thickness</label>
+                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                           {(watermark.textStyle.textUnderline?.thickness ?? 0).toFixed(0)}px
                         </span>
                       </div>
@@ -485,10 +475,10 @@ export function WatermarkTab() {
                       />
                     </div>
 
-                    <div className="space-y-1.5">
+                    <div className="group space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-2xs text-muted-foreground">Offset</label>
-                        <span className="text-2xs text-muted-foreground/70 tabular-nums">
+                        <label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Offset</label>
+                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                           {(watermark.textStyle.textUnderline?.offset ?? 0).toFixed(0)}px
                         </span>
                       </div>
@@ -567,19 +557,14 @@ export function WatermarkTab() {
         </div>
 
         {showUpgradeOverlay ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg overflow-hidden">
-            <div
-              className="absolute inset-0 rounded-xl"
-              style={{
-                background:
-                  'repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 10px, rgba(0,0,0,0.06) 10px 20px)',
-              }}
-            />
-            <div className="rounded-lg absolute inset-0 bg-background/35 backdrop-blur-md" />
-            <div className="relative z-10 max-w-[260px] rounded-lg border border-border/30 bg-background/60 p-4 text-center shadow-sm">
-              <div className="text-sm font-semibold tracking-tight">Upgrade for a custom watermark</div>
-              <div className="mt-1 text-xs text-muted-foreground leading-snug">
-                Change text, logo, layout, styling, and animations.
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl overflow-hidden">
+            <div className="absolute inset-0 bg-background/40 backdrop-blur-lg" />
+            <div className="relative z-10 max-w-[240px] text-center px-6 py-5">
+              <div className="font-display text-base italic text-foreground/80">
+                Custom watermarks
+              </div>
+              <div className="mt-2 text-2xs text-muted-foreground/70 leading-relaxed">
+                Change text, logo, layout, styling, and animations or remove it entirely.
               </div>
             </div>
           </div>

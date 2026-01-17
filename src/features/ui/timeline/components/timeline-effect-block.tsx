@@ -383,29 +383,58 @@ export const TimelineEffectBlock = React.memo(({
           />
         )}
 
-        {/* Label - Clean typography */}
+        {/* Label - Split into muted type and primary metadata */}
         {(label || metaLabel) && (
-          <Text
-            x={0}
-            y={0}
-            width={safeWidth}
-            height={safeHeight}
-            text={showMetadata ? `${(metaLabel ?? '').toUpperCase()}\n${label || ''}` : (label || '')}
-            fontSize={showMetadata ? 9 : 11}
-            lineHeight={1.4}
-            fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-            fontStyle="500"
-            fill={labelFill}
-            opacity={0.95}
-            align="center"
-            verticalAlign="middle"
-            wrap="none"
-            listening={false}
-            shadowColor={labelShadowColor}
-            shadowBlur={2}
-            shadowOpacity={0.5}
-            shadowOffsetY={1}
-          />
+          <Group
+            clipFunc={(ctx) => {
+              ctx.rect(0, 0, safeWidth, safeHeight)
+            }}
+          >
+            {/* Type label - muted (top half) */}
+            <Text
+              x={0}
+              y={0}
+              width={safeWidth}
+              height={showMetadata ? safeHeight * 0.5 : safeHeight}
+              text={(metaLabel ?? label ?? '').toUpperCase()}
+              fontSize={9}
+              fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+              fontStyle="500"
+              fill={labelFill}
+              opacity={0.5}
+              align="center"
+              verticalAlign={showMetadata ? 'bottom' : 'middle'}
+              wrap="none"
+              listening={false}
+              shadowColor={labelShadowColor}
+              shadowBlur={2}
+              shadowOpacity={0.5}
+              shadowOffsetY={1}
+            />
+            {/* Metadata value - primary (bottom half) */}
+            {showMetadata && label && (
+              <Text
+                x={0}
+                y={safeHeight * 0.5 + 1}
+                width={safeWidth}
+                height={safeHeight * 0.5 - 1}
+                text={label}
+                fontSize={11}
+                fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                fontStyle="600"
+                fill={labelFill}
+                opacity={0.95}
+                align="center"
+                verticalAlign="top"
+                wrap="none"
+                listening={false}
+                shadowColor={labelShadowColor}
+                shadowBlur={2}
+                shadowOpacity={0.5}
+                shadowOffsetY={1}
+              />
+            )}
+          </Group>
         )}
       </Group>
 

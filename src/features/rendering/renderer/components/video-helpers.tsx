@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useAudioEnhancement } from '@/features/media/audio/hooks/use-audio-enhancement';
-import type { AudioEnhancerWrapperProps } from '@/types';
+import type { AudioEnhancerWrapperProps } from '@/features/rendering/renderer/types';
 
 /**
  * AudioEnhancerWrapper: Wraps video elements to attach audio enhancement hooks.

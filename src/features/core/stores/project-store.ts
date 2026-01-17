@@ -14,8 +14,6 @@ import { createTimelineSlice } from './slices/timeline-slice'
 import { createCacheSlice } from './slices/cache-slice'
 import { createSettingsSlice } from './slices/settings-slice'
 import type { ProjectStore } from './slices/types'
-import { TimelineSyncService } from '@/features/effects/sync/timeline-sync-service'
-import type { ClipChange as _ClipChange } from '@/features/effects/sync/types'
 
 /** Check if track structure is the same (same clips in same order) */
 function isTrackStructureSame(
@@ -37,10 +35,13 @@ function isTrackStructureSame(
 }
 
 /**
- * Middleware that handles timeline sync and cache invalidation.
- * Commands set _pendingClipChange, middleware runs TimelineSyncService.commit().
+ * Middleware that handles automatic cache invalidation on timeline changes.
+ *
+ * NOTE: Timeline sync (effect synchronization) is now handled INLINE within
+ * TimelineCommand.mutate() to ensure sync changes are captured in Immer patches
+ * for proper undo/redo support. This middleware only handles cache invalidation.
  */
-const timelineSyncMiddleware =
+const cacheInvalidationMiddleware =
   <T extends ProjectStore>(config: StateCreator<T, any, any>): StateCreator<T, any, any> =>
     (set, get, api) =>
       config(
@@ -51,19 +52,6 @@ const timelineSyncMiddleware =
 
           const state = get() as ProjectStore
           const nextTimeline = state.currentProject?.timeline
-
-          // Process pending clip change
-          const pendingChange = state._pendingClipChange
-          if (pendingChange && state.currentProject) {
-            // Cast needed: immer middleware accepts void-returning mutators,
-            // but generic middleware types don't reflect this
-            (api.setState as any)((draft: any) => {
-              if (draft.currentProject) {
-                TimelineSyncService.commit(draft.currentProject, pendingChange)
-              }
-              draft._pendingClipChange = null
-            })
-          }
 
           // Skip cache invalidation if timeline unchanged
           if (!prevTimeline || !nextTimeline || prevTimeline === nextTimeline) {
@@ -91,7 +79,7 @@ const timelineSyncMiddleware =
 
 // Compose all slices into the main store
 export const useProjectStore = create<ProjectStore>()(
-  timelineSyncMiddleware(
+  cacheInvalidationMiddleware(
     immer((...a) => ({
       ...createCoreSlice(...a),
       ...createTimelineSlice(...a),

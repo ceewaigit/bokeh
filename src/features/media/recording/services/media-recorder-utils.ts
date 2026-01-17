@@ -5,7 +5,6 @@
  * Eliminates code duplication between recording services.
  */
 
-import { logger } from '@/shared/utils/logger'
 
 /**
  * Recording timing state - common state for duration calculation.

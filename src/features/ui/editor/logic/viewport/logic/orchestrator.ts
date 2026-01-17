@@ -185,6 +185,11 @@ export interface CameraComputeInput {
   cameraSmoothness?: number
   /** Physics-based camera dynamics configuration */
   cameraDynamics?: CameraDynamics
+  /**
+   * When true, allow camera to pan into overscan area even when zoomed.
+   * Used when overscan represents intentional background padding (not empty crop space).
+   */
+  allowOverscanReveal?: boolean
 }
 
 export interface CameraComputeOutput {
@@ -218,6 +223,7 @@ export function computeCameraState({
   deterministic,
   cameraSmoothness,
   cameraDynamics,
+  allowOverscanReveal,
 }: CameraComputeInput): CameraComputeOutput {
   const effectiveMetadata = metadata ?? recording?.metadata
   const isDeterministic = Boolean(deterministic)
@@ -289,14 +295,6 @@ export function computeCameraState({
     ? lerp(8, 22, zoomSmoothingBoost)
     : 0
   const smoothingAmount = Math.max(cinematicSmoothing, zoomSmoothing, basePanSmoothing)
-
-  // const dtTimelineFromState = timelineMs - (physics.lastTimeMs ?? timelineMs)
-  // const isSeek = !isDeterministic && (Math.abs(dtTimelineFromState) > SEEK_THRESHOLD_MS)
-
-  // Estimate playback rate for predictive tracking
-  // const dtSource = sourceTimeMs - (physics.lastSourceTimeMs ?? sourceTimeMs)
-  // const playbackRateEstimate = dtTimelineFromState > 1 ? dtSource / dtTimelineFromState : 1
-  // const rate = Math.max(0.5, Math.min(3, playbackRateEstimate || 1))
 
   // PERF: Get cached cursor data to avoid recomputing expensive cursor computations
   const jitterThresholdPx = activeZoomBlock?.mouseIdlePx ?? 2
@@ -494,7 +492,7 @@ export function computeCameraState({
     const sw = activeZoomBlock.screenWidth || sourceWidth
     const sh = activeZoomBlock.screenHeight || sourceHeight
     targetCenter = { x: activeZoomBlock.targetX / sw, y: activeZoomBlock.targetY / sh }
-    targetCenter = clampCenterToContentBounds(targetCenter, halfWindowX, halfWindowY, safeOverscan)
+    // No clamping here - done once at end with full context
   } else {
     const algo = mouseFollowAlgorithm ?? 'deadzone'
     // PERF: Use cached smoothedCursorNorm instead of calling function again
@@ -586,9 +584,8 @@ export function computeCameraState({
       }
     })()
 
-    // Clamp to content bounds
-    const zoomTarget = clampCenterToContentBounds(destination, halfWindowAimX, halfWindowAimY, safeOverscan)
-    targetCenter = zoomTarget
+    // No clamping here - done once at end with full context
+    targetCenter = destination
   }
 
   // Intro-to-hold transition: blend from where intro ended to deadzone target for smooth handoff
@@ -646,10 +643,10 @@ export function computeCameraState({
           zoomTargetScale,
           safeOverscan
         )
-        const clampedEnd = clampCenterToContentBounds(deadzoneTarget, halfWindowAimX, halfWindowAimY, safeOverscan)
+        // No clamping here - done once at end with full context
         targetCenter = {
-          x: startX + (clampedEnd.x - startX) * easedProgress,
-          y: startY + (clampedEnd.y - startY) * easedProgress
+          x: startX + (deadzoneTarget.x - startX) * easedProgress,
+          y: startY + (deadzoneTarget.y - startY) * easedProgress
         }
       }
     }
@@ -775,25 +772,49 @@ export function computeCameraState({
     return { activeZoomBlock, zoomCenter: followCursor, physics: nextPhysics }
   }
 
-  // Define the base center before visibility adjustments to track anchor slides 
+  // Define the base center before visibility adjustments to track anchor slides
   const centerBeforeAdjustments = { x: finalCenter.x, y: finalCenter.y }
 
-  // 1. Resolve Content Constraints (Wallpaper fix/Clamping)
+  // ============================================================================
+  // SINGLE CLAMPING POINT - All camera bounds enforcement happens here
+  // ============================================================================
+  // This is the ONLY place where camera center is clamped to valid bounds.
+  // All target calculations above run freely without clamping, then we apply
+  // bounds here with full context (zoom scale, padding, overscan, crop).
+  //
+  // Why here and not earlier?
+  // - Earlier clamping was scattered and inconsistent
+  // - We need full context (allowOverscanReveal, crop bounds) to clamp correctly
+  // - Single point makes the system predictable and debuggable
+  // ============================================================================
+
   const activeCrop = getActiveCropEffect(effects, timelineMs)
   const activeCropData = activeCrop ? getDataOfType<CropEffectData>(activeCrop, EffectType.Crop) : null
   const contentBounds = activeCropData ? {
     minX: activeCropData.x, maxX: activeCropData.x + activeCropData.width,
     minY: activeCropData.y, maxY: activeCropData.y + activeCropData.height
   } : undefined
-  const ignoreOverscan = currentScale > 1.01
 
-  // Apply clamping
+  // Determine clamping behavior based on context:
+  // - When zoomed (scale > 1) AND no background padding: clamp strictly to video (no black bars)
+  // - When zoomed AND has background padding: allow camera into padding area (reveal background)
+  const ignoreOverscan = currentScale > 1.01 && !allowOverscanReveal
+
+  // Apply clamping (single call based on coordinate space)
   if (hasOverscan) {
     const clampHalfX = useFixedIntroWindow ? halfWindowAimX : halfWindowX
     const clampHalfY = useFixedIntroWindow ? halfWindowAimY : halfWindowY
     const halfWindowOutX = clampHalfX / denomX, halfWindowOutY = clampHalfY / denomY
     const finalOut = { x: (safeOverscan.left + finalCenter.x) / denomX, y: (safeOverscan.top + finalCenter.y) / denomY }
-    const clampedOut = clampCenterToContentBounds(finalOut, halfWindowOutX, halfWindowOutY, { left: 0, right: 0, top: 0, bottom: 0 }, true, ignoreOverscan, contentBounds)
+    // Convert overscan to output space for clampCenterToContentBounds to use when extending bounds
+    // This allows the camera to get closer to the edge and reveal background padding
+    const overscanInOutputSpace = {
+      left: safeOverscan.left / denomX,
+      right: safeOverscan.right / denomX,
+      top: safeOverscan.top / denomY,
+      bottom: safeOverscan.bottom / denomY,
+    }
+    const clampedOut = clampCenterToContentBounds(finalOut, halfWindowOutX, halfWindowOutY, overscanInOutputSpace, true, ignoreOverscan, contentBounds)
     finalCenter = { x: clampedOut.x * denomX - safeOverscan.left, y: clampedOut.y * denomY - safeOverscan.top }
   } else {
     const clampHalfX = useFixedIntroWindow ? halfWindowAimX : halfWindowX

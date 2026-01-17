@@ -124,5 +124,10 @@ export interface KeyframeData {
 // Export settings from separate file
 export type { ExportSettings } from './export'
 
-// Remotion composition types
-export * from './remotion'
+// Re-export rendering types for backward compatibility
+// Previously re-exported from ./remotion.ts
+export * from '@/features/rendering/renderer/types'
+export * from '@/features/effects/crop/types'
+export * from '@/features/rendering/motion-blur/types'
+export * from '@/features/media/recording/types/resources'
+export * from '@/features/ui/editor/types'

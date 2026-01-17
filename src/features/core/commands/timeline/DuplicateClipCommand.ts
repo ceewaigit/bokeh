@@ -24,18 +24,18 @@ export class DuplicateClipCommand extends TimelineCommand<{ newClipId: string }>
   }
 
   canExecute(): boolean {
-    return this.context.findClip(this.clipId) !== null
+    return this.clipExists(this.clipId)
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No active project')
 
     const newClip = duplicateClipInTrack(project, this.clipId)
     if (!newClip) throw new Error('Failed to duplicate clip')
 
-    // Set pending change for middleware
-    this.setPendingChange(draft, this.buildAddChange(newClip))
+    // Defer clip change for inline sync
+    this.deferClipChange(this.buildAddChange(newClip))
 
     this.selectClip(draft, newClip.id)
     this.setResult({ success: true, data: { newClipId: newClip.id } })

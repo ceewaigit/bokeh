@@ -306,16 +306,16 @@ export function useFrameSnapshot(): FrameSnapshot {
 /**
  * Editor-safe version of FrameSnapshot hook.
  * Does NOT use Remotion hooks (useCurrentFrame, useVideoConfig).
- * Requires manual injection of time and dimensions.
+ * Requires manual injection of time and display dimensions (CSS pixels).
  */
 export function useEditorFrameSnapshot(
     currentTimeMs: number,
-    width: number,
-    height: number
+    displayWidth: number,
+    displayHeight: number
 ): FrameSnapshot {
     const { fps } = useTimelineContext();
     const currentFrame = (currentTimeMs / 1000) * fps;
     const isRendering = false; // Editor is never "rendering" in headless sense
 
-    return useCalculatedSnapshot(currentFrame, width, height, isRendering);
+    return useCalculatedSnapshot(currentFrame, displayWidth, displayHeight, isRendering);
 }

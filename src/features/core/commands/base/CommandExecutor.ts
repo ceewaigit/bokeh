@@ -2,6 +2,7 @@ import { Command, CommandResult } from './Command'
 import { CommandContext, DefaultCommandContext } from './CommandContext'
 import { CommandManager } from './CommandManager'
 import { registerAllCommands } from '../index'
+import type { CommandArgsMap, CommandName } from './CommandRegistry'
 import type { ProjectStore } from '@/features/core/stores/slices/types'
 
 type StoreAccessor = { getState: () => ProjectStore }
@@ -148,7 +149,7 @@ export class CommandExecutor {
    * @param name - The registered command name
    * @param args - Arguments to pass to the command constructor (after context)
    */
-  async executeByName(name: string, ...args: any[]): Promise<CommandResult> {
+  async executeByName<K extends CommandName>(name: K, ...args: CommandArgsMap[K]): Promise<CommandResult> {
     // Update manager's context before creating command
     const context = new DefaultCommandContext(this.storeAccessor)
     this.manager.setContext(context)

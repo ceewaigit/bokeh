@@ -162,7 +162,7 @@ export function TimelineEffectTrack({ effectType, effects, visibleStartTime, vis
             key={effect.id}
             blockId={effect.id}
             x={TimeConverter.msToPixels(startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
-            y={trackY}
+            y={trackY + TimelineConfig.TRACK_PADDING}
             width={visualWidth}
             height={getClipInnerHeight(trackHeight)}
             isCompact={isCompact}

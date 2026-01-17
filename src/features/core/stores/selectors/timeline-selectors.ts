@@ -210,11 +210,10 @@ export function useTimelineContentHeight(): number {
       }
     }
 
-    // Annotation track gets special treatment - header + rows
+    // Annotation track gets special treatment - header + single collapsed row
     if (effectTrackExistence[EffectType.Annotation]) {
-      const annotationCount = effectCounts[EffectType.Annotation] ?? 0
-      // Header (20) + collapsed row height
-      height += 20 + TimelineConfig.TRACK.EFFECT_COLLAPSED * Math.max(1, annotationCount > 1 ? 1 : 1)
+      // Header (20) + collapsed row height (always 1 row when collapsed)
+      height += 20 + TimelineConfig.TRACK.EFFECT_COLLAPSED
     }
 
     // Bottom padding

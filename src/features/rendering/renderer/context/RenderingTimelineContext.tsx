@@ -17,9 +17,11 @@ import type { ActiveClipDataAtFrame } from '@/types';
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config';
 import {
     buildFrameLayout,
+    buildWebcamFrameLayout,
     findActiveFrameLayoutIndex,
     findActiveFrameLayoutItems,
-    type FrameLayoutItem
+    type FrameLayoutItem,
+    type WebcamFrameLayoutItem
 } from '@/features/ui/timeline/utils/frame-layout';
 import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame';
 import { findClipAtTimelinePosition } from '@/features/ui/timeline/time/time-space-converter';
@@ -61,6 +63,7 @@ export interface TimelineContextValue {
     // --- Derived Layout Data ---
     sortedClips: Clip[];
     frameLayout: FrameLayoutItem[];
+    webcamFrameLayout: WebcamFrameLayoutItem[];
 
     // --- Helpers ---
     getRecording: (recordingId: string) => Recording | undefined;
@@ -98,6 +101,7 @@ interface TimelineProviderProps {
     // Core Data
     fps: number;
     clips: Clip[];
+    webcamClips?: Clip[];
     recordings: Recording[];
     effects: Effect[];
     resources: VideoResources;
@@ -114,6 +118,7 @@ export function TimelineProvider({
     sourceVideoHeight,
     fps,
     clips,
+    webcamClips,
     recordings,
     effects,
     resources,
@@ -183,6 +188,12 @@ export function TimelineProvider({
     const frameLayout = useMemo(
         () => buildFrameLayout(sortedClips, fps, recordingsMap),
         [sortedClips, fps, recordingsMap]
+    );
+
+    // 3b. Webcam Frame Layout (with grouping for frame bleeding prevention)
+    const webcamFrameLayout = useMemo(
+        () => buildWebcamFrameLayout(webcamClips ?? [], fps),
+        [webcamClips, fps]
     );
 
     // 4. Total Duration
@@ -276,6 +287,7 @@ export function TimelineProvider({
 
             sortedClips,
             frameLayout,
+            webcamFrameLayout,
 
             getRecording,
             getVideoUrl,
@@ -308,6 +320,7 @@ export function TimelineProvider({
             hasSubtitleEffects,
             sortedClips,
             frameLayout,
+            webcamFrameLayout,
             getRecording,
             getVideoUrl,
             getClipAtTimelinePosition,

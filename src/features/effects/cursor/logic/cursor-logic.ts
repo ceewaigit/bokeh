@@ -16,6 +16,18 @@ import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { CURSOR_CONSTANTS } from '@/features/effects/cursor/constants'
 import { clamp01, lerp, easeOutCubic, clamp } from '@/features/rendering/canvas/math'
 
+// Natural direction vectors per cursor type (normalized)
+// Arrow cursor naturally points upper-left (~45°), pointing hand points up
+const CURSOR_NATURAL_DIRECTIONS: Partial<Record<CursorType, { x: number; y: number }>> = {
+  [CursorType.ARROW]: { x: -0.707, y: -0.707 },     // Upper-left 45°
+  [CursorType.POINTING_HAND]: { x: 0, y: -1 },      // Up (finger points up)
+}
+
+// Asymmetry factor: 30% modulation based on alignment with cursor's natural direction
+// Moving aligned (upper-left for arrow) = 0.7x tilt (glides naturally)
+// Moving opposed (lower-right for arrow) = 1.3x tilt (pushes against shape)
+const SHAPE_ASYMMETRY_FACTOR = 0.3
+
 // Reference width for converting normalized velocities to pixel-equivalent units.
 // This ensures velocity thresholds continue to work correctly with normalized coordinates.
 const REFERENCE_WIDTH = CURSOR_CONSTANTS.REFERENCE_WIDTH
@@ -528,10 +540,22 @@ function calculateDirectionalTilt(options: {
   const ux = vxHat * invSpeed
   const uy = vyHat * invSpeed
 
+  // Shape-aware asymmetry: modulate tilt based on alignment with cursor's natural direction
+  // Arrow cursor points upper-left, so moving upper-left feels natural (less tilt)
+  // while moving lower-right "fights" the cursor shape (more tilt)
+  let tiltMultiplier = 1.0
+  const naturalDir = CURSOR_NATURAL_DIRECTIONS[cursorType]
+  if (naturalDir && speedNormalized > 1e-9) {
+    // Dot product: +1 = aligned (same direction), -1 = opposed (opposite direction)
+    const alignment = naturalDir.x * ux + naturalDir.y * uy
+    // Aligned = 0.7x tilt, Opposed = 1.3x tilt
+    tiltMultiplier = 1.0 - SHAPE_ASYMMETRY_FACTOR * alignment
+  }
+
   // Point towards travel direction: cursor leans into the direction of movement.
   // rotateX responds to vertical travel; rotateY responds to horizontal travel.
-  const tiltX = maxDeg * speed01 * Math.tanh(uy / 0.85)
-  const tiltY = maxDeg * speed01 * Math.tanh(ux / 0.85)
+  const tiltX = maxDeg * speed01 * Math.tanh(uy / 0.85) * tiltMultiplier
+  const tiltY = maxDeg * speed01 * Math.tanh(ux / 0.85) * tiltMultiplier
 
   // Small in-plane roll adds a subtle "snap" in the direction of movement.
   const rotation = maxDeg * 0.25 * speed01 * direction
@@ -1008,9 +1032,10 @@ export function calculateCursorPreviewConfig(
 
   const baseContinuity = cursorData?.smoothingJumpThreshold ?? defaults.smoothingJumpThreshold ?? 0.9
   const baseSize = cursorData?.size ?? defaults.size
+  // Motion blur: only enabled if explicitly set (consistent with UI showing 0% by default)
   const baseMotionBlur = typeof cursorData?.motionBlurIntensity === 'number'
     ? cursorData.motionBlurIntensity
-    : (cursorData?.motionBlur === false ? 0 : (defaults.motionBlurIntensity ?? 40))
+    : (cursorData?.motionBlur === true ? (defaults.motionBlurIntensity ?? 40) : 0)
 
   const glidingEnabled = override?.gliding ?? cursorData?.gliding ?? defaults.gliding
   const effectiveContinuity = clamp(baseContinuity, 0.4, 1.6)
@@ -1043,7 +1068,7 @@ export function calculateCursorPreviewConfig(
     ? clamp(0.15 + blurStrength * 0.45 + effectiveSpeed * 0.1, 0.12, 0.65)
     : clamp(0.08 + blurStrength * 0.3, 0.08, 0.35)
   const trailBlur = Math.round(1 + blurStrength * 6 + effectiveSpeed * 2)
-  const glowStrength = clamp(0.3 + blurStrength * 0.5, 0.3, 0.75)
+  const glowStrength = clamp(0.15 + blurStrength * 0.35, 0.15, 0.5)
 
   return {
     durationMs,

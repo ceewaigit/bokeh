@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
 
-export const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const
+export const springConfig = { type: 'spring', stiffness: 500, damping: 32 } as const
 
 export function SectionHeader({
   icon: Icon,
@@ -17,17 +17,17 @@ export function SectionHeader({
   action?: React.ReactNode
 }) {
   return (
-    <div className="flex items-start gap-3 pb-2">
-      <div className="p-1.5 rounded-md bg-primary/10 text-primary">
-        <Icon className="w-4 h-4" />
+    <div className="flex items-start gap-2.5">
+      <div className="p-1.5 rounded-md bg-primary/8 text-primary">
+        <Icon className="w-3.5 h-3.5" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <div className="text-ui-sm font-semibold tracking-tight text-foreground">{title}</div>
+          <div className="text-ui-sm font-semibold tracking-[-0.01em] text-foreground">{title}</div>
           {action && <div className="mt-0.5">{action}</div>}
         </div>
         {subtitle && (
-          <div className="text-2xs text-muted-foreground leading-snug mt-0.5 font-medium">
+          <div className="text-2xs text-muted-foreground/70 leading-snug mt-0.5">
             {subtitle}
           </div>
         )}
@@ -49,21 +49,25 @@ export function SegmentedControl({
   onChange: (id: string) => void
   namespace: string
   wrap?: boolean
-  columns?: 2 | 3
+  columns?: 2 | 3 | 4 | 5
 }) {
   // Use unique ID per instance to prevent layoutId conflicts across components
   const instanceId = React.useId()
 
+  const gridColsClass = columns === 2 ? "grid-cols-2"
+    : columns === 3 ? "grid-cols-3"
+    : columns === 4 ? "grid-cols-4"
+    : columns === 5 ? "grid-cols-5"
+    : "grid-cols-2"
+
   return (
     <div
       className={cn(
-        "relative p-1 bg-muted/40 rounded-lg border border-border/40",
+        "relative p-[3px] rounded-lg",
+        "bg-black/[0.06] dark:bg-white/[0.06]",
         wrap
-          ? cn(
-            "grid gap-1",
-            columns === 2 ? "grid-cols-2" : columns === 3 ? "grid-cols-3" : "grid-cols-2"
-          )
-          : "flex"
+          ? cn("grid gap-[3px]", gridColsClass)
+          : "flex gap-[3px]"
       )}
     >
       {options.map((option) => {
@@ -73,9 +77,11 @@ export function SegmentedControl({
             key={option.id}
             onClick={() => onChange(option.id)}
             className={cn(
-              "relative py-1.5 text-2xs font-medium leading-none transition-colors z-10 text-center min-w-0",
-              wrap ? "w-full px-2" : "flex-1",
-              isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground/80"
+              "relative py-[5px] text-2xs font-medium leading-none transition-colors duration-100 z-10 text-center tracking-[-0.01em]",
+              wrap ? "w-full px-2" : "flex-1 min-w-fit px-2.5",
+              isActive
+                ? "text-foreground"
+                : "text-muted-foreground/70 hover:text-foreground/80"
             )}
           >
             <AnimatePresence mode="wait">
@@ -87,11 +93,16 @@ export function SegmentedControl({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={springConfig}
-                  className="absolute inset-0 bg-background shadow-sm rounded-md border border-border/20"
+                  className={cn(
+                    "absolute inset-0 rounded-[5px]",
+                    "bg-white dark:bg-white/[0.12]",
+                    "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_0.5px_rgba(0,0,0,0.03)]",
+                    "dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_0_0_0.5px_rgba(255,255,255,0.04)]"
+                  )}
                 />
               )}
             </AnimatePresence>
-            <span className="relative z-10">{option.label}</span>
+            <span className="relative z-10 truncate">{option.label}</span>
           </button>
         )
       })}
@@ -121,12 +132,26 @@ export function CompactSlider({
   description?: string
 }) {
   return (
-    <div className="group space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-2xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+    <div className="group space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "text-2xs font-medium",
+            "text-muted-foreground/80",
+            "transition-colors duration-100",
+            "group-hover:text-foreground/90"
+          )}
+        >
           {label}
         </span>
-        <span className="text-2xs font-mono font-medium tabular-nums text-foreground bg-muted/30 px-1.5 py-0.5 rounded">
+        <span
+          className={cn(
+            "text-2xs font-mono tabular-nums",
+            "text-muted-foreground/60",
+            "transition-colors duration-100",
+            "group-hover:text-foreground/70"
+          )}
+        >
           {value}{unit}
         </span>
       </div>
@@ -137,10 +162,9 @@ export function CompactSlider({
         min={min}
         max={max}
         step={step}
-        className="[&>.relative>.absolute]:bg-primary/80 [&_.block]:border-primary/50 [&_.block]:ring-offset-background [&_.block]:transition-transform [&_.block]:active:scale-105"
       />
       {description && (
-        <p className="text-3xs text-muted-foreground/60 leading-tight">
+        <p className="text-2xs text-muted-foreground/50 leading-snug pt-0.5">
           {description}
         </p>
       )}

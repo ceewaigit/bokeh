@@ -8,6 +8,11 @@ import type { OutputOverscan } from './dead-zone'
 
 /**
  * Clamp camera center to content bounds.
+ *
+ * When ignoreOverscan=false (i.e. we want to reveal background padding):
+ * - Camera is allowed to get closer to edges than halfWindow would normally allow
+ * - This enables the visible window to extend into the padding area
+ * - The camera can go as close as halfWindow - overscan to the content edge
  */
 export function clampCenterToContentBounds(
     centerNorm: { x: number; y: number },
@@ -16,7 +21,7 @@ export function clampCenterToContentBounds(
     overscan: OutputOverscan,
     /** When true, allow full 0-1 range for output-space calculations */
     allowFullRange: boolean = false,
-    /** When true, ignore overscan and clamp strictly to content bounds */
+    /** When true, ignore overscan and clamp strictly to content bounds (no padding reveal) */
     ignoreOverscan: boolean = false,
     /** Optional explicit content bounds (normalized 0-1) to clamp within. Defaults to 0,0,1,1 */
     contentBounds?: { minX: number; maxX: number; minY: number; maxY: number }
@@ -27,11 +32,25 @@ export function clampCenterToContentBounds(
     const maxY = contentBounds?.maxY ?? 1
 
     if (allowFullRange) {
-        // In output space, allow camera center to span full 0-1 range
-        return {
-            x: Math.max(halfWindowX + minX, Math.min(maxX - halfWindowX, centerNorm.x)),
-            y: Math.max(halfWindowY + minY, Math.min(maxY - halfWindowY, centerNorm.y)),
+        // In output space - calculate bounds based on whether we want to reveal padding
+        // When ignoreOverscan=false, allow camera to go ALL THE WAY to edges
+        // This lets the visible window extend fully into the padding/overscan area
+        //
+        // The key insight: to reveal padding, camera center must be able to go to
+        // the very edge (0 or 1), not just halfWindow away from the edge.
+
+        // When ignoreOverscan=true: clamp to [halfWindow, 1-halfWindow] (no padding reveal)
+        // When ignoreOverscan=false: clamp to [0, 1] (full padding reveal possible)
+        const effectiveMinX = ignoreOverscan ? halfWindowX + minX : minX
+        const effectiveMaxX = ignoreOverscan ? maxX - halfWindowX : maxX
+        const effectiveMinY = ignoreOverscan ? halfWindowY + minY : minY
+        const effectiveMaxY = ignoreOverscan ? maxY - halfWindowY : maxY
+
+        const result = {
+            x: effectiveMinX > effectiveMaxX ? (effectiveMinX + effectiveMaxX) / 2 : Math.max(effectiveMinX, Math.min(effectiveMaxX, centerNorm.x)),
+            y: effectiveMinY > effectiveMaxY ? (effectiveMinY + effectiveMaxY) / 2 : Math.max(effectiveMinY, Math.min(effectiveMaxY, centerNorm.y)),
         }
+        return result
     }
 
     const leftBound = ignoreOverscan ? 0 : -overscan.left

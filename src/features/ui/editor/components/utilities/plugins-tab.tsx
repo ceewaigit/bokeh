@@ -414,15 +414,17 @@ export function PluginsTab() {
             </div>
 
             {activeLibraryTab === 'community' ? (
-                <div className="rounded-md border border-border/50 bg-background/60 px-3 py-3">
-                    <div className="text-2xs font-semibold text-foreground">Community plugins</div>
-                    <p className="mt-1 text-2xs text-muted-foreground">
-                        Coming soon. Browse, install, and update plugins from the community.
+                <div className="rounded-xl border border-border/30 bg-muted/20 px-4 py-5 text-center">
+                    <div className="font-display text-sm italic text-muted-foreground/80">
+                        Coming soon
+                    </div>
+                    <p className="mt-2 text-2xs text-muted-foreground/60 max-w-[200px] mx-auto leading-relaxed">
+                        Browse, install, and update plugins from the community.
                     </p>
                     <button
                         type="button"
                         disabled
-                        className="mt-3 h-7 px-3 rounded-pill text-2xs font-semibold text-muted-foreground bg-muted/30 border border-border/50 cursor-not-allowed"
+                        className="mt-4 h-7 px-4 rounded-full text-2xs font-medium text-muted-foreground/50 bg-muted/30 border border-border/30 cursor-not-allowed"
                     >
                         Browse community
                     </button>

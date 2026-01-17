@@ -30,11 +30,3 @@ export function useCompositionOptional(): CompositionContextValue | null {
     return null;
   }
 }
-
-/**
- * @deprecated CompositionProvider is deprecated. Use TimelineProvider instead.
- */
-export function CompositionProvider({ children }: { children: React.ReactNode }) {
-  console.warn('CompositionProvider is deprecated and does nothing. Use TimelineProvider.');
-  return <>{children}</>;
-}

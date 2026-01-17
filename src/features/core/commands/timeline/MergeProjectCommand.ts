@@ -1,15 +1,25 @@
 /**
  * MergeProjectCommand - Merge another project's content into the current timeline
- * 
+ *
  * This command properly imports content from a library project by:
  * 1. Receiving an already-loaded source project (loaded via ProjectIOService)
  * 2. Adding all recordings from the source to the current project
  * 3. Adding all clips from the source to the appropriate tracks (maintaining associations)
  * 4. Importing relevant effects
- * 
+ *
  * The source project should already be loaded with ProjectIOService.loadProject()
  * which handles path resolution, migrations, and asset loading. This eliminates
  * duplicate loading logic.
+ *
+ * NOTE: This command does NOT extend TimelineCommand. Effect sync is intentionally
+ * skipped because:
+ * - Content is typically appended at the end of the timeline (default behavior)
+ * - Effects from the source project are imported directly with adjusted timestamps
+ * - Existing effects in the target project are not affected (no ripple/reflow)
+ * - Manual undo/redo is required due to complex multi-recording import logic
+ *
+ * If future requirements support inserting content mid-timeline, effect sync would
+ * need to be added to shift existing effects after the insertion point.
  */
 
 import { Command, CommandResult } from '../base/Command'

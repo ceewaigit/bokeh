@@ -2,24 +2,16 @@
 
 import React, { useState, useEffect } from 'react'
 import { Slider } from '@/components/ui/slider'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ChevronRight, RotateCcw, Zap } from 'lucide-react'
-import type { Clip } from '@/types/project'
-import { ChangePlaybackRateCommand } from '@/features/core/commands'
-import { useProjectStore } from '@/features/core/stores/project-store'
+import { SpeedControls } from '@/components/ui/speed-controls'
+import { PresetButton } from '@/components/ui/preset-button'
+import { ChevronRight, Zap } from 'lucide-react'
+import { UpdateClipCommand } from '@/features/core/commands'
 import { cn } from '@/shared/utils/utils'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
-import { InfoTooltip } from './info-tooltip'
 
-interface ClipTabProps {
-  selectedClip: Clip | null
-}
-
-export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
-  const [playbackRate, setPlaybackRate] = useState(1.0)
+export function ClipTab() {
   const [introFadeMs, setIntroFadeMs] = useState(0)
   const [outroFadeMs, setOutroFadeMs] = useState(0)
   const showSpeedAdvanced = useWorkspaceStore((s) => s.clipTabSpeedAdvancedOpen)
@@ -27,61 +19,25 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
   const showFadeAdvanced = useWorkspaceStore((s) => s.clipTabFadeAdvancedOpen)
   const setShowFadeAdvanced = useWorkspaceStore((s) => s.setClipTabFadeAdvancedOpen)
   const executorRef = useCommandExecutor()
-  const updateClip = useProjectStore((s) => s.updateClip)
 
   const selectedClipResult = useSelectedClip()
-  const selectedClip = selectedClipResult?.clip ?? propSelectedClip
+  const selectedClip = selectedClipResult?.clip ?? null
 
-  // Update local state when selected clip changes
   useEffect(() => {
     if (selectedClip) {
-      setPlaybackRate(selectedClip.playbackRate || 1.0)
       setIntroFadeMs(selectedClip.introFadeMs || 0)
       setOutroFadeMs(selectedClip.outroFadeMs || 0)
     }
-  }, [selectedClip, selectedClip?.playbackRate, selectedClip?.introFadeMs, selectedClip?.outroFadeMs])
+  }, [selectedClip, selectedClip?.introFadeMs, selectedClip?.outroFadeMs])
 
-  const handlePlaybackRateChange = async (value: number[]) => {
-    const newRate = value[0]
-    setPlaybackRate(newRate)
-  }
-
-  const commitPlaybackRate = async (rate: number) => {
-    if (selectedClip && executorRef.current) {
-      try {
-        await executorRef.current.execute(ChangePlaybackRateCommand, selectedClip.id, rate)
-      } catch (error) {
-        console.error('Failed to change playback rate:', error)
-        setPlaybackRate(selectedClip.playbackRate || 1.0)
-      }
-    }
-  }
-
-  const resetPlaybackRate = async () => {
-    if (selectedClip && executorRef.current) {
-      try {
-        await executorRef.current.execute(ChangePlaybackRateCommand, selectedClip.id, 1.0)
-        setPlaybackRate(1.0)
-      } catch (error) {
-        console.error('Failed to reset playback rate:', error)
-      }
-    }
-  }
-
-  const setCommonSpeed = async (speed: number) => {
-    setPlaybackRate(speed)
-    await commitPlaybackRate(speed)
-  }
-
-  // Fade handlers
   const handleIntroFadeChange = (value: number[]) => {
     const newValue = value[0]
     setIntroFadeMs(newValue)
   }
 
   const commitIntroFade = (value: number) => {
-    if (selectedClip) {
-      updateClip(selectedClip.id, { introFadeMs: value > 0 ? value : undefined })
+    if (selectedClip && executorRef.current) {
+      executorRef.current.execute(UpdateClipCommand, selectedClip.id, { introFadeMs: value > 0 ? value : undefined })
     }
   }
 
@@ -91,237 +47,119 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
   }
 
   const commitOutroFade = (value: number) => {
-    if (selectedClip) {
-      updateClip(selectedClip.id, { outroFadeMs: value > 0 ? value : undefined })
+    if (selectedClip && executorRef.current) {
+      executorRef.current.execute(UpdateClipCommand, selectedClip.id, { outroFadeMs: value > 0 ? value : undefined })
     }
   }
 
-  const MIN_RATE = 0.25
-  const MAX_RATE = 4
   const MAX_FADE_MS = 2000
 
   if (!selectedClip) {
     return (
-      <div className="text-center text-muted-foreground py-8">
-        <Zap className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">Select a clip to edit its properties</p>
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="w-10 h-10 rounded-xl bg-muted/30 flex items-center justify-center mb-3">
+          <Zap className="w-5 h-5 text-muted-foreground/50" />
+        </div>
+        <p className="text-sm text-muted-foreground">Select a clip to edit</p>
       </div>
     )
   }
 
-  // Calculate effective duration (how long it plays in the timeline)
-  const effectiveDuration = selectedClip.duration / 1000 // Convert to seconds
+  const effectiveDuration = selectedClip.duration / 1000
 
   return (
-    <div className="space-y-2.5">
-      <div className="rounded-2xl bg-background/40 px-2.5 py-1.5 text-xs text-muted-foreground overflow-hidden">
-        <span>Clip ID: {selectedClip.id.slice(0, 8)}...</span>
-        <span className="mx-2">•</span>
-        <span>
+    <div className="space-y-3">
+      {/* Clip Info */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-2xs text-muted-foreground/60 font-mono">
+          {selectedClip.id.slice(0, 8)}
+        </span>
+        <span className="text-2xs text-muted-foreground">
           {effectiveDuration.toFixed(2)}s
           {selectedClip.playbackRate && selectedClip.playbackRate !== 1.0 && (
-            <span className="ml-1 text-orange-500">({selectedClip.playbackRate}x)</span>
+            <span className="ml-1.5 text-orange-500/80">({selectedClip.playbackRate}x)</span>
           )}
         </span>
       </div>
 
-      {/* Playback Speed Section */}
-      <div className="rounded-2xl bg-background/40 p-2.5 space-y-3 overflow-hidden">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <h4 className="text-xs font-semibold text-foreground tracking-[-0.01em]">Playback Speed</h4>
-            <InfoTooltip content="Video playback speed" />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="secondary" className="text-xs px-1.5 py-0.5 h-5">
-              {playbackRate.toFixed(2)}x
-            </Badge>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={resetPlaybackRate}
-              className="h-5 w-5 p-0"
-              title="Reset to normal speed"
-            >
-              <RotateCcw className="w-3 h-3" />
-            </Button>
-          </div>
-        </div>
+      {/* Playback Speed */}
+      <SpeedControls
+        key={selectedClip.id}
+        clipId={selectedClip.id}
+        currentRate={selectedClip.playbackRate ?? 1.0}
+        showAdvanced={showSpeedAdvanced}
+        onShowAdvancedChange={setShowSpeedAdvanced}
+      />
 
-        <div className="space-y-1.5">
-          <div className="text-xs font-medium text-muted-foreground">Presets</div>
-          <div className="flex gap-1.5 flex-wrap">
-            <Button
-              size="sm"
-              variant={Math.abs(playbackRate - 0.5) < 0.01 ? "default" : "outline"}
-              onClick={() => setCommonSpeed(0.5)}
-              className="text-xs h-7 px-2"
-            >
-              0.5x
-            </Button>
-            <Button
-              size="sm"
-              variant={Math.abs(playbackRate - 0.75) < 0.01 ? "default" : "outline"}
-              onClick={() => setCommonSpeed(0.75)}
-              className="text-xs h-7 px-2"
-            >
-              0.75x
-            </Button>
-            <Button
-              size="sm"
-              variant={Math.abs(playbackRate - 1.0) < 0.01 ? "default" : "outline"}
-              onClick={() => setCommonSpeed(1.0)}
-              className="text-xs h-7 px-2"
-            >
-              1x
-            </Button>
-            <Button
-              size="sm"
-              variant={Math.abs(playbackRate - 1.25) < 0.01 ? "default" : "outline"}
-              onClick={() => setCommonSpeed(1.25)}
-              className="text-xs h-7 px-2"
-            >
-              1.25x
-            </Button>
-            <Button
-              size="sm"
-              variant={Math.abs(playbackRate - 1.5) < 0.01 ? "default" : "outline"}
-              onClick={() => setCommonSpeed(1.5)}
-              className="text-xs h-7 px-2"
-            >
-              1.5x
-            </Button>
-            <Button
-              size="sm"
-              variant={Math.abs(playbackRate - 2.0) < 0.01 ? "default" : "outline"}
-              onClick={() => setCommonSpeed(2.0)}
-              className="text-xs h-7 px-2"
-            >
-              2x
-            </Button>
-            <Button
-              size="sm"
-              variant={Math.abs(playbackRate - 3.0) < 0.01 ? "default" : "outline"}
-              onClick={() => setCommonSpeed(3.0)}
-              className="text-xs h-7 px-2"
-            >
-              3x
-            </Button>
-          </div>
-        </div>
+      {/* Fades */}
+      <div className="rounded-xl bg-black/[0.02] dark:bg-white/[0.02] p-3 space-y-3">
+        <span className="text-xs font-medium">Fades</span>
 
-        <button
-          onClick={() => setShowSpeedAdvanced(!showSpeedAdvanced)}
-          className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
-        >
-          <ChevronRight className={cn("w-3 h-3 transition-transform", showSpeedAdvanced && "rotate-90")} />
-          Fine tune
-        </button>
-
-        {showSpeedAdvanced && (
-          <div className="space-y-1">
-            <Slider
-              value={[playbackRate]}
-              onValueChange={handlePlaybackRateChange}
-              onValueCommit={(vals) => commitPlaybackRate(vals[0])}
-              min={MIN_RATE}
-              max={MAX_RATE}
-              step={0.25}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground/70 tabular-nums">
-              <span>0.25x</span>
-              <span>1x</span>
-              <span>4x</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Fade Section */}
-      <div className="rounded-2xl bg-background/40 p-2.5 space-y-3 overflow-hidden">
-        <div className="flex items-center gap-1.5">
-          <h4 className="text-xs font-semibold text-foreground tracking-[-0.01em]">Clip Fades</h4>
-          <InfoTooltip content="Fade transitions" />
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="text-xs font-medium text-muted-foreground">Presets</div>
-          <div className="flex gap-1.5 flex-wrap">
-            <Button
-              size="sm"
-              variant={introFadeMs === 0 && outroFadeMs === 0 ? "default" : "outline"}
-              onClick={() => {
-                setIntroFadeMs(0)
-                setOutroFadeMs(0)
-                if (selectedClip) {
-                  updateClip(selectedClip.id, { introFadeMs: undefined, outroFadeMs: undefined })
-                }
-              }}
-              className="text-xs h-7 px-2"
-            >
-              None
-            </Button>
-            <Button
-              size="sm"
-              variant={introFadeMs === 250 && outroFadeMs === 250 ? "default" : "outline"}
-              onClick={() => {
-                setIntroFadeMs(250)
-                setOutroFadeMs(250)
-                if (selectedClip) {
-                  updateClip(selectedClip.id, { introFadeMs: 250, outroFadeMs: 250 })
-                }
-              }}
-              className="text-xs h-7 px-2"
-            >
-              Quick
-            </Button>
-            <Button
-              size="sm"
-              variant={introFadeMs === 500 && outroFadeMs === 500 ? "default" : "outline"}
-              onClick={() => {
-                setIntroFadeMs(500)
-                setOutroFadeMs(500)
-                if (selectedClip) {
-                  updateClip(selectedClip.id, { introFadeMs: 500, outroFadeMs: 500 })
-                }
-              }}
-              className="text-xs h-7 px-2"
-            >
-              Smooth
-            </Button>
-            <Button
-              size="sm"
-              variant={introFadeMs === 1000 && outroFadeMs === 1000 ? "default" : "outline"}
-              onClick={() => {
-                setIntroFadeMs(1000)
-                setOutroFadeMs(1000)
-                if (selectedClip) {
-                  updateClip(selectedClip.id, { introFadeMs: 1000, outroFadeMs: 1000 })
-                }
-              }}
-              className="text-xs h-7 px-2"
-            >
-              Slow
-            </Button>
-          </div>
+        <div className="flex flex-wrap gap-1.5">
+          <PresetButton
+            active={introFadeMs === 0 && outroFadeMs === 0}
+            onClick={() => {
+              setIntroFadeMs(0)
+              setOutroFadeMs(0)
+              if (selectedClip && executorRef.current) {
+                executorRef.current.execute(UpdateClipCommand, selectedClip.id, { introFadeMs: undefined, outroFadeMs: undefined })
+              }
+            }}
+          >
+            None
+          </PresetButton>
+          <PresetButton
+            active={introFadeMs === 250 && outroFadeMs === 250}
+            onClick={() => {
+              setIntroFadeMs(250)
+              setOutroFadeMs(250)
+              if (selectedClip && executorRef.current) {
+                executorRef.current.execute(UpdateClipCommand, selectedClip.id, { introFadeMs: 250, outroFadeMs: 250 })
+              }
+            }}
+          >
+            Quick
+          </PresetButton>
+          <PresetButton
+            active={introFadeMs === 500 && outroFadeMs === 500}
+            onClick={() => {
+              setIntroFadeMs(500)
+              setOutroFadeMs(500)
+              if (selectedClip && executorRef.current) {
+                executorRef.current.execute(UpdateClipCommand, selectedClip.id, { introFadeMs: 500, outroFadeMs: 500 })
+              }
+            }}
+          >
+            Smooth
+          </PresetButton>
+          <PresetButton
+            active={introFadeMs === 1000 && outroFadeMs === 1000}
+            onClick={() => {
+              setIntroFadeMs(1000)
+              setOutroFadeMs(1000)
+              if (selectedClip && executorRef.current) {
+                executorRef.current.execute(UpdateClipCommand, selectedClip.id, { introFadeMs: 1000, outroFadeMs: 1000 })
+              }
+            }}
+          >
+            Slow
+          </PresetButton>
         </div>
 
         <button
           onClick={() => setShowFadeAdvanced(!showFadeAdvanced)}
-          className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          className="flex items-center gap-1.5 text-2xs text-muted-foreground/70 hover:text-muted-foreground transition-colors"
         >
-          <ChevronRight className={cn("w-3 h-3 transition-transform", showFadeAdvanced && "rotate-90")} />
+          <ChevronRight className={cn("w-3 h-3 transition-transform duration-150", showFadeAdvanced && "rotate-90")} />
           Fine tune
         </button>
 
         {showFadeAdvanced && (
-          <>
-            {/* Intro Fade */}
-            <div className="space-y-1.5">
+          <div className="space-y-3 pt-1">
+            <div className="group space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Fade In</span>
-                <span className="text-xs font-mono text-muted-foreground/70 tabular-nums">
+                <span className="text-2xs text-muted-foreground group-hover:text-foreground/80 transition-colors">Fade In</span>
+                <span className="text-2xs font-mono tabular-nums text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">
                   {introFadeMs}ms
                 </span>
               </div>
@@ -332,15 +170,13 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
                 min={0}
                 max={MAX_FADE_MS}
                 step={50}
-                className="w-full"
               />
             </div>
 
-            {/* Outro Fade */}
-            <div className="space-y-1.5">
+            <div className="group space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Fade Out</span>
-                <span className="text-xs font-mono text-muted-foreground/70 tabular-nums">
+                <span className="text-2xs text-muted-foreground group-hover:text-foreground/80 transition-colors">Fade Out</span>
+                <span className="text-2xs font-mono tabular-nums text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">
                   {outroFadeMs}ms
                 </span>
               </div>
@@ -351,12 +187,11 @@ export function ClipTab({ selectedClip: propSelectedClip }: ClipTabProps) {
                 min={0}
                 max={MAX_FADE_MS}
                 step={50}
-                className="w-full"
               />
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
   )
-} 
+}

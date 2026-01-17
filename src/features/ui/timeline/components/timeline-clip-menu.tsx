@@ -1,24 +1,125 @@
 'use client'
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { motion } from 'framer-motion'
-import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2, Zap } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2, Zap,
+  Video, Music, Camera, Sparkles, Clipboard
+} from 'lucide-react'
 import { useTimelineOperations } from './timeline-operations-context'
+import { useProjectStore } from '@/features/core/stores/project-store'
+import { TrackType } from '@/types/project'
+import { useShallow } from 'zustand/react/shallow'
+import { cn } from '@/shared/utils/utils'
 
-const springConfig = { type: 'spring', stiffness: 520, damping: 28 } as const
+// Native macOS-style spring animation
+const menuSpring = { type: 'spring', stiffness: 500, damping: 30, mass: 0.8 } as const
 
 interface TimelineContextMenuProps {
   x: number
   y: number
   clipId: string
+  trackType?: TrackType
   onClose: () => void
 }
+
+// Format duration compactly
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (minutes > 0) return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  return `${seconds}s`
+}
+
+// Clip type icons and labels
+const clipTypeInfo = {
+  [TrackType.Video]: { icon: Video, label: 'Video' },
+  [TrackType.Audio]: { icon: Music, label: 'Audio' },
+  [TrackType.Webcam]: { icon: Camera, label: 'Webcam' },
+  generated: { icon: Sparkles, label: 'Generated' }
+} as const
+
+// Menu item component for consistency
+const MenuItem = React.memo(({
+  icon: Icon,
+  label,
+  shortcut,
+  onClick,
+  disabled,
+  destructive,
+  isHovered,
+  onHover
+}: {
+  icon?: React.ComponentType<{ className?: string }>
+  label: string
+  shortcut?: string
+  onClick: () => void
+  disabled?: boolean
+  destructive?: boolean
+  isHovered: boolean
+  onHover: () => void
+}) => (
+  <button
+    className={cn(
+      "relative flex items-center gap-2 w-full px-2.5 py-1.5 text-ui-sm rounded-lg outline-none",
+      "transition-colors duration-80",
+      "disabled:opacity-40 disabled:cursor-default",
+      destructive ? "text-destructive" : "text-popover-foreground"
+    )}
+    disabled={disabled}
+    onClick={onClick}
+    onMouseEnter={onHover}
+  >
+    {/* Hover background */}
+    <AnimatePresence>
+      {isHovered && !disabled && (
+        <motion.div
+          className={cn(
+            "absolute inset-0 rounded-lg",
+            destructive ? "bg-destructive/10" : "bg-muted/40"
+          )}
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.97 }}
+          transition={{ type: "spring", duration: 0.2, bounce: 0 }}
+          layoutId="menu-hover"
+        />
+      )}
+    </AnimatePresence>
+
+    {/* Icon */}
+    <span className="relative z-10 w-4 flex justify-center shrink-0">
+      {Icon && <Icon className={cn(
+        "size-3.5",
+        destructive ? "opacity-80" : "opacity-50"
+      )} />}
+    </span>
+
+    {/* Label */}
+    <span className="relative z-10 flex-1 text-left truncate">{label}</span>
+
+    {/* Shortcut */}
+    {shortcut && (
+      <span className="relative z-10 text-2xs font-medium tracking-wide tabular-nums text-muted-foreground/50">
+        {shortcut}
+      </span>
+    )}
+  </button>
+))
+MenuItem.displayName = 'MenuItem'
+
+// Separator component
+const Separator = () => (
+  <div className="h-px bg-border my-1 mx-2" />
+)
 
 export const TimelineContextMenu = React.memo(({
   x,
   y,
   clipId,
+  trackType: propTrackType,
   onClose
 }: TimelineContextMenuProps) => {
   const {
@@ -32,11 +133,44 @@ export const TimelineContextMenu = React.memo(({
     onDeleteClip,
     onSpeedUpClip
   } = useTimelineOperations()
+
   const menuRef = useRef<HTMLDivElement>(null)
   const [isBusy, setIsBusy] = useState(false)
-  const [position, setPosition] = useState<{ left: number; top: number }>({ left: x, top: y })
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
 
-  const handleAction = async (action: () => void | Promise<void>) => {
+  // Get clip data from store
+  const clipData = useProjectStore(
+    useShallow((state) => {
+      const project = state.currentProject
+      if (!project) return { clip: null, trackType: null, recording: null }
+
+      for (const track of project.timeline.tracks) {
+        const found = track.clips.find(c => c.id === clipId)
+        if (found) {
+          const rec = project.recordings.find(r => r.id === found.recordingId) ?? null
+          return { clip: found, trackType: track.type, recording: rec }
+        }
+      }
+      return { clip: null, trackType: null, recording: null }
+    })
+  )
+
+  const clip = clipData.clip
+  const detectedTrackType = clipData.trackType
+  const recording = clipData.recording
+  const isGenerated = recording?.sourceType === 'generated'
+  const trackType = propTrackType ?? detectedTrackType ?? TrackType.Video
+
+  // Get type info
+  const typeInfo = useMemo(() => {
+    if (isGenerated) return clipTypeInfo.generated
+    return clipTypeInfo[trackType as keyof typeof clipTypeInfo] ?? clipTypeInfo[TrackType.Video]
+  }, [isGenerated, trackType])
+
+  const TypeIcon = typeInfo.icon
+
+  const handleAction = useCallback(async (action: () => void | Promise<void>) => {
     if (isBusy) return
     try {
       setIsBusy(true)
@@ -45,39 +179,37 @@ export const TimelineContextMenu = React.memo(({
       setIsBusy(false)
       onClose()
     }
-  }
+  }, [isBusy, onClose])
 
-  // Clamp menu position to the viewport so it never renders off-screen.
+  // Position menu within viewport - use RAF to ensure layout is complete
   useLayoutEffect(() => {
-    setPosition({ left: x, top: y })
+    const el = menuRef.current
+    if (!el) return
 
-    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
-    const PADDING = 12
-
+    // Use RAF to ensure the browser has completed layout
     const raf = requestAnimationFrame(() => {
-      const el = menuRef.current
-      if (!el) return
-
+      const PADDING = 12
       const rect = el.getBoundingClientRect()
       const viewportW = window.innerWidth
       const viewportH = window.innerHeight
 
-      const maxLeft = Math.max(PADDING, viewportW - rect.width - PADDING)
-      const maxTop = Math.max(PADDING, viewportH - rect.height - PADDING)
-
-      const nextLeft = clamp(x, PADDING, maxLeft)
-      const nextTop = clamp(y, PADDING, maxTop)
-
-      // Avoid extra renders if unchanged.
-      setPosition((prev) =>
-        prev.left === nextLeft && prev.top === nextTop ? prev : { left: nextLeft, top: nextTop }
+      // Calculate clamped position
+      const clampedLeft = Math.min(
+        Math.max(x, PADDING),
+        viewportW - rect.width - PADDING
       )
+      const clampedTop = Math.min(
+        Math.max(y, PADDING),
+        viewportH - rect.height - PADDING
+      )
+
+      setPosition({ left: clampedLeft, top: clampedTop })
     })
 
     return () => cancelAnimationFrame(raf)
   }, [x, y])
 
-  // Handle click outside to close menu
+  // Close on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -85,141 +217,173 @@ export const TimelineContextMenu = React.memo(({
       }
     }
 
-    // Add listener with a small delay to avoid immediate close on right-click
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    // Small delay to prevent immediate close
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside)
-    }, 100)
+      document.addEventListener('keydown', handleEscape)
+    }, 50)
 
     return () => {
       clearTimeout(timer)
       document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
     }
   }, [onClose])
+
+  // Clear hover on mouse leave
+  const handleMouseLeave = useCallback(() => {
+    setHoveredItem(null)
+  }, [])
+
+  // Determine which actions to show
+  const showEditingActions = trackType !== TrackType.Audio
+  const showSpeedAction = trackType === TrackType.Video
 
   const menuContent = (
     <motion.div
       ref={menuRef}
-      initial={{ opacity: 0, scale: 0.95, y: 5 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={springConfig}
-      className="fixed bg-popover border border-border rounded-md shadow-lg p-1 z-[9999] min-w-popover"
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={menuSpring}
+      className="fixed z-floating min-w-48 max-w-64 rounded-2xl border border-glass-border bg-popover/90 backdrop-blur-xl shadow-2xl overflow-hidden"
       style={{
-        left: `${position.left}px`,
-        top: `${position.top}px`,
-        maxHeight: 'calc(100vh - 24px)',
-        overflowY: 'auto'
+        left: position?.left ?? x,
+        top: position?.top ?? y,
+        visibility: position ? 'visible' : 'hidden',
       }}
       onClick={(e) => e.stopPropagation()}
+      onMouseLeave={handleMouseLeave}
     >
-      <div className="px-2 py-1 text-3xs font-medium tracking-wide text-muted-foreground/70">
-        Clip
+      {/* Compact header */}
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-border">
+        <TypeIcon className="size-3.5 text-muted-foreground/70" />
+        <span className="text-xs font-medium text-muted-foreground">
+          {typeInfo.label}
+        </span>
+        {clip && (
+          <>
+            <span className="text-3xs text-muted-foreground/40">·</span>
+            <span className="text-2xs text-muted-foreground/60 tabular-nums">
+              {formatDuration(clip.duration)}
+            </span>
+            {clip.playbackRate && clip.playbackRate !== 1 && (
+              <>
+                <span className="text-3xs text-muted-foreground/40">·</span>
+                <span className="text-2xs text-muted-foreground/60 tabular-nums">
+                  {clip.playbackRate}×
+                </span>
+              </>
+            )}
+          </>
+        )}
       </div>
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onSplitClip(clipId))}
-      >
-        <Scissors className="w-4 h-4 justify-self-center" />
-        <span className="truncate text-left">Split at Playhead</span>
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘K</span>
-      </motion.button>
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onTrimClipStart(clipId))}
-      >
-        <ChevronsLeft className="w-4 h-4 justify-self-center" />
-        <span className="truncate text-left">Trim Start to Playhead</span>
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">[</span>
-      </motion.button>
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onTrimClipEnd(clipId))}
-      >
-        <ChevronsRight className="w-4 h-4 justify-self-center" />
-        <span className="truncate text-left">Trim End to Playhead</span>
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">]</span>
-      </motion.button>
-      <div className="h-px bg-border my-1" />
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onCutClip(clipId))}
-      >
-        <span className="w-4 h-4 justify-self-center" aria-hidden />
-        <span className="truncate text-left">Cut</span>
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘X</span>
-      </motion.button>
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onCopyClip(clipId))}
-      >
-        <Copy className="w-4 h-4 justify-self-center" />
-        <span className="truncate text-left">Copy</span>
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘C</span>
-      </motion.button>
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onPasteClip())}
-      >
-        <span className="w-4 h-4 justify-self-center" aria-hidden />
-        <span className="truncate text-left">Paste</span>
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘V</span>
-      </motion.button>
-      <div className="h-px bg-border my-1" />
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onDuplicateClip(clipId))}
-      >
-        <Layers className="w-4 h-4 justify-self-center" />
-        <span className="truncate text-left">Duplicate</span>
-        <span className="font-mono text-2xs tabular-nums text-muted-foreground/70 whitespace-nowrap">⌘D</span>
-      </motion.button>
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none hover:bg-accent hover:text-accent-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onSpeedUpClip(clipId))}
-      >
-        <Zap className="w-4 h-4 justify-self-center" />
-        <span className="truncate text-left">Speed Up (2x)</span>
-        <span />
-      </motion.button>
-      <div className="h-px bg-border my-1" />
-      <motion.button
-        whileHover={{ scale: 1.02, x: 2 }}
-        transition={{ duration: 0.1 }}
-        className="grid grid-cols-[20px_1fr_auto] items-center gap-3 w-full px-3 py-2 text-ui-sm leading-none text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-sm"
-        disabled={isBusy}
-        onClick={() => void handleAction(() => onDeleteClip(clipId))}
-      >
-        <Trash2 className="w-4 h-4 justify-self-center" />
-        <span className="truncate text-left">Delete</span>
-        <span className="font-mono text-2xs tabular-nums text-destructive/70 whitespace-nowrap">⌫</span>
-      </motion.button>
+
+      {/* Menu items */}
+      <div className="py-1 px-1">
+        {showEditingActions && (
+          <>
+            <MenuItem
+              icon={Scissors}
+              label="Split at Playhead"
+              shortcut="⌘K"
+              onClick={() => void handleAction(() => onSplitClip(clipId))}
+              disabled={isBusy}
+              isHovered={hoveredItem === 'split'}
+              onHover={() => setHoveredItem('split')}
+            />
+            <MenuItem
+              icon={ChevronsLeft}
+              label="Trim Start"
+              shortcut="["
+              onClick={() => void handleAction(() => onTrimClipStart(clipId))}
+              disabled={isBusy}
+              isHovered={hoveredItem === 'trimStart'}
+              onHover={() => setHoveredItem('trimStart')}
+            />
+            <MenuItem
+              icon={ChevronsRight}
+              label="Trim End"
+              shortcut="]"
+              onClick={() => void handleAction(() => onTrimClipEnd(clipId))}
+              disabled={isBusy}
+              isHovered={hoveredItem === 'trimEnd'}
+              onHover={() => setHoveredItem('trimEnd')}
+            />
+            <Separator />
+          </>
+        )}
+
+        <MenuItem
+          icon={Clipboard}
+          label="Cut"
+          shortcut="⌘X"
+          onClick={() => void handleAction(() => onCutClip(clipId))}
+          disabled={isBusy}
+          isHovered={hoveredItem === 'cut'}
+          onHover={() => setHoveredItem('cut')}
+        />
+        <MenuItem
+          icon={Copy}
+          label="Copy"
+          shortcut="⌘C"
+          onClick={() => void handleAction(() => onCopyClip(clipId))}
+          disabled={isBusy}
+          isHovered={hoveredItem === 'copy'}
+          onHover={() => setHoveredItem('copy')}
+        />
+        <MenuItem
+          label="Paste"
+          shortcut="⌘V"
+          onClick={() => void handleAction(() => onPasteClip())}
+          disabled={isBusy}
+          isHovered={hoveredItem === 'paste'}
+          onHover={() => setHoveredItem('paste')}
+        />
+
+        <Separator />
+
+        <MenuItem
+          icon={Layers}
+          label="Duplicate"
+          shortcut="⌘D"
+          onClick={() => void handleAction(() => onDuplicateClip(clipId))}
+          disabled={isBusy}
+          isHovered={hoveredItem === 'duplicate'}
+          onHover={() => setHoveredItem('duplicate')}
+        />
+
+        {showSpeedAction && (
+          <MenuItem
+            icon={Zap}
+            label="Speed Up (2×)"
+            onClick={() => void handleAction(() => onSpeedUpClip(clipId))}
+            disabled={isBusy}
+            isHovered={hoveredItem === 'speed'}
+            onHover={() => setHoveredItem('speed')}
+          />
+        )}
+
+        <Separator />
+
+        <MenuItem
+          icon={Trash2}
+          label="Delete"
+          shortcut="⌫"
+          onClick={() => void handleAction(() => onDeleteClip(clipId))}
+          disabled={isBusy}
+          destructive
+          isHovered={hoveredItem === 'delete'}
+          onHover={() => setHoveredItem('delete')}
+        />
+      </div>
     </motion.div>
   )
 
-  // Use portal to render at document body level
   if (typeof document !== 'undefined') {
     return ReactDOM.createPortal(menuContent, document.body)
   }

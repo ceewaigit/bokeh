@@ -1,24 +1,31 @@
-import { Command, CommandResult } from '../base/Command'
-import { CommandContext } from '../base/CommandContext'
-import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
-import { EffectType, ZoomFollowStrategy } from '@/types/project'
-import { TimelineConfig } from '@/features/ui/timeline/config'
-import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
-
 /**
  * AddZoomBlockCommand - Adds zoom effects to timeline.effects[] (TIMELINE SPACE)
- * 
+ *
  * Zoom effects are now fully decoupled from clips - they stay at their
  * timeline position regardless of which clip is there.
+ *
+ * Uses PatchedCommand for automatic undo/redo via Immer patches.
  */
-export class AddZoomBlockCommand extends Command<{ blockId: string }> {
+
+import { PatchedCommand } from '../base/PatchedCommand'
+import { CommandContext } from '../base/CommandContext'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/features/core/stores/project-store'
+import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
+import { EffectType, ZoomFollowStrategy } from '@/types/project'
+import { EffectStore } from '@/features/effects/core/effects-store'
+import { TimelineConfig } from '@/features/ui/timeline/config'
+import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
+import { markProjectModified } from '@/features/core/stores/store-utils'
+
+export class AddZoomBlockCommand extends PatchedCommand<{ blockId: string }> {
   private block: ZoomBlock
 
   constructor(
-    private context: CommandContext,
+    context: CommandContext,
     block: ZoomBlock
   ) {
-    super({
+    super(context, {
       name: 'AddZoomBlock',
       description: `Add zoom block at timeline position ${block.startTime}ms`,
       category: 'effects'
@@ -27,50 +34,48 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   canExecute(): boolean {
-    return !!this.context.getProject()
+    if (!this.context.getProject()) return false
+
+    // Validate timing in canExecute for early rejection
+    const startTime = this.block.startTime
+    const endTime = this.block.endTime
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return false
+    if (endTime <= startTime) return false
+    if (endTime - startTime < TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS) return false
+
+    return true
   }
 
-  doExecute(): CommandResult<{ blockId: string }> {
-    const project = this.context.getProject()
-
-    if (!project) {
-      return {
-        success: false,
-        error: 'No project found'
-      }
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    if (!draft.currentProject) {
+      throw new Error('No active project')
     }
 
     // Ensure block has an ID
     if (!this.block.id) {
       this.block.id = `zoom-timeline-${Date.now()}`
     }
+
     const startTime = this.block.startTime
     const endTime = this.block.endTime
+
+    // Validation (should pass since canExecute() passed, but validate for safety)
     if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
-      return {
-        success: false,
-        error: `Invalid zoom timing for ${this.block.id}`
-      }
+      throw new Error(`Invalid zoom timing for ${this.block.id}`)
     }
     if (endTime <= startTime) {
-      return {
-        success: false,
-        error: `Zoom block ${this.block.id} must have positive duration`
-      }
+      throw new Error(`Zoom block ${this.block.id} must have positive duration`)
     }
     if (endTime - startTime < TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS) {
-      return {
-        success: false,
-        error: `Zoom block ${this.block.id} is shorter than minimum duration`
-      }
+      throw new Error(`Zoom block ${this.block.id} is shorter than minimum duration`)
     }
 
     // Create zoom effect with TIMELINE SPACE times
     const zoomEffect: Effect = {
       id: this.block.id,
       type: EffectType.Zoom,
-      startTime,  // TIMELINE time
-      endTime,      // TIMELINE time
+      startTime,
+      endTime,
       data: {
         origin: this.block.origin,
         scale: this.block.scale,
@@ -91,28 +96,10 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
       enabled: true
     }
 
-    // Add to timeline.effects[] using store action (immer-safe)
-    const store = this.context.getStore()
-    store.addEffect(zoomEffect)
+    // Add to timeline.effects[] using EffectStore
+    EffectStore.add(draft.currentProject, zoomEffect)
+    markProjectModified(draft)
 
-    return {
-      success: true,
-      data: { blockId: this.block.id }
-    }
-  }
-
-  doUndo(): CommandResult<{ blockId: string }> {
-    // Remove from timeline.effects using store action
-    const store = this.context.getStore()
-    store.removeEffect(this.block.id)
-
-    return {
-      success: true,
-      data: { blockId: this.block.id }
-    }
-  }
-
-  doRedo(): CommandResult<{ blockId: string }> {
-    return this.doExecute()
+    this.setResult({ success: true, data: { blockId: this.block.id } })
   }
 }

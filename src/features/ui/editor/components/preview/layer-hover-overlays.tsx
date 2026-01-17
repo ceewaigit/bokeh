@@ -65,16 +65,11 @@ interface LayerHoverOverlaysProps {
     subtitleOverlay?: SubtitleOverlayData | null;
     keystrokeOverlay?: KeystrokeOverlayData | null;
     videoOverlay?: VideoOverlayData | null;
-    backgroundOverlay?: VideoOverlayData | null; // Reusing VideoOverlayData structure (x,y,w,h)
+    backgroundOverlay?: VideoOverlayData | null;
     canSelectBackground: boolean;
-    canSelectCursor: boolean;
-    canSelectWebcam: boolean;
-    canSelectAnnotation: boolean;
     canSelectVideo?: boolean;
     canSelectSubtitle?: boolean;
     canSelectKeystroke?: boolean;
-    containerWidth?: number;
-    containerHeight?: number;
     /** Hide annotation hover overlay when this annotation is already selected */
     selectedAnnotationId?: string | null;
 }
@@ -112,11 +107,10 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
     webcamOverlay,
     annotationOverlay,
     videoOverlay,
+    backgroundOverlay,
     canSelectBackground,
-    canSelectAnnotation,
     selectedAnnotationId,
     canSelectVideo = false,
-    backgroundOverlay, // New prop
     subtitleOverlay,
     keystrokeOverlay,
     canSelectSubtitle = true,
@@ -126,19 +120,31 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
         <>
             {/* Background layer hover hint */}
             {hoveredLayer === 'background' && canSelectBackground && (
-                <div className="pointer-events-none absolute z-20 overflow-hidden"
-                    style={backgroundOverlay ? {
-                        left: `${backgroundOverlay.x}px`,
-                        top: `${backgroundOverlay.y}px`,
-                        width: `${backgroundOverlay.width}px`,
-                        height: `${backgroundOverlay.height}px`,
-                    } : {
-                        inset: 0
-                    }}
-                >
+                <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
                     {/* Inner content */}
-                    <div className={backgroundOverlay ? "absolute inset-0 rounded-lg bg-white/5 border border-white/15" : "absolute inset-0 rounded-2xl bg-white/5 border border-white/15"} />
-                    <div className="absolute left-3 top-3 rounded-pill bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80">
+                    <div
+                        className="absolute bg-white/5 border border-white/15"
+                        style={backgroundOverlay ? {
+                            left: `${backgroundOverlay.x}px`,
+                            top: `${backgroundOverlay.y}px`,
+                            width: `${backgroundOverlay.width}px`,
+                            height: `${backgroundOverlay.height}px`,
+                            borderRadius: backgroundOverlay.borderRadius ?? '22px',
+                        } : {
+                            left: 0,
+                            top: 0,
+                            width: '100%',
+                            height: '100%',
+                            borderRadius: '22px',
+                        }}
+                    />
+                    <div
+                        className="absolute rounded-pill bg-black/40 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/80"
+                        style={{
+                            left: `${Math.max(12, (backgroundOverlay?.x ?? 0) + 12)}px`,
+                            top: `${Math.max(12, (backgroundOverlay?.y ?? 0) + 12)}px`,
+                        }}
+                    >
                         Background
                     </div>
                 </div>
@@ -222,27 +228,21 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
             {/* Cursor layer hover hint - uses bounds from DOM query */}
             {hoveredLayer === 'cursor' && cursorOverlay && (
                 <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
-                    {/* Multi-layered refined glow */}
+                    {/* Subtle glow - minimal and refined */}
                     <div
                         className="absolute -translate-x-1/2 -translate-y-1/2"
                         style={{
-                            left: `${cursorOverlay.left + cursorOverlay.width * 0.45}px`, // Slight offset to match optical center
+                            left: `${cursorOverlay.left + cursorOverlay.width * 0.45}px`,
                             top: `${cursorOverlay.top + cursorOverlay.height * 0.4}px`,
                         }}
                     >
-                        {/* Outer soft ambient glow */}
-                        <div className="absolute h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-white opacity-[0.08] blur-3xl" />
-
-                        {/* Secondary spread glow */}
-                        <div className="absolute h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-white opacity-[0.12] blur-xl mix-blend-plus-lighter" />
-
-                        {/* Inner core accent */}
-                        <div className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-pill bg-white opacity-[0.15] blur-md mix-blend-plus-lighter" />
+                        {/* Single subtle glow */}
+                        <div className="absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/[0.06] blur-xl" />
                     </div>
 
                     {/* Label */}
                     <div
-                        className="absolute rounded-pill bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.18em] text-white/90 shadow-lg"
+                        className="absolute rounded-full bg-black/50 backdrop-blur-sm border border-white/10 px-2.5 py-1 text-3xs font-medium uppercase tracking-[0.15em] text-white/80"
                         style={{
                             left: `${Math.max(12, cursorOverlay.left + cursorOverlay.width * 0.75)}px`,
                             top: `${Math.max(12, cursorOverlay.top - 24)}px`,
@@ -255,7 +255,7 @@ export const LayerHoverOverlays: React.FC<LayerHoverOverlaysProps> = ({
 
             {/* Annotation layer hover hint - uses bounds from DOM query */}
             {/* Hide when annotation is already selected (SelectionOverlay handles it) */}
-            {hoveredLayer === 'annotation' && annotationOverlay && canSelectAnnotation &&
+            {hoveredLayer === 'annotation' && annotationOverlay &&
                 annotationOverlay.id !== selectedAnnotationId && (
                     <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
                         <div

@@ -119,7 +119,7 @@ DropdownMenuSubContent.displayName =
 const DropdownMenuContent = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, children, ...props }, ref) => {
+>(({ className, sideOffset = 6, children, ...props }, ref) => {
   const [hoveredId, setHoveredId] = React.useState<string | null>(null)
 
   return (
@@ -128,18 +128,27 @@ const DropdownMenuContent = React.forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         className={cn(
-          "z-floating max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-xl border border-glass-border bg-popover/85 backdrop-blur-xl p-1 text-popover-foreground shadow-xl",
+          "z-floating max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden",
+          // macOS-style rounded corners and surface
+          "rounded-xl border border-foreground/[0.12] bg-popover/95 backdrop-blur-2xl backdrop-saturate-150",
+          // No drop shadow - clean flat look
+          "shadow-none",
+          "dark:border-foreground/[0.08]",
+          // Typography
+          "p-1 text-popover-foreground",
+          // Animations - snappy, Apple-esque
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-[0.98]",
-          "data-[state=open]:duration-300 data-[state=open]:ease-spring",
-          "data-[state=closed]:duration-200 data-[state=closed]:ease-out",
-          "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
-          "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          "data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]",
+          "data-[state=open]:duration-150 data-[state=open]:ease-out",
+          "data-[state=closed]:duration-100 data-[state=closed]:ease-in",
+          "data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1",
+          "data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
           "origin-[--radix-dropdown-menu-content-transform-origin]",
           className
         )}
         onMouseLeave={() => setHoveredId(null)}
+        onDoubleClick={(e) => e.stopPropagation()}
         {...props}
       >
         <DropdownMenuHoverContext.Provider value={{ hoveredId, setHoveredId }}>
@@ -165,7 +174,7 @@ const DropdownMenuItem = React.forwardRef<
     <DropdownMenuPrimitive.Item
       ref={ref}
       className={cn(
-        "group relative flex cursor-default select-none items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        "group relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
         inset && "pl-8",
         className
       )}
@@ -175,16 +184,15 @@ const DropdownMenuItem = React.forwardRef<
       <AnimatePresence>
         {isHovered && (
           <motion.div
-            className="absolute inset-0 rounded-lg bg-accent"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={hoverSpring}
-            layoutId="dropdown-menu-hover"
+            className="absolute inset-0 rounded-md bg-foreground/[0.05]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1, ease: "easeOut" }}
           />
         )}
       </AnimatePresence>
-      <span className="relative z-10 flex items-center gap-2 w-full transition-transform duration-150 group-hover:translate-x-0.5">
+      <span className="relative z-10 flex items-center gap-2 w-full transition-colors duration-100">
         {children}
       </span>
     </DropdownMenuPrimitive.Item>
@@ -259,39 +267,38 @@ const DropdownMenuRadioItem = React.forwardRef<
       ref={ref}
       value={value}
       className={cn(
-        "group relative flex cursor-default select-none items-center rounded-lg py-1.5 px-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "group relative flex cursor-default select-none items-center rounded-md py-1.5 px-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className
       )}
       onMouseEnter={() => setHoveredId(itemId)}
+      onDoubleClick={(e) => e.stopPropagation()}
       {...props}
     >
-      {/* Hover background - only show when not selected */}
+      {/* Hover background - only when not selected */}
       <AnimatePresence>
         {isHovered && !isSelected && (
           <motion.div
-            className="absolute inset-0 rounded-lg bg-muted/60"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={hoverSpring}
-            layoutId="dropdown-menu-hover"
+            className="absolute inset-0 rounded-md bg-foreground/[0.05]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.08 }}
           />
         )}
       </AnimatePresence>
-      {/* Selected background - slides between selected items within this group */}
+      {/* Selected background */}
       {isSelected && (
         <motion.div
-          className="absolute inset-0 rounded-lg bg-primary"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={selectSpring}
+          className="absolute inset-0 rounded-md bg-foreground/[0.06]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.1 }}
           layoutId={`dropdown-selected-${groupId}`}
         />
       )}
       <span className={cn(
-        "relative z-10 flex items-center gap-2 transition-all duration-150",
-        "group-hover:translate-x-0.5",
-        isSelected && "text-primary-foreground"
+        "relative z-10 flex items-center gap-2 transition-colors duration-100",
+        isSelected ? "text-foreground" : "text-foreground/70"
       )}>
         {children}
       </span>
@@ -324,7 +331,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn("-mx-1 my-1 h-px bg-glass-border", className)}
+    className={cn("-mx-1 my-1 h-px bg-foreground/[0.06]", className)}
     {...props}
   />
 ))

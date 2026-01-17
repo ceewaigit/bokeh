@@ -144,8 +144,10 @@ function detectSpeedUpSuggestions(recordings: Recording[] | undefined): { typing
   let hasTyping = false
   let hasIdle = false
   for (const recording of recordings) {
-    if (recording.metadata?.detectedTypingPeriods?.length) hasTyping = true
-    if (recording.metadata?.detectedIdlePeriods?.length) hasIdle = true
+    const meta = recording.metadata
+    // Check for cached detected periods OR raw events that can generate suggestions
+    if (meta?.detectedTypingPeriods?.length || meta?.keyboardEvents?.length) hasTyping = true
+    if (meta?.detectedIdlePeriods?.length || meta?.mouseEvents?.length || meta?.keyboardEvents?.length) hasIdle = true
     if (hasTyping && hasIdle) break
   }
   return { typing: hasTyping, idle: hasIdle }
@@ -334,8 +336,9 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     return ANNOTATION_HEADER_HEIGHT + Math.max(1, annotationCount) * TimelineConfig.TRACK.EFFECT_COLLAPSED
   }, [annotationCount, effectTrackExistence, isAnnotationExpanded, isScreenGroupCollapsed, visibleTracks])
 
-  // Calculate fixed track positions
+  // Calculate fixed track positions with consistent gaps
   const fixedTrackPositions = useMemo((): FixedTrackPositions => {
+    const gap = TimelineConfig.TRACK_GAP
     let y = 0
     const rulerY = y
     y += fixedTrackHeights.ruler
@@ -345,13 +348,21 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     // Add speed-up bar space gap
     y += fixedTrackHeights.speedUpBarSpace
 
-    // Video starts immediately after header/ruler
+    // Video track (no gap before first track)
     const videoY = y
     y += fixedTrackHeights.video
 
+    // Audio track - add gap before if audio exists
+    if (fixedTrackHeights.audio > 0) {
+      y += gap
+    }
     const audioY = y
     y += fixedTrackHeights.audio
 
+    // Webcam track - add gap before if webcam exists
+    if (fixedTrackHeights.webcam > 0) {
+      y += gap
+    }
     const webcamY = y
 
     return {
@@ -364,18 +375,28 @@ export function TimelineLayoutProvider({ children }: TimelineLayoutProviderProps
     }
   }, [fixedTrackHeights])
 
-  // Calculate effect track positions dynamically
+  // Calculate effect track positions dynamically with consistent gaps
   // Also tracks total content height
   const { positions: effectTrackPositions, annotationY, totalContentHeight } = useMemo(() => {
+    const gap = TimelineConfig.TRACK_GAP
     let y = fixedTrackPositions.webcam + fixedTrackHeights.webcam
     const positions: Record<string, number> = {}
     const sortedConfigs = getSortedTrackConfigs()
 
     for (const { type } of sortedConfigs) {
+      const trackHeight = effectTrackHeights[type]
+      // Add gap before each effect track that has content
+      if (trackHeight > 0) {
+        y += gap
+      }
       positions[type] = y
-      y += effectTrackHeights[type]
+      y += trackHeight
     }
 
+    // Add gap before annotation track if it exists
+    if (annotationTrackHeight > 0) {
+      y += gap
+    }
     const annotationTrackY = y
     y += annotationTrackHeight
 

@@ -306,11 +306,18 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               </div>
             ) : (
               <>
-                {/* Controls bar - view toggle, sort, filter */}
-                <div className="flex items-center justify-between mb-6">
+                {/* Controls bar - view toggle, sort, filter - refined Apple-style */}
+                <div className="flex items-center justify-between mb-8">
                   {/* View mode toggle - only show when grouped view is possible */}
                   {showGroupedView ? (
-                    <div className="inline-flex items-center rounded-lg bg-muted/20 p-0.5 border border-border/10">
+                    <div className="relative inline-flex items-center rounded-[10px] bg-foreground/[0.04] p-[3px]">
+                      {/* Sliding indicator */}
+                      <motion.div
+                        className="absolute top-[3px] bottom-[3px] w-[calc(50%-2px)] rounded-[7px] bg-foreground/[0.08] shadow-sm"
+                        animate={{ x: viewMode === 'grouped' ? 0 : '100%' }}
+                        transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                      />
+
                       <TooltipProvider delayDuration={400}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -318,16 +325,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                               type="button"
                               onClick={() => setViewMode('grouped')}
                               className={cn(
-                                "flex items-center justify-center w-8 h-7 rounded-md transition-all duration-150",
+                                "relative z-10 flex items-center justify-center w-8 h-7 rounded-[7px] transition-colors duration-100",
                                 viewMode === 'grouped'
-                                  ? "bg-background text-foreground shadow-sm"
-                                  : "text-muted-foreground/70 hover:text-foreground/80"
+                                  ? "text-foreground/90"
+                                  : "text-muted-foreground/50 hover:text-foreground/70"
                               )}
                             >
-                              <List className="w-3.5 h-3.5" />
+                              <List className="w-3.5 h-3.5" strokeWidth={1.75} />
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="text-xs">
+                          <TooltipContent side="bottom" className="text-[11px] font-medium">
                             Grouped by date
                           </TooltipContent>
                         </Tooltip>
@@ -340,16 +347,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                               type="button"
                               onClick={() => setViewMode('grid')}
                               className={cn(
-                                "flex items-center justify-center w-8 h-7 rounded-md transition-all duration-150",
+                                "relative z-10 flex items-center justify-center w-8 h-7 rounded-[7px] transition-colors duration-100",
                                 viewMode === 'grid'
-                                  ? "bg-background text-foreground shadow-sm"
-                                  : "text-muted-foreground/70 hover:text-foreground/80"
+                                  ? "text-foreground/90"
+                                  : "text-muted-foreground/50 hover:text-foreground/70"
                               )}
                             >
-                              <LayoutGrid className="w-3.5 h-3.5" />
+                              <LayoutGrid className="w-3.5 h-3.5" strokeWidth={1.75} />
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="text-xs">
+                          <TooltipContent side="bottom" className="text-[11px] font-medium">
                             Grid view
                           </TooltipContent>
                         </Tooltip>
@@ -359,39 +366,40 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     <div /> // Empty placeholder to maintain layout
                   )}
 
-                  {/* Sort and filter */}
-                  <div className="flex items-center gap-2">
+                  {/* Sort and filter - refined styling */}
+                  <div className="flex items-center gap-1.5">
                     {/* Duration filter */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
                           className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150",
-                            "border border-border/10 bg-muted/10 hover:bg-muted/20",
+                            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[11px] font-medium",
+                            "transition-all duration-100 ease-out",
+                            "hover:bg-foreground/[0.04]",
                             durationFilter !== 'all'
-                              ? "text-foreground"
-                              : "text-muted-foreground/70"
+                              ? "text-foreground/90 bg-foreground/[0.04]"
+                              : "text-muted-foreground/60"
                           )}
                         >
-                          <Clock className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">
+                          <Clock className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          <span className="hidden sm:inline tracking-tight">
                             {durationFilter === 'all' ? 'Duration' : currentDurationFilter.label}
                           </span>
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuContent align="end" className="w-44 rounded-xl p-1">
                         {DURATION_FILTERS.map((filter) => (
                           <DropdownMenuItem
                             key={filter.key}
                             onClick={() => setDurationFilter(filter.key)}
                             className={cn(
-                              "flex flex-col items-start gap-0.5",
-                              durationFilter === filter.key && "bg-muted/50"
+                              "flex flex-col items-start gap-0.5 rounded-lg py-2",
+                              durationFilter === filter.key && "bg-foreground/[0.04]"
                             )}
                           >
-                            <span className="text-xs font-medium">{filter.label}</span>
-                            <span className="text-[10px] text-muted-foreground/60">
+                            <span className="text-[12px] font-medium tracking-tight">{filter.label}</span>
+                            <span className="text-[10px] text-muted-foreground/50">
                               {filter.description}
                             </span>
                           </DropdownMenuItem>
@@ -405,26 +413,27 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         <button
                           type="button"
                           className={cn(
-                            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150",
-                            "border border-border/10 bg-muted/10 hover:bg-muted/20 text-muted-foreground/70"
+                            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-[11px] font-medium",
+                            "transition-all duration-100 ease-out",
+                            "text-muted-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground/80"
                           )}
                         >
-                          <ArrowUpDown className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">{currentSortOption.label}</span>
+                          <ArrowUpDown className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          <span className="hidden sm:inline tracking-tight">{currentSortOption.label}</span>
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuContent align="end" className="w-40 rounded-xl p-1">
                         {SORT_OPTIONS.map((option) => (
                           <DropdownMenuItem
                             key={option.key}
                             onClick={() => handleSortChange(option.key)}
                             className={cn(
-                              "flex items-center gap-2",
-                              sortKey === option.key && "bg-muted/50"
+                              "flex items-center gap-2 rounded-lg py-2",
+                              sortKey === option.key && "bg-foreground/[0.04]"
                             )}
                           >
-                            <option.icon className="w-3.5 h-3.5 text-muted-foreground/60" />
-                            <span className="text-xs">{option.label}</span>
+                            <option.icon className="w-3.5 h-3.5 text-muted-foreground/50" strokeWidth={1.75} />
+                            <span className="text-[12px] font-medium tracking-tight">{option.label}</span>
                           </DropdownMenuItem>
                         ))}
                       </DropdownMenuContent>
@@ -503,7 +512,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 {/* Sentinel element for infinite scroll */}
                 <div ref={sentinelRef} className="h-px" />
 
-                {/* Loading indicator for infinite scroll */}
+                {/* Loading indicator for infinite scroll - subtle and refined */}
                 <AnimatePresence>
                   {(isLoadingMore || showHydrationIndicator) && (
                     <motion.div
@@ -511,11 +520,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="flex justify-center py-8"
+                      className="flex justify-center py-10"
                     >
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/30 backdrop-blur-sm">
-                        <Loader2 className="w-3 h-3 animate-spin text-muted-foreground/60" />
-                        <span className="text-[11px] font-medium text-muted-foreground/60">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-foreground/[0.03]">
+                        <Loader2 className="w-3 h-3 animate-spin text-foreground/30" />
+                        <span className="text-[10px] font-medium text-foreground/30 tracking-tight">
                           Loading
                         </span>
                       </div>
@@ -523,10 +532,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   )}
                 </AnimatePresence>
 
-                {/* End of list indicator */}
+                {/* End of list indicator - subtle */}
                 {!hasMore && filteredByDuration.length > 20 && (
-                  <div className="flex justify-center py-8">
-                    <span className="text-[11px] text-muted-foreground/40">
+                  <div className="flex justify-center py-10">
+                    <span className="text-[10px] text-muted-foreground/30 tracking-tight">
                       {filteredByDuration.length} recordings
                     </span>
                   </div>
@@ -539,26 +548,27 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           <div className="pb-[15vh]" />
         </div>
 
-        {/* Scroll to top button */}
+        {/* Scroll to top button - refined macOS style */}
         <AnimatePresence>
           {showScrollTop && (
             <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+              initial={{ opacity: 0, y: 8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
               onClick={scrollToTop}
               className={cn(
                 "fixed bottom-6 right-6 z-50",
-                "w-10 h-10 rounded-full",
-                "bg-background/80 backdrop-blur-md border border-border/30",
-                "shadow-lg shadow-black/5",
+                "w-9 h-9 rounded-full",
+                "bg-foreground/[0.06] backdrop-blur-xl",
+                "border border-foreground/[0.08]",
+                "shadow-lg shadow-black/10",
                 "flex items-center justify-center",
-                "text-muted-foreground hover:text-foreground",
-                "transition-colors duration-150"
+                "text-foreground/50 hover:text-foreground/80 hover:bg-foreground/[0.08]",
+                "transition-all duration-150 ease-out"
               )}
             >
-              <ChevronUp className="w-4 h-4" />
+              <ChevronUp className="w-4 h-4" strokeWidth={2} />
             </motion.button>
           )}
         </AnimatePresence>

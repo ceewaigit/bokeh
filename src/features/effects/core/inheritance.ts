@@ -5,7 +5,7 @@
  */
 
 import { type PersistedVideoState } from '@/features/ui/timeline/utils/frame-layout'
-import type { ActiveClipDataAtFrame } from '@/types'
+import type { ActiveClipDataAtFrame } from '@/features/rendering/renderer/types'
 import type { Effect, Recording } from '@/types/project'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import { resolveClipDataForLayoutItem } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame'
@@ -55,23 +55,23 @@ export function applyInheritance({
   const hasOwnBackground = clipData.effects.find(e => e.type === EffectType.Background && e.startTime <= clipData.sourceTimeMs && e.endTime > clipData.sourceTimeMs)
 
   const inheritedEffects = videoData.effects
-    .filter(e => {
+    .filter((e: Effect) => {
       if (e.type === EffectType.Crop && hasOwnCrop) return false
       if (e.type === EffectType.Background && hasOwnBackground) return false
       return e.type === EffectType.Crop || e.type === EffectType.Background
     })
-    .map(e => ({ ...e, startTime: -Infinity, endTime: Infinity }))
+    .map((e: Effect) => ({ ...e, startTime: -Infinity, endTime: Infinity }))
 
   const inheritedZoom = hasOwnZoom
-    ? clipData.effects.filter(e => e.type === EffectType.Zoom)
-    : videoData.effects.filter(e => e.type === EffectType.Zoom).map(e => ({ ...e, startTime: -Infinity, endTime: Infinity }))
+    ? clipData.effects.filter((e: Effect) => e.type === EffectType.Zoom)
+    : videoData.effects.filter((e: Effect) => e.type === EffectType.Zoom).map((e: Effect) => ({ ...e, startTime: -Infinity, endTime: Infinity }))
 
   const inheritedScreen = hasOwnScreen
-    ? clipData.effects.filter(e => e.type === EffectType.Screen)
-    : videoData.effects.filter(e => e.type === EffectType.Screen).map(e => ({ ...e, startTime: -Infinity, endTime: Infinity }))
+    ? clipData.effects.filter((e: Effect) => e.type === EffectType.Screen)
+    : videoData.effects.filter((e: Effect) => e.type === EffectType.Screen).map((e: Effect) => ({ ...e, startTime: -Infinity, endTime: Infinity }))
 
   const ownEffects = clipData.effects.filter(
-    e =>
+    (e: Effect) =>
       e.type !== EffectType.Zoom &&
       e.type !== EffectType.Screen &&
       (hasOwnCrop || e.type !== EffectType.Crop) &&

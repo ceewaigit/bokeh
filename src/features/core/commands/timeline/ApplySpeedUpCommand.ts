@@ -1,6 +1,10 @@
 /**
  * ApplySpeedUpCommand - Apply speed-up suggestions to clips.
  * Works with any SpeedUpPeriod type (typing, idle, etc.)
+ *
+ * Note: SpeedUpApplicationService handles effect updates directly.
+ * The base TimelineCommand.mutate() calls TimelineSyncOrchestrator.commit()
+ * which handles keystroke sync and cache invalidation.
  */
 
 import { TimelineCommand } from '../base/TimelineCommand'
@@ -10,11 +14,10 @@ import type { ProjectStore } from '@/features/core/stores/project-store'
 import type { SpeedUpPeriod } from '@/types/speed-up'
 import { SpeedUpType } from '@/types/speed-up'
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
-import { syncKeystrokeEffects } from '@/features/effects/sync'
 import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 import { playbackService } from '@/features/playback/services/playback-service'
 import { markProjectModified } from '@/features/core/stores/store-utils'
-import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
+import { TrackType } from '@/types/project'
 
 export class ApplySpeedUpCommand extends TimelineCommand<{ applied: number }> {
   private sourceClipId: string
@@ -51,12 +54,15 @@ export class ApplySpeedUpCommand extends TimelineCommand<{ applied: number }> {
     return !!result && this.periods.length > 0
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No project found')
 
     const lookup = this.findClip(project, this.sourceClipId)
     if (!lookup) throw new Error(`Clip ${this.sourceClipId} not found`)
+
+    const { clip, track } = lookup
+    const beforeState = this.buildClipState(clip)
 
     // Convert SpeedUpType to legacy string format
     const legacyTypes = this.speedUpTypes.map(t =>
@@ -64,15 +70,19 @@ export class ApplySpeedUpCommand extends TimelineCommand<{ applied: number }> {
     )
 
     // Apply speed-up using the unified service
+    // Note: SpeedUpApplicationService returns segmentMapping for TimelineSyncOrchestrator
     const result = SpeedUpApplicationService.applySpeedUpToClip(
       project, this.sourceClipId, this.periods, legacyTypes
     )
 
     this.affectedClipIds = result.affectedClips
 
-    // Sync keystroke effects and invalidate caches
-    syncKeystrokeEffects(project)
-    TimelineDataService.invalidateCache(project)
+    // Build ClipChange for speed-up operation using ClipChangeBuilder
+    // TimelineSyncOrchestrator.commit() will handle effect sync, webcam sync, and cache invalidation
+    this.deferClipChange(
+      this.buildSpeedUpChange(this.sourceClipId, clip.recordingId, beforeState, result.segmentMapping, track.type as TrackType)
+    )
+
     markProjectModified(draft)
 
     // Ensure playhead is within valid range

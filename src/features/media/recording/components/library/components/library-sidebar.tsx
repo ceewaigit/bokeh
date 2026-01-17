@@ -1,13 +1,13 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { Clock, HardDrive } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
-import { springSnappy } from '@/shared/constants/animations'
 import { type DateCategory, type DateCategoryId } from '../utils/date-grouping'
 
 // ============================================================================
-// GREETING SYSTEM
+// GREETING SYSTEM - Simplified and elegant
 // ============================================================================
 
 interface Greeting {
@@ -17,18 +17,38 @@ interface Greeting {
 }
 
 const GREETINGS: Greeting[] = [
-  // Time-based
+  // Time-based greetings
   { text: 'Good morning', emphasis: 'morning', hours: [5, 12] },
+  { text: 'Rise and create', emphasis: 'create', hours: [5, 10] },
+  { text: 'Fresh start', emphasis: 'Fresh', hours: [6, 9] },
   { text: 'Good afternoon', emphasis: 'afternoon', hours: [12, 17] },
+  { text: 'Afternoon session', emphasis: 'session', hours: [13, 17] },
   { text: 'Good evening', emphasis: 'evening', hours: [17, 22] },
+  { text: 'Evening edit', emphasis: 'edit', hours: [18, 22] },
   { text: 'Night owl', emphasis: 'Night', hours: [22, 5] },
-  // Generic
+  { text: 'Late night edit', emphasis: 'edit', hours: [23, 4] },
+  { text: 'Burning midnight oil', emphasis: 'midnight', hours: [0, 4] },
+
+  // Creative & inspiring
+  { text: 'Your library', emphasis: 'library' },
+  { text: 'Your recordings', emphasis: 'recordings' },
+  { text: 'Your stories', emphasis: 'stories' },
+  { text: 'Your moments', emphasis: 'moments' },
+  { text: 'Your work', emphasis: 'work' },
   { text: 'Welcome back', emphasis: 'back' },
   { text: 'Ready to create', emphasis: 'create' },
-  { text: "Let's make magic", emphasis: 'magic' },
-  { text: 'Your library', emphasis: 'Your' },
-  { text: 'Creative mode', emphasis: 'Creative' },
-  { text: 'In the zone', emphasis: 'zone' },
+  { text: 'Make something', emphasis: 'something' },
+  { text: "Let's edit", emphasis: 'edit' },
+  { text: 'Creative space', emphasis: 'Creative' },
+  { text: 'Your canvas', emphasis: 'canvas' },
+  { text: 'Start here', emphasis: 'here' },
+  { text: 'Pick up where you left off', emphasis: 'left off' },
+  { text: 'Back to work', emphasis: 'work' },
+  { text: 'In the flow', emphasis: 'flow' },
+  { text: 'Make it happen', emphasis: 'happen' },
+  { text: 'Create something', emphasis: 'something' },
+  { text: 'Your projects', emphasis: 'projects' },
+  { text: 'Continue creating', emphasis: 'creating' },
 ]
 
 function getGreeting(): Greeting {
@@ -40,8 +60,8 @@ function getGreeting(): Greeting {
   })
   const genericGreetings = GREETINGS.filter(g => !g.hours)
 
-  // 60% time-based, 40% generic
-  if (timeGreetings.length > 0 && Math.random() < 0.6) {
+  // 70% time-based for a more personal feel
+  if (timeGreetings.length > 0 && Math.random() < 0.7) {
     return timeGreetings[Math.floor(Math.random() * timeGreetings.length)]
   }
   return genericGreetings[Math.floor(Math.random() * genericGreetings.length)]
@@ -111,21 +131,20 @@ export function LibrarySidebar({
 }: LibrarySidebarProps) {
   const reduceMotion = useReducedMotion()
   const greeting = useMemo(() => getGreeting(), [])
-  const [showStats, setShowStats] = useState(false)
 
   const renderGreeting = () => {
     const { text, emphasis } = greeting
     const parts = text.split(emphasis)
     return (
       <>
-        {parts[0] && <span>{parts[0]}</span>}
+        {parts[0] && <span className="font-normal">{parts[0]}</span>}
         <span className="font-display italic">{emphasis}</span>
-        {parts[1] && <span>{parts[1]}</span>}
+        {parts[1] && <span className="font-normal">{parts[1]}</span>}
       </>
     )
   }
 
-  // Stats visibility
+  // Stats visibility - always show if available
   const hasStats = totalDurationMs > 0 || totalStorageBytes > 0
 
   return (
@@ -144,73 +163,96 @@ export function LibrarySidebar({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="mb-6"
+              className="mb-8"
             >
-              {/* Brand icon */}
-              <div className="mb-2">
-                <BokehIcon className="w-8 h-8 text-foreground/80" />
+              {/* Brand icon - subtle, refined */}
+              <div className="mb-3">
+                <BokehIcon className="w-7 h-7 text-foreground/70" />
               </div>
 
-              {/* Greeting */}
-              <h1 className="text-display-sm xl:text-display tracking-[-0.02em] text-foreground leading-tight">
+              {/* Greeting - clean typography */}
+              <h1 className="text-[22px] xl:text-[26px] tracking-[-0.025em] text-foreground/95 leading-tight font-medium">
                 {renderGreeting()}
               </h1>
 
-              {/* Subtitle - hover to show stats */}
-              <div
-                className="mt-1 h-5 overflow-hidden"
-                onMouseEnter={() => hasStats && setShowStats(true)}
-                onMouseLeave={() => setShowStats(false)}
-              >
-                <AnimatePresence mode="wait">
-                  {showStats ? (
-                    <motion.p
-                      key="stats"
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.1 }}
-                      className="text-xs xl:text-sm text-muted-foreground/60 tabular-nums cursor-default"
-                    >
-                      {formatDuration(totalDurationMs)} · {formatStorage(totalStorageBytes)}
-                    </motion.p>
-                  ) : (
-                    <motion.p
-                      key="count"
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.1 }}
-                      className={cn(
-                        "text-xs xl:text-sm text-muted-foreground/50",
-                        hasStats && "cursor-default"
-                      )}
-                    >
-                      {totalCount} {totalCount === 1 ? 'recording' : 'recordings'}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-              </div>
+              {/* Subtitle - count always visible */}
+              <p className="mt-1.5 text-[13px] text-muted-foreground/50 tracking-tight">
+                {totalCount} {totalCount === 1 ? 'recording' : 'recordings'}
+              </p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Navigation */}
-        <nav className="flex flex-col">
-          {categories.map((category) => (
-            <NavItem
-              key={category.id}
-              label={category.label}
-              count={counts[category.id]}
-              isActive={activeCategory === category.id}
-              collapsed={collapsed}
-              onClick={() => onCategoryClick(category.id)}
-              reduceMotion={reduceMotion ?? false}
-            />
-          ))}
-        </nav>
+        {/* Navigation - with section header */}
+        <div className="space-y-4">
+          {!collapsed && (
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 px-0.5">
+              Timeline
+            </p>
+          )}
+          <nav className="flex flex-col -mx-1">
+            {categories.map((category) => (
+              <NavItem
+                key={category.id}
+                label={category.label}
+                count={counts[category.id]}
+                isActive={activeCategory === category.id}
+                collapsed={collapsed}
+                onClick={() => onCategoryClick(category.id)}
+                reduceMotion={reduceMotion ?? false}
+              />
+            ))}
+          </nav>
+        </div>
+
+        {/* Stats section - refined Apple-style */}
+        {!collapsed && hasStats && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.2 }}
+            className="mt-8 pt-6 border-t border-border/20"
+          >
+            <div className="space-y-2.5">
+              <StatItem
+                icon={Clock}
+                label="Total duration"
+                value={formatDuration(totalDurationMs)}
+              />
+              <StatItem
+                icon={HardDrive}
+                label="Storage used"
+                value={formatStorage(totalStorageBytes)}
+              />
+            </div>
+          </motion.div>
+        )}
       </div>
     </motion.aside>
+  )
+}
+
+// ============================================================================
+// STAT ITEM
+// ============================================================================
+
+interface StatItemProps {
+  icon: typeof Clock
+  label: string
+  value: string
+}
+
+function StatItem({ icon: Icon, label, value }: StatItemProps) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 text-muted-foreground/50 min-w-0 flex-1">
+        <Icon className="w-3 h-3 flex-shrink-0" strokeWidth={1.75} />
+        <span className="text-[11px] tracking-tight truncate">{label}</span>
+      </div>
+      <span className="text-[12px] text-foreground/70 tabular-nums font-medium tracking-tight flex-shrink-0">
+        {value}
+      </span>
+    </div>
   )
 }
 
@@ -234,35 +276,39 @@ function NavItem({ label, count, isActive, collapsed, onClick, reduceMotion }: N
       onClick={onClick}
       className={cn(
         "relative flex items-center w-full",
-        "py-1.5 pr-2 rounded-md",
-        "text-left text-ui-sm xl:text-sm font-normal",
-        "transition-colors duration-100",
+        "py-1.5 px-2 rounded-md",
+        "text-left text-[13px] font-normal",
+        "transition-all duration-100 ease-out",
         isActive
-          ? "text-foreground"
-          : "text-muted-foreground/70 hover:text-foreground/80",
-        collapsed && "justify-center px-2"
+          ? "text-foreground/95"
+          : "text-muted-foreground/60 hover:text-foreground/80 hover:bg-foreground/[0.04]",
+        collapsed && "justify-center"
       )}
     >
-      {/* Active indicator - slides between items */}
-      <div className="w-4 flex-shrink-0 flex items-center justify-center">
-        {isActive && (
-          <motion.div
-            layoutId="nav-indicator"
-            className="w-[3px] h-3 rounded-full bg-foreground/60"
-            transition={reduceMotion ? { duration: 0 } : springSnappy}
-          />
+      {/* Active indicator - refined pill that slides */}
+      {isActive && (
+        <motion.div
+          layoutId="sidebar-nav-indicator"
+          className="absolute inset-0 rounded-md bg-foreground/[0.06]"
+          transition={reduceMotion ? { duration: 0 } : { duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+        />
+      )}
+
+      {/* Content */}
+      <div className="relative flex items-center justify-between flex-1 min-w-0">
+        {/* Label and count */}
+        {!collapsed && (
+          <>
+            <span className="truncate flex-1 tracking-tight">{label}</span>
+            <span className={cn(
+              "text-[11px] ml-3 tabular-nums transition-colors duration-100",
+              isActive ? "text-foreground/40" : "text-muted-foreground/35"
+            )}>
+              {count}
+            </span>
+          </>
         )}
       </div>
-
-      {/* Label and count */}
-      {!collapsed && (
-        <div className="flex items-center justify-between flex-1 min-w-0">
-          <span className="truncate">{label}</span>
-          <span className="text-2xs xl:text-xs text-muted-foreground/40 ml-3 tabular-nums">
-            {count}
-          </span>
-        </div>
-      )}
     </button>
   )
 }
@@ -279,21 +325,32 @@ export function LibrarySidebarSkeleton({ collapsed = false }: { collapsed?: bool
     )}>
       <div className={cn("py-6", collapsed ? "px-2" : "px-0")}>
         {!collapsed && (
-          <div className="mb-6">
-            <div className="w-8 h-8 rounded-lg bg-muted/20 animate-pulse mb-4" />
-            <div className="h-6 w-32 bg-muted/15 rounded animate-pulse" />
-            <div className="h-4 w-20 bg-muted/10 rounded animate-pulse mt-1.5" />
+          <div className="mb-8">
+            <div className="w-7 h-7 rounded-lg bg-muted/15 animate-pulse mb-3" />
+            <div className="h-6 w-36 bg-muted/12 rounded-md animate-pulse" />
+            <div className="h-4 w-24 bg-muted/8 rounded-md animate-pulse mt-2" />
           </div>
         )}
-        <nav className="flex flex-col">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center py-1.5">
-              <div className="w-4 flex-shrink-0" />
+
+        {/* Section header skeleton */}
+        {!collapsed && (
+          <div className="mb-4">
+            <div className="h-2.5 w-16 bg-muted/10 rounded animate-pulse" />
+          </div>
+        )}
+
+        <nav className="flex flex-col -mx-1">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center py-1.5 px-2">
+              <div className="w-3 flex-shrink-0 mr-1" />
               {!collapsed && (
-                <div
-                  className="h-3.5 rounded bg-muted/15 animate-pulse"
-                  style={{ width: `${60 + i * 20}px`, opacity: 1 - i * 0.15 }}
-                />
+                <div className="flex-1 flex items-center justify-between">
+                  <div
+                    className="h-3 rounded bg-muted/12 animate-pulse"
+                    style={{ width: `${50 + i * 15}px`, opacity: 1 - i * 0.12 }}
+                  />
+                  <div className="h-2.5 w-4 rounded bg-muted/8 animate-pulse" />
+                </div>
               )}
             </div>
           ))}

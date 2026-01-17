@@ -286,10 +286,10 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
           />
 
           {/* Duration */}
-          <div className="space-y-1.5">
+          <div className="group space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Display Duration</label>
-              <span className="text-xs text-muted-foreground/70 tabular-nums">{(localDisplayDuration / 1000).toFixed(1)}s</span>
+              <label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Display Duration</label>
+              <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{(localDisplayDuration / 1000).toFixed(1)}s</span>
             </div>
             <Slider
               value={[localDisplayDuration]}
@@ -298,17 +298,16 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               min={500}
               max={5000}
               step={100}
-              className="w-full"
             />
           </div>
 
           <AccordionSection title="Advanced" className="bg-background/30" contentClassName="pt-2.5">
             <div className="space-y-3">
               {/* Scale */}
-              <div className="space-y-1.5">
+              <div className="group space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-muted-foreground">Scale</label>
-                  <span className="text-xs text-muted-foreground/70 tabular-nums">{(localScale * 100).toFixed(0)}%</span>
+                  <label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Scale</label>
+                  <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{(localScale * 100).toFixed(0)}%</span>
                 </div>
                 <Slider
                   value={[localScale]}
@@ -317,15 +316,14 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
                   min={0.25}
                   max={1.5}
                   step={0.1}
-                  className="w-full"
                 />
               </div>
 
               {/* Fade Duration */}
-              <div className="space-y-1.5">
+              <div className="group space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-muted-foreground">Fade Out</label>
-                  <span className="text-xs text-muted-foreground/70 tabular-nums">{localFadeOutDuration}ms</span>
+                  <label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Fade Out</label>
+                  <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{localFadeOutDuration}ms</span>
                 </div>
                 <Slider
                   value={[localFadeOutDuration]}
@@ -334,7 +332,6 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
                   min={100}
                   max={1000}
                   step={50}
-                  className="w-full"
                 />
               </div>
 

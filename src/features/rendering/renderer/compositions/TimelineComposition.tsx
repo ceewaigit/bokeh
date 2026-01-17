@@ -88,7 +88,8 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   recordings,
 }) => {
   const frame = useCurrentFrame();
-  const { frameLayout, getActiveLayoutItems, getRecording } = useTimelineContext(); // Remove fps from here
+  const { frameLayout, webcamFrameLayout, getActiveLayoutItems, getRecording } = useTimelineContext();
+  const { isRendering } = getRemotionEnvironment();
   const currentTimeMs = (frame / fps) * 1000;
   const project = useProjectStore(s => s.currentProject);
 
@@ -203,44 +204,38 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     return { clipsByRecordingId, visibleWordsByRecordingId };
   }, [hasSubtitleEffects, effects, audioClips, webcamClips, clips, recordings, getRecording, globalSkipRanges, project]);
 
-  // Get webcam clip that is active at the current time
-  // This uses the "Virtual Clips" (transcript-aware) passed from usePlayerConfiguration
-  // NOTE: Use precise currentTimeMs (not quantizedTimeMs) to prevent edge-case disappearances
-  // at clip boundaries. Quantization is fine for overlay conflict resolution but webcam
-  // visibility requires frame-accurate timing.
-  const activeWebcamClip = React.useMemo(() => {
-    if (!webcamClips.length) return null;
+  // Webcam rendering: ONE video element per RECORDING (not per clip).
+  // This avoids remounting/seeking issues when transitioning between clips with different playback rates.
+  // Uses pre-computed webcamFrameLayout from context for frame-accurate timing.
+  const webcamLayoutByRecording = React.useMemo(() => {
+    if (!webcamFrameLayout.length) return [];
 
-    // Find the webcam clip that overlaps with current time
-    return webcamClips.find(clip => {
-      const clipStart = clip.startTime;
-      const clipEnd = clip.startTime + clip.duration;
-      return currentTimeMs >= clipStart && currentTimeMs < clipEnd;
-    }) ?? null;
-  }, [webcamClips, currentTimeMs]);
-
-  // Filter webcam clips to only those near current time to prevent wrong frames
-  // from being rendered when multiple clips exist (e.g., from speed-up operations)
-  const visibleWebcamClips = React.useMemo(() => {
-    if (!webcamClips.length) return [];
-
-    const { isRendering } = getRemotionEnvironment();
-
-    // For export: only render the active clip (no buffering needed)
-    if (isRendering) {
-      return activeWebcamClip ? [activeWebcamClip] : [];
+    // Group layout items by recordingId
+    const byRecording = new Map<string, typeof webcamFrameLayout>();
+    for (const item of webcamFrameLayout) {
+      const recordingId = item.clip.recordingId;
+      const list = byRecording.get(recordingId) ?? [];
+      list.push(item);
+      byRecording.set(recordingId, list);
     }
 
-    // For preview: include clips within buffer range for smooth transitions
-    const bufferMs = (60 / fps) * 1000; // 60 frames buffer (matches premountFor)
-    const rangeStart = currentTimeMs - bufferMs;
-    const rangeEnd = currentTimeMs + bufferMs;
+    return Array.from(byRecording.entries()).map(([recordingId, items]) => ({
+      recordingId,
+      items,
+    }));
+  }, [webcamFrameLayout]);
 
-    return webcamClips.filter(clip => {
+  // Find active webcam clip at current time (for overlay conflict resolution)
+  const activeWebcamClip = React.useMemo(() => {
+    const currentTimeMs = (frame / fps) * 1000;
+    for (const clip of webcamClips) {
       const clipEnd = clip.startTime + clip.duration;
-      return clipEnd > rangeStart && clip.startTime < rangeEnd;
-    });
-  }, [webcamClips, activeWebcamClip, currentTimeMs, fps]);
+      if (currentTimeMs >= clip.startTime && currentTimeMs < clipEnd) {
+        return clip;
+      }
+    }
+    return null;
+  }, [webcamClips, frame, fps]);
 
   const { displacedEffectIds, resolvedAnchors } = React.useMemo(
     () => {
@@ -279,8 +274,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
   // Timeline-Centric Architecture:
   // Webcam styling comes from clip.layout (set at import time)
   // No need to lookup webcam effects - the clip IS the source of truth
-
-  const { isRendering } = getRemotionEnvironment();
   const visibleAudioClips = React.useMemo(() => {
     if (isRendering || audioClips.length === 0) {
       return audioClips;
@@ -349,7 +342,6 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     return items;
   }, [frameLayout, fps, frame, getActiveLayoutItems]);
 
-  // ROBUST CAMERA PATH RESOLUTION:
   // 1. Try Store Cache (Editor/Preview mode - reactive to edits)
   // 2. Fallback to calculation (Export/Headless mode - static)
   // This explicitly guarantees a valid camera path exists before children render.
@@ -379,28 +371,33 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
     });
   }, [cachedPath, frameLayout, fps, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight, effects, getRecording, cameraSettings]);
 
+  // BACKGROUND ELEMENT: Memoized to prevent unnecessary re-renders.
+  // Rendered INSIDE SharedVideoController's transform container so it moves with zoom/pan,
+  // allowing the camera to reveal background/padding when panned to edges.
+  const backgroundElement = React.useMemo(() => (
+    <>
+      {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => (
+        <ClipSequence
+          key={`bg-${clip.id}`}
+          clip={clip}
+          startFrame={startFrame}
+          durationFrames={durationFrames}
+          includeBackground={true}
+          includeKeystrokes={false}
+        />
+      ))}
+    </>
+  ), [visibleFrameLayout]);
+
   return (
     <AbsoluteFill
       style={{
         backgroundColor: backgroundColor ?? '#000',
       }}
     >
-      {/* Background layer must be below the video. Render per-clip to support parallax (mouse-driven) backgrounds. */}
-      {/* NOTE: Background always renders - skip ranges affect playback timing, not visual rendering */}
-      <AbsoluteFill style={{ zIndex: 0 }}>
-        {visibleFrameLayout.map(({ clip, startFrame, durationFrames }) => {
-          return (
-            <ClipSequence
-              key={`bg-${clip.id}`}
-              clip={clip}
-              startFrame={startFrame}
-              durationFrames={durationFrames}
-              includeBackground={true}
-              includeKeystrokes={false}
-            />
-          );
-        })}
-      </AbsoluteFill>
+      {/* DEPRECATED: Background was previously rendered here as a separate layer at zIndex: 0.
+          Now moved INSIDE SharedVideoController's transform container via backgroundElement prop.
+          This allows zoom/pan to reveal the background when camera moves to edges. */}
 
       <OverlayProvider value={React.useMemo(() => ({ displacedEffectIds, resolvedAnchors }), [displacedEffectIds, resolvedAnchors])}>
         <SharedVideoController
@@ -413,6 +410,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
           renderSettings={renderSettings}
           cropSettings={cropSettings}
           cameraPath={cameraPath}
+          backgroundElement={backgroundElement}
         >
           {/* Global Mask Wrapper for Content - NOTE: Video always renders, skip ranges only affect playback timing */}
           <div style={{ width: '100%', height: '100%' }}>
@@ -430,23 +428,20 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
               );
             })}
 
-            {/* Webcam clips: Per-clip rendering with stable Sequences
-                Each clip gets its own Video element with stable timing, matching VideoClipRenderer architecture.
-                This prevents unmount/remount issues when switching between clips.
-                Only visible clips (near current time) are rendered to prevent wrong frames from speed-up clips. */}
-            {!renderSettings.isGlowMode && visibleWebcamClips.map((clip) => {
-              const recording = getRecording(clip.recordingId);
+            {/* Webcam clips: ONE video element per RECORDING with manual time control.
+                This avoids remounting/seeking issues at playback rate transitions. */}
+            {!renderSettings.isGlowMode && webcamLayoutByRecording.map(({ recordingId, items }) => {
+              const recording = getRecording(recordingId);
               if (!recording) return null;
               return (
                 <WebcamClipRenderer
-                  key={clip.id}
-                  clip={clip}
+                  key={recordingId}
+                  items={items}
                   recording={recording}
                   resources={resources}
                   playback={playback}
                   fps={fps}
                   globalOpacity={visibilityOpacity}
-                  isActive={clip.id === activeWebcamClip?.id}
                 />
               );
             })}
@@ -518,6 +513,7 @@ const TimelineCompositionContent: React.FC<TimelineCompositionProps> = ({
 export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) => {
   const {
     clips,
+    webcamClips,
     recordings,
     effects,
     videoWidth,
@@ -551,6 +547,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = (props) =
       sourceVideoHeight={sourceVideoHeight}
       fps={fps}
       clips={clips}
+      webcamClips={webcamClips}
       recordings={recordings}
       effects={effects}
       resources={resources}

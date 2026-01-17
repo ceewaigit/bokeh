@@ -1,5 +1,6 @@
 import { Command, CommandResult, CommandMetadata, CompositeCommand } from './Command'
 import { CommandContext } from './CommandContext'
+import type { CommandName, CommandArgsMap, CommandResultMap, CommandConstructor } from './CommandRegistry'
 
 export interface CommandHistoryEntry {
   command: Command
@@ -37,8 +38,16 @@ export class CommandManager {
     return CommandManager.instance
   }
 
-  public registerCommand(name: string, commandClass: typeof Command): void {
-    this.commandRegistry.set(name, commandClass)
+  /**
+   * Register a command class with type safety.
+   * @param name - The command name (must match CommandArgsMap key)
+   * @param commandClass - The command class constructor
+   */
+  public registerCommand<K extends CommandName>(
+    name: K,
+    commandClass: CommandConstructor<K>
+  ): void {
+    this.commandRegistry.set(name, commandClass as unknown as typeof Command)
   }
 
   public registerShortcut(shortcut: string, commandName: string): void {
@@ -318,16 +327,34 @@ export class CommandManager {
     this.context = context
   }
 
-  public createCommand(name: string, ...args: any[]): Command | null {
+  /**
+   * Create a command instance with type-safe arguments.
+   * @param name - The command name
+   * @param args - Constructor arguments (after context)
+   * @returns The command instance or null if not found
+   */
+  public createCommand<K extends CommandName>(
+    name: K,
+    ...args: CommandArgsMap[K]
+  ): Command<CommandResultMap[K]> | null {
     const CommandClass = this.commandRegistry.get(name)
     if (!CommandClass) return null
-    
-    // Use type assertion to handle the abstract class issue
+
+    // Use any to bypass abstract class type checking
     const ConcreteClass = CommandClass as any
     return new ConcreteClass(this.context, ...args)
   }
 
-  public async executeByName(name: string, ...args: any[]): Promise<CommandResult> {
+  /**
+   * Execute a command by name with type-safe arguments.
+   * @param name - The command name
+   * @param args - Constructor arguments (after context)
+   * @returns The command result
+   */
+  public async executeByName<K extends CommandName>(
+    name: K,
+    ...args: CommandArgsMap[K]
+  ): Promise<CommandResult<CommandResultMap[K]>> {
     const command = this.createCommand(name, ...args)
     if (!command) {
       return {
@@ -335,7 +362,7 @@ export class CommandManager {
         error: `Command "${name}" not found in registry`
       }
     }
-    
+
     return this.execute(command)
   }
 

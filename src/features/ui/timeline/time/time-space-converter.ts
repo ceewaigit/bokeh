@@ -30,6 +30,7 @@
 
 import type { Clip } from '@/types/project'
 import { TimelineConfig } from '@/features/ui/timeline/config'
+import { ClipUtils } from './clip-utils'
 
 /**
  * Convert source recording time to timeline position
@@ -67,8 +68,8 @@ export function timelineToSource(timelineMs: number, clip: Clip): number {
  * @returns Time relative to clip start in milliseconds
  */
 export function sourceToClipRelative(sourceMs: number, clip: Clip): number {
-  const playbackRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
-  const sourceIn = clip.sourceIn || 0
+  const playbackRate = ClipUtils.getPlaybackRate(clip)
+  const sourceIn = ClipUtils.getSourceIn(clip)
 
   if (!isFinite(sourceMs)) {
     return 0
@@ -80,7 +81,7 @@ export function sourceToClipRelative(sourceMs: number, clip: Clip): number {
   }
 
   // Guard against timestamps after the clip ends
-  const sourceOut = clip.sourceOut || (sourceIn + clip.duration * playbackRate)
+  const sourceOut = ClipUtils.getSourceOut(clip)
   if (sourceMs >= sourceOut) {
     return clip.duration
   }
@@ -139,12 +140,12 @@ export function sourceToClipRelative(sourceMs: number, clip: Clip): number {
  * @returns Source recording time in milliseconds
  */
 export function clipRelativeToSource(clipRelativeMs: number, clip: Clip, fps?: number): number {
-  const rawSourceIn = clip.sourceIn || 0
+  const rawSourceIn = ClipUtils.getSourceIn(clip)
   // When fps is provided, align sourceIn to frame boundaries to match Remotion startFrom.
   const sourceIn = fps
     ? (Math.round((rawSourceIn / 1000) * fps) / fps) * 1000
     : rawSourceIn
-  const baseRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
+  const baseRate = ClipUtils.getPlaybackRate(clip)
 
   // Handle time remapping if present
   const periods = clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0
@@ -209,45 +210,19 @@ export function clipRelativeToSource(clipRelativeMs: number, clip: Clip, fps?: n
 }
 
 /**
- * Convert timeline position to clip-relative time
- * @param timelineMs - Position on timeline in milliseconds
- * @param clip - The clip at this timeline position
- * @returns Time relative to clip start in milliseconds
- */
-export function timelineToClipRelative(timelineMs: number, clip: Clip): number {
-  const clipRelativeMs = timelineMs - clip.startTime
-
-  // Clamp to clip bounds
-  if (clipRelativeMs < 0) return 0
-  if (clipRelativeMs > clip.duration) return clip.duration
-
-  return clipRelativeMs
-}
-
-/**
- * Convert clip-relative time to timeline position
- * @param clipRelativeMs - Time relative to clip start in milliseconds
- * @param clip - The clip to convert for
- * @returns Timeline position in milliseconds
- */
-export function clipRelativeToTimeline(clipRelativeMs: number, clip: Clip): number {
-  return clip.startTime + clipRelativeMs
-}
-
-/**
  * Get the actual source duration accounting for playback rate
  * @param clip - The clip to get source duration for
  * @returns Source duration in milliseconds
  */
 export function getSourceDuration(clip: Clip): number {
-  const sourceIn = clip.sourceIn || 0
+  const { sourceIn, sourceOut } = ClipUtils.getSourceRange(clip)
 
-  if (clip.sourceOut != null && clip.sourceOut >= sourceIn) {
-    return clip.sourceOut - sourceIn
+  if (clip.sourceOut != null && sourceOut >= sourceIn) {
+    return sourceOut - sourceIn
   }
 
   // Fallback: If sourceOut not set, assume current clip duration represents source
-  const playbackRate = clip.playbackRate || 1
+  const playbackRate = ClipUtils.getPlaybackRate(clip)
   return clip.duration * playbackRate
 }
 
@@ -266,10 +241,10 @@ export function computeEffectiveDuration(clip: Clip, rate?: number): number {
 
   // If time remapping exists, calculate exact duration using the periods
   if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-    const sourceIn = clip.sourceIn || 0
+    const sourceIn = ClipUtils.getSourceIn(clip)
     const sourceDuration = getSourceDuration(clip)
     const sourceOut = sourceIn + sourceDuration
-    const baseRate = clip.playbackRate || 1
+    const baseRate = ClipUtils.getPlaybackRate(clip)
 
     const periods = [...clip.timeRemapPeriods].sort((a, b) => a.sourceStartTime - b.sourceStartTime)
     let duration = 0
@@ -315,7 +290,7 @@ export function computeEffectiveDuration(clip: Clip, rate?: number): number {
  * @returns True if position is within clip bounds
  */
 export function isTimelinePositionInClip(timelineMs: number, clip: Clip): boolean {
-  return timelineMs >= clip.startTime && timelineMs < clip.startTime + clip.duration
+  return timelineMs >= clip.startTime && timelineMs < ClipUtils.getEndTime(clip)
 }
 
 /**
@@ -325,8 +300,7 @@ export function isTimelinePositionInClip(timelineMs: number, clip: Clip): boolea
  * @returns True if source time is within clip's source range
  */
 export function isSourceTimeInClip(sourceMs: number, clip: Clip): boolean {
-  const sourceIn = clip.sourceIn || 0
-  const sourceOut = clip.sourceOut || (sourceIn + getSourceDuration(clip))
+  const { sourceIn, sourceOut } = ClipUtils.getSourceRange(clip)
   return sourceMs >= sourceIn && sourceMs <= sourceOut
 }
 
@@ -358,7 +332,7 @@ export function findClipAtTimelinePosition(timelineMs: number, clips: Clip[]): C
 
   // Second pass: Normal range check [startTime, startTime + duration)
   for (const clip of clips) {
-    const clipEnd = clip.startTime + clip.duration
+    const clipEnd = ClipUtils.getEndTime(clip)
 
     // Use inclusive start, exclusive end (standard interval notation)
     if (timelineMs >= clip.startTime && timelineMs < clipEnd) {
@@ -581,9 +555,8 @@ export function sourceRangeToTimelineRange(
   sourceRange: { startTime: number; endTime: number },
   clip: Clip
 ): { start: number; end: number } | null {
-  const sourceIn = clip.sourceIn ?? 0
-  const playbackRate = clip.playbackRate ?? 1
-  const sourceOut = clip.sourceOut ?? (sourceIn + clip.duration * playbackRate)
+  const sourceIn = ClipUtils.getSourceIn(clip)
+  const sourceOut = ClipUtils.getSourceOut(clip)
 
   // Check overlap - return null if range doesn't intersect clip's source window
   if (sourceRange.endTime <= sourceIn || sourceRange.startTime >= sourceOut) {
@@ -604,11 +577,43 @@ export function sourceRangeToTimelineRange(
   const timelineEnd = sourceToTimeline(clampedSourceEnd, clip)
 
   // Final clamp to clip timeline bounds (safety net)
-  const clipEnd = clip.startTime + clip.duration
+  const clipEnd = ClipUtils.getEndTime(clip)
   return {
     start: Math.max(clip.startTime, Math.min(timelineStart, timelineEnd)),
     end: Math.min(clipEnd, Math.max(timelineStart, timelineEnd))
   }
+}
+
+/**
+ * Get timeline end time from a clip (startTime + duration).
+ * Convenience wrapper around ClipUtils.getEndTime for TimeConverter consumers.
+ */
+export function getEndTime(clip: { startTime: number; duration: number }): number {
+  return clip.startTime + clip.duration
+}
+
+/**
+ * Convert source delta to timeline delta (accounting for playback rate).
+ * Use when converting a source-space distance to timeline-space distance.
+ *
+ * @param sourceDelta - Distance in source space (milliseconds)
+ * @param playbackRate - Playback rate multiplier (e.g., 2x = faster)
+ * @returns Distance in timeline space (milliseconds)
+ */
+export function sourceDeltaToTimelineDelta(sourceDelta: number, playbackRate: number): number {
+  return sourceDelta / playbackRate
+}
+
+/**
+ * Convert timeline delta to source delta (accounting for playback rate).
+ * Use when converting a timeline-space distance to source-space distance.
+ *
+ * @param timelineDelta - Distance in timeline space (milliseconds)
+ * @param playbackRate - Playback rate multiplier (e.g., 2x = faster)
+ * @returns Distance in source space (milliseconds)
+ */
+export function timelineDeltaToSourceDelta(timelineDelta: number, playbackRate: number): number {
+  return timelineDelta * playbackRate
 }
 
 /**
@@ -620,14 +625,17 @@ export const TimeConverter = {
   timelineToSource,
   sourceToClipRelative,
   clipRelativeToSource,
-  timelineToClipRelative,
-  clipRelativeToTimeline,
   getSourceDuration,
   computeEffectiveDuration,
   isTimelinePositionInClip,
   isSourceTimeInClip,
   findClipAtTimelinePosition,
   sourceRangeToTimelineRange,
+
+  // Timeline arithmetic helpers
+  getEndTime,
+  sourceDeltaToTimelineDelta,
+  timelineDeltaToSourceDelta,
 
   // Pixel conversions
   calculatePixelsPerMs,

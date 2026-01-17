@@ -132,117 +132,131 @@ export function AppearanceToggle({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     align={align}
-                    className="w-56"
+                    className="w-[220px] p-1.5"
                     onPointerDownOutside={() => setIsOpen(false)}
                     onEscapeKeyDown={() => setIsOpen(false)}
                     onInteractOutside={() => setIsOpen(false)}
                 >
                     {/* Theme selector */}
-                    <DropdownMenuLabel className="text-xs">Theme</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider px-2 py-1">
+                        Theme
+                    </DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                         value={theme}
                         onValueChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}
                     >
-                        <DropdownMenuRadioItem value="light" className="text-xs">
-                            <Sun className="w-3 h-3 mr-2" />
+                        <DropdownMenuRadioItem value="light" className="text-[13px] h-7 mx-0.5">
+                            <Sun className="w-3.5 h-3.5 mr-2 opacity-60" />
                             Light
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="dark" className="text-xs">
-                            <Moon className="w-3 h-3 mr-2" />
+                        <DropdownMenuRadioItem value="dark" className="text-[13px] h-7 mx-0.5">
+                            <Moon className="w-3.5 h-3.5 mr-2 opacity-60" />
                             Dark
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="system" className="text-xs">
-                            <Monitor className="w-3 h-3 mr-2" />
+                        <DropdownMenuRadioItem value="system" className="text-[13px] h-7 mx-0.5">
+                            <Monitor className="w-3.5 h-3.5 mr-2 opacity-60" />
                             System
                         </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
 
-                    <DropdownMenuSeparator />
+                    <DropdownMenuSeparator className="my-1.5" />
 
-                    <DropdownMenuLabel className="text-xs">Window Style</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider px-2 py-1">
+                        Window Style
+                    </DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                         value={mode}
                         onValueChange={(value) => setMode(value as WindowSurfaceMode)}
                     >
-                        <DropdownMenuRadioItem value="solid" className="text-xs">
+                        <DropdownMenuRadioItem value="solid" className="text-[13px] h-7 mx-0.5">
                             Solid
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="clear" className="text-xs">
+                        <DropdownMenuRadioItem value="clear" className="text-[13px] h-7 mx-0.5">
                             Glass
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="frosted" className="text-xs">
+                        <DropdownMenuRadioItem value="frosted" className="text-[13px] h-7 mx-0.5">
                             Frosted
                         </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
 
-                    {/* Quick presets - only show for glass or clear modes */}
+                    {/* Quick presets - segmented control style */}
                     {(isFrosted || isClear) && (
                         <>
-                            <DropdownMenuSeparator />
-                            <div className="px-2 py-2">
-                                <div className="text-2xs text-muted-foreground mb-2">
+                            <DropdownMenuSeparator className="my-1.5" />
+                            <div className="px-2 py-1.5">
+                                <div className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider mb-2">
                                     {isFrosted ? "Frosted" : "Glass"} Presets
                                 </div>
-                                <div className="grid grid-cols-3 gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className={cn(
-                                            "h-6 text-3xs",
-                                            (isFrosted ? isFrostedPresetActive("light") : isClearPresetActive("light")) && "border border-primary bg-primary/10"
-                                        )}
-                                        onClick={() => applyPreset(isFrosted ? "frosted-light" : "clear-light")}
-                                    >
-                                        Light
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className={cn(
-                                            "h-6 text-3xs",
-                                            (isFrosted ? isFrostedPresetActive("medium") : isClearPresetActive("medium")) && "border border-primary bg-primary/10"
-                                        )}
-                                        onClick={() => applyPreset(isFrosted ? "frosted" : "clear")}
-                                    >
-                                        Medium
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className={cn(
-                                            "h-6 text-3xs",
-                                            (isFrosted ? isFrostedPresetActive("strong") : isClearPresetActive("strong")) && "border border-primary bg-primary/10"
-                                        )}
-                                        onClick={() => applyPreset(isFrosted ? "frosted-strong" : "clear-strong")}
-                                    >
-                                        Strong
-                                    </Button>
+                                <div className="flex p-0.5 bg-foreground/[0.04] rounded-md">
+                                    {(["light", "medium", "strong"] as const).map((preset) => {
+                                        const isActive = isFrosted
+                                            ? isFrostedPresetActive(preset)
+                                            : isClearPresetActive(preset)
+                                        return (
+                                            <button
+                                                key={preset}
+                                                className={cn(
+                                                    "flex-1 py-1 px-2 text-[11px] font-medium rounded",
+                                                    "transition-colors duration-100",
+                                                    isActive
+                                                        ? "bg-foreground/[0.1] text-foreground"
+                                                        : "text-muted-foreground/70 hover:text-muted-foreground"
+                                                )}
+                                                onClick={() => applyPreset(
+                                                    isFrosted
+                                                        ? preset === "medium" ? "frosted" : `frosted-${preset}` as any
+                                                        : preset === "medium" ? "clear" : `clear-${preset}` as any
+                                                )}
+                                            >
+                                                {preset.charAt(0).toUpperCase() + preset.slice(1)}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
                             </div>
                         </>
                     )}
 
-                    <DropdownMenuSeparator />
+                    <DropdownMenuSeparator className="my-1.5" />
 
                     {/* Advanced toggle */}
                     <button
                         onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="w-full flex items-center justify-between px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                        className={cn(
+                            "w-full flex items-center justify-between px-2 py-1.5 rounded-md mx-0.5",
+                            "text-[13px] text-muted-foreground",
+                            "transition-colors duration-100",
+                            "hover:text-foreground hover:bg-foreground/[0.05]"
+                        )}
+                        style={{ width: "calc(100% - 4px)" }}
                     >
-                        <div className="flex items-center gap-1.5">
-                            <Settings2 className="w-3 h-3" />
-                            Advanced
+                        <div className="flex items-center gap-2">
+                            <Settings2 className="w-3.5 h-3.5 opacity-60" />
+                            <span>Advanced</span>
                         </div>
-                        <ChevronRight className={cn("w-3 h-3 transition-transform", showAdvanced && "rotate-90")} />
+                        <ChevronRight
+                            className={cn(
+                                "w-3 h-3 opacity-40 transition-transform duration-150 ease-out",
+                                showAdvanced && "rotate-90"
+                            )}
+                        />
                     </button>
 
                     {showAdvanced && (
-                        <div className="px-2 py-2 space-y-3 border-t border-border/30">
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+                            className="px-2 pt-2 pb-1 space-y-3"
+                        >
                             {/* Tint slider */}
                             <div>
-                                <div className="flex items-center justify-between text-2xs text-muted-foreground mb-1.5">
-                                    <span>Opacity</span>
-                                    <span className="font-mono">{Math.round(clamp(opacityPct, opacityMin, opacityMax))}%</span>
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground/80 mb-2">
+                                    <span className="font-medium">Opacity</span>
+                                    <span className="font-mono tabular-nums text-muted-foreground/60">
+                                        {Math.round(clamp(opacityPct, opacityMin, opacityMax))}%
+                                    </span>
                                 </div>
                                 <Slider
                                     value={[clamp(opacityPct, opacityMin, opacityMax)]}
@@ -256,9 +270,11 @@ export function AppearanceToggle({
 
                             {/* Blur slider */}
                             <div>
-                                <div className="flex items-center justify-between text-2xs text-muted-foreground mb-1.5">
-                                    <span>Blur</span>
-                                    <span className="font-mono">{Math.round(blurPx)}px</span>
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground/80 mb-2">
+                                    <span className="font-medium">Blur</span>
+                                    <span className="font-mono tabular-nums text-muted-foreground/60">
+                                        {Math.round(blurPx)}px
+                                    </span>
                                 </div>
                                 <Slider
                                     value={[Math.round(blurPx)]}
@@ -272,11 +288,11 @@ export function AppearanceToggle({
 
                             {/* Custom mode hint */}
                             {(mode === "frosted" || mode === "clear") && (
-                                <p className="text-3xs text-muted-foreground/70">
-                                    Adjusting sliders switches to custom mode
+                                <p className="text-[9px] text-muted-foreground/50 leading-tight">
+                                    Adjusting sliders enables custom mode
                                 </p>
                             )}
-                        </div>
+                        </motion.div>
                     )}
                 </DropdownMenuContent>
             </DropdownMenu>

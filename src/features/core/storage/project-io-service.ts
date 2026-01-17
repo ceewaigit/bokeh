@@ -12,7 +12,7 @@ import { EffectStore } from '@/features/effects/core/effects-store'
 import { InvalidPathError, MissingVideoError } from '@/shared/errors'
 
 /**
- * Options for loadProjectFromRecording
+ * Options for loadProject
  */
 export interface LoadProjectOptions {
   onProgress?: (message: string) => void
@@ -238,21 +238,6 @@ export class ProjectIOService {
   }
 
   /**
-   * Load a project from a recording reference (from library)
-   * Handles path resolution, file validation, video property repair, and asset loading
-   * 
-   * This is the main entry point for workspace-manager when opening a project
-   */
-  /** @deprecated Prefer `ProjectIOService.loadProject(recording, options)` */
-  static async loadProjectFromRecording(
-    recording: { path: string; project?: any },
-    options: LoadProjectOptions = {}
-  ): Promise<Project> {
-    return this.loadProject(recording, options)
-  }
-
-
-  /**
    * Validate and fix recording properties (duration, dimensions)
    * Uses video-metadata for detection
    */
@@ -449,10 +434,6 @@ export class ProjectIOService {
 
           // Pre-compute cursor smoothing cache (first 5 seconds at 30fps)
           precomputeCursorSmoothingCache(mouseEvents, cursorData, 5000, 30)
-
-          // Pre-compute camera caches not needed for velocity-based system
-          // const { width: sourceWidth, height: sourceHeight } = getSourceDimensionsStatic(recording, recording.metadata)
-          // precomputeCameraCaches(mouseEvents, timelineEffects, sourceWidth, sourceHeight)
         }
       }
     }

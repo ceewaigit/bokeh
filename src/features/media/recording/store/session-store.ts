@@ -6,9 +6,12 @@ import { logger } from '@/shared/utils/logger'
 import { StreamWarmer, PrewarmedStreams } from '../services/stream-warmer'
 
 /**
- * Device settings for pre-warming streams during countdown
+ * Device settings for optional stream pre-warming during countdown.
+ * Pre-warming provides ~100-300ms faster recording start but adds complexity.
+ * The 3-second countdown is usually sufficient for stream acquisition.
  */
 export interface CountdownDeviceSettings {
+  enablePrewarming?: boolean // Default: false - opt-in optimization
   webcam: {
     enabled: boolean
     deviceId?: string
@@ -109,54 +112,20 @@ export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
     let count = 3
     set({ countdownActive: true, countdownValue: count })
 
-    logger.debug('[session-store] Starting countdown', { displayId, hasDeviceSettings: !!deviceSettings })
+    logger.debug('[session-store] Starting countdown', { displayId, enablePrewarming: deviceSettings?.enablePrewarming })
 
-    // Start pre-warming streams immediately (during countdown)
-    // These run concurrently with countdown animation - 3 seconds is usually enough
-    if (deviceSettings) {
+    // Optional pre-warming optimization (opt-in via enablePrewarming flag)
+    // The 3-second countdown is usually sufficient for stream acquisition
+    if (deviceSettings?.enablePrewarming) {
       streamWarmer = new StreamWarmer()
-      const warmPromises: Promise<unknown>[] = []
+      const resolutions = { '720p': { width: 1280, height: 720 }, '1080p': { width: 1920, height: 1080 }, '4k': { width: 3840, height: 2160 } }
 
-      // Pre-warm webcam if enabled
       if (deviceSettings.webcam.enabled && deviceSettings.webcam.deviceId) {
-        const resolution = deviceSettings.webcam.resolution ?? '1080p'
-        const dimensions = {
-          '720p': { width: 1280, height: 720 },
-          '1080p': { width: 1920, height: 1080 },
-          '4k': { width: 3840, height: 2160 }
-        }[resolution]
-
-        logger.info('[session-store] Pre-warming webcam during countdown')
-        warmPromises.push(
-          streamWarmer.warmWebcam({
-            deviceId: deviceSettings.webcam.deviceId,
-            width: dimensions.width,
-            height: dimensions.height
-          }).catch(err => {
-            logger.warn('[session-store] Webcam pre-warming failed (will retry at recording start):', err)
-          })
-        )
+        const dims = resolutions[deviceSettings.webcam.resolution ?? '1080p']
+        void streamWarmer.warmWebcam({ deviceId: deviceSettings.webcam.deviceId, width: dims.width, height: dims.height })
       }
-
-      // Pre-warm microphone if enabled
       if (deviceSettings.microphone.enabled && deviceSettings.microphone.deviceId) {
-        logger.info('[session-store] Pre-warming microphone during countdown')
-        warmPromises.push(
-          streamWarmer.warmMicrophone({
-            deviceId: deviceSettings.microphone.deviceId,
-            echoCancellation: deviceSettings.microphone.echoCancellation ?? true,
-            noiseSuppression: deviceSettings.microphone.noiseSuppression ?? true
-          }).catch(err => {
-            logger.warn('[session-store] Microphone pre-warming failed (will retry at recording start):', err)
-          })
-        )
-      }
-
-      // Log completion - don't block countdown, but track for debugging
-      if (warmPromises.length > 0) {
-        Promise.all(warmPromises).then(() => {
-          logger.info('[session-store] Stream pre-warming completed')
-        })
+        void streamWarmer.warmMicrophone({ deviceId: deviceSettings.microphone.deviceId, echoCancellation: deviceSettings.microphone.echoCancellation, noiseSuppression: deviceSettings.microphone.noiseSuppression })
       }
     }
 

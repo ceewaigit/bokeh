@@ -4,7 +4,7 @@
  */
 
 import type { CropEffectData } from '@/types/project';
-import type { CropTransform } from '@/types';
+import type { CropTransform } from '@/features/effects/crop/types';
 
 /**
  * Default crop data representing full frame (no crop)

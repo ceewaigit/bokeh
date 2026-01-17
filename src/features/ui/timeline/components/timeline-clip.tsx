@@ -76,8 +76,6 @@ const TimelineClipComponent = ({
 
   /* ---------------- THEME & SETTINGS ---------------- */
   const colors = useTimelineColors()
-  // PERFORMANCE FIX: Don't subscribe to full project!
-  // const project = useProjectStore((s) => s.currentProject)
   // Note: No useShallow needed for primitive boolean - shallow comparison adds overhead
   const showWaveforms = useProjectStore((s) => s.settings.editing.showWaveforms ?? true)
   const showTimelineThumbnails = usePreviewSettingsStore((s) => s.showTimelineThumbnails)
@@ -386,7 +384,7 @@ const TimelineClipComponent = ({
           />
         )}
 
-        {/* Clip metadata display - simple centered layout */}
+        {/* Clip metadata display - muted type label with primary metadata below */}
         {((trackType === TrackType.Video && showMissingThumb) || trackType === TrackType.Webcam) && (() => {
           const durationSec = Math.round(clip.duration / 1000)
           const durationText = `${durationSec}s`
@@ -394,28 +392,52 @@ const TimelineClipComponent = ({
             ? `${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`
             : '1x'
 
-          const showMeta = clipWidth > 60
+          const showMeta = clipWidth > 60 && clipInnerHeight > 36
+          const typeLabel = trackType === TrackType.Webcam ? 'Webcam' : 'Clip'
+          const metadataText = `${durationText}  ⊘ ${speedText}`
 
           return (
-            <Group>
-              {/* Single centered text block with both label and value */}
+            <Group
+              clipFunc={(ctx) => {
+                ctx.rect(0, 0, clipWidth, clipInnerHeight)
+              }}
+            >
+              {/* Type label - muted (top line) */}
               <Text
                 x={0}
                 y={0}
                 width={clipWidth}
-                height={clipInnerHeight}
-                text={showMeta ? `${trackType === TrackType.Webcam ? 'Webcam' : 'Clip'}\n${durationText}  ⊘ ${speedText}` : (trackType === TrackType.Webcam ? 'Webcam' : 'Clip')}
-                fontSize={showMeta ? 12 : 10}
-                lineHeight={1.5}
+                height={showMeta ? clipInnerHeight * 0.5 : clipInnerHeight}
+                text={typeLabel}
+                fontSize={10}
                 fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
                 fontStyle="500"
                 fill={colors.foreground}
-                opacity={0.95}
+                opacity={0.5}
                 align="center"
-                verticalAlign="middle"
+                verticalAlign={showMeta ? 'bottom' : 'middle'}
                 wrap="none"
                 listening={false}
               />
+              {/* Metadata - primary (bottom line) */}
+              {showMeta && (
+                <Text
+                  x={0}
+                  y={clipInnerHeight * 0.5 + 1}
+                  width={clipWidth}
+                  height={clipInnerHeight * 0.5 - 1}
+                  text={metadataText}
+                  fontSize={12}
+                  fontFamily="'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                  fontStyle="600"
+                  fill={colors.foreground}
+                  opacity={0.95}
+                  align="center"
+                  verticalAlign="top"
+                  wrap="none"
+                  listening={false}
+                />
+              )}
             </Group>
           )
         })()}

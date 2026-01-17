@@ -4,11 +4,13 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Video, ChevronRight } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { Switch } from '@/components/ui/switch'
+import { SpeedControls } from '@/components/ui/speed-controls'
 import type { CropEffectData } from '@/types/project'
 import type { WebcamLayoutData, WebcamShape, WebcamAnchor } from '../types'
 import { DEFAULT_WEBCAM_DATA, WEBCAM_SHAPE_PRESETS } from '../config'
 import { DEFAULT_CROP_DATA, clampCropData, isFullFrameCrop } from '@/features/rendering/canvas/math/transforms/crop-transform'
 import { useProjectStore } from '@/features/core/stores/project-store'
+import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import { createVideoStreamUrl } from '@/features/media/recording/components/library/utils/recording-paths'
 import { useOverlayState } from '@/features/rendering/overlays/hooks/use-overlay-state'
@@ -29,8 +31,10 @@ import { WebcamAnimations } from './webcam/webcam-animations'
  */
 export function WebcamTab() {
   const project = useProjectStore((s) => s.currentProject)
-  const currentTime = useProjectStore((s) => s.currentTime)
+  const selectedClipIds = useProjectStore((s) => s.selectedClips)
   const executorRef = useCommandExecutor()
+  const showSpeedAdvanced = useWorkspaceStore((s) => s.webcamTabSpeedAdvancedOpen)
+  const setShowSpeedAdvanced = useWorkspaceStore((s) => s.setWebcamTabSpeedAdvancedOpen)
 
   // Get webcam clips and find active one
   const webcamClips = useMemo(() => {
@@ -43,14 +47,17 @@ export function WebcamTab() {
     return TimelineDataService.getRecordingsMap(project)
   }, [project])
 
-  // Find active webcam clip at current time
+  // Find active webcam clip - prefer selected clip, fall back to first webcam clip
   const activeWebcamClip = useMemo(() => {
     if (webcamClips.length === 0) return null
-    const clipAtTime = webcamClips.find(clip =>
-      currentTime >= clip.startTime && currentTime < clip.startTime + clip.duration
-    )
-    return clipAtTime ?? webcamClips[0]
-  }, [webcamClips, currentTime])
+
+    // Check if a webcam clip is selected
+    const selectedWebcamClip = webcamClips.find(clip => selectedClipIds.includes(clip.id))
+    if (selectedWebcamClip) return selectedWebcamClip
+
+    // Fall back to first webcam clip
+    return webcamClips[0]
+  }, [webcamClips, selectedClipIds])
 
   // Read layout from clip (SSOT)
   const webcamData = activeWebcamClip?.layout ?? DEFAULT_WEBCAM_DATA
@@ -310,6 +317,15 @@ export function WebcamTab() {
             }}
             onPositionChange={() => { }}
             onPositionUpdate={handlePositionUpdate}
+          />
+
+          {/* Playback Speed */}
+          <SpeedControls
+            key={activeWebcamClip.id}
+            clipId={activeWebcamClip.id}
+            currentRate={activeWebcamClip.playbackRate ?? 1.0}
+            showAdvanced={showSpeedAdvanced}
+            onShowAdvancedChange={setShowSpeedAdvanced}
           />
 
           {stablePreviewSrc && (

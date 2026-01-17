@@ -28,6 +28,7 @@ import { OverlayStyleControl } from '@/features/rendering/overlays/components/ov
 import { useOverlayState } from '@/features/rendering/overlays/hooks/use-overlay-state'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { ColorPickerPopover } from '@/components/ui/color-picker'
+import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { SubtitleHighlightStyle } from '@/types/project'
 
 const createEmptyMetadata = (): RecordingMetadata => ({
@@ -292,7 +293,8 @@ export function TranscriptTab() {
       }
 
       if (!isMounted) return
-      const fallback = list.available[0]
+      // Default to 'medium' (Accurate) for best quality, fallback to first available
+      const fallback = list.available.includes('medium') ? 'medium' : list.available[0]
       const resolved = (recommended && list.available.includes(recommended)) ? recommended : fallback
       if (resolved) {
         setSelectedModel(prev => prev || resolved)
@@ -755,6 +757,7 @@ export function TranscriptTab() {
             })}
           </SelectContent>
         </Select>
+        <InfoTooltip content="Runs locally on your device using Whisper AI. Your audio never leaves your computer." />
 
         {!isModelDownloaded && hasSelectedModel && (
           <button

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { type LibraryRecordingView } from '@/features/media/recording/store/library-store'
 import { cn } from '@/shared/utils/utils'
@@ -26,6 +27,7 @@ export function MasonryGrid({
   className,
 }: MasonryGridProps) {
   const reduceMotion = useReducedMotion()
+  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null)
 
   if (recordings.length === 0) {
     return null
@@ -42,6 +44,7 @@ export function MasonryGrid({
         "[&>*]:break-inside-avoid [&>*]:mb-4",
         className
       )}
+      onMouseLeave={() => setHoveredCardId(null)}
     >
       {recordings.map((recording, index) => (
         <motion.div
@@ -64,6 +67,8 @@ export function MasonryGrid({
             onRequestRename={onRequestRename}
             onRequestDuplicate={onRequestDuplicate}
             onRequestDelete={onRequestDelete}
+            isHighlighted={hoveredCardId === recording.path}
+            onHover={() => setHoveredCardId(recording.path)}
           />
         </motion.div>
       ))}

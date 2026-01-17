@@ -6,6 +6,7 @@ import type { ParsedZoomBlock } from '@/features/ui/editor/logic/viewport/logic/
 import type { VideoResources } from '@/features/media/recording/types/resources';
 import type { CropSettings } from '@/features/effects/crop/types';
 import type { GlobalSkipRange } from '@/types/skip-ranges';
+import type { ZoomSettings } from '@/features/ui/editor/types';
 
 export interface PlaybackSettings {
     isPlaying: boolean;
@@ -201,6 +202,12 @@ export interface SharedVideoControllerProps {
     cameraSettings?: CameraSettings;
     /** Explicit camera path (SSOT) - passed from parent to avoid implicit store dependency during export */
     cameraPath?: (CameraPathFrame & { path?: CameraPathFrame[] })[] | null;
+    /**
+     * Background element to render INSIDE the zoom/pan transform container.
+     * This allows the background to move with the camera, so panning reveals padding.
+     * The background is rendered behind the video content but within the transform scope.
+     */
+    backgroundElement?: ReactNode;
 
     // New Config Objects
     playback: PlaybackSettings;
@@ -229,10 +236,7 @@ export interface TimelineCompositionProps {
     playback: PlaybackSettings;
     renderSettings: RenderSettings;
     cropSettings: CropSettings;
-    zoomSettings: any; // Using any to avoid circular dependency if possible, or import ZoomSettings (but ZoomSettings was in remotion.ts too)
-    // ZoomSettings was { isEditing: boolean; zoomData?: ZoomEffectData | null }
-    // I should move ZoomSettings to features/editor/types or similar.
-    // For now let's reuse imports or define it if small.
+    zoomSettings: ZoomSettings;
     [key: string]: unknown;
 }
 
@@ -370,6 +374,5 @@ export interface ClipSequenceProps {
 
 export interface AudioEnhancerWrapperProps {
     children: ReactElement;
-    /** @deprecated Use RenderSettings.enhanceAudio instead */
     enabled?: boolean;
 }

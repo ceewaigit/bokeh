@@ -38,7 +38,7 @@ export class AddClipCommand extends TimelineCommand<{ clipId: string }> {
     return true
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No active project')
 
@@ -63,8 +63,8 @@ export class AddClipCommand extends TimelineCommand<{ clipId: string }> {
     const addedClip = addClipToTrack(project, clip, clip.startTime, { trackType: this.options?.trackType })
     if (!addedClip) throw new Error('Failed to add clip (no video track found)')
 
-    // Set pending change for middleware
-    this.setPendingChange(draft, this.buildAddChange(addedClip))
+    // Defer clip change for inline sync
+    this.deferClipChange(this.buildAddChange(addedClip))
 
     this.selectClip(draft, addedClip.id)
 

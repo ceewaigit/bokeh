@@ -201,23 +201,27 @@ async function runFfmpeg(
             const chunk = data.toString()
             stderr += chunk
 
-            // Parse duration from initial output
-            const durationMatch = chunk.match(/Duration: (\d+):(\d+):(\d+)\.(\d+)/)
+            // Parse duration from initial output (fractional seconds optional)
+            const durationMatch = chunk.match(/Duration:\s*(\d+):(\d+):(\d+)(?:\.(\d+))?/)
             if (durationMatch) {
                 const hours = parseInt(durationMatch[1], 10)
                 const minutes = parseInt(durationMatch[2], 10)
                 const seconds = parseInt(durationMatch[3], 10)
-                duration = hours * 3600 + minutes * 60 + seconds
+                const fraction = durationMatch[4] ? parseFloat(`0.${durationMatch[4]}`) : 0
+                duration = hours * 3600 + minutes * 60 + seconds + fraction
             }
 
-            // Parse progress
+            // Parse progress - find the LAST time= in chunk (FFmpeg uses \r to update same line)
             if (onProgress && duration > 0) {
-                const timeMatch = chunk.match(/time=(\d+):(\d+):(\d+)\.(\d+)/)
-                if (timeMatch) {
-                    const hours = parseInt(timeMatch[1], 10)
-                    const minutes = parseInt(timeMatch[2], 10)
-                    const seconds = parseInt(timeMatch[3], 10)
-                    const currentTime = hours * 3600 + minutes * 60 + seconds
+                // Match all time= occurrences and use the last one
+                const timeMatches = [...chunk.matchAll(/time=(\d+):(\d+):(\d+)(?:\.(\d+))?/g)]
+                if (timeMatches.length > 0) {
+                    const lastMatch = timeMatches[timeMatches.length - 1]
+                    const hours = parseInt(lastMatch[1], 10)
+                    const minutes = parseInt(lastMatch[2], 10)
+                    const seconds = parseInt(lastMatch[3], 10)
+                    const fraction = lastMatch[4] ? parseFloat(`0.${lastMatch[4]}`) : 0
+                    const currentTime = hours * 3600 + minutes * 60 + seconds + fraction
                     const progress = Math.min(99, Math.round((currentTime / duration) * 100))
                     onProgress(progress)
                 }
@@ -418,7 +422,7 @@ async function generateProxyInternal(
     if (process.platform === 'darwin') {
         try {
             const hwArgs = [
-                '-hide_banner', '-loglevel', 'error', '-y',
+                '-hide_banner', '-loglevel', 'info', '-stats', '-y',
                 // HW DECODE
                 '-hwaccel', 'videotoolbox',
                 '-i', inputPath,
@@ -453,7 +457,7 @@ async function generateProxyInternal(
     if (process.platform === 'darwin') {
         try {
             const mixedArgs = [
-                '-hide_banner', '-loglevel', 'error', '-y',
+                '-hide_banner', '-loglevel', 'info', '-stats', '-y',
                 // SW DECODE (Standard -i)
                 '-i', inputPath,
                 ...(fps ? ['-r', String(fps)] : []),
@@ -484,7 +488,7 @@ async function generateProxyInternal(
     // STRATEGY 3: Software Fallback (SW Decode -> SW Scale -> SW Encode)
     // ========================================================================
     const swArgs = [
-        '-hide_banner', '-loglevel', 'error', '-y',
+        '-hide_banner', '-loglevel', 'info', '-stats', '-y',
         '-i', inputPath,
         ...(fps ? ['-r', String(fps)] : []),
         '-vf', swVf,

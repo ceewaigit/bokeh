@@ -63,7 +63,7 @@ export function DragToCreatePreview({
     <Group listening={false} name="drag-to-create-preview">
       <ContinuousRect
         x={x}
-        y={trackY}
+        y={trackY + TimelineConfig.TRACK_PADDING}
         width={width}
         height={height}
         cornerRadius={8}
@@ -75,7 +75,7 @@ export function DragToCreatePreview({
       {showLabel && (
         <Text
           x={x + 6}
-          y={trackY + 4}
+          y={trackY + TimelineConfig.TRACK_PADDING + 4}
           text={formatDuration(durationMs)}
           fontSize={11}
           fill={colors.foreground}

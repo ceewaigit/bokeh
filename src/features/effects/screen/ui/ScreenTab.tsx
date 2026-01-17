@@ -276,10 +276,10 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
                     {showAdvanced && (
                         <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 pt-3 border-t border-border/30 animate-in fade-in slide-in-from-top-1 duration-150">
-                            <div className="space-y-2">
+                            <div className="group space-y-1.5">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease In</label>
-                                    <span className="text-2xs text-muted-foreground/70 font-mono tabular-nums">{introMs}ms</span>
+                                    <label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Ease In</label>
+                                    <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{introMs}ms</span>
                                 </div>
                                 <Slider
                                     value={[introMs]}
@@ -288,13 +288,12 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                                     min={0}
                                     max={1000}
                                     step={50}
-                                    className="w-full"
                                 />
                             </div>
-                            <div className="space-y-2">
+                            <div className="group space-y-1.5">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">Ease Out</label>
-                                    <span className="text-2xs text-muted-foreground/70 font-mono tabular-nums">{outroMs}ms</span>
+                                    <label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Ease Out</label>
+                                    <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{outroMs}ms</span>
                                 </div>
                                 <Slider
                                     value={[outroMs]}
@@ -303,7 +302,6 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                                     min={0}
                                     max={1000}
                                     step={50}
-                                    className="w-full"
                                 />
                             </div>
                         </div>

@@ -1,27 +1,35 @@
-import { Command, CommandResult } from '../base/Command'
+/**
+ * RemoveZoomBlockCommand - Remove a zoom effect from the project.
+ *
+ * Uses PatchedCommand for automatic undo/redo via Immer patches.
+ */
+
+import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
-import type { Effect, Project } from '@/types/project'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/features/core/stores/project-store'
+import type { Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { EffectStore } from '@/features/effects/core/effects-store'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
 /**
  * Find zoom effect in the project using EffectStore
  */
-function findZoomEffect(project: Project | null, effectId: string): Effect | null {
-  if (!project) return null
+function findZoomEffect(project: Project | null, effectId: string): boolean {
+  if (!project) return false
   const effect = EffectStore.get(project, effectId)
-  return effect?.type === EffectType.Zoom ? effect : null
+  return effect?.type === EffectType.Zoom
 }
 
-export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
-  private effect?: Effect
+export class RemoveZoomBlockCommand extends PatchedCommand<{ blockId: string }> {
   private blockId: string
 
   constructor(
-    private context: CommandContext,
+    context: CommandContext,
     blockId: string
   ) {
-    super({
+    super(context, {
       name: 'RemoveZoomBlock',
       description: `Remove zoom block ${blockId}`,
       category: 'effects'
@@ -31,57 +39,23 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
 
   canExecute(): boolean {
     const project = this.context.getProject()
-    return findZoomEffect(project, this.blockId) !== null
+    return findZoomEffect(project, this.blockId)
   }
 
-  doExecute(): CommandResult<{ blockId: string }> {
-    const project = this.context.getProject()
-    const effect = findZoomEffect(project, this.blockId)
-
-    if (!effect) {
-      return {
-        success: false,
-        error: `Zoom effect ${this.blockId} not found`
-      }
+  protected mutate(draft: WritableDraft<ProjectStore>): void {
+    if (!draft.currentProject) {
+      throw new Error('No active project')
     }
 
-    // Store effect for undo
-    this.effect = JSON.parse(JSON.stringify(effect))
-
-    // Remove effect using store method
-    const store = this.context.getStore()
-    store.removeEffect(this.blockId)
-
-    return {
-      success: true,
-      data: { blockId: this.blockId }
-    }
-  }
-
-  doUndo(): CommandResult<{ blockId: string }> {
-    if (!this.effect) {
-      return {
-        success: false,
-        error: 'No block data to restore'
-      }
+    const effect = EffectStore.get(draft.currentProject, this.blockId)
+    if (!effect || effect.type !== EffectType.Zoom) {
+      throw new Error(`Zoom effect ${this.blockId} not found`)
     }
 
-    const store = this.context.getStore()
-    store.addEffect(this.effect)
+    // Remove effect using EffectStore - Immer patches will handle undo
+    EffectStore.remove(draft.currentProject, this.blockId)
+    markProjectModified(draft)
 
-    return {
-      success: true,
-      data: { blockId: this.blockId }
-    }
-  }
-
-  doRedo(): CommandResult<{ blockId: string }> {
-    const store = this.context.getStore()
-    store.removeEffect(this.blockId)
-
-    return {
-      success: true,
-      data: { blockId: this.blockId }
-    }
+    this.setResult({ success: true, data: { blockId: this.blockId } })
   }
 }

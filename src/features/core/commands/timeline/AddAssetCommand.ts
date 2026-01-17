@@ -1,15 +1,55 @@
+/**
+ * AddAssetCommand - Add an external asset (video/image/audio) to the timeline.
+ *
+ * This command owns the full logic for importing assets:
+ * 1. Creates a recording from the asset using the factory
+ * 2. Adds the recording to the project
+ * 3. Creates a clip on the appropriate track
+ *
+ * Supports undo/redo by tracking the created recording and clip IDs.
+ *
+ * NOTE: This command does NOT extend TimelineCommand. Effect sync is intentionally
+ * skipped for add operations because:
+ * - Video clips are added via addClipToTrack() which places them at the end
+ *   or at a specific position without shifting existing clips
+ * - Webcam clips use WebcamTrackValidator for collision detection, not reflow
+ * - New clips don't affect existing effects' timing (no ripple effect)
+ *
+ * If future requirements need effect sync on add (e.g., ripple insert mode),
+ * refactor to extend TimelineCommand and use deferClipChange() with 'add' type.
+ */
+
 import { Command, CommandResult } from '../base/Command'
 import type { CommandContext } from '../base/CommandContext'
 import type { Clip, TrackType } from '@/types/project'
-import { addAssetRecording, AssetDetails } from '@/features/ui/timeline/clips/clip-creation'
+import { createRecording, type RecordingType } from '@/features/ui/timeline/clips/recording-factory'
+import { addClipToTrack, removeClipFromTrack } from '@/features/ui/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
-import { removeClipFromTrack } from '@/features/ui/timeline/clips/clip-crud'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface AssetDetails {
+    path: string
+    duration: number
+    width: number
+    height: number
+    type: 'video' | 'audio' | 'image'
+    frameRate?: number
+    name?: string
+    requiresProxy?: boolean
+}
 
 interface AddAssetPayload {
     asset: AssetDetails
     options?: number | { startTime?: number; insertIndex?: number; trackType?: TrackType; inheritCrop?: boolean }
 }
+
+// ============================================================================
+// Command
+// ============================================================================
 
 export class AddAssetCommand extends Command<{ clipId: string }> {
     private clipId?: string
@@ -43,14 +83,49 @@ export class AddAssetCommand extends Command<{ clipId: string }> {
 
         // Use updateProjectData to ensure persistence and reactivity
         this.context.getStore().updateProjectData((draft) => {
-            let options = this.payload.options
+            const { asset, options } = this.payload
 
-            // Normalize options if it's just a number (startTime)
+            // Normalize options
+            let startTime: number | undefined
+            let trackType: TrackType | undefined
+            let insertIndex: number | undefined
+
             if (typeof options === 'number') {
-                options = { startTime: options }
+                startTime = options
+            } else if (typeof options === 'object') {
+                startTime = options.startTime
+                trackType = options.trackType
+                insertIndex = options.insertIndex
             }
 
-            newClip = addAssetRecording(draft, this.payload.asset, options)
+            // 1. Create recording using factory
+            const recordingType: RecordingType = asset.type === 'image' ? 'image' : 'video'
+            const recording = createRecording({
+                type: recordingType,
+                source: 'external',
+                filePath: asset.path,
+                duration: asset.duration,
+                width: asset.width,
+                height: asset.height,
+                frameRate: asset.frameRate,
+                hasAudio: asset.type === 'video' || asset.type === 'audio',
+                imageSource: asset.type === 'image' ? {
+                    imagePath: asset.path,
+                    sourceWidth: asset.width,
+                    sourceHeight: asset.height,
+                } : undefined,
+                requiresProxy: asset.requiresProxy
+            })
+
+            // 2. Add recording to project
+            draft.recordings.push(recording)
+
+            // 3. Create clip on track
+            newClip = addClipToTrack(draft, recording.id, startTime, {
+                trackType,
+                insertIndex
+            })
+
             return draft
         })
 
@@ -86,17 +161,13 @@ export class AddAssetCommand extends Command<{ clipId: string }> {
                 removeClipFromTrack(draft, clipId, clipInfo.track)
             }
 
-            // Remove recording only if it was created by this command (basic check)
-            // Since addAssetRecording generates a new recording ID each time, we should remove it.
-            // Assuming unique recording ID per add operation.
+            // Remove the recording we created
             draft.recordings = draft.recordings.filter(r => r.id !== recordingId)
 
             return draft
         })
 
         ProjectCleanupService.cleanupClipResources(clipId)
-        // We can cleanup recording resources too if needed, but they persist in blob storage usually until session end?
-        // ProjectCleanupService.cleanupUnusedRecordings logic handles it.
         ProjectCleanupService.cleanupUnusedRecordings(project, recordingId)
 
         const store = this.context.getStore()
@@ -116,16 +187,6 @@ export class AddAssetCommand extends Command<{ clipId: string }> {
     }
 
     doRedo(): CommandResult<{ clipId: string }> {
-        // Re-execute essentially does the same thing: adds a new asset recording and clip.
-        // However, to be "Redo" we ideally want exactly the SAME IDs.
-        // The current implementation of addAssetRecording generates NEW IDs.
-        // This breaks "Redo" strictness (re-created object != original object).
-        // BUT for practical purposes, re-adding the asset is visually identical.
-        // If strict ID persistence is required, we'd need to modify addAssetRecording or manually reimplement here.
-
-        // Since this is "Add Asset", effectively repeating the action is acceptable for now.
-        // The user observes "Redo" -> Clip appears.
-
         return this.doExecute()
     }
 }

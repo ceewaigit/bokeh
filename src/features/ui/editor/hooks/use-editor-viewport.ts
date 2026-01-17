@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { getZoomTransformString } from '@/features/rendering/canvas/math/transforms/zoom-transform';
-import type { ZoomTransform } from '@/types/remotion';
-import type { ZoomSettings } from '@/types/remotion';
+import type { ZoomTransform } from '@/features/rendering/renderer/types';
+import type { ZoomSettings } from '@/features/ui/editor/types';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 
 interface UseEditorViewportProps {

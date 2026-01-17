@@ -79,35 +79,40 @@ export function useProxyWorkflow(): UseProxyWorkflowReturn {
     const handleUserChoice = useCallback(async (choice: UserProxyChoice): Promise<void> => {
         if (!pendingRecording) return
 
-        setDialogOpen(false)
-
         switch (choice) {
             case 'dismiss':
-                // User chose to use original - mark as idle
+                // User chose to use original - close dialog and mark as dismissed
+                setDialogOpen(false)
                 useProxyStore.getState().setStatus(pendingRecording.id, 'dismissed')
+                setPendingRecording(null)
                 break
 
             case 'background':
-                // Generate in background (non-blocking)
+                // DON'T close dialog - let it show progress
+                // Generation will run, dialog watches store for status updates
+                // Dialog auto-closes when status becomes 'ready'
                 void ProxyService.generatePreviewProxy(pendingRecording)
                 void ProxyService.generateGlowProxy(pendingRecording)
                 break
 
             case 'now':
-                // Generate now (blocking)
+                // Blocking generation - await completion then close
                 await ProxyService.generatePreviewProxy(pendingRecording)
                 await ProxyService.generateGlowProxy(pendingRecording)
+                setDialogOpen(false)
+                setPendingRecording(null)
                 break
         }
-
-        setPendingRecording(null)
     }, [pendingRecording])
 
     const closeDialog = useCallback(() => {
         setDialogOpen(false)
         if (pendingRecording) {
-            // Treat closing as dismiss
-            useProxyStore.getState().setStatus(pendingRecording.id, 'dismissed')
+            const currentStatus = useProxyStore.getState().status[pendingRecording.id]
+            // Don't mark as dismissed if already generating - let it finish in background
+            if (currentStatus !== 'generating' && currentStatus !== 'ready') {
+                useProxyStore.getState().setStatus(pendingRecording.id, 'dismissed')
+            }
         }
         setPendingRecording(null)
     }, [pendingRecording])

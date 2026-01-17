@@ -29,10 +29,10 @@ interface SliderRowProps {
 
 function SliderRow({ label, value, displayValue, onChange, min, max, step }: SliderRowProps) {
   return (
-    <div className="space-y-1">
+    <div className="group space-y-1.5">
       <div className="flex items-center justify-between">
-        <label className="text-2xs text-muted-foreground">{label}</label>
-        <span className="text-2xs text-muted-foreground/60 tabular-nums">{displayValue}</span>
+        <label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">{label}</label>
+        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{displayValue}</span>
       </div>
       <Slider
         value={[value]}
@@ -40,7 +40,6 @@ function SliderRow({ label, value, displayValue, onChange, min, max, step }: Sli
         min={min}
         max={max}
         step={step}
-        className="w-full"
       />
     </div>
   )

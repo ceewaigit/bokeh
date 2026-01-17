@@ -1,47 +1,46 @@
 /**
- * WebcamClipRenderer - Renders a single webcam clip with stable Sequence timing
+ * WebcamClipRenderer - Single <video> overlay with stable playback across speed changes
  *
- * Architecture: Each webcam clip gets its own renderer instance with:
- * - Stable Sequence timing (doesn't change)
- * - Own video URL resolution
- * - premountFor/postmountFor for smooth seeking
+ * Architecture:
+ * - Single <video> element per webcam recording (no remount at clip boundaries)
+ * - Playback-rate changes do NOT trigger seeks (prevents replay/glitch when speeds differ)
+ * - Hard seeks only on user jumps / true discontinuities; drift is corrected via mild rate nudging
  *
- * This matches the VideoClipRenderer architecture, preventing the unmount/remount
- * issues that occurred with the single-instance WebcamLayer approach.
+ * The frame-layout system groups clips by playback rate, so clips with the
+ * same rate belong to the same group and share continuous source timing.
  */
 
-import React, { useMemo } from 'react';
-import { Video, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
-import type { WebcamLayoutData, Clip, Recording } from '@/types/project';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { Video, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
+import type { WebcamLayoutData, Recording } from '@/types/project';
 import type { VideoResources } from '@/types';
 import { OverlayAnchor } from '@/types/overlays';
 import type { PlaybackSettings } from '@/features/rendering/renderer/types';
+import type { WebcamFrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout';
 import { DEFAULT_WEBCAM_DATA, WEBCAM_POSITION_PRESETS } from '@/features/media/webcam/config';
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
 import { clampCropData, DEFAULT_CROP_DATA, isFullFrameCrop } from '@/features/rendering/canvas/math/transforms/crop-transform';
 import { useVideoPosition } from '../../context/layout/VideoPositionContext';
-import { useVideoContainerCleanup } from '@/features/rendering/renderer/hooks/media/useVTDecoderCleanup';
 import { calculateWebcamAnimations } from '@/features/effects/utils/webcam-animations';
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context';
 import { useComposition } from '../../context/CompositionContext';
 import { useVideoUrl } from '../../hooks/media/useVideoUrl';
 import { useProjectStore } from '@/features/core/stores/project-store';
-import { useShallow } from 'zustand/react/shallow';
 import { isProxySufficientForTarget } from '@/shared/utils/resolution-utils';
+import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
+import { ClipUtils } from '@/features/ui/timeline/time/clip-utils';
+import { findActiveWebcamFrameLayoutItem, getWebcamVideoStartFrom } from '@/features/ui/timeline/utils/frame-layout';
 
 interface WebcamClipRendererProps {
-    clip: Clip;
+    /** All webcam frame layout items for this recording */
+    items: WebcamFrameLayoutItem[];
     recording: Recording;
     resources: VideoResources;
     playback: PlaybackSettings;
     fps: number;
     globalOpacity?: number;
-    isActive?: boolean;  // Whether this clip should be visible (used to hide non-active clips in multi-clip scenarios)
 }
 
-/**
- * Get transform origin based on anchor position for natural scaling
- */
 function getTransformOrigin(anchor: WebcamLayoutData['position']['anchor']): string {
     switch (anchor) {
         case OverlayAnchor.TopLeft: return 'top left';
@@ -58,24 +57,16 @@ function getTransformOrigin(anchor: WebcamLayoutData['position']['anchor']): str
 }
 
 export const WebcamClipRenderer = React.memo(({
-    clip,
+    items,
     recording,
     resources,
     playback,
     fps,
     globalOpacity = 1,
-    isActive = true,  // Default to true for backward compatibility
 }: WebcamClipRendererProps) => {
     const { videoWidth, videoHeight } = useComposition();
-    // Read playback state directly from store for consistency
-    // NOTE: The playback prop has hardcoded isPlaying: false (for Remotion internal use),
-    // but we need the actual playback state for URL locking and frame sync
-    const { isScrubbing, isPlaying } = useProjectStore(
-        useShallow((s) => ({
-            isScrubbing: s.isScrubbing,
-            isPlaying: s.isPlaying
-        }))
-    );
+    const isPlaying = useProjectStore(s => s.isPlaying);
+    const isScrubbing = useProjectStore(s => s.isScrubbing);
     const frame = useCurrentFrame();
     const { width: compositionWidth, height: compositionHeight } = useVideoConfig();
     const { displacedEffectIds, resolvedAnchors } = useOverlayContext();
@@ -83,9 +74,137 @@ export const WebcamClipRenderer = React.memo(({
     const { zoomTransform } = videoPosition;
     const { isRendering } = getRemotionEnvironment();
 
-    const preload = 'auto';
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const lastFrameRef = useRef<number>(-1);
+    const lastExpectedTimeRef = useRef<number>(-1);
+    const lastHardSeekAtMsRef = useRef<number>(0);
+
+    // Extract clips from items for convenience
+    const clips = useMemo(() => items.map(item => item.clip), [items]);
+
+    // Find active item at current frame
+    const activeItem = useMemo(() => findActiveWebcamFrameLayoutItem(items, frame), [items, frame]);
+    const activeClip = activeItem?.clip ?? null;
+
+    const expectedSourceTime = useMemo(() => {
+        if (!activeItem) return null;
+        return getWebcamVideoStartFrom(frame, activeItem, fps);
+    }, [activeItem, frame, fps]);
+
+    const basePlaybackRate = useMemo(() => {
+        const rate = activeClip ? ClipUtils.getPlaybackRate(activeClip) : 1;
+        return rate > 0 ? rate : 1;
+    }, [activeClip]);
+
+    const isPlaybackMode = isPlaying && !isScrubbing && !isRendering;
+
     const effectiveVolume = Math.max(0, Math.min(1, playback.previewVolume ?? 1));
     const shouldMuteAudio = (!isRendering && (playback.previewMuted || effectiveVolume <= 0)) || !recording.hasAudio;
+
+    // Sync timing:
+    // - In playback: avoid seeking on clip boundaries and playbackRate changes.
+    // - Seek only on user jumps / true discontinuities; otherwise use mild rate nudging.
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        // No active item: hide overlay via opacity; keep video paused to avoid runaway playback.
+        if (expectedSourceTime == null) {
+            video.pause();
+            return;
+        }
+
+        const nowMs = Date.now();
+
+        const lastFrame = lastFrameRef.current;
+        const frameDelta = lastFrame >= 0 ? Math.abs(frame - lastFrame) : 0;
+        lastFrameRef.current = frame;
+
+        const lastExpected = lastExpectedTimeRef.current;
+        const expectedDelta = lastExpected >= 0 ? Math.abs(expectedSourceTime - lastExpected) : 0;
+        lastExpectedTimeRef.current = expectedSourceTime;
+
+        // Always keep base playback rate updated (this is cheap and doesn't force a seek).
+        // During playback we may temporarily nudge around this rate for drift correction.
+        const setPlaybackRate = (rate: number) => {
+            const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+            if (Math.abs(video.playbackRate - safeRate) > 0.001) {
+                video.playbackRate = safeRate;
+            }
+        };
+
+        const hardSeek = (targetSeconds: number) => {
+            const safeTarget = Number.isFinite(targetSeconds) ? Math.max(0, targetSeconds) : 0;
+            if (typeof video.fastSeek === 'function') {
+                video.fastSeek(safeTarget);
+            } else {
+                video.currentTime = safeTarget;
+            }
+            lastHardSeekAtMsRef.current = nowMs;
+        };
+
+        const driftSeconds = expectedSourceTime - video.currentTime;
+        const absDrift = Math.abs(driftSeconds);
+
+        // In paused/scrubbing/rendering: frame-accurate sync is preferred.
+        if (!isPlaybackMode) {
+            setPlaybackRate(basePlaybackRate);
+            if (!video.seeking && absDrift > 0.02) {
+                hardSeek(expectedSourceTime);
+            }
+            return;
+        }
+
+        // Playback mode: avoid seek storms.
+        // Treat big frame/expected deltas as an explicit jump (timeline click/skip).
+        const isLikelyUserJump = frameDelta > 2 || expectedDelta > 0.5;
+
+        // If we just hard-seeked, give the browser a moment to settle/buffer.
+        const inSeekGracePeriod = nowMs - lastHardSeekAtMsRef.current < 600;
+
+        // If drift is huge, we must resync regardless.
+        if (!video.seeking && (isLikelyUserJump || absDrift > 1.0)) {
+            setPlaybackRate(basePlaybackRate);
+            hardSeek(expectedSourceTime);
+            return;
+        }
+
+        // Soft drift correction: nudge playbackRate instead of seeking.
+        // Keeps smooth playback across clip boundaries and speed changes.
+        if (!video.seeking && !inSeekGracePeriod && absDrift > 0.08) {
+            const maxNudge = 0.15; // ±15%
+            const k = 0.35; // proportional gain (seconds -> rate multiplier)
+            const factor = Math.max(1 - maxNudge, Math.min(1 + maxNudge, 1 + driftSeconds * k));
+            setPlaybackRate(basePlaybackRate * factor);
+        } else {
+            setPlaybackRate(basePlaybackRate);
+        }
+    }, [expectedSourceTime, frame, isPlaybackMode, basePlaybackRate]);
+
+    // Play/pause control
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (isRendering || isScrubbing || !isPlaying) {
+            video.pause();
+            return;
+        }
+
+        video.play().catch(err => {
+            if (err?.name === 'NotAllowedError') {
+                console.debug('[WebcamClipRenderer] Autoplay blocked:', err.message);
+            }
+        });
+    }, [isPlaying, isScrubbing, isRendering]);
+
+    // Volume control
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.volume = effectiveVolume;
+        video.muted = shouldMuteAudio;
+    }, [effectiveVolume, shouldMuteAudio]);
 
     const overlayScale = useMemo(() => {
         const scaleFactor = videoPosition.scaleFactor;
@@ -95,80 +214,60 @@ export const WebcamClipRenderer = React.memo(({
         return 1;
     }, [videoPosition.scaleFactor]);
 
-    // Stable timing from clip (doesn't change)
-    const startFrame = Math.floor((clip.startTime / 1000) * fps);
-    const endFrame = Math.ceil(((clip.startTime + clip.duration) / 1000) * fps);
-    const durationFrames = Math.max(1, endFrame - startFrame);
-    const sourceInFrame = Math.round(((clip.sourceIn ?? 0) / 1000) * fps);
-    const playbackRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1;
-
-    // Layout data from clip
+    // Layout data from active clip
     const data: WebcamLayoutData = useMemo(() => {
-        const layout = clip.layout ?? DEFAULT_WEBCAM_DATA;
-        const resolvedAnchor = resolvedAnchors.get(clip.id);
+        const layout = activeClip?.layout ?? clips[0]?.layout ?? DEFAULT_WEBCAM_DATA;
+        const clipId = activeClip?.id;
+        if (!clipId) return layout;
 
+        const resolvedAnchor = resolvedAnchors.get(clipId);
         if (resolvedAnchor && resolvedAnchor !== layout.position.anchor) {
             const preset = WEBCAM_POSITION_PRESETS[resolvedAnchor];
             if (preset) {
                 return {
                     ...layout,
-                    position: {
-                        ...layout.position,
-                        x: preset.x,
-                        y: preset.y,
-                        anchor: preset.anchor
-                    }
+                    position: { ...layout.position, x: preset.x, y: preset.y, anchor: preset.anchor }
                 };
             }
         }
         return layout;
-    }, [clip, resolvedAnchors]);
+    }, [activeClip, clips, resolvedAnchors]);
 
-    // Calculate webcam target size for proxy selection
+    // Webcam target size for proxy
     const webcamTargetSize = useMemo(() => {
-        const { size } = getWebcamLayout(data, videoWidth, videoHeight);
-        const maxScale = 1.2;
-        const targetSize = Math.max(1, Math.round(size * maxScale));
-        return { width: targetSize, height: targetSize };
-    }, [data, videoWidth, videoHeight]);
+        const fallback = getWebcamLayout(DEFAULT_WEBCAM_DATA, videoWidth, videoHeight).size;
+        const maxSize = clips.length
+            ? Math.max(...clips.map(c => getWebcamLayout(c.layout ?? DEFAULT_WEBCAM_DATA, videoWidth, videoHeight).size))
+            : fallback;
+        return { width: Math.round(maxSize * 1.2), height: Math.round(maxSize * 1.2) };
+    }, [clips, videoWidth, videoHeight]);
 
-    // Video URL resolution with proxy logic
-    // Note: Proxy availability is determined by useVideoUrl internally via the proxy store
-    // The forceProxy flag is used to hint that proxy should be preferred for small target sizes
     const forceProxy = useMemo(() => {
-        // For webcam overlays, proxy is almost always sufficient since they're small on screen
-        // Let useVideoUrl resolve the actual proxy URL from the store
         return isProxySufficientForTarget(webcamTargetSize.width, webcamTargetSize.height, 1);
-    }, [webcamTargetSize.width, webcamTargetSize.height]);
+    }, [webcamTargetSize]);
 
     const videoUrl = useVideoUrl({
         recording,
         resources,
-        clipId: clip.id,
+        clipId: recording.id,
         targetWidth: webcamTargetSize.width,
         targetHeight: webcamTargetSize.height,
         isHighQualityPlaybackEnabled: playback.isHighQualityPlaybackEnabled,
         forceProxy,
-        isPlaying,      // From store (not playback.isPlaying which is hardcoded false)
-        isScrubbing,    // From store
+        isPlaying,
+        isScrubbing,
     });
 
-    const webcamContainerRef = useVideoContainerCleanup(videoUrl);
-    const videoRef = React.useRef<HTMLVideoElement>(null);
+    // Animation
+    const activeStartFrame = activeItem?.startFrame ?? 0;
+    const activeEndFrame = activeItem?.endFrame ?? 0;
 
-    // Check if displaced by overlay conflict resolution
-    const isDisplaced = displacedEffectIds.has(clip.id);
+    const { scale: animationScale, opacity: animationOpacity, translateY } = useMemo(() => {
+        if (!activeItem) return { scale: 1, opacity: 0, translateY: 0 };
+        return calculateWebcamAnimations(data, frame, fps, activeStartFrame, activeEndFrame);
+    }, [data, frame, fps, activeItem, activeStartFrame, activeEndFrame]);
 
-    // Animation calculations
-    const { scale: animationScale, opacity: animationOpacity, translateY } = calculateWebcamAnimations(
-        data,
-        frame,
-        fps,
-        startFrame,
-        endFrame
-    );
-
-    // Layout calculations
+    // Layout
     const layout = useMemo(() => {
         const scaledPadding = (data.padding ?? 0) * overlayScale;
         return getWebcamLayout({ ...data, padding: scaledPadding }, compositionWidth, compositionHeight);
@@ -177,182 +276,137 @@ export const WebcamClipRenderer = React.memo(({
     const webcamSize = Math.round(layout.size);
     const position = { x: Math.round(layout.x), y: Math.round(layout.y) };
 
-    // Source dimensions (with fallback for loading)
+    // Source dimensions
     const sourceWidth = recording.width || 1280;
     const sourceHeight = recording.height || 720;
 
-    // Crop calculations - scale+translate approach to match sidebar exactly
-    // The sidebar uses objectFit:fill which stretches video to fill container 1:1
-    // We replicate this by scaling up so the crop region fills the 1:1 container
+    // Crop
     const cropStyle = useMemo(() => {
         let sourceCrop = clampCropData(data.sourceCrop ?? DEFAULT_CROP_DATA);
-
-        // Smart Center Crop for non-square sources (when no crop is set)
         if (isFullFrameCrop(sourceCrop) && sourceWidth > 0 && sourceHeight > 0) {
             const sourceAspect = sourceWidth / sourceHeight;
             if (Math.abs(sourceAspect - 1) > 0.01) {
                 let cropW = 1, cropH = 1;
-                if (sourceAspect > 1) {
-                    cropW = 1 / sourceAspect;
-                } else {
-                    cropH = sourceAspect;
-                }
-                sourceCrop = {
-                    width: cropW,
-                    height: cropH,
-                    x: (1 - cropW) / 2,
-                    y: (1 - cropH) / 2
-                };
+                if (sourceAspect > 1) cropW = 1 / sourceAspect;
+                else cropH = sourceAspect;
+                sourceCrop = { width: cropW, height: cropH, x: (1 - cropW) / 2, y: (1 - cropH) / 2 };
             }
         }
-
-        // Scale = 1 / cropSize - makes video larger so crop region fills container
         const scaleX = 1 / sourceCrop.width;
         const scaleY = 1 / sourceCrop.height;
-
-        // Position so crop's top-left is at container's top-left (as percentages of container)
         const translateX = -sourceCrop.x * scaleX * 100;
         const translateY = -sourceCrop.y * scaleY * 100;
-
-        return {
-            scaleX,
-            scaleY,
-            translateX,
-            translateY,
-            mirror: data.mirror,
-        };
+        return { scaleX, scaleY, translateX, translateY, mirror: data.mirror };
     }, [data.sourceCrop, data.mirror, sourceWidth, sourceHeight]);
 
     // Styles
-    const overlayContainerStyle = useMemo<React.CSSProperties>(() => ({
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        width: compositionWidth,
-        height: compositionHeight,
-        pointerEvents: 'none',
-        zIndex: 20,
-    }), [compositionWidth, compositionHeight]);
+    const scaledCornerRadius = (data.cornerRadius ?? 0) * overlayScale;
+    const scaledBorderWidth = (data.borderWidth ?? 0) * overlayScale;
+    const scaledShadowBlur = (data.shadowBlur ?? 0) * overlayScale;
+    const scaledShadowOffsetX = (data.shadowOffsetX ?? 0) * overlayScale;
+    const scaledShadowOffsetY = (data.shadowOffsetY ?? 0) * overlayScale;
 
-    const scaledCornerRadius = useMemo(() => (data.cornerRadius ?? 0) * overlayScale, [data.cornerRadius, overlayScale]);
-    const scaledBorderWidth = useMemo(() => (data.borderWidth ?? 0) * overlayScale, [data.borderWidth, overlayScale]);
-    const scaledShadowBlur = useMemo(() => (data.shadowBlur ?? 0) * overlayScale, [data.shadowBlur, overlayScale]);
-    const scaledShadowOffsetX = useMemo(() => (data.shadowOffsetX ?? 0) * overlayScale, [data.shadowOffsetX, overlayScale]);
-    const scaledShadowOffsetY = useMemo(() => (data.shadowOffsetY ?? 0) * overlayScale, [data.shadowOffsetY, overlayScale]);
-
-    const staticContainerStyle = useMemo<React.CSSProperties>(() => ({
-        position: 'absolute',
-        left: position.x,
-        top: position.y,
-        width: webcamSize,
-        height: webcamSize,
-        transformOrigin: getTransformOrigin(data.position.anchor),
-        borderRadius: data.shape === 'circle' ? '50%' : scaledCornerRadius,
-        overflow: 'hidden',
-        backgroundColor: 'transparent',
-        backfaceVisibility: 'hidden',
-    }), [position.x, position.y, webcamSize, data.position.anchor, data.shape, scaledCornerRadius]);
-
-    const sourceStyle = useMemo<React.CSSProperties>(() => ({
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        width: '100%',
-        height: '100%',
-        transformOrigin: 'top left',
-        willChange: 'transform',
-    }), []);
-
-    const webcamStyle = useMemo<React.CSSProperties>(() => {
+    const webcamTransform = useMemo(() => {
         const { scaleX, scaleY, translateX, translateY, mirror } = cropStyle;
-
-        // Build transform: translate first (in %), then scale, then mirror if needed
-        // translateX/Y are already in % of container
-        let transform = `translate(${translateX}%, ${translateY}%) scale(${scaleX}, ${scaleY})`;
-        if (mirror) {
-            // Mirror needs to be applied after scale, centered
-            transform += ' scaleX(-1)';
-        }
-
-        return {
-            position: 'absolute',
-            width: '100%',
-            height: '100%',
-            objectFit: 'fill', // Fill exactly - transform handles the cropping
-            transform,
-            transformOrigin: mirror ? 'center' : 'top left',
-            display: 'block',
-            backgroundColor: 'transparent',
-            backfaceVisibility: 'hidden',
-            outline: 'none',
-        };
+        let t = `translate(${translateX}%, ${translateY}%) scale(${scaleX}, ${scaleY})`;
+        if (mirror) t += ' scaleX(-1)';
+        return t;
     }, [cropStyle]);
 
-    const borderStyle = useMemo<React.CSSProperties>(() =>
-        data.borderEnabled ? {
-            border: `${scaledBorderWidth}px solid ${data.borderColor}`,
-        } : {},
-        [data.borderEnabled, scaledBorderWidth, data.borderColor]);
+    if (!videoUrl || items.length === 0) return null;
 
-    const shadowStyle = useMemo<React.CSSProperties>(() =>
-        data.shadowEnabled ? {
-            boxShadow: `${scaledShadowOffsetX}px ${scaledShadowOffsetY}px ${scaledShadowBlur}px ${data.shadowColor}`,
-        } : {},
-        [data.shadowEnabled, scaledShadowOffsetX, scaledShadowOffsetY, scaledShadowBlur, data.shadowColor]);
+    // Final opacity
+    const isDisplaced = activeClip?.id ? displacedEffectIds.has(activeClip.id) : false;
+    const displacedOpacity = isDisplaced ? 0 : 1;
+    const activeOpacity = activeItem ? 1 : 0;
 
-    // Don't render if displaced or no video URL
-    if (isDisplaced || !videoUrl) {
-        return null;
-    }
-
-    // Animated values
     const inverseCameraScale = zoomTransform?.scale ? 1 / zoomTransform.scale : 1;
     const zoomInfluence = data.zoomInfluence ?? 1;
     const effectiveScale = 1 + (inverseCameraScale - 1) * zoomInfluence;
     const finalScale = animationScale * effectiveScale;
-    // Only show opacity when this is the active clip (prevents wrong frames from non-active clips)
-    const finalOpacity = animationOpacity * globalOpacity * (isActive ? 1 : 0);
+    const finalOpacity = animationOpacity * globalOpacity * displacedOpacity * activeOpacity;
     const finalTranslateY = translateY * overlayScale;
 
+    const videoStyle: React.CSSProperties = {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        objectFit: 'fill',
+        transform: webcamTransform,
+        transformOrigin: cropStyle.mirror ? 'center' : 'top left',
+        backgroundColor: '#000',
+    };
+
+    // Export correctness: use Remotion's <Video> so the renderer can deterministically
+    // seek and wait for frames (plain <video> seeks won't be awaited during export).
+    const exportSourceFrame = expectedSourceTime != null
+        ? msToFrame(expectedSourceTime * 1000, fps)
+        : 0;
+    const exportStartFromFrames = expectedSourceTime != null
+        ? Math.max(0, exportSourceFrame - Math.round(frame * basePlaybackRate))
+        : 0;
+
     return (
-        // STABLE SEQUENCE: from/durationInFrames never change for this clip instance
-        // premountFor/postmountFor allow video to preload before/after visibility
-        // @ts-expect-error - Remotion types might be missing premountFor/postmountFor
-        <Sequence from={startFrame} durationInFrames={durationFrames} layout="none" premountFor={60} postmountFor={30}>
-            <div style={overlayContainerStyle}>
-                <div
-                    style={{
-                        ...staticContainerStyle,
-                        ...borderStyle,
-                        ...shadowStyle,
-                        transform: `scale(${finalScale}) translateY(${finalTranslateY}px)`,
-                        opacity: finalOpacity,
-                    }}
-                    data-webcam-overlay="true"
-                    data-webcam-clip-id={clip.id}
-                >
-                    <div style={sourceStyle} ref={webcamContainerRef}>
-                        <Video
-                            src={videoUrl}
-                            style={webcamStyle}
-                            startFrom={sourceInFrame}
-                            playbackRate={playbackRate}
-                            volume={() => effectiveVolume}
-                            muted={shouldMuteAudio}
-                            preload={preload}
-                            playsInline={true}
-                            ref={videoRef}
-                            onError={(e) => {
-                                console.warn('[WebcamClipRenderer] Video error:', e);
-                                if (videoRef.current) {
-                                    setTimeout(() => videoRef.current?.load(), 1000);
-                                }
-                            }}
-                        />
-                    </div>
-                </div>
+        <div
+            style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: compositionWidth,
+                height: compositionHeight,
+                pointerEvents: 'none',
+                zIndex: 20,
+            }}
+        >
+            <div
+                style={{
+                    position: 'absolute',
+                    left: position.x,
+                    top: position.y,
+                    width: webcamSize,
+                    height: webcamSize,
+                    transformOrigin: getTransformOrigin(data.position.anchor),
+                    borderRadius: data.shape === 'circle' ? '50%' : scaledCornerRadius,
+                    overflow: 'hidden',
+                    backgroundColor: 'transparent',
+                    transform: `scale(${finalScale}) translateY(${finalTranslateY}px)`,
+                    opacity: finalOpacity,
+                    ...(data.borderEnabled ? { border: `${scaledBorderWidth}px solid ${data.borderColor}` } : {}),
+                    ...(data.shadowEnabled ? { boxShadow: `${scaledShadowOffsetX}px ${scaledShadowOffsetY}px ${scaledShadowBlur}px ${data.shadowColor}` } : {}),
+                }}
+                data-webcam-overlay="true"
+            >
+                {isRendering ? (
+                    <Video
+                        src={videoUrl}
+                        style={{
+                            ...videoStyle,
+                            pointerEvents: 'none',
+                        }}
+                        crossOrigin="anonymous"
+                        preload="auto"
+                        playsInline
+                        pauseWhenBuffering={false}
+                        playbackRate={basePlaybackRate}
+                        startFrom={exportStartFromFrames}
+                        muted={shouldMuteAudio || expectedSourceTime == null}
+                        volume={() => (shouldMuteAudio || expectedSourceTime == null ? 0 : effectiveVolume)}
+                    />
+                ) : (
+                    <video
+                        ref={videoRef}
+                        src={videoUrl}
+                        style={{
+                            ...videoStyle,
+                            pointerEvents: 'none',
+                        }}
+                        crossOrigin="anonymous"
+                        preload="auto"
+                        playsInline
+                    />
+                )}
             </div>
-        </Sequence>
+        </div>
     );
 });
 

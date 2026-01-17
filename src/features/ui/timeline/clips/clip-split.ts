@@ -6,11 +6,10 @@
  */
 
 import type { Project, Clip } from '@/types/project'
-import { EffectCreation } from '@/features/effects/core/creation'
-import { getCropEffectForClip } from '@/features/effects/core/filters'
-import { EffectStore } from '@/features/effects/core/effects-store'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { withMutation } from '@/features/ui/timeline/clips/clip-mutation'
+import { ClipUtils } from '@/features/ui/timeline/time/clip-utils'
+import { clipRelativeToSource } from '@/features/ui/timeline/time/time-space-converter'
 
 /**
  * Split a single clip into two at the specified relative time.
@@ -24,10 +23,7 @@ export function splitClipAtTime(
         return null
     }
 
-    const { clipRelativeToSource } = require('../time/time-space-converter')
-
-    const clipSourceIn = clip.sourceIn ?? 0
-    const clipSourceOut = clip.sourceOut ?? (clipSourceIn + (clip.duration * (clip.playbackRate || 1)))
+    const { sourceIn: clipSourceIn, sourceOut: clipSourceOut } = ClipUtils.getSourceRange(clip)
 
     const sourceSplitAbsolute = clipRelativeToSource(relativeSplitTime, clip)
     const sourceSplitPoint = sourceSplitAbsolute - clipSourceIn
@@ -106,10 +102,6 @@ export function executeSplitClip(
 
     const { clip, track } = result
 
-    // Get crop effect before split
-    const allEffects = EffectStore.getAll(project)
-    const originalCropEffect = getCropEffectForClip(allEffects, clip)
-
     // Convert timeline position to clip-relative time
     const clipRelativeTime = splitTime - clip.startTime
 
@@ -120,26 +112,7 @@ export function executeSplitClip(
     const mutationResult = withMutation(project, () => {
         track.clips.splice(clipIndex, 1, splitResult.firstClip, splitResult.secondClip)
 
-        // Handle crop effect: copy to both new clips
-        if (originalCropEffect && originalCropEffect.data) {
-            const firstCropEffect = EffectCreation.createCropEffect({
-                clipId: splitResult.firstClip.id,
-                startTime: splitResult.firstClip.startTime,
-                endTime: splitResult.firstClip.startTime + splitResult.firstClip.duration,
-                cropData: originalCropEffect.data as any
-            })
-            EffectStore.add(project, firstCropEffect)
-
-            const secondCropEffect = EffectCreation.createCropEffect({
-                clipId: splitResult.secondClip.id,
-                startTime: splitResult.secondClip.startTime,
-                endTime: splitResult.secondClip.startTime + splitResult.secondClip.duration,
-                cropData: originalCropEffect.data as any
-            })
-            EffectStore.add(project, secondCropEffect)
-
-            EffectStore.remove(project, originalCropEffect.id)
-        }
+        // Note: Crop and other clip-bound effects are handled by TimelineSyncOrchestrator
 
         return {
             firstClip: splitResult.firstClip,
@@ -147,7 +120,7 @@ export function executeSplitClip(
         }
     })
 
-    // Note: Sync is handled automatically by middleware via _pendingClipChange
+    // Note: Effect sync is handled by TimelineCommand.mutate() when this is called via SplitClipCommand
 
     return mutationResult
 }

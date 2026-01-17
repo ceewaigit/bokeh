@@ -19,9 +19,9 @@ export const WINDOW_SURFACE_PRESETS: Record<
 
   // Glass (clear): see-through, minimal tint.
   // Note: `tintAlpha` is overlay alpha (higher = less transparent).
-  'clear-light': { mode: 'clear', tintAlpha: 0.7, blurPx: 14 },
-  clear: { mode: 'clear', tintAlpha: 0.8, blurPx: 22 },
-  'clear-strong': { mode: 'clear', tintAlpha: 0.9, blurPx: 30 },
+  'clear-light': { mode: 'clear', tintAlpha: 0.9, blurPx: 30 },
+  clear: { mode: 'clear', tintAlpha: 0.95, blurPx: 40 },
+  'clear-strong': { mode: 'clear', tintAlpha: 0.98, blurPx: 50 },
 
   // Frosted: heavier blur, still see-through (frost = blur, not opacity).
   'frosted-light': { mode: 'frosted', tintAlpha: 0.6, blurPx: 32 },

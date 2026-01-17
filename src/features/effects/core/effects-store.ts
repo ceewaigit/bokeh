@@ -18,6 +18,7 @@
 
 import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
+import type { EffectMutationBatch } from '@/features/effects/sync/types'
 import { findNearestAvailableStart } from '@/features/ui/timeline/utils/nearest-gap'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 import { markModified } from '@/features/core/stores/store-utils'
@@ -152,5 +153,107 @@ export const EffectStore = {
 
   ensureArray(project: Project): void {
     if (!project.timeline.effects) project.timeline.effects = []
+  },
+
+  /**
+   * Remove multiple effects by ID in a single operation.
+   * More efficient than calling remove() multiple times.
+   */
+  removeMany(project: Project, ids: string[]): number {
+    if (ids.length === 0) return 0
+    const idsToRemove = new Set(ids)
+    const effects = project.timeline.effects ?? []
+    const nextEffects = effects.filter(e => !idsToRemove.has(e.id))
+    const removed = effects.length - nextEffects.length
+    if (removed > 0) {
+      project.timeline.effects = nextEffects
+      markModified(project)
+    }
+    return removed
+  },
+
+  /**
+   * Update multiple effects in a single operation.
+   * Skips invalid timing updates but applies all valid ones.
+   */
+  updateMany(project: Project, updates: Array<{ id: string; changes: Partial<Effect> }>): number {
+    if (updates.length === 0) return 0
+    const effects = project.timeline.effects ?? []
+    const updateMap = new Map(updates.map(u => [u.id, u.changes]))
+    let updatedCount = 0
+
+    const nextEffects = effects.map(e => {
+      const changes = updateMap.get(e.id)
+      if (!changes) return e
+
+      // Validate timing if being updated
+      const nextStartTime = changes.startTime ?? e.startTime
+      const nextEndTime = changes.endTime ?? e.endTime
+      if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime) || nextEndTime <= nextStartTime) {
+        console.warn(`[EffectStore.updateMany] Skipping effect ${e.id} with invalid timing`)
+        return e
+      }
+
+      updatedCount++
+      // Merge data objects properly
+      if (changes.data && e.data) {
+        return { ...e, ...changes, data: { ...e.data, ...(changes.data as typeof e.data) } } as Effect
+      }
+      return { ...e, ...changes } as Effect
+    })
+
+    if (updatedCount > 0) {
+      project.timeline.effects = nextEffects
+      markModified(project)
+    }
+    return updatedCount
+  },
+
+  /**
+   * Apply a batch of mutations atomically.
+   * Processes removals, updates, and additions in a single array operation.
+   *
+   * This is the SSOT-enforcing method - all sync handlers should collect
+   * mutations into an EffectMutationBatch and apply them through this method.
+   */
+  applyBatch(project: Project, batch: EffectMutationBatch): void {
+    const effects = project.timeline.effects ?? []
+    const hasChanges = batch.toRemove.size > 0 || batch.toUpdate.size > 0 || batch.toAdd.length > 0
+
+    if (!hasChanges) return
+
+    // Single pass: filter out removed, apply updates
+    const nextEffects = effects
+      .filter(e => !batch.toRemove.has(e.id))
+      .map(e => {
+        const updates = batch.toUpdate.get(e.id)
+        if (!updates) return e
+
+        // Validate timing if being updated
+        const nextStartTime = updates.startTime ?? e.startTime
+        const nextEndTime = updates.endTime ?? e.endTime
+        if (!Number.isFinite(nextStartTime) || !Number.isFinite(nextEndTime) || nextEndTime <= nextStartTime) {
+          console.warn(`[EffectStore.applyBatch] Skipping effect ${e.id} with invalid timing`)
+          return e
+        }
+
+        // Merge data objects properly
+        if (updates.data && e.data) {
+          return { ...e, ...updates, data: { ...e.data, ...(updates.data as typeof e.data) } } as Effect
+        }
+        return { ...e, ...updates } as Effect
+      })
+
+    // Validate added effects
+    const validAdds = batch.toAdd.filter(e => {
+      if (!isValidEffectTiming(e)) {
+        console.warn(`[EffectStore.applyBatch] Skipping added effect ${e.id} with invalid timing`)
+        return false
+      }
+      return true
+    })
+
+    project.timeline.effects = [...nextEffects, ...validAdds]
+    markModified(project)
   },
 }

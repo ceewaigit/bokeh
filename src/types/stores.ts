@@ -38,10 +38,8 @@ export interface ProjectStore {
   // New restore API to reinsert a clip at a specific track/index
   restoreClip: (trackId: string, clip: Clip, index: number) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
-  splitClip: (clipId: string, splitTime: number) => void
-  trimClipStart: (clipId: string, newStartTime: number) => void
-  trimClipEnd: (clipId: string, newEndTime: number) => void
-  duplicateClip: (clipId: string) => string | null
+  // NOTE: splitClip, trimClipStart, trimClipEnd, duplicateClip, reorderClip removed.
+  // Use commands (SplitClipCommand, TrimCommand, DuplicateClipCommand, ReorderClipCommand) for undo/redo support.
   copyClip: (clip: Clip) => void
   copyEffect: (
     type: EffectType,

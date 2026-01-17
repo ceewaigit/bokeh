@@ -57,11 +57,13 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const clickTextOffsetY = cursorData?.clickTextOffsetY ?? defaults.clickTextOffsetY ?? -12
   const clickTextRise = cursorData?.clickTextRise ?? defaults.clickTextRise ?? 24
 
+  // Motion blur: only show intensity if explicitly enabled (motionBlur: true)
+  // Default is OFF (motionBlur: false), so slider should show 0 until user enables it
   const motionBlurIntensity = typeof cursorData?.motionBlurIntensity === 'number'
     ? cursorData.motionBlurIntensity
-    : cursorData?.motionBlur === false
-      ? 0
-      : defaults.motionBlurIntensity ?? 40
+    : (cursorData?.motionBlur === true)
+      ? (defaults.motionBlurIntensity ?? 40)
+      : 0
 
   const hideOnIdle = cursorData?.hideOnIdle ?? defaults.hideOnIdle
   const fadeOnIdle = cursorData?.fadeOnIdle ?? defaults.fadeOnIdle
@@ -243,7 +245,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
   const previewDotStyle = useMemo(() => ({
     width: `${previewConfig.dotSize}px`,
     height: `${previewConfig.dotSize}px`,
-    boxShadow: `0 0 ${Math.round(12 * previewConfig.glowStrength)}px rgba(59,130,246,${0.35 + previewConfig.glowStrength * 0.35})`,
+    boxShadow: `0 0 ${Math.round(6 * previewConfig.glowStrength)}px rgba(59,130,246,${0.15 + previewConfig.glowStrength * 0.2})`,
     ...(previewAnimationStyle ?? {})
   }) as React.CSSProperties, [previewAnimationStyle, previewConfig.dotSize, previewConfig.glowStrength])
 

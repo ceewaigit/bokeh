@@ -289,6 +289,7 @@ function hitTestBody(
 }
 
 import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
+import { getVideoRectFromSnapshot } from '@/features/ui/editor/logic/preview-point-transforms'
 
 /**
  * Get the bounds of a positioned effect using the Frame Snapshot
@@ -300,28 +301,6 @@ export function getEffectLayout(
 ): EffectBounds | null {
   const videoRect = getVideoRectFromSnapshot(snapshot)
   return getEffectBounds(effect, videoRect)
-}
-
-/**
- * Helper to extract VideoRect from FrameSnapshot
- */
-export function getVideoRectFromSnapshot(snapshot: FrameSnapshot): VideoRect {
-  if (snapshot.mockup.enabled && snapshot.mockup.position) {
-    const { videoX, videoY, videoWidth, videoHeight } = snapshot.mockup.position
-    return {
-      x: videoX,
-      y: videoY,
-      width: videoWidth,
-      height: videoHeight
-    }
-  }
-
-  return {
-    x: snapshot.layout.offsetX,
-    y: snapshot.layout.offsetY,
-    width: snapshot.layout.drawWidth,
-    height: snapshot.layout.drawHeight
-  }
 }
 
 /**

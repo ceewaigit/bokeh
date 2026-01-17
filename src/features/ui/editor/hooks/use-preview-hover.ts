@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
-import type { Project, Effect, Recording } from '@/types/project';
+import type { Effect } from '@/types/project';
 import { AnnotationType } from '@/types/project';
 import type { PreviewHoverLayer, CursorOverlayData, WebcamOverlayData, AnnotationOverlayData, VideoOverlayData, SubtitleOverlayData, KeystrokeOverlayData } from '@/features/ui/editor/components/preview/layer-hover-overlays';
 import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine';
-import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import { hitTestAnnotationsFromPoint } from '@/features/ui/editor/logic/dom-hit-testing';
-import { getVideoRectFromSnapshot, getCameraTransformFromSnapshot } from '@/features/ui/editor/logic/hit-testing'; // Import helper
+import { getVideoRectFromSnapshot } from '@/features/ui/editor/logic/preview-point-transforms';
+import { getCameraTransformFromSnapshot } from '@/features/ui/editor/logic/hit-testing';
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
 import { applyCameraTransformToPixelRect } from '@/features/rendering/canvas/math/coordinates';
 import type { WebcamLayoutData, Clip } from '@/types/project';
@@ -21,13 +21,7 @@ function intersectRects(a: DOMRect, b: DOMRect) {
     return { left, top, width, height };
 }
 
-interface HelperClipData {
-    recording: Recording | null;
-    sourceTimeMs: number;
-}
-
 interface UsePreviewHoverOptions {
-    project: Project | null;
     projectEffects: Effect[];
     webcamClip?: Clip | null;
     canSelectBackground: boolean;
@@ -37,10 +31,6 @@ interface UsePreviewHoverOptions {
     aspectContainerRef: React.RefObject<HTMLDivElement | null>;
     playerContainerRef?: React.RefObject<HTMLDivElement | null>;
     snapshot: FrameSnapshot;
-    timelineMetadata: TimelineMetadata;
-    activeClipData: HelperClipData | null;
-    // Using any for the value types to avoid circular dependencies or complex type imports for now
-    metadataUrls?: Record<string, any>;
 }
 
 function getWebcamBorderRadius(data: WebcamLayoutData): string {
@@ -80,8 +70,6 @@ export function usePreviewHover({
     projectEffects,
     webcamClip,
     snapshot,
-    activeClipData: _activeClipData,
-    metadataUrls: _metadataUrls,
 }: UsePreviewHoverOptions) {
     const [hoveredLayer, setHoveredLayer] = useState<PreviewHoverLayer>(null);
     const [cursorOverlay, setCursorOverlay] = useState<CursorOverlayData | null>(null);
@@ -195,7 +183,8 @@ export function usePreviewHover({
                 Math.abs(prev.x - nextBackground.x) < 0.5 &&
                 Math.abs(prev.y - nextBackground.y) < 0.5 &&
                 Math.abs(prev.width - nextBackground.width) < 0.5 &&
-                Math.abs(prev.height - nextBackground.height) < 0.5
+                Math.abs(prev.height - nextBackground.height) < 0.5 &&
+                prev.borderRadius === nextBackground.borderRadius
             ) {
                 return prev;
             }
@@ -432,8 +421,11 @@ export function usePreviewHover({
 
         // 5) Background (everything else)
         if (canSelectBackground) {
-            // Use the full container for the background badge so it doesn't sit on the video content.
-            setHoverState('background', null, null, null, null, null);
+            const backgroundEl = playerContainerRef?.current?.querySelector<HTMLElement>('[data-extended-background="true"]');
+            const transformEl = playerContainerRef?.current?.querySelector<HTMLElement>('[data-video-transform-container="true"]');
+            const overlayEl = backgroundEl ?? transformEl;
+            const overlay = overlayEl ? getOverlayFromElement(overlayEl, containerRect) : null;
+            setHoverState('background', null, null, null, null, overlay);
         } else {
             setHoverState(null, null, null, null, null, null);
         }

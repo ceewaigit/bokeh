@@ -17,7 +17,7 @@ import type {
 } from '@/types/project'
 import type { EffectType, TrackType } from '@/types/project'
 import type { SelectedEffectLayer, EffectLayerType } from '@/features/effects/types'
-import type { CameraPathFrame } from '@/types/remotion'
+import type { CameraPathFrame } from '@/features/rendering/renderer/types'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import type { EffectGenerationConfig } from '@/features/effects/logic/effect-detector'
 import type { Patch } from 'immer'
@@ -100,8 +100,7 @@ export interface PlaybackSliceState {
 
 export interface TimelineSliceState {
   _placeholder?: never
-  /** Pending clip change for middleware-driven sync */
-  _pendingClipChange?: import('@/features/effects/sync/types').ClipChange | null
+  // NOTE: _pendingClipChange removed - sync now happens inline within TimelineCommand.mutate()
 }
 
 export interface CacheSliceState {
@@ -170,11 +169,8 @@ export interface ClipSliceActions {
   removeClip: (clipId: string) => void
   updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean; maintainContiguous?: boolean }) => void
   restoreClip: (trackId: string, clip: Clip, index: number) => void
-  splitClip: (clipId: string, splitTime: number) => void
-  trimClipStart: (clipId: string, newStartTime: number) => void
-  trimClipEnd: (clipId: string, newEndTime: number) => void
-  duplicateClip: (clipId: string) => string | null
-  reorderClip: (clipId: string, newIndex: number) => void
+  // NOTE: splitClip, trimClipStart, trimClipEnd, duplicateClip, reorderClip removed.
+  // Use corresponding commands (SplitClipCommand, TrimCommand, DuplicateClipCommand, ReorderClipCommand) instead.
   // Speed-up actions
   applyTypingSpeedToClip: (clipId: string, periods: Array<{
     startTime: number
@@ -249,6 +245,7 @@ export interface EffectsSliceActions {
   addEffect: (effect: Effect) => void
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<Effect>) => void
+  restoreEffect: (effect: Effect) => void
   getEffectsAtTimeRange: (clipId: string) => Effect[]
   regenerateAllEffects: (config?: EffectGenerationConfig) => Promise<{
     trimSuggestions: Array<{

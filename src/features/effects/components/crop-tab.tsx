@@ -4,22 +4,19 @@ import React from 'react'
 import { Crop, RotateCcw, Move, Maximize } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
-import type { Clip, CropEffectData } from '@/types/project'
+import type { CropEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { getCropEffectForClip, getDataOfType } from '@/features/effects/core/filters'
 import { InfoTooltip } from './info-tooltip'
 import { cn } from '@/shared/utils/utils'
 import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager'
 import { useTimelineEffects } from '@/features/core/stores/selectors'
+import { useSelectedClip } from '@/features/core/stores/selectors/clip-selectors'
 
-interface CropTabProps {
-  selectedClip: Clip | null
-}
+export function CropTab() {
+  const selectedClipResult = useSelectedClip()
+  const selectedClip = selectedClipResult?.clip ?? null
 
-export function CropTab({
-  selectedClip,
-}: CropTabProps) {
-  // Call the hook directly - single source of truth
   const {
     isEditingCrop,
     handleAddCrop,
@@ -28,10 +25,8 @@ export function CropTab({
     handleStartEditCrop,
   } = useCropManager(selectedClip)
 
-  // Get effects from selectors (single source of truth)
   const effects = useTimelineEffects()
 
-  // Get crop effect for the selected clip
   const cropEffect = selectedClip
     ? getCropEffectForClip(effects, selectedClip)
     : undefined
@@ -75,19 +70,18 @@ export function CropTab({
     }
   }, [])
 
-  // Convert 0-1 to percentage for display
   const toPercent = (value: number) => Math.round(value * 100)
   const fromPercent = (value: number) => value / 100
 
   if (!selectedClip) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-center">
-        <Crop className="w-8 h-8 text-muted-foreground/50 mb-3" />
-        <p className="text-sm text-muted-foreground">
-          Select a clip to crop
-        </p>
-        <p className="text-xs text-muted-foreground/70 mt-1">
-          Crop focuses on a specific part of your recording
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="w-10 h-10 rounded-xl bg-muted/30 flex items-center justify-center mb-3">
+          <Crop className="w-5 h-5 text-muted-foreground/50" />
+        </div>
+        <p className="text-sm text-muted-foreground">Select a clip to crop</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          Focus on a specific part of your recording
         </p>
       </div>
     )
@@ -96,18 +90,15 @@ export function CropTab({
   if (!cropEffect || !cropData) {
     return (
       <div className="space-y-4">
-        <div className="flex flex-col items-center justify-center py-6 text-center border border-border/40 bg-background/50 rounded-2xl overflow-hidden">
-          <Crop className="w-8 h-8 text-muted-foreground/50 mb-3" />
-          <p className="text-sm text-muted-foreground mb-1">
-            No crop applied
+        <div className="flex flex-col items-center justify-center py-8 text-center rounded-xl bg-black/[0.02] dark:bg-white/[0.02]">
+          <div className="w-10 h-10 rounded-xl bg-muted/30 flex items-center justify-center mb-3">
+            <Crop className="w-5 h-5 text-muted-foreground/50" />
+          </div>
+          <p className="text-sm text-muted-foreground mb-1">No crop applied</p>
+          <p className="text-xs text-muted-foreground/60 mb-4 max-w-[200px]">
+            Crop to focus on the important part of your recording
           </p>
-          <p className="text-xs text-muted-foreground/70 mb-4 max-w-[220px]">
-            Crop to focus on the most important part of your recording.
-          </p>
-          <Button
-            onClick={handleAddCrop}
-            className="gap-2"
-          >
+          <Button onClick={handleAddCrop} className="gap-2">
             <Crop className="w-4 h-4" />
             Add Crop
           </Button>
@@ -118,50 +109,50 @@ export function CropTab({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-xs font-semibold tracking-[-0.02em]">Crop</h3>
-          <p className="text-xs leading-[1.35] text-muted-foreground/80">
-            Refine framing with precise, non-destructive crop.
+          <h3 className="text-xs font-semibold">Crop</h3>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">
+            Non-destructive crop framing
           </p>
         </div>
         <div
           className={cn(
-            "shrink-0 whitespace-nowrap rounded-pill border px-2 py-0.5 text-2xs font-mono uppercase tracking-[0.18em] transition-colors duration-150",
+            "shrink-0 rounded-full border px-2 py-0.5 text-2xs font-medium transition-colors",
             isEditingCrop
-              ? "bg-primary/10 text-primary border-primary/20"
-              : "bg-muted/40 text-muted-foreground border-border/40"
+              ? "bg-primary/10 text-primary border-primary/30"
+              : "bg-muted/30 text-muted-foreground border-transparent"
           )}
         >
-          {isEditingCrop ? 'Live' : 'Ready'}
+          {isEditingCrop ? 'Editing' : 'Ready'}
         </div>
       </div>
 
-      {/* Edit Crop Button */}
+      {/* Edit Button */}
       <Button
         onClick={handleStartEditCrop}
         variant={isEditingCrop ? "default" : "outline"}
         className="w-full gap-2"
       >
         <Move className="w-4 h-4" />
-        {isEditingCrop ? 'Editing Crop...' : 'Edit Crop Visually'}
+        {isEditingCrop ? 'Editing Crop...' : 'Edit Visually'}
       </Button>
 
-      {/* Crop Region Info */}
-      <div className="rounded-2xl border border-border/40 bg-background/60 p-2.5 space-y-3 overflow-hidden">
+      {/* Crop Controls */}
+      <div className="rounded-xl bg-black/[0.02] dark:bg-white/[0.02] p-3 space-y-3">
         <div className="flex items-center gap-2">
           <Crop className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs font-semibold tracking-[-0.01em]">Crop Region</span>
-          <InfoTooltip content="The cropped area expands to fill the canvas. Values represent the visible portion of the original frame." />
+          <span className="text-xs font-medium">Region</span>
+          <InfoTooltip content="The cropped area fills the canvas. Values are percentage of original frame." />
         </div>
 
-        {/* Position Controls */}
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
-          {/* X Position */}
-          <div className="space-y-1.5">
+        {/* Position */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="group space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Left (X)</span>
-              <span className="text-xs font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground group-hover:text-foreground/80 transition-colors">Left</span>
+              <span className="text-xs font-mono tabular-nums text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">
                 {toPercent(localX ?? cropData.x)}%
               </span>
             </div>
@@ -175,15 +166,13 @@ export function CropTab({
               min={0}
               max={90}
               step={1}
-              className="w-full"
             />
           </div>
 
-          {/* Y Position */}
-          <div className="space-y-1.5">
+          <div className="group space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Top (Y)</span>
-              <span className="text-xs font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground group-hover:text-foreground/80 transition-colors">Top</span>
+              <span className="text-xs font-mono tabular-nums text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">
                 {toPercent(localY ?? cropData.y)}%
               </span>
             </div>
@@ -197,18 +186,16 @@ export function CropTab({
               min={0}
               max={90}
               step={1}
-              className="w-full"
             />
           </div>
         </div>
 
-        {/* Size Controls */}
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
-          {/* Width */}
-          <div className="space-y-1.5">
+        {/* Size */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="group space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Width</span>
-              <span className="text-xs font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground group-hover:text-foreground/80 transition-colors">Width</span>
+              <span className="text-xs font-mono tabular-nums text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">
                 {toPercent(localWidth ?? cropData.width)}%
               </span>
             </div>
@@ -222,15 +209,13 @@ export function CropTab({
               min={10}
               max={100}
               step={1}
-              className="w-full"
             />
           </div>
 
-          {/* Height */}
-          <div className="space-y-1.5">
+          <div className="group space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Height</span>
-              <span className="text-xs font-mono text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground group-hover:text-foreground/80 transition-colors">Height</span>
+              <span className="text-xs font-mono tabular-nums text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">
                 {toPercent(localHeight ?? cropData.height)}%
               </span>
             </div>
@@ -244,7 +229,6 @@ export function CropTab({
               min={10}
               max={100}
               step={1}
-              className="w-full"
             />
           </div>
         </div>
@@ -259,7 +243,7 @@ export function CropTab({
           onClick={() => handleRemoveCrop(cropEffect.id)}
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          Reset Crop
+          Reset
         </Button>
         <Button
           variant="outline"
@@ -271,11 +255,6 @@ export function CropTab({
           Full Frame
         </Button>
       </div>
-
-      {/* Info */}
-      <p className="text-xs text-muted-foreground/70 text-center">
-        The selected region scales to fill the canvas.
-      </p>
     </div>
   )
 }

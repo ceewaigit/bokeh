@@ -79,6 +79,8 @@ export function getCameraOutputContext(args: {
     overscan?: { left: number; right: number; top: number; bottom: number }
     mockupScreenPosition?: { x: number; y: number; width: number; height: number }
     forceFollowCursor: boolean
+    /** True when background has padding - allows camera to reveal padding area */
+    allowOverscanReveal: boolean
 } {
     const {
         clipEffects,
@@ -150,6 +152,7 @@ export function getCameraOutputContext(args: {
         overscan,
         mockupScreenPosition,
         forceFollowCursor: Boolean(mockupEnabled && mockupPosition),
+        allowOverscanReveal: padding > 0,
     }
 }
 
@@ -364,7 +367,9 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             // regardless of scrub direction (forward vs backward)
             deterministic: true,
             cameraSmoothness: cameraSettings?.cameraSmoothness,
-            cameraDynamics: cameraSettings?.cameraDynamics
+            cameraDynamics: cameraSettings?.cameraDynamics,
+            // Allow camera to reveal background padding when zoomed
+            allowOverscanReveal: paddingScaled > 0,
         })
 
         Object.assign(physics, computed.physics)

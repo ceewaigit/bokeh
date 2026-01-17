@@ -7,9 +7,10 @@
 
 import type { Project, Track, Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
-import { validatePosition, getReorderTarget } from '@/features/ui/timeline/utils/drag-positioning'
+import { getReorderTarget } from '@/features/ui/timeline/utils/drag-positioning'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { withMutation } from '@/features/ui/timeline/clips/clip-mutation'
+import { WebcamTrackValidator } from '@/features/ui/timeline/clips/webcam-validator'
 
 /**
  * Add clip to track at specified position.
@@ -48,26 +49,15 @@ export function addClipToTrack(
     if (options?.insertIndex !== undefined) {
         insertIndex = options.insertIndex
     } else if (targetTrackType === TrackType.Webcam) {
-        // Webcam track: Ensure no collision by validating position
-        const blocks = targetTrack.clips.map(c => ({
-            id: c.id,
-            startTime: c.startTime,
-            endTime: c.startTime + c.duration
-        }))
-
-        const validation = validatePosition(
+        // Webcam track: Ensure no collision using WebcamTrackValidator
+        const validation = WebcamTrackValidator.validateMove(
+            targetTrack,
             proposedTime,
-            clip.duration,
-            blocks,
-            undefined, // no excludeClipId
-            { findAlternativeIfInvalid: true }
+            clip.duration
         )
-
-        // Use the valid position (original or suggested)
-        clip.startTime = validation.isValid ? validation.finalPosition : (validation.suggestedPosition ?? validation.finalPosition)
+        clip.startTime = validation.startTime
 
         // Find correct sorted index for this new startTime
-        // (Default append if it's after everything, otherwise find first clip that starts after it)
         const sortedIndex = targetTrack.clips.findIndex(c => c.startTime > clip.startTime)
         insertIndex = sortedIndex === -1 ? targetTrack.clips.length : sortedIndex
     } else {
@@ -230,40 +220,20 @@ export function updateClipInTrack(
                 const proposedTime = updates.startTime ?? clip.startTime
                 const proposedDuration = updates.duration ?? clip.duration
 
-                const blocks = track.clips.map(c => ({
-                    id: c.id,
-                    startTime: c.startTime,
-                    endTime: c.startTime + c.duration
-                }))
-
-                const validation = validatePosition(
-                    proposedTime,
-                    proposedDuration,
-                    blocks,
-                    clip.id, // exclude self
-                    { findAlternativeIfInvalid: true }
-                )
-
-                if (!validation.isValid) {
-                    if (hasStartChange) {
-                        // If moving, snap to suggested position
-                        updates.startTime = validation.suggestedPosition ?? validation.finalPosition
-                    } else if (hasDurationChange) {
-                        // If resizing (duration only) and it invalidates position, it means we grew into neighbor.
-                        // Clamp duration to available space.
-                        // Find the next clip after current start time
-                        const sortedClips = track.clips
-                            .filter(c => c.id !== clip.id)
-                            .sort((a, b) => a.startTime - b.startTime)
-
-                        const nextClip = sortedClips.find(c => c.startTime >= clip.startTime)
-                        if (nextClip) {
-                            // Max duration is up to next clip
-                            const maxDuration = nextClip.startTime - clip.startTime
-                            if (proposedDuration > maxDuration) {
-                                updates.duration = Math.max(1000, maxDuration) // enforce min duration?
-                            }
-                        }
+                if (hasStartChange) {
+                    // Use WebcamTrackValidator for move validation
+                    const validation = WebcamTrackValidator.validateMove(
+                        track,
+                        proposedTime,
+                        proposedDuration,
+                        clip.id
+                    )
+                    updates.startTime = validation.startTime
+                } else if (hasDurationChange) {
+                    // For duration-only changes, clamp to max available space
+                    const maxDuration = WebcamTrackValidator.getMaxDurationToNextClip(track, clip)
+                    if (proposedDuration > maxDuration && maxDuration !== Infinity) {
+                        updates.duration = Math.max(1000, maxDuration)
                     }
                 }
             }

@@ -8,7 +8,7 @@ import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { computeEffectiveDuration } from '@/features/ui/timeline/time/time-space-converter'
 import { updateClipInTrack } from '@/features/ui/timeline/clips/clip-crud'
-import { TimelineSyncService } from '@/features/effects/sync'
+import { ClipChangeBuilder } from '@/features/effects/sync'
 import { PlayheadService } from '@/features/playback/services/playhead-service'
 import { playbackService } from '@/features/playback/services/playback-service'
 
@@ -36,7 +36,7 @@ export class ChangePlaybackRateCommand extends TimelineCommand<{ clipId: string;
     return this.playbackRate > 0.0625 && this.playbackRate <= 16
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No active project')
 
@@ -63,8 +63,8 @@ export class ChangePlaybackRateCommand extends TimelineCommand<{ clipId: string;
 
     const updatedLookup = this.findClip(project, this.clipId)
     if (updatedLookup) {
-      const clipChange = TimelineSyncService.buildRateChange(updatedLookup.clip, oldDuration, track.type)
-      this.setPendingChange(draft, clipChange)
+      const clipChange = ClipChangeBuilder.buildRateChange(updatedLookup.clip, oldDuration, track.type)
+      this.deferClipChange(clipChange)
 
       // Maintain playhead relative position
       const newTime = PlayheadService.trackPlayheadDuringClipEdit(

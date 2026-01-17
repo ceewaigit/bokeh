@@ -9,7 +9,7 @@ import type { Project, Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { withMutation } from '@/features/ui/timeline/clips/clip-mutation'
-import { validatePosition } from '@/features/ui/timeline/utils/drag-positioning'
+import { WebcamTrackValidator } from '@/features/ui/timeline/clips/webcam-validator'
 
 // Minimum clip duration (1 second) - matches UI constraint
 export const MIN_CLIP_DURATION_MS = 1000
@@ -108,27 +108,9 @@ export function executeTrimClipStart(
 
     // ENFORCE: Webcam track collision detection during trim start
     if (track.type === TrackType.Webcam) {
-        const proposedDuration = clip.startTime + clip.duration - newStartTime
-
-        // Convert clips to generic blocks
-        const blocks = track.clips.map(c => ({
-            id: c.id,
-            startTime: c.startTime,
-            endTime: c.startTime + c.duration
-        }))
-
-        // Validate the NEW position and duration
-        const validation = validatePosition(
-            newStartTime,
-            proposedDuration,
-            blocks,
-            clip.id,
-            { findAlternativeIfInvalid: true }
-        )
-
+        const validation = WebcamTrackValidator.validateTrimStart(track, clip, newStartTime)
         if (!validation.isValid) {
-            // Clamp to the suggested position (nearest available gap start)
-            validatedStartTime = validation.suggestedPosition ?? validation.finalPosition
+            validatedStartTime = validation.startTime
         }
     }
 
@@ -162,37 +144,9 @@ export function executeTrimClipEnd(
 
     // ENFORCE: Webcam track collision detection during trim end
     if (track.type === TrackType.Webcam) {
-        const proposedDuration = newEndTime - clip.startTime
-
-        // Convert clips to generic blocks
-        const blocks = track.clips.map(c => ({
-            id: c.id,
-            startTime: c.startTime,
-            endTime: c.startTime + c.duration
-        }))
-
-        // Validate the position with NEW duration
-        const validation = validatePosition(
-            clip.startTime,
-            proposedDuration,
-            blocks,
-            clip.id,
-            { findAlternativeIfInvalid: true }
-        )
-
+        const validation = WebcamTrackValidator.validateTrimEnd(track, clip, newEndTime)
         if (!validation.isValid) {
-            // Check if we are expanding into someone (newEndTime > oldEndTime)
-            // If invalid, the suggested position usually shifts the clip, which we don't want for End Trim.
-            // We want to find the MAX valid duration.
-            // Simplified approach: Find the next clip's start time and clamp to it.
-            const sortedClips = track.clips
-                .filter(c => c.id !== clipId)
-                .sort((a, b) => a.startTime - b.startTime)
-
-            const nextClip = sortedClips.find(c => c.startTime >= clip.startTime)
-            if (nextClip && newEndTime > nextClip.startTime) {
-                validatedEndTime = nextClip.startTime
-            }
+            validatedEndTime = validation.endTime
         }
     }
 

@@ -23,7 +23,7 @@ import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/shared/constants/layout'
 
 // Logic imports
-import type { ActiveClipDataAtFrame } from '@/types/remotion'
+import type { ActiveClipDataAtFrame } from '@/features/rendering/renderer/types'
 import type { FrameLayoutItem, PersistedVideoState, BoundaryOverlapState } from '@/features/ui/timeline/utils/frame-layout'
 import { getVisibleFrameLayout } from '@/features/ui/timeline/utils/frame-layout'
 import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame'

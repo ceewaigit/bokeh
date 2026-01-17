@@ -7,7 +7,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { removeClipFromTrack } from '@/features/ui/timeline/clips/clip-crud'
-import { TimelineSyncService } from '@/features/effects/sync'
+import { ClipChangeBuilder } from '@/features/effects/sync'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { TrackType } from '@/types/project'
 
@@ -27,10 +27,10 @@ export class RemoveClipCommand extends TimelineCommand<{ clipId: string }> {
   }
 
   canExecute(): boolean {
-    return this.context.findClip(this.clipId) !== null
+    return this.clipExists(this.clipId)
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No active project')
 
@@ -41,7 +41,7 @@ export class RemoveClipCommand extends TimelineCommand<{ clipId: string }> {
     const isWebcamTrack = track.type === TrackType.Webcam
 
     // Build clip change for sync
-    const clipChange = TimelineSyncService.buildDeleteChange(clip, track.type)
+    const clipChange = ClipChangeBuilder.buildDeleteChange(clip, track.type)
 
     // Auto ripple - skip for webcam track
     const shouldRipple = draft.settings.editing.autoRipple && !isWebcamTrack
@@ -56,8 +56,8 @@ export class RemoveClipCommand extends TimelineCommand<{ clipId: string }> {
     if (removeClipFromTrack(project, this.clipId, track)) {
       draft.selectedClips = draft.selectedClips.filter(id => id !== this.clipId)
 
-      // Set pending change for middleware
-      this.setPendingChange(draft, clipChange)
+      // Defer clip change for inline sync
+      this.deferClipChange(clipChange)
 
       // Memory cleanup
       if (recordingIdToCheck) {

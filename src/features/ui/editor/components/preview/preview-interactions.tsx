@@ -5,12 +5,11 @@ import { useProjectStore } from '@/features/core/stores/project-store';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
 import { SidebarTabId } from '@/features/effects/components/constants';
 import { EffectLayerType } from '@/features/effects/types';
-import { EffectType, Project, Effect, TrackType, AnnotationType } from '@/types/project';
+import { EffectType, TrackType, AnnotationType, Effect } from '@/types/project';
 import type { AnnotationData } from '@/types/project';
 import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters';
 import { LayerHoverOverlays } from './layer-hover-overlays';
-import type { ZoomSettings } from '@/types/remotion';
-import type { SelectedEffectLayer } from '@/features/effects/types';
+import type { ZoomSettings } from '@/features/ui/editor/types';
 import { InteractionLayer } from '@/features/ui/editor/components/InteractionLayer';
 import { AnnotationEditProvider } from '@/features/ui/editor/context/AnnotationEditContext';
 import { PlayerRef } from '@remotion/player';
@@ -24,19 +23,15 @@ import { useAnnotationDropTarget } from '@/features/effects/annotation/ui/Annota
 import { useSelectedClipId } from '@/features/core/stores/project-store';
 import { getVideoRectFromSnapshot, containerPointToVideoPoint } from '@/features/ui/editor/logic/preview-point-transforms';
 import { getDefaultAnnotationSize } from '@/features/effects/annotation/config';
+import { usePlaybackSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
+import { EffectStore } from '@/features/effects/core/effects-store';
 
 // ------------------------------------------------------------------
 // Main Component: PreviewInteractions
 // ------------------------------------------------------------------
 
 interface PreviewInteractionsProps {
-    project: Project;
-    projectEffects: Effect[];
     timelineMetadata: TimelineMetadata;
-    selectedEffectLayer: SelectedEffectLayer;
-    isEditingCrop: boolean;
-    /** Hide selection/interaction controls during playback */
-    isPlaying: boolean;
     playerKey?: string;
     zoomSettings?: ZoomSettings;
     previewFrameBounds: { width: number; height: number; };
@@ -47,12 +42,7 @@ interface PreviewInteractionsProps {
 }
 
 export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
-    project,
-    projectEffects,
     timelineMetadata,
-    selectedEffectLayer,
-    isEditingCrop,
-    isPlaying,
     playerKey,
     zoomSettings,
     previewFrameBounds,
@@ -61,20 +51,35 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     playerRef,
     children,
 }) => {
+    // Get playback/render state from context (provided by PlaybackSettingsProvider)
+    const { playback, renderSettings } = usePlaybackSettings();
+    const isPlaying = playback.isPlaying;
+    const isEditingCrop = renderSettings.isEditingCrop;
+
     // PERF: Consolidated subscriptions to prevent cascading re-renders
     const {
+        project,
+        selectedEffectLayer,
         selectEffectLayer,
         selectClip,
         addEffect,
         startEditingOverlay,
         inlineEditingId
     } = useProjectStore(useShallow((s) => ({
+        project: s.currentProject,
+        selectedEffectLayer: s.selectedEffectLayer,
         selectEffectLayer: s.selectEffectLayer,
         selectClip: s.selectClip,
         addEffect: s.addEffect,
         startEditingOverlay: s.startEditingOverlay,
         inlineEditingId: s.inlineEditingId
     })));
+
+    // Derive effects from project
+    const projectEffects = useMemo(() => {
+        if (!project) return [];
+        return EffectStore.getAll(project);
+    }, [project]);
 
     const {
         isPropertiesOpen,
@@ -254,7 +259,6 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         handlePreviewHover,
         handlePreviewLeave,
     } = usePreviewHover({
-        project,
         projectEffects,
         webcamClip: activeWebcamClip,
         canSelectBackground,
@@ -264,8 +268,6 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         aspectContainerRef,
         playerContainerRef,
         snapshot,
-        timelineMetadata,
-        activeClipData
     });
 
     const isFromAnnotationDock = useCallback((eventTarget: EventTarget | null) => {
@@ -442,24 +444,14 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
 
     // Calculate video rect for the DOM overlay
     const videoRect = useMemo(() => {
-        if (snapshot) {
-            return getVideoRectFromSnapshot(snapshot)
-        }
-        if (aspectContainerRef.current) {
-            const rect = aspectContainerRef.current.getBoundingClientRect()
-            return { x: 0, y: 0, width: rect.width, height: rect.height }
-        }
-        return { x: 0, y: 0, width: 0, height: 0 }
-    }, [aspectContainerRef, snapshot])
+        return getVideoRectFromSnapshot(snapshot)
+    }, [snapshot])
 
     return (
         <AnnotationEditProvider>
             <div
                 ref={aspectContainerRef}
-                className={`relative w-full h-full group/preview${(isInteractive && (canSelectBackground || canSelectCursor || canSelectWebcam || canSelectVideo)) ? ' cursor-pointer' : ''}${isDraggingAnnotation ? ' ring-2 ring-primary/50 ring-inset' : ''}`}
-                style={{
-                    aspectRatio: `${timelineMetadata.width} / ${timelineMetadata.height}`,
-                }}
+                className={`relative w-full h-full overflow-hidden group/preview${(isInteractive && (canSelectBackground || canSelectCursor || canSelectWebcam || canSelectVideo)) ? ' cursor-pointer' : ''}${isDraggingAnnotation ? ' ring-2 ring-primary/50 ring-inset' : ''}`}
                 onClick={handleLayerSelect}
                 onDragOver={annotationDropHandlers.onDragOver}
                 onDragLeave={annotationDropHandlers.onDragLeave}
@@ -504,12 +496,7 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
                         subtitleOverlay={subtitleOverlay}
                         keystrokeOverlay={keystrokeOverlay}
                         canSelectBackground={canSelectBackground}
-                        canSelectCursor={canSelectCursor}
-                        canSelectWebcam={canSelectWebcam}
                         canSelectVideo={canSelectVideo}
-                        canSelectAnnotation={true}
-                        containerWidth={previewFrameBounds.width}
-                        containerHeight={previewFrameBounds.height}
                         selectedAnnotationId={selectedEffectLayer?.type === EffectLayerType.Annotation ? selectedEffectLayer.id : null}
                     />
                 )}

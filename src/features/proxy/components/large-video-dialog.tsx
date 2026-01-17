@@ -5,8 +5,8 @@
  * Offers a single CTA to optimize for editing, with dismiss option.
  */
 
-import React from 'react'
-import { Loader2, Gauge } from 'lucide-react'
+import React, { useEffect } from 'react'
+import { Loader2, Gauge, Check } from 'lucide-react'
 import {
     Dialog,
     DialogContent,
@@ -39,6 +39,17 @@ export function LargeVideoDialog({
     const status = useProxyStore((s) => recording ? s.status[recording.id] : undefined)
     const progress = useProxyProgress(recording?.id)
     const isGenerating = status === 'generating'
+    const isComplete = status === 'ready'
+
+    // Auto-close dialog after completion with brief delay to show success message
+    useEffect(() => {
+        if (isComplete && open) {
+            const timeoutId = setTimeout(() => {
+                onClose()
+            }, 1200)
+            return () => clearTimeout(timeoutId)
+        }
+    }, [isComplete, open, onClose])
 
     const getResolutionLabel = (width?: number) => {
         if (!width) return 'high-resolution'
@@ -73,7 +84,15 @@ export function LargeVideoDialog({
                 </DialogHeader>
 
                 <div className="space-y-4 pt-2">
-                    {isGenerating ? (
+                    {isComplete ? (
+                        <div className="flex items-center gap-3 rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-3">
+                            <Check className="h-5 w-5 text-green-500" />
+                            <div className="flex-1">
+                                <p className="text-sm font-medium text-green-600 dark:text-green-400">Optimized!</p>
+                                <p className="text-xs text-muted-foreground">Ready for smooth editing</p>
+                            </div>
+                        </div>
+                    ) : isGenerating ? (
                         <div className="flex items-center gap-3 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
                             <Loader2 className="h-5 w-5 animate-spin text-primary" />
                             <div className="flex-1">
@@ -93,7 +112,7 @@ export function LargeVideoDialog({
                         <Button
                             onClick={handleOptimize}
                             className="flex-1"
-                            disabled={isGenerating}
+                            disabled={isGenerating || isComplete}
                         >
                             <Gauge className="h-4 w-4 mr-2" />
                             Optimize
@@ -101,7 +120,7 @@ export function LargeVideoDialog({
                         <Button
                             variant="ghost"
                             onClick={handleSkip}
-                            disabled={isGenerating}
+                            disabled={isGenerating || isComplete}
                         >
                             Skip
                         </Button>

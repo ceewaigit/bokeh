@@ -9,24 +9,19 @@
  * - Undo/Redo restoration
  */
 
-import type { Clip, Recording, Effect, Project } from '@/types/project'
+import type { Clip, Recording, Effect } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import { calculateTimelineDuration, reflowClips } from '@/features/ui/timeline/clips/clip-reflow'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
-import { executeSplitClip } from '@/features/ui/timeline/clips/clip-split'
-import { executeTrimClipStart, executeTrimClipEnd } from '@/features/ui/timeline/clips/clip-trim'
 import { getReorderTarget } from '@/features/ui/timeline/utils/drag-positioning'
 import {
     updateClipInTrack,
     addClipToTrack,
     removeClipFromTrack,
-    duplicateClipInTrack,
     restoreClipToTrack,
     restoreClipsToTrack
 } from '@/features/ui/timeline/clips/clip-crud'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
-import { EffectInitialization } from '@/features/effects/core/initialization'
-import { TimelineSyncService } from '@/features/effects/sync'
 import { SpeedUpApplicationService } from '@/features/ui/timeline/speed-up-application'
 import { PlayheadService } from '@/features/playback/services/playhead-service'
 import { playbackService } from '@/features/playback/services/playback-service'
@@ -37,11 +32,9 @@ import { TimelineDataService } from '@/features/ui/timeline/timeline-data-servic
 import type { CreateTimelineSlice } from './types'
 import { markModified, markProjectModified } from '../store-utils'
 
-// NOTE: Keystroke sync is now handled by middleware - just invalidate cache
-const reflowTimeline = (project: Project): void => {
-    EffectInitialization.syncKeystrokeEffects(project)
-    TimelineDataService.invalidateCache(project)
-}
+// NOTE: Keystroke sync and cache invalidation are handled via TimelineSyncOrchestrator.commit()
+// which is called by TimelineCommand after mutations. For direct store actions that don't
+// use commands, just invalidate cache - keystroke sync will happen on next operation.
 
 export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     // ===========================================================================
@@ -76,15 +69,13 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             })
 
             if (clip) {
-                // Determine if we need to sync keystrokes (only if recording has metadata)
+                // Determine if recording has audio for waveform display
                 const recordingId = typeof clipOrRecordingId === 'string' ? clipOrRecordingId : clipOrRecordingId.recordingId
                 const recording = state.currentProject.recordings.find(r => r.id === recordingId)
 
-                // Only sync if strictly necessary - this prevents global scan lag on every paste
-                // PERF: Use debounced sync to coalesce rapid operations
-                if (recording && (recording.metadata?.keyboardEvents?.length || 0) > 0) {
-                    EffectInitialization.syncKeystrokeEffects(state.currentProject)
-                }
+                // NOTE: Keystroke sync handled via commands/middleware
+                // Cache invalidation triggers re-render with updated clip
+                TimelineDataService.invalidateCache(state.currentProject)
 
                 state.selectedClips = [clip.id]
 
@@ -95,6 +86,16 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
         })
     },
+
+    // ===========================================================================
+    // QUICK ADD ACTIONS (Intentionally bypass command pattern)
+    // ===========================================================================
+    // These actions are for quick, simple operations that:
+    // 1. Don't require complex undo (clip can be deleted to "undo")
+    // 2. Don't need effect sync (no recording metadata)
+    // 3. Are typically auto-generated (plugins, cursor return)
+    //
+    // Affected actions: addGeneratedClip, addImageClip, addCursorReturnClip
 
     addGeneratedClip: ({ pluginId, params, durationMs, startTime }) => {
         set((state) => {
@@ -144,8 +145,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             project.timeline.duration = calculateTimelineDuration(project)
             markModified(project)
 
-            // PERF: Use debounced sync to coalesce rapid operations
-            EffectInitialization.syncKeystrokeEffects(project)
+            // NOTE: Generated clips have no keystroke data - just invalidate cache
+            TimelineDataService.invalidateCache(project)
 
             state.selectedClips = [clip.id]
         })
@@ -312,8 +313,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
             markProjectModified(state)
 
-            // PERF: Use debounced sync to coalesce rapid operations
-            EffectInitialization.syncKeystrokeEffects(state.currentProject)
+            // NOTE: Generated clips have no keystroke data - just invalidate cache
+            TimelineDataService.invalidateCache(state.currentProject)
         })
     },
 
@@ -339,7 +340,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 ProjectCleanupService.cleanupClipResources(clipId)
 
                 // Clear render caches to prevent stale data after clip removal
-                reflowTimeline(state.currentProject)
+                TimelineDataService.invalidateCache(state.currentProject)
             }
         })
     },
@@ -358,9 +359,9 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 return
             }
 
-            // Clip timing/position can change; keep derived keystroke blocks aligned.
-            // PERF: Use debounced sync to coalesce rapid operations
-            EffectInitialization.syncKeystrokeEffects(state.currentProject)
+            // NOTE: For timing changes, use UpdateClipCommand for proper effect sync
+            // This direct store action just invalidates cache
+            TimelineDataService.invalidateCache(state.currentProject)
 
             // Maintain playhead relative position inside the edited clip
             const updatedResult = ClipLookup.byId(state.currentProject, clipId)
@@ -392,190 +393,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 return
             }
 
-            // Clip restoration changes layout; rebuild derived keystroke blocks.
-            reflowTimeline(state.currentProject)
-        })
-    },
-
-    splitClip: (clipId, splitTime) => {
-        set((state) => {
-            if (!state.currentProject) {
-                console.error('splitClip: No current project')
-                return
-            }
-
-            const result = executeSplitClip(state.currentProject, clipId, splitTime)
-            if (!result) {
-                return
-            }
-
-            const { firstClip } = result
-
-            // Select the left clip to keep focus at the split point
-            state.selectedClips = [firstClip.id]
-
-            // Move playhead to just before the split point
-            if (state.currentTime >= splitTime) {
-                state.currentTime = playbackService.seek(splitTime - 1, state.currentProject.timeline.duration)
-            }
-
-            // Clear render caches to prevent stale data after split
-            reflowTimeline(state.currentProject)
-        })
-    },
-
-    trimClipStart: (clipId, newStartTime) => {
-        set((state) => {
-            if (!state.currentProject) return
-
-            if (!executeTrimClipStart(state.currentProject, clipId, newStartTime)) {
-                return
-            }
-
-            // Trim changes clip boundaries; rebuild derived keystroke blocks.
-            reflowTimeline(state.currentProject)
-        })
-    },
-
-    trimClipEnd: (clipId, newEndTime) => {
-        set((state) => {
-            if (!state.currentProject) return
-
-            if (!executeTrimClipEnd(state.currentProject, clipId, newEndTime)) {
-                return
-            }
-
-            // Trim changes clip boundaries; rebuild derived keystroke blocks.
-            reflowTimeline(state.currentProject)
-        })
-    },
-
-    duplicateClip: (clipId) => {
-        let newClipId: string | null = null
-
-        set((state) => {
-            if (!state.currentProject) return
-
-            const newClip = duplicateClipInTrack(state.currentProject, clipId)
-            if (!newClip) return
-
-            newClipId = newClip.id
-
-            // Duplicated clips should get matching derived keystroke blocks.
-            // PERF: Use debounced sync to coalesce rapid operations
-            EffectInitialization.syncKeystrokeEffects(state.currentProject)
-
-            // Select the duplicated clip
-            state.selectedClips = [newClip.id]
-        })
-
-        return newClipId
-    },
-
-    reorderClip: (clipId, newIndex) => {
-        set((state) => {
-            if (!state.currentProject) return
-
-            for (const track of state.currentProject.timeline.tracks) {
-                const clipIndex = track.clips.findIndex(c => c.id === clipId)
-                if (clipIndex === -1) continue
-
-                const oldRanges = track.clips.map(c => ({
-                    id: c.id,
-                    startTime: c.startTime,
-                    endTime: c.startTime + c.duration
-                }))
-
-                if (clipIndex !== newIndex) {
-                    // Remove clip from current position
-                    const [clip] = track.clips.splice(clipIndex, 1)
-                    // Insert at new position
-                    track.clips.splice(newIndex, 0, clip)
-                }
-
-                // Reflow all clips to ensure contiguity from time 0
-                reflowClips(track, 0)
-
-                const newRanges = new Map<string, { startTime: number; endTime: number }>()
-                for (const updatedClip of track.clips) {
-                    newRanges.set(updatedClip.id, {
-                        startTime: updatedClip.startTime,
-                        endTime: updatedClip.startTime + updatedClip.duration
-                    })
-                }
-
-                const deltaByClipId = new Map<string, number>()
-                for (const oldRange of oldRanges) {
-                    const updatedRange = newRanges.get(oldRange.id)
-                    if (!updatedRange) continue
-                    const delta = updatedRange.startTime - oldRange.startTime
-                    if (delta !== 0) {
-                        deltaByClipId.set(oldRange.id, delta)
-                    }
-                }
-
-                if (track.type === TrackType.Video) {
-                    const effects = state.currentProject.timeline.effects ?? []
-                    const shiftableTypes = new Set<EffectType>([
-                        EffectType.Zoom,
-                        EffectType.Screen,
-                        EffectType.Plugin,
-                        EffectType.Annotation
-                    ])
-
-                    // Time-based effects: shift based on which clip they "belong to"
-                    // This is specialized for reorder where multiple clips shift differently
-                    for (const effect of effects) {
-                        // Skip clip-bound effects - they'll be synced below
-                        if (effect.clipId) continue
-
-                        if (!shiftableTypes.has(effect.type)) continue
-
-                        // Find which clip "owns" this effect by where it starts
-                        // (handles effects that span multiple clips - they follow their start clip)
-                        const owningClip = oldRanges.find(range =>
-                            effect.startTime >= range.startTime &&
-                            effect.startTime < range.endTime
-                        )
-                        if (!owningClip) continue
-                        const delta = deltaByClipId.get(owningClip.id)
-                        if (!delta) continue
-
-                        effect.startTime += delta
-                        effect.endTime += delta
-                    }
-
-                    // Sync clip-bound effects to match their bound clips' positions
-                    // Build a dummy change for the reorder operation
-                    const reorderedClip = track.clips.find(c => c.id === clipId)
-                    if (reorderedClip) {
-                        const dummyChange = TimelineSyncService.buildReorderChange(
-                            reorderedClip,
-                            oldRanges.find(r => r.id === clipId)?.startTime ?? 0,
-                            reorderedClip.startTime
-                        )
-                        TimelineSyncService.syncClipBoundEffects(state.currentProject, dummyChange)
-                    }
-
-                    if (effects.length > 0) {
-                        state.currentProject.timeline.effects = [...effects]
-                    }
-
-                    // Start times changed; rebuild derived keystroke blocks and invalidate cache
-                    // PERF: Use debounced sync to coalesce rapid operations
-                    EffectInitialization.syncKeystrokeEffects(state.currentProject)
-                    TimelineDataService.invalidateCache(state.currentProject)
-                }
-
-                // Force new array reference
-                track.clips = [...track.clips]
-
-                // Update timeline duration
-                state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
-                markProjectModified(state)
-
-                break
-            }
+            // Clip restoration changes layout; invalidate cache
+            TimelineDataService.invalidateCache(state.currentProject)
         })
     },
 
@@ -606,7 +425,7 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     },
 
     applySpeedUpToClip: (clipId, periods, speedUpTypes) => {
-        let result = { affectedClips: [] as string[], originalClips: [] as Clip[], modifiedEffects: [] as Effect[] }
+        let result: { affectedClips: string[]; originalClips: Clip[] } = { affectedClips: [], originalClips: [] }
 
         set((state) => {
             if (!state.currentProject) {
@@ -622,16 +441,20 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             }
 
             // Apply speed-up using the unified service
-            result = SpeedUpApplicationService.applySpeedUpToClip(
+            const speedUpResult = SpeedUpApplicationService.applySpeedUpToClip(
                 state.currentProject,
                 clipId,
                 periods,
                 speedUpTypes
             )
+            result = {
+                affectedClips: speedUpResult.affectedClips,
+                originalClips: speedUpResult.originalClips
+            }
 
-            // Speed-up can change durations/time-remaps; rebuild derived keystroke blocks.
-            // PERF: Use debounced sync to coalesce rapid operations
-            EffectInitialization.syncKeystrokeEffects(state.currentProject)
+            // NOTE: Use ApplySpeedUpCommand for full effect sync with undo/redo support
+            // This direct store action just invalidates cache
+            TimelineDataService.invalidateCache(state.currentProject)
 
             // Update modified timestamp
             markProjectModified(state)
@@ -668,8 +491,8 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
             if (!state.currentProject) return
 
             if (restoreClipsToTrack(state.currentProject, trackId, clipIdsToRemove, clipsToRestore)) {
-                // Clip layout changed; rebuild derived keystroke blocks.
-                reflowTimeline(state.currentProject)
+                // Clip layout changed; invalidate cache
+                TimelineDataService.invalidateCache(state.currentProject)
             }
         })
     },

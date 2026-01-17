@@ -83,6 +83,9 @@ export function getHalfWindows(
  * - Inside dead zone: camera stays still (t=0)
  * - In transition zone (1x to 1.5x dead zone): smooth blend using smootherStep
  * - Outside transition zone: full tracking to keep cursor at dead zone edge (t=1)
+ *
+ * NOTE: This function does NOT clamp the result. Clamping is done once at the
+ * end of computeCameraState() with full context (padding, overscan, etc.).
  */
 export function calculateFollowTargetNormalized(
     cursorNorm: { x: number; y: number },
@@ -90,7 +93,7 @@ export function calculateFollowTargetNormalized(
     halfWindowX: number,
     halfWindowY: number,
     zoomScale: number,
-    overscan: OutputOverscan
+    _overscan: OutputOverscan  // Kept for API compatibility, clamping moved to orchestrator
 ): { x: number; y: number } {
     const deadZoneRatio = getAdaptiveDeadZoneRatio(zoomScale)
     const deadZoneHalfX = halfWindowX * deadZoneRatio
@@ -99,11 +102,6 @@ export function calculateFollowTargetNormalized(
     // Transition zone extends 50% beyond dead zone for smooth blending
     const transitionHalfX = deadZoneHalfX * 1.5
     const transitionHalfY = deadZoneHalfY * 1.5
-
-    const clampX = (c: number) =>
-        Math.max(halfWindowX - overscan.left, Math.min(1 - halfWindowX + overscan.right, c))
-    const clampY = (c: number) =>
-        Math.max(halfWindowY - overscan.top, Math.min(1 - halfWindowY + overscan.bottom, c))
 
     const dx = cursorNorm.x - currentCenterNorm.x
     const dy = cursorNorm.y - currentCenterNorm.y
@@ -134,5 +132,6 @@ export function calculateFollowTargetNormalized(
     const nextCenterX = currentCenterNorm.x + (fullTrackX - currentCenterNorm.x) * tx
     const nextCenterY = currentCenterNorm.y + (fullTrackY - currentCenterNorm.y) * ty
 
-    return { x: clampX(nextCenterX), y: clampY(nextCenterY) }
+    // No clamping here - done once at end of computeCameraState with full context
+    return { x: nextCenterX, y: nextCenterY }
 }

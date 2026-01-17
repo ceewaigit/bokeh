@@ -121,7 +121,6 @@ SuggestionBar.displayName = 'SuggestionBar'
  */
 export const TimelineActivityOverlays = React.memo(() => {
     const {
-        trackPositions,
         pixelsPerMs,
         visibleTracks,
         showTypingSuggestions
@@ -137,8 +136,8 @@ export const TimelineActivityOverlays = React.memo(() => {
         return null
     }
 
-    const videoTrackY = trackPositions.video ?? 64
-    const overlayY = videoTrackY - 22
+    // Position bar just below ruler with minimal gap
+    const overlayY = 3.5
 
     if (!Number.isFinite(overlayY)) return null
 

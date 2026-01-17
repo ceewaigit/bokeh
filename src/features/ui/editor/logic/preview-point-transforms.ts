@@ -1,9 +1,9 @@
 import { applyCssTransformToPoint, applyInverseCssTransformToPoint } from '@/features/rendering/canvas/math/transforms/transform-point'
 import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
+import type { VideoRect } from '@/features/rendering/canvas/math/coordinates'
 
 export type Point = { x: number; y: number }
-
-export type VideoRect = { x: number; y: number; width: number; height: number }
+export type { VideoRect }
 
 export function getVideoRectFromSnapshot(snapshot: FrameSnapshot): VideoRect {
   if (snapshot.mockup.enabled && snapshot.mockup.position) {
@@ -77,4 +77,3 @@ export function percentToVideoPoint(percentPoint: Point, snapshot: FrameSnapshot
     y: (percentPoint.y / 100) * videoRect.height
   }
 }
-

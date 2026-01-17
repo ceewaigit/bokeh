@@ -65,22 +65,3 @@ export function getClipSourceOut(clip: Clip): number {
   const sourceIn = getClipSourceIn(clip)
   return sourceIn + getSourceDuration(clip)
 }
-
-/**
- * Get value from map with fallback, warning if missing in dev
- */
-export function getMapValue<K, V>(
-  map: Map<K, V>,
-  key: K,
-  fallback: V,
-  context?: string
-): V {
-  const value = map.get(key)
-  if (value === undefined) {
-    if (isDev && context) {
-      console.warn(`[transcript-accessors] ${context}: key ${String(key)} not found in map`)
-    }
-    return fallback
-  }
-  return value
-}

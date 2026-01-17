@@ -4,11 +4,10 @@
 
 import { TimelineCommand } from '../base/TimelineCommand'
 import { CommandContext } from '../base/CommandContext'
-import { timelineToClipRelative } from '@/features/ui/timeline/time/time-space-converter'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { executeSplitClip } from '@/features/ui/timeline/clips/clip-split'
-import { TimelineSyncService } from '@/features/effects/sync'
+import { ClipChangeBuilder } from '@/features/effects/sync'
 
 export interface SplitClipResult {
   originalClipId: string
@@ -39,11 +38,12 @@ export class SplitClipCommand extends TimelineCommand<SplitClipResult> {
     if (!result) return false
 
     const { clip } = result
-    const relativeTime = timelineToClipRelative(this.splitTime, clip)
+    // Inline clip-relative calculation: just subtract clip.startTime
+    const relativeTime = this.splitTime - clip.startTime
     return relativeTime > 0 && relativeTime < clip.duration
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No active project')
 
@@ -58,14 +58,14 @@ export class SplitClipCommand extends TimelineCommand<SplitClipResult> {
 
     const { firstClip, secondClip } = result
 
-    // Build and set pending change for middleware
-    const clipChange = TimelineSyncService.buildSplitChange(
+    // Build and defer clip change for inline sync
+    const clipChange = ClipChangeBuilder.buildSplitChange(
       lookup.clip,
       firstClip.id,
       secondClip.id,
       originalTrackType
     )
-    this.setPendingChange(draft, clipChange)
+    this.deferClipChange(clipChange)
 
     // Select left clip and adjust playhead
     this.selectClip(draft, firstClip.id)

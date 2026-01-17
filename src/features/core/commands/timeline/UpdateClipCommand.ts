@@ -8,7 +8,7 @@ import type { Clip } from '@/types/project'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { updateClipInTrack } from '@/features/ui/timeline/clips/clip-crud'
-import { TimelineSyncService, syncKeystrokeEffects } from '@/features/effects/sync'
+import { ClipChangeBuilder, syncKeystrokeEffects } from '@/features/effects/sync'
 import { PlayheadService } from '@/features/playback/services/playhead-service'
 import { playbackService } from '@/features/playback/services/playback-service'
 import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
@@ -37,10 +37,10 @@ export class UpdateClipCommand extends TimelineCommand<{ clipId: string }> {
   }
 
   canExecute(): boolean {
-    return this.context.findClip(this.clipId) !== null
+    return this.clipExists(this.clipId)
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No active project')
 
@@ -67,10 +67,10 @@ export class UpdateClipCommand extends TimelineCommand<{ clipId: string }> {
 
     // Sync effects based on what changed
     if (timingChanged && updatedLookup) {
-      const clipChange = TimelineSyncService.buildUpdateChange(
+      const clipChange = ClipChangeBuilder.buildUpdateChange(
         updatedLookup.clip, beforeState, track.type
       )
-      this.setPendingChange(draft, clipChange)
+      this.deferClipChange(clipChange)
     } else {
       // Non-timing update: sync keystroke effects and invalidate cache
       syncKeystrokeEffects(project)

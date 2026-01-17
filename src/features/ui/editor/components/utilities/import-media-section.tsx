@@ -5,8 +5,7 @@ import { cn } from '@/shared/utils/utils'
 import { formatTime } from '@/shared/utils/time'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { toast } from 'sonner'
-import { TrackType, type Project } from '@/types/project'
-import { addAssetRecording } from '@/features/ui/timeline/clips/clip-creation'
+import { TrackType } from '@/types/project'
 import { useAssetLibraryStore, type Asset } from '@/features/core/stores/asset-library-store'
 import { getVideoMetadataFromPath } from '@/shared/utils/video-metadata'
 import { SUPPORTED_PROJECT_EXTENSIONS } from '@/features/core/storage/project-paths'
@@ -352,7 +351,6 @@ export function ImportMediaSection() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const currentProject = useProjectStore((s) => s.currentProject)
-    const updateProjectData = useProjectStore((s) => s.updateProjectData)
 
     const {
         searchQuery,
@@ -604,21 +602,7 @@ export function ImportMediaSection() {
         }
 
         if (!CommandExecutor.isInitialized()) {
-            // Fallback if no executor (should rarely happen in editor)
-            updateProjectData((project: Project) => {
-                const updatedProject = { ...project }
-                const targetTrackType = asset.type === 'video' ? trackType : undefined
-                addAssetRecording(updatedProject, {
-                    path: asset.path,
-                    duration: asset.metadata.duration || 0,
-                    width: asset.metadata.width || 0,
-                    height: asset.metadata.height || 0,
-                    type: asset.type as 'video' | 'audio' | 'image',
-                    name: asset.name,
-                    requiresProxy: asset.metadata.requiresProxy
-                }, targetTrackType ? { trackType: targetTrackType } : undefined)
-                return updatedProject
-            })
+            toast.error('Editor not ready. Please try again.')
             return
         }
 
@@ -636,7 +620,7 @@ export function ImportMediaSection() {
             options: { trackType }
         })
 
-    }, [currentProject, updateProjectData])
+    }, [currentProject])
 
 
     // --- Drag & Drop Handlers ---

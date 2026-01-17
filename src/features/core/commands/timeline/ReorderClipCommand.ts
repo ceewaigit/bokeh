@@ -7,7 +7,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { reflowClips, calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
-import { TimelineSyncService } from '@/features/effects/sync'
+import { ClipChangeBuilder } from '@/features/effects/sync'
 import { TrackType } from '@/types/project'
 import { markProjectModified } from '@/features/core/stores/store-utils'
 
@@ -30,10 +30,10 @@ export class ReorderClipCommand extends TimelineCommand<{ clipId: string }> {
     }
 
     canExecute(): boolean {
-        return !!this.context.findClip(this.clipId)
+        return this.clipExists(this.clipId)
     }
 
-    protected mutate(draft: WritableDraft<ProjectStore>): void {
+    protected doMutate(draft: WritableDraft<ProjectStore>): void {
         const project = draft.currentProject
         if (!project) throw new Error('No active project')
 
@@ -54,8 +54,8 @@ export class ReorderClipCommand extends TimelineCommand<{ clipId: string }> {
 
         // Sync effects if this is the video track
         if (track.type === TrackType.Video) {
-            const clipChange = TimelineSyncService.buildReorderChange(clip, oldStartTime, clip.startTime)
-            this.setPendingChange(draft, clipChange)
+            const clipChange = ClipChangeBuilder.buildReorderChange(clip, oldStartTime, clip.startTime, track.type)
+            this.deferClipChange(clipChange)
         }
 
         // Update timeline duration

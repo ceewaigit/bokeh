@@ -1,93 +1,95 @@
-import { Command, CommandResult } from '../base/Command'
+/**
+ * RemoveEffectCommand - Remove an effect from the project.
+ *
+ * Uses PatchedCommand for automatic undo/redo via Immer patches.
+ *
+ * Special handling for keystroke effects:
+ * - Global keystroke style effect: Disabled instead of removed (so it doesn't "reappear")
+ * - Auto-generated keystroke blocks: Suppression state is persisted so they don't come back on re-sync
+ *
+ * All business logic is now in mutate() - Immer captures all mutations automatically,
+ * eliminating the need for manual originalEffect and suppressedKeystrokeClusterKey tracking.
+ */
+
+import { PatchedCommand } from '../base/PatchedCommand'
 import { CommandContext } from '../base/CommandContext'
-import { Effect } from '@/types/project'
+import type { WritableDraft } from 'immer'
+import type { ProjectStore } from '@/features/core/stores/project-store'
 import { EffectStore } from '@/features/effects/core/effects-store'
 import { EffectCreation } from '@/features/effects/core/creation'
 import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
+import { markProjectModified } from '@/features/core/stores/store-utils'
 
-export class RemoveEffectCommand extends Command {
-    private originalEffect: Effect | null = null
-    private suppressedKeystrokeClusterKey: string | null = null
+export class RemoveEffectCommand extends PatchedCommand<{ effectId: string }> {
+    private effectId: string
 
     constructor(
-        private context: CommandContext,
-        private effectId: string
+        context: CommandContext,
+        effectId: string
     ) {
-        super({ name: 'RemoveEffect' })
+        super(context, {
+            name: 'RemoveEffect',
+            description: `Remove effect ${effectId}`,
+            category: 'effects'
+        })
+        this.effectId = effectId
     }
 
     canExecute(): boolean {
-        return !!this.context.getProject()
+        const project = this.context.getProject()
+        if (!project) return false
+        return EffectStore.exists(project, this.effectId)
     }
 
-    async doExecute(): Promise<CommandResult> {
-        const project = this.context.getProject()
-        if (!project) return { success: false, error: 'No active project' }
+    protected mutate(draft: WritableDraft<ProjectStore>): void {
+        if (!draft.currentProject) {
+            throw new Error('No active project')
+        }
 
-        // Use EffectStore to find the effect (searches both timeline and legacy recording.effects)
-        const located = EffectStore.find(project, this.effectId)
+        const located = EffectStore.find(draft.currentProject, this.effectId)
         if (!located) {
-            return { success: false, error: 'Effect not found' }
+            throw new Error('Effect not found')
         }
 
-        this.originalEffect = JSON.parse(JSON.stringify(located.effect))
+        const effect = located.effect
 
-        // Prevent removing the global keystroke style effect; disable instead so it doesn't "reappear".
-        if (located.effect.type === 'keystroke' && located.effect.id === KEYSTROKE_STYLE_EFFECT_ID) {
-            this.context.getStore().updateEffect(this.effectId, { enabled: false })
-            return { success: true }
+        // Special case: Global keystroke style effect - disable instead of removing
+        // so it doesn't "reappear" when effects are regenerated
+        if (effect.type === 'keystroke' && effect.id === KEYSTROKE_STYLE_EFFECT_ID) {
+            EffectStore.update(draft.currentProject, this.effectId, { enabled: false })
+            markProjectModified(draft)
+            this.setResult({ success: true, data: { effectId: this.effectId } })
+            return
         }
 
-        // If user deletes an auto-generated keystroke block, persist that intent so it doesn't come back on re-sync.
-        if (located.effect.type === 'keystroke' && typeof located.effect.id === 'string' && located.effect.id.startsWith('keystroke|')) {
-            const parsed = parseManagedKeystrokeEffectId(located.effect.id)
+        // Special case: Auto-generated keystroke block - persist suppression intent
+        // so it doesn't come back on re-sync
+        if (effect.type === 'keystroke' && typeof effect.id === 'string' && effect.id.startsWith('keystroke|')) {
+            const parsed = parseManagedKeystrokeEffectId(effect.id)
             if (parsed) {
                 const key = `${parsed.recordingId}::${parsed.clusterIndex}`
-                this.suppressedKeystrokeClusterKey = key
 
-                // Ensure global keystroke style effect exists (used as persistence home for tombstones).
-                if (!EffectStore.exists(project, KEYSTROKE_STYLE_EFFECT_ID)) {
-                    EffectStore.add(project, EffectCreation.createDefaultKeystrokeStyleEffect())
+                // Ensure global keystroke style effect exists (used as persistence home for tombstones)
+                if (!EffectStore.exists(draft.currentProject, KEYSTROKE_STYLE_EFFECT_ID)) {
+                    EffectStore.add(draft.currentProject, EffectCreation.createDefaultKeystrokeStyleEffect())
                 }
 
-                const styleEffect = EffectStore.get(project, KEYSTROKE_STYLE_EFFECT_ID)
+                // Add to suppressed clusters list
+                const styleEffect = EffectStore.get(draft.currentProject, KEYSTROKE_STYLE_EFFECT_ID)
                 const current = (styleEffect?.data as any)?.suppressedClusters
                 const next = new Set<string>(Array.isArray(current) ? current.filter((v: unknown) => typeof v === 'string') : [])
                 next.add(key)
-                this.context.getStore().updateEffect(KEYSTROKE_STYLE_EFFECT_ID, { data: { suppressedClusters: Array.from(next) } as any })
+                EffectStore.update(draft.currentProject, KEYSTROKE_STYLE_EFFECT_ID, {
+                    data: { suppressedClusters: Array.from(next) } as any
+                })
             }
         }
 
-        this.context.getStore().removeEffect(this.effectId)
+        // Remove the effect - Immer patches will capture for undo
+        EffectStore.remove(draft.currentProject, this.effectId)
+        markProjectModified(draft)
 
-        return { success: true }
-    }
-
-    async doUndo(): Promise<CommandResult> {
-        const project = this.context.getProject()
-        if (!project) return { success: false, error: 'No active project' }
-
-        if (this.suppressedKeystrokeClusterKey) {
-            const styleEffect = EffectStore.get(project, KEYSTROKE_STYLE_EFFECT_ID)
-            const current = (styleEffect?.data as any)?.suppressedClusters
-            const next = Array.isArray(current)
-                ? current.filter((v: unknown) => typeof v === 'string' && v !== this.suppressedKeystrokeClusterKey)
-                : []
-            this.context.getStore().updateEffect(KEYSTROKE_STYLE_EFFECT_ID, { data: { suppressedClusters: next } as any })
-            this.suppressedKeystrokeClusterKey = null
-        }
-
-        if (this.originalEffect) {
-            // If the effect was disabled instead of removed (global style), restore its enabled flag.
-            if (this.originalEffect.type === 'keystroke' && this.originalEffect.id === KEYSTROKE_STYLE_EFFECT_ID) {
-                this.context.getStore().updateEffect(this.originalEffect.id, { enabled: this.originalEffect.enabled })
-                return { success: true }
-            }
-
-            this.context.getStore().addEffect(this.originalEffect)
-            return { success: true }
-        }
-        return { success: false, error: 'No original effect to restore' }
+        this.setResult({ success: true, data: { effectId: this.effectId } })
     }
 }
 

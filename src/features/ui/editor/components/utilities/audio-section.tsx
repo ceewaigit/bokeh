@@ -92,10 +92,10 @@ export function AudioSection() {
         <div className="space-y-4 pt-1.5">
             {/* Master Volume */}
             <div className="space-y-3">
-                <div className="space-y-2.5">
+                <div className="group space-y-1.5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <Label className="text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Master Volume</Label>
+                            <Label className="text-xs font-medium text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Master Volume</Label>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Info className="w-3 h-3 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
@@ -103,7 +103,7 @@ export function AudioSection() {
                                 <TooltipContent side="left">Overall volume level</TooltipContent>
                             </Tooltip>
                         </div>
-                        <span className="text-2xs font-mono text-muted-foreground/70 tabular-nums">
+                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                             {volume}%
                         </span>
                     </div>
@@ -113,7 +113,6 @@ export function AudioSection() {
                         min={0}
                         max={150}
                         step={1}
-                        className="w-full"
                     />
                 </div>
 
@@ -191,10 +190,10 @@ export function AudioSection() {
                         {showAdvanced && (
                             <div className="space-y-3 pt-1">
                                 {/* Threshold */}
-                                <div className="space-y-2">
+                                <div className="group space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-2xs text-muted-foreground">Threshold</Label>
-                                        <span className="text-2xs font-mono text-muted-foreground/70">
+                                        <Label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Threshold</Label>
+                                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                                             {displaySettings.threshold} dB
                                         </span>
                                     </div>
@@ -204,15 +203,14 @@ export function AudioSection() {
                                         min={-60}
                                         max={0}
                                         step={1}
-                                        className="w-full"
                                     />
                                 </div>
 
                                 {/* Ratio */}
-                                <div className="space-y-2">
+                                <div className="group space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-2xs text-muted-foreground">Ratio</Label>
-                                        <span className="text-2xs font-mono text-muted-foreground/70">
+                                        <Label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Ratio</Label>
+                                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                                             {displaySettings.ratio}:1
                                         </span>
                                     </div>
@@ -222,15 +220,14 @@ export function AudioSection() {
                                         min={1}
                                         max={20}
                                         step={0.5}
-                                        className="w-full"
                                     />
                                 </div>
 
                                 {/* Attack */}
-                                <div className="space-y-2">
+                                <div className="group space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-2xs text-muted-foreground">Attack</Label>
-                                        <span className="text-2xs font-mono text-muted-foreground/70">
+                                        <Label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Attack</Label>
+                                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                                             {(displaySettings.attack * 1000).toFixed(0)} ms
                                         </span>
                                     </div>
@@ -240,15 +237,14 @@ export function AudioSection() {
                                         min={1}
                                         max={100}
                                         step={1}
-                                        className="w-full"
                                     />
                                 </div>
 
                                 {/* Release */}
-                                <div className="space-y-2">
+                                <div className="group space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-2xs text-muted-foreground">Release</Label>
-                                        <span className="text-2xs font-mono text-muted-foreground/70">
+                                        <Label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Release</Label>
+                                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                                             {(displaySettings.release * 1000).toFixed(0)} ms
                                         </span>
                                     </div>
@@ -258,15 +254,14 @@ export function AudioSection() {
                                         min={10}
                                         max={500}
                                         step={10}
-                                        className="w-full"
                                     />
                                 </div>
 
                                 {/* Knee */}
-                                <div className="space-y-2">
+                                <div className="group space-y-1.5">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-2xs text-muted-foreground">Knee</Label>
-                                        <span className="text-2xs font-mono text-muted-foreground/70">
+                                        <Label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Knee</Label>
+                                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">
                                             {displaySettings.knee} dB
                                         </span>
                                     </div>
@@ -276,7 +271,6 @@ export function AudioSection() {
                                         min={0}
                                         max={40}
                                         step={1}
-                                        className="w-full"
                                     />
                                 </div>
                             </div>
@@ -289,12 +283,12 @@ export function AudioSection() {
 
             {/* Global Fades */}
             <div className="space-y-3">
-                <h4 className="text-2xs font-semibold text-foreground/80 tracking-[-0.01em]">Global Fades</h4>
+                <h4 className="text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">Global Fades</h4>
 
-                <div className="space-y-2.5">
+                <div className="group space-y-1.5">
                     <div className="flex items-center justify-between">
-                        <Label className="text-2xs text-muted-foreground">Fade In</Label>
-                        <span className="text-2xs font-mono text-muted-foreground/70">{fadeInDuration}s</span>
+                        <Label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Fade In</Label>
+                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{fadeInDuration}s</span>
                     </div>
                     <Slider
                         value={[fadeInDuration]}
@@ -312,14 +306,13 @@ export function AudioSection() {
                         min={0}
                         max={3}
                         step={0.1}
-                        className="w-full"
                     />
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="group space-y-1.5">
                     <div className="flex items-center justify-between">
-                        <Label className="text-2xs text-muted-foreground">Fade Out</Label>
-                        <span className="text-2xs font-mono text-muted-foreground/70">{fadeOutDuration}s</span>
+                        <Label className="text-xs text-muted-foreground transition-colors duration-150 group-hover:text-foreground">Fade Out</Label>
+                        <span className="text-xs font-mono tabular-nums text-muted-foreground/70 transition-colors duration-150 group-hover:text-foreground/80">{fadeOutDuration}s</span>
                     </div>
                     <Slider
                         value={[fadeOutDuration]}
@@ -337,7 +330,6 @@ export function AudioSection() {
                         min={0}
                         max={3}
                         step={0.1}
-                        className="w-full"
                     />
                 </div>
             </div>

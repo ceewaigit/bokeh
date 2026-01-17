@@ -1,6 +1,7 @@
 
 import type { Clip, Recording } from '@/types/project';
 import { msToFrameCeil, msToFrameFloor } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
+import { ClipUtils } from '@/features/ui/timeline/time/clip-utils';
 
 export interface PersistedVideoState {
   recording: Recording;
@@ -24,6 +25,153 @@ export interface FrameLayoutItem {
 
   // Explicitly points to the visual content underneath a generated clip
   persistedVideoState?: PersistedVideoState | null;
+}
+
+// ============================================================================
+// Shared helpers for frame layout building
+// ============================================================================
+
+/**
+ * Calculate frame timing for a clip
+ */
+function calculateClipFrames(clip: Clip, fps: number): { startFrame: number; endFrame: number; durationFrames: number } {
+  const startFrame = msToFrameFloor(clip.startTime, fps);
+  const endFrame = Math.max(startFrame + 1, msToFrameCeil(ClipUtils.getEndTime(clip), fps));
+  const durationFrames = endFrame - startFrame;
+  return { startFrame, endFrame, durationFrames };
+}
+
+/**
+ * Check if two consecutive clips should be grouped together.
+ * Both video and webcam use the same logic - clips with different playback rates
+ * are in separate groups. This allows Remotion's Sequence timing to work correctly.
+ */
+function checkContiguity(
+  lastClip: Clip | null,
+  currentClip: Clip,
+  startFrame: number,
+  lastEndFrame: number,
+  fps: number
+): boolean {
+  if (!lastClip || lastClip.recordingId !== currentClip.recordingId) return false;
+
+  const timelineGapFrames = Math.abs(startFrame - lastEndFrame);
+  const timelineGapMs = Math.abs(currentClip.startTime - ClipUtils.getEndTime(lastClip));
+  const maxTimelineGapMs = (fps > 0 ? (1000 / fps) : 34) + 1; // allow <= 1 frame + 1ms float drift
+  const timelineContiguous = timelineGapFrames <= 1 || timelineGapMs <= maxTimelineGapMs;
+
+  const lastSourceOut = ClipUtils.getSourceOut(lastClip)
+  const sourceGap = Math.abs(lastSourceOut - ClipUtils.getSourceIn(currentClip));
+  const hasTransition = !!lastClip.transitionOut || !!currentClip.transitionIn;
+  // Clips with different playback rates should NOT be grouped - timing formula breaks across rate changes
+  const lastRate = ClipUtils.getPlaybackRate(lastClip);
+  const currentRate = ClipUtils.getPlaybackRate(currentClip);
+  const samePlaybackRate = Math.abs(lastRate - currentRate) < 1e-6;
+
+  return timelineContiguous && sourceGap <= 50 && !hasTransition && samePlaybackRate;
+}
+
+/**
+ * Generate a stable group ID for a contiguous block of clips
+ */
+function generateGroupId(prefix: string, recordingId: string, startFrame: number): string {
+  return `${prefix}-${recordingId}-${startFrame}`;
+}
+
+/**
+ * Options for unified frame layout building
+ */
+interface FrameLayoutOptions {
+  clips: Clip[];
+  fps: number;
+  trackType: 'video' | 'webcam';
+  recordingsMap?: Map<string, Recording>;
+  sortClips?: boolean;
+}
+
+/**
+ * Unified frame layout builder that handles both video and webcam tracks.
+ *
+ * Uses the clip's own duration instead of calculating it based on the next clip's start time.
+ * This allows for overlapping tracks where multiple clips can be active at the same time.
+ *
+ * GROUPING: Assigns a unique groupId to contiguous blocks of clips from the same recording.
+ * This allows the renderer to reuse the same video element for seamless playback.
+ */
+function buildLayout<T extends FrameLayoutItem>(
+  options: FrameLayoutOptions,
+  createItem: (
+    clip: Clip,
+    frames: { startFrame: number; endFrame: number; durationFrames: number },
+    groupInfo: { groupId: string; groupStartFrame: number; groupStartSourceIn: number }
+  ) => T
+): T[] {
+  const { clips, fps, trackType, sortClips = false } = options;
+
+  if (!clips || clips.length === 0) return [];
+
+  // Optionally sort clips by startTime
+  const orderedClips = sortClips
+    ? [...clips].sort((a, b) => a.startTime - b.startTime)
+    : clips;
+
+  const result: T[] = [];
+  let currentGroup: T[] = [];
+
+  const groupPrefix = trackType === 'webcam' ? 'webcam-group' : 'group';
+  let currentGroupId = '';
+  let currentGroupStartFrame = 0;
+  let currentGroupStartSourceIn = 0;
+
+  let lastClip: Clip | null = null;
+  let lastEndFrame = -1;
+
+  for (const clip of orderedClips) {
+    const frames = calculateClipFrames(clip, fps);
+    const { startFrame, endFrame } = frames;
+
+    // Check for continuity
+    const isContiguous = checkContiguity(lastClip, clip, startFrame, lastEndFrame, fps);
+
+    if (!isContiguous) {
+      // Finish previous group
+      if (currentGroup.length > 0) {
+        const groupDuration = lastEndFrame - currentGroup[0].startFrame;
+        currentGroup.forEach(item => {
+          item.groupDuration = groupDuration;
+          result.push(item);
+        });
+        currentGroup = [];
+      }
+
+      // Start new group
+      currentGroupId = generateGroupId(groupPrefix, clip.recordingId, startFrame);
+      currentGroupStartFrame = startFrame;
+      currentGroupStartSourceIn = clip.sourceIn || 0;
+    }
+
+    lastClip = clip;
+    lastEndFrame = endFrame;
+
+    const item = createItem(clip, frames, {
+      groupId: currentGroupId,
+      groupStartFrame: currentGroupStartFrame,
+      groupStartSourceIn: currentGroupStartSourceIn,
+    });
+
+    currentGroup.push(item);
+  }
+
+  // Finish last group
+  if (currentGroup.length > 0) {
+    const groupDuration = lastEndFrame - currentGroup[0].startFrame;
+    currentGroup.forEach(item => {
+      item.groupDuration = groupDuration;
+      result.push(item);
+    });
+  }
+
+  return result;
 }
 
 type FrameLayoutIndexCache = {
@@ -208,10 +356,10 @@ export function findActiveFrameLayoutItems(layout: FrameLayoutItem[], frame: num
 
 /**
  * Build a frame-accurate layout for timeline playback.
- * 
+ *
  * Uses the clip's own duration instead of calculating it based on the next clip's start time.
  * This allows for overlapping tracks where multiple clips can be active at the same time.
- * 
+ *
  * GROUPING: Assigns a unique groupId to contiguous blocks of clips from the same recording.
  * This allows the renderer to reuse the same video element for seamless playback.
  */
@@ -220,130 +368,260 @@ export function buildFrameLayout(
   fps: number,
   recordingsMap: Map<string, Recording>
 ): FrameLayoutItem[] {
-  if (!clips || clips.length === 0) return [];
-
-  const result: FrameLayoutItem[] = [];
-  let currentGroup: FrameLayoutItem[] = [];
-
-  let currentGroupId = '';
-  let currentGroupStartFrame = 0;
-  let currentGroupStartSourceIn = 0;
-
-  let lastClip: Clip | null = null;
-  let lastEndFrame = -1;
-
   // Track the underlying visual layer (Video or Image) for generated overlays
   let lastVisualItem: FrameLayoutItem | null = null;
   let lastVisualRecording: Recording | null = null;
 
-  clips.forEach((clip) => {
-    const startFrame = msToFrameFloor(clip.startTime, fps);
-    const endFrame = Math.max(startFrame + 1, msToFrameCeil(clip.startTime + clip.duration, fps));
-    const durationFrames = endFrame - startFrame;
-    const recording = recordingsMap.get(clip.recordingId);
+  return buildLayout<FrameLayoutItem>(
+    { clips, fps, trackType: 'video', recordingsMap },
+    (clip, frames, groupInfo) => {
+      const { startFrame, endFrame, durationFrames } = frames;
+      const recording = recordingsMap.get(clip.recordingId);
 
-    // Check for continuity
-    let isContiguous = false;
-    if (lastClip && lastClip.recordingId === clip.recordingId) {
-      const timelineGap = Math.abs(startFrame - lastEndFrame);
-      const lastSourceOut = lastClip.sourceOut ?? (lastClip.sourceIn + lastClip.duration);
-      const sourceGap = Math.abs(lastSourceOut - clip.sourceIn);
-      const hasTransition = !!lastClip.transitionOut || !!clip.transitionIn;
-      // Clips with different playback rates should NOT be grouped - timing formula breaks across rate changes
-      const samePlaybackRate = (lastClip.playbackRate || 1) === (clip.playbackRate || 1);
+      const item: FrameLayoutItem = {
+        clip,
+        startFrame,
+        durationFrames,
+        endFrame,
+        groupId: groupInfo.groupId,
+        groupStartFrame: groupInfo.groupStartFrame,
+        groupStartSourceIn: groupInfo.groupStartSourceIn,
+        groupDuration: 0, // Will be updated by unified builder
+        persistedVideoState: null,
+      };
 
-      if (timelineGap <= 1 && sourceGap <= 50 && !hasTransition && samePlaybackRate) {
-        isContiguous = true;
-      }
-    }
+      if (recording) {
+        const isVisual = recording.sourceType === 'video' || recording.sourceType === 'image';
 
-    if (!isContiguous) {
-      // Finish previous group
-      if (currentGroup.length > 0) {
-        const groupDuration = lastEndFrame - currentGroup[0].startFrame;
-        currentGroup.forEach(item => {
-          item.groupDuration = groupDuration;
-          result.push(item);
-        });
-        currentGroup = [];
-      }
+        if (isVisual) {
+          lastVisualItem = item;
+          lastVisualRecording = recording;
+        } else if (recording.sourceType === 'generated' && lastVisualItem && lastVisualRecording) {
+          // Link stored video state using offset from the video's start frame
+          const frameOffset = startFrame - lastVisualItem.startFrame;
+          const isPastEnd = startFrame >= lastVisualItem.endFrame;
 
-      // Start new group - use startFrame for temporal stability across split/trim
-      // This ensures groupId remains stable when clips are split, preventing
-      // unnecessary video element remounts that cause video/motion blur disappearance
-      currentGroupId = `group-${clip.recordingId}-${startFrame}`;
-      currentGroupStartFrame = startFrame;
-      currentGroupStartSourceIn = clip.sourceIn || 0;
-    }
+          let baseSourceTimeMs: number;
 
-    lastClip = clip;
-    lastEndFrame = endFrame;
+          if (isPastEnd) {
+            // Clamped to last frame of video (freeze state)
+            const visualDurationMs = (lastVisualItem.durationFrames / fps) * 1000;
+            const sourceIn = ClipUtils.getSourceIn(lastVisualItem.clip);
+            const playbackRate = ClipUtils.getPlaybackRate(lastVisualItem.clip);
+            const sourceOut = sourceIn + visualDurationMs * playbackRate;
+            baseSourceTimeMs = sourceOut - 1;
+          } else {
+            // Normal playback
+            const offsetMs = (frameOffset / fps) * 1000;
+            const sourceIn = ClipUtils.getSourceIn(lastVisualItem.clip);
+            const playbackRate = ClipUtils.getPlaybackRate(lastVisualItem.clip);
+            baseSourceTimeMs = sourceIn + offsetMs * playbackRate;
+          }
 
-    const item: FrameLayoutItem = {
-      clip,
-      startFrame,
-      durationFrames,
-      endFrame,
-      groupId: currentGroupId,
-      groupStartFrame: currentGroupStartFrame,
-      groupStartSourceIn: currentGroupStartSourceIn,
-      groupDuration: 0, // Will be updated when group finishes
-      persistedVideoState: null
-    };
-
-    if (recording) {
-      const isVisual = recording.sourceType === 'video' || recording.sourceType === 'image';
-
-      if (isVisual) {
-        lastVisualItem = item;
-        lastVisualRecording = recording;
-      } else if (recording.sourceType === 'generated' && lastVisualItem && lastVisualRecording) {
-        // Link stored video state using offset from the video's start frame
-        const frameOffset = startFrame - lastVisualItem.startFrame;
-        const isPastEnd = startFrame >= lastVisualItem.endFrame;
-
-        let baseSourceTimeMs: number;
-
-        if (isPastEnd) {
-          // Clamped to last frame of video (freeze state)
-          // We use sourceOut - 1ms to ensure we are within valid video range and effects are active
-          const visualDurationMs = (lastVisualItem.durationFrames / fps) * 1000;
-          const sourceOut = (lastVisualItem.clip.sourceIn || 0) + visualDurationMs * (lastVisualItem.clip.playbackRate || 1);
-          baseSourceTimeMs = sourceOut - 1;
-        } else {
-          // Normal playback
-          const offsetMs = (frameOffset / fps) * 1000;
-          baseSourceTimeMs = (lastVisualItem.clip.sourceIn || 0) + offsetMs * (lastVisualItem.clip.playbackRate || 1);
+          item.persistedVideoState = {
+            recording: lastVisualRecording,
+            clip: lastVisualItem.clip,
+            layoutItem: lastVisualItem,
+            baseSourceTimeMs,
+            isFrozen: isPastEnd,
+          };
         }
-
-        item.persistedVideoState = {
-          recording: lastVisualRecording,
-          clip: lastVisualItem.clip,
-          layoutItem: lastVisualItem,
-          baseSourceTimeMs,
-          isFrozen: isPastEnd
-        };
       }
+
+      return item;
     }
-
-    currentGroup.push(item);
-  });
-
-  // Finish last group
-  if (currentGroup.length > 0) {
-    const groupDuration = lastEndFrame - currentGroup[0].startFrame;
-    currentGroup.forEach(item => {
-      item.groupDuration = groupDuration;
-      result.push(item);
-    });
-  }
-
-  return result;
+  );
 }
 
 export function getTimelineDurationInFrames(layout: FrameLayoutItem[]): number {
   if (!layout || layout.length === 0) return 0;
   return Math.max(...layout.map((i) => i.endFrame));
+}
+
+/**
+ * Webcam Frame Layout Item - Similar to FrameLayoutItem but for webcam clips
+ */
+export interface WebcamFrameLayoutItem {
+  clip: Clip;
+  startFrame: number;
+  durationFrames: number;
+  endFrame: number;
+  groupId: string;
+  groupStartFrame: number;
+  groupStartSourceIn: number; // Source start time (ms) of the entire contiguous group
+  groupDuration: number; // Total duration in frames of the contiguous group
+}
+
+// ============================================================================
+// Webcam Frame Layout Index Cache (for O(log n) lookup)
+// ============================================================================
+
+type WebcamFrameLayoutIndexCache = {
+  // Sorted by startFrame for binary search
+  sortedByStart: WebcamFrameLayoutItem[];
+  startFrames: number[];
+  // Index by exact startFrame for boundary detection
+  itemsByStartFrame: Map<number, WebcamFrameLayoutItem[]>;
+};
+
+const webcamFrameLayoutIndexCache = new WeakMap<WebcamFrameLayoutItem[], WebcamFrameLayoutIndexCache>();
+
+function getWebcamIndexCache(layout: WebcamFrameLayoutItem[]): WebcamFrameLayoutIndexCache {
+  const cached = webcamFrameLayoutIndexCache.get(layout);
+  if (cached) return cached;
+
+  // Sort items by startFrame for binary search
+  const sortedByStart = [...layout].sort((a, b) => a.startFrame - b.startFrame);
+  const startFrames = sortedByStart.map(item => item.startFrame);
+
+  // Index items by exact startFrame for boundary detection
+  const itemsByStartFrame = new Map<number, WebcamFrameLayoutItem[]>();
+  for (const item of layout) {
+    const list = itemsByStartFrame.get(item.startFrame);
+    if (list) list.push(item);
+    else itemsByStartFrame.set(item.startFrame, [item]);
+  }
+
+  const next: WebcamFrameLayoutIndexCache = {
+    sortedByStart,
+    startFrames,
+    itemsByStartFrame,
+  };
+  webcamFrameLayoutIndexCache.set(layout, next);
+  return next;
+}
+
+/**
+ * Find the active webcam layout item at a given frame.
+ *
+ * Webcam tracks may overlap; selection is deterministic:
+ * - Prefer any item whose `startFrame` exactly matches `frame` (boundary).
+ * - Otherwise choose the overlapping item with the latest `startFrame` (newest wins).
+ *
+ * Uses O(log n) binary search instead of O(n) linear scan.
+ */
+export function findActiveWebcamFrameLayoutItem(
+  webcamLayout: WebcamFrameLayoutItem[],
+  frame: number
+): WebcamFrameLayoutItem | null {
+  if (!webcamLayout || webcamLayout.length === 0) return null;
+
+  const { sortedByStart, startFrames, itemsByStartFrame } = getWebcamIndexCache(webcamLayout);
+
+  // Boundary preference: if items start on this exact frame, take the last one (newest by array order).
+  const boundaryItems = itemsByStartFrame.get(frame);
+  if (boundaryItems && boundaryItems.length > 0) {
+    return boundaryItems[boundaryItems.length - 1];
+  }
+
+  // Binary search: find rightmost item whose startFrame <= frame
+  const limitIndex = upperBoundLE(startFrames, frame);
+  if (limitIndex < 0) return null;
+
+  // Overlap preference: scan backwards from limitIndex to find active item with latest startFrame
+  // Since sortedByStart is sorted by startFrame, the first match we find going backwards
+  // is already the one with the latest startFrame
+  let candidate: WebcamFrameLayoutItem | null = null;
+  for (let i = limitIndex; i >= 0; i--) {
+    const item = sortedByStart[i];
+    // Early exit: if startFrame is way before frame and we already have a candidate,
+    // no need to check further
+    if (candidate && item.startFrame < candidate.startFrame) break;
+
+    if (frame >= item.startFrame && frame < item.endFrame) {
+      if (!candidate || item.startFrame >= candidate.startFrame) {
+        candidate = item;
+      }
+    }
+  }
+
+  return candidate;
+}
+
+/**
+ * Build a frame-accurate layout for webcam clips with grouping.
+ *
+ * The resulting `groupId` represents a contiguous block of clips from the same
+ * recording with a stable playback rate and no transitions. Renderers can use
+ * this to keep a single video element playing continuously within a group and
+ * to premount adjacent groups for preload at boundaries.
+ */
+export function buildWebcamFrameLayout(
+  webcamClips: Clip[],
+  fps: number
+): WebcamFrameLayoutItem[] {
+  return buildLayout<WebcamFrameLayoutItem>(
+    { clips: webcamClips, fps, trackType: 'webcam', sortClips: true },
+    (clip, frames, groupInfo) => ({
+      clip,
+      startFrame: frames.startFrame,
+      durationFrames: frames.durationFrames,
+      endFrame: frames.endFrame,
+      groupId: groupInfo.groupId,
+      groupStartFrame: groupInfo.groupStartFrame,
+      groupStartSourceIn: groupInfo.groupStartSourceIn,
+      groupDuration: 0, // Will be updated by unified builder
+    })
+  );
+}
+
+/**
+ * Get the video startFrom time (in seconds) for a webcam at a given frame.
+ *
+ * This should return the source time where the video needs to be positioned
+ * so that video.currentTime matches the expected source time for this frame.
+ */
+export function getWebcamVideoStartFrom(
+  frame: number,
+  layoutItem: WebcamFrameLayoutItem,
+  fps: number
+): number {
+  // Convert the current timeline frame into the expected source time (seconds)
+  // for the given webcam group.
+  const safeFps = fps > 0 ? fps : 30;
+  const localFrame = Math.max(0, frame - layoutItem.groupStartFrame);
+  const playbackRate = ClipUtils.getPlaybackRate(layoutItem.clip);
+  return (layoutItem.groupStartSourceIn / 1000) + (localFrame / safeFps) * playbackRate;
+}
+
+/**
+ * Get visible webcam groups at a given frame
+ * Returns one representative item per group that should be rendered
+ */
+export function getVisibleWebcamGroups(
+  webcamLayout: WebcamFrameLayoutItem[],
+  currentFrame: number,
+  bufferFrames: number = 0
+): { groupId: string; items: WebcamFrameLayoutItem[]; activeItem: WebcamFrameLayoutItem | null }[] {
+  if (!webcamLayout || webcamLayout.length === 0) return [];
+
+  // Group items by groupId
+  const groupsMap = new Map<string, WebcamFrameLayoutItem[]>();
+  for (const item of webcamLayout) {
+    const list = groupsMap.get(item.groupId) ?? [];
+    list.push(item);
+    groupsMap.set(item.groupId, list);
+  }
+
+  const result: { groupId: string; items: WebcamFrameLayoutItem[]; activeItem: WebcamFrameLayoutItem | null }[] = [];
+
+  for (const [groupId, items] of groupsMap) {
+    // Check if any item in this group is within visibility range
+    const groupStart = Math.min(...items.map(i => i.startFrame));
+    const groupEnd = Math.max(...items.map(i => i.endFrame));
+
+    const isVisible =
+      (currentFrame >= groupStart - bufferFrames && currentFrame < groupEnd + bufferFrames);
+
+    if (isVisible) {
+      // Find the active item within this group (boundary-aware, deterministic)
+      const activeItem = findActiveWebcamFrameLayoutItem(items, currentFrame);
+
+      result.push({ groupId, items, activeItem });
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -491,4 +769,52 @@ export function getVisibleFrameLayout(opts: {
   }
 
   return items;
+}
+
+/**
+ * Get visible webcam layout items at a given frame with boundary overlap handling.
+ *
+ * This returns individual webcam items (one per clip) that should be rendered,
+ * including items near boundaries for smooth transitions.
+ *
+ * Used by the per-clip webcam rendering approach (Sequence + Video pattern).
+ */
+export function getVisibleWebcamFrameLayout(opts: {
+  webcamFrameLayout: WebcamFrameLayoutItem[];
+  currentFrame: number;
+  fps: number;
+  isRendering: boolean;
+}): WebcamFrameLayoutItem[] {
+  const { webcamFrameLayout, currentFrame, fps, isRendering } = opts;
+
+  if (!webcamFrameLayout || webcamFrameLayout.length === 0) return [];
+
+  // Find all items active at the current frame
+  const activeItems = webcamFrameLayout.filter(
+    item => currentFrame >= item.startFrame && currentFrame < item.endFrame
+  );
+
+  // For rendering/export, return only strictly active items
+  if (isRendering) return activeItems;
+
+  // Preview mode: add boundary overlap items for smooth transitions
+  const overlapFrames = Math.max(8, Math.round(fps * 0.35));
+  const result = [...activeItems];
+  const activeIds = new Set(activeItems.map(i => i.clip.id));
+
+  for (const item of webcamFrameLayout) {
+    if (activeIds.has(item.clip.id)) continue;
+
+    // Check if we're near this item's start boundary (premount)
+    const nearStart = currentFrame >= item.startFrame - overlapFrames && currentFrame < item.startFrame;
+    // Check if we're near this item's end boundary (postmount/hold)
+    const nearEnd = currentFrame >= item.endFrame && currentFrame < item.endFrame + overlapFrames;
+
+    if (nearStart || nearEnd) {
+      result.push(item);
+      activeIds.add(item.clip.id);
+    }
+  }
+
+  return result;
 }

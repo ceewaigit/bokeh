@@ -12,7 +12,7 @@ export {
 
 export { ElectronIpcBridge } from './electron-ipc-bridge'
 
-export { MockIpcBridge, createMockIpcBridge } from './mock-ipc-bridge'
+export { MockIpcBridge } from './mock-ipc-bridge'
 
 export {
   type RecordingIpcBridge,

@@ -12,7 +12,6 @@ import {
   calculateDuration as calcDuration,
   calculateFinalDuration,
   cleanupStream,
-  setupTrackMonitoring as _setupTrackMonitoring,
   clearDataInterval as clearInterval,
   calculateTotalSegmentDuration,
   type RecordingTimingState

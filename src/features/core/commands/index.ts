@@ -7,11 +7,17 @@ export type { CommandContext } from './base/CommandContext'
 export { CommandManager } from './base/CommandManager'
 export type { CommandHistoryEntry } from './base/CommandManager'
 export { CommandExecutor } from './base/CommandExecutor'
+export type {
+  CommandName,
+  CommandArgsMap,
+  CommandResultMap,
+  CommandConstructor,
+  CommandConstructorMap
+} from './base/CommandRegistry'
 
 // Timeline commands
 export {
   AddClipCommand,
-  ImportRecordingCommand,
   RemoveClipCommand,
   SplitClipCommand,
   DuplicateClipCommand,
@@ -46,7 +52,6 @@ import { CommandManager } from './base/CommandManager'
 import { AddClipCommand } from './timeline/AddClipCommand'
 import { AddAssetCommand } from './timeline/AddAssetCommand'
 import { ReorderClipCommand } from './timeline/ReorderClipCommand'
-import { ImportRecordingCommand } from './timeline/ImportRecordingCommand'
 import { RemoveClipCommand } from './timeline/RemoveClipCommand'
 import { SplitClipCommand } from './timeline/SplitClipCommand'
 import { DuplicateClipCommand } from './timeline/DuplicateClipCommand'
@@ -65,29 +70,28 @@ import { PasteCommand } from './clipboard/PasteCommand'
 
 export function registerAllCommands(manager: CommandManager): void {
   // Timeline commands
-  manager.registerCommand('AddClip', AddClipCommand as any)
-  manager.registerCommand('AddAsset', AddAssetCommand as any)
-  manager.registerCommand('ReorderClip', ReorderClipCommand as any)
-  manager.registerCommand('ImportRecording', ImportRecordingCommand as any)
-  manager.registerCommand('RemoveClip', RemoveClipCommand as any)
-  manager.registerCommand('SplitClip', SplitClipCommand as any)
-  manager.registerCommand('DuplicateClip', DuplicateClipCommand as any)
-  manager.registerCommand('UpdateClip', UpdateClipCommand as any)
-  manager.registerCommand('Trim', TrimCommand as any)
-  manager.registerCommand('ChangePlaybackRate', ChangePlaybackRateCommand as any)
+  manager.registerCommand('AddClip', AddClipCommand)
+  manager.registerCommand('AddAsset', AddAssetCommand)
+  manager.registerCommand('ReorderClip', ReorderClipCommand)
+  manager.registerCommand('RemoveClip', RemoveClipCommand)
+  manager.registerCommand('SplitClip', SplitClipCommand)
+  manager.registerCommand('DuplicateClip', DuplicateClipCommand)
+  manager.registerCommand('UpdateClip', UpdateClipCommand)
+  manager.registerCommand('Trim', TrimCommand)
+  manager.registerCommand('ChangePlaybackRate', ChangePlaybackRateCommand)
 
   // Effect commands
-  manager.registerCommand('AddZoomBlock', AddZoomBlockCommand as any)
-  manager.registerCommand('RemoveZoomBlock', RemoveZoomBlockCommand as any)
-  manager.registerCommand('UpdateZoomBlock', UpdateZoomBlockCommand as any)
-  manager.registerCommand('AddEffect', AddEffectCommand as any)
-  manager.registerCommand('RemoveEffect', RemoveEffectCommand as any)
-  manager.registerCommand('UpdateEffect', UpdateEffectCommand as any)
+  manager.registerCommand('AddZoomBlock', AddZoomBlockCommand)
+  manager.registerCommand('RemoveZoomBlock', RemoveZoomBlockCommand)
+  manager.registerCommand('UpdateZoomBlock', UpdateZoomBlockCommand)
+  manager.registerCommand('AddEffect', AddEffectCommand)
+  manager.registerCommand('RemoveEffect', RemoveEffectCommand)
+  manager.registerCommand('UpdateEffect', UpdateEffectCommand)
 
   // Clipboard commands
-  manager.registerCommand('Copy', CopyCommand as any)
-  manager.registerCommand('Cut', CutCommand as any)
-  manager.registerCommand('Paste', PasteCommand as any)
+  manager.registerCommand('Copy', CopyCommand)
+  manager.registerCommand('Cut', CutCommand)
+  manager.registerCommand('Paste', PasteCommand)
 
   // Register shortcuts
   manager.registerShortcut('cmd+c', 'Copy')

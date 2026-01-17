@@ -461,7 +461,7 @@ export function WorkspaceManager() {
       playheadRecording: nextPlayheadState?.playheadRecording ?? null,
       currentTime: state.currentTime,
       executeCommand: (commandName: string, ...args: any[]) => {
-        executor.executeByName(commandName, ...args)
+        executor.executeByName(commandName as any, ...args)
       }
     })
   }, [currentProject, selectedEffectLayer, selectedClip, contextEffects, executorRef])

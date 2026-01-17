@@ -5,7 +5,7 @@
  */
 
 import type { MouseEvent, ZoomBlock, ClickEvent, KeyboardEvent as ProjectKeyboardEvent, ScrollEvent } from '@/types/project'
-import { ACTION_ZOOM_CONFIG, ZOOM_DETECTION_CONFIG, ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
+import { ACTION_ZOOM_CONFIG, ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
 
 // Types for action-based detection
 interface ActionPoint {
@@ -40,36 +40,7 @@ interface ActionCluster {
   center: { x: number; y: number }
 }
 
-// Legacy interface for backward compatibility
-interface MouseCluster {
-  events: MouseEvent[]
-  startTime: number
-  endTime: number
-  center: { x: number; y: number }
-  boundingBox: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }
-  density: number
-  stability: number
-}
-
 export class ZoomDetector {
-  // Legacy config (kept for backward compatibility)
-  private readonly MIN_CLUSTER_TIME = ZOOM_DETECTION_CONFIG.minClusterTime
-  private readonly MAX_CLUSTER_SIZE = ZOOM_DETECTION_CONFIG.maxClusterSize
-  private readonly MIN_CLUSTER_EVENTS = ZOOM_DETECTION_CONFIG.minClusterEvents
-  private readonly CLUSTER_TIME_WINDOW = ZOOM_DETECTION_CONFIG.clusterTimeWindow
-  private readonly CLUSTER_MERGE_DISTANCE = ZOOM_DETECTION_CONFIG.clusterMergeDistance
-  private readonly MIN_ZOOM_DURATION = ZOOM_DETECTION_CONFIG.minDuration
-  private readonly MAX_ZOOM_DURATION = ZOOM_DETECTION_CONFIG.maxDuration
-  private readonly MOVEMENT_THRESHOLD = ZOOM_DETECTION_CONFIG.movementThreshold
-  private readonly VELOCITY_WEIGHT = ZOOM_DETECTION_CONFIG.velocityWeight
-  private readonly MIN_DENSITY = ZOOM_DETECTION_CONFIG.minDensity
-  private readonly MIN_STABILITY = ZOOM_DETECTION_CONFIG.minStability
-
   // Action-based zoom config
   private readonly ACTION = ACTION_ZOOM_CONFIG
   private readonly TRANSITION = ZOOM_TRANSITION_CONFIG
@@ -77,8 +48,8 @@ export class ZoomDetector {
 
   /**
    * Main detection method - Action-Based Smart Zoom
-   * Uses action-based detection when click/keyboard events are available,
-   * falls back to legacy dwell-based detection for recordings without event data
+   * Uses action-based detection when click/keyboard events are available.
+   * Note: Requires click event data for zoom detection.
    * @param runtimeConfig Optional config overrides from UI (maxZoomsPerMinute, minZoomGapMs)
    */
   detectZoomBlocks(
@@ -115,8 +86,9 @@ export class ZoomDetector {
       )
     }
 
-    // Fallback to legacy dwell-based detection
-    return this.detectLegacyZoomBlocks(mouseEvents, screenWidth, screenHeight, duration)
+    // No click events - return empty (legacy dwell-based detection removed)
+    console.warn('[ZoomDetector] No click events available - zoom detection requires click data')
+    return []
   }
 
   /**
@@ -143,7 +115,8 @@ export class ZoomDetector {
     )
 
     if (actionPoints.length === 0) {
-      return this.detectLegacyZoomBlocks(mouseEvents, screenWidth, screenHeight, duration)
+      console.warn('[ZoomDetector] No action points extracted from events')
+      return []
     }
 
     // Step 2: Filter by minimum importance
@@ -152,7 +125,8 @@ export class ZoomDetector {
     )
 
     if (significantActions.length === 0) {
-      return this.detectLegacyZoomBlocks(mouseEvents, screenWidth, screenHeight, duration)
+      console.warn('[ZoomDetector] No significant actions found above importance threshold')
+      return []
     }
 
     // Step 3: Cluster nearby actions
@@ -776,324 +750,5 @@ export class ZoomDetector {
     const dx = (x1 - x2) / screenWidth
     const dy = (y1 - y2) / screenHeight
     return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  // ============================================================================
-  // LEGACY METHODS - Fallback for recordings without click data
-  // ============================================================================
-
-  private detectLegacyZoomBlocks(
-    mouseEvents: MouseEvent[],
-    screenWidth: number,
-    screenHeight: number,
-    duration: number
-  ): ZoomBlock[] {
-    if (!mouseEvents || mouseEvents.length < this.MIN_CLUSTER_EVENTS) {
-      return []
-    }
-
-    const clusters = this.detectMouseClusters(mouseEvents, screenWidth, screenHeight)
-
-    if (clusters.length === 0) return []
-
-    const zoomBlocks: ZoomBlock[] = []
-
-    clusters.forEach(cluster => {
-      const clusterDuration = cluster.endTime - cluster.startTime
-      const normalizedWidth = cluster.boundingBox.width / screenWidth
-      const normalizedHeight = cluster.boundingBox.height / screenHeight
-      const clusterSize = Math.max(normalizedWidth, normalizedHeight)
-
-      if (clusterSize > this.MAX_CLUSTER_SIZE || clusterDuration < this.MIN_CLUSTER_TIME) {
-        return
-      }
-
-      let zoomScale = 1.5
-      if (clusterSize < 0.08) {
-        zoomScale = 2.5
-      } else if (clusterSize < 0.12) {
-        zoomScale = 2.0
-      } else if (clusterSize < 0.16) {
-        zoomScale = 1.75
-      }
-
-      const effectiveDuration = Math.min(
-        clusterDuration + 1000,
-        this.MAX_ZOOM_DURATION,
-        duration - cluster.startTime - 500
-      )
-
-      if (effectiveDuration > this.MIN_ZOOM_DURATION) {
-        zoomBlocks.push({
-          id: `zoom-cluster-${cluster.startTime}`,
-          origin: 'auto',
-          startTime: cluster.startTime,
-          endTime: cluster.startTime + effectiveDuration,
-          introMs: 800,
-          outroMs: 800,
-          scale: zoomScale,
-          targetX: cluster.center.x,
-          targetY: cluster.center.y,
-          screenWidth,
-          screenHeight,
-        })
-      }
-    })
-
-    return this.mergeOverlappingZooms(zoomBlocks)
-  }
-
-  private detectMouseClusters(
-    events: MouseEvent[],
-    videoWidth: number,
-    videoHeight: number
-  ): MouseCluster[] {
-    const clusters: MouseCluster[] = []
-    let i = 0
-
-    while (i < events.length) {
-      const windowStart = events[i].timestamp
-      const windowEnd = windowStart + this.CLUSTER_TIME_WINDOW
-      const windowEvents: MouseEvent[] = []
-
-      let j = i
-      while (j < events.length && events[j].timestamp <= windowEnd) {
-        windowEvents.push(events[j])
-        j++
-      }
-
-      if (windowEvents.length >= this.MIN_CLUSTER_EVENTS) {
-        const activityCenters = this.kMeansClustering(windowEvents, videoWidth, videoHeight)
-
-        for (const center of activityCenters) {
-          if (center.density > this.MIN_DENSITY && center.stability > this.MIN_STABILITY) {
-            const shouldMerge = clusters.length > 0 &&
-              this.shouldMergeWithPrevious(clusters[clusters.length - 1], center, videoWidth, videoHeight)
-
-            if (shouldMerge) {
-              this.mergeClusters(clusters[clusters.length - 1], center, videoWidth, videoHeight)
-            } else {
-              clusters.push(center)
-            }
-          }
-        }
-
-        if (activityCenters.length > 0) {
-          i = j - Math.floor(this.MIN_CLUSTER_EVENTS / 2)
-        }
-      }
-
-      i++
-    }
-
-    return clusters
-  }
-
-  private kMeansClustering(
-    events: MouseEvent[],
-    videoWidth: number,
-    videoHeight: number,
-    k: number = 2
-  ): MouseCluster[] {
-    if (events.length < k) {
-      return [this.analyzeCluster(events, videoWidth, videoHeight)]
-    }
-
-    const centers: { x: number; y: number }[] = []
-    centers.push({
-      x: events[Math.floor(Math.random() * events.length)].x,
-      y: events[Math.floor(Math.random() * events.length)].y
-    })
-
-    for (let c = 1; c < k; c++) {
-      const distances = events.map(e => {
-        let minDist = Infinity
-        centers.forEach(center => {
-          const dist = Math.sqrt(
-            Math.pow(e.x - center.x, 2) + Math.pow(e.y - center.y, 2)
-          )
-          minDist = Math.min(minDist, dist)
-        })
-        return minDist
-      })
-
-      const sumDist = distances.reduce((a, b) => a + b, 0)
-      let target = Math.random() * sumDist
-      let idx = 0
-
-      for (let i = 0; i < distances.length; i++) {
-        target -= distances[i]
-        if (target <= 0) {
-          idx = i
-          break
-        }
-      }
-
-      centers.push({ x: events[idx].x, y: events[idx].y })
-    }
-
-    let clusters: MouseEvent[][] = []
-    const maxIterations = 15
-
-    for (let iter = 0; iter < maxIterations; iter++) {
-      clusters = Array(k).fill(null).map(() => [])
-
-      events.forEach(event => {
-        let minDist = Infinity
-        let assignedCluster = 0
-
-        centers.forEach((center, idx) => {
-          const dist = Math.sqrt(
-            Math.pow(event.x - center.x, 2) +
-            Math.pow(event.y - center.y, 2)
-          )
-          if (dist < minDist) {
-            minDist = dist
-            assignedCluster = idx
-          }
-        })
-
-        clusters[assignedCluster].push(event)
-      })
-
-      let converged = true
-      clusters.forEach((cluster, idx) => {
-        if (cluster.length > 0) {
-          const newX = cluster.reduce((sum, e) => sum + e.x, 0) / cluster.length
-          const newY = cluster.reduce((sum, e) => sum + e.y, 0) / cluster.length
-
-          if (Math.abs(newX - centers[idx].x) > 1 || Math.abs(newY - centers[idx].y) > 1) {
-            converged = false
-          }
-
-          centers[idx] = { x: newX, y: newY }
-        }
-      })
-
-      if (converged) break
-    }
-
-    return clusters
-      .filter(cluster => cluster.length >= this.MIN_CLUSTER_EVENTS)
-      .map(cluster => this.analyzeCluster(cluster, videoWidth, videoHeight))
-  }
-
-  private analyzeCluster(
-    events: MouseEvent[],
-    videoWidth: number,
-    videoHeight: number
-  ): MouseCluster {
-    let minX = Infinity, maxX = -Infinity
-    let minY = Infinity, maxY = -Infinity
-
-    events.forEach(event => {
-      minX = Math.min(minX, event.x)
-      maxX = Math.max(maxX, event.x)
-      minY = Math.min(minY, event.y)
-      maxY = Math.max(maxY, event.y)
-    })
-
-    const boundingBox = {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY
-    }
-
-    let weightedSumX = 0, weightedSumY = 0, totalWeight = 0
-    events.forEach((event, idx) => {
-      const weight = 1 + (idx / events.length) * this.VELOCITY_WEIGHT
-      weightedSumX += event.x * weight
-      weightedSumY += event.y * weight
-      totalWeight += weight
-    })
-
-    const center = {
-      x: weightedSumX / totalWeight,
-      y: weightedSumY / totalWeight
-    }
-
-    const area = boundingBox.width * boundingBox.height
-    const maxArea = videoWidth * videoHeight
-
-    const normalizedWidth = boundingBox.width / videoWidth
-    const normalizedHeight = boundingBox.height / videoHeight
-    const maxDimension = Math.max(normalizedWidth, normalizedHeight)
-
-    const density = maxDimension > 0.3 ? 0 : (1 - (area / maxArea))
-
-    const timeSpan = events[events.length - 1].timestamp - events[0].timestamp
-    const expectedEvents = timeSpan / 50
-    const stability = Math.min(1, events.length / Math.max(1, expectedEvents))
-
-    return {
-      events,
-      startTime: events[0].timestamp,
-      endTime: events[events.length - 1].timestamp,
-      center,
-      boundingBox,
-      density,
-      stability
-    }
-  }
-
-  private shouldMergeWithPrevious(
-    previousCluster: MouseCluster,
-    currentCluster: MouseCluster,
-    videoWidth: number,
-    videoHeight: number
-  ): boolean {
-    const dx = (currentCluster.center.x - previousCluster.center.x) / videoWidth
-    const dy = (currentCluster.center.y - previousCluster.center.y) / videoHeight
-    const spatialDistance = Math.sqrt(dx * dx + dy * dy)
-
-    const timeDiff = currentCluster.startTime - previousCluster.endTime
-
-    const isContinuation = timeDiff < 500 && spatialDistance < this.CLUSTER_MERGE_DISTANCE
-    const isFollowingPath = timeDiff < 1000 && spatialDistance < this.MOVEMENT_THRESHOLD * 2
-
-    return isContinuation || isFollowingPath
-  }
-
-  private mergeClusters(
-    target: MouseCluster,
-    source: MouseCluster,
-    videoWidth: number,
-    videoHeight: number
-  ): void {
-    target.events.push(...source.events)
-    target.events.sort((a, b) => a.timestamp - b.timestamp)
-
-    target.startTime = Math.min(target.startTime, source.startTime)
-    target.endTime = Math.max(target.endTime, source.endTime)
-
-    const merged = this.analyzeCluster(target.events, videoWidth, videoHeight)
-    target.boundingBox = merged.boundingBox
-    target.center = merged.center
-    target.density = merged.density
-    target.stability = merged.stability
-  }
-
-  private mergeOverlappingZooms(effects: ZoomBlock[]): ZoomBlock[] {
-    if (effects.length < 2) return effects
-
-    effects.sort((a, b) => a.startTime - b.startTime)
-
-    const merged: ZoomBlock[] = []
-    let current = effects[0]
-
-    for (let i = 1; i < effects.length; i++) {
-      const next = effects[i]
-
-      if (current.endTime >= next.startTime - 500) {
-        current.endTime = Math.max(current.endTime, next.endTime)
-      } else {
-        merged.push(current)
-        current = next
-      }
-    }
-
-    merged.push(current)
-    return merged
   }
 }

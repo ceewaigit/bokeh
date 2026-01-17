@@ -7,7 +7,7 @@ import { CommandContext } from '../base/CommandContext'
 import type { WritableDraft } from 'immer'
 import type { ProjectStore } from '@/features/core/stores/project-store'
 import { executeTrimClipStart, executeTrimClipEnd } from '@/features/ui/timeline/clips/clip-trim'
-import { TimelineSyncService } from '@/features/effects/sync'
+import { ClipChangeBuilder } from '@/features/effects/sync'
 
 export type TrimSide = 'start' | 'end'
 
@@ -39,7 +39,7 @@ export class TrimCommand extends TimelineCommand<{ clipId: string }> {
     return this.trimPosition > clip.startTime && this.trimPosition < clip.startTime + clip.duration
   }
 
-  protected mutate(draft: WritableDraft<ProjectStore>): void {
+  protected doMutate(draft: WritableDraft<ProjectStore>): void {
     const project = draft.currentProject
     if (!project) throw new Error('No active project')
 
@@ -60,10 +60,10 @@ export class TrimCommand extends TimelineCommand<{ clipId: string }> {
     // Re-lookup clip to get updated state
     const updatedLookup = this.findClip(project, this.clipId)
     if (updatedLookup) {
-      const clipChange = TimelineSyncService.buildTrimChange(
+      const clipChange = ClipChangeBuilder.buildTrimChange(
         updatedLookup.clip, this.side, beforeState, track.type
       )
-      this.setPendingChange(draft, clipChange)
+      this.deferClipChange(clipChange)
     }
 
     this.clampPlayhead(draft)

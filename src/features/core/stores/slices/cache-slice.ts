@@ -7,7 +7,7 @@
  * - Invalidation logic
  */
 
-import type { CameraPathFrame } from '@/types/remotion'
+import type { CameraPathFrame } from '@/features/rendering/renderer/types'
 import type { FrameLayoutItem } from '@/features/ui/timeline/utils/frame-layout'
 import type { CreateCacheSlice } from './types'
 

@@ -55,6 +55,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@remotion/cli": "^4.0.397",
+    "@remotion/media": "^4.0.397",
     "@remotion/media-utils": "^4.0.397",
     "@remotion/paths": "^4.0.397",
     "@remotion/player": "^4.0.397",

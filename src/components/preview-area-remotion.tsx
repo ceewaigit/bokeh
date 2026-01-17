@@ -19,16 +19,16 @@ import { usePreviewSettingsStore } from '@/features/core/stores/preview-settings
 import { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import { usePlayerConfiguration } from '@/features/rendering/renderer/hooks/use-player-configuration';
 import { PREVIEW_DISPLAY_HEIGHT, PREVIEW_DISPLAY_WIDTH, PROXY_HEIGHT, PROXY_WIDTH, RETINA_MULTIPLIER } from '@/shared/utils/resolution-utils';
-import type { ZoomSettings } from '@/types/remotion';
+import type { ZoomSettings } from '@/features/ui/editor/types';
 import { assertDefined } from '@/shared/errors';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
-import { EffectStore } from '@/features/effects/core/effects-store';
 import { usePlayerSync } from '@/features/ui/editor/components/preview/use-player-sync';
 import { usePreviewVisibility, usePreviewResize, useVideoPreloader } from '@/features/ui/editor/components/preview/use-preview-lifecycle';
 import { PlayerContainer } from '@/features/ui/editor/components/preview/player-container';
 import { PreviewInteractions } from '@/features/ui/editor/components/preview/preview-interactions';
 import { TimelineProvider } from '@/features/rendering/renderer/context/RenderingTimelineContext';
 import { PlaybackSettingsProvider } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
+import { GlowProvider } from '@/features/ui/editor/context/GlowContext';
 import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
 import { AnnotationDock } from '@/features/effects/annotation/ui/AnnotationDock';
 
@@ -52,13 +52,11 @@ export function PreviewAreaRemotion({
     storeIsPlaying,
     isScrubbing,
     project,
-    selectedEffectLayer,
     timelineMutationCounter,
   } = useProjectStore(useShallow((s) => ({
     storeIsPlaying: s.isPlaying,
     isScrubbing: s.isScrubbing,
     project: s.currentProject,
-    selectedEffectLayer: s.selectedEffectLayer,
     timelineMutationCounter: s.timelineMutationCounter,
   })));
   // Keep function selectors separate (not state)
@@ -101,11 +99,6 @@ export function PreviewAreaRemotion({
     useTimelineMetadata(project),
     'PreviewAreaRemotion requires timeline metadata before rendering.'
   );
-
-  const projectEffects = useMemo(() => {
-    if (!project) return [];
-    return EffectStore.getAll(project);
-  }, [project]);
 
   // Calculate initial frame
   // Only needs to run once or when metadata changes
@@ -349,27 +342,24 @@ export function PreviewAreaRemotion({
     if (!playerConfig) return null;
 
     return (
-      <PlayerContainer
-        playerRef={playerRef}
-        playerContainerRef={playerContainerRef}
-        timelineMetadata={timelineMetadata}
-        playerConfig={playerConfig}
-        playerKey={playerKey}
-        initialFrame={initialFrame}
-        isHighQualityPlaybackEnabled={isHighQualityPlaybackEnabled}
-        compositionWidth={compositionSize.width}
-        compositionHeight={compositionSize.height}
-        muted={muted}
-        volume={volume}
-        isGlowEnabled={isGlowEnabled}
-        glowIntensity={glowIntensity}
-        isPlaying={isPlaying}
-        isScrubbing={isScrubbing}
-        isEditingCrop={Boolean(isEditingCrop)}
-        zoomSettings={zoomSettings}
-        glowPortalRoot={glowPortalRoot}
-        glowPortalStyle={glowPortalStyle}
-      />
+      <GlowProvider
+        isEnabled={isGlowEnabled}
+        intensity={glowIntensity}
+        portalRoot={glowPortalRoot}
+        portalStyle={glowPortalStyle}
+      >
+        <PlayerContainer
+          playerRef={playerRef}
+          playerContainerRef={playerContainerRef}
+          timelineMetadata={timelineMetadata}
+          playerConfig={playerConfig}
+          playerKey={playerKey}
+          initialFrame={initialFrame}
+          compositionWidth={compositionSize.width}
+          compositionHeight={compositionSize.height}
+          zoomSettings={zoomSettings}
+        />
+      </GlowProvider>
     );
   }, [
     playerRef,
@@ -378,14 +368,8 @@ export function PreviewAreaRemotion({
     playerConfig,
     playerKey,
     initialFrame,
-    isHighQualityPlaybackEnabled,
-    muted,
-    volume,
     isGlowEnabled,
     glowIntensity,
-    isPlaying,
-    isScrubbing,
-    isEditingCrop,
     zoomSettings,
     glowPortalRoot,
     glowPortalStyle,
@@ -450,12 +434,7 @@ export function PreviewAreaRemotion({
                     }}
                   >
                     <PreviewInteractions
-                      project={project}
-                      projectEffects={projectEffects}
                       timelineMetadata={timelineMetadata}
-                      selectedEffectLayer={selectedEffectLayer}
-                      isEditingCrop={Boolean(isEditingCrop)}
-                      isPlaying={isPlaying}
                       playerKey={playerKey}
                       zoomSettings={zoomSettings}
                       previewFrameBounds={previewFrameBounds}

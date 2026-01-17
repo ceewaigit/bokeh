@@ -44,6 +44,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   cameraSettings,
   renderSettings,
   cameraPath: _cameraPath,
+  backgroundElement,
 }) => {
   // ==========================================================================
   // REMOTION HOOKS & CONTEXT
@@ -388,14 +389,34 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                   zIndex: 1,
                 }}
               >
+                {/* Background layer for scrubbing fallback */}
+                {backgroundElement && !layout.mockupEnabled && (
+                  <div
+                    data-extended-background="true"
+                    style={{
+                      position: 'absolute',
+                      left: -layout.paddingScaled,
+                      top: -layout.paddingScaled,
+                      width: layout.drawWidth + layout.paddingScaled * 2,
+                      height: layout.drawHeight + layout.paddingScaled * 2,
+                      zIndex: 0,
+                      overflow: 'hidden',
+                      borderRadius: layout.cornerRadius,
+                    }}
+                  >
+                    {backgroundElement}
+                  </div>
+                )}
                 <div
                   style={{
+                    position: 'relative',
                     width: '100%',
                     height: '100%',
                     clipPath: layout.mockupEnabled ? undefined : cropClipPath,
                     borderRadius: layout.mockupEnabled ? undefined : layout.cornerRadius,
                     overflow: (cropClipPath || layout.cornerRadius > 0) ? 'hidden' : undefined,
                     isolation: 'isolate',
+                    zIndex: 1,
                   }}
                 >
                   <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -447,10 +468,40 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
               backfaceVisibility: has3DTransform ? 'hidden' : undefined,
             }}
           >
+            {/* BACKGROUND LAYER: Renders INSIDE transform scope but OUTSIDE clipping.
+                This allows the background to move with zoom/pan, so camera can reveal padding.
+                The background extends beyond video bounds by padding * maxScale to ensure
+                coverage at all zoom levels and pan positions.
+
+                Key insight: When zoomed to 2x and panned to edge, the camera reveals padding
+                that was previously hidden. The background must extend into that area. */}
+            {backgroundElement && !layout.mockupEnabled && (
+              <div
+                data-extended-background="true"
+                style={{
+                  position: 'absolute',
+                  // Extend background by paddingScaled on each side to cover panning range
+                  // At zoom scale S, camera can reveal up to paddingScaled*(S-1) extra on each side
+                  // Using paddingScaled * maxZoom ensures coverage for all zoom levels
+                  left: -layout.paddingScaled,
+                  top: -layout.paddingScaled,
+                  width: layout.drawWidth + layout.paddingScaled * 2,
+                  height: layout.drawHeight + layout.paddingScaled * 2,
+                  zIndex: 0,
+                  overflow: 'hidden',
+                  // Inherit corner radius to match video framing
+                  borderRadius: layout.cornerRadius,
+                }}
+              >
+                {backgroundElement}
+              </div>
+            )}
+
             {/* INNER CONTAINER: Handles CLIPPING (Border Radius, Crop) */}
             {/* This clips the video content but NOT the shadow (which is on the parent) */}
             <div
               style={{
+                position: 'relative',
                 width: '100%',
                 height: '100%',
                 clipPath: layout.mockupEnabled ? undefined : cropClipPath,
@@ -463,6 +514,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 boxShadow: (!layout.mockupEnabled && layout.shadowIntensity > 0)
                   ? `0px 10px ${layout.shadowIntensity * 0.5}px rgba(0,0,0,${Math.min(0.6, layout.shadowIntensity / 100)})`
                   : undefined,
+                zIndex: 1,
               }}
             >
               {/* Video content container */}

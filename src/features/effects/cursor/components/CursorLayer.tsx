@@ -364,8 +364,12 @@ export const CursorLayer = React.memo(() => {
   const renderedWidth = dimensions.width * cursorSize * videoDisplayScale * zoomScale;
   const renderedHeight = dimensions.height * cursorSize * videoDisplayScale * zoomScale;
 
-  const motionBlurIntensity = cursorData?.motionBlurIntensity ?? DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40;
-  const motionBlurEnabled = (cursorData?.motionBlur ?? DEFAULT_CURSOR_DATA.motionBlur ?? true) && motionBlurIntensity > 0;
+  // Motion blur: enabled only if explicitly turned on (motionBlur: true) or intensity explicitly set > 0
+  // Default is OFF - consistent with UI showing 0% until user enables it
+  const motionBlurIntensity = typeof cursorData?.motionBlurIntensity === 'number'
+    ? cursorData.motionBlurIntensity
+    : (cursorData?.motionBlur === true ? (DEFAULT_CURSOR_DATA.motionBlurIntensity ?? 40) : 0);
+  const motionBlurEnabled = motionBlurIntensity > 0;
   const motionBlurSample = motionBlurEnabled ? cursorState.motionBlur : undefined;
 
   // Motion blur previousX/Y are PRE-NORMALIZED to 0-1 range (from cursor-logic.ts)
@@ -463,28 +467,30 @@ export const CursorLayer = React.memo(() => {
     const shouldShow = velocityEase >= 0.15 && intensity >= 0.15 && distance > 2;
     const targetOpacity = shouldShow ? 1 : 0;
     
-    // Smooth fade envelope
-    // Attack (fade in): fast (0.4 ~ 2-3 frames)
-    // Decay (fade out): slow (0.15 ~ 6-8 frames)
-    const smoothing = targetOpacity > trailOpacityRef.current ? 0.4 : 0.15;
+    // Smooth fade envelope - faster decay to prevent lingering ghosts
+    // Attack (fade in): fast (0.5 ~ 2 frames)
+    // Decay (fade out): much faster (0.35 ~ 3 frames) to avoid ghosting
+    const smoothing = targetOpacity > trailOpacityRef.current ? 0.5 : 0.35;
     trailOpacityRef.current += (targetOpacity - trailOpacityRef.current) * smoothing;
-    
+
     // Hard cutoff to prevent ghosting at very low opacities
-    if (trailOpacityRef.current < 0.01) return null;
-    
+    if (trailOpacityRef.current < 0.02) return null;
+
     const visualOpacity = trailOpacityRef.current;
 
-    const trailOffset = Math.min(12, distance * 0.4);
+    const trailOffset = Math.min(10, distance * 0.35);
     const unitX = deltaX / (distance || 1); // Avoid div by zero
     const unitY = deltaY / (distance || 1);
-    
-    // Single clean ghost trail
-    const trailX = stableCursorX - unitX * trailOffset * (0.5 + 0.5 * velocityEase);
-    const trailY = stableCursorY - unitY * trailOffset * (0.5 + 0.5 * velocityEase);
-    
-    // Modulate opacity with intensity and velocity
-    const finalOpacity = cursorState.opacity * intensity * (0.12 + 0.24 * velocityEase) * visualOpacity;
-    const trailBlur = 0.9 + intensity * (1.8 + 2.2 * velocityEase);
+
+    // Single clean ghost trail - positioned closer to cursor
+    const trailX = stableCursorX - unitX * trailOffset * (0.4 + 0.4 * velocityEase);
+    const trailY = stableCursorY - unitY * trailOffset * (0.4 + 0.4 * velocityEase);
+
+    // Reduced opacity for subtle blur effect rather than obvious ghost
+    // Max opacity reduced from 0.36 to 0.18 for cleaner look
+    const finalOpacity = cursorState.opacity * intensity * (0.06 + 0.12 * velocityEase) * visualOpacity;
+    // More blur to look like actual motion blur vs a ghost cursor
+    const trailBlur = 1.5 + intensity * (2.5 + 3.0 * velocityEase);
 
     return (
       <div
