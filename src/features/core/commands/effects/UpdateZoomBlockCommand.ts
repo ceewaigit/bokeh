@@ -83,6 +83,7 @@ export class UpdateZoomBlockCommand extends PatchedCommand<{ blockId: string }> 
     if ('followStrategy' in this.updates) zoomData.followStrategy = this.updates.followStrategy
     if ('autoScale' in this.updates) zoomData.autoScale = this.updates.autoScale
     if ('mouseIdlePx' in this.updates) zoomData.mouseIdlePx = this.updates.mouseIdlePx
+    if ('deadZoneRatio' in this.updates) zoomData.deadZoneRatio = this.updates.deadZoneRatio
     if ('transitionStyle' in this.updates) zoomData.transitionStyle = this.updates.transitionStyle
     if ('mouseFollowAlgorithm' in this.updates) zoomData.mouseFollowAlgorithm = this.updates.mouseFollowAlgorithm
     if ('zoomIntoCursorMode' in this.updates) zoomData.zoomIntoCursorMode = this.updates.zoomIntoCursorMode

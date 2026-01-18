@@ -60,8 +60,11 @@ export const PluginLayer: React.FC<PluginLayerProps> = ({
     return null
   }
 
+  // above-cursor layer needs z-index above AnnotationLayer (300) but below WatermarkLayer (400)
+  const layerZIndex = layer === 'above-cursor' ? 350 : undefined
+
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+    <AbsoluteFill style={{ pointerEvents: 'none', zIndex: layerZIndex }}>
       {activeEffects.map(effect => (
         <PluginEffectRenderer
           key={effect.id}

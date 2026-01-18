@@ -5,7 +5,7 @@ import { WatermarkAnimationType, WatermarkLayout, WatermarkPulseAnimation } from
 export const DEFAULT_BOKEH_ICON_PATH = '/brand/bokeh_watermark.svg'
 export const DEFAULT_BOKEH_TEXT = 'bokeh.video'
 
-export const WATERMARK_Z_INDEX = 250
+export const WATERMARK_Z_INDEX = 400
 
 export const FONT_FAMILY_OPTIONS = [
   { label: 'Inter', value: 'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' },

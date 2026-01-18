@@ -2,6 +2,7 @@ import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/shared/utils/utils'
 import { Slider } from '@/components/ui/slider'
+import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 
 export const springConfig = { type: 'spring', stiffness: 500, damping: 32 } as const
 
@@ -119,7 +120,8 @@ export function CompactSlider({
   max,
   step = 1,
   unit = '',
-  description
+  description,
+  tooltip
 }: {
   label: string
   value: number
@@ -130,20 +132,24 @@ export function CompactSlider({
   step?: number
   unit?: string
   description?: string
+  tooltip?: string
 }) {
   return (
     <div className="group space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span
-          className={cn(
-            "text-2xs font-medium",
-            "text-muted-foreground/80",
-            "transition-colors duration-100",
-            "group-hover:text-foreground/90"
-          )}
-        >
-          {label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              "text-2xs font-medium",
+              "text-muted-foreground/80",
+              "transition-colors duration-100",
+              "group-hover:text-foreground/90"
+            )}
+          >
+            {label}
+          </span>
+          {tooltip && <InfoTooltip content={tooltip} />}
+        </div>
         <span
           className={cn(
             "text-2xs font-mono tabular-nums",

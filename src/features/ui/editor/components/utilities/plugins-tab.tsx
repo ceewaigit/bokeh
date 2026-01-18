@@ -468,7 +468,7 @@ export function PluginsTab() {
                                                     </span>
                                                 </div>
                                                 {plugin.description && (
-                                                    <p className="text-2xs text-muted-foreground/70 line-clamp-1 mt-0.5">
+                                                    <p className="text-2xs text-muted-foreground/70 line-clamp-2 mt-0.5">
                                                         {plugin.description}
                                                     </p>
                                                 )}

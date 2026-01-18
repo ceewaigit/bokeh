@@ -89,6 +89,7 @@ export class AddZoomBlockCommand extends PatchedCommand<{ blockId: string }> {
         followStrategy: this.block.followStrategy ?? ZoomFollowStrategy.Mouse,
         autoScale: this.block.autoScale,
         mouseIdlePx: this.block.mouseIdlePx,
+        deadZoneRatio: this.block.deadZoneRatio,
         transitionStyle: this.block.transitionStyle ?? 'sine',
         mouseFollowAlgorithm: this.block.mouseFollowAlgorithm ?? 'deadzone',
         zoomIntoCursorMode: this.block.zoomIntoCursorMode ?? 'cursor'

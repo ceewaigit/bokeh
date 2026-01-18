@@ -170,7 +170,8 @@ export interface ZoomBlockBase {
   followStrategy?: ZoomFollowStrategy;
   autoScale?: 'fill';
   smoothing?: number;
-  mouseIdlePx?: number;
+  mouseIdlePx?: number;    // Jitter filter: cursor movement threshold in px to ignore noise
+  deadZoneRatio?: number;  // Camera dead zone: fraction of viewport (0-1) cursor can move before camera pans
   transitionStyle?: ZoomTransitionStyle;
   mouseFollowAlgorithm?: ZoomMouseFollowAlgorithm;
   zoomIntoCursorMode?: ZoomIntoCursorMode;
@@ -201,8 +202,10 @@ export interface ZoomEffectData {
   // Follow strategy: mouse or center lock
   followStrategy?: ZoomFollowStrategy;
   autoScale?: 'fill';
-  // Mouse idle threshold in pixels (physical) to consider idle within the velocity window
+  // Jitter filter: cursor movement threshold in pixels to ignore noise (trackpad jitter, etc.)
   mouseIdlePx?: number;
+  // Camera dead zone: fraction of viewport (0-1) cursor can move before camera pans
+  deadZoneRatio?: number;
   transitionStyle?: ZoomTransitionStyle;
   mouseFollowAlgorithm?: ZoomMouseFollowAlgorithm;
   zoomIntoCursorMode?: ZoomIntoCursorMode;

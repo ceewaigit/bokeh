@@ -24,6 +24,7 @@ export interface ParsedZoomBlock {
     followStrategy?: ZoomFollowStrategy
     autoScale?: 'fill'
     mouseIdlePx?: number
+    deadZoneRatio?: number  // Camera dead zone: fraction of viewport (0-1) cursor can move before camera pans
     transitionStyle?: NonNullable<ZoomEffectData['transitionStyle']>
     mouseFollowAlgorithm?: NonNullable<ZoomEffectData['mouseFollowAlgorithm']>
     zoomIntoCursorMode?: NonNullable<ZoomEffectData['zoomIntoCursorMode']>
@@ -51,7 +52,7 @@ function getZoomEffectsHash(effects: Effect[]): string {
     return zoomEffects.map(e => {
         const d = e.data as ZoomEffectData
         // Use a compact representation for performance
-        return `${e.id}|${e.startTime}|${e.endTime}|${d?.scale}|${d?.introMs}|${d?.outroMs}|${d?.followStrategy}|${d?.targetX}|${d?.targetY}|${d?.transitionStyle}|${d?.mouseFollowAlgorithm}|${d?.zoomIntoCursorMode}|${d?.autoScale}|${d?.mouseIdlePx}`
+        return `${e.id}|${e.startTime}|${e.endTime}|${d?.scale}|${d?.introMs}|${d?.outroMs}|${d?.followStrategy}|${d?.targetX}|${d?.targetY}|${d?.transitionStyle}|${d?.mouseFollowAlgorithm}|${d?.zoomIntoCursorMode}|${d?.autoScale}|${d?.mouseIdlePx}|${d?.deadZoneRatio}`
     }).join(';')
 }
 
@@ -90,6 +91,7 @@ export function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
                 followStrategy: data.followStrategy,
                 autoScale: data.autoScale,
                 mouseIdlePx: data.mouseIdlePx,
+                deadZoneRatio: data.deadZoneRatio,
                 transitionStyle: normalizeZoomTransitionStyle(data.transitionStyle),
                 mouseFollowAlgorithm: normalizeMouseFollowAlgorithm(data.mouseFollowAlgorithm),
                 zoomIntoCursorMode: normalizeZoomIntoCursorMode(data.zoomIntoCursorMode),
@@ -145,6 +147,10 @@ function requireZoomEffectData(effect: Effect): ZoomEffectData {
     if (data.mouseIdlePx !== undefined) {
         assertFiniteNumber('mouseIdlePx', data.mouseIdlePx, effect.id)
         if (data.mouseIdlePx < 0) throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has invalid mouseIdlePx`)
+    }
+    if (data.deadZoneRatio !== undefined) {
+        assertFiniteNumber('deadZoneRatio', data.deadZoneRatio, effect.id)
+        if (data.deadZoneRatio < 0 || data.deadZoneRatio > 1) throw new Error(`[ZoomBlocks] Zoom effect ${effect.id} has invalid deadZoneRatio (must be 0-1)`)
     }
     if (data.followStrategy !== undefined && !isValidFollowStrategy(data.followStrategy)) {
         throw new Error(`[ZoomBlocks] Invalid followStrategy for ${effect.id}`)

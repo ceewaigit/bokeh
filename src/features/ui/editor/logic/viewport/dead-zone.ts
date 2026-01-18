@@ -28,12 +28,18 @@ const { deadZoneRatio: CAMERA_DEAD_ZONE_RATIO } = CAMERA_CONFIG
  *
  * NOTE: At very high zoom (2.5x+), we keep a larger minimum dead-zone
  * to prevent jittery/sensitive camera behavior from small cursor movements.
+ *
+ * @param zoomScale - Current zoom scale (1.0 = no zoom)
+ * @param baseRatioOverride - Optional per-block override for base dead zone ratio (0-1)
  */
-export function getAdaptiveDeadZoneRatio(zoomScale: number): number {
-    const maxRatio = CAMERA_DEAD_ZONE_RATIO  // 0.4 at 1x zoom
-    const minRatio = 0.28                     // Larger minimum for smoother high-zoom tracking
-    const startScale = 1.2                    // Start shrinking later
-    const endScale = 3.0                      // Extend curve for gradual transition
+export function getAdaptiveDeadZoneRatio(zoomScale: number, baseRatioOverride?: number): number {
+    const maxRatio = baseRatioOverride ?? CAMERA_DEAD_ZONE_RATIO  // 0.4 at 1x zoom (or override)
+    // When user sets a custom value, preserve more of it (only shrink to 85%)
+    // Default (no override) shrinks more aggressively (to 70%)
+    const shrinkFactor = baseRatioOverride !== undefined ? 0.85 : 0.7
+    const minRatio = Math.max(0.1, maxRatio * shrinkFactor)
+    const startScale = 1.5                    // Start shrinking later to preserve user setting longer
+    const endScale = 4.0                      // Extend curve for more gradual transition
     if (zoomScale <= startScale) return maxRatio
     const t = Math.min(1, (zoomScale - startScale) / (endScale - startScale))
     return maxRatio + (minRatio - maxRatio) * t
@@ -86,6 +92,8 @@ export function getHalfWindows(
  *
  * NOTE: This function does NOT clamp the result. Clamping is done once at the
  * end of computeCameraState() with full context (padding, overscan, etc.).
+ *
+ * @param deadZoneRatioOverride - Optional per-block override for dead zone ratio (0-1)
  */
 export function calculateFollowTargetNormalized(
     cursorNorm: { x: number; y: number },
@@ -93,9 +101,10 @@ export function calculateFollowTargetNormalized(
     halfWindowX: number,
     halfWindowY: number,
     zoomScale: number,
-    _overscan: OutputOverscan  // Kept for API compatibility, clamping moved to orchestrator
+    _overscan: OutputOverscan,  // Kept for API compatibility, clamping moved to orchestrator
+    deadZoneRatioOverride?: number
 ): { x: number; y: number } {
-    const deadZoneRatio = getAdaptiveDeadZoneRatio(zoomScale)
+    const deadZoneRatio = getAdaptiveDeadZoneRatio(zoomScale, deadZoneRatioOverride)
     const deadZoneHalfX = halfWindowX * deadZoneRatio
     const deadZoneHalfY = halfWindowY * deadZoneRatio
 

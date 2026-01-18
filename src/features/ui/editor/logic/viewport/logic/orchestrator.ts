@@ -463,7 +463,8 @@ export function computeCameraState({
           halfWindowOutX,
           halfWindowOutY,
           currentScale,
-          { left: 0, right: 0, top: 0, bottom: 0 }
+          { left: 0, right: 0, top: 0, bottom: 0 },
+          activeZoomBlock?.deadZoneRatio
         )
       }
 
@@ -518,7 +519,7 @@ export function computeCameraState({
       const offY = sy * (halfWindowY * 0.33) * zoomAmt
       return { x: cursor.x + offX, y: cursor.y + offY }
     }
-    return calculateFollowTargetNormalized(cursor, baseCenter, halfWindowX, halfWindowY, currentScale, safeOverscan)
+    return calculateFollowTargetNormalized(cursor, baseCenter, halfWindowX, halfWindowY, currentScale, safeOverscan, activeZoomBlock?.deadZoneRatio)
   }
 
   if (activeZoomBlock && (shouldCenterLock || activeZoomBlock.autoScale === 'fill')) {
@@ -622,7 +623,8 @@ export function computeCameraState({
         halfWindowAimX,
         halfWindowAimY,
         zoomTargetScale,
-        safeOverscan
+        safeOverscan,
+        activeZoomBlock?.deadZoneRatio
       )
 
       // Interpolate from start to deadzone target
@@ -690,7 +692,8 @@ export function computeCameraState({
           halfWindowAimX,
           halfWindowAimY,
           zoomTargetScale,
-          safeOverscan
+          safeOverscan,
+          activeZoomBlock?.deadZoneRatio
         )
         // No clamping here - done once at end with full context
         targetCenter = {

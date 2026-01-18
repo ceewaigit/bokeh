@@ -23,6 +23,7 @@ import {
     type FrameLayoutItem,
     type WebcamFrameLayoutItem
 } from '@/features/ui/timeline/utils/frame-layout';
+import { PluginRegistry } from '@/features/effects/config/plugin-registry';
 import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame';
 import { findClipAtTimelinePosition } from '@/features/ui/timeline/time/time-space-converter';
 
@@ -158,13 +159,26 @@ export function TimelineProvider({
         const plugins = effectsByType.get(EffectType.Plugin) ?? [];
         const enabled = plugins.filter(e => e.enabled !== false);
         const CURSOR_Z_INDEX = 100;
+
+        // Get effective z-index, auto-elevating transitions above cursor
+        const getEffectiveZIndex = (effect: Effect): number => {
+            const data = effect.data as PluginEffectData;
+            if (data?.zIndex !== undefined) return data.zIndex;
+
+            // Transitions should render above cursor/annotations for cinematic effect
+            const plugin = PluginRegistry.get(data?.pluginId ?? '');
+            if (plugin?.category === 'transition') return 200;
+
+            return 50; // default
+        };
+
         return {
             belowCursor: enabled
-                .filter(e => ((e.data as PluginEffectData)?.zIndex ?? 50) < CURSOR_Z_INDEX)
-                .sort((a, b) => ((a.data as PluginEffectData)?.zIndex ?? 50) - ((b.data as PluginEffectData)?.zIndex ?? 50)),
+                .filter(e => getEffectiveZIndex(e) < CURSOR_Z_INDEX)
+                .sort((a, b) => getEffectiveZIndex(a) - getEffectiveZIndex(b)),
             aboveCursor: enabled
-                .filter(e => ((e.data as PluginEffectData)?.zIndex ?? 50) >= CURSOR_Z_INDEX)
-                .sort((a, b) => ((a.data as PluginEffectData)?.zIndex ?? 50) - ((b.data as PluginEffectData)?.zIndex ?? 50)),
+                .filter(e => getEffectiveZIndex(e) >= CURSOR_Z_INDEX)
+                .sort((a, b) => getEffectiveZIndex(a) - getEffectiveZIndex(b)),
         };
     }, [effectsByType]);
 

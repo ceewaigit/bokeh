@@ -13,7 +13,7 @@ import type { SelectedEffectLayer } from '@/features/effects/types'
 import { EffectLayerType } from '@/features/effects/types'
 import { getCropEffectForClip, getDataOfType, getEffectsOfType, getBackgroundEffect } from '@/features/effects/core/filters'
 import { EffectStore } from '@/features/effects/core/effects-store'
-import { DEFAULT_ZOOM_DATA } from '../config'
+import { DEFAULT_ZOOM_DATA, DEFAULT_MOUSE_IDLE_PX, DEFAULT_DEAD_ZONE_RATIO } from '../config'
 import { InfoTooltip } from '@/features/effects/components/info-tooltip'
 import { ZoomTargetPreview } from './ZoomTargetPreview'
 import { CompactSlider, SegmentedControl, SectionHeader } from '@/features/effects/components/motion-controls'
@@ -142,6 +142,8 @@ export function ZoomTab({
     const [localOutroMs, setLocalOutroMs] = React.useState<number | null>(null)
     const [localStiffness, setLocalStiffness] = React.useState<number | null>(null)
     const [localDamping, setLocalDamping] = React.useState<number | null>(null)
+    const [localStability, setLocalStability] = React.useState<number | null>(null)
+    const [localDeadZone, setLocalDeadZone] = React.useState<number | null>(null)
 
     // UI state
     const [cameraStylePreset, setCameraStylePreset] = React.useState<string>('cinematic')
@@ -156,6 +158,8 @@ export function ZoomTab({
     const scaleResetTimeoutRef = React.useRef<number | null>(null)
     const introResetTimeoutRef = React.useRef<number | null>(null)
     const outroResetTimeoutRef = React.useRef<number | null>(null)
+    const stabilityResetTimeoutRef = React.useRef<number | null>(null)
+    const deadZoneResetTimeoutRef = React.useRef<number | null>(null)
 
     const scheduleReset = (
         timeoutRef: React.RefObject<number | null>,
@@ -275,7 +279,7 @@ export function ZoomTab({
                             <span className="text-sm font-semibold">Zoom Block</span>
                         </div>
                         <span className="text-2xs text-muted-foreground bg-muted/30 px-2 py-0.5 rounded">
-                            {Math.round(blockDurationMs)}ms
+                            {blockDurationMs >= 1000 ? `${(blockDurationMs / 1000).toFixed(1)}s` : `${Math.round(blockDurationMs)}ms`}
                         </span>
                     </div>
 
@@ -403,13 +407,32 @@ export function ZoomTab({
                                         </div>
                                     </div>
                                     <CompactSlider
-                                        label="Dead Zone"
-                                        value={selectedZoomData?.mouseIdlePx ?? DEFAULT_ZOOM_DATA.mouseIdlePx ?? 3}
+                                        label="Stability"
+                                        tooltip="Filters small cursor movements (trackpad jitter, hand tremor). Higher = more stable, less reactive to tiny movements."
+                                        value={localStability ?? selectedZoomData?.mouseIdlePx ?? DEFAULT_MOUSE_IDLE_PX}
                                         min={1}
                                         max={20}
                                         step={1}
                                         unit="px"
-                                        onValueChange={v => handleBlockUpdate({ mouseIdlePx: v })}
+                                        onValueChange={setLocalStability}
+                                        onValueCommit={v => {
+                                            handleBlockUpdate({ mouseIdlePx: v })
+                                            scheduleReset(stabilityResetTimeoutRef, () => setLocalStability(null), 300)
+                                        }}
+                                    />
+                                    <CompactSlider
+                                        label="Camera Dead Zone"
+                                        tooltip="How far the cursor can move from center before the camera starts panning. Higher = cursor moves more freely without camera following."
+                                        value={localDeadZone ?? Math.round((selectedZoomData?.deadZoneRatio ?? DEFAULT_DEAD_ZONE_RATIO) * 100)}
+                                        min={5}
+                                        max={80}
+                                        step={5}
+                                        unit="%"
+                                        onValueChange={setLocalDeadZone}
+                                        onValueCommit={v => {
+                                            handleBlockUpdate({ deadZoneRatio: v / 100 })
+                                            scheduleReset(deadZoneResetTimeoutRef, () => setLocalDeadZone(null), 300)
+                                        }}
                                     />
                                 </SubSection>
                             )}

@@ -2,6 +2,7 @@ import type { Effect, Recording, RecordingMetadata, Clip, ZoomEffectData } from 
 import { EffectType, ZoomFollowStrategy } from '@/types/project'
 import { ZoomDetector } from '@/features/effects/utils/zoom-detector'
 import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
+import { DEFAULT_ZOOM_SMOOTHING, DEFAULT_MOUSE_IDLE_PX, DEFAULT_DEAD_ZONE_RATIO } from '@/features/ui/editor/logic/viewport/zoom/config'
 
 export interface EffectGenerationConfig {
     // Idle detection
@@ -120,9 +121,10 @@ export function detectZoomEffects(
                 screenHeight: block.screenHeight,
                 introMs: block.introMs || config.defaultIntroMs,
                 outroMs: block.outroMs || config.defaultOutroMs,
-                smoothing: 50,
+                smoothing: DEFAULT_ZOOM_SMOOTHING,
                 followStrategy: ZoomFollowStrategy.Mouse,
-                mouseIdlePx: 3
+                mouseIdlePx: DEFAULT_MOUSE_IDLE_PX,
+                deadZoneRatio: DEFAULT_DEAD_ZONE_RATIO
             } as ZoomEffectData,
             enabled: true
         }

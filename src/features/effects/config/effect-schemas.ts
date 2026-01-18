@@ -15,6 +15,7 @@ import { BackgroundType, ScreenEffectPreset } from '@/types/project'
 import { CursorStyle } from '@/features/effects/cursor/types'
 import { KeystrokePosition } from '@/features/effects/keystroke/types'
 import { ZOOM_TRANSITION_CONFIG } from '@/shared/config/physics-config'
+import { DEFAULT_MOUSE_IDLE_PX } from '@/features/ui/editor/logic/viewport/zoom/config'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -87,7 +88,7 @@ export const ZOOM_SCHEMA: EffectSchema = {
         scale: { type: 'number', default: 2.0, label: 'Scale', min: 1, max: 7, step: 0.1, unit: 'x' },
         introMs: { type: 'number', default: ZOOM_TRANSITION_CONFIG.defaultIntroMs, label: 'Ease In', min: 0, max: 2000, step: 50, unit: 'ms' },
         outroMs: { type: 'number', default: ZOOM_TRANSITION_CONFIG.defaultOutroMs, label: 'Ease Out', min: 0, max: 2000, step: 50, unit: 'ms' },
-        mouseIdlePx: { type: 'number', default: 3, label: 'Idle Threshold', min: 1, max: 20, step: 1, unit: 'px', description: 'Minimum movement to trigger pan' },
+        mouseIdlePx: { type: 'number', default: DEFAULT_MOUSE_IDLE_PX, label: 'Stability', min: 1, max: 20, step: 1, unit: 'px', description: 'Filters small cursor movements' },
     }
 }
 
