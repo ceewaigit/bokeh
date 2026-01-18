@@ -11,6 +11,7 @@ import type { Effect, AnnotationData } from '@/types/project'
 import { Type, ArrowRight, Highlighter, EyeOff, Trash2 } from 'lucide-react'
 import { AnnotationDragPreview, useAnnotationDragSource } from './AnnotationDragPreview'
 import { AddEffectCommand, CommandExecutor, RemoveEffectCommand } from '@/features/core/commands'
+import { getAnnotationLabel } from '../registry'
 import {
   Dialog,
   DialogContent,
@@ -53,12 +54,6 @@ const ANNOTATION_TYPES = [
     icon: EyeOff,
   },
 ] as const
-
-function getAnnotationTypeLabel(type?: AnnotationType): string {
-  if (type === AnnotationType.Blur) return 'Blur (legacy)'
-  const meta = ANNOTATION_TYPES.find((t) => t.type === type)
-  return meta?.label ?? (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Unknown')
-}
 
 // Button component that uses the drag source hook
 interface AnnotationTypeButtonProps {
@@ -230,7 +225,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
         <div className="space-y-2.5 rounded-2xl border border-primary/30 bg-background/60 p-2.5 overflow-hidden">
           <div className="flex items-center justify-between">
             <div className="text-2xs font-medium text-primary capitalize">
-              {getAnnotationTypeLabel(selectedData.type)} Overlay
+              {getAnnotationLabel(selectedData.type)} Overlay
             </div>
             <Button
               size="sm"
@@ -275,7 +270,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="text-2xs font-medium truncate capitalize">
-                        {getAnnotationTypeLabel(data.type)}
+                        {getAnnotationLabel(data.type)}
                       </div>
                       <div className="text-3xs text-muted-foreground/70 tabular-nums">
                         {(effect.startTime / 1000).toFixed(1)}s - {(effect.endTime / 1000).toFixed(1)}s

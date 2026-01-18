@@ -5,27 +5,23 @@ import { useProjectStore } from '@/features/core/stores/project-store';
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store';
 import { SidebarTabId } from '@/features/effects/components/constants';
 import { EffectLayerType } from '@/features/effects/types';
-import { EffectType, TrackType, AnnotationType, Effect } from '@/types/project';
-import type { AnnotationData } from '@/types/project';
+import { EffectType, TrackType } from '@/types/project';
 import { getBackgroundEffect, getEffectByType } from '@/features/effects/core/filters';
 import { LayerHoverOverlays } from './layer-hover-overlays';
 import type { ZoomSettings } from '@/features/ui/editor/types';
 import { InteractionLayer } from '@/features/ui/editor/components/InteractionLayer';
 import { AnnotationEditProvider } from '@/features/ui/editor/context/AnnotationEditContext';
-import { PlayerRef } from '@remotion/player';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import { usePreviewHover } from '@/features/ui/editor/hooks/use-preview-hover';
 import { useEditorFrameSnapshot } from '@/features/rendering/renderer/hooks/use-frame-snapshot';
 import { CropOverlay } from '@/features/effects/crop/components/CropOverlay';
 import { useCropManager } from '@/features/effects/crop/hooks/use-crop-manager';
-import { useAnnotationDrop } from '@/features/effects/annotation/hooks/use-annotation-drop';
-import { useAnnotationDropTarget } from '@/features/effects/annotation/ui/AnnotationDragPreview';
 import { useSelectedClipId } from '@/features/core/stores/project-store';
-import { getVideoRectFromSnapshot, containerPointToVideoPoint } from '@/features/ui/editor/logic/preview-point-transforms';
-import { EffectCreation } from '@/features/effects/core/creation';
+import { getVideoRectFromSnapshot } from '@/features/ui/editor/logic/preview-point-transforms';
 import { usePlaybackSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
 import { EffectStore } from '@/features/effects/core/effects-store';
 import { usePreviewRefsSafe } from '@/features/ui/editor/contexts/preview-context';
+import { useAnnotationDropZone } from './annotation-drop-zone';
 
 // ------------------------------------------------------------------
 // Main Component: PreviewInteractions
@@ -36,12 +32,6 @@ interface PreviewInteractionsProps {
     playerKey?: string;
     zoomSettings?: ZoomSettings;
     previewFrameBounds: { width: number; height: number; };
-    /** Optional: can be provided via PreviewContext instead */
-    aspectContainerRef?: React.RefObject<HTMLDivElement | null>;
-    /** Optional: can be provided via PreviewContext instead */
-    playerContainerRef?: React.RefObject<HTMLDivElement | null>;
-    /** Optional: can be provided via PreviewContext instead */
-    playerRef?: React.RefObject<PlayerRef | null>;
     children: React.ReactNode;
 }
 
@@ -50,16 +40,13 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     playerKey,
     zoomSettings,
     previewFrameBounds,
-    aspectContainerRef: propAspectContainerRef,
-    playerContainerRef: propPlayerContainerRef,
-    playerRef: propPlayerRef,
     children,
 }) => {
-    // Get refs from context (if available) with props as fallback
+    // Get refs from PreviewContext - must be wrapped in PreviewProvider
     const contextRefs = usePreviewRefsSafe();
-    const aspectContainerRef = propAspectContainerRef ?? contextRefs?.aspectContainerRef ?? { current: null };
-    const playerContainerRef = propPlayerContainerRef ?? contextRefs?.playerContainerRef ?? { current: null };
-    const playerRef = propPlayerRef ?? contextRefs?.playerRef ?? { current: null };
+    const aspectContainerRef = contextRefs?.aspectContainerRef ?? { current: null };
+    const playerContainerRef = contextRefs?.playerContainerRef ?? { current: null };
+    const playerRef = contextRefs?.playerRef ?? { current: null };
     // Get playback/render state from context (provided by PlaybackSettingsProvider)
     const { playback, renderSettings } = usePlaybackSettings();
     const isPlaying = playback.isPlaying;
@@ -71,16 +58,12 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         selectedEffectLayer,
         selectEffectLayer,
         selectClip,
-        addEffect,
-        startEditingOverlay,
         inlineEditingId
     } = useProjectStore(useShallow((s) => ({
         project: s.currentProject,
         selectedEffectLayer: s.selectedEffectLayer,
         selectEffectLayer: s.selectEffectLayer,
         selectClip: s.selectClip,
-        addEffect: s.addEffect,
-        startEditingOverlay: s.startEditingOverlay,
         inlineEditingId: s.inlineEditingId
     })));
 
@@ -180,76 +163,41 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
 
     const webcamClipId = activeWebcamClip?.id ?? null;
 
-    // PERF: Pre-build clip time index for O(log n) lookup instead of O(n*m) per frame
-    const clipTimeIndex = useMemo(() => {
+    // Find active clip at current time using simple linear search
+    // (Sufficient for typical timeline sizes; cleaner than binary search optimization)
+    const activeClipData = useMemo(() => {
         if (!project) return null;
-        const intervals: Array<{
-            startTime: number;
-            endTime: number;
-            clipId: string;
-            recordingId: string;
-            sourceIn: number;
+        const timeMs = (currentFrame / timelineMetadata.fps) * 1000;
+
+        // Collect all clips with their track indices that contain timeMs
+        const matches: Array<{
+            clip: typeof project.timeline.tracks[0]['clips'][0];
             trackIndex: number;
         }> = [];
 
         project.timeline.tracks.forEach((track, trackIndex) => {
-            track.clips.forEach(clip => {
-                intervals.push({
-                    startTime: clip.startTime,
-                    endTime: clip.startTime + clip.duration,
-                    clipId: clip.id,
-                    recordingId: clip.recordingId,
-                    sourceIn: clip.sourceIn,
-                    trackIndex
-                });
-            });
+            const clip = track.clips.find(c =>
+                timeMs >= c.startTime && timeMs < c.startTime + c.duration
+            );
+            if (clip) {
+                matches.push({ clip, trackIndex });
+            }
         });
 
-        // Sort by startTime for binary search
-        intervals.sort((a, b) => a.startTime - b.startTime);
-        return intervals;
-    }, [project]);
+        if (matches.length === 0) return null;
 
-    // Resolve Active Clip for Hit Testing (Cursor)
-    const activeClipData = useMemo(() => {
-        if (!project || !clipTimeIndex || clipTimeIndex.length === 0) return null;
-        const timeMs = (currentFrame / timelineMetadata.fps) * 1000;
-
-        // Binary search for clips that could contain timeMs
-        let lo = 0, hi = clipTimeIndex.length - 1;
-        let result: typeof clipTimeIndex[0] | null = null;
-
-        // Find all clips containing timeMs, prefer highest trackIndex (top-most)
-        while (lo <= hi) {
-            const mid = (lo + hi) >>> 1;
-            const interval = clipTimeIndex[mid];
-
-            if (interval.startTime > timeMs) {
-                hi = mid - 1;
-            } else {
-                // Check if this interval contains timeMs
-                if (timeMs < interval.endTime) {
-                    // Found a match - prefer higher track indices (top-most)
-                    if (!result || interval.trackIndex > result.trackIndex) {
-                        result = interval;
-                    }
-                }
-                lo = mid + 1;
-            }
-        }
-
-        if (!result) return null;
-
-        const offset = timeMs - result.startTime;
-        const sourceTimeMs = result.sourceIn + offset;
-        const recording = project.recordings.find(r => r.id === result.recordingId) ?? null;
+        // Prefer highest track index (top-most)
+        const best = matches.reduce((a, b) => b.trackIndex > a.trackIndex ? b : a);
+        const recording = project.recordings.find(r => r.id === best.clip.recordingId) ?? null;
+        const offset = timeMs - best.clip.startTime;
+        const sourceTimeMs = best.clip.sourceIn + offset;
 
         return {
             recording,
             sourceTimeMs,
-            clipId: result.clipId
+            clipId: best.clip.id
         };
-    }, [project, currentFrame, timelineMetadata.fps, clipTimeIndex]);
+    }, [project, currentFrame, timelineMetadata.fps]);
 
     const canSelectBackground = Boolean(backgroundEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
     const canSelectCursor = Boolean(cursorEffectId) && !isEditingCrop && !zoomSettings?.isEditing;
@@ -383,37 +331,11 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     } = useCropManager(selectedClip)
 
     // --- Annotation Drag-Drop ---
-    const {
-        handlers: annotationDropHandlers,
-        isDraggingAnnotation
-    } = useAnnotationDrop({
+    const { isDraggingAnnotation, dropHandlers: annotationDropHandlers } = useAnnotationDropZone({
         aspectContainerRef,
         snapshot,
-        currentTime: currentTimeMs
+        currentTimeMs
     })
-
-    // Custom drop handler for mouse-based drag (useAnnotationDragSource)
-    const handleCustomAnnotationDrop = useCallback((type: AnnotationType, containerX: number, containerY: number) => {
-        // Convert container coordinates to video-local coordinates
-        const videoPoint = containerPointToVideoPoint({ x: containerX, y: containerY }, snapshot)
-        const videoRectData = getVideoRectFromSnapshot(snapshot)
-
-        // Convert to percent within the video frame
-        const percentX = videoRectData.width > 0 ? (videoPoint.x / videoRectData.width) * 100 : 50
-        const percentY = videoRectData.height > 0 ? (videoPoint.y / videoRectData.height) * 100 : 50
-
-        const effect = EffectCreation.createAnnotationEffect(type, {
-            startTime: currentTimeMs,
-            position: { x: percentX, y: percentY },
-        })
-
-        addEffect(effect)
-        selectEffectLayer(EffectLayerType.Annotation, effect.id)
-        startEditingOverlay(effect.id)
-    }, [snapshot, currentTimeMs, addEffect, selectEffectLayer, startEditingOverlay])
-
-    // Wire up custom event listener for mouse-based drag-drop
-    useAnnotationDropTarget(aspectContainerRef, handleCustomAnnotationDrop)
 
     // Calculate video rect for the DOM overlay
     const videoRect = useMemo(() => {

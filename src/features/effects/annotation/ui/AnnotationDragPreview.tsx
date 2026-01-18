@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { AnnotationType } from '@/types/project'
-import { DEFAULT_ANNOTATION_SIZES } from '../config'
+import { getAnnotationDefaultSize } from '../registry'
 
 interface DragState {
     type: AnnotationType
@@ -51,7 +51,7 @@ export function getActiveDrag(): DragState | null {
 const PREVIEW_SCALE = 5
 
 function getPreviewDimensions(type: AnnotationType) {
-    const defaults = DEFAULT_ANNOTATION_SIZES[type]
+    const defaults = getAnnotationDefaultSize(type)
     return {
         width: (defaults.width ?? 20) * PREVIEW_SCALE,
         height: (defaults.height ?? 12) * PREVIEW_SCALE,

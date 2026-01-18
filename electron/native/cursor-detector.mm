@@ -71,12 +71,15 @@ std::string GetCursorTypeFromAccessibility() {
     if (!HasAccessibilityPermissions()) {
         return "default";
     }
-    
-    CGPoint mouseLocation;
+
+    // Fix #5: Check for NULL before using CGEvent
     CGEventRef event = CGEventCreate(NULL);
-    mouseLocation = CGEventGetLocation(event);
+    if (!event) {
+        return "default";
+    }
+    CGPoint mouseLocation = CGEventGetLocation(event);
     CFRelease(event);
-    
+
     AXUIElementRef systemWideElement = AXUIElementCreateSystemWide();
     AXUIElementRef elementUnderMouse = NULL;
     
@@ -139,7 +142,15 @@ Napi::String GetCurrentCursorType(const Napi::CallbackInfo& info) {
 
         if (IsBokehFrontmost()) {
             // Bokeh is frontmost - NSCursor is accurate for our own window
-            NSCursor* currentCursor = [NSCursor currentCursor];
+            // Fix #3: NSCursor is not thread-safe, dispatch to main thread
+            __block NSCursor* currentCursor = nil;
+            if ([NSThread isMainThread]) {
+                currentCursor = [NSCursor currentCursor];
+            } else {
+                dispatch_sync(dispatch_get_main_queue(), ^{
+                    currentCursor = [NSCursor currentCursor];
+                });
+            }
             if (!currentCursor) {
                 currentCursor = [NSCursor arrowCursor];
             }

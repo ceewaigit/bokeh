@@ -1,7 +1,8 @@
 import { AnnotationData, AnnotationType, AnnotationStyle } from '@/types/project'
 
-const DEFAULT_TEXT_BOX = { width: 160, height: 44 }
-const DEFAULT_BLUR_BOX = { width: 200, height: 120 }
+// These are pixel-based dimensions for measurement, not % based like the registry
+const DEFAULT_TEXT_BOX_PX = { width: 160, height: 44 }
+const DEFAULT_BLUR_BOX_PX = { width: 200, height: 120 }
 
 let textMeasureCtx: CanvasRenderingContext2D | null = null
 
@@ -20,7 +21,11 @@ export function resolvePadding(padding?: AnnotationStyle['padding']): number {
     return (top + right + bottom + left) / 4
 }
 
-export function getAnnotationLabel(data: AnnotationData): string {
+/**
+ * Get the text content of an annotation (not the type label).
+ * For type labels, use getAnnotationLabel from the annotation registry.
+ */
+export function getAnnotationTextContent(data: AnnotationData): string {
     if (data.type === AnnotationType.Blur || data.type === AnnotationType.Redaction) {
         return '' // Glass/Redaction have no text content
     }
@@ -28,7 +33,7 @@ export function getAnnotationLabel(data: AnnotationData): string {
 }
 
 export function measureAnnotationBox(data: AnnotationData): { width: number; height: number } {
-    const label = getAnnotationLabel(data)
+    const content = getAnnotationTextContent(data)
     const fontSize = data.style?.fontSize ?? 18
     const fontFamily = data.style?.fontFamily ?? 'system-ui, -apple-system, sans-serif'
     const fontWeight = data.style?.fontWeight ?? 'normal'
@@ -37,18 +42,18 @@ export function measureAnnotationBox(data: AnnotationData): { width: number; hei
 
     // Blur uses fixed dimensions based on width/height properties
     if (data.type === AnnotationType.Blur || data.type === AnnotationType.Redaction) {
-        return DEFAULT_BLUR_BOX
+        return DEFAULT_BLUR_BOX_PX
     }
 
     const ctx = getTextMeasureContext()
-    if (!ctx || !label) {
-        return DEFAULT_TEXT_BOX
+    if (!ctx || !content) {
+        return DEFAULT_TEXT_BOX_PX
     }
 
     ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
 
     // Handle multi-line text
-    const lines = label.split('\n')
+    const lines = content.split('\n')
     let maxWidth = 0
 
     lines.forEach(line => {

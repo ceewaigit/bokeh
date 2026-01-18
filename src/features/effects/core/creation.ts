@@ -13,8 +13,7 @@ import { getDefaultWallpaper } from '@/features/effects/background/utils'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { DEFAULT_KEYSTROKE_DATA, KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
-import { DEFAULT_ANNOTATION_SIZES, DEFAULT_ANNOTATION_STYLES } from '@/features/effects/annotation/config'
-// NOTE: DEFAULT_WEBCAM_DATA removed - webcam styling now lives on clip.layout
+import { getAnnotationConfig, isTopLeftAnchor } from '@/features/effects/annotation/registry'
 
 export const EffectCreation = {
   createDefaultBackgroundEffect(): Effect {
@@ -127,21 +126,16 @@ export const EffectCreation = {
       endPosition?: { x: number; y: number }
     }
   ): Effect {
-    const defaultSize = DEFAULT_ANNOTATION_SIZES[type]
-    const defaultStyle = DEFAULT_ANNOTATION_STYLES[type] ?? {}
+    const config = getAnnotationConfig(type)
     const position = options.position ?? { x: 50, y: 50 }
 
     // Adjust position for top-left anchored elements (Highlight, Redaction, Blur)
     // so the center lands at the specified position
-    const isTopLeftAnchor = type === AnnotationType.Highlight ||
-      type === AnnotationType.Redaction ||
-      type === AnnotationType.Blur
-
     let finalPosition = position
-    if (isTopLeftAnchor && defaultSize.width && defaultSize.height) {
+    if (isTopLeftAnchor(type) && config.defaultSize.width && config.defaultSize.height) {
       finalPosition = {
-        x: position.x - defaultSize.width / 2,
-        y: position.y - defaultSize.height / 2,
+        x: position.x - config.defaultSize.width / 2,
+        y: position.y - config.defaultSize.height / 2,
       }
     }
 
@@ -154,13 +148,13 @@ export const EffectCreation = {
       data: {
         type,
         position: finalPosition,
-        content: type === AnnotationType.Text ? 'New text' : undefined,
+        content: config.defaultContent,
         endPosition: type === AnnotationType.Arrow
           ? (options.endPosition ?? { x: position.x + 10, y: position.y })
           : undefined,
-        width: defaultSize.width,
-        height: defaultSize.height,
-        style: defaultStyle,
+        width: config.defaultSize.width,
+        height: config.defaultSize.height,
+        style: { ...config.defaultStyle },
       } as AnnotationData,
     }
   },

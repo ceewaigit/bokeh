@@ -1,75 +1,82 @@
-import { useState, useCallback } from 'react';
-import type { Effect } from '@/types/project';
-import { AnnotationType } from '@/types/project';
-import type { PreviewHoverLayer, CursorOverlayData, WebcamOverlayData, AnnotationOverlayData, VideoOverlayData, SubtitleOverlayData, KeystrokeOverlayData } from '@/features/ui/editor/components/preview/layer-hover-overlays';
-import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine';
-import { hitTestAnnotationsFromPoint } from '@/features/ui/editor/logic/dom-hit-testing';
-import { getVideoRectFromSnapshot } from '@/features/ui/editor/logic/preview-point-transforms';
-import { getCameraTransformFromSnapshot } from '@/features/ui/editor/logic/hit-testing';
-import { getWebcamLayout } from '@/features/effects/utils/webcam-layout';
-import { applyCameraTransformToPixelRect } from '@/features/rendering/canvas/math/coordinates';
-import type { WebcamLayoutData, Clip } from '@/types/project';
-import { DEFAULT_WEBCAM_DATA } from '@/features/media/webcam/config';
+/**
+ * Preview Hover Hook - Manages hover state for preview layer selection
+ *
+ * Simplified from 8 separate states to a single HoverState object.
+ * Hit testing logic extracted to hover-hit-testing.ts for testability.
+ */
 
-function intersectRects(a: DOMRect, b: DOMRect) {
-    const left = Math.max(a.left, b.left);
-    const top = Math.max(a.top, b.top);
-    const right = Math.min(a.right, b.right);
-    const bottom = Math.min(a.bottom, b.bottom);
-    const width = Math.max(0, right - left);
-    const height = Math.max(0, bottom - top);
-    return { left, top, width, height };
-}
+import { useState, useCallback, useMemo } from 'react'
+import type { Effect, Clip } from '@/types/project'
+import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
+import {
+    getHoveredLayer,
+    INITIAL_HOVER_STATE,
+    type HoverState,
+    type HitTestContext
+} from '@/features/ui/editor/logic/hover-hit-testing'
 
 interface UsePreviewHoverOptions {
-    projectEffects: Effect[];
-    webcamClip?: Clip | null;
-    canSelectBackground: boolean;
-    canSelectCursor: boolean;
-    canSelectWebcam: boolean;
-    canSelectVideo?: boolean;
-    aspectContainerRef: React.RefObject<HTMLDivElement | null>;
-    playerContainerRef?: React.RefObject<HTMLDivElement | null>;
-    snapshot: FrameSnapshot;
+    projectEffects: Effect[]
+    webcamClip?: Clip | null
+    canSelectBackground: boolean
+    canSelectCursor: boolean
+    canSelectWebcam: boolean
+    canSelectVideo?: boolean
+    aspectContainerRef: React.RefObject<HTMLDivElement | null>
+    playerContainerRef?: React.RefObject<HTMLDivElement | null>
+    snapshot: FrameSnapshot
 }
 
-// Helper to check if overlay position/size changed beyond threshold
-function overlayChanged<T extends { x?: number; y?: number; width?: number; height?: number }>(
-    prev: T | null, next: T | null
+// Threshold for position change detection to avoid unnecessary re-renders
+const POSITION_THRESHOLD = 0.5
+
+function hasOverlayChanged<T extends { x?: number; y?: number; width?: number; height?: number; left?: number; top?: number }>(
+    prev: T | null,
+    next: T | null
 ): boolean {
-    if (!prev && !next) return false;
-    if (!prev || !next) return true;
-    return Math.abs((prev.x ?? 0) - (next.x ?? 0)) >= 0.5 ||
-        Math.abs((prev.y ?? 0) - (next.y ?? 0)) >= 0.5 ||
-        Math.abs((prev.width ?? 0) - (next.width ?? 0)) >= 0.5 ||
-        Math.abs((prev.height ?? 0) - (next.height ?? 0)) >= 0.5;
-}
+    if (!prev && !next) return false
+    if (!prev || !next) return true
 
-function getWebcamBorderRadius(data: WebcamLayoutData): string {
-    switch (data.shape) {
-        case 'circle':
-            return '50%';
-        case 'rectangle':
-            return '0px';
-        case 'rounded-rect':
-        case 'squircle':
-        default:
-            return `${data.cornerRadius ?? 0}px`;
+    // Handle cursor overlay (uses left/top)
+    if ('left' in prev && 'left' in next) {
+        return Math.abs((prev.left ?? 0) - (next.left ?? 0)) >= POSITION_THRESHOLD ||
+            Math.abs((prev.top ?? 0) - (next.top ?? 0)) >= POSITION_THRESHOLD ||
+            Math.abs((prev.width ?? 0) - (next.width ?? 0)) >= POSITION_THRESHOLD ||
+            Math.abs((prev.height ?? 0) - (next.height ?? 0)) >= POSITION_THRESHOLD
     }
+
+    // Handle other overlays (use x/y)
+    return Math.abs((prev.x ?? 0) - (next.x ?? 0)) >= POSITION_THRESHOLD ||
+        Math.abs((prev.y ?? 0) - (next.y ?? 0)) >= POSITION_THRESHOLD ||
+        Math.abs((prev.width ?? 0) - (next.width ?? 0)) >= POSITION_THRESHOLD ||
+        Math.abs((prev.height ?? 0) - (next.height ?? 0)) >= POSITION_THRESHOLD
 }
 
-function getOverlayFromElement(element: HTMLElement, containerRect: DOMRect) {
-    const rect = element.getBoundingClientRect();
-    const computed = window.getComputedStyle(element);
-    const clipPath = computed.clipPath && computed.clipPath !== 'none' ? computed.clipPath : undefined;
-    return {
-        x: rect.left - containerRect.left,
-        y: rect.top - containerRect.top,
-        width: rect.width,
-        height: rect.height,
-        borderRadius: computed.borderRadius,
-        clipPath
-    };
+function shouldUpdateState(prev: HoverState, next: HoverState): boolean {
+    // Layer changed - always update
+    if (prev.layer !== next.layer) return true
+
+    // Check each overlay for meaningful changes
+    if (hasOverlayChanged(prev.cursor, next.cursor)) return true
+    if (hasOverlayChanged(prev.webcam, next.webcam)) return true
+    if (hasOverlayChanged(prev.annotation, next.annotation)) return true
+    if (hasOverlayChanged(prev.video, next.video)) return true
+    if (hasOverlayChanged(prev.background, next.background)) return true
+    if (hasOverlayChanged(prev.subtitle, next.subtitle)) return true
+    if (hasOverlayChanged(prev.keystroke, next.keystroke)) return true
+
+    // Check ID changes for overlays with IDs
+    if (prev.annotation?.id !== next.annotation?.id) return true
+    if (prev.subtitle?.id !== next.subtitle?.id) return true
+    if (prev.keystroke?.id !== next.keystroke?.id) return true
+
+    // Check border radius and clip path changes
+    if (prev.webcam?.borderRadius !== next.webcam?.borderRadius) return true
+    if (prev.video?.borderRadius !== next.video?.borderRadius) return true
+    if (prev.video?.clipPath !== next.video?.clipPath) return true
+    if (prev.background?.borderRadius !== next.background?.borderRadius) return true
+
+    return false
 }
 
 export function usePreviewHover({
@@ -83,321 +90,65 @@ export function usePreviewHover({
     webcamClip,
     snapshot,
 }: UsePreviewHoverOptions) {
-    const [hoveredLayer, setHoveredLayer] = useState<PreviewHoverLayer>(null);
-    const [cursorOverlay, setCursorOverlay] = useState<CursorOverlayData | null>(null);
-    const [webcamOverlay, setWebcamOverlay] = useState<WebcamOverlayData | null>(null);
-    const [annotationOverlay, setAnnotationOverlay] = useState<AnnotationOverlayData | null>(null);
-    const [videoOverlay, setVideoOverlay] = useState<VideoOverlayData | null>(null);
-    const [backgroundOverlay, setBackgroundOverlay] = useState<VideoOverlayData | null>(null);
-    const [subtitleOverlay, setSubtitleOverlay] = useState<SubtitleOverlayData | null>(null);
-    const [keystrokeOverlay, setKeystrokeOverlay] = useState<KeystrokeOverlayData | null>(null);
+    const [hoverState, setHoverState] = useState<HoverState>(INITIAL_HOVER_STATE)
 
-    // ------------------------------------------------------------------
-    // Hover State Setter
-    // ------------------------------------------------------------------
-    const setHoverState = useCallback((
-        nextLayer: PreviewHoverLayer,
-        nextCursor: CursorOverlayData | null,
-        nextWebcam: WebcamOverlayData | null,
-        nextAnnotation: AnnotationOverlayData | null,
-        nextVideo: VideoOverlayData | null,
-        nextBackground: VideoOverlayData | null,
-        nextSubtitle: SubtitleOverlayData | null = null,
-        nextKeystroke: KeystrokeOverlayData | null = null
-    ) => {
-        setHoveredLayer(prev => prev === nextLayer ? prev : nextLayer);
-
-        // Overlays with id: compare id + position
-        setSubtitleOverlay(prev =>
-            prev?.id === nextSubtitle?.id && !overlayChanged(prev, nextSubtitle) ? prev : nextSubtitle
-        );
-        setKeystrokeOverlay(prev =>
-            prev?.id === nextKeystroke?.id && !overlayChanged(prev, nextKeystroke) ? prev : nextKeystroke
-        );
-        setAnnotationOverlay(prev =>
-            prev?.id === nextAnnotation?.id && !overlayChanged(prev, nextAnnotation) ? prev : nextAnnotation
-        );
-
-        // Cursor uses left/top instead of x/y
-        setCursorOverlay(prev => {
-            if (!prev && !nextCursor) return prev;
-            if (prev && nextCursor &&
-                Math.abs(prev.left - nextCursor.left) < 0.5 &&
-                Math.abs(prev.top - nextCursor.top) < 0.5 &&
-                Math.abs(prev.width - nextCursor.width) < 0.5 &&
-                Math.abs(prev.height - nextCursor.height) < 0.5
-            ) return prev;
-            return nextCursor;
-        });
-
-        // Overlays with extra styling props
-        setWebcamOverlay(prev =>
-            overlayChanged(prev, nextWebcam) || prev?.borderRadius !== nextWebcam?.borderRadius
-                ? nextWebcam : prev
-        );
-        setVideoOverlay(prev =>
-            overlayChanged(prev, nextVideo) || prev?.borderRadius !== nextVideo?.borderRadius ||
-            prev?.clipPath !== nextVideo?.clipPath ? nextVideo : prev
-        );
-        setBackgroundOverlay(prev =>
-            overlayChanged(prev, nextBackground) || prev?.borderRadius !== nextBackground?.borderRadius
-                ? nextBackground : prev
-        );
-    }, []);
-
-    // ------------------------------------------------------------------
-    // Main Hit Handler
-    // ------------------------------------------------------------------
     const handlePreviewHover = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-        const aspectContainer = aspectContainerRef.current;
-        if (!aspectContainer) return;
+        const aspectContainer = aspectContainerRef.current
+        if (!aspectContainer) return
 
-        if (!canSelectBackground && !canSelectCursor && !canSelectWebcam && projectEffects.length === 0) return;
+        // Early exit if nothing is selectable
+        if (!canSelectBackground && !canSelectCursor && !canSelectWebcam && projectEffects.length === 0) return
 
-        const containerRect = aspectContainer.getBoundingClientRect();
-        const { clientX, clientY } = event;
+        const containerRect = aspectContainer.getBoundingClientRect()
 
-        // Container-relative mouse position
-        const containerX = clientX - containerRect.left;
-        const containerY = clientY - containerRect.top;
-
-        // Basic bounds check
-        if (
-            containerX < 0 || containerX > containerRect.width ||
-            containerY < 0 || containerY > containerRect.height
-        ) {
-            setHoverState(null, null, null, null, null, null);
-            return;
+        const ctx: HitTestContext = {
+            containerRect,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            canSelectBackground,
+            canSelectCursor,
+            canSelectWebcam,
+            canSelectVideo,
+            webcamClip,
+            snapshot,
+            aspectContainer,
+            playerContainer: playerContainerRef?.current ?? null,
         }
 
-        // ------------------------------------------------------------------
-        // DOM-driven hover hit testing (SSOT: what the user actually sees)
-        // Priority: webcam > annotation > cursor > background
-        // ------------------------------------------------------------------
+        const nextState = getHoveredLayer(ctx)
 
-        const videoEl = snapshot.mockup.enabled
-            ? playerContainerRef?.current?.querySelector<HTMLElement>('[data-video-content-container="true"]')
-            : playerContainerRef?.current?.querySelector<HTMLElement>('[data-video-transform-container="true"]');
-        const domVideoRect = videoEl ? getOverlayFromElement(videoEl, containerRect) : null;
+        // Only update state if there's a meaningful change
+        setHoverState(prev => shouldUpdateState(prev, nextState) ? nextState : prev)
+    }, [
+        aspectContainerRef,
+        canSelectBackground,
+        canSelectCursor,
+        canSelectWebcam,
+        canSelectVideo,
+        playerContainerRef,
+        webcamClip,
+        snapshot,
+        projectEffects.length
+    ])
 
-        // Snapshot fallback (used when DOM element isn't available).
-        const cameraTransform = getCameraTransformFromSnapshot(snapshot);
-        const videoRect = getVideoRectFromSnapshot(snapshot);
-        const getTransformedRect = (rect: { x: number, y: number, width: number, height: number }) => {
-            if (!cameraTransform) return rect;
-            return applyCameraTransformToPixelRect(rect, videoRect, cameraTransform);
-        };
-        const transformedVideoRect = getTransformedRect({
-            x: videoRect.x,
-            y: videoRect.y,
-            width: videoRect.width,
-            height: videoRect.height
-        });
-        if (!domVideoRect && process.env.NODE_ENV === 'development') {
-            console.warn('[usePreviewHover] Video element not found, using snapshot fallback');
-        }
-        const videoRectForHover = domVideoRect ?? transformedVideoRect;
+    const handlePreviewLeave = useCallback(() => {
+        setHoverState(prev => prev.layer === null ? prev : INITIAL_HOVER_STATE)
+    }, [])
 
-        // 1) Webcam (Logic-based hit testing to support IFrame player)
-        if (canSelectWebcam && webcamClip) {
-            const webcamData = webcamClip.layout ?? DEFAULT_WEBCAM_DATA;
-            const webcamEl = playerContainerRef?.current?.querySelector<HTMLElement>('[data-webcam-overlay="true"]');
-
-            if (webcamEl) {
-                // Use DOM element bounds for hit testing
-                const webcamOverlay = getOverlayFromElement(webcamEl, containerRect);
-                const isInsideWebcamEl = (
-                    containerX >= webcamOverlay.x &&
-                    containerX <= webcamOverlay.x + webcamOverlay.width &&
-                    containerY >= webcamOverlay.y &&
-                    containerY <= webcamOverlay.y + webcamOverlay.height
-                );
-
-                if (isInsideWebcamEl) {
-                    setHoverState('webcam', null, webcamOverlay, null, null, null);
-                    return;
-                }
-            } else {
-                // Fallback: compute layout relative to the rendered player bounds when DOM element not found
-                const playerRect = playerContainerRef?.current?.getBoundingClientRect() ?? containerRect;
-                const layout = getWebcamLayout(webcamData, playerRect.width, playerRect.height);
-                const webcamRect = {
-                    x: (playerRect.left - containerRect.left) + layout.x,
-                    y: (playerRect.top - containerRect.top) + layout.y,
-                    width: layout.size,
-                    height: layout.size
-                };
-
-                const isInsideWebcamFallback = (
-                    containerX >= webcamRect.x &&
-                    containerX <= webcamRect.x + webcamRect.width &&
-                    containerY >= webcamRect.y &&
-                    containerY <= webcamRect.y + webcamRect.height
-                );
-
-                if (isInsideWebcamFallback) {
-                    setHoverState('webcam', null, {
-                        x: webcamRect.x,
-                        y: webcamRect.y,
-                        width: webcamRect.width,
-                        height: webcamRect.height,
-                        borderRadius: getWebcamBorderRadius(webcamData)
-                    }, null, null, null);
-                    return;
-                }
-            }
-        }
-
-        // 1.5) Subtitles
-        const subtitleEl = playerContainerRef?.current?.querySelector<HTMLElement>('[data-subtitle-layer="true"]');
-        if (subtitleEl) {
-            const overlay = getOverlayFromElement(subtitleEl, containerRect);
-            const isInside = (
-                containerX >= overlay.x &&
-                containerX <= overlay.x + overlay.width &&
-                containerY >= overlay.y &&
-                containerY <= overlay.y + overlay.height
-            );
-
-            if (isInside) {
-                setHoverState('subtitle', null, null, null, null, null, {
-                    id: subtitleEl.dataset.effectId ?? 'subtitle',
-                    x: overlay.x,
-                    y: overlay.y,
-                    width: overlay.width,
-                    height: overlay.height,
-                    borderRadius: overlay.borderRadius
-                }, null);
-                return;
-            }
-        }
-
-        // 1.6) Keystrokes
-        const keystrokeEl = playerContainerRef?.current?.querySelector<HTMLElement>('[data-keystroke-layer="true"]');
-        if (keystrokeEl) {
-            const overlay = getOverlayFromElement(keystrokeEl, containerRect);
-            const isInside = (
-                containerX >= overlay.x &&
-                containerX <= overlay.x + overlay.width &&
-                containerY >= overlay.y &&
-                containerY <= overlay.y + overlay.height
-            );
-
-            if (isInside) {
-                // Basic check: if it covers > 90% of screen, ignore it to prevent blocking
-                const isFullScreen = overlay.width > containerRect.width * 0.9 && overlay.height > containerRect.height * 0.9;
-                if (!isFullScreen) {
-                    setHoverState('keystroke', null, null, null, null, null, null, {
-                        id: keystrokeEl.dataset.effectId ?? 'keystroke',
-                        x: overlay.x,
-                        y: overlay.y,
-                        width: overlay.width,
-                        height: overlay.height,
-                        borderRadius: overlay.borderRadius
-                    });
-                    return;
-                }
-            }
-        }
-
-        // 2) Annotations (handles + body)
-        const annotationHit = hitTestAnnotationsFromPoint(clientX, clientY);
-        if (annotationHit) {
-            const contentEl =
-                annotationHit.annotationElement.querySelector<HTMLElement>('[data-annotation-content="true"]') ??
-                annotationHit.annotationElement;
-            const annotationRect = contentEl.getBoundingClientRect();
-            const visibleRect = intersectRects(annotationRect, containerRect);
-            if (visibleRect.width <= 0 || visibleRect.height <= 0) {
-                setHoverState(null, null, null, null, null, null);
-                return;
-            }
-            const annotationType = (annotationHit.annotationElement.dataset.annotationType as AnnotationType | undefined) ?? AnnotationType.Text;
-            setHoverState('annotation', null, null, {
-                id: annotationHit.annotationId,
-                type: annotationType,
-                x: visibleRect.left - containerRect.left,
-                y: visibleRect.top - containerRect.top,
-                width: visibleRect.width,
-                height: visibleRect.height
-            }, null, null);
-            return;
-        }
-
-        // 3) Cursor (pointer-events:none in renderer; use bounds)
-        // Note: Cursor hit testing logic might need update if it doesn't already account for zoom.
-        // But cursorEl comes from DOM, which should reflect zoom if rendered there?
-        // Actually cursor element rendering might depend on if it's DOM or Canvas.
-        // Assuming DOM cursor for now which transforms with container.
-        if (canSelectCursor) {
-            const cursorEl = aspectContainer.querySelector<HTMLElement>('[data-cursor-layer="true"]');
-            if (cursorEl) {
-                const cursorRect = cursorEl.getBoundingClientRect();
-                const isInsideCursor = (
-                    clientX >= cursorRect.left &&
-                    clientX <= cursorRect.right &&
-                    clientY >= cursorRect.top &&
-                    clientY <= cursorRect.bottom
-                );
-
-                if (isInsideCursor) {
-                    setHoverState('cursor', {
-                        left: cursorRect.left - containerRect.left,
-                        top: cursorRect.top - containerRect.top,
-                        width: cursorRect.width,
-                        height: cursorRect.height,
-                        tipX: (cursorRect.left - containerRect.left) + cursorRect.width / 2,
-                        tipY: (cursorRect.top - containerRect.top) + cursorRect.height / 2,
-                        src: ''
-                    }, null, null, null, null);
-                    return;
-                }
-            }
-        }
-
-        // 4) Video (Content Area)
-        if (canSelectVideo) {
-            if (
-                containerX >= videoRectForHover.x &&
-                containerX <= videoRectForHover.x + videoRectForHover.width &&
-                containerY >= videoRectForHover.y &&
-                containerY <= videoRectForHover.y + videoRectForHover.height
-            ) {
-                setHoverState('video', null, null, null, {
-                    x: videoRectForHover.x,
-                    y: videoRectForHover.y,
-                    width: videoRectForHover.width,
-                    height: videoRectForHover.height,
-                    borderRadius: domVideoRect?.borderRadius,
-                    clipPath: domVideoRect?.clipPath
-                }, null);
-                return;
-            }
-        }
-
-        // 5) Background (everything else)
-        if (canSelectBackground) {
-            const backgroundEl = playerContainerRef?.current?.querySelector<HTMLElement>('[data-extended-background="true"]');
-            const transformEl = playerContainerRef?.current?.querySelector<HTMLElement>('[data-video-transform-container="true"]');
-            const overlayEl = backgroundEl ?? transformEl;
-            const overlay = overlayEl ? getOverlayFromElement(overlayEl, containerRect) : null;
-            setHoverState('background', null, null, null, null, overlay);
-        } else {
-            setHoverState(null, null, null, null, null, null);
-        }
-
-    }, [aspectContainerRef, canSelectBackground, canSelectCursor, canSelectWebcam, canSelectVideo, playerContainerRef, webcamClip, snapshot, setHoverState, projectEffects.length]);
-
-    return {
-        hoveredLayer,
-        cursorOverlay,
-        webcamOverlay,
-        annotationOverlay,
-        videoOverlay,
-        backgroundOverlay,
-        subtitleOverlay,
-        keystrokeOverlay,
+    // Memoize the return value to maintain stable references
+    return useMemo(() => ({
+        hoveredLayer: hoverState.layer,
+        cursorOverlay: hoverState.cursor,
+        webcamOverlay: hoverState.webcam,
+        annotationOverlay: hoverState.annotation,
+        videoOverlay: hoverState.video,
+        backgroundOverlay: hoverState.background,
+        subtitleOverlay: hoverState.subtitle,
+        keystrokeOverlay: hoverState.keystroke,
         handlePreviewHover,
-        handlePreviewLeave: useCallback(() => setHoverState(null, null, null, null, null, null), [setHoverState])
-    };
+        handlePreviewLeave,
+    }), [hoverState, handlePreviewHover, handlePreviewLeave])
 }
+
+// Re-export types for consumers
+export type { HoverState } from '@/features/ui/editor/logic/hover-hit-testing'

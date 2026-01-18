@@ -14,7 +14,7 @@
       "xcode_settings": {
         "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
         "CLANG_CXX_LIBRARY": "libc++",
-        "MACOSX_DEPLOYMENT_TARGET": "10.15",
+        "MACOSX_DEPLOYMENT_TARGET": "13.0",
         "OTHER_CPLUSPLUSFLAGS": [
           "-std=c++17",
           "-stdlib=libc++"
@@ -49,7 +49,7 @@
       "xcode_settings": {
         "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
         "CLANG_CXX_LIBRARY": "libc++",
-        "MACOSX_DEPLOYMENT_TARGET": "12.3",
+        "MACOSX_DEPLOYMENT_TARGET": "13.0",
         "OTHER_CPLUSPLUSFLAGS": [
           "-std=c++17",
           "-stdlib=libc++",
@@ -66,7 +66,8 @@
               "-framework ScreenCaptureKit",
               "-framework CoreMedia",
               "-framework CoreVideo",
-              "-framework CoreGraphics"
+              "-framework CoreGraphics",
+              "-framework CoreAudio"
             ]
           }
         }]

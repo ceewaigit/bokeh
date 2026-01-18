@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnnotationType } from '@/types/project';
+import { getAnnotationLabel } from '@/features/effects/annotation/registry';
 
 export type PreviewHoverLayer = 'background' | 'cursor' | 'webcam' | 'annotation' | 'video' | 'subtitle' | 'keystroke' | null;
 
@@ -72,26 +73,6 @@ interface LayerHoverOverlaysProps {
     canSelectKeystroke?: boolean;
     /** Hide annotation hover overlay when this annotation is already selected */
     selectedAnnotationId?: string | null;
-}
-
-/**
- * Get display label for annotation type
- */
-function getAnnotationLabel(type: AnnotationType): string {
-    switch (type) {
-        case AnnotationType.Text:
-            return 'Text';
-        case AnnotationType.Blur:
-            return 'Blur';
-        case AnnotationType.Redaction:
-            return 'Redaction';
-        case AnnotationType.Highlight:
-            return 'Highlight';
-        case AnnotationType.Arrow:
-            return 'Arrow';
-        default:
-            return 'Annotation';
-    }
 }
 
 /**

@@ -34,6 +34,35 @@
 
 @implementation ScreenRecorder
 
+// Fix #9: Cleanup method for failed recordings - removes orphaned temp files
+- (void)cleanupFailedRecording {
+    @synchronized(self) {
+        if (self.assetWriter) {
+            if (self.assetWriter.status == AVAssetWriterStatusWriting) {
+                [self.assetWriter cancelWriting];
+            }
+            self.assetWriter = nil;
+        }
+        self.videoInput = nil;
+        self.audioInput = nil;
+        self.stream = nil;
+
+        // Remove orphaned temp file if it exists
+        if (self.outputPath) {
+            NSFileManager *fm = [NSFileManager defaultManager];
+            if ([fm fileExistsAtPath:self.outputPath]) {
+                NSError *removeError = nil;
+                [fm removeItemAtPath:self.outputPath error:&removeError];
+                if (removeError) {
+                    NSLog(@"Warning: Could not remove orphaned recording file: %@", removeError);
+                }
+            }
+        }
+        self.isRecording = NO;
+        self.hasStartedSession = NO;
+    }
+}
+
 - (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path onlySelf:(BOOL)onlySelf lowMemory:(BOOL)lowMemory useMacOSDefaults:(BOOL)useMacOSDefaults framerate:(int)framerate completion:(void (^)(NSError *))completion {
     // Default to excluding app windows (includeAppWindows = NO)
     [self startRecordingDisplay:displayID outputPath:path sourceRect:CGRectNull onlySelf:onlySelf includeAppWindows:NO lowMemory:lowMemory useMacOSDefaults:useMacOSDefaults framerate:framerate completion:completion];
@@ -218,12 +247,13 @@
             }
             
             NSLog(@"Screen recording configured: %zux%zu (scale: %.2f, backing: %.2f) fps=%d, macosDefaults=%@, lowMemory=%@", targetWidth, targetHeight, captureScale, backingScale, targetFps, encoderDefaults ? @"YES" : @"NO", lowMemory ? @"YES" : @"NO");
-            
+
             // Setup asset writer
             NSError *writerError = nil;
             self.assetWriter = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path] fileType:AVFileTypeQuickTimeMovie error:&writerError];
-            
+
             if (writerError) {
+                [self cleanupFailedRecording];
                 completion(writerError);
                 return;
             }
@@ -297,24 +327,25 @@
                 NSLog(@"Warning: Could not add audio input to asset writer");
                 self.hasAudio = NO;
             }
-            
+
             if (![self.assetWriter startWriting]) {
+                [self cleanupFailedRecording];
                 completion([NSError errorWithDomain:@"ScreenRecorder" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Failed to start writing"}]);
                 return;
             }
-            
+
             // Create and start stream
             self.stream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:self];
-            
+
             NSError *addOutputError = nil;
             [self.stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&addOutputError];
-            
+
             if (!addOutputError && self.hasAudio) {
                 // SCStreamOutputTypeAudio is only available on macOS 13.0+
                 if (@available(macOS 13.0, *)) {
                     NSError *audioOutputError = nil;
                     [self.stream addStreamOutput:self type:SCStreamOutputTypeAudio sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&audioOutputError];
-                    
+
                     if (audioOutputError) {
                         NSLog(@"Warning: Failed to add audio output: %@", audioOutputError);
                         self.hasAudio = NO;
@@ -324,15 +355,17 @@
                     self.hasAudio = NO;
                 }
             }
-            
+
             if (addOutputError) {
+                [self cleanupFailedRecording];
                 completion(addOutputError);
                 return;
             }
-            
+
             // Start capture
             [self.stream startCaptureWithCompletionHandler:^(NSError *error) {
                 if (error) {
+                    [self cleanupFailedRecording];
                     completion(error);
                 } else {
                     self.isRecording = YES;
@@ -444,12 +477,13 @@
             }
             
             NSLog(@"Window recording configured: %.0fx%.0f pts -> %zux%zu px (scale: %.2f, backing: %.2f) fps=%d, macosDefaults=%@, lowMemory=%@", windowWidth, windowHeight, windowTargetWidth, windowTargetHeight, captureScale, backingScale, targetFps, encoderDefaults ? @"YES" : @"NO", lowMemory ? @"YES" : @"NO");
-            
+
             // Setup asset writer (reuse the same setup as display recording)
             NSError *writerError = nil;
             self.assetWriter = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path] fileType:AVFileTypeQuickTimeMovie error:&writerError];
-            
+
             if (writerError) {
+                [self cleanupFailedRecording];
                 completion(writerError);
                 return;
             }
@@ -521,18 +555,19 @@
             } else {
                 self.hasAudio = NO;
             }
-            
+
             if (![self.assetWriter startWriting]) {
+                [self cleanupFailedRecording];
                 completion([NSError errorWithDomain:@"ScreenRecorder" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Failed to start writing"}]);
                 return;
             }
-            
+
             // Create and start stream
             self.stream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:self];
-            
+
             NSError *addOutputError = nil;
             [self.stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&addOutputError];
-            
+
             if (!addOutputError && self.hasAudio) {
                 if (@available(macOS 13.0, *)) {
                     NSError *audioOutputError = nil;
@@ -544,15 +579,17 @@
                     self.hasAudio = NO;
                 }
             }
-            
+
             if (addOutputError) {
+                [self cleanupFailedRecording];
                 completion(addOutputError);
                 return;
             }
-            
+
             // Start capture
             [self.stream startCaptureWithCompletionHandler:^(NSError *error) {
                 if (error) {
+                    [self cleanupFailedRecording];
                     completion(error);
                 } else {
                     self.isRecording = YES;
@@ -571,77 +608,81 @@
     if (self.isPaused) {
         return;
     }
-    
-    if (type == SCStreamOutputTypeScreen) {
-        if (!self.videoInput.isReadyForMoreMediaData) {
-            // Drop frame if writer is not ready
-            return;
-        }
 
-        CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
-        
-        // Adjust time by subtracting total paused duration
-        if (CMTIME_IS_VALID(self.totalPausedDuration) && CMTimeGetSeconds(self.totalPausedDuration) > 0) {
-            presentationTime = CMTimeSubtract(presentationTime, self.totalPausedDuration);
-        }
-        
-        if (!self.hasStartedSession) {
-            [self.assetWriter startSessionAtSourceTime:presentationTime];
-            self.hasStartedSession = YES;
-            self.startTime = presentationTime;
-        }
-
-        CMSampleBufferRef adjustedSample = sampleBuffer;
-        if (!CMSampleBufferGetImageBuffer(sampleBuffer)) {
-            return;
-        }
-
-        CMSampleBufferRef copied = NULL;
-        CMSampleTimingInfo timingInfo;
-        timingInfo.duration = CMSampleBufferGetDuration(sampleBuffer);
-        timingInfo.presentationTimeStamp = presentationTime;
-        timingInfo.decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(sampleBuffer);
-        CMSampleBufferCreateCopyWithNewTiming(NULL, sampleBuffer, 1, &timingInfo, &copied);
-        if (copied) {
-            adjustedSample = copied;
-        }
-
-        if (![self.videoInput appendSampleBuffer:adjustedSample]) {
-            NSLog(@"Failed to append video sample buffer");
-        }
-
-        if (copied) {
-            CFRelease(copied);
-        }
-        
-    } else if (@available(macOS 13.0, *)) {
-        // SCStreamOutputTypeAudio is only available on macOS 13.0+
-        if (type == SCStreamOutputTypeAudio && self.hasAudio) {
-            if (!self.audioInput.isReadyForMoreMediaData) {
+    // Fix #4: Synchronize access to AVAssetWriterInput to prevent race conditions
+    // when multiple threads call this delegate method concurrently
+    @synchronized(self) {
+        if (type == SCStreamOutputTypeScreen) {
+            if (!self.videoInput.isReadyForMoreMediaData) {
+                // Drop frame if writer is not ready
                 return;
             }
-            
-            // Handle audio samples
-            if (!self.receivedFirstAudio) {
-                self.receivedFirstAudio = YES;
-                NSLog(@"Received first audio sample");
-            }
+
             CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
-            
+
             // Adjust time by subtracting total paused duration
             if (CMTIME_IS_VALID(self.totalPausedDuration) && CMTimeGetSeconds(self.totalPausedDuration) > 0) {
                 presentationTime = CMTimeSubtract(presentationTime, self.totalPausedDuration);
             }
-            
+
             if (!self.hasStartedSession) {
                 [self.assetWriter startSessionAtSourceTime:presentationTime];
-                self.startTime = presentationTime;
                 self.hasStartedSession = YES;
+                self.startTime = presentationTime;
             }
-            
-            // Append audio sample buffer
-            if (![self.audioInput appendSampleBuffer:sampleBuffer]) {
-                NSLog(@"Failed to append audio sample buffer");
+
+            CMSampleBufferRef adjustedSample = sampleBuffer;
+            if (!CMSampleBufferGetImageBuffer(sampleBuffer)) {
+                return;
+            }
+
+            CMSampleBufferRef copied = NULL;
+            CMSampleTimingInfo timingInfo;
+            timingInfo.duration = CMSampleBufferGetDuration(sampleBuffer);
+            timingInfo.presentationTimeStamp = presentationTime;
+            timingInfo.decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(sampleBuffer);
+            CMSampleBufferCreateCopyWithNewTiming(NULL, sampleBuffer, 1, &timingInfo, &copied);
+            if (copied) {
+                adjustedSample = copied;
+            }
+
+            if (![self.videoInput appendSampleBuffer:adjustedSample]) {
+                NSLog(@"Failed to append video sample buffer");
+            }
+
+            if (copied) {
+                CFRelease(copied);
+            }
+
+        } else if (@available(macOS 13.0, *)) {
+            // SCStreamOutputTypeAudio is only available on macOS 13.0+
+            if (type == SCStreamOutputTypeAudio && self.hasAudio) {
+                if (!self.audioInput.isReadyForMoreMediaData) {
+                    return;
+                }
+
+                // Handle audio samples
+                if (!self.receivedFirstAudio) {
+                    self.receivedFirstAudio = YES;
+                    NSLog(@"Received first audio sample");
+                }
+                CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+
+                // Adjust time by subtracting total paused duration
+                if (CMTIME_IS_VALID(self.totalPausedDuration) && CMTimeGetSeconds(self.totalPausedDuration) > 0) {
+                    presentationTime = CMTimeSubtract(presentationTime, self.totalPausedDuration);
+                }
+
+                if (!self.hasStartedSession) {
+                    [self.assetWriter startSessionAtSourceTime:presentationTime];
+                    self.startTime = presentationTime;
+                    self.hasStartedSession = YES;
+                }
+
+                // Append audio sample buffer
+                if (![self.audioInput appendSampleBuffer:sampleBuffer]) {
+                    NSLog(@"Failed to append audio sample buffer");
+                }
             }
         }
     }
