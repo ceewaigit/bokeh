@@ -89,9 +89,9 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
             />
 
             {/* Dialog */}
-            <div className="relative w-full max-w-2xl bg-card border border-border/60 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative w-full max-w-2xl bg-card border border-border rounded-xl shadow-modal overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-200">
                 {/* Header */}
-                <div className="relative p-5 border-b border-border/60 flex items-center justify-between bg-card/90 z-10">
+                <div className="relative p-5 border-b border-border flex items-center justify-between bg-card z-10">
                     <div>
                         <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                             <Blocks className="w-4 h-4 text-muted-foreground" />
@@ -103,14 +103,14 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-1.5 hover:bg-accent/60 rounded-md transition-colors text-muted-foreground hover:text-foreground"
+                        className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground"
                     >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Search */}
-                <div className="relative p-4 border-b border-border/60 bg-background/40">
+                <div className="relative p-4 border-b border-border bg-secondary/50">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <input
@@ -118,7 +118,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                             placeholder="Search plugins..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-background/80 border border-border/60 rounded-lg py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all"
+                            className="w-full bg-background border border-border rounded-lg py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none transition-all"
                             autoFocus
                         />
                     </div>
@@ -128,7 +128,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                 <div className="relative flex-1 overflow-y-auto p-4 space-y-2 min-h-[300px]">
                     {filteredPlugins.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-12">
-                            <div className="w-10 h-10 rounded-pill bg-background/70 border border-border/60 flex items-center justify-center mb-4">
+                            <div className="w-10 h-10 rounded-pill bg-secondary border border-border flex items-center justify-center mb-4">
                                 <Search className="w-6 h-6 opacity-50" />
                             </div>
                             <p>No plugins found</p>
@@ -141,10 +141,10 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                             <div
                                 key={plugin.id}
                                 onClick={() => handleLoad(plugin)}
-                                className="group flex items-center justify-between p-3 rounded-lg bg-background/70 border border-border/60 hover:bg-background/90 hover:border-foreground/10 transition-all cursor-pointer"
+                                className="group flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border hover:bg-secondary hover:border-border transition-all cursor-pointer"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="w-9 h-9 rounded-md bg-background/70 border border-border/60 flex items-center justify-center">
+                                    <div className="w-9 h-9 rounded-md bg-background border border-border flex items-center justify-center">
                                         <Blocks className="w-4 h-4 text-muted-foreground" />
                                     </div>
                                     <div>
@@ -158,7 +158,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <span className="text-3xs font-mono text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-pill border border-border/50 uppercase tracking-wider">
+                                    <span className="text-3xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-pill border border-border uppercase tracking-wider">
                                         {plugin.category}
                                     </span>
 
@@ -168,7 +168,7 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                                         onClick={(e) => handleDelete(e, plugin.id)}
                                         className={`p-2 rounded-lg transition-all flex items-center gap-2 ${deleteConfirmId === plugin.id
                                             ? 'bg-destructive/20 text-destructive hover:bg-destructive/30 w-auto px-3'
-                                            : 'hover:bg-destructive/10 text-muted-foreground hover:text-destructive w-9'
+                                            : 'hover:bg-destructive/15 text-muted-foreground hover:text-destructive w-9'
                                             }`}
                                         title="Delete plugin"
                                     >
@@ -184,10 +184,10 @@ export function PluginLibraryDialog({ isOpen, onClose, onLoad }: PluginLibraryDi
                 </div>
 
                 {/* Footer */}
-                <div className="relative p-3 border-t border-border/60 bg-card/60 text-xs text-muted-foreground flex justify-between items-center">
+                <div className="relative p-3 border-t border-border bg-card text-xs text-muted-foreground flex justify-between items-center">
                     <span>{plugins.length} saved plugins</span>
                     <div className="flex gap-2">
-                        <span className="px-2 py-0.5 rounded-pill bg-muted/30 border border-border/50">Local Storage</span>
+                        <span className="px-2 py-0.5 rounded-pill bg-muted border border-border">Local Storage</span>
                     </div>
                 </div>
             </div>

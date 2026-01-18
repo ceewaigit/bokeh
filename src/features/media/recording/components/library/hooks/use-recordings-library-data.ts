@@ -57,7 +57,7 @@ const getThumbnailFileName = (variant: ThumbnailVariant) =>
 
 const getDeviceScale = () => {
   if (typeof window === 'undefined') return 1
-  return Math.min(2, window.devicePixelRatio || 1)
+  return Math.min(3, window.devicePixelRatio || 1)
 }
 
 /** Run tasks with concurrency limit */
@@ -349,11 +349,13 @@ export const useRecordingsLibraryData = () => {
 
   const resolveThumbnailSpec = useCallback((_index: number): ThumbnailSpec => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
-    const baseWidth = Math.min(800, Math.max(400, Math.round(viewportWidth * 0.25)))
+    // Use 0.35 multiplier to ensure ~1.75x resolution vs displayed card size (for 5-col grid at ~20% each)
+    const baseWidth = Math.min(960, Math.max(480, Math.round(viewportWidth * 0.35)))
     const dpr = getDeviceScale()
-    const width = Math.min(Math.round(baseWidth * dpr), 1600)
+    const width = Math.min(Math.round(baseWidth * dpr), 2400)
     const height = Math.round((width * 9) / 16)
-    return { width, height, variant: 'default', quality: 0.8 }
+    // Use 0.92 quality for sharp thumbnails without excessive file size
+    return { width, height, variant: 'default', quality: 0.92 }
   }, [])
 
   const generateThumbnail = useCallback(async (

@@ -14,6 +14,7 @@ import {
   Square,
   RectangleVertical
 } from 'lucide-react'
+import { RESOLUTION_TIERS } from './resolution-tiers'
 
 // Aspect ratio preset configuration
 export interface AspectRatioPresetConfig {
@@ -215,11 +216,9 @@ export const DEFAULT_CANVAS_SETTINGS = {
   customHeight: 1080
 }
 
-// Common resolutions for export
-export const COMMON_RESOLUTIONS = [
-  { label: '4K (2160p)', width: 3840, height: 2160 },
-  { label: '1440p', width: 2560, height: 1440 },
-  { label: '1080p', width: 1920, height: 1080 },
-  { label: '720p', width: 1280, height: 720 },
-  { label: '480p', width: 854, height: 480 },
-]
+// Common resolutions for export (derived from shared RESOLUTION_TIERS)
+export const COMMON_RESOLUTIONS = RESOLUTION_TIERS.map(tier => ({
+  label: tier.height >= 2160 ? `${tier.label} (${tier.height}p)` : tier.label,
+  width: tier.standardWidth,
+  height: tier.height,
+}))

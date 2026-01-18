@@ -162,7 +162,7 @@ export function DeviceSelectorDialog({
             </AnimatePresence>
           </section>
 
-          <div className="border-t border-border/50" />
+          <div className="border-t border-border" />
 
           {/* Microphone Section */}
           <section className="space-y-3">
@@ -269,7 +269,7 @@ export function DeviceSelectorDialog({
 function PermissionBadge({ granted }: { granted: boolean }) {
   if (granted) {
     return (
-      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-pill bg-green-500/10 text-green-500">
+      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-pill bg-accent/15 text-accent">
         <CheckCircle className="w-3 h-3" />
         <span className="text-3xs font-medium">Granted</span>
       </div>

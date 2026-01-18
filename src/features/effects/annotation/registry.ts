@@ -14,6 +14,10 @@ export interface AnnotationTypeConfig {
   /** Anchor determines how position is interpreted: 'center' = position is center, 'top-left' = position is top-left corner */
   anchor: 'center' | 'top-left'
   defaultContent?: string
+  /** Default intro fade duration in milliseconds (0 = instant) */
+  defaultIntroFadeMs: number
+  /** Default outro fade duration in milliseconds (0 = instant) */
+  defaultOutroFadeMs: number
 }
 
 /**
@@ -31,6 +35,8 @@ export const ANNOTATION_REGISTRY: Record<AnnotationType, AnnotationTypeConfig> =
     },
     anchor: 'center',
     defaultContent: 'New text',
+    defaultIntroFadeMs: 0,
+    defaultOutroFadeMs: 0,
   },
   [AnnotationType.Arrow]: {
     label: 'Arrow',
@@ -41,6 +47,8 @@ export const ANNOTATION_REGISTRY: Record<AnnotationType, AnnotationTypeConfig> =
       arrowHeadSize: 12,
     },
     anchor: 'center',
+    defaultIntroFadeMs: 0,
+    defaultOutroFadeMs: 0,
   },
   [AnnotationType.Highlight]: {
     label: 'Highlight',
@@ -52,6 +60,8 @@ export const ANNOTATION_REGISTRY: Record<AnnotationType, AnnotationTypeConfig> =
       opacity: 55,
     },
     anchor: 'top-left',
+    defaultIntroFadeMs: 220,
+    defaultOutroFadeMs: 220,
   },
   [AnnotationType.Blur]: {
     label: 'Blur (legacy)',
@@ -60,6 +70,8 @@ export const ANNOTATION_REGISTRY: Record<AnnotationType, AnnotationTypeConfig> =
       borderRadius: 8,
     },
     anchor: 'top-left',
+    defaultIntroFadeMs: 0,
+    defaultOutroFadeMs: 0,
   },
   [AnnotationType.Redaction]: {
     label: 'Redaction',
@@ -69,6 +81,8 @@ export const ANNOTATION_REGISTRY: Record<AnnotationType, AnnotationTypeConfig> =
       borderRadius: 2,
     },
     anchor: 'top-left',
+    defaultIntroFadeMs: 0,
+    defaultOutroFadeMs: 0,
   },
 }
 

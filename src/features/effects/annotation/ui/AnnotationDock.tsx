@@ -12,6 +12,7 @@ import { Slider } from '@/components/ui/slider'
 import { AnnotationType, EffectType } from '@/types/project'
 import { EffectLayerType } from '@/features/effects/types'
 import { RedactionPattern } from '@/features/effects/annotation/types'
+import { getAnnotationConfig } from '@/features/effects/annotation/registry'
 import type { AnnotationData, AnnotationStyle, Effect } from '@/types/project'
 import { cn } from '@/shared/utils/utils'
 import { CommandExecutor, UpdateEffectCommand } from '@/features/core/commands'
@@ -149,6 +150,18 @@ export function AnnotationDock() {
             } as Partial<Effect>)
         } else {
             updateEffect(selectedAnnotation.id, { data: { ...currentData, style: newStyle } } as Partial<Effect>)
+        }
+    }, [selectedAnnotation, updateEffect])
+
+    const updateData = useCallback((updates: Partial<AnnotationData>) => {
+        if (!selectedAnnotation) return
+        const currentData = selectedAnnotation.data as AnnotationData
+        if (CommandExecutor.isInitialized()) {
+            void CommandExecutor.getInstance().execute(UpdateEffectCommand, selectedAnnotation.id, {
+                data: { ...currentData, ...updates }
+            } as Partial<Effect>)
+        } else {
+            updateEffect(selectedAnnotation.id, { data: { ...currentData, ...updates } } as Partial<Effect>)
         }
     }, [selectedAnnotation, updateEffect])
 
@@ -417,6 +430,7 @@ export function AnnotationDock() {
 
                             {showHighlightControls && (
                                 <>
+                                    {/* Styling controls */}
                                     <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
                                         <span className="text-3xs text-muted-foreground/80">Dim</span>
                                         <Slider
@@ -429,10 +443,22 @@ export function AnnotationDock() {
                                         />
                                         <span className="w-8 text-3xs tabular-nums text-muted-foreground/80 text-right">{highlightDim}%</span>
                                     </div>
+                                    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
+                                        <span className="text-3xs text-muted-foreground/80">Radius</span>
+                                        <Slider
+                                            value={[cornerRadius]}
+                                            onValueChange={([v]) => updateStyle({ borderRadius: v })}
+                                            min={0}
+                                            max={60}
+                                            step={1}
+                                            className="w-28"
+                                        />
+                                        <span className="w-6 text-3xs tabular-nums text-muted-foreground/80 text-right">{cornerRadius}</span>
+                                    </div>
                                 </>
                             )}
 
-                            {(showRedactionControls || showHighlightControls) && (
+                            {showRedactionControls && (
                                 <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
                                     <span className="text-3xs text-muted-foreground/80">Radius</span>
                                     <Slider
@@ -503,6 +529,41 @@ export function AnnotationDock() {
                                     </div>
                                 </>
                             )}
+
+                            {/* Animation controls - shown for all annotation types */}
+                            {(() => {
+                                const config = getAnnotationConfig(annotationType)
+                                const introFadeMs = selectedData.introFadeMs ?? config.defaultIntroFadeMs
+                                const outroFadeMs = selectedData.outroFadeMs ?? config.defaultOutroFadeMs
+                                return (
+                                    <>
+                                        <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
+                                            <span className="text-3xs text-muted-foreground/80">Fade In</span>
+                                            <Slider
+                                                value={[introFadeMs]}
+                                                onValueChange={([v]) => updateData({ introFadeMs: v })}
+                                                min={0}
+                                                max={1000}
+                                                step={10}
+                                                className="w-20"
+                                            />
+                                            <span className="w-10 text-3xs tabular-nums text-muted-foreground/80 text-right">{introFadeMs}ms</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/70 px-2 py-1">
+                                            <span className="text-3xs text-muted-foreground/80">Fade Out</span>
+                                            <Slider
+                                                value={[outroFadeMs]}
+                                                onValueChange={([v]) => updateData({ outroFadeMs: v })}
+                                                min={0}
+                                                max={1000}
+                                                step={10}
+                                                className="w-20"
+                                            />
+                                            <span className="w-10 text-3xs tabular-nums text-muted-foreground/80 text-right">{outroFadeMs}ms</span>
+                                        </div>
+                                    </>
+                                )
+                            })()}
                         </div>
                     </motion.div>
                 )}

@@ -203,7 +203,7 @@ export function LibrarySidebar({
             <div className="space-y-3">
               <StatItem
                 icon={Clock}
-                label="Duration"
+                label="Total Duration"
                 value={formatDuration(totalDurationMs)}
               />
               <StatItem
@@ -236,7 +236,7 @@ function StatItem({ icon: Icon, label, value }: StatItemProps) {
         <Icon className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
         <span className="text-sm truncate">{label}</span>
       </div>
-      <span className="text-sm text-foreground tabular-nums font-medium ml-3">
+      <span className="text-xs text-foreground tabular-nums font-medium ml-3">
         {value}
       </span>
     </div>

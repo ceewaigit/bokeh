@@ -101,7 +101,7 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={setOpen}>
-      <DialogContent className="max-w-[540px] p-0 gap-0 overflow-hidden shadow-2xl bg-popover/95 backdrop-blur-xl ring-1 ring-border/50">
+      <DialogContent className="max-w-[540px] p-0 gap-0 overflow-hidden shadow-modal bg-popover backdrop-blur-xl ring-1 ring-border">
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Configure application preferences</DialogDescription>
@@ -109,7 +109,7 @@ export function SettingsDialog() {
 
         <div className="flex h-[400px]">
           {/* Sidebar */}
-          <nav className="w-[160px] flex-shrink-0 flex flex-col pt-5 pb-4 px-2 border-r border-border/50">
+          <nav className="w-[160px] flex-shrink-0 flex flex-col pt-5 pb-4 px-2 border-r border-border">
             <div className="space-y-0.5">
               {SETTINGS_TABS.map((tab) => {
                 const isActive = activeTab === tab.id
@@ -123,8 +123,8 @@ export function SettingsDialog() {
                     className={cn(
                       "relative w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-ui-sm transition-colors",
                       isActive
-                        ? "text-foreground bg-foreground/[0.06]"
-                        : "text-muted-foreground hover:text-foreground hover:bg-foreground/[0.03]"
+                        ? "text-foreground bg-muted"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
                     <tab.icon className="w-4 h-4" strokeWidth={1.5} />
@@ -228,7 +228,7 @@ export function SettingsDialog() {
                             onClick={() => setColorPreset(preset)}
                             className={cn(
                               "flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors",
-                              isSelected ? "bg-foreground/[0.05]" : "hover:bg-foreground/[0.03]"
+                              isSelected ? "bg-muted" : "hover:bg-muted/50"
                             )}
                           >
                             <div className={cn(
@@ -263,7 +263,7 @@ export function SettingsDialog() {
                       disabled={processLoading}
                       className={cn(
                         "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left",
-                        "bg-foreground/[0.03] hover:bg-foreground/[0.05] transition-colors",
+                        "bg-muted/50 hover:bg-muted transition-colors",
                         "disabled:opacity-50"
                       )}
                     >
@@ -279,7 +279,7 @@ export function SettingsDialog() {
                     </button>
 
                     {processError && (
-                      <div className="text-xs text-destructive px-3 py-2 rounded-lg bg-destructive/10">
+                      <div className="text-xs text-destructive px-3 py-2 rounded-lg bg-destructive/15">
                         {processError}
                       </div>
                     )}
@@ -291,18 +291,18 @@ export function SettingsDialog() {
                         className="space-y-3"
                       >
                         <div className="grid grid-cols-2 gap-2">
-                          <div className="px-3 py-2 rounded-lg bg-foreground/[0.03]">
+                          <div className="px-3 py-2 rounded-lg bg-muted/50">
                             <div className="text-3xs text-muted-foreground uppercase tracking-wider mb-0.5">CPU</div>
                             <div className="text-ui-base font-medium tabular-nums">{formatPercent(processSnapshot.totalCpu)}</div>
                           </div>
-                          <div className="px-3 py-2 rounded-lg bg-foreground/[0.03]">
+                          <div className="px-3 py-2 rounded-lg bg-muted/50">
                             <div className="text-3xs text-muted-foreground uppercase tracking-wider mb-0.5">Memory</div>
                             <div className="text-ui-base font-medium tabular-nums">{formatProcessMemory(processSnapshot.totalMemRssBytes)}</div>
                           </div>
                         </div>
 
-                        <div className="rounded-lg overflow-hidden bg-foreground/[0.03]">
-                          <div className="px-3 py-1.5 border-b border-border/30 flex items-center justify-between">
+                        <div className="rounded-lg overflow-hidden bg-muted/50">
+                          <div className="px-3 py-1.5 border-b border-border flex items-center justify-between">
                             <span className="text-3xs text-muted-foreground uppercase tracking-wider">Processes</span>
                             <span className="text-3xs text-muted-foreground tabular-nums">{processSnapshot.processes.length}</span>
                           </div>

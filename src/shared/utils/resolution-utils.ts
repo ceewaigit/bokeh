@@ -1,6 +1,6 @@
 /**
  * Resolution and Proxy Calculation Utilities
- * 
+ *
  * Single source of truth for zoom/resolution calculations used by both
  * renderer (useVideoUrl) and main process (export handler).
  */
@@ -8,22 +8,30 @@
 import type { Effect, ZoomEffectData } from '@/types/project';
 import { EffectType } from '@/types/project';
 
-// Standard proxy dimensions (generated during project load)
-export const PROXY_WIDTH = 2560;
-export const PROXY_HEIGHT = 1440;
+// Import and re-export all resolution constants from the centralized source
+import {
+    PROXY_WIDTH,
+    PROXY_HEIGHT,
+    SCRUB_WIDTH,
+    SCRUB_HEIGHT,
+    PREVIEW_DISPLAY_WIDTH,
+    PREVIEW_DISPLAY_HEIGHT,
+    RETINA_MULTIPLIER,
+    MAX_PROXY_WIDTH,
+    MAX_PROXY_HEIGHT,
+} from '@/shared/constants/resolution-tiers';
 
-// Scrub proxy dimensions (low res for performance)
-export const SCRUB_WIDTH = 640;
-export const SCRUB_HEIGHT = 360;
-
-// Preview display constants for smart resolution capping
-export const PREVIEW_DISPLAY_WIDTH = 640;
-export const PREVIEW_DISPLAY_HEIGHT = 360;
-export const RETINA_MULTIPLIER = 2;
-
-// Maximum proxy resolution to prevent hardware encoder failures
-export const MAX_PROXY_WIDTH = 3840;  // 4K UHD
-export const MAX_PROXY_HEIGHT = 2160;
+export {
+    PROXY_WIDTH,
+    PROXY_HEIGHT,
+    SCRUB_WIDTH,
+    SCRUB_HEIGHT,
+    PREVIEW_DISPLAY_WIDTH,
+    PREVIEW_DISPLAY_HEIGHT,
+    RETINA_MULTIPLIER,
+    MAX_PROXY_WIDTH,
+    MAX_PROXY_HEIGHT,
+};
 
 /**
  * Calculate the maximum zoom scale used across all zoom effects.

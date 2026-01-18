@@ -20,6 +20,7 @@ import { cn } from '@/shared/utils/utils'
 import { toast } from 'sonner'
 import { ExportFormat, QualityLevel, AspectRatioPreset } from '@/types/project'
 import { calculateCanvasDimensions, getAspectRatioPreset } from '@/shared/constants/aspect-ratio-presets'
+import { getAvailableResolutionOptions } from '@/shared/constants/resolution-tiers'
 import { DEFAULT_PROJECT_SETTINGS } from '@/features/core/settings/defaults'
 
 interface ExportDialogProps {
@@ -29,6 +30,7 @@ interface ExportDialogProps {
 
 type Resolution =
   | 'native'
+  | '6k'
   | '5k'
   | '4k'
   | '1440p'
@@ -150,19 +152,11 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     // Native first
     pushUnique('native', 'Native', { width: sourceW, height: sourceH }, 'Source')
 
-    // Standard tiers (height-based), computed to match source aspect ratio.
-    const tiers: Array<{ value: Resolution; label: string; height: number }> = [
-      { value: '5k', label: '5K', height: 2880 },
-      { value: '4k', label: '4K', height: 2160 },
-      { value: '1440p', label: '1440p', height: 1440 },
-      { value: '1080p', label: '1080p', height: 1080 },
-      { value: '720p', label: '720p', height: 720 },
-    ]
-
-    for (const tier of tiers) {
-      if (sourceH > tier.height) {
-        pushUnique(tier.value, tier.label, computeDimsForTargetHeight(tier.height))
-      }
+    // Get available resolution tiers using the shared helper.
+    // Only shows named presets where the calculated width meets the 16:9 standard.
+    const availableTiers = getAvailableResolutionOptions(sourceW, sourceH, ['480p'])
+    for (const tier of availableTiers) {
+      pushUnique(tier.key as Resolution, tier.label, { width: tier.width, height: tier.height })
     }
 
     // Scale-based options to bridge gaps between tiers for non-standard source resolutions.
@@ -380,11 +374,11 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
 
   return (
-    <div className="fixed inset-0 bg-overlay-scrim/50 backdrop-blur-[2px] flex items-center justify-center z-floating p-6"
+    <div className="fixed inset-0 bg-overlay-scrim/60 backdrop-blur-[2px] flex items-center justify-center z-floating p-6"
       onClick={() => !isExporting && onClose()}
     >
       <div
-        className="bg-background border border-border/50 rounded-2xl w-dialog shadow-2xl shadow-black/50 overflow-hidden"
+        className="bg-background border border-border rounded-2xl w-dialog shadow-modal overflow-hidden"
         style={{
           animation: 'dialogIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
@@ -398,7 +392,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
           `}</style>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-2 border-b border-border/50">
+        <div className="flex items-center justify-between px-5 py-2 border-b border-border">
           <h2 className="text-base font-semibold tracking-[-0.02em] text-foreground">Export</h2>
           <button
             onClick={isExporting ? undefined : onClose}
@@ -448,7 +442,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
               </div>
 
               {format !== 'gif' && exportSpeed.tone === 'warn' && recommendations && (
-                <div className="flex items-start gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                <div className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2">
                   <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5" />
                   <div className="text-xs text-muted-foreground">
                     <span className="text-foreground">
@@ -458,21 +452,21 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                     Time scales with pixels × fps.
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button
-                        className="rounded-md bg-background/60 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/50 hover:bg-background"
+                        className="rounded-md bg-background px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border hover:bg-secondary"
                         onClick={() => setResolution(recommendations.recommended.value)}
                       >
                         Recommended: {recommendations.recommended.label} (≈{recommendations.recommended.approxSpeedup.toFixed(1)}×)
                       </button>
                       {recommendations.hasDistinctFaster ? (
                         <button
-                          className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
+                          className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border hover:bg-background"
                           onClick={() => setResolution(recommendations.faster.value)}
                         >
                           Faster: {recommendations.faster.label} (≈{recommendations.faster.approxSpeedup.toFixed(1)}×)
                         </button>
                       ) : frameRate === 60 ? (
                         <button
-                          className="rounded-md bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border/30 hover:bg-background/60"
+                          className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-foreground ring-1 ring-border hover:bg-background"
                           onClick={() => setFrameRate(30)}
                         >
                           Faster: 30fps (≈2.0×)
@@ -498,9 +492,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
               </div>
 
               {/* Divider & Summary */}
-              <div className="pt-3 mt-1 border-t border-border/30">
+              <div className="pt-3 mt-1 border-t border-border">
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 text-muted-foreground/60">
+                  <div className="flex items-center gap-2 text-muted-foreground">
                     <FileVideo className="w-3.5 h-3.5" />
                     <span>{currentProject?.timeline?.tracks?.[0]?.clips?.length || 0} clips · {currentProject?.timeline?.duration ? (currentProject.timeline.duration / 1000).toFixed(1) : '0.0'}s</span>
                   </div>
@@ -519,7 +513,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                           "rounded-md px-2 py-0.5 text-2xs font-medium ring-1",
                           exportSpeed.tone === 'ok'
                             ? "bg-accent/15 text-accent ring-accent/20"
-                            : "bg-muted text-muted-foreground ring-border/50"
+                            : "bg-muted text-muted-foreground ring-border"
                         )}
                         title={machineProfile
                           ? `Estimated speed for this machine (${machineProfile.cpuCores} cores, ${machineProfile.totalMemoryGB.toFixed(1)}GB)`
@@ -567,7 +561,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                 <div className="relative w-16 h-16 mx-auto">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                     <circle
-                      className="stroke-muted/30"
+                      className="stroke-muted"
                       strokeWidth="8"
                       fill="transparent"
                       r="42"
@@ -630,7 +624,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
           {progress?.progressStage === 'error' && (
             <div className="py-4 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-destructive/15 flex items-center justify-center">
                   <AlertCircle className="w-4.5 h-4.5 text-destructive" />
                 </div>
                 <div>
@@ -651,7 +645,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-2 border-t border-border/50 flex justify-end gap-2">
+        <div className="px-5 py-2 border-t border-border flex justify-end gap-2">
           <Button
             variant="ghost"
             size="sm"

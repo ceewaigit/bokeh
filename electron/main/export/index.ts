@@ -39,6 +39,8 @@ export { cleanupBundleCache }
 
 let currentExportAbortController: AbortController | null = null
 
+// These constants are duplicated from src/shared/constants/resolution-tiers.ts
+// because electron's tsconfig.json doesn't have @/ path aliases configured.
 const MAX_PROXY_WIDTH = 3840
 const MAX_PROXY_HEIGHT = 2160
 
@@ -46,6 +48,26 @@ interface ProxyDimensionResult {
   width: number
   height: number
   needsProxy: boolean
+}
+
+function calculateProxyDimensions(opts: {
+  outputWidth: number
+  outputHeight: number
+  sourceWidth: number
+  sourceHeight: number
+  maxZoomScale: number
+}): ProxyDimensionResult {
+  const { outputWidth, outputHeight, sourceWidth, sourceHeight, maxZoomScale } = opts
+  const maxW = Math.min(outputWidth * maxZoomScale, sourceWidth, MAX_PROXY_WIDTH)
+  const maxH = Math.min(outputHeight * maxZoomScale, sourceHeight, MAX_PROXY_HEIGHT)
+  const width = Math.ceil(maxW / 2) * 2
+  const height = Math.ceil(maxH / 2) * 2
+  const needsProxy =
+    width > 0 &&
+    height > 0 &&
+    (width < sourceWidth * 0.85 || height < sourceHeight * 0.85)
+
+  return { width, height, needsProxy }
 }
 
 function createExportTiming() {
@@ -138,26 +160,6 @@ function estimateH264BitrateMbps(opts: { width: number; height: number; fps: num
   // 1080p30 ~= 6 Mbps (baseline), scale with pixels and fps and clamp.
   const estimated = 6 * pixelRatio * fpsRatio
   return Math.max(6, Math.min(40, Math.round(estimated)))
-}
-
-function calculateProxyDimensions(opts: {
-  outputWidth: number
-  outputHeight: number
-  sourceWidth: number
-  sourceHeight: number
-  maxZoomScale: number
-}): ProxyDimensionResult {
-  const { outputWidth, outputHeight, sourceWidth, sourceHeight, maxZoomScale } = opts
-  const maxW = Math.min(outputWidth * maxZoomScale, sourceWidth, MAX_PROXY_WIDTH)
-  const maxH = Math.min(outputHeight * maxZoomScale, sourceHeight, MAX_PROXY_HEIGHT)
-  const width = Math.ceil(maxW / 2) * 2
-  const height = Math.ceil(maxH / 2) * 2
-  const needsProxy =
-    width > 0 &&
-    height > 0 &&
-    (width < sourceWidth * 0.85 || height < sourceHeight * 0.85)
-
-  return { width, height, needsProxy }
 }
 
 export function isExportInProgress(): boolean {

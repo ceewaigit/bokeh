@@ -155,6 +155,8 @@ export const EffectCreation = {
         width: config.defaultSize.width,
         height: config.defaultSize.height,
         style: { ...config.defaultStyle },
+        introFadeMs: config.defaultIntroFadeMs,
+        outroFadeMs: config.defaultOutroFadeMs,
       } as AnnotationData,
     }
   },

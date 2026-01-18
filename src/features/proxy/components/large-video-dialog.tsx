@@ -30,9 +30,9 @@ interface LargeVideoDialogProps {
 /** Native macOS-style progress bar */
 function ProgressBar({ value }: { value: number }) {
     return (
-        <div className="h-1 w-full rounded-full bg-foreground/[0.06] overflow-hidden">
+        <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
             <div
-                className="h-full rounded-full bg-foreground/40 transition-all duration-300 ease-out"
+                className="h-full rounded-full bg-muted-foreground transition-all duration-300 ease-out"
                 style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
             />
         </div>
@@ -100,15 +100,15 @@ export function LargeVideoDialog({
                 <div className="flex flex-col items-center pt-5 pb-3 px-5">
                     <div className={cn(
                         "w-10 h-10 rounded-lg flex items-center justify-center mb-3",
-                        "bg-gradient-to-b from-foreground/[0.08] to-foreground/[0.04]",
+                        "bg-gradient-to-b from-muted to-muted/50",
                         "shadow-[inset_0_0.5px_0_0_rgba(255,255,255,0.1)]",
-                        isComplete && "from-green-500/20 to-green-500/10"
+                        isComplete && "from-accent/20 to-accent/10"
                     )}>
                         {isComplete ? (
-                            <Check className="w-5 h-5 text-green-500" strokeWidth={2.5} />
+                            <Check className="w-5 h-5 text-accent" strokeWidth={2.5} />
                         ) : (
                             <ResolutionIcon className={cn(
-                                "w-5 h-5 text-foreground/70",
+                                "w-5 h-5 text-muted-foreground",
                                 isGenerating && "animate-pulse"
                             )} />
                         )}
@@ -120,7 +120,7 @@ export function LargeVideoDialog({
                     </h2>
 
                     {/* Description */}
-                    <p className="text-[11px] text-foreground/50 text-center mt-1 leading-snug max-w-[200px]">
+                    <p className="text-[11px] text-muted-foreground text-center mt-1 leading-snug max-w-[200px]">
                         {isComplete
                             ? 'Ready for smooth editing'
                             : isGenerating
@@ -134,7 +134,7 @@ export function LargeVideoDialog({
                 {isGenerating && (
                     <div className="px-5 pb-4">
                         <ProgressBar value={progress ?? 0} />
-                        <p className="text-[10px] text-foreground/40 text-center mt-2 tabular-nums">
+                        <p className="text-[10px] text-muted-foreground/70 text-center mt-2 tabular-nums">
                             {progress !== undefined ? `${Math.round(progress)}%` : 'Starting...'}
                         </p>
                     </div>
@@ -142,22 +142,22 @@ export function LargeVideoDialog({
 
                 {/* Info text when not generating */}
                 {!isGenerating && !isComplete && (
-                    <p className="text-[10px] text-foreground/35 text-center px-5 pb-4 leading-relaxed">
+                    <p className="text-[10px] text-muted-foreground/70 text-center px-5 pb-4 leading-relaxed">
                         Original quality preserved for export
                     </p>
                 )}
 
                 {/* Buttons - macOS style */}
                 {!isComplete && (
-                    <div className="flex border-t border-foreground/[0.06]">
+                    <div className="flex border-t border-border">
                         <button
                             onClick={handleSkip}
                             disabled={isGenerating}
                             className={cn(
-                                "flex-1 py-2.5 text-[13px] text-foreground/60",
-                                "border-r border-foreground/[0.06]",
+                                "flex-1 py-2.5 text-[13px] text-muted-foreground",
+                                "border-r border-border",
                                 "transition-colors duration-100",
-                                "hover:bg-foreground/[0.03] active:bg-foreground/[0.06]",
+                                "hover:bg-muted/50 active:bg-muted",
                                 "disabled:opacity-40 disabled:pointer-events-none"
                             )}
                         >
@@ -169,7 +169,7 @@ export function LargeVideoDialog({
                             className={cn(
                                 "flex-1 py-2.5 text-[13px] font-medium text-primary",
                                 "transition-colors duration-100",
-                                "hover:bg-foreground/[0.03] active:bg-foreground/[0.06]",
+                                "hover:bg-muted/50 active:bg-muted",
                                 "disabled:opacity-40 disabled:pointer-events-none"
                             )}
                         >

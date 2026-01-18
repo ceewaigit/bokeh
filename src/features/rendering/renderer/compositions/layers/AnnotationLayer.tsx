@@ -18,16 +18,8 @@ import type { Effect, AnnotationData } from '@/types/project'
 import { AnnotationWrapper } from './AnnotationWrapper'
 import { clamp01 } from '@/features/rendering/canvas/math/clamp'
 import { CommandExecutor, UpdateEffectCommand } from '@/features/core/commands'
-
-const HIGHLIGHT_FADE_MS = 220
-const DEFAULT_DIM_OPACITY = 0.55
-
-function getHighlightOpacity(currentTimeMs: number, startTime: number, endTime: number, frameMs: number): number {
-  // Add one frame so the first visible frame isn't fully "off" (feels laggy).
-  const fadeIn = clamp01((currentTimeMs - startTime + frameMs) / HIGHLIGHT_FADE_MS)
-  const fadeOut = clamp01((endTime - currentTimeMs) / HIGHLIGHT_FADE_MS)
-  return Math.min(fadeIn, fadeOut)
-}
+import { calculateClipFadeOpacity } from '../utils/effects/clip-fade'
+import { getAnnotationConfig } from '@/features/effects/annotation/registry'
 
 /**
  * Filter and prepare annotations for the current frame
@@ -195,28 +187,24 @@ export const AnnotationLayer: React.FC = memo(() => {
           ? editContext.getMergedEffectData(effect.id, baseData as unknown as Record<string, unknown>) as AnnotationData
           : baseData
 
-        // Calculate fade opacity
-        const introFadeMs = effectData.introFadeMs ?? 0
-        const outroFadeMs = effectData.outroFadeMs ?? 0
+        // Calculate fade opacity using SSOT utility
+        const annotationConfig = getAnnotationConfig(effectData.type ?? AnnotationType.Text)
+        const introFadeMs = effectData.introFadeMs ?? annotationConfig.defaultIntroFadeMs
+        const outroFadeMs = effectData.outroFadeMs ?? annotationConfig.defaultOutroFadeMs
 
         let fadeOpacity = 1
         if (introFadeMs > 0 || outroFadeMs > 0) {
-          const durationFrames = ((effect.endTime - effect.startTime) / 1000) * fps
-          const introFrames = (introFadeMs / 1000) * fps
-          const outroFrames = (outroFadeMs / 1000) * fps
-          const localFrame = frame - (effect.startTime / 1000 * fps)
+          const durationFrames = Math.round(((effect.endTime - effect.startTime) / 1000) * fps)
+          const introFrames = Math.round((introFadeMs / 1000) * fps)
+          const outroFrames = Math.round((outroFadeMs / 1000) * fps)
+          const localFrame = frame - Math.round((effect.startTime / 1000) * fps)
 
-          if (introFrames > 0 && localFrame < introFrames) {
-            fadeOpacity = clamp01(localFrame / introFrames)
-            // Smoothstep for smoother fade
-            fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
-          } else if (outroFrames > 0) {
-            const outroStart = durationFrames - outroFrames
-            if (localFrame > outroStart) {
-              fadeOpacity = clamp01(1 - (localFrame - outroStart) / outroFrames)
-              fadeOpacity = fadeOpacity * fadeOpacity * (3 - 2 * fadeOpacity)
-            }
-          }
+          fadeOpacity = calculateClipFadeOpacity({
+            localFrame,
+            durationFrames,
+            introFadeDuration: introFrames,
+            outroFadeDuration: outroFrames,
+          })
         }
 
         return (
@@ -255,7 +243,25 @@ export const AnnotationLayer: React.FC = memo(() => {
 
             const rotation = data.rotation ?? 0
 
-            const anim = getHighlightOpacity(currentTimeMs, effect.startTime, effect.endTime, 1000 / fps)
+            // Calculate fade using SSOT utility
+            const highlightConfig = getAnnotationConfig(AnnotationType.Highlight)
+            const spotlightIntroFadeMs = data.introFadeMs ?? highlightConfig.defaultIntroFadeMs
+            const spotlightOutroFadeMs = data.outroFadeMs ?? highlightConfig.defaultOutroFadeMs
+
+            let anim = 1
+            if (spotlightIntroFadeMs > 0 || spotlightOutroFadeMs > 0) {
+              const durationFrames = Math.round(((effect.endTime - effect.startTime) / 1000) * fps)
+              const introFrames = Math.round((spotlightIntroFadeMs / 1000) * fps)
+              const outroFrames = Math.round((spotlightOutroFadeMs / 1000) * fps)
+              const localFrame = frame - Math.round((effect.startTime / 1000) * fps)
+
+              anim = calculateClipFadeOpacity({
+                localFrame,
+                durationFrames,
+                introFadeDuration: introFrames,
+                outroFadeDuration: outroFrames,
+              })
+            }
             const dim = clamp01(((data.style as any)?.opacity ?? 55) / 100)
             const dimOpacity = dim * anim
 
