@@ -494,6 +494,11 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     const activeSourceWidth = effectiveClipData?.recording.width || options.recordingWidth || sourceVideoWidth || videoWidth
     const activeSourceHeight = effectiveClipData?.recording.height || options.recordingHeight || sourceVideoHeight || videoHeight
 
+    // Framing rect: keep stable across clip switches so the preview "canvas" (background + layout)
+    // does not change shape. Clip content can be letterboxed inside this frame.
+    const framingWidth = (sourceVideoWidth && sourceVideoWidth > 0) ? sourceVideoWidth : videoWidth
+    const framingHeight = (sourceVideoHeight && sourceVideoHeight > 0) ? sourceVideoHeight : videoHeight
+
     // Resolve effects from effective clip (if different from passed effects)
     const resolvedEffects = effectiveClipData?.effects ?? clipEffects;
 
@@ -540,8 +545,8 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     const vidPos = calculateVideoPosition(
         compositionWidth,
         compositionHeight,
-        activeSourceWidth,
-        activeSourceHeight,
+        framingWidth,
+        framingHeight,
         paddingScaled
     )
 
@@ -552,8 +557,8 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
             compositionWidth,
             compositionHeight,
             mockupData,
-            activeSourceWidth,
-            activeSourceHeight,
+            framingWidth,
+            framingHeight,
             paddingScaled
         )
     }

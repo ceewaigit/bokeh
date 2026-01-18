@@ -284,8 +284,8 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               style={{ transform: 'translateZ(0)' }}
             >
               {filteredByDuration.length === 0 ? (
-                // No matches state - centered in viewport
-                <div className="min-h-[60vh] flex items-center justify-center">
+                // No matches state - centered in container
+                <div className="min-h-full flex items-center justify-center">
                   <motion.div
                     initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
                     animate={{ opacity: 1, scale: 1 }}

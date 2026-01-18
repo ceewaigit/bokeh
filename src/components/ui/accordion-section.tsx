@@ -68,7 +68,7 @@ export function AccordionSection({
         <div className="flex min-w-0 items-center gap-2">
           <ChevronRight
             className={cn(
-              'h-4 w-4 shrink-0 text-primary/70 transition-transform duration-200',
+              'h-4 w-4 shrink-0 text-primary/70 transition-transform duration-150',
               isOpen && 'rotate-90'
             )}
           />

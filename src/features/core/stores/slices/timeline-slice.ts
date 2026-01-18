@@ -9,6 +9,7 @@
  * - Undo/Redo restoration
  */
 
+import { toast } from 'sonner'
 import type { Clip, Recording, Effect } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
 import { calculateTimelineDuration, reflowClips } from '@/features/ui/timeline/clips/clip-reflow'
@@ -155,6 +156,12 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
     addImageClip: ({ imagePath, width, height, durationMs, startTime, syntheticMouseEvents, effects }) => {
         let created: { clip: Clip; recording: Recording } | null = null
 
+        // Capture dimensions before adding to detect canvas size changes
+        const currentState = get()
+        const prevDimensions = currentState.currentProject
+            ? TimelineDataService.getSourceDimensions(currentState.currentProject)
+            : null
+
         set((state) => {
             if (!state.currentProject) return
 
@@ -218,6 +225,15 @@ export const createTimelineSlice: CreateTimelineSlice = (set, get) => ({
                 created = { clip: resolvedClip, recording }
             }
         })
+
+        // Check if canvas dimensions changed after adding the image
+        const updatedState = get()
+        if (updatedState.currentProject && prevDimensions) {
+            const newDimensions = TimelineDataService.getSourceDimensions(updatedState.currentProject)
+            if (newDimensions.width !== prevDimensions.width || newDimensions.height !== prevDimensions.height) {
+                toast.info(`Canvas updated to ${newDimensions.width}×${newDimensions.height} to fit new media`)
+            }
+        }
 
         return created
     },

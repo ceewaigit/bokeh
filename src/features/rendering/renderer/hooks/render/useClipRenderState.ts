@@ -154,13 +154,24 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
             : (glowOpacityOverride ?? (introFadeDuration > 0 || outroFadeDuration > 0 ? fadeOpacity : 1));
 
         // ==========================================================================
-        // SCALING
+        // SCALING (Uniform to maintain aspect ratio - letterbox/pillarbox)
         // ==========================================================================
         const baseWidth = recording?.width || drawWidth;
         const baseHeight = recording?.height || drawHeight;
         const scaleX = baseWidth > 0 ? drawWidth / baseWidth : 1;
         const scaleY = baseHeight > 0 ? drawHeight / baseHeight : 1;
-        const scaleTransform = `scale(${scaleX}, ${scaleY})`;
+
+        // Use uniform scaling to maintain aspect ratio
+        const uniformScale = Math.min(scaleX, scaleY);
+
+        // Calculate centering offset for letterbox/pillarbox
+        const scaledWidth = baseWidth * uniformScale;
+        const scaledHeight = baseHeight * uniformScale;
+        const offsetX = (drawWidth - scaledWidth) / 2;
+        const offsetY = (drawHeight - scaledHeight) / 2;
+
+        // Transform: first scale uniformly, then translate to center
+        const scaleTransform = `translate(${offsetX}px, ${offsetY}px) scale(${uniformScale})`;
 
         return {
             finalDuration,
@@ -169,8 +180,8 @@ export function useClipRenderState(options: ClipRenderStateOptions): ClipRenderS
             effectiveOpacity,
             baseWidth,
             baseHeight,
-            scaleX,
-            scaleY,
+            scaleX: uniformScale,
+            scaleY: uniformScale,
             scaleTransform,
             introFadeDuration,
             outroFadeDuration,

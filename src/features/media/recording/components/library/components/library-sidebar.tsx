@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Clock, HardDrive } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { type DateCategory, type DateCategoryId } from '../utils/date-grouping'
@@ -284,17 +284,25 @@ function NavItem({ label, count, isActive, collapsed, onClick, reduceMotion }: N
       {/* Content */}
       <div className="relative flex items-center justify-between flex-1 min-w-0">
         {/* Label and count */}
-        {!collapsed && (
-          <>
-            <span className="truncate flex-1">{label}</span>
-            <span className={cn(
-              "text-xs ml-3 tabular-nums",
-              isActive ? "text-muted-foreground" : "text-muted-foreground/50"
-            )}>
-              {count}
-            </span>
-          </>
-        )}
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.div
+              className="flex items-center justify-between flex-1 min-w-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <span className="truncate flex-1">{label}</span>
+              <span className={cn(
+                "text-xs ml-3 tabular-nums",
+                isActive ? "text-muted-foreground" : "text-muted-foreground/50"
+              )}>
+                {count}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </button>
   )

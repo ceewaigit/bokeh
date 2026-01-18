@@ -276,7 +276,7 @@ export function RecordButtonDock() {
       if (focusTimeoutRef.current !== null) {
         window.clearTimeout(focusTimeoutRef.current)
       }
-      focusTimeoutRef.current = window.setTimeout(() => searchInputRef.current?.focus(), 100)
+      focusTimeoutRef.current = window.setTimeout(() => searchInputRef.current?.focus(), 120)
     }
     if (!showWindowPicker) {
       setWindowSearch('')

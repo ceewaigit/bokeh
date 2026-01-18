@@ -171,10 +171,17 @@ function ExpandableSearch({ query, onQueryChange }: ExpandableSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (isExpanded && inputRef.current) {
-      inputRef.current.focus()
+    if (isExpanded) {
+      inputRef.current?.focus()
     }
   }, [isExpanded])
+
+  // Collapse when query is cleared externally (e.g., "Clear filters" button)
+  useEffect(() => {
+    if (!query && isExpanded && inputRef.current !== document.activeElement) {
+      setIsExpanded(false)
+    }
+  }, [query, isExpanded])
 
   const handleClose = () => {
     setIsExpanded(false)
@@ -182,16 +189,20 @@ function ExpandableSearch({ query, onQueryChange }: ExpandableSearchProps) {
   }
 
   return (
-    <div className="relative flex items-center">
-      <AnimatePresence mode="wait">
+    <motion.div
+      className="relative flex items-center h-7"
+      animate={{ width: isExpanded ? 180 : 28 }}
+      transition={springConfig}
+    >
+      <AnimatePresence>
         {isExpanded ? (
           <motion.div
             key="search-field"
-            initial={{ width: 28, opacity: 0 }}
-            animate={{ width: 180, opacity: 1 }}
-            exit={{ width: 28, opacity: 0 }}
-            transition={springConfig}
-            className="flex items-center gap-2 h-7 px-2.5 rounded-full hover:bg-foreground/5 transition-colors"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 flex items-center gap-2 h-7 px-2.5 rounded-full hover:bg-foreground/5 transition-colors"
           >
             <Search className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
             <input
@@ -221,15 +232,24 @@ function ExpandableSearch({ query, onQueryChange }: ExpandableSearchProps) {
             )}
           </motion.div>
         ) : (
-          <PillIconButton
-            onClick={() => setIsExpanded(true)}
-            tooltip="Search"
+          <motion.div
+            key="search-icon"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 flex items-center justify-center"
           >
-            <Search className="w-3.5 h-3.5" />
-          </PillIconButton>
+            <PillIconButton
+              onClick={() => setIsExpanded(true)}
+              tooltip="Search"
+            >
+              <Search className="w-3.5 h-3.5" />
+            </PillIconButton>
+          </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   )
 }
 

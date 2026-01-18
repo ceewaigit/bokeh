@@ -19,6 +19,7 @@ export class MotionBlurController {
     // Track last dimensions to minimize resizing
     private lastWidth = 0;
     private lastHeight = 0;
+    private lastQuadRect: { x: number; y: number; width: number; height: number } | null = null;
 
     private constructor() {
         // Prefer OffscreenCanvas if available (works in Workers/Headless)
@@ -223,16 +224,35 @@ export class MotionBlurController {
             this.canvas.width = widthPx;
             this.canvas.height = heightPx;
             gl.viewport(0, 0, widthPx, heightPx);
+            this.lastWidth = widthPx;
+            this.lastHeight = heightPx;
+        }
 
-            // Update vertices for full quad
-            const x1 = 0; const x2 = widthPx; const y1 = 0; const y2 = heightPx;
+        // Compute contain-rect and update quad vertices (prevents aspect-stretching in WebGL path).
+        const sourceSize = getTexImageSourceSize(source);
+        const containRect = sourceSize
+            ? calculateContainRect(widthPx, heightPx, sourceSize.width, sourceSize.height)
+            : { x: 0, y: 0, width: widthPx, height: heightPx };
+
+        // Update vertices when size or rect changes.
+        // (We clear each frame anyway, so transparent letterbox/pillarbox remains correct.)
+        if (
+            containRect.x !== this.lastQuadRect?.x ||
+            containRect.y !== this.lastQuadRect?.y ||
+            containRect.width !== this.lastQuadRect?.width ||
+            containRect.height !== this.lastQuadRect?.height ||
+            widthPx !== this.lastWidth ||
+            heightPx !== this.lastHeight
+        ) {
+            const x1 = containRect.x;
+            const x2 = containRect.x + containRect.width;
+            const y1 = containRect.y;
+            const y2 = containRect.y + containRect.height;
             gl.bindBuffer(gl.ARRAY_BUFFER, this.buffers.position);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
                 x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2, y2,
             ]), gl.STATIC_DRAW);
-
-            this.lastWidth = widthPx;
-            this.lastHeight = heightPx;
+            this.lastQuadRect = containRect;
         }
 
         // 2. Clear (Fix for artifacting)
@@ -292,4 +312,58 @@ export class MotionBlurController {
         return this.canvas;
     }
 
+}
+
+export function calculateContainRect(
+  containerWidth: number,
+  containerHeight: number,
+  sourceWidth: number,
+  sourceHeight: number
+): { x: number; y: number; width: number; height: number } {
+  const cw = Math.max(1, containerWidth)
+  const ch = Math.max(1, containerHeight)
+  const sw = Math.max(1, sourceWidth)
+  const sh = Math.max(1, sourceHeight)
+
+  const sourceAspect = sw / sh
+  const containerAspect = cw / ch
+
+  if (Math.abs(sourceAspect - containerAspect) < 1e-6) {
+    return { x: 0, y: 0, width: cw, height: ch }
+  }
+
+  if (sourceAspect > containerAspect) {
+    // Wider source: fit by width, letterbox top/bottom
+    const width = cw
+    const height = cw / sourceAspect
+    return { x: 0, y: (ch - height) / 2, width, height }
+  }
+
+  // Taller source: fit by height, pillarbox left/right
+  const height = ch
+  const width = ch * sourceAspect
+  return { x: (cw - width) / 2, y: 0, width, height }
+}
+
+function getTexImageSourceSize(source: TexImageSource): { width: number; height: number } | null {
+  const anySource = source as any
+  // HTMLVideoElement
+  if (typeof anySource.videoWidth === 'number' && typeof anySource.videoHeight === 'number') {
+    const vw = anySource.videoWidth
+    const vh = anySource.videoHeight
+    if (vw > 0 && vh > 0) return { width: vw, height: vh }
+  }
+  // ImageBitmap / Canvas / OffscreenCanvas / HTMLImageElement
+  if (typeof anySource.width === 'number' && typeof anySource.height === 'number') {
+    const w = anySource.width
+    const h = anySource.height
+    if (w > 0 && h > 0) return { width: w, height: h }
+  }
+  // HTMLImageElement sometimes reports naturalWidth/naturalHeight
+  if (typeof anySource.naturalWidth === 'number' && typeof anySource.naturalHeight === 'number') {
+    const w = anySource.naturalWidth
+    const h = anySource.naturalHeight
+    if (w > 0 && h > 0) return { width: w, height: h }
+  }
+  return null
 }

@@ -56,7 +56,7 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
     const frameLayout = buildFrameLayout(clips, fps, recordingsMap);
     const durationInFrames = getTimelineDurationInFrames(frameLayout);
 
-    // Get source dimensions from first recording or fallback
+    // Get source dimensions (max across all recordings)
     const sourceDimensions = TimelineDataService.getSourceDimensions(project);
 
     // Calculate canvas dimensions based on aspect ratio settings
@@ -71,6 +71,7 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
       sourceDimensions.width,
       sourceDimensions.height
     );
+
 
     return {
       durationInFrames,

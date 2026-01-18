@@ -6,9 +6,9 @@ import { Check, ChevronRight } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
 import { cn } from "@/shared/utils/utils"
+import { springSoft } from "@/shared/constants/animations"
 
-// Spring configs for Apple-like animations
-const hoverSpring = { type: "spring", duration: 0.3, bounce: 0 } as const
+// Spring config for selection checkmarks
 const selectSpring = { type: "spring", stiffness: 350, damping: 25 } as const
 
 // Context for sharing hover state across menu items
@@ -67,7 +67,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
         inset && "pl-8",
         className
       )}
-      onMouseEnter={() => setHoveredId(itemId)}
+      onMouseEnter={() => !props.disabled && setHoveredId(itemId)}
       {...props}
     >
       <AnimatePresence>
@@ -77,7 +77,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            transition={hoverSpring}
+            transition={springSoft}
             layoutId="dropdown-menu-hover"
           />
         )}
@@ -178,7 +178,7 @@ const DropdownMenuItem = React.forwardRef<
         inset && "pl-8",
         className
       )}
-      onMouseEnter={() => setHoveredId(itemId)}
+      onMouseEnter={() => !props.disabled && setHoveredId(itemId)}
       {...props}
     >
       <AnimatePresence>
@@ -216,7 +216,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
         className
       )}
       checked={checked}
-      onMouseEnter={() => setHoveredId(itemId)}
+      onMouseEnter={() => !props.disabled && setHoveredId(itemId)}
       {...props}
     >
       <AnimatePresence>
@@ -226,7 +226,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            transition={hoverSpring}
+            transition={springSoft}
             layoutId="dropdown-menu-hover"
           />
         )}
@@ -270,7 +270,7 @@ const DropdownMenuRadioItem = React.forwardRef<
         "group relative flex cursor-default select-none items-center rounded-md py-1.5 px-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className
       )}
-      onMouseEnter={() => setHoveredId(itemId)}
+      onMouseEnter={() => !props.disabled && setHoveredId(itemId)}
       onDoubleClick={(e) => e.stopPropagation()}
       {...props}
     >
@@ -287,15 +287,18 @@ const DropdownMenuRadioItem = React.forwardRef<
         )}
       </AnimatePresence>
       {/* Selected background */}
-      {isSelected && (
-        <motion.div
-          className="absolute inset-0 rounded-md bg-foreground/[0.06]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.1 }}
-          layoutId={`dropdown-selected-${groupId}`}
-        />
-      )}
+      <AnimatePresence>
+        {isSelected && (
+          <motion.div
+            className="absolute inset-0 rounded-md bg-foreground/[0.06]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
+            layoutId={`dropdown-selected-${groupId}`}
+          />
+        )}
+      </AnimatePresence>
       <span className={cn(
         "relative z-10 flex items-center gap-2 transition-colors duration-100",
         isSelected ? "text-foreground" : "text-foreground/70"

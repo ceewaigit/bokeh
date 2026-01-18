@@ -30,6 +30,7 @@ import { AnnotationLayer } from './layers/AnnotationLayer';
 import { PreviewGuides } from '@/components/preview-guides';
 import { ZOOM_VISUAL_CONFIG } from '@/shared/config/physics-config'
 import { getMotionBlurConfig } from '@/features/rendering/canvas/math/transforms/zoom-transform';
+import { getVideoShadowStyle } from './utils/shadow-style';
 
 // ============================================================================
 // COMPONENT
@@ -102,6 +103,22 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const cropClipPath = snapshotTransforms.clipPath;
   const zoomTransform = snapshotCamera.zoomTransform;
   const has3DTransform = Boolean(snapshotTransforms.screen3D);
+
+  const videoShadowStyle = useMemo(() => getVideoShadowStyle({
+    shadowIntensity: layout.shadowIntensity,
+    mockupEnabled: layout.mockupEnabled,
+    frameWidth: layout.drawWidth,
+    frameHeight: layout.drawHeight,
+    sourceWidth: layout.activeSourceWidth,
+    sourceHeight: layout.activeSourceHeight,
+  }), [
+    layout.shadowIntensity,
+    layout.mockupEnabled,
+    layout.drawWidth,
+    layout.drawHeight,
+    layout.activeSourceWidth,
+    layout.activeSourceHeight,
+  ]);
 
   // ==========================================================================
   // ACTIVE CLIP DATA (Unified)
@@ -512,11 +529,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 overflow: (cropClipPath || layout.cornerRadius > 0) ? 'hidden' : undefined,
                 // Ensure border-radius clips children (like video)
                 isolation: 'isolate',
-                // PERF: Use box-shadow instead of filter: drop-shadow for significantly better performance
-                // box-shadow is optimized by the browser/OS compositor, whereas filter requires an intermediate texture pass.
-                boxShadow: (!layout.mockupEnabled && layout.shadowIntensity > 0)
-                  ? `0px 10px ${layout.shadowIntensity * 0.5}px rgba(0,0,0,${Math.min(0.6, layout.shadowIntensity / 100)})`
-                  : undefined,
+                ...videoShadowStyle,
                 zIndex: 1,
               }}
             >

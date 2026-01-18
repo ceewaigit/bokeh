@@ -253,17 +253,27 @@ export class TimelineDataService {
   }
 
   /**
-   * Get source dimensions from the first recording.
+   * Get source dimensions using max dimensions across all recordings.
+   * This ensures consistent preview/export dimensions and prevents aspect ratio
+   * jumping when switching between clips of different sizes.
    * Logs warning if falling back to default dimensions.
    */
   static getSourceDimensions(project: Project): { width: number; height: number } {
-    const firstRecording = project.recordings[0]
-    if (firstRecording?.width && firstRecording?.height) {
-      return {
-        width: firstRecording.width,
-        height: firstRecording.height
-      }
+
+    // Use max dimensions across all recordings (matches export behavior)
+    const maxWidth = project.recordings.reduce(
+      (max, r) => Math.max(max, r.width || 0),
+      0
+    )
+    const maxHeight = project.recordings.reduce(
+      (max, r) => Math.max(max, r.height || 0),
+      0
+    )
+
+    if (maxWidth > 0 && maxHeight > 0) {
+      return { width: maxWidth, height: maxHeight }
     }
+
     // Fallback with visibility - helps identify data issues
     console.warn('[TimelineDataService] No recording with valid dimensions, using 1920x1080 default')
     return { width: 1920, height: 1080 }

@@ -9,6 +9,7 @@
  */
 
 import { produceWithPatches } from 'immer'
+import { toast } from 'sonner'
 import { globalBlobManager } from '@/shared/security/blob-url-manager'
 import { addRecordingToProject } from '@/features/ui/timeline/clips/clip-creation'
 import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
@@ -21,6 +22,7 @@ import { playbackService } from '@/features/playback/services/playback-service'
 import { WaveformAnalyzer } from '@/features/media/audio/waveform-analyzer'
 import { ThumbnailGenerator } from '@/shared/utils/thumbnail-generator'
 import { CommandManager } from '@/features/core/commands/base/CommandManager'
+import { TimelineDataService } from '@/features/ui/timeline/timeline-data-service'
 import type { CreateCoreSlice } from './types'
 import { resetSelectionState, DEFAULT_SETTINGS } from './utils'
 import { markProjectModified } from '../store-utils'
@@ -134,6 +136,12 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
       ProjectStorage.setMetadata(recording.id, recording.metadata)
     }
 
+    // Capture dimensions before adding to detect canvas size changes
+    const currentState = get()
+    const prevDimensions = currentState.currentProject
+      ? TimelineDataService.getSourceDimensions(currentState.currentProject)
+      : null
+
     set((state) => {
       if (!state.currentProject) return
 
@@ -155,6 +163,15 @@ export const createCoreSlice: CreateCoreSlice = (set, get) => ({
         }
       }
     })
+
+    // Check if canvas dimensions changed after adding the recording
+    const updatedState = get()
+    if (updatedState.currentProject && prevDimensions) {
+      const newDimensions = TimelineDataService.getSourceDimensions(updatedState.currentProject)
+      if (newDimensions.width !== prevDimensions.width || newDimensions.height !== prevDimensions.height) {
+        toast.info(`Canvas updated to ${newDimensions.width}×${newDimensions.height} to fit new media`)
+      }
+    }
   },
 
   cleanupProject: () => {

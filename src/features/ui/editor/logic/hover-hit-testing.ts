@@ -8,7 +8,7 @@ import type { Clip, WebcamLayoutData } from '@/types/project'
 import { AnnotationType } from '@/types/project'
 import type { FrameSnapshot } from '@/features/rendering/renderer/engine/layout-engine'
 import { hitTestAnnotationsFromPoint } from './dom-hit-testing'
-import { getVideoRectFromSnapshot } from './preview-point-transforms'
+import { getVideoContentRectFromSnapshot, getVideoRectFromSnapshot } from './preview-point-transforms'
 import { getCameraTransformFromSnapshot } from './hit-testing'
 import { getWebcamLayout } from '@/features/effects/utils/webcam-layout'
 import { applyCameraTransformToPixelRect } from '@/features/rendering/canvas/math/coordinates'
@@ -96,6 +96,26 @@ function getOverlayFromElement(element: HTMLElement, containerRect: DOMRect) {
     }
 }
 
+function getContainedRectInFrameRect(
+    frame: { x: number; y: number; width: number; height: number },
+    sourceWidth: number,
+    sourceHeight: number
+) {
+    if (sourceWidth <= 0 || sourceHeight <= 0 || frame.width <= 0 || frame.height <= 0) return frame
+
+    const scale = Math.min(frame.width / sourceWidth, frame.height / sourceHeight)
+    if (!Number.isFinite(scale) || scale <= 0) return frame
+
+    const contentWidth = sourceWidth * scale
+    const contentHeight = sourceHeight * scale
+    return {
+        x: frame.x + (frame.width - contentWidth) / 2,
+        y: frame.y + (frame.height - contentHeight) / 2,
+        width: contentWidth,
+        height: contentHeight,
+    }
+}
+
 /**
  * Pure function that performs hit testing and returns the new hover state.
  * This extracts the ~200 line logic from the hook into a testable function.
@@ -128,24 +148,35 @@ export function getHoveredLayer(ctx: HitTestContext): HoverState {
     }
 
     // Get video rect for hover (DOM or snapshot fallback)
-    const videoEl = snapshot.mockup.enabled
-        ? playerContainer?.querySelector<HTMLElement>('[data-video-content-container="true"]')
-        : playerContainer?.querySelector<HTMLElement>('[data-video-transform-container="true"]')
-    const domVideoRect = videoEl ? getOverlayFromElement(videoEl, containerRect) : null
-
     const cameraTransform = getCameraTransformFromSnapshot(snapshot)
     const videoRect = getVideoRectFromSnapshot(snapshot)
+    const videoContentRect = getVideoContentRectFromSnapshot(snapshot)
     const getTransformedRect = (rect: { x: number, y: number, width: number, height: number }) => {
         if (!cameraTransform) return rect
         return applyCameraTransformToPixelRect(rect, videoRect, cameraTransform)
     }
-    const transformedVideoRect = getTransformedRect({
-        x: videoRect.x,
-        y: videoRect.y,
-        width: videoRect.width,
-        height: videoRect.height
-    })
-    const videoRectForHover = domVideoRect ?? transformedVideoRect
+    const transformedVideoRect = getTransformedRect(videoRect)
+    const transformedVideoContentRect = getTransformedRect(videoContentRect)
+
+    const aspectMismatch = Math.abs(videoContentRect.width - videoRect.width) > 0.0001
+        || Math.abs(videoContentRect.height - videoRect.height) > 0.0001
+
+    // Prefer DOM-derived rects when available (aligns with Remotion Player scale).
+    const videoFrameEl = snapshot.mockup.enabled
+        ? playerContainer?.querySelector<HTMLElement>('[data-video-content-container="true"]')
+        : playerContainer?.querySelector<HTMLElement>('[data-video-transform-container="true"]')
+    const domFrameRect = videoFrameEl ? getOverlayFromElement(videoFrameEl, containerRect) : null
+    const domContentRect = domFrameRect
+        ? getContainedRectInFrameRect(domFrameRect, snapshot.layout.activeSourceWidth, snapshot.layout.activeSourceHeight)
+        : null
+    const domAspectMismatch = Boolean(domFrameRect)
+        && (
+            Math.abs((domContentRect?.width ?? 0) - (domFrameRect?.width ?? 0)) > 0.0001
+            || Math.abs((domContentRect?.height ?? 0) - (domFrameRect?.height ?? 0)) > 0.0001
+        )
+
+    const snapshotRectForHover = aspectMismatch ? transformedVideoContentRect : transformedVideoRect
+    const videoRectForHover = domAspectMismatch ? domContentRect! : (domFrameRect ?? snapshotRectForHover)
 
     // 1) Webcam
     if (canSelectWebcam && webcamClip) {
@@ -326,8 +357,8 @@ export function getHoveredLayer(ctx: HitTestContext): HoverState {
                     y: videoRectForHover.y,
                     width: videoRectForHover.width,
                     height: videoRectForHover.height,
-                    borderRadius: domVideoRect?.borderRadius,
-                    clipPath: domVideoRect?.clipPath
+                    borderRadius: (domAspectMismatch || aspectMismatch) ? '0px' : domFrameRect?.borderRadius,
+                    clipPath: (domAspectMismatch || aspectMismatch) ? undefined : domFrameRect?.clipPath
                 }
             }
         }

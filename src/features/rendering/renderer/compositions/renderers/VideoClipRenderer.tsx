@@ -240,16 +240,54 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
   const shouldMuteAudio = (!isRendering && (previewMuted || effectiveVolume <= 0 || renderState.isPreloading))
     || !recording?.hasAudio;
 
+  // Corner radius for letterboxed/pillarboxed clips in preview:
+  // the stable frame corners may not intersect the visible video pixels, so we clip to the
+  // contained content rect and apply rounding there.
+  const contentClipPath = useMemo(() => {
+    if (isRendering) return undefined;
+    if (!cornerRadius || cornerRadius <= 0) return undefined;
+
+    const sourceW = recording?.width ?? 0;
+    const sourceH = recording?.height ?? 0;
+    if (!sourceW || !sourceH || sourceW <= 0 || sourceH <= 0) return undefined;
+    if (!drawWidth || !drawHeight || drawWidth <= 0 || drawHeight <= 0) return undefined;
+
+    const scale = Math.min(drawWidth / sourceW, drawHeight / sourceH);
+    if (!Number.isFinite(scale) || scale <= 0) return undefined;
+
+    const contentW = sourceW * scale;
+    const contentH = sourceH * scale;
+
+    const insetX = Math.max(0, (drawWidth - contentW) / 2);
+    const insetY = Math.max(0, (drawHeight - contentH) / 2);
+    const aspectMismatch = insetX > 0.0001 || insetY > 0.0001;
+    if (!aspectMismatch) return undefined;
+
+    return `inset(${insetY}px ${insetX}px ${insetY}px ${insetX}px round ${cornerRadius}px)`;
+  }, [cornerRadius, drawHeight, drawWidth, isRendering, recording?.height, recording?.width]);
+
   return (
     <div ref={containerRef} style={{ display: 'contents' }}>
 
       <Sequence from={groupStartFrame} durationInFrames={renderState.finalDuration} premountFor={premountFor} postmountFor={postmountFor}>
         {/* Video content container with opacity control */}
+        {/* Use uniform scaling to maintain aspect ratio (letterbox/pillarbox) */}
         <div style={{
           width: useHighResSizing ? (baseWidth ?? '100%') : '100%',
           height: useHighResSizing ? (baseHeight ?? '100%') : '100%',
           transform: useHighResSizing
-            ? `scale(${drawWidth / ((baseWidth ?? drawWidth) || drawWidth)}, ${drawHeight / ((baseHeight ?? drawHeight) || drawHeight)})`
+            ? (() => {
+                const bw = baseWidth ?? drawWidth;
+                const bh = baseHeight ?? drawHeight;
+                const scaleX = drawWidth / (bw || drawWidth);
+                const scaleY = drawHeight / (bh || drawHeight);
+                const uniformScale = Math.min(scaleX, scaleY);
+                const scaledW = bw * uniformScale;
+                const scaledH = bh * uniformScale;
+                const offsetX = (drawWidth - scaledW) / 2;
+                const offsetY = (drawHeight - scaledH) / 2;
+                return `translate(${offsetX}px, ${offsetY}px) scale(${uniformScale})`;
+              })()
             : undefined,
           transformOrigin: '0 0',
           position: 'absolute',
@@ -257,6 +295,14 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
           left: 0,
           opacity: effectiveOpacity,
         }}>
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              clipPath: contentClipPath,
+              WebkitClipPath: contentClipPath,
+            }}
+          >
           {/* Motion blur dimensions must match video render dimensions:
               - Export: video renders at native res, scaled via CSS -> use native dims
               - Preview: video renders at display size -> use drawWidth/Height */}
@@ -296,12 +342,12 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
                   crossOrigin="anonymous"
                   style={{
                     width: '100%', height: '100%',
-                    objectFit: 'cover',
+                    objectFit: 'contain',
                     position: 'absolute', top: 0, left: 0,
                     borderRadius: `${cornerRadius}px`,
                     pointerEvents: 'none',
-                    // Black background ensures video element is never transparent during seeking
-                    backgroundColor: '#000',
+                    // Allow the stable framing background to show through letterbox/pillarbox areas
+                    backgroundColor: 'transparent',
                     // Opacity applied on parent wrapper only to avoid double-application
                   }}
                   volume={() => effectiveVolume}
@@ -336,6 +382,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
               </div>
             </AudioEnhancerWrapper>
           </MotionBlurWrapper>
+          </div>
         </div>
       </Sequence>
     </div>

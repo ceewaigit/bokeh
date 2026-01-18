@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Sun, Moon, Monitor, ChevronRight, Settings2 } from "lucide-react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { Slider } from "@/components/ui/slider"
 import {
     DropdownMenu,
@@ -241,14 +241,15 @@ export function AppearanceToggle({
                         />
                     </button>
 
-                    {showAdvanced && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-                            className="px-2 pt-2 pb-1 space-y-3"
-                        >
+                    <AnimatePresence initial={false}>
+                        {showAdvanced && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+                                className="px-2 pt-2 pb-1 space-y-3 overflow-hidden"
+                            >
                             {/* Tint slider */}
                             <div>
                                 <div className="flex items-center justify-between text-[10px] text-muted-foreground/80 mb-2">
@@ -292,7 +293,8 @@ export function AppearanceToggle({
                                 </p>
                             )}
                         </motion.div>
-                    )}
+                        )}
+                    </AnimatePresence>
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>

@@ -506,6 +506,62 @@ describe('TimelineDataService', () => {
             expect(dims).toEqual({ width: 2560, height: 1440 })
         })
 
+        it('getSourceDimensions returns max dimensions across multiple recordings', () => {
+            const rec1 = createTestRecording({ id: 'rec-1', width: 1920, height: 1080 })
+            const rec2 = createTestRecording({ id: 'rec-2', width: 3840, height: 2160 }) // 4K
+            const rec3 = createTestRecording({ id: 'rec-3', width: 1080, height: 1920 }) // Portrait
+            const project = createTestProject([], [rec1, rec2, rec3])
+
+            const dims = TimelineDataService.getSourceDimensions(project)
+
+            // Should return max width and max height across all recordings
+            expect(dims).toEqual({ width: 3840, height: 2160 })
+        })
+
+        it('getSourceDimensions returns square canvas for mixed landscape/portrait recordings', () => {
+            // This simulates the user's scenario: 16:9 screen recording + 9:16 portrait video
+            const screenRecording = createTestRecording({ id: 'rec-screen', width: 1920, height: 1080 }) // 16:9
+            const portraitVideo = createTestRecording({ id: 'rec-portrait', width: 1080, height: 1920 }) // 9:16
+            const project = createTestProject([], [screenRecording, portraitVideo])
+
+            const dims = TimelineDataService.getSourceDimensions(project)
+
+            // Max dimensions should create a canvas that fits both:
+            // - maxWidth: max(1920, 1080) = 1920
+            // - maxHeight: max(1080, 1920) = 1920
+            // Result: 1920x1920 square canvas
+            // The 16:9 video gets letterboxed (black bars top/bottom)
+            // The 9:16 video gets pillarboxed (black bars left/right)
+            expect(dims).toEqual({ width: 1920, height: 1920 })
+        })
+
+        it('getSourceDimensions should NOT use first recording only (regression test)', () => {
+            // This test verifies the fix: we should NOT return first recording dimensions
+            // when there are recordings with larger dimensions
+            const smallRecording = createTestRecording({ id: 'rec-small', width: 1280, height: 720 }) // First recording: 720p
+            const largeRecording = createTestRecording({ id: 'rec-large', width: 1920, height: 1080 }) // Second: 1080p
+            const project = createTestProject([], [smallRecording, largeRecording])
+
+            const dims = TimelineDataService.getSourceDimensions(project)
+
+            // Should NOT return first recording's dimensions (1280x720)
+            // Should return max dimensions (1920x1080)
+            expect(dims).not.toEqual({ width: 1280, height: 720 })
+            expect(dims).toEqual({ width: 1920, height: 1080 })
+        })
+
+        it('getSourceDimensions handles recordings with mixed valid/invalid dimensions', () => {
+            const rec1 = createTestRecording({ id: 'rec-1', width: 1920, height: 1080 })
+            const rec2 = createTestRecording({ id: 'rec-2', width: 0, height: 0 }) // Invalid
+            const rec3 = createTestRecording({ id: 'rec-3', width: 2560, height: 1440 })
+            const project = createTestProject([], [rec1, rec2, rec3])
+
+            const dims = TimelineDataService.getSourceDimensions(project)
+
+            // Should ignore 0 dimensions and return max of valid dimensions
+            expect(dims).toEqual({ width: 2560, height: 1440 })
+        })
+
         it('getSourceDimensions falls back to 1920x1080', () => {
             const project = createTestProject()
 

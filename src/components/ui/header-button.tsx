@@ -24,10 +24,11 @@ interface HeaderButtonProps extends Omit<HTMLMotionProps<"button">, "size" | "ch
 const MotionButton = motion.button
 
 export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProps>(
-    ({ className, children, icon: Icon, tooltip, shortcut, active, variant = "ghost", iconClassName, ...props }, ref) => {
+    ({ className, children, icon: Icon, tooltip, shortcut, active, variant = "ghost", iconClassName, disabled, ...props }, ref) => {
         const button = (
             <MotionButton
                 ref={ref}
+                disabled={disabled}
                 className={cn(
                     buttonVariants({ variant, size: "sm" }),
                     "btn-bubble-none",
@@ -39,8 +40,8 @@ export const HeaderButton = React.forwardRef<HTMLButtonElement, HeaderButtonProp
                     !children && "w-8 px-0",
                     className
                 )}
-                whileHover={{ scale: scaleInteraction.hover }}
-                whileTap={{ scale: scaleInteraction.tap }}
+                whileHover={disabled ? undefined : { scale: scaleInteraction.hover }}
+                whileTap={disabled ? undefined : { scale: scaleInteraction.tap }}
                 transition={springConfig}
                 {...props}
             >
