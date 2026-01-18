@@ -3,7 +3,7 @@
  */
 
 import type { MachineProfile } from '../utils/machine-profiler'
-import type { X264Preset } from '@remotion/renderer/dist/options/x264-preset'
+import type { X264Preset } from '@remotion/renderer'
 
 // Bundle cache management
 export interface BundleCache {

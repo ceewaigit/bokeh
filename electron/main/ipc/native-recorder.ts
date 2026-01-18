@@ -1,6 +1,8 @@
 import { ipcMain, app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs/promises'
+import { isPathWithin } from '../utils/path-validation'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 let nativeRecorder: any = null
 
@@ -72,13 +74,15 @@ export function setupNativeRecorder() {
   console.log('Setting up native recorder handlers, nativeRecorder:', nativeRecorder ? 'loaded' : 'null')
 
   // Check if native recorder is available
-  ipcMain.handle('native-recorder:available', async () => {
+  ipcMain.handle('native-recorder:available', async (event) => {
+    assertTrustedIpcSender(event, 'native-recorder:available')
     console.log('Checking native recorder availability:', nativeRecorder !== null)
     return nativeRecorder !== null
   })
 
   // Start recording
   ipcMain.handle('native-recorder:start-display', async (event, displayId: number, bounds?: { x: number; y: number; width: number; height: number }, options?: { onlySelf?: boolean; lowMemory?: boolean; includeAppWindows?: boolean; useMacOSDefaults?: boolean; framerate?: number }) => {
+    assertTrustedIpcSender(event, 'native-recorder:start-display')
     if (!nativeRecorder) {
       throw new Error('Native recorder not available')
     }
@@ -117,7 +121,8 @@ export function setupNativeRecorder() {
   })
 
   // Stop recording
-  ipcMain.handle('native-recorder:stop', async () => {
+  ipcMain.handle('native-recorder:stop', async (event) => {
+    assertTrustedIpcSender(event, 'native-recorder:stop')
     if (!nativeRecorder) {
       throw new Error('Native recorder not available')
     }
@@ -134,7 +139,8 @@ export function setupNativeRecorder() {
   })
 
   // Check if recording
-  ipcMain.handle('native-recorder:is-recording', async () => {
+  ipcMain.handle('native-recorder:is-recording', async (event) => {
+    assertTrustedIpcSender(event, 'native-recorder:is-recording')
     if (!nativeRecorder) {
       return false
     }
@@ -142,7 +148,8 @@ export function setupNativeRecorder() {
   })
 
   // Pause recording
-  ipcMain.handle('native-recorder:pause', async () => {
+  ipcMain.handle('native-recorder:pause', async (event) => {
+    assertTrustedIpcSender(event, 'native-recorder:pause')
     if (!nativeRecorder) {
       throw new Error('Native recorder not available')
     }
@@ -152,7 +159,8 @@ export function setupNativeRecorder() {
   })
 
   // Resume recording
-  ipcMain.handle('native-recorder:resume', async () => {
+  ipcMain.handle('native-recorder:resume', async (event) => {
+    assertTrustedIpcSender(event, 'native-recorder:resume')
     if (!nativeRecorder) {
       throw new Error('Native recorder not available')
     }
@@ -164,9 +172,18 @@ export function setupNativeRecorder() {
   // Read video file as buffer
   ipcMain.handle('native-recorder:read-video', async (event, filePath: string) => {
     try {
-      const buffer = await fs.readFile(filePath)
+      assertTrustedIpcSender(event, 'native-recorder:read-video')
+      const normalizedPath = path.resolve(filePath)
+      const tempDir = path.resolve(app.getPath('temp'))
+      const baseName = path.basename(normalizedPath)
+
+      if (!isPathWithin(normalizedPath, tempDir) || !baseName.startsWith('bokeh-native-')) {
+        throw new Error('Access denied: invalid temp recording path')
+      }
+
+      const buffer = await fs.readFile(normalizedPath)
       // Clean up temp file after reading
-      await fs.unlink(filePath).catch(() => { })
+      await fs.unlink(normalizedPath).catch(() => { })
       return buffer
     } catch (err) {
       console.error('Failed to read video file:', err)
@@ -176,6 +193,7 @@ export function setupNativeRecorder() {
 
   // Start recording a specific window
   ipcMain.handle('native-recorder:start-window', async (event, windowId: number, options?: { lowMemory?: boolean; useMacOSDefaults?: boolean; framerate?: number }) => {
+    assertTrustedIpcSender(event, 'native-recorder:start-window')
     if (!nativeRecorder) {
       throw new Error('Native recorder not available')
     }

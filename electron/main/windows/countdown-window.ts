@@ -31,6 +31,7 @@ export function createCountdownWindow(displayId?: number): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
     }
   })
 
@@ -128,6 +129,11 @@ async function ensureCountdownLoaded(countdownWindow: BrowserWindow): Promise<vo
 }
 
 async function updateCountdownNumber(countdownWindow: BrowserWindow, number: number): Promise<void> {
+  // Security note: We use executeJavaScript here because this is a data: URL window
+  // without preload/IPC setup. The input is strictly validated:
+  // 1. Only numeric values are accepted (number type)
+  // 2. Converted to string and properly escaped
+  // 3. Window is context-isolated with strict CSP
   const text = number > 0 ? String(number) : ''
   const escaped = text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 

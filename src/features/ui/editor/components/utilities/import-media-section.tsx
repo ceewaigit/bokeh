@@ -399,6 +399,10 @@ export function ImportMediaSection() {
                 const electronPath = window.electronAPI.getPathForFile(file)
                 if (electronPath) {
                     path = electronPath
+                    // Approve the path for drag-and-drop imports so video-stream protocol can serve it
+                    if (window.electronAPI.approveReadPaths) {
+                        await window.electronAPI.approveReadPaths([electronPath])
+                    }
                 }
             } catch (e) {
                 console.warn('Failed to get path from electronAPI:', e)

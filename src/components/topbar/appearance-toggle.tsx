@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Sun, Moon, Monitor, ChevronRight, Settings2 } from "lucide-react"
 import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import {
     DropdownMenu,

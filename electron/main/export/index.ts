@@ -8,6 +8,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import fsSync from 'fs'
 import { spawn } from 'child_process'
+import { randomUUID } from 'crypto'
 
 import { machineProfiler } from '../utils/machine-profiler'
 import { makeVideoSrc, makeMetadataSrc } from '../utils/video-url-factory'
@@ -16,6 +17,8 @@ import { getRecordingsDirectory } from '../config'
 import { resolveFfmpegPath, resolveFfprobePath, getCompositorDirectory } from '../utils/ffmpeg-resolver'
 import { normalizeCrossPlatform } from '../utils/path-normalizer'
 import { ensureExportProxy, getExistingProxyPath, getVideoDimensions } from '../services/proxy-service'
+import { isPathWithinAny } from '../utils/path-validation'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 import { getBundleLocation, cleanupBundleCache } from './bundle-manager'
 import { buildChunkPlan, calculateStableChunkSize } from './chunk-planner'
@@ -36,6 +39,27 @@ import { exportDirect, exportDirectWithZoom, type DirectExportSettings, type Zoo
 
 // Re-export cleanup function for app lifecycle
 export { cleanupBundleCache }
+
+const STREAM_FILE_TTL_MS = 15 * 60 * 1000
+const activeStreamFiles = new Map<string, number>()
+
+function trackStreamFile(filePath: string): void {
+  const normalized = path.resolve(filePath)
+  activeStreamFiles.set(normalized, Date.now() + STREAM_FILE_TTL_MS)
+}
+
+function isTrackedStreamFile(filePath: string): boolean {
+  const now = Date.now()
+  for (const [key, expiresAt] of activeStreamFiles) {
+    if (expiresAt <= now) activeStreamFiles.delete(key)
+  }
+  const normalized = path.resolve(filePath)
+  return activeStreamFiles.has(normalized)
+}
+
+function consumeTrackedStreamFile(filePath: string): void {
+  activeStreamFiles.delete(path.resolve(filePath))
+}
 
 let currentExportAbortController: AbortController | null = null
 
@@ -217,6 +241,23 @@ export async function resolveVideoUrls(
       }
 
       const normalizedPath = path.resolve(fullPath)
+
+      // Security: Validate that resolved paths are within allowed directories
+      const tempDir = path.resolve(app.getPath('temp'))
+      const userDataDir = path.resolve(app.getPath('userData'))
+      const allowedExportDirs = [
+        path.resolve(recordingsDir),
+        tempDir,
+        userDataDir,
+        // Also allow project folder if specified
+        ...(projectFolder ? [path.resolve(normalizeCrossPlatform(projectFolder))] : [])
+      ]
+
+      if (!isPathWithinAny(normalizedPath, allowedExportDirs)) {
+        console.error('[Export] Access denied: video path outside allowed directories:', normalizedPath)
+        continue // Skip this recording - don't export files from unauthorized locations
+      }
+
       absolutePaths[recordingId] = normalizedPath
 
       // Provide both:
@@ -683,7 +724,8 @@ export function downsampleRecordingMetadata(recording: any, fps: number): any {
 export function setupExportHandler(): void {
   console.log('[Export] Setting up export handler with supervised worker')
 
-  ipcMain.handle('get-machine-profile', async (_event, { width, height }: { width?: number; height?: number } = {}) => {
+  ipcMain.handle('get-machine-profile', async (event, { width, height }: { width?: number; height?: number } = {}) => {
+    assertTrustedIpcSender(event, 'get-machine-profile')
     const videoWidth = typeof width === 'number' && Number.isFinite(width) && width > 0 ? Math.floor(width) : 1920
     const videoHeight = typeof height === 'number' && Number.isFinite(height) && height > 0 ? Math.floor(height) : 1080
     const profile = await machineProfiler.profileSystem(videoWidth, videoHeight)
@@ -695,6 +737,7 @@ export function setupExportHandler(): void {
   })
 
   ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder, webcamClips, audioClips }) => {
+    assertTrustedIpcSender(event, 'export-video')
     console.log('[Export] Export handler invoked with settings:', settings)
     const timing = createExportTiming()
 
@@ -846,7 +889,7 @@ export function setupExportHandler(): void {
         if (absolutePath && fsSync.existsSync(absolutePath)) {
           const outputPath = path.join(
             app.getPath('temp'),
-            `export-${Date.now()}.${settings.format || 'mp4'}`
+            `export-${randomUUID()}.${settings.format || 'mp4'}`
           )
 
           const directSettings: DirectExportSettings = {
@@ -1055,7 +1098,7 @@ export function setupExportHandler(): void {
       // Create output path
       const outputPath = path.join(
         app.getPath('temp'),
-        `export-${Date.now()}.${settings.format || 'mp4'}`
+        `export-${randomUUID()}.${settings.format || 'mp4'}`
       )
       await fs.mkdir(path.dirname(outputPath), { recursive: true })
 
@@ -1489,6 +1532,7 @@ export function setupExportHandler(): void {
         }
 
         // Large files: stream with direct buffer chunks
+        trackStreamFile(outputPath)
         return {
           success: true,
           filePath: outputPath,
@@ -1523,7 +1567,8 @@ export function setupExportHandler(): void {
   })
 
   // Handle export cancellation
-  ipcMain.handle('export-cancel', async () => {
+  ipcMain.handle('export-cancel', async (event) => {
+    assertTrustedIpcSender(event, 'export-cancel')
     try {
       currentExportAbortController?.abort()
     } catch {
@@ -1533,11 +1578,32 @@ export function setupExportHandler(): void {
   })
 
   // Handle stream requests for large files (legacy base64 for compatibility)
-  ipcMain.handle('export-stream-chunk', async (_event, { filePath, offset, length }) => {
+  ipcMain.handle('export-stream-chunk', async (event, { filePath, offset, length }) => {
     try {
-      const buffer = Buffer.alloc(length)
-      const fd = await fs.open(filePath, 'r')
-      await fd.read(buffer, 0, length, offset)
+      assertTrustedIpcSender(event, 'export-stream-chunk')
+      const normalizedPath = path.resolve(String(filePath))
+      const tempDir = path.resolve(app.getPath('temp'))
+
+      if (!isTrackedStreamFile(normalizedPath) || !isPathWithinAny(normalizedPath, [tempDir])) {
+        return { success: false, error: 'Access denied' }
+      }
+
+      if (!path.basename(normalizedPath).startsWith('export-')) {
+        return { success: false, error: 'Access denied' }
+      }
+
+      const safeOffset = Number(offset)
+      const safeLength = Number(length)
+      if (!Number.isFinite(safeOffset) || !Number.isFinite(safeLength) || safeOffset < 0 || safeLength <= 0) {
+        return { success: false, error: 'Invalid stream range' }
+      }
+      if (safeLength > 16 * 1024 * 1024) {
+        return { success: false, error: 'Chunk too large' }
+      }
+
+      const buffer = Buffer.alloc(safeLength)
+      const fd = await fs.open(normalizedPath, 'r')
+      await fd.read(buffer, 0, safeLength, safeOffset)
       await fd.close()
       return { success: true, data: buffer.toString('base64') }
     } catch (error) {
@@ -1550,11 +1616,32 @@ export function setupExportHandler(): void {
 
   // PERFORMANCE: Direct buffer streaming - no base64 encoding overhead
   // Electron IPC serializes Buffer/Uint8Array efficiently
-  ipcMain.handle('export-stream-buffer-chunk', async (_event, { filePath, offset, length }) => {
+  ipcMain.handle('export-stream-buffer-chunk', async (event, { filePath, offset, length }) => {
     try {
-      const buffer = Buffer.alloc(length)
-      const fd = await fs.open(filePath, 'r')
-      await fd.read(buffer, 0, length, offset)
+      assertTrustedIpcSender(event, 'export-stream-buffer-chunk')
+      const normalizedPath = path.resolve(String(filePath))
+      const tempDir = path.resolve(app.getPath('temp'))
+
+      if (!isTrackedStreamFile(normalizedPath) || !isPathWithinAny(normalizedPath, [tempDir])) {
+        return { success: false, error: 'Access denied' }
+      }
+
+      if (!path.basename(normalizedPath).startsWith('export-')) {
+        return { success: false, error: 'Access denied' }
+      }
+
+      const safeOffset = Number(offset)
+      const safeLength = Number(length)
+      if (!Number.isFinite(safeOffset) || !Number.isFinite(safeLength) || safeOffset < 0 || safeLength <= 0) {
+        return { success: false, error: 'Invalid stream range' }
+      }
+      if (safeLength > 16 * 1024 * 1024) {
+        return { success: false, error: 'Chunk too large' }
+      }
+
+      const buffer = Buffer.alloc(safeLength)
+      const fd = await fs.open(normalizedPath, 'r')
+      await fd.read(buffer, 0, safeLength, safeOffset)
       await fd.close()
       // Return raw buffer - Electron IPC handles this efficiently
       return { success: true, buffer: buffer }
@@ -1567,9 +1654,22 @@ export function setupExportHandler(): void {
   })
 
   // Clean up streamed file
-  ipcMain.handle('export-cleanup', async (_event, { filePath }) => {
+  ipcMain.handle('export-cleanup', async (event, { filePath }) => {
     try {
-      await fs.unlink(filePath)
+      assertTrustedIpcSender(event, 'export-cleanup')
+      const normalizedPath = path.resolve(String(filePath))
+      const tempDir = path.resolve(app.getPath('temp'))
+
+      if (!isTrackedStreamFile(normalizedPath) || !isPathWithinAny(normalizedPath, [tempDir])) {
+        return { success: false }
+      }
+
+      if (!path.basename(normalizedPath).startsWith('export-')) {
+        return { success: false }
+      }
+
+      await fs.unlink(normalizedPath)
+      consumeTrackedStreamFile(normalizedPath)
       return { success: true }
     } catch (_error) {
       return { success: false }

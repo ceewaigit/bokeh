@@ -7,15 +7,29 @@ import path from 'path'
 import fs from 'fs/promises'
 import { spawn } from 'child_process'
 import { tmpdir } from 'os'
+import { randomUUID } from 'crypto'
 import type { ChunkResult } from './types'
 
 /**
  * Escape file path for FFmpeg concat list
+ * Handles special characters to prevent injection attacks
  * @param filePath - Path to escape
  * @returns Escaped path safe for concat list
  */
 export function escapeForConcat(filePath: string): string {
-  return filePath.replace(/'/g, "'\\''")
+  // Remove null bytes and control characters
+  let escaped = filePath.replace(/[\x00-\x1f]/g, '')
+
+  // Escape backslashes first (before other escapes that use them)
+  escaped = escaped.replace(/\\/g, '\\\\')
+
+  // Escape single quotes using the FFmpeg concat format
+  escaped = escaped.replace(/'/g, "'\\''")
+
+  // Escape percent signs (special in FFmpeg)
+  escaped = escaped.replace(/%/g, '%%')
+
+  return escaped
 }
 
 /**
@@ -38,19 +52,26 @@ export async function combineChunks(
   // Sort by index to ensure correct order
   const sortedResults = [...chunkResults].sort((a, b) => a.index - b.index)
 
-  const concatListPath = path.join(tmpdir(), `concat-${Date.now()}.txt`)
+  // Create concat file in the same directory as the chunks for relative path safety
+  const concatDir = sortedResults.length > 0 ? path.dirname(sortedResults[0].path) : tmpdir()
+  const concatListPath = path.join(concatDir, `concat-${randomUUID()}.txt`)
 
   try {
-    // Create concat list file
+    // Create concat list file using relative paths from the concat file's directory
+    // This avoids needing `-safe 0` which disables FFmpeg's path safety checks
     const concatContent = sortedResults
-      .map(({ path: chunkPath }) => `file '${escapeForConcat(chunkPath)}'`)
+      .map(({ path: chunkPath }) => {
+        // Use relative path from the concat file's directory
+        const relativePath = path.relative(concatDir, chunkPath)
+        return `file '${escapeForConcat(relativePath)}'`
+      })
       .join('\n')
 
     await fs.writeFile(concatListPath, concatContent)
 
     const ffmpegArgs = [
       '-f', 'concat',
-      '-safe', '0',
+      // Note: -safe 0 removed for security; using relative paths instead
       '-i', concatListPath,
       '-y',
       '-c', 'copy',
@@ -58,12 +79,13 @@ export async function combineChunks(
       outputPath
     ]
 
-    // Set DYLD_LIBRARY_PATH for FFmpeg dynamic libraries
+    // Set minimal environment for FFmpeg - only PATH and DYLD_LIBRARY_PATH needed
+    // We explicitly limit env vars to prevent secret leakage to child processes
     const ffmpegDir = path.dirname(ffmpegPath)
     const env = {
-      ...process.env,
+      PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin',
       DYLD_LIBRARY_PATH: `${ffmpegDir}:${process.env.DYLD_LIBRARY_PATH || ''}`
-    }
+    } as unknown as NodeJS.ProcessEnv
 
     const run = (args: string[]) =>
       new Promise<void>((resolve, reject) => {
@@ -123,7 +145,7 @@ export async function combineChunks(
 
       const reencodeArgs = [
         '-f', 'concat',
-        '-safe', '0',
+        // Note: -safe 0 removed for security; using relative paths instead
         '-i', concatListPath,
         '-y',
         '-c:v', 'libx264',

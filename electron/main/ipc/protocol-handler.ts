@@ -1,29 +1,65 @@
-import { app, protocol } from 'electron'
+import { app, protocol, BrowserWindow } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { Readable } from 'stream'
 import { isDev } from '../config'
 import { normalizeCrossPlatform } from '../utils/path-normalizer'
 import { resolveRecordingFilePath, guessMimeType } from '../utils/file-resolution'
+import { isPathWithin } from '../utils/path-validation'
+import { getAllowedCorsOriginHeader } from '../utils/ipc-security'
+import { isApprovedReadPath } from '../utils/ipc-path-approvals'
+
+function guessAppContentType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase()
+  switch (ext) {
+    case '.html': return 'text/html; charset=utf-8'
+    case '.js': return 'text/javascript; charset=utf-8'
+    case '.css': return 'text/css; charset=utf-8'
+    case '.json': return 'application/json; charset=utf-8'
+    case '.map': return 'application/json; charset=utf-8'
+    case '.txt': return 'text/plain; charset=utf-8'
+    case '.png': return 'image/png'
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg'
+    case '.svg': return 'image/svg+xml'
+    case '.ico': return 'image/x-icon'
+    case '.woff': return 'font/woff'
+    case '.woff2': return 'font/woff2'
+    case '.ttf': return 'font/ttf'
+    case '.otf': return 'font/otf'
+    default: return 'application/octet-stream'
+  }
+}
 
 export function registerProtocol(): void {
   // Register app protocol for packaged app
   if (!isDev && app.isPackaged) {
     protocol.handle('app', async (request) => {
-      const url = request.url.replace('app://', '')
-      const decodedUrl = decodeURIComponent(url)
+      const url = new URL(request.url)
+      // Treat `app://index.html` as the entrypoint, and treat any pathname as a path
+      // relative to the exported `out/` root (so `/_next/...` resolves to `out/_next/...`).
+      const rawPath = url.pathname && url.pathname !== '/' ? url.pathname.slice(1) : (url.host || 'index.html')
+      const decodedUrl = decodeURIComponent(rawPath).replace(/^\/+/, '')
       try {
-        const filePath = path.join(app.getAppPath(), 'out', decodedUrl)
+        const outDir = path.resolve(app.getAppPath(), 'out')
+        const requestedPath = decodedUrl.endsWith('/') ? `${decodedUrl}index.html` : decodedUrl
+        const filePath = path.resolve(outDir, requestedPath)
+
+        if (!isPathWithin(filePath, outDir)) {
+          return new Response('Not found', { status: 404 })
+        }
+
         const stat = fs.statSync(filePath)
         const stream = fs.createReadStream(filePath)
         const body = Readable.toWeb(stream as any)
-        const contentType = guessMimeType(filePath)
+        const contentType = guessAppContentType(filePath)
 
         return new Response(body as any, {
           status: 200,
           headers: {
             'Content-Length': String(stat.size),
-            'Content-Type': contentType
+            'Content-Type': contentType,
+            'X-Content-Type-Options': 'nosniff'
           }
         })
       } catch (error) {
@@ -39,6 +75,10 @@ export function registerProtocol(): void {
       // Parse URL - handle ALL possible formats
       const url = new URL(request.url)
       let filePath: string = ''
+      const corsOrigin = getAllowedCorsOriginHeader(request.headers.get('origin'))
+      const corsHeaders: Record<string, string> = corsOrigin
+        ? { 'Access-Control-Allow-Origin': corsOrigin, 'Vary': 'Origin' }
+        : {}
 
       // Handle static assets (cursors, images, etc.)
       if (url.host === 'assets') {
@@ -47,13 +87,19 @@ export function registerProtocol(): void {
           ? path.join(app.getAppPath(), 'public', assetPath)
           : path.join(process.resourcesPath, 'public', assetPath)
 
-        if (!fs.existsSync(publicPath)) {
+        const publicDir = !app.isPackaged
+          ? path.resolve(app.getAppPath(), 'public')
+          : path.resolve(process.resourcesPath, 'public')
+        const resolvedPublicPath = path.resolve(publicPath)
+
+        // Prevent path traversal outside of the public directory.
+        if (!isPathWithin(resolvedPublicPath, publicDir) || !fs.existsSync(resolvedPublicPath)) {
           console.error('[Protocol] Asset not found:', publicPath)
           return new Response('Asset not found', { status: 404 })
         }
 
         // Serve the asset file
-        const buffer = fs.readFileSync(publicPath)
+        const buffer = fs.readFileSync(resolvedPublicPath)
         const mimeType = assetPath.endsWith('.png') ? 'image/png' :
           assetPath.endsWith('.jpg') ? 'image/jpeg' :
             assetPath.endsWith('.svg') ? 'image/svg+xml' :
@@ -63,7 +109,9 @@ export function registerProtocol(): void {
           status: 200,
           headers: {
             'Content-Type': mimeType,
-            'Cache-Control': 'public, max-age=3600'
+            'Cache-Control': 'public, max-age=3600',
+            'X-Content-Type-Options': 'nosniff',
+            ...corsHeaders
           }
         })
       }
@@ -132,9 +180,23 @@ export function registerProtocol(): void {
       // Use cross-platform normalizer
       filePath = normalizeCrossPlatform(filePath)
 
-      const resolved = resolveRecordingFilePath(filePath)
+      let resolved = resolveRecordingFilePath(filePath)
+
+      // If not in allowed directories, check if path was user-approved (via file dialog or drag-drop)
       if (!resolved) {
-        console.error('[Protocol] File not found:', filePath)
+        const mainWindow = (global as any).mainWindow as BrowserWindow | null
+        const sender = mainWindow?.webContents
+        if (sender && isApprovedReadPath(sender, filePath) && fs.existsSync(filePath)) {
+          resolved = filePath
+        }
+      }
+
+      if (!resolved) {
+        console.error('[Protocol] Failed to resolve:', {
+          filePath,
+          tempDir: app.getPath('temp'),
+          fileExists: fs.existsSync(filePath),
+        })
         return new Response('Not found', { status: 404 })
       }
       filePath = resolved
@@ -156,7 +218,8 @@ export function registerProtocol(): void {
             'Last-Modified': lastModified,
             'ETag': etag,
             'Cache-Control': 'no-store',
-            'Access-Control-Allow-Origin': '*'
+            'X-Content-Type-Options': 'nosniff',
+            ...corsHeaders
           }
         })
       }
@@ -203,7 +266,8 @@ export function registerProtocol(): void {
             'Last-Modified': lastModified,
             'ETag': etag,
             'Cache-Control': 'no-store',
-            'Access-Control-Allow-Origin': '*'
+            'X-Content-Type-Options': 'nosniff',
+            ...corsHeaders
           }
         })
       }
@@ -223,7 +287,8 @@ export function registerProtocol(): void {
           'Last-Modified': lastModified,
           'ETag': etag,
           'Cache-Control': 'no-store',
-          'Access-Control-Allow-Origin': '*'
+          'X-Content-Type-Options': 'nosniff',
+          ...corsHeaders
         }
       })
     } catch (error) {

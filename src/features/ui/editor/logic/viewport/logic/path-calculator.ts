@@ -11,7 +11,6 @@ import { calculateZoomTransform, getZoomTransformString, getMotionBlurConfig } f
 import type { MotionBlurConfig } from '@/types'
 import { clamp01 } from '@/features/rendering/canvas/math'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
-import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/shared/constants/layout'
 
 /**
  * Determines if the camera should be allowed to reveal padding (overscan) area.

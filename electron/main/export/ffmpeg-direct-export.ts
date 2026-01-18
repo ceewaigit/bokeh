@@ -43,10 +43,12 @@ async function runFfmpegWithProgress(
 ): Promise<void> {
   const ffmpegPath = resolveFfmpegPath()
   const ffmpegDir = path.dirname(ffmpegPath)
+  // Use minimal environment for FFmpeg - only required variables
+  // We explicitly limit env vars to prevent secret leakage to child processes
   const env = {
-    ...process.env,
+    PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin',
     DYLD_LIBRARY_PATH: `${ffmpegDir}:${process.env.DYLD_LIBRARY_PATH || ''}`
-  }
+  } as unknown as NodeJS.ProcessEnv
 
   await new Promise<void>((resolve, reject) => {
     if (abortSignal?.aborted) {

@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import * as os from 'os';
 import type { X264Preset } from '@remotion/renderer/dist/options/x264-preset';
+import { escapeForConcat } from './ffmpeg-combiner';
 
 interface ChunkAssignment {
   index: number;
@@ -350,7 +351,7 @@ class ExportWorker extends BaseWorker {
         '--num-raster-threads=2'
       ],
       enableMultiProcessOnLinux: true,
-      disableWebSecurity: true,
+      disableWebSecurity: false,
       ignoreCertificateErrors: false,
       ...(job.useGPU ? {
         enableAcceleratedVideoDecode: true,
@@ -862,15 +863,20 @@ class ExportWorker extends BaseWorker {
         console.log(`[ExportWorker] Chunk ${i + 1}: ${(stats.size / 1024 / 1024).toFixed(1)}MB`);
       }
 
-      // Create concat file
-      const concatContent = chunks.map(chunk => `file '${chunk}'`).join('\n');
+      // Create concat file using relative paths and proper escaping for security
+      // This avoids needing `-safe 0` which disables FFmpeg's path safety checks
+      const concatDir = path.dirname(concatListPath);
+      const concatContent = chunks.map(chunkPath => {
+        const relativePath = path.relative(concatDir, chunkPath);
+        return `file '${escapeForConcat(relativePath)}'`;
+      }).join('\n');
       await fs.writeFile(concatListPath, concatContent);
       console.log(`[ExportWorker] Concat list:\n${concatContent}`);
 
       // Run FFmpeg concat
+      // Note: -safe 0 removed for security; using relative paths instead
       const ffmpegArgs = [
         '-f', 'concat',
-        '-safe', '0',
         '-i', concatListPath,
         '-y', // Overwrite output file if exists
         // CRITICAL: Stream copy video to avoid re-encoding (prevents huge file size increase)
@@ -898,10 +904,12 @@ class ExportWorker extends BaseWorker {
       // CRITICAL FIX: Set DYLD_LIBRARY_PATH so FFmpeg can find its dynamic libraries
       // FFmpeg binary needs libavdevice.dylib, libavcodec.dylib, etc. from same directory
       const ffmpegDir = path.dirname(job.ffmpegPath);
+      // Use minimal environment for FFmpeg - only required variables
+      // We explicitly limit env vars to prevent secret leakage to child processes
       const env = {
-        ...process.env,
+        PATH: process.env.PATH || '/usr/bin:/bin:/usr/sbin:/sbin',
         DYLD_LIBRARY_PATH: `${ffmpegDir}:${process.env.DYLD_LIBRARY_PATH || ''}`
-      };
+      } as unknown as NodeJS.ProcessEnv;
 
       const ffmpegProcess = spawn(job.ffmpegPath, ffmpegArgs, { env });
 

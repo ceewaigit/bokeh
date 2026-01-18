@@ -136,7 +136,8 @@ export class AreaSelectionService {
           nodeIntegration: false,
           contextIsolation: true,
           preload: preloadPath,
-          zoomFactor: 1.0  // Prevent scaling issues
+          zoomFactor: 1.0,  // Prevent scaling issues
+          sandbox: true
         }
       })
 

@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow, IpcMainInvokeEvent } from 'electron'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 // Track which windows have signaled they're ready
 const rendererReadyWindows = new Set<number>()
@@ -10,6 +11,7 @@ export function isRendererReady(windowId: number): boolean {
 export function registerWindowSurfaceHandlers(): void {
   // Handler for renderer to signal it's ready (vibrancy and CSS vars are set)
   ipcMain.handle('signal-renderer-ready', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'signal-renderer-ready')
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window) {
       rendererReadyWindows.add(window.id)
@@ -22,6 +24,7 @@ export function registerWindowSurfaceHandlers(): void {
     return { success: true }
   })
   ipcMain.handle('get-window-debug-state', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'get-window-debug-state')
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window) return { success: false }
 
@@ -62,6 +65,7 @@ export function registerWindowSurfaceHandlers(): void {
   })
 
   ipcMain.handle('get-element-at-point', async (event: IpcMainInvokeEvent, x: number, y: number) => {
+    assertTrustedIpcSender(event, 'get-element-at-point')
     try {
       const result = await event.sender.executeJavaScript(
         `(() => {
@@ -86,6 +90,7 @@ export function registerWindowSurfaceHandlers(): void {
   })
 
   ipcMain.handle('get-elements-at-point', async (event: IpcMainInvokeEvent, x: number, y: number, limit: number = 12) => {
+    assertTrustedIpcSender(event, 'get-elements-at-point')
     try {
       const result = await event.sender.executeJavaScript(
         `(() => {
@@ -111,6 +116,7 @@ export function registerWindowSurfaceHandlers(): void {
   })
 
   ipcMain.handle('get-window-alpha-samples', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'get-window-alpha-samples')
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window) return { success: false }
 
@@ -141,6 +147,7 @@ export function registerWindowSurfaceHandlers(): void {
   })
 
   ipcMain.handle('set-window-vibrancy', async (event: IpcMainInvokeEvent, vibrancy: string | null) => {
+    assertTrustedIpcSender(event, 'set-window-vibrancy')
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window) return { success: false }
 
@@ -159,6 +166,7 @@ export function registerWindowSurfaceHandlers(): void {
   })
 
   ipcMain.handle('set-window-has-shadow', async (event: IpcMainInvokeEvent, hasShadow: boolean) => {
+    assertTrustedIpcSender(event, 'set-window-has-shadow')
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window) return { success: false }
 

@@ -1,5 +1,6 @@
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, IpcMainInvokeEvent } from 'electron'
 import si from 'systeminformation'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 type ProcessEntry = {
   pid: number
@@ -26,7 +27,8 @@ export type BokehProcessSnapshot = {
 const toNumber = (value: unknown): number => (typeof value === 'number' ? value : Number(value))
 
 export function registerBokehProcessHandlers(): void {
-  ipcMain.handle('get-bokeh-processes', async (): Promise<BokehProcessSnapshot> => {
+  ipcMain.handle('get-bokeh-processes', async (event: IpcMainInvokeEvent): Promise<BokehProcessSnapshot> => {
+    assertTrustedIpcSender(event, 'get-bokeh-processes')
     const appName = app.getName()
     const appMetrics = app.getAppMetrics()
     const [{ list }, graphics] = await Promise.all([si.processes(), si.graphics()])

@@ -5,6 +5,7 @@ import { logger as Logger } from '../utils/logger'
 import { getUIohook, startUIohook, stopUIohook, registerHandler, unregisterAllHandlers } from '../utils/uiohook-manager'
 import { startScrollDetection, stopScrollDetection } from './scroll-tracking'
 import { TIMING, MOUSE_BUTTONS } from '../utils/constants'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 // Get uiohook instance from shared manager
 const uIOhook = getUIohook('mouse-tracking')
@@ -33,6 +34,7 @@ interface MousePosition {
 
 export function registerMouseTrackingHandlers(): void {
   ipcMain.handle('start-mouse-tracking', async (event: IpcMainInvokeEvent, options: MouseTrackingOptions = {}) => {
+    assertTrustedIpcSender(event, 'start-mouse-tracking')
     // CRITICAL: Clear any existing interval to prevent memory leaks from duplicate intervals
     if (mouseTrackingInterval) {
       Logger.debug('Clearing existing mouse tracking interval before starting new one')
@@ -218,7 +220,8 @@ export function registerMouseTrackingHandlers(): void {
     }
   })
 
-  ipcMain.handle('stop-mouse-tracking', async () => {
+  ipcMain.handle('stop-mouse-tracking', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'stop-mouse-tracking')
     try {
       if (mouseTrackingInterval) {
         clearInterval(mouseTrackingInterval)
@@ -246,7 +249,8 @@ export function registerMouseTrackingHandlers(): void {
   })
 
 
-  ipcMain.handle('get-mouse-position', async () => {
+  ipcMain.handle('get-mouse-position', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'get-mouse-position')
     try {
       const position = screen.getCursorScreenPoint()
       return {

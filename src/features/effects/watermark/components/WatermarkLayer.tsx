@@ -58,8 +58,6 @@ export function WatermarkLayer() {
   const projectWatermark = useProjectStore((s) => s.currentProject?.watermark)
   const data = React.useMemo(() => normalizeWatermarkEffectData(projectWatermark), [projectWatermark])
 
-  if (!data.enabled && !data.forceEnabled) return null
-
   const bounds = React.useMemo(() => {
     const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
@@ -105,6 +103,8 @@ export function WatermarkLayer() {
     videoPosition.paddingScaled,
     width
   ])
+
+  if (!data.enabled && !data.forceEnabled) return null
 
   const minDim = Math.max(1, Math.min(bounds.width || width, bounds.height || height))
   const uiScale = Math.max(0.5, Math.min(2, minDim / 1080))

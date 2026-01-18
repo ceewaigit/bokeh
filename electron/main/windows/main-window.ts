@@ -2,6 +2,7 @@ import { BrowserWindow, WebContents, screen } from 'electron'
 import * as path from 'path'
 import { isDev } from '../config'
 import { applyContentSecurityPolicy } from './content-security-policy'
+import { isTrustedRendererUrl } from '../utils/ipc-security'
 
 // Webpack entry points are set as environment variables by electron-forge
 
@@ -54,7 +55,7 @@ export function createMainWindow(): BrowserWindow {
       experimentalFeatures: false,
       enableWebSQL: false,
       spellcheck: false,
-      sandbox: false
+      sandbox: true
     },
     icon: isDev
       ? path.join(__dirname, '../../../../public/brand/dock_icon.png')
@@ -88,6 +89,12 @@ function setupPermissions(window: BrowserWindow): void {
 
   const permissionHandler = (webContents: WebContents, permission: string, callback: (granted: boolean) => void) => {
     if (logPermissions) console.log('🔐 Permission requested:', permission)
+    const senderUrl = webContents.getURL()
+    if (!isTrustedRendererUrl(senderUrl)) {
+      if (logPermissions) console.log('❌ Denying permission from untrusted origin:', senderUrl)
+      callback(false)
+      return
+    }
     if (permission === 'media' || permission === 'display-capture' || permission === 'screen') {
       if (logPermissions) console.log('✅ Granting permission for:', permission)
       callback(true)
@@ -100,6 +107,8 @@ function setupPermissions(window: BrowserWindow): void {
 
   const permissionCheckHandler = (webContents: WebContents | null, permission: string) => {
     if (logPermissions) console.log('🔍 Permission check:', permission)
+    const senderUrl = webContents?.getURL() || ''
+    if (!isTrustedRendererUrl(senderUrl)) return false
     return permission === 'media' || permission === 'display-capture' || permission === 'screen'
   }
   window.webContents.session.setPermissionCheckHandler(permissionCheckHandler)

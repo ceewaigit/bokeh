@@ -2,13 +2,37 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import https from 'https'
-import { exec } from 'child_process'
+import crypto from 'crypto'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 const WHISPER_BINARY_NAME = 'whisper-cli'
 const WHISPER_CPP_VERSION = 'v1.7.2'  // Stable version with whisper-cli
+// SHA256 checksum for whisper.cpp v1.7.2 source tarball
+// This should be updated when WHISPER_CPP_VERSION changes
+const WHISPER_TARBALL_SHA256 = 'd6e413dad08e227e1c39cbf3b6c11f36a7ed11f5ac53a88af1bfb87adf61b478'
+
+/**
+ * Verify file checksum against expected SHA256 hash
+ * @param filePath - Path to file to verify
+ * @param expectedHash - Expected SHA256 hash (lowercase hex)
+ * @returns true if checksum matches
+ */
+async function verifyChecksum(filePath: string, expectedHash: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256')
+        const stream = fs.createReadStream(filePath)
+
+        stream.on('data', (data) => hash.update(data))
+        stream.on('end', () => {
+            const actualHash = hash.digest('hex')
+            resolve(actualHash === expectedHash.toLowerCase())
+        })
+        stream.on('error', (err) => reject(err))
+    })
+}
 
 export interface WhisperBinaryStatus {
     available: boolean
@@ -148,23 +172,33 @@ export async function installWhisperBinary(
         // Try Homebrew first (fastest if available)
         onProgress?.('checking', 0.1)
         try {
-            const { stdout: brewPath } = await execAsync('which brew')
+            const { stdout: brewPath } = await execFileAsync('which', ['brew'])
             if (brewPath.trim()) {
                 onProgress?.('installing', 0.2)
 
                 // Check if whisper-cpp is already installed
                 try {
-                    await execAsync('brew list whisper-cpp')
+                    await execFileAsync('brew', ['list', 'whisper-cpp'])
                 } catch {
                     // Not installed, install it
-                    await execAsync('brew install whisper-cpp')
+                    await execFileAsync('brew', ['install', 'whisper-cpp'])
                 }
 
                 onProgress?.('copying', 0.8)
 
-                // Find the installed binary and its libraries
-                const { stdout: whisperPath } = await execAsync('which whisper-cli || which whisper')
-                const sourcePath = whisperPath.trim()
+                // Find the installed binary - try whisper-cli first, then whisper
+                let sourcePath = ''
+                try {
+                    const { stdout: whisperCliPath } = await execFileAsync('which', ['whisper-cli'])
+                    sourcePath = whisperCliPath.trim()
+                } catch {
+                    try {
+                        const { stdout: whisperPath } = await execFileAsync('which', ['whisper'])
+                        sourcePath = whisperPath.trim()
+                    } catch {
+                        // Neither found
+                    }
+                }
 
                 if (sourcePath && fs.existsSync(sourcePath)) {
                     await fs.promises.copyFile(sourcePath, binaryPath)
@@ -172,7 +206,7 @@ export async function installWhisperBinary(
 
                     // Also copy the required dylibs from libexec
                     try {
-                        const { stdout: brewPrefix } = await execAsync('brew --prefix whisper-cpp')
+                        const { stdout: brewPrefix } = await execFileAsync('brew', ['--prefix', 'whisper-cpp'])
                         const libDir = path.join(brewPrefix.trim(), 'libexec', 'lib')
                         const targetLibDir = path.join(binDir, '..', 'lib')
                         await fs.promises.mkdir(targetLibDir, { recursive: true })
@@ -191,13 +225,17 @@ export async function installWhisperBinary(
                         for (const file of libFiles) {
                             if (file.endsWith('.dylib')) {
                                 const dest = path.join(targetLibDir, file)
-                                await execAsync(`codesign -s - --force "${dest}"`)
+                                await execFileAsync('codesign', ['-s', '-', '--force', dest])
                             }
                         }
 
                         // Update the binary's rpath and codesign it
-                        await execAsync(`install_name_tool -add_rpath @executable_path/../lib "${binaryPath}" 2>/dev/null || true`)
-                        await execAsync(`codesign -s - --force "${binaryPath}"`)
+                        try {
+                            await execFileAsync('install_name_tool', ['-add_rpath', '@executable_path/../lib', binaryPath])
+                        } catch {
+                            // rpath may already exist, ignore error
+                        }
+                        await execFileAsync('codesign', ['-s', '-', '--force', binaryPath])
                     } catch (libError) {
                         console.log('Could not copy libraries, binary may not work:', libError)
                     }
@@ -219,21 +257,32 @@ export async function installWhisperBinary(
         const tarballUrl = `https://github.com/ggerganov/whisper.cpp/archive/refs/tags/${WHISPER_CPP_VERSION}.tar.gz`
         const tarballPath = path.join(tempDir, 'whisper.tar.gz')
 
-        await downloadFile(tarballUrl, tarballPath, (p) => onProgress?.('downloading', 0.1 + p * 0.3))
+        await downloadFile(tarballUrl, tarballPath, (p) => onProgress?.('downloading', 0.1 + p * 0.25))
+
+        // Verify checksum before extraction
+        onProgress?.('verifying', 0.35)
+        const checksumValid = await verifyChecksum(tarballPath, WHISPER_TARBALL_SHA256)
+        if (!checksumValid) {
+            await fs.promises.rm(tempDir, { recursive: true, force: true })
+            throw new Error('Checksum verification failed for downloaded tarball')
+        }
 
         onProgress?.('extracting', 0.4)
-        await execAsync(`tar -xzf whisper.tar.gz`, { cwd: tempDir })
+        await execFileAsync('tar', ['-xzf', 'whisper.tar.gz'], { cwd: tempDir })
 
         const extractedDir = path.join(tempDir, `whisper.cpp-${WHISPER_CPP_VERSION.replace('v', '')}`)
 
         onProgress?.('building', 0.5)
 
         // Build with Metal support for Apple Silicon
-        const buildCmd = arch === 'arm64'
-            ? 'make whisper-cli WHISPER_METAL=1 -j$(sysctl -n hw.ncpu)'
-            : 'make whisper-cli -j$(sysctl -n hw.ncpu)'
+        // Get CPU count for parallel build
+        const { stdout: cpuCountStr } = await execFileAsync('sysctl', ['-n', 'hw.ncpu'])
+        const cpuCount = parseInt(cpuCountStr.trim(), 10) || 4
+        const makeArgs = arch === 'arm64'
+            ? ['whisper-cli', 'WHISPER_METAL=1', `-j${cpuCount}`]
+            : ['whisper-cli', `-j${cpuCount}`]
 
-        await execAsync(buildCmd, { cwd: extractedDir })
+        await execFileAsync('make', makeArgs, { cwd: extractedDir })
 
         onProgress?.('installing', 0.9)
 

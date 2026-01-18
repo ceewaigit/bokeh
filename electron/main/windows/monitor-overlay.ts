@@ -57,7 +57,8 @@ export function createMonitorOverlay(displayId?: number): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
+      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
+      sandbox: true
     }
   })
 
@@ -102,7 +103,8 @@ export function showWindowBoundsOverlay(
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
+      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
+      sandbox: true
     }
   })
 
@@ -402,7 +404,8 @@ export function showRecordingOverlay(
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
+      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
+      sandbox: true
     }
   })
 

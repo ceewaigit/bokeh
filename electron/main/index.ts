@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol, ipcMain } from 'electron'
+import { app, BrowserWindow, protocol, ipcMain, shell } from 'electron'
 
 // Set app name immediately for best chance of persisting in Dock/Menu
 app.setName('Bokeh')
@@ -7,6 +7,7 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.bokeh.app')
 }
 import * as path from 'path'
+import * as fs from 'fs'
 import * as os from 'os'
 import { isDev, getRecordingsDirectory } from './config'
 import { makeVideoSrc } from './utils/video-url-factory'
@@ -43,10 +44,49 @@ import { installAppMenu } from './menu/app-menu'
 import { openWorkspaceWindow } from './windows/workspace-window'
 import { toggleTeleprompterWindow } from './windows/teleprompter-window'
 import { installNativeContextMenu } from './services/context-menu'
+import { assertTrustedIpcSender, isTrustedRendererUrl } from './utils/ipc-security'
+import { isSafeExternalUrl } from './utils/url-validation'
+import { isApprovedReadPath } from './utils/ipc-path-approvals'
+import { normalizeCrossPlatform } from './utils/path-normalizer'
 
 app.on('browser-window-created', (_event, window) => {
   enableCaptureProtection(window, `window-${window.id}`)
   installNativeContextMenu(window)
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  const isAllowedNavigation = (targetUrl: string): boolean => {
+    if (isTrustedRendererUrl(targetUrl)) return true
+    try {
+      const parsed = new URL(targetUrl)
+      if (parsed.protocol !== 'data:') return false
+      const current = window.webContents.getURL()
+      return !current || current === 'about:blank' || current.startsWith('data:')
+    } catch {
+      return false
+    }
+  }
+
+  window.webContents.on('will-navigate', (event, url) => {
+    if (isAllowedNavigation(url)) return
+    event.preventDefault()
+    console.warn('[Security] Blocked navigation to:', url)
+  })
+
+  window.webContents.on('will-redirect', (event, url) => {
+    if (isAllowedNavigation(url)) return
+    event.preventDefault()
+    console.warn('[Security] Blocked redirect to:', url)
+  })
+
+  // Prevent <webview> from being attached (common Electron sandbox escape surface).
+  window.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault()
+    console.warn('[Security] Blocked webview attach')
+  })
 })
 
 // Store file path if app receives open-file before ready (macOS cold start)
@@ -159,24 +199,30 @@ function registerAllHandlers(): void {
   setupExportHandler()
   setupThumbnailHandler()
 
-  // Path resolution handler - replaces path-resolver.ts functionality
-  ipcMain.handle('resolve-recording-path', async (_, filePath: string, folderPath?: string) => {
-    try {
-      // Handle absolute paths
-      if (path.isAbsolute(filePath)) {
-        const videoUrl = await makeVideoSrc(filePath, 'preview')
-        return videoUrl
-      }
+	  // Path resolution handler - replaces path-resolver.ts functionality
+	  ipcMain.handle('resolve-recording-path', async (event, filePath: string, folderPath?: string) => {
+	    try {
+	      assertTrustedIpcSender(event, 'resolve-recording-path')
 
-      // Handle data URIs - return as-is
-      if (filePath.startsWith('data:')) {
-        return filePath
-      }
+	      // Handle data URIs - return as-is
+	      if (filePath.startsWith('data:')) {
+	        return filePath
+	      }
 
-      const resolvedPath = resolveRecordingFilePath(filePath, folderPath)
-      if (!resolvedPath) {
-        throw new Error(`Recording file not found: ${filePath}`)
-      }
+	      const normalizedInput = normalizeCrossPlatform(filePath)
+	      let resolvedPath = resolveRecordingFilePath(normalizedInput, folderPath)
+
+	      // If not in allowed directories, check if path was user-approved (via file dialog)
+	      if (!resolvedPath && path.isAbsolute(normalizedInput)) {
+	        const normalizedPath = path.resolve(normalizedInput)
+	        if (isApprovedReadPath(event.sender, normalizedPath) && fs.existsSync(normalizedPath)) {
+	          resolvedPath = normalizedPath
+	        }
+	      }
+
+	      if (!resolvedPath) {
+	        throw new Error(`Recording file not found: ${filePath}`)
+	      }
       return await makeVideoSrc(resolvedPath, 'preview')
     } catch (error) {
       console.error('[IPC] Error resolving recording path:', error)

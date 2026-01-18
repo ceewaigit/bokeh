@@ -25,6 +25,7 @@ import { calculateWebcamAnimations } from '@/features/effects/utils/webcam-anima
 import { useOverlayContext } from '@/features/rendering/overlays/overlay-context';
 import { useComposition } from '../../context/CompositionContext';
 import { useVideoUrl } from '../../hooks/media/useVideoUrl';
+import { useVideoContainerCleanup } from '../../hooks/media/useVTDecoderCleanup';
 import { useProjectStore } from '@/features/core/stores/project-store';
 import { isProxySufficientForTarget } from '@/shared/utils/resolution-utils';
 import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
@@ -78,6 +79,11 @@ export const WebcamClipRenderer = React.memo(({
     const lastFrameRef = useRef<number>(-1);
     const lastExpectedTimeRef = useRef<number>(-1);
     const lastHardSeekAtMsRef = useRef<number>(0);
+    const isCorrectingRef = useRef<boolean>(false);
+    const driftTooLargeSinceMsRef = useRef<number | null>(null);
+    const seekTokenRef = useRef<number>(0);
+    const waitingForCanPlayTokenRef = useRef<number | null>(null);
+    const shouldPlayRef = useRef<boolean>(false);
 
     // Extract clips from items for convenience
     const clips = useMemo(() => items.map(item => item.clip), [items]);
@@ -101,6 +107,10 @@ export const WebcamClipRenderer = React.memo(({
     const effectiveVolume = Math.max(0, Math.min(1, playback.previewVolume ?? 1));
     const shouldMuteAudio = (!isRendering && (playback.previewMuted || effectiveVolume <= 0)) || !recording.hasAudio;
 
+    useEffect(() => {
+        shouldPlayRef.current = isPlaybackMode && expectedSourceTime != null;
+    }, [isPlaybackMode, expectedSourceTime]);
+
     // Sync timing:
     // - In playback: avoid seeking on clip boundaries and playbackRate changes.
     // - Seek only on user jumps / true discontinuities; otherwise use mild rate nudging.
@@ -108,21 +118,26 @@ export const WebcamClipRenderer = React.memo(({
         const video = videoRef.current;
         if (!video) return;
 
-        // No active item: hide overlay via opacity; keep video paused to avoid runaway playback.
-        if (expectedSourceTime == null) {
-            video.pause();
-            return;
-        }
-
         const nowMs = Date.now();
 
         const lastFrame = lastFrameRef.current;
         const frameDelta = lastFrame >= 0 ? Math.abs(frame - lastFrame) : 0;
         lastFrameRef.current = frame;
 
+        // No active item: hide overlay via opacity; keep video paused to avoid runaway playback.
+        if (expectedSourceTime == null) {
+            driftTooLargeSinceMsRef.current = null;
+            isCorrectingRef.current = false;
+            video.pause();
+            return;
+        }
+
         const lastExpected = lastExpectedTimeRef.current;
         const expectedDelta = lastExpected >= 0 ? Math.abs(expectedSourceTime - lastExpected) : 0;
         lastExpectedTimeRef.current = expectedSourceTime;
+
+        // Detect replay: large backward jump in expected time (user clicked play from beginning)
+        const isReplay = lastExpected >= 0 && (lastExpected - expectedSourceTime) > 0.5;
 
         // Always keep base playback rate updated (this is cheap and doesn't force a seek).
         // During playback we may temporarily nudge around this rate for drift correction.
@@ -133,13 +148,67 @@ export const WebcamClipRenderer = React.memo(({
             }
         };
 
-        const hardSeek = (targetSeconds: number) => {
-            const safeTarget = Number.isFinite(targetSeconds) ? Math.max(0, targetSeconds) : 0;
-            if (typeof video.fastSeek === 'function') {
-                video.fastSeek(safeTarget);
-            } else {
-                video.currentTime = safeTarget;
+        const playIfAllowed = (token: number) => {
+            if (token !== seekTokenRef.current) return;
+            if (!shouldPlayRef.current) return;
+            if (video.seeking) return;
+            if (!video.paused) return;
+
+            const tryPlay = () => {
+                if (token !== seekTokenRef.current) return;
+                if (!shouldPlayRef.current) return;
+                if (video.seeking) return;
+                if (!video.paused) return;
+                video.play().catch(err => {
+                    if (err?.name === 'NotAllowedError') {
+                        console.debug('[WebcamClipRenderer] Autoplay blocked:', err.message);
+                    }
+                });
+            };
+
+            // Avoid starting playback until we have future data after a seek.
+            // This prevents Chromium/Electron from stuttering heavily right after a discontinuity.
+            if (video.readyState >= 3) {
+                tryPlay();
+                return;
             }
+
+            if (waitingForCanPlayTokenRef.current === token) return;
+            waitingForCanPlayTokenRef.current = token;
+
+            const onCanPlay = () => {
+                if (waitingForCanPlayTokenRef.current === token) {
+                    waitingForCanPlayTokenRef.current = null;
+                }
+                tryPlay();
+            };
+
+            video.addEventListener('canplay', onCanPlay, { once: true });
+        };
+
+        const hardSeek = (targetSeconds: number) => {
+            if (video.seeking) return;
+            const safeTarget = Number.isFinite(targetSeconds) ? Math.max(0, targetSeconds) : 0;
+
+            // Cancel any pending "play when ready" from older seeks.
+            const token = ++seekTokenRef.current;
+            waitingForCanPlayTokenRef.current = null;
+            driftTooLargeSinceMsRef.current = null;
+
+            // Force a clean discontinuity: pause, seek, then resume after seek completes.
+            // Playing while seeking is a reliable way to trigger severe stutter in Chromium.
+            video.pause();
+            setPlaybackRate(basePlaybackRate);
+
+            video.addEventListener('seeked', () => playIfAllowed(token), { once: true });
+
+            try {
+                // Prefer accuracy over "fast" keyframe approximation for sync correctness.
+                video.currentTime = safeTarget;
+            } catch {
+                // Best-effort; some browsers throw if currentTime isn't seekable yet.
+            }
+
             lastHardSeekAtMsRef.current = nowMs;
         };
 
@@ -148,55 +217,69 @@ export const WebcamClipRenderer = React.memo(({
 
         // In paused/scrubbing/rendering: frame-accurate sync is preferred.
         if (!isPlaybackMode) {
+            driftTooLargeSinceMsRef.current = null;
             setPlaybackRate(basePlaybackRate);
             if (!video.seeking && absDrift > 0.02) {
                 hardSeek(expectedSourceTime);
             }
+            video.pause();
             return;
         }
 
         // Playback mode: avoid seek storms.
-        // Treat big frame/expected deltas as an explicit jump (timeline click/skip).
-        const isLikelyUserJump = frameDelta > 2 || expectedDelta > 0.5;
+        // Treat big frame/expected deltas or replay as an explicit jump (timeline click/skip).
+        const isLikelyUserJump = frameDelta > 2 || expectedDelta > 0.5 || isReplay;
 
         // If we just hard-seeked, give the browser a moment to settle/buffer.
-        const inSeekGracePeriod = nowMs - lastHardSeekAtMsRef.current < 600;
+        const inSeekGracePeriod = nowMs - lastHardSeekAtMsRef.current < 800;
 
-        // If drift is huge, we must resync regardless.
-        if (!video.seeking && (isLikelyUserJump || absDrift > 1.0)) {
+        // If user jumped (including replay) or we hit "ended", do a single clean resync.
+        if (!video.seeking && (isLikelyUserJump || video.ended)) {
+            isCorrectingRef.current = false; // Reset hysteresis on jump
             setPlaybackRate(basePlaybackRate);
             hardSeek(expectedSourceTime);
             return;
         }
 
+        // If drift stays very large for a sustained period, do one resync.
+        // This avoids turning transient buffering into a seek storm (which looks like ~1fps).
+        if (!video.seeking && !inSeekGracePeriod && absDrift > 1.25) {
+            if (driftTooLargeSinceMsRef.current == null) {
+                driftTooLargeSinceMsRef.current = nowMs;
+            } else if (nowMs - driftTooLargeSinceMsRef.current > 1000) {
+                isCorrectingRef.current = false;
+                setPlaybackRate(basePlaybackRate);
+                hardSeek(expectedSourceTime);
+                return;
+            }
+        } else {
+            driftTooLargeSinceMsRef.current = null;
+        }
+
         // Soft drift correction: nudge playbackRate instead of seeking.
         // Keeps smooth playback across clip boundaries and speed changes.
-        if (!video.seeking && !inSeekGracePeriod && absDrift > 0.08) {
-            const maxNudge = 0.15; // ±15%
-            const k = 0.35; // proportional gain (seconds -> rate multiplier)
+        // Use hysteresis to prevent oscillation when drift hovers around threshold
+        const DRIFT_ENABLE_THRESHOLD = 0.15;  // Start correcting at 150ms
+        const DRIFT_DISABLE_THRESHOLD = 0.08; // Stop correcting at 80ms
+
+        if (absDrift > DRIFT_ENABLE_THRESHOLD) {
+            isCorrectingRef.current = true;
+        } else if (absDrift < DRIFT_DISABLE_THRESHOLD) {
+            isCorrectingRef.current = false;
+        }
+
+        if (!video.seeking && !inSeekGracePeriod && isCorrectingRef.current) {
+            const maxNudge = 0.10; // ±10% (gentler than before)
+            const k = 0.20; // proportional gain - lower for smoother corrections
             const factor = Math.max(1 - maxNudge, Math.min(1 + maxNudge, 1 + driftSeconds * k));
             setPlaybackRate(basePlaybackRate * factor);
         } else {
             setPlaybackRate(basePlaybackRate);
         }
+
+        // Ensure playback is actually running (but never start playback while seeking).
+        playIfAllowed(seekTokenRef.current);
     }, [expectedSourceTime, frame, isPlaybackMode, basePlaybackRate]);
-
-    // Play/pause control
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!video) return;
-
-        if (isRendering || isScrubbing || !isPlaying) {
-            video.pause();
-            return;
-        }
-
-        video.play().catch(err => {
-            if (err?.name === 'NotAllowedError') {
-                console.debug('[WebcamClipRenderer] Autoplay blocked:', err.message);
-            }
-        });
-    }, [isPlaying, isScrubbing, isRendering]);
 
     // Volume control
     useEffect(() => {
@@ -257,6 +340,9 @@ export const WebcamClipRenderer = React.memo(({
         isPlaying,
         isScrubbing,
     });
+
+    // VTDecoder cleanup for macOS - prevents memory accumulation after repeated play/pause
+    const containerRef = useVideoContainerCleanup(videoUrl);
 
     // Animation
     const activeStartFrame = activeItem?.startFrame ?? 0;
@@ -393,17 +479,20 @@ export const WebcamClipRenderer = React.memo(({
                         volume={() => (shouldMuteAudio || expectedSourceTime == null ? 0 : effectiveVolume)}
                     />
                 ) : (
-                    <video
-                        ref={videoRef}
-                        src={videoUrl}
-                        style={{
-                            ...videoStyle,
-                            pointerEvents: 'none',
-                        }}
-                        crossOrigin="anonymous"
-                        preload="auto"
-                        playsInline
-                    />
+                    <div ref={containerRef} style={{ display: 'contents' }}>
+                        <video
+                            ref={videoRef}
+                            src={videoUrl}
+                            style={{
+                                ...videoStyle,
+                                pointerEvents: 'none',
+                            }}
+                            crossOrigin="anonymous"
+                            preload="auto"
+                            playsInline
+                            muted={shouldMuteAudio || expectedSourceTime == null}
+                        />
+                    </div>
                 )}
             </div>
         </div>

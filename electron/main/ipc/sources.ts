@@ -4,7 +4,8 @@
  */
 
 import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent } from 'electron'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 interface DesktopSourceOptions {
   types?: string[]
@@ -23,8 +24,9 @@ interface MediaConstraints {
 
 export function registerSourceHandlers(): void {
   // Return constraints that work with all Electron versions
-  ipcMain.handle('get-desktop-stream', async (_event: IpcMainInvokeEvent, sourceId: string, hasAudio: boolean = false): Promise<MediaConstraints> => {
+  ipcMain.handle('get-desktop-stream', async (event: IpcMainInvokeEvent, sourceId: string, hasAudio: boolean = false): Promise<MediaConstraints> => {
     try {
+      assertTrustedIpcSender(event, 'get-desktop-stream')
       // For desktop audio capture, explicitly request 'desktop' as chromeMediaSource
       const audioConstraints = hasAudio
         ? {
@@ -55,6 +57,7 @@ export function registerSourceHandlers(): void {
 
   ipcMain.handle('get-desktop-sources', async (event: IpcMainInvokeEvent, options: DesktopSourceOptions = {}) => {
     try {
+      assertTrustedIpcSender(event, 'get-desktop-sources')
       // Check permissions on macOS
       if (process.platform === 'darwin') {
         const status = systemPreferences.getMediaAccessStatus('screen')
@@ -74,7 +77,7 @@ export function registerSourceHandlers(): void {
             })
 
             if (result.response === 0) {
-              exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+              execFile('open', ['x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'])
             }
           }
 
@@ -218,7 +221,8 @@ export function registerSourceHandlers(): void {
     }
   })
 
-  ipcMain.handle('get-screens', async () => {
+  ipcMain.handle('get-screens', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'get-screens')
     return screen.getAllDisplays().map(display => ({
       id: display.id,
       bounds: display.bounds,
@@ -230,8 +234,9 @@ export function registerSourceHandlers(): void {
   })
 
   // Get window bounds for a specific source
-  ipcMain.handle('get-source-bounds', async (_event: IpcMainInvokeEvent, sourceId: string) => {
+  ipcMain.handle('get-source-bounds', async (event: IpcMainInvokeEvent, sourceId: string) => {
     try {
+      assertTrustedIpcSender(event, 'get-source-bounds')
       // For screens, return the display bounds
       if (sourceId.startsWith('screen:')) {
         const screenIdMatch = sourceId.match(/screen:(\d+):/)
@@ -284,7 +289,8 @@ export function registerSourceHandlers(): void {
     }
   })
 
-  ipcMain.handle('get-platform', async () => {
+  ipcMain.handle('get-platform', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'get-platform')
     return {
       platform: process.platform,
       arch: process.arch,

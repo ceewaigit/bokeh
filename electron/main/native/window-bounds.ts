@@ -4,9 +4,11 @@
  */
 
 import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 export interface WindowBounds {
   x: number
@@ -131,24 +133,30 @@ export async function bringAppToFront(appName: string): Promise<boolean> {
     // Use the actual owner name if found, otherwise use the provided name
     const actualAppName = matchingWindow?.ownerName || appName
 
-    // Use AppleScript to activate the app and bring it to front
+    // Use AppleScript with argv to avoid script injection.
     const script = `
-      tell application "${actualAppName}"
-        activate
-      end tell
-    `
-    await execAsync(`osascript -e '${script}'`)
+on run argv
+  set targetApp to item 1 of argv
+  tell application targetApp
+    activate
+  end tell
+end run
+`
+    await execFileAsync('osascript', ['-e', script, '--', actualAppName])
     console.log(`[WindowBounds] Brought ${actualAppName} to front`)
     return true
   } catch (error) {
     // Fallback: try using System Events to bring the window to front by process name
     try {
       const script = `
-        tell application "System Events"
-          set frontmost of (first process whose name contains "${appName}") to true
-        end tell
-      `
-      await execAsync(`osascript -e '${script}'`)
+on run argv
+  set needle to item 1 of argv
+  tell application "System Events"
+    set frontmost of (first process whose name contains needle) to true
+  end tell
+end run
+`
+      await execFileAsync('osascript', ['-e', script, '--', appName])
       console.log(`[WindowBounds] Brought ${appName} to front via System Events`)
       return true
     } catch {

@@ -20,7 +20,7 @@ export interface DynamicExportSettings {
   concurrency: number;
   jpegQuality: number;
   videoBitrate: string;
-  x264Preset: import('@remotion/renderer/dist/options/x264-preset').X264Preset;
+  x264Preset: import('@remotion/renderer').X264Preset;
   useGPU: boolean;
   offthreadVideoCacheSizeInBytes: number;
   enableAdaptiveOptimization: boolean;

@@ -4,10 +4,12 @@
  */
 
 import { ipcMain, IpcMainInvokeEvent, nativeImage, app } from 'electron'
-import { execSync } from 'child_process'
+import { spawnSync } from 'child_process'
 import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 const WALLPAPER_EXTS = new Set(['.heic', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.gif', '.webp'])
 const THUMB_MAX = 300
@@ -142,8 +144,8 @@ async function getThumbnailDataUrl(imagePath: string): Promise<string | null> {
 
   if (process.platform === 'darwin') {
     try {
-      const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
-      execSync(`sips -Z ${THUMB_MAX} -s format jpeg "${imagePath}" --out "${tempFile}"`, { stdio: 'ignore' })
+      const tempFile = path.join(require('os').tmpdir(), `thumb-${crypto.randomUUID()}.jpg`)
+      spawnSync('sips', ['-Z', String(THUMB_MAX), '-s', 'format', 'jpeg', imagePath, '--out', tempFile], { stdio: 'ignore' })
       const buf = await fs.readFile(tempFile)
       await fs.writeFile(thumbFile, buf).catch(() => { })
       await fs.unlink(tempFile).catch(() => { })
@@ -182,8 +184,8 @@ async function loadAndResizeToDataUrl(imagePath: string, maxDim: number): Promis
   const ext = path.extname(imagePath).toLowerCase()
 
   if (process.platform === 'darwin' && ext === '.heic') {
-    const tempFile = path.join(require('os').tmpdir(), `wallpaper-${Date.now()}.jpg`)
-    execSync(`sips -s format jpeg "${imagePath}" --out "${tempFile}"`, { stdio: 'ignore' })
+    const tempFile = path.join(require('os').tmpdir(), `wallpaper-${crypto.randomUUID()}.jpg`)
+    spawnSync('sips', ['-s', 'format', 'jpeg', imagePath, '--out', tempFile], { stdio: 'ignore' })
     const buf = await fs.readFile(tempFile)
     try { await fs.unlink(tempFile) } catch { }
     const img = nativeImage.createFromBuffer(buf)
@@ -218,7 +220,8 @@ export function registerWallpaperHandlers(): void {
   // Clean up old cache files on startup (await completion before handling requests)
   initializationPromise = cleanupOldCacheFiles()
 
-  ipcMain.handle('get-macos-wallpapers', async () => {
+  ipcMain.handle('get-macos-wallpapers', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'get-macos-wallpapers')
     // Ensure cache cleanup is complete before serving requests
     if (initializationPromise) await initializationPromise
 
@@ -248,25 +251,44 @@ export function registerWallpaperHandlers(): void {
     }
   })
 
-  ipcMain.handle('get-wallpaper-thumbnails', async (_event: IpcMainInvokeEvent, imagePaths: string[]) => {
+  ipcMain.handle('get-wallpaper-thumbnails', async (event: IpcMainInvokeEvent, imagePaths: string[]) => {
+    assertTrustedIpcSender(event, 'get-wallpaper-thumbnails')
     // Ensure cache cleanup is complete before serving requests
     if (initializationPromise) await initializationPromise
 
     return await getWallpaperThumbnails(imagePaths)
   })
 
-  ipcMain.handle('load-wallpaper-image', async (_event: IpcMainInvokeEvent, imagePath: string) => {
+  ipcMain.handle('load-wallpaper-image', async (event: IpcMainInvokeEvent, imagePath: string) => {
+    assertTrustedIpcSender(event, 'load-wallpaper-image')
     try {
       const allowedDirs = [
         '/System/Library/Desktop Pictures',
         '/Library/Desktop Pictures'
       ]
 
-      const isAllowed = allowedDirs.some(dir => imagePath.startsWith(dir))
+      // Resolve symlinks to prevent path traversal attacks
+      let realPath: string
+      try {
+        realPath = fsSync.realpathSync(imagePath)
+      } catch {
+        throw new Error('Access denied: invalid path')
+      }
+
+      const isAllowed = allowedDirs.some(dir => {
+        try {
+          const realDir = fsSync.realpathSync(dir)
+          return realPath.startsWith(realDir + path.sep) || realPath === realDir
+        } catch {
+          // Fail closed: if we can't resolve the directory, deny access
+          // This prevents symlink bypass attacks
+          return false
+        }
+      })
       if (!isAllowed) {
         throw new Error('Access denied')
       }
-      return await loadAndResizeToDataUrl(imagePath, WALLPAPER_MAX)
+      return await loadAndResizeToDataUrl(realPath, WALLPAPER_MAX)
     } catch (error) {
       console.error('[Wallpapers] Error loading wallpaper image:', error)
       throw error

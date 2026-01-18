@@ -5,6 +5,7 @@
 
 import { ipcMain, IpcMainInvokeEvent, desktopCapturer } from 'electron'
 import { showMonitorOverlay, hideMonitorOverlay, showWindowBoundsOverlay } from '../windows/monitor-overlay'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 // Cache for source information
 const sourceCache = new Map<string, { name: string; type: string }>()
@@ -31,8 +32,9 @@ async function updateSourceCache() {
 
 export function registerOverlayWindowHandlers(): void {
   // Monitor overlay handlers
-  ipcMain.handle('show-monitor-overlay', async (_event: IpcMainInvokeEvent, displayId?: number) => {
+  ipcMain.handle('show-monitor-overlay', async (event: IpcMainInvokeEvent, displayId?: number) => {
     try {
+      assertTrustedIpcSender(event, 'show-monitor-overlay')
       showMonitorOverlay(displayId)
       return { success: true }
     } catch (error) {
@@ -41,8 +43,9 @@ export function registerOverlayWindowHandlers(): void {
     }
   })
 
-  ipcMain.handle('show-window-overlay', async (_event: IpcMainInvokeEvent, windowId: string) => {
+  ipcMain.handle('show-window-overlay', async (event: IpcMainInvokeEvent, windowId: string) => {
     try {
+      assertTrustedIpcSender(event, 'show-window-overlay')
       // Update source cache to get latest window information
       await updateSourceCache()
 
@@ -97,8 +100,9 @@ export function registerOverlayWindowHandlers(): void {
     }
   })
 
-  ipcMain.handle('hide-monitor-overlay', async () => {
+  ipcMain.handle('hide-monitor-overlay', async (event: IpcMainInvokeEvent) => {
     try {
+      assertTrustedIpcSender(event, 'hide-monitor-overlay')
       hideMonitorOverlay()
       return { success: true }
     } catch (error) {

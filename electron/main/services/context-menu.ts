@@ -1,5 +1,6 @@
 import { BrowserWindow, Menu, clipboard, type MenuItemConstructorOptions, shell } from 'electron'
 import { isDev } from '../config'
+import { isSafeExternalUrl } from '../utils/url-validation'
 
 export function installNativeContextMenu(window: BrowserWindow): void {
   window.webContents.on('context-menu', (_event, params) => {
@@ -23,7 +24,13 @@ export function installNativeContextMenu(window: BrowserWindow): void {
     if (params.linkURL) {
       if (template.length) template.push({ type: 'separator' })
       template.push(
-        { label: 'Open Link', click: () => void shell.openExternal(params.linkURL) },
+        {
+          label: 'Open Link',
+          click: () => {
+            if (!isSafeExternalUrl(params.linkURL)) return
+            void shell.openExternal(params.linkURL)
+          }
+        },
         { label: 'Copy Link', click: () => clipboard.writeText(params.linkURL) }
       )
     }

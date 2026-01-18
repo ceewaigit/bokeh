@@ -6,6 +6,7 @@
 import { ipcMain, BrowserWindow, IpcMainInvokeEvent, globalShortcut } from 'electron'
 import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
 import { showRecordingOverlay, hideRecordingOverlay, hideMonitorOverlay } from '../windows/monitor-overlay'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 let countdownWindow: BrowserWindow | null = null
 let countdownWindowDisplayId: number | undefined = undefined
@@ -50,13 +51,15 @@ function unregisterCountdownEscapeShortcut(): void {
 
 export function registerRecordingWindowHandlers(): void {
   // Set recording state - called by renderer when recording starts/stops
-  ipcMain.handle('set-recording-state', (_event, isRecording: boolean) => {
+  ipcMain.handle('set-recording-state', (event: IpcMainInvokeEvent, isRecording: boolean) => {
+    assertTrustedIpcSender(event, 'set-recording-state')
     global.isRecordingActive = isRecording
     console.log('[RecordingWindows] Recording state set to:', isRecording)
     return { success: true }
   })
 
-  ipcMain.handle('show-countdown', async (_event: IpcMainInvokeEvent, number: number, displayId?: number) => {
+  ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number, displayId?: number) => {
+    assertTrustedIpcSender(event, 'show-countdown')
     // Hide any overlay when countdown starts
     hideMonitorOverlay()
 
@@ -85,7 +88,8 @@ export function registerRecordingWindowHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('hide-countdown', async () => {
+  ipcMain.handle('hide-countdown', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'hide-countdown')
     // Unregister Escape shortcut when countdown ends
     unregisterCountdownEscapeShortcut()
 
@@ -100,11 +104,12 @@ export function registerRecordingWindowHandlers(): void {
   ipcMain.handle(
     'show-recording-overlay',
     async (
-      _event,
+      event: IpcMainInvokeEvent,
       bounds: { x: number; y: number; width: number; height: number },
       label?: string,
       options?: { displayId?: number; relativeToDisplay?: boolean; mode?: 'full' | 'dots' | 'hidden' }
     ) => {
+      assertTrustedIpcSender(event, 'show-recording-overlay')
       try {
         showRecordingOverlay(bounds, label, options)
         return { success: true }
@@ -115,7 +120,8 @@ export function registerRecordingWindowHandlers(): void {
     }
   )
 
-  ipcMain.handle('hide-recording-overlay', async () => {
+  ipcMain.handle('hide-recording-overlay', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'hide-recording-overlay')
     try {
       hideRecordingOverlay()
       return { success: true }

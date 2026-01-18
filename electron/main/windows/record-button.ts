@@ -41,7 +41,8 @@ export function createRecordButton(): BrowserWindow {
       webSecurity: true,
       allowRunningInsecureContent: false,
       devTools: isDev,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      sandbox: true
     },
     icon: isDev
       ? path.join(__dirname, '../../../../public/brand/icon.png')

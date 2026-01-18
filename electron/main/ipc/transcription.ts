@@ -4,6 +4,8 @@ import { downloadModel, getAvailableModelNames, listModels, recommendModel } fro
 import { getWhisperBinaryStatus, installWhisperBinary } from '../transcription/whisper-binary-manager'
 import { transcribeRecording } from '../transcription/transcription-handler'
 import type { TranscriptionProgress, TranscriptionResult, TranscriptionStartOptions, TranscriptionStatusUpdate } from '../transcription/types'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
+import { resolveRecordingFilePath } from '../utils/file-resolution'
 
 interface ActiveTranscription {
   controller: AbortController
@@ -33,18 +35,24 @@ function sendStatus(event: IpcMainInvokeEvent, update: TranscriptionStatusUpdate
 }
 
 export function registerTranscriptionHandlers(): void {
-  ipcMain.handle('transcription:list-models', async () => {
+  ipcMain.handle('transcription:list-models', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'transcription:list-models')
     return {
       available: getAvailableModelNames(),
       downloaded: listModels()
     }
   })
 
-  ipcMain.handle('transcription:recommend-model', async () => {
+  ipcMain.handle('transcription:recommend-model', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'transcription:recommend-model')
     return recommendModel()
   })
 
   ipcMain.handle('transcription:download-model', async (event, modelName: string) => {
+    assertTrustedIpcSender(event, 'transcription:download-model')
+    if (!getAvailableModelNames().includes(modelName)) {
+      return { success: false, error: 'Unknown model' }
+    }
     sendProgress(event, {
       recordingId: '',
       stage: 'download',
@@ -77,6 +85,7 @@ export function registerTranscriptionHandlers(): void {
   })
 
   ipcMain.handle('transcription:start', async (event, options: TranscriptionStartOptions): Promise<TranscriptionResult> => {
+    assertTrustedIpcSender(event, 'transcription:start')
     const recordingId = options.recordingId
     if (activeTranscriptions.size > 0) {
       return { success: false, error: 'Another transcription is already in progress. Please wait for it to finish.' }
@@ -92,8 +101,14 @@ export function registerTranscriptionHandlers(): void {
     sendStatus(event, { recordingId, status: 'processing' })
 
     try {
+      const resolvedPath = resolveRecordingFilePath(options.filePath, options.folderPath)
+      if (!resolvedPath) {
+        sendStatus(event, { recordingId, status: 'failed', message: 'Recording file not found' })
+        return { success: false, error: 'Recording file not found' }
+      }
+
       const result = await transcribeRecording(
-        options,
+        { ...options, filePath: resolvedPath },
         (progress) => sendProgress(event, progress),
         {
           signal: controller.signal,
@@ -121,7 +136,8 @@ export function registerTranscriptionHandlers(): void {
     }
   })
 
-  ipcMain.handle('transcription:cancel', async (_event, recordingId: string) => {
+  ipcMain.handle('transcription:cancel', async (event: IpcMainInvokeEvent, recordingId: string) => {
+    assertTrustedIpcSender(event, 'transcription:cancel')
     const entry = activeTranscriptions.get(recordingId)
     if (!entry) {
       return { success: false, error: 'No active transcription' }
@@ -133,11 +149,13 @@ export function registerTranscriptionHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('transcription:whisper-status', async () => {
+  ipcMain.handle('transcription:whisper-status', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'transcription:whisper-status')
     return getWhisperBinaryStatus()
   })
 
   ipcMain.handle('transcription:install-whisper', async (event) => {
+    assertTrustedIpcSender(event, 'transcription:install-whisper')
     return installWhisperBinary((stage, progress) => {
       sendProgress(event, {
         recordingId: '',

@@ -36,7 +36,8 @@ export function showWebcamPreview(deviceId: string): void {
         webPreferences: {
             preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
             contextIsolation: true,
-            nodeIntegration: false
+            nodeIntegration: false,
+            sandbox: true
         }
     })
 

@@ -3,13 +3,15 @@
  * Handles teleprompter and webcam preview windows.
  */
 
-import { ipcMain } from 'electron'
+import { ipcMain, IpcMainInvokeEvent } from 'electron'
 import { showTeleprompterWindow, hideTeleprompterWindow, toggleTeleprompterWindow } from '../windows/teleprompter-window'
 import { showWebcamPreview, hideWebcamPreview } from '../windows/webcam-preview-window'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 export function registerUtilityWindowHandlers(): void {
   // Teleprompter window handlers
-  ipcMain.handle('toggle-teleprompter-window', async () => {
+  ipcMain.handle('toggle-teleprompter-window', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'toggle-teleprompter-window')
     try {
       const isVisible = toggleTeleprompterWindow()
       return { success: true, isVisible }
@@ -19,7 +21,8 @@ export function registerUtilityWindowHandlers(): void {
     }
   })
 
-  ipcMain.handle('show-teleprompter-window', async () => {
+  ipcMain.handle('show-teleprompter-window', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'show-teleprompter-window')
     try {
       showTeleprompterWindow()
       return { success: true }
@@ -29,7 +32,8 @@ export function registerUtilityWindowHandlers(): void {
     }
   })
 
-  ipcMain.handle('hide-teleprompter-window', async () => {
+  ipcMain.handle('hide-teleprompter-window', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'hide-teleprompter-window')
     try {
       hideTeleprompterWindow()
       return { success: true }
@@ -40,7 +44,8 @@ export function registerUtilityWindowHandlers(): void {
   })
 
   // Webcam preview window handlers
-  ipcMain.handle('show-webcam-preview', async (_event, deviceId: string) => {
+  ipcMain.handle('show-webcam-preview', async (event: IpcMainInvokeEvent, deviceId: string) => {
+    assertTrustedIpcSender(event, 'show-webcam-preview')
     try {
       showWebcamPreview(deviceId)
       return { success: true }
@@ -50,7 +55,8 @@ export function registerUtilityWindowHandlers(): void {
     }
   })
 
-  ipcMain.handle('hide-webcam-preview', async () => {
+  ipcMain.handle('hide-webcam-preview', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'hide-webcam-preview')
     try {
       hideWebcamPreview()
       return { success: true }

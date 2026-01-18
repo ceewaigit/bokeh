@@ -1,6 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent, WebContents } from 'electron'
 import { getUIohook, startUIohook, stopUIohook, registerHandler, unregisterAllHandlers, heartbeat } from '../utils/uiohook-manager'
 import { logger as Logger } from '../utils/logger'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 // Get uiohook instance from shared manager
 const uIOhook = getUIohook('keyboard-tracking')
@@ -307,6 +308,7 @@ export function stopKeyboardTracking(): void {
 export function registerKeyboardTrackingHandlers(): void {
   ipcMain.handle('start-keyboard-tracking', async (event: IpcMainInvokeEvent) => {
     try {
+      assertTrustedIpcSender(event, 'start-keyboard-tracking')
       startKeyboardTracking(event.sender)
       return { success: true }
     } catch (error: any) {
@@ -315,8 +317,9 @@ export function registerKeyboardTrackingHandlers(): void {
     }
   })
 
-  ipcMain.handle('stop-keyboard-tracking', async () => {
+  ipcMain.handle('stop-keyboard-tracking', async (event: IpcMainInvokeEvent) => {
     try {
+      assertTrustedIpcSender(event, 'stop-keyboard-tracking')
       stopKeyboardTracking()
       return { success: true }
     } catch (error: any) {

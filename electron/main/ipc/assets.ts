@@ -1,7 +1,8 @@
-import { ipcMain, nativeImage, app } from 'electron'
+import { ipcMain, nativeImage, app, IpcMainInvokeEvent } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { makeVideoSrc } from '../utils/video-url-factory'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'])
 const ALPHA_THRESHOLD = 8
@@ -425,7 +426,8 @@ function numericSortKey(filename: string): number {
 }
 
 export function registerAssetHandlers(): void {
-  ipcMain.handle('list-parallax-presets', async () => {
+  ipcMain.handle('list-parallax-presets', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'list-parallax-presets')
     const root = getParallaxRootDir()
 
     try {
@@ -458,7 +460,8 @@ export function registerAssetHandlers(): void {
   })
 
   // List pre-installed wallpapers from public/wallpapers
-  ipcMain.handle('list-preinstalled-wallpapers', async () => {
+  ipcMain.handle('list-preinstalled-wallpapers', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'list-preinstalled-wallpapers')
     const root = getWallpapersRootDir()
     const logAssets = process.env.DEBUG_ASSETS === '1'
     if (logAssets) console.log('[Assets] Loading preinstalled wallpapers from:', root)
@@ -521,7 +524,8 @@ export function registerAssetHandlers(): void {
   })
 
   // List available device mockups from public/mockups
-  ipcMain.handle('list-available-mockups', async () => {
+  ipcMain.handle('list-available-mockups', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'list-available-mockups')
     const root = getMockupsRootDir()
     console.log('[Assets] Scanning mockups from:', root)
 

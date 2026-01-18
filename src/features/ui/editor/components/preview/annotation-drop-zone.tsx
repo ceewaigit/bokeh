@@ -4,7 +4,7 @@
  * Extracted from preview-interactions.tsx for single responsibility.
  */
 
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback } from 'react'
 import { AnnotationType } from '@/types/project'
 import { EffectLayerType } from '@/features/effects/types'
 import { useProjectStore } from '@/features/core/stores/project-store'

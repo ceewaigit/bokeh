@@ -6,6 +6,7 @@
 import { ipcMain, app } from 'electron'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 const execAsync = promisify(exec)
 
@@ -14,7 +15,8 @@ let desktopIconsHiddenByApp = false
 
 export function registerDesktopIconHandlers(): void {
   // Desktop icons and widgets visibility handlers (macOS only)
-  ipcMain.handle('hide-desktop-icons', async () => {
+  ipcMain.handle('hide-desktop-icons', async (event) => {
+    assertTrustedIpcSender(event, 'hide-desktop-icons')
     if (process.platform !== 'darwin') {
       return { success: false, error: 'Only supported on macOS' }
     }
@@ -43,7 +45,8 @@ export function registerDesktopIconHandlers(): void {
     }
   })
 
-  ipcMain.handle('show-desktop-icons', async () => {
+  ipcMain.handle('show-desktop-icons', async (event) => {
+    assertTrustedIpcSender(event, 'show-desktop-icons')
     if (process.platform !== 'darwin') {
       return { success: false, error: 'Only supported on macOS' }
     }

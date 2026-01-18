@@ -11,6 +11,22 @@ export interface WhisperModel {
 
 const MODEL_DIR_NAME = 'models/whisper'
 const DEFAULT_MODELS = ['base', 'small', 'medium']
+const ALLOWED_MODEL_DOWNLOAD_HOSTS = ['huggingface.co', 'hf.co', '.huggingface.co']
+
+function assertAllowedModelDownloadUrl(urlString: string): string {
+  const url = new URL(urlString)
+  if (url.protocol !== 'https:') {
+    throw new Error(`Blocked non-HTTPS model download URL: ${urlString}`)
+  }
+  const host = url.hostname.toLowerCase()
+  const allowed = ALLOWED_MODEL_DOWNLOAD_HOSTS.some(allowedHost =>
+    allowedHost.startsWith('.') ? host.endsWith(allowedHost) : host === allowedHost
+  )
+  if (!allowed) {
+    throw new Error(`Blocked model download host: ${host}`)
+  }
+  return url.toString()
+}
 
 function getSearchPaths(): string[] {
   const candidates: string[] = []
@@ -79,7 +95,15 @@ function downloadFile(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const doRequest = (requestUrl: string, redirectsLeft: number) => {
-      https.get(requestUrl, response => {
+      let safeUrl: string
+      try {
+        safeUrl = assertAllowedModelDownloadUrl(requestUrl)
+      } catch (e) {
+        reject(e)
+        return
+      }
+
+      https.get(safeUrl, response => {
         // Handle redirects (301, 302, 303, 307, 308)
         if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400) {
           const location = response.headers.location
@@ -92,7 +116,13 @@ function downloadFile(
             return
           }
           // Resolve relative URLs
-          const redirectUrl = location.startsWith('http') ? location : new URL(location, requestUrl).toString()
+          const redirectUrl = location.startsWith('http') ? location : new URL(location, safeUrl).toString()
+          try {
+            assertAllowedModelDownloadUrl(redirectUrl)
+          } catch (e) {
+            reject(e)
+            return
+          }
           doRequest(redirectUrl, redirectsLeft - 1)
           return
         }

@@ -11,7 +11,6 @@ import { describe, it, expect } from '@jest/globals'
 import type { Project, Clip, WebcamLayoutData, Recording } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
-import { addClipToTrack } from '@/features/ui/timeline/clips/clip-crud'
 import { reflowClips } from '@/features/ui/timeline/clips/clip-reflow'
 
 // --- Test Generators ---

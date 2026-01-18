@@ -114,6 +114,10 @@ class PluginRegistryClass {
      */
     load() {
         if (typeof window === 'undefined') return
+        const customPluginsEnabled =
+            process.env.NODE_ENV === 'development' ||
+            process.env.NEXT_PUBLIC_ENABLE_CUSTOM_PLUGINS === '1'
+        if (!customPluginsEnabled) return
 
         try {
             const stored = localStorage.getItem('bokeh_custom_plugins')

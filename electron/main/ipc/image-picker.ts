@@ -7,6 +7,7 @@ import { ipcMain, IpcMainInvokeEvent, BrowserWindow, dialog, nativeImage, app } 
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 // Allowed image extensions for validation
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.tiff', '.tif'])
@@ -57,6 +58,7 @@ function isTrustedAppPath(imagePath: string): boolean {
 export function registerImagePickerHandlers(): void {
   // Image selection for custom backgrounds
   ipcMain.handle('select-image-file', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'select-image-file')
     const mainWindow = BrowserWindow.fromWebContents(event.sender)
 
     if (!mainWindow) return null
@@ -80,8 +82,9 @@ export function registerImagePickerHandlers(): void {
     return selectedPath
   })
 
-  ipcMain.handle('load-image-as-data-url', async (_event: IpcMainInvokeEvent, imagePath: string) => {
+  ipcMain.handle('load-image-as-data-url', async (event: IpcMainInvokeEvent, imagePath: string) => {
     try {
+      assertTrustedIpcSender(event, 'load-image-as-data-url')
       // Security validation
       // 1. Path must be absolute (no relative path traversal)
       if (!path.isAbsolute(imagePath)) {

@@ -5,9 +5,12 @@ import { resolveVideoUrls, resolveMetadataUrls, extractClipsFromSegments, extrac
 import { getRecordingsDirectory } from '../config'
 import { getVideoServer } from '../services/video-http-server'
 import { killRemotionChromiumProcesses } from '../utils/remotion-chromium-cleanup'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
+import { consumeApprovedSavePath } from '../utils/ipc-path-approvals'
 
 export function setupThumbnailHandler() {
     ipcMain.handle('generate-thumbnail', async (event, { segments, recordings, metadata, settings, projectFilePath, frame, outputPath, preferOffthreadVideo, cleanupAfterRender }) => {
+        assertTrustedIpcSender(event, 'generate-thumbnail')
         const shouldCleanup = cleanupAfterRender !== false
         try {
             console.log('[Thumbnail] Generating thumbnail at frame:', frame)
@@ -29,6 +32,16 @@ export function setupThumbnailHandler() {
                     return { success: false, canceled: true }
                 }
                 filePath = selectedPath
+            } else {
+                const resolved = path.resolve(filePath)
+                const ext = path.extname(resolved).toLowerCase()
+                if (!['.jpg', '.jpeg', '.png'].includes(ext)) {
+                    return { success: false, error: 'Invalid thumbnail file extension' }
+                }
+                if (!consumeApprovedSavePath(event.sender, resolved)) {
+                    return { success: false, error: 'Access denied: path not approved by save dialog' }
+                }
+                filePath = resolved
             }
 
             // 2. Prepare input props (similar to export)

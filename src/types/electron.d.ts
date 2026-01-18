@@ -162,6 +162,8 @@ export interface ElectronAPI {
   clearPreviewProxies?: () => Promise<{ success: boolean }>
   clearGlowProxies?: () => Promise<{ success: boolean }>
   getProxyCacheSize?: () => Promise<{ size: number }>
+  // Approve read paths for drag-and-drop imports
+  approveReadPaths?: (paths: string[]) => Promise<void>
   onProxyProgress?: (callback: (event: any, data: {
     recordingId: string
     type: 'preview' | 'glow'

@@ -6,7 +6,6 @@
  */
 
 import type { Project, Track } from '@/types/project'
-import { TrackType } from '@/types/project'
 import { TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
 
 /**

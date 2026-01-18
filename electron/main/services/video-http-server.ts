@@ -29,8 +29,13 @@ let serverInstance: {
  * Middleware to check Host header against DNS rebinding attacks
  */
 const hostGuard = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const host = req.headers.host;
-  if (host && (host.startsWith('localhost') || host.startsWith('127.0.0.1'))) {
+  const host = String(req.headers.host || '').toLowerCase();
+  const allowed =
+    host === 'localhost' ||
+    host.startsWith('localhost:') ||
+    host === '127.0.0.1' ||
+    host.startsWith('127.0.0.1:');
+  if (allowed) {
     return next();
   }
   res.status(403).send('Forbidden');

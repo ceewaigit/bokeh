@@ -1,5 +1,5 @@
 import { systemPreferences, BrowserWindow } from 'electron'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 
 declare global {
     var screenRecordingPermission: string
@@ -167,7 +167,7 @@ export class PermissionService {
             if (process.platform === 'darwin') {
                 try {
                     console.log('🔐 [MOCK] Opening System Preferences for screen recording permission')
-                    exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"')
+                    execFile('open', ['x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'])
                 } catch (e) {
                     console.error('Failed to open settings in mock mode:', e)
                 }
@@ -186,8 +186,8 @@ export class PermissionService {
 
         try {
             console.log('🔐 Opening System Preferences for screen recording permission')
-            // Using exec with 'open' command is often more reliable for custom URL schemes on macOS
-            exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"')
+            // Using execFile with 'open' command for custom URL schemes on macOS
+            execFile('open', ['x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'])
 
             // Re-check status immediately
             const result = this.checkScreenRecordingPermission()
@@ -280,7 +280,7 @@ export class PermissionService {
         const url = urls[type]
         if (url) {
             console.log(`🔐 Opening System Preferences for ${type} permission`)
-            exec(`open "${url}"`)
+            execFile('open', [url])
         }
     }
 

@@ -6,6 +6,7 @@
 import { ipcMain, BrowserWindow, IpcMainInvokeEvent, systemPreferences } from 'electron'
 import { hideMonitorOverlay } from '../windows/monitor-overlay'
 import { openWorkspaceWindow } from '../windows/workspace-window'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 export function registerWindowControlHandlers(): void {
   ipcMain.on('titlebar-double-click', (event) => {
@@ -32,7 +33,8 @@ export function registerWindowControlHandlers(): void {
     openWorkspaceWindow({ openSettings: true })
   })
 
-  ipcMain.handle('minimize-record-button', () => {
+  ipcMain.handle('minimize-record-button', (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'minimize-record-button')
     // Hide any overlay when minimizing record button
     hideMonitorOverlay()
     // Hide record button
@@ -42,7 +44,8 @@ export function registerWindowControlHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('show-record-button', (_event, options?: { hideMainWindow?: boolean }) => {
+  ipcMain.handle('show-record-button', (event: IpcMainInvokeEvent, options?: { hideMainWindow?: boolean }) => {
+    assertTrustedIpcSender(event, 'show-record-button')
     // Show record button
     if (global.recordButton) {
       global.recordButton.show()
@@ -69,12 +72,14 @@ export function registerWindowControlHandlers(): void {
     }
   })
 
-  ipcMain.handle('get-main-window-id', () => {
+  ipcMain.handle('get-main-window-id', (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'get-main-window-id')
     return global.mainWindow?.id
   })
 
   // Dynamic content-based sizing
   ipcMain.handle('set-window-content-size', (event: IpcMainInvokeEvent, dimensions: { width: number; height: number }) => {
+    assertTrustedIpcSender(event, 'set-window-content-size')
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window && dimensions.width > 0 && dimensions.height > 0) {
       const currentBounds = window.getBounds()

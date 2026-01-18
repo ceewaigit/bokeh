@@ -28,6 +28,10 @@ const CURSOR_NATURAL_DIRECTIONS: Partial<Record<CursorType, { x: number; y: numb
 // Moving opposed (lower-right for arrow) = 1.3x tilt (pushes against shape)
 const SHAPE_ASYMMETRY_FACTOR = 0.3
 
+// Stable empty array reference to prevent unnecessary re-renders in consuming components
+// When clickEffects is empty, returning the same reference allows React.memo to skip updates
+const EMPTY_CLICK_EFFECTS: ClickEffect[] = []
+
 // Reference width for converting normalized velocities to pixel-equivalent units.
 // This ensures velocity thresholds continue to work correctly with normalized coordinates.
 const REFERENCE_WIDTH = CURSOR_CONSTANTS.REFERENCE_WIDTH
@@ -415,7 +419,8 @@ export function calculateCursorState(
     rotation,
     tiltX,
     tiltY,
-    clickEffects: activeClickEffects,
+    // Use stable empty array reference to prevent breaking memoization in CursorLayer
+    clickEffects: activeClickEffects.length > 0 ? activeClickEffects : EMPTY_CLICK_EFFECTS,
     motionBlur,
     timestamp
   }

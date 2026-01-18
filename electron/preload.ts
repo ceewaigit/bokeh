@@ -15,7 +15,8 @@ const allowedIpcInvokeChannels = new Set([
   'export-video',
   'export-cancel',
   'export-cleanup',
-  'export-stream-chunk'
+  'export-stream-chunk',
+  'export-stream-buffer-chunk'
 ])
 
 const allowedIpcOnChannels = new Set([
@@ -211,6 +212,12 @@ const electronAPI = {
   },
 
   removeMouseListener: (event: string, callback: (...args: any[]) => void) => {
+    // Only allow removal from mouse-related channels
+    const allowedEvents = ['mouse-move', 'mouse-click', 'scroll-event']
+    if (!allowedEvents.includes(event)) {
+      console.warn(`Blocked removeListener for non-mouse channel: ${event}`)
+      return
+    }
     ipcRenderer.removeListener(event, callback)
   },
 
@@ -485,6 +492,11 @@ const electronAPI = {
   getProxyCacheSize: () =>
     ipcRenderer.invoke('get-proxy-cache-size'),
 
+  // Approve read paths for drag-and-drop imports
+  // This allows the video-stream protocol to serve user-selected files
+  approveReadPaths: (paths: string[]) =>
+    ipcRenderer.invoke('approve-read-paths', paths),
+
   onProxyProgress: (callback: (event: IpcRendererEvent, data: any) => void) => {
     const wrapped = (event: IpcRendererEvent, data: any) => {
       if (data && typeof data === 'object') {
@@ -547,6 +559,19 @@ const electronAPI = {
   },
 
   removeAllListeners: (channel: string) => {
+    // Only allow removal from channels that the renderer should manage
+    const allowedChannels = [
+      'mouse-move', 'mouse-click', 'scroll-event',
+      'keyboard-events-batch', 'permission-status-changed',
+      'transcription:progress', 'transcription:status',
+      'recording-started', 'recording-stopped', 'recording-error',
+      'refresh-library', 'open-project-from-path', 'open-settings-dialog',
+      'proxy:progress', 'abort-countdown', 'export-progress'
+    ]
+    if (!allowedChannels.includes(channel)) {
+      console.warn(`Blocked removeAllListeners for channel: ${channel}`)
+      return
+    }
     ipcRenderer.removeAllListeners(channel)
   },
 

@@ -59,9 +59,6 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
     isPlaying: isRendering
   });
 
-  // Effective corner radius
-  const effectiveRadius = cornerRadius / Math.min(renderState.scaleX, renderState.scaleY);
-
   if (!imageUrl) {
     return (
       <Sequence from={groupStartFrame} durationInFrames={renderState.finalDuration}>
@@ -86,7 +83,7 @@ export const ImageClipRenderer: React.FC<ImageClipRendererProps> = ({
         top: 0,
         left: 0,
         opacity: effectiveOpacity,
-        borderRadius: effectiveRadius,
+        borderRadius: cornerRadius,
         overflow: 'hidden',
       }}>
         <Img

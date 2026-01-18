@@ -23,16 +23,12 @@ export function usePanelResizer() {
     const {
         isUtilitiesOpen,
         isPropertiesOpen,
-        utilitiesPanelWidth,
-        propertiesPanelWidth,
         setUtilitiesPanelWidth,
         setPropertiesPanelWidth,
         setTimelineHeight
     } = useWorkspaceStore(useShallow((s) => ({
         isUtilitiesOpen: s.isUtilitiesOpen,
         isPropertiesOpen: s.isPropertiesOpen,
-        utilitiesPanelWidth: s.utilitiesPanelWidth,
-        propertiesPanelWidth: s.propertiesPanelWidth,
         setUtilitiesPanelWidth: s.setUtilitiesPanelWidth,
         setPropertiesPanelWidth: s.setPropertiesPanelWidth,
         setTimelineHeight: s.setTimelineHeight

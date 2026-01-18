@@ -40,7 +40,7 @@ module.exports = {
       ]
     },
     osxSign: {
-      hardenedRuntime: false,
+      hardenedRuntime: true,
       entitlements: path.join(__dirname, 'entitlements.plist'),
       'entitlements-inherit': path.join(__dirname, 'entitlements.plist'),
     },

@@ -2,8 +2,10 @@ import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import * as fsSync from 'fs'
+import { randomUUID } from 'crypto'
 import { getRecordingsDirectory } from '../config'
-import { isPathWithin } from '../utils/path-validation'
+import { isPathWithin, isPathWithinAny } from '../utils/path-validation'
+import { assertTrustedIpcSender } from '../utils/ipc-security'
 
 // Active recording file handles for streaming
 const activeRecordings = new Map<string, fsSync.WriteStream>()
@@ -88,28 +90,55 @@ const ensureUniquePath = async (baseDir: string, baseName: string, extension: st
   }
 }
 
+function sanitizeExtension(extension: string): string {
+  const safe = String(extension).toLowerCase().replace(/[^a-z0-9]+/g, '')
+  if (!safe) return 'webm'
+  return safe.slice(0, 10)
+}
+
+function _getAllowedRoots(): { recordingsDir: string; tempDir: string } {
+  return {
+    recordingsDir: path.resolve(getRecordingsDirectory()),
+    tempDir: path.resolve(app.getPath('temp')),
+  }
+}
+
 export function registerRecordingHandlers(): void {
   // Clean up orphaned temp files from previous sessions
   cleanupOrphanedTempFiles()
 
-  ipcMain.handle('start-recording', async () => {
+  ipcMain.handle('start-recording', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'start-recording')
     return { success: true, recordingsDir: getRecordingsDirectory() }
   })
 
-  ipcMain.handle('stop-recording', async () => {
+  ipcMain.handle('stop-recording', async (event: IpcMainInvokeEvent) => {
+    assertTrustedIpcSender(event, 'stop-recording')
     return { success: true }
   })
 
-  ipcMain.handle('get-recordings-directory', (): string => {
+  ipcMain.handle('get-recordings-directory', (event: IpcMainInvokeEvent): string => {
+    assertTrustedIpcSender(event, 'get-recordings-directory')
     return getRecordingsDirectory()
   })
 
   ipcMain.handle('save-recording', async (event: IpcMainInvokeEvent, filePath: string, buffer: Buffer) => {
     try {
-      const dir = path.dirname(filePath)
+      assertTrustedIpcSender(event, 'save-recording')
+      const normalizedPath = path.resolve(filePath)
+      const recordingsDir = path.resolve(getRecordingsDirectory())
+      const tempDir = path.resolve(app.getPath('temp'))
+
+      // Validate that the path is within recordings or temp directory
+      if (!isPathWithin(normalizedPath, recordingsDir) && !isPathWithin(normalizedPath, tempDir)) {
+        console.error('[Recording] Access denied: path outside allowed directories:', normalizedPath)
+        return { success: false, error: 'Access denied: path outside allowed directories' }
+      }
+
+      const dir = path.dirname(normalizedPath)
       await fs.mkdir(dir, { recursive: true })
-      await fs.writeFile(filePath, Buffer.from(buffer))
-      return { success: true, data: { filePath } }
+      await fs.writeFile(normalizedPath, Buffer.from(buffer))
+      return { success: true, data: { filePath: normalizedPath } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.error('[Recording] Failed to save:', errorMessage)
@@ -117,8 +146,9 @@ export function registerRecordingHandlers(): void {
     }
   })
 
-  ipcMain.handle('load-recordings', async () => {
+  ipcMain.handle('load-recordings', async (event: IpcMainInvokeEvent) => {
     try {
+      assertTrustedIpcSender(event, 'load-recordings')
       const recordingsDir = getRecordingsDirectory()
 
       const results: Array<{ name: string; path: string; timestamp: Date; size: number }> = []
@@ -160,7 +190,18 @@ export function registerRecordingHandlers(): void {
 
   ipcMain.handle('get-file-size', async (event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      const stats = await fs.stat(filePath)
+      assertTrustedIpcSender(event, 'get-file-size')
+      const normalizedPath = path.resolve(filePath)
+      const recordingsDir = path.resolve(getRecordingsDirectory())
+      const tempDir = path.resolve(app.getPath('temp'))
+
+      // Validate that the path is within allowed directories
+      if (!isPathWithinAny(normalizedPath, [recordingsDir, tempDir])) {
+        console.error('[Recording] Access denied: path outside allowed directories:', normalizedPath)
+        return { success: false, error: 'Access denied: path outside allowed directories' }
+      }
+
+      const stats = await fs.stat(normalizedPath)
       return { success: true, data: { size: stats.size } }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -169,8 +210,9 @@ export function registerRecordingHandlers(): void {
     }
   })
 
-  ipcMain.handle('delete-recording-project', async (_event: IpcMainInvokeEvent, projectFilePath: string) => {
+  ipcMain.handle('delete-recording-project', async (event: IpcMainInvokeEvent, projectFilePath: string) => {
     try {
+      assertTrustedIpcSender(event, 'delete-recording-project')
       if (!projectFilePath || typeof projectFilePath !== 'string') {
         return { success: false, error: 'Invalid path' }
       }
@@ -211,8 +253,9 @@ export function registerRecordingHandlers(): void {
     }
   })
 
-  ipcMain.handle('duplicate-recording-project', async (_event: IpcMainInvokeEvent, projectFilePath: string, newName?: string) => {
+  ipcMain.handle('duplicate-recording-project', async (event: IpcMainInvokeEvent, projectFilePath: string, newName?: string) => {
     try {
+      assertTrustedIpcSender(event, 'duplicate-recording-project')
       if (!projectFilePath || typeof projectFilePath !== 'string') {
         return { success: false, error: 'Invalid path' }
       }
@@ -271,10 +314,12 @@ export function registerRecordingHandlers(): void {
   // ========== NEW STREAMING HANDLERS ==========
 
   // Create a temporary recording file and return its path
-  ipcMain.handle('create-temp-recording-file', async (_event: IpcMainInvokeEvent, extension: string = 'webm') => {
+  ipcMain.handle('create-temp-recording-file', async (event: IpcMainInvokeEvent, extension: string = 'webm') => {
     try {
+      assertTrustedIpcSender(event, 'create-temp-recording-file')
       const tempDir = app.getPath('temp')
-      const tempPath = path.join(tempDir, `bokeh-recording-${Date.now()}.${extension}`)
+      const safeExt = sanitizeExtension(extension)
+      const tempPath = path.join(tempDir, `bokeh-recording-${randomUUID()}.${safeExt}`)
 
       // Create write stream for this recording
       const stream = fsSync.createWriteStream(tempPath, { flags: 'w' })
@@ -296,8 +341,9 @@ export function registerRecordingHandlers(): void {
   })
 
   // Append chunk to recording file (streaming write)
-  ipcMain.handle('append-to-recording', async (_event: IpcMainInvokeEvent, filePath: string, chunk: ArrayBuffer | Buffer) => {
+  ipcMain.handle('append-to-recording', async (event: IpcMainInvokeEvent, filePath: string, chunk: ArrayBuffer | Buffer) => {
     try {
+      assertTrustedIpcSender(event, 'append-to-recording')
       const stream = activeRecordings.get(filePath)
       if (!stream) {
         throw new Error(`No active stream for ${filePath}`)
@@ -337,6 +383,7 @@ export function registerRecordingHandlers(): void {
   // Close recording stream and finalize file
   ipcMain.handle('finalize-recording', async (event: IpcMainInvokeEvent, filePath: string) => {
     try {
+      assertTrustedIpcSender(event, 'finalize-recording')
       const stream = activeRecordings.get(filePath)
       if (!stream) {
         console.warn(`[Recording] No active stream for ${filePath}, may already be finalized`)
@@ -365,15 +412,33 @@ export function registerRecordingHandlers(): void {
   // Move file from temp to final location
   ipcMain.handle('move-file', async (event: IpcMainInvokeEvent, sourcePath: string, destPath: string) => {
     try {
+      assertTrustedIpcSender(event, 'move-file')
+      const normalizedSource = path.resolve(sourcePath)
+      const normalizedDest = path.resolve(destPath)
+      const recordingsDir = path.resolve(getRecordingsDirectory())
+      const tempDir = path.resolve(app.getPath('temp'))
+
+      // Validate that both paths are within allowed directories
+      if (!isPathWithinAny(normalizedSource, [recordingsDir, tempDir])) {
+        console.error('[Recording] Access denied: source path outside allowed directories:', normalizedSource)
+        return { success: false, error: 'Access denied: source path outside allowed directories' }
+      }
+
+      // Security: only allow moving files into the recordings directory.
+      if (!isPathWithinAny(normalizedDest, [recordingsDir])) {
+        console.error('[Recording] Access denied: destination path outside allowed directories:', normalizedDest)
+        return { success: false, error: 'Access denied: destination path outside allowed directories' }
+      }
+
       // Ensure destination directory exists
-      const destDir = path.dirname(destPath)
+      const destDir = path.dirname(normalizedDest)
       await fs.mkdir(destDir, { recursive: true })
 
       // Move the file
-      await fs.rename(sourcePath, destPath)
+      await fs.rename(normalizedSource, normalizedDest)
 
-      console.log(`[Recording] Moved ${sourcePath} to ${destPath}`)
-      return { success: true, data: destPath }
+      console.log(`[Recording] Moved ${normalizedSource} to ${normalizedDest}`)
+      return { success: true, data: normalizedDest }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.error('[Recording] Failed to move file:', errorMessage)
@@ -382,11 +447,11 @@ export function registerRecordingHandlers(): void {
   })
 
   // Create metadata file for streaming writes
-  ipcMain.handle('create-metadata-file', async (_event: IpcMainInvokeEvent) => {
+  ipcMain.handle('create-metadata-file', async (event: IpcMainInvokeEvent) => {
     try {
+      assertTrustedIpcSender(event, 'create-metadata-file')
       const tempDir = app.getPath('temp')
-      const timestamp = Date.now()
-      const metadataPath = path.join(tempDir, `metadata-${timestamp}.json`)
+      const metadataPath = path.join(tempDir, `metadata-${randomUUID()}.json`)
 
       // Initialize with empty array
       await fs.writeFile(metadataPath, '[\n', 'utf8')
@@ -403,11 +468,22 @@ export function registerRecordingHandlers(): void {
   // Append metadata batch to file
   ipcMain.handle('append-metadata-batch', async (event: IpcMainInvokeEvent, filePath: string, batch: any[], isLast: boolean = false) => {
     try {
+      assertTrustedIpcSender(event, 'append-metadata-batch')
+      const normalizedPath = path.resolve(filePath)
+      const tempDir = path.resolve(app.getPath('temp'))
+      const metadataNameOk = /^metadata-[0-9a-f-]{36}\.json$/i.test(path.basename(normalizedPath))
+
+      // Validate that the path is within allowed directories
+      if (!metadataNameOk || !isPathWithinAny(normalizedPath, [tempDir])) {
+        console.error('[Recording] Access denied: path outside allowed directories:', normalizedPath)
+        return { success: false, error: 'Access denied: path outside allowed directories' }
+      }
+
       // Convert batch to JSON lines
       const jsonLines = batch.map(item => JSON.stringify(item)).join(',\n')
       const content = isLast ? jsonLines + '\n]' : jsonLines + ',\n'
 
-      await fs.appendFile(filePath, content, 'utf8')
+      await fs.appendFile(normalizedPath, content, 'utf8')
 
       return { success: true }
     } catch (error) {
@@ -418,9 +494,30 @@ export function registerRecordingHandlers(): void {
   })
 
   // Read metadata from file
-  ipcMain.handle('read-metadata-file', async (_event: IpcMainInvokeEvent, filePath: string) => {
+  // Maximum metadata file size (10MB) to prevent DoS attacks
+  const MAX_METADATA_SIZE = 10 * 1024 * 1024
+
+  ipcMain.handle('read-metadata-file', async (event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      const content = await fs.readFile(filePath, 'utf8')
+      assertTrustedIpcSender(event, 'read-metadata-file')
+      const normalizedPath = path.resolve(filePath)
+      const tempDir = path.resolve(app.getPath('temp'))
+      const metadataNameOk = /^metadata-[0-9a-f-]{36}\.json$/i.test(path.basename(normalizedPath))
+
+      // Validate that the path is within allowed directories
+      if (!metadataNameOk || !isPathWithinAny(normalizedPath, [tempDir])) {
+        console.error('[Recording] Access denied: path outside allowed directories:', normalizedPath)
+        return { success: false, error: 'Access denied: path outside allowed directories' }
+      }
+
+      // Check file size before reading to prevent DoS
+      const stat = await fs.stat(normalizedPath)
+      if (stat.size > MAX_METADATA_SIZE) {
+        console.error('[Recording] Metadata file too large:', stat.size, 'bytes')
+        return { success: false, error: 'Metadata file too large' }
+      }
+
+      const content = await fs.readFile(normalizedPath, 'utf8')
       let metadata: unknown
 
       try {
@@ -447,7 +544,7 @@ export function registerRecordingHandlers(): void {
       }
 
       // Clean up temp file
-      await fs.unlink(filePath).catch(() => { })
+      await fs.unlink(normalizedPath).catch(() => { })
 
       return { success: true, data: metadata }
     } catch (error) {
@@ -476,9 +573,19 @@ export function registerRecordingHandlers(): void {
   // List metadata files in a recording directory
   ipcMain.handle('list-metadata-files', async (event: IpcMainInvokeEvent, folderPath: string) => {
     try {
+      assertTrustedIpcSender(event, 'list-metadata-files')
       if (!folderPath) return { success: false, error: 'No folder path provided' }
 
-      const entries = await fs.readdir(folderPath, { withFileTypes: true })
+      const normalizedPath = path.resolve(folderPath)
+      const recordingsDir = path.resolve(getRecordingsDirectory())
+
+      // Validate that the path is within allowed directories
+      if (!isPathWithinAny(normalizedPath, [recordingsDir])) {
+        console.error('[Recording] Access denied: path outside allowed directories:', normalizedPath)
+        return { success: false, error: 'Access denied: path outside allowed directories' }
+      }
+
+      const entries = await fs.readdir(normalizedPath, { withFileTypes: true })
 
       const files = entries
         .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
