@@ -391,88 +391,48 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 {motionLabel}
               </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              {/* Preset options: Smooth, Medium, Rapid */}
-              <div className="grid grid-cols-3 gap-1.5 flex-1">
-                {motionPresetOptions.slice(0, 3).map((option) => {
-                  const Icon = option.icon
-                  const isSelected = effectiveMotionPreset === option.preset
-                  const presetKey = option.preset as Exclude<CursorMotionPreset, 'custom'>
-                  const presetValues = CURSOR_MOTION_PRESETS[presetKey]
-                  const previewOverride = { cursorSmoothness: presetValues.cursorSmoothness, gliding: option.gliding }
-                  return (
-                    <Tooltip key={option.id} delayDuration={400}>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => applyMotionPreset(option.preset, option.values, option.gliding)}
-                          onMouseEnter={() => startPreview(previewOverride, true)}
-                          onFocus={() => startPreview(previewOverride, true)}
-                          className={cn(
-                            'group flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all',
-                            isSelected
-                              ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
-                              : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                          )}
-                        >
-                          <div className={cn(
-                            'flex h-6 w-6 items-center justify-center rounded-md border',
-                            isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
-                          )}>
-                            <Icon className="h-3 w-3" />
-                          </div>
-                          <div className="text-2xs font-medium leading-none">{option.label}</div>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-xs">
-                        {option.description}
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                })}
-              </div>
-
-              {/* Divider */}
-              <div className="w-px h-10 bg-border/40" />
-
-              {/* Custom options: Custom, Raw */}
-              <div className="grid grid-cols-2 gap-1.5">
-                {motionPresetOptions.slice(3).map((option) => {
-                  const Icon = option.icon
-                  const isSelected = option.id === 'raw' ? isRawPreset : !isRawPreset && motionPreset === 'custom'
-                  const presetValues = option.values
-                  const previewOverride = presetValues
-                    ? { cursorSmoothness: presetValues.cursorSmoothness, gliding: option.gliding }
-                    : { gliding: option.gliding }
-                  return (
-                    <Tooltip key={option.id} delayDuration={400}>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => applyMotionPreset(option.preset, option.values, option.gliding)}
-                          onMouseEnter={() => startPreview(previewOverride, true)}
-                          onFocus={() => startPreview(previewOverride, true)}
-                          className={cn(
-                            'group flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all',
-                            isSelected
-                              ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
-                              : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                          )}
-                        >
-                          <div className={cn(
-                            'flex h-6 w-6 items-center justify-center rounded-md border',
-                            isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
-                          )}>
-                            <Icon className="h-3 w-3" />
-                          </div>
-                          <div className="text-2xs font-medium leading-none">{option.label}</div>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="text-xs">
-                        {option.description}
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                })}
-              </div>
+            <div className="grid grid-cols-3 min-[440px]:grid-cols-5 gap-1.5">
+              {motionPresetOptions.map((option) => {
+                const Icon = option.icon
+                const isSelected = option.id === 'raw'
+                  ? isRawPreset
+                  : option.id === 'custom'
+                    ? !isRawPreset && motionPreset === 'custom'
+                    : effectiveMotionPreset === option.preset
+                const presetKey = option.preset as Exclude<CursorMotionPreset, 'custom'>
+                const presetValues = option.values ?? (option.preset !== 'custom' ? CURSOR_MOTION_PRESETS[presetKey] : undefined)
+                const previewOverride = presetValues
+                  ? { cursorSmoothness: presetValues.cursorSmoothness, gliding: option.gliding }
+                  : { gliding: option.gliding }
+                return (
+                  <Tooltip key={option.id} delayDuration={400}>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => applyMotionPreset(option.preset, option.values, option.gliding)}
+                        onMouseEnter={() => startPreview(previewOverride, true)}
+                        onFocus={() => startPreview(previewOverride, true)}
+                        className={cn(
+                          'group flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-center transition-all',
+                          isSelected
+                            ? 'border-primary/60 bg-primary/10 text-foreground shadow-sm'
+                            : 'border-border/40 bg-background/40 text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                        )}
+                      >
+                        <div className={cn(
+                          'flex h-6 w-6 items-center justify-center rounded-md border',
+                          isSelected ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border/40 bg-background/60 text-muted-foreground'
+                        )}>
+                          <Icon className="h-3 w-3" />
+                        </div>
+                        <div className="text-2xs font-medium leading-none">{option.label}</div>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs">
+                      {option.description}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              })}
             </div>
             <div className="text-2xs text-muted-foreground/70 italic">
               Tweaking sliders below switches to Custom.

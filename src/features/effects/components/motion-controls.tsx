@@ -94,7 +94,7 @@ export function SegmentedControl({
                   exit={{ opacity: 0 }}
                   transition={springConfig}
                   className={cn(
-                    "absolute inset-0 rounded-[5px]",
+                    "absolute inset-0 rounded-lg",
                     "bg-white dark:bg-white/[0.12]",
                     "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_0.5px_rgba(0,0,0,0.03)]",
                     "dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_0_0_0.5px_rgba(255,255,255,0.04)]"

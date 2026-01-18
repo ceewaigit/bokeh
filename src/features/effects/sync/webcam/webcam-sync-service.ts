@@ -19,6 +19,7 @@ import {
     shiftWebcamClipsAfter,
 } from './webcam-operations'
 import { TIME_TOLERANCE_MS } from '../types'
+import { calculateTimelineDuration } from '@/features/ui/timeline/clips/clip-reflow'
 
 export const WebcamSyncService = {
     /**
@@ -81,5 +82,9 @@ export const WebcamSyncService = {
         // Exclude the changed clip itself from being shifted
         const excludeIds = new Set([change.clipId])
         shiftWebcamClipsAfter(project, change.before.endTime, change.timelineDelta, excludeIds)
+
+        // Webcam sync mutates clip positions outside the command's withMutation() wrapper,
+        // so update duration here to keep playhead clamping and UI ruler correct.
+        project.timeline.duration = calculateTimelineDuration(project)
     },
 }

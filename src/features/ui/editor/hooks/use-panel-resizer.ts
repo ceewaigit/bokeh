@@ -9,8 +9,8 @@ import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useShallow } from 'zustand/react/shallow'
 import { useCanvasDrag } from './use-canvas-drag'
 
-const UTIL_MIN = 200
-const PROPS_MIN = 300
+const UTIL_MIN = 400
+const PROPS_MIN = 400
 const TIMELINE_MIN = 100
 
 type PanelType = 'utilities' | 'properties' | 'timeline'
@@ -41,7 +41,7 @@ export function usePanelResizer() {
 
     // Dynamic max width based on viewport
     const [panelMaxWidth, setPanelMaxWidth] = useState(() =>
-        typeof window === 'undefined' ? 0 : window.innerWidth * 0.3
+        typeof window === 'undefined' ? 0 : window.innerWidth * 0.5
     )
 
     // Track which panel is being resized for cursor styling
@@ -49,7 +49,7 @@ export function usePanelResizer() {
 
     useEffect(() => {
         const updatePanelMaxWidth = () => {
-            setPanelMaxWidth(window.innerWidth * 0.3)
+            setPanelMaxWidth(window.innerWidth * 0.5)
         }
         updatePanelMaxWidth()
         window.addEventListener('resize', updatePanelMaxWidth)
@@ -67,7 +67,7 @@ export function usePanelResizer() {
         initial: { panel: PanelType; startX: number; startY: number } | null
     ) => {
         if (!initial) return
-        const maxWidth = window.innerWidth * 0.3
+        const maxWidth = window.innerWidth * 0.5
 
         switch (initial.panel) {
             case 'utilities': {
@@ -93,7 +93,7 @@ export function usePanelResizer() {
     // Commit values to store on drag end
     const handleDragEnd = useCallback(() => {
         const panel = activePanelRef.current
-        const maxWidth = window.innerWidth * 0.3
+        const maxWidth = window.innerWidth * 0.5
 
         // Reset cursor
         document.body.style.cursor = ''

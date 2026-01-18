@@ -11,6 +11,7 @@ import { updateClipInTrack } from '@/features/ui/timeline/clips/clip-crud'
 import { ClipChangeBuilder } from '@/features/effects/sync'
 import { PlayheadService } from '@/features/playback/services/playhead-service'
 import { playbackService } from '@/features/playback/services/playback-service'
+import { TrackType } from '@/types/project'
 
 export class ChangePlaybackRateCommand extends TimelineCommand<{ clipId: string; playbackRate: number }> {
   private clipId: string
@@ -57,7 +58,14 @@ export class ChangePlaybackRateCommand extends TimelineCommand<{ clipId: string;
       sourceOut: validSourceOut
     }
 
-    if (!updateClipInTrack(project, this.clipId, updates, undefined, track)) {
+    // Webcam track clips can contain intentional gaps (webcam off/on).
+    // Reflowing here will make clips contiguous, and then WebcamSyncService will shift again,
+    // causing overlaps (speed up) or gaps (slow down). Let the sync service handle shifting.
+    const options = track.type === TrackType.Webcam
+      ? { maintainContiguous: false }
+      : undefined
+
+    if (!updateClipInTrack(project, this.clipId, updates, options, track)) {
       throw new Error('updateClip: Failed to update clip')
     }
 

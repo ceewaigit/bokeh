@@ -545,10 +545,10 @@ export function TranscriptTab() {
       if (result.success) {
         setWhisperAvailable(true)
       } else {
-        setTranscriptionError(result.error ?? 'Failed to install whisper')
+        setTranscriptionError(result.error ?? 'Failed to install model')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to install whisper'
+      const message = error instanceof Error ? error.message : 'Failed to install model'
       setTranscriptionError(message)
     } finally {
       setIsInstallingWhisper(false)
@@ -714,121 +714,127 @@ export function TranscriptTab() {
   const hasSubtitles = subtitleEffects.size > 0
 
   return (
-    <div className="flex flex-col gap-4 p-5">
-      {/* Whisper Install Prompt - Subtle */}
+    <div className="flex flex-col gap-3 -mx-4 -mt-3">
+      {/* Whisper Install Banner */}
       {whisperAvailable === false && (
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-500/5 px-3 py-2.5">
-          <span className="text-xs text-amber-600 dark:text-amber-400">Whisper required</span>
+        <div className="mx-4 flex items-center justify-between gap-3 rounded-lg bg-orange-500/8 border border-orange-500/10 px-3 py-2">
+          <span className="text-[11px] text-orange-600/90 dark:text-orange-400/90">Whisper is required for transcription</span>
           <button
             type="button"
             onClick={handleInstallWhisper}
             disabled={isInstallingWhisper}
-            className="text-xs font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors disabled:opacity-50"
+            className="text-[11px] font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 transition-colors disabled:opacity-50"
           >
             {isInstallingWhisper ? 'Installing…' : 'Install'}
           </button>
         </div>
       )}
 
-      {/* Controls - Flat, inline */}
-      <div className="flex items-center gap-1">
+      {/* Header Controls */}
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-border/5">
+        {/* Model Selector */}
         <Select value={selectedModel} onValueChange={setSelectedModel}>
-          <SelectTrigger className="h-8 w-28 rounded-md border-0 bg-muted/50 px-3 text-xs font-medium hover:bg-muted transition-colors">
+          <SelectTrigger className="h-7 w-auto min-w-[90px] gap-1.5 rounded-md border-0 bg-transparent px-2 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04] active:bg-foreground/[0.06] transition-all duration-150">
             <SelectValue placeholder="Model">
               <span>{selectedModelLabel}</span>
             </SelectValue>
           </SelectTrigger>
-          <SelectContent align="start" className="min-w-[180px]">
+          <SelectContent align="start" className="min-w-[160px]">
             {((modelList?.available ?? []).sort((a, b) => {
               const order = ['base', 'small', 'medium']
               return order.indexOf(a) - order.indexOf(b)
             })).map(modelName => {
               const label = modelLabels[modelName]
+              const isDownloaded = downloadedModels.has(modelName)
               return (
-                <SelectItem key={modelName} value={modelName} className="text-xs">
-                  {label ? (
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="font-medium">{label.name}</span>
-                      <span className="opacity-60">{label.desc}</span>
-                    </div>
-                  ) : modelName}
+                <SelectItem key={modelName} value={modelName} className="text-[11px]">
+                  <div className="flex items-center justify-between gap-3 w-full">
+                    <span className={isDownloaded ? 'text-foreground' : 'text-muted-foreground'}>{label?.name ?? modelName}</span>
+                    <span className="text-muted-foreground/60 text-[10px]">{label?.desc}</span>
+                  </div>
                 </SelectItem>
               )
             })}
           </SelectContent>
         </Select>
-        <InfoTooltip content="Runs locally on your device using Whisper AI. Your audio never leaves your computer." />
 
         {!isModelDownloaded && hasSelectedModel && (
           <button
             type="button"
             onClick={handleDownloadModel}
             disabled={isDownloadingSelected}
-            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
-            title="Download Model"
+            className="h-6 px-2 flex items-center gap-1.5 rounded-md text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04] transition-all duration-150 disabled:opacity-50"
           >
-            {isDownloadingSelected ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {isDownloadingSelected ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            <span>Download</span>
           </button>
         )}
 
-        <div className="h-4 w-px bg-border/30" />
-
-        <button
-          type="button"
-          onClick={() => setShowDeleted(prev => !prev)}
-          disabled={!hasTranscripts}
-          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors ${showDeleted
-            ? 'text-rose-500 bg-rose-500/10'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
-          title={showDeleted ? 'Hide removed' : 'Show removed'}
-        >
-          {showDeleted ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-        </button>
-
         <div className="flex-1" />
 
+        {/* Show/Hide Deleted Toggle */}
+        {hasTranscripts && (
+          <button
+            type="button"
+            onClick={() => setShowDeleted(prev => !prev)}
+            className={`h-6 px-2 flex items-center gap-1.5 rounded-md text-[10px] font-medium whitespace-nowrap transition-all duration-150 ${showDeleted
+              ? 'text-foreground/70 bg-foreground/[0.06]'
+              : 'text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04]'
+              }`}
+          >
+            {showDeleted ? <Eye className="h-3 w-3 flex-shrink-0" /> : <EyeOff className="h-3 w-3 flex-shrink-0" />}
+            <span>{showDeleted ? 'Showing cuts' : 'Cuts hidden'}</span>
+          </button>
+        )}
+
+        {/* Transcribe Button */}
         <button
           type="button"
           onClick={handleTranscribeAll}
           disabled={!canTranscribe}
-          className="h-8 px-4 flex items-center gap-2 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          className="h-7 px-3 flex items-center gap-1.5 rounded-md bg-foreground/[0.08] hover:bg-foreground/[0.12] active:bg-foreground/[0.16] text-foreground text-[11px] font-medium whitespace-nowrap transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none"
         >
-          {isProcessingAny ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-          <span>{hasTranscripts ? 'Re-transcribe' : 'Transcribe'}</span>
+          {isProcessingAny ? (
+            <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" />
+          ) : (
+            <Sparkles className="h-3 w-3 flex-shrink-0" />
+          )}
+          <span>{isProcessingAny ? 'Processing…' : hasTranscripts ? 'Redo' : 'Transcribe'}</span>
         </button>
       </div>
 
-      {/* Progress - Compact */}
-      {(downloadProgress != null && downloadModelName) && (
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-2xs text-muted-foreground">
-            <span>Downloading {modelLabels[downloadModelName]?.name ?? downloadModelName}</span>
-            <span>{Math.round(downloadProgress)}%</span>
-          </div>
-          <Progress value={downloadProgress} className="h-1" />
-        </div>
-      )}
-
-      {(installProgress != null && isInstallingWhisper) && (
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-2xs text-muted-foreground">
-            <span>Installing Whisper</span>
-            <span>{Math.round(installProgress)}%</span>
-          </div>
-          <Progress value={installProgress} className="h-1" />
+      {/* Progress Indicators */}
+      {((downloadProgress != null && downloadModelName) || (installProgress != null && isInstallingWhisper)) && (
+        <div className="px-4 py-2 border-b border-border/5">
+          {(downloadProgress != null && downloadModelName) && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] text-muted-foreground/70">
+                <span>Downloading {modelLabels[downloadModelName]?.name ?? downloadModelName}</span>
+                <span className="tabular-nums">{Math.round(downloadProgress)}%</span>
+              </div>
+              <Progress value={downloadProgress} className="h-[2px]" />
+            </div>
+          )}
+          {(installProgress != null && isInstallingWhisper) && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] text-muted-foreground/70">
+                <span>Installing Whisper</span>
+                <span className="tabular-nums">{Math.round(installProgress)}%</span>
+              </div>
+              <Progress value={installProgress} className="h-[2px]" />
+            </div>
+          )}
         </div>
       )}
 
       {transcriptionError && (
-        <div className="flex items-center gap-2 text-xs text-destructive">
-          <div className="h-1.5 w-1.5 rounded-pill bg-destructive" />
+        <div className="mx-4 mt-2 flex items-center gap-2 text-[11px] text-red-500/90">
           <span>{transcriptionError}</span>
         </div>
       )}
 
       {/* Transcript Content */}
-      <div className="flex-1 min-h-0">
+      <div className="px-4">
         <UnifiedTranscriptView
           sections={sections}
           words={timelineWords}
@@ -846,8 +852,8 @@ export function TranscriptTab() {
 
       {/* Subtitle Appearance */}
       {hasSubtitles && (
-        <div className="space-y-4 pt-3 border-t border-border/20">
-          <h3 className="text-2xs font-medium text-muted-foreground/80">Subtitle Appearance</h3>
+        <div className="px-4 py-3 space-y-3 border-t border-border/5">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Captions</div>
 
           <OverlayPositionControl
             anchor={globalAnchor}
@@ -856,9 +862,9 @@ export function TranscriptTab() {
             occupiedAnchors={occupiedAnchors}
           />
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-2xs text-muted-foreground">Highlight Style</span>
+              <span className="text-[11px] text-muted-foreground/70">Highlight</span>
               <ColorPickerPopover
                 value={globalHighlightColor}
                 onChange={handleGlobalHighlightColorChange}
@@ -869,7 +875,7 @@ export function TranscriptTab() {
               onChange={handleGlobalHighlightStyleChange}
               options={[
                 { value: 'color', label: 'Color' },
-                { value: 'background', label: 'Bg' },
+                { value: 'background', label: 'Fill' },
                 { value: 'underline', label: 'Line' },
                 { value: 'scale', label: 'Scale' },
               ]}

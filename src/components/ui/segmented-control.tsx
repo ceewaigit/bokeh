@@ -41,7 +41,7 @@ export function SegmentedControl<T extends string | number>({
                 layout === 'grid' && columns === 2 && "grid-cols-2",
                 layout === 'grid' && columns === 3 && "grid-cols-3",
                 layout === 'grid' && columns === 4 && "grid-cols-4",
-                layout === 'inline' && "inline-flex gap-[3px]",
+                layout === 'inline' && "flex gap-[3px]",
                 className
             )}
         >
@@ -61,7 +61,7 @@ export function SegmentedControl<T extends string | number>({
                                 ? "text-foreground"
                                 : "text-muted-foreground/70 hover:text-foreground/80",
                             disabled && "opacity-40 cursor-not-allowed",
-                            layout === 'inline' && "text-center"
+                            layout === 'inline' && "flex-1 text-center"
                         )}
                         title={option.tooltip}
                     >

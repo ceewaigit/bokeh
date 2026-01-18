@@ -102,13 +102,16 @@ export function PreviewAreaRemotion({
   );
 
   // Calculate initial frame
-  // Only needs to run once or when metadata changes
+  // Recalculates when timeline structure changes (mutation counter) or metadata changes.
+  // IMPORTANT: Include timelineMutationCounter to ensure recalculation after clip deletion.
+  // Without this, initialFrame could be stale when currentTime is clamped but
+  // timelineMetadata reference happens to stay the same (e.g., same frame count).
   const initialFrame = useMemo(() => {
     const storeTime = useProjectStore.getState().currentTime;
     const maxFrame = timelineMetadata.durationInFrames - 1;
     const frame = msToFrame(storeTime, timelineMetadata.fps);
     return Math.max(0, Math.min(frame, maxFrame));
-  }, [timelineMetadata]);
+  }, [timelineMetadata, timelineMutationCounter]);
 
   // Player key for re-render on truly structural changes only
   // STABLE: Only fps + recording IDs require remount. Duration/dimensions are handled by Remotion.

@@ -71,68 +71,69 @@ function TranscriptSourceList({
 
   if (sections.length === 0) return null
 
-  // Compact View (Face Pile)
+  // Compact View
   if (!isExpanded) {
     return (
-      <div
-        className="group flex items-center justify-between px-3 py-2 bg-muted/20 rounded-lg border border-border/40 hover:bg-muted/40 transition-all cursor-pointer select-none"
+      <button
+        type="button"
         onClick={() => setIsExpanded(true)}
+        className="group w-full flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-foreground/[0.03] active:bg-foreground/[0.05] transition-colors duration-150"
       >
-        <div className="flex items-center gap-3">
-          <div className="flex -space-x-2">
-            {sections.slice(0, 4).map((section, i) => (
-              <div
-                key={section.recording.id}
-                className={`flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background text-3xs font-semibold transition-transform z-[${4 - i}] ${section.isCurrent
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-                  }`}
-                title={section.label}
-              >
-                {section.label.charAt(0)}
-              </div>
-            ))}
-            {sections.length > 4 && (
-              <div className="flex items-center justify-center w-7 h-7 rounded-pill ring-2 ring-background bg-muted text-muted-foreground text-3xs font-semibold">
-                +{sections.length - 4}
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-medium text-foreground">
-              {sections.length} Sources
-            </span>
-            {activeProcessingCount > 0 && (
-              <span className="text-3xs text-muted-foreground animate-pulse">
-                Processing {activeProcessingCount}...
-              </span>
-            )}
-            {activeProcessingCount === 0 && needsTranscriptionCount > 0 && (
-              <span className="text-3xs text-amber-600 dark:text-amber-400">
-                {needsTranscriptionCount} needs transcription
-              </span>
-            )}
-          </div>
+        {/* Avatar Stack */}
+        <div className="flex -space-x-1.5">
+          {sections.slice(0, 3).map((section, i) => (
+            <div
+              key={section.recording.id}
+              className={`flex items-center justify-center w-5 h-5 rounded-full ring-[1.5px] ring-background text-[9px] font-medium ${
+                section.isCurrent
+                  ? 'bg-foreground/10 text-foreground'
+                  : 'bg-foreground/[0.06] text-muted-foreground'
+              }`}
+              style={{ zIndex: 4 - i }}
+            >
+              {section.label.charAt(0)}
+            </div>
+          ))}
+          {sections.length > 3 && (
+            <div className="flex items-center justify-center w-5 h-5 rounded-full ring-[1.5px] ring-background bg-foreground/[0.04] text-muted-foreground/70 text-[9px] font-medium">
+              +{sections.length - 3}
+            </div>
+          )}
         </div>
-        <button
-          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/50 transition-colors"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
+
+        {/* Label */}
+        <div className="flex-1 text-left">
+          <span className="text-[11px] text-muted-foreground">
+            {sections.length} {sections.length === 1 ? 'source' : 'sources'}
+          </span>
+          {activeProcessingCount > 0 && (
+            <span className="ml-1.5 text-[10px] text-muted-foreground/60">
+              · transcribing
+            </span>
+          )}
+          {activeProcessingCount === 0 && needsTranscriptionCount > 0 && (
+            <span className="ml-1.5 text-[10px] text-orange-500/80">
+              · {needsTranscriptionCount} pending
+            </span>
+          )}
+        </div>
+
+        <ChevronRight className="w-3 h-3 text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors" />
+      </button>
     )
   }
 
-  // Expanded View (List)
+  // Expanded View
   return (
-    <div className="space-y-1">
-      <div
-        className="flex items-center justify-between px-2 pt-1 pb-2 cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+    <div className="space-y-0.5">
+      <button
+        type="button"
         onClick={() => setIsExpanded(false)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 hover:text-muted-foreground/70 transition-colors"
       >
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-1">Sources</span>
-        <ChevronDown className="w-4 h-4 text-muted-foreground" />
-      </div>
+        <ChevronDown className="w-3 h-3" />
+        <span>Sources</span>
+      </button>
 
       {sections.map(section => {
         const hasTranscript = Boolean(section.transcript?.words?.length)
@@ -146,61 +147,64 @@ function TranscriptSourceList({
         return (
           <div
             key={`section-${section.recording.id}`}
-            className="group flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted/30 transition-colors relative"
+            className="group flex items-center gap-2.5 px-3 py-1.5 rounded-md hover:bg-foreground/[0.03] transition-colors relative"
           >
             {/* Avatar */}
-            <div className={`flex items-center justify-center w-7 h-7 rounded-pill text-3xs font-semibold ${section.isCurrent ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-medium ${
+              section.isCurrent
+                ? 'bg-foreground/10 text-foreground'
+                : 'bg-foreground/[0.06] text-muted-foreground'
+            }`}>
               {section.label.charAt(0)}
             </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground truncate">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-foreground/90 truncate">
                   {section.label}
                 </span>
-                {section.isCurrent && <span className="h-1.5 w-1.5 rounded-pill bg-primary" />}
+                {section.isCurrent && <span className="w-1 h-1 rounded-full bg-foreground/40" />}
                 {needsTranscription && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-4xs font-medium text-amber-600 dark:text-amber-400 animate-pulse">
-                    <span>Needs Transcription</span>
-                  </span>
+                  <span className="text-[9px] text-orange-500/70">pending</span>
                 )}
               </div>
               {rangeLabel && (
-                <span className="text-3xs text-muted-foreground tabular-nums">{rangeLabel}</span>
+                <span className="text-[10px] text-muted-foreground/50 tabular-nums">{rangeLabel}</span>
               )}
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
               {section.hiddenRegions.length > 0 && hasTranscript && (
                 <button
                   type="button"
                   onClick={() => onRestoreAll(section.recording.id)}
-                  className="p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                  className="p-1 rounded text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.04] transition-colors"
                   title="Restore all"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
+                  <RotateCcw className="h-3 w-3" />
                 </button>
               )}
               {hasTranscript && (
                 <button
                   type="button"
                   onClick={() => onToggleSubtitles(section.recording.id)}
-                  className={`p-1.5 rounded transition-colors ${section.subtitleEffect
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  title={section.subtitleEffect ? 'Hide subtitles' : 'Show subtitles'}
+                  className={`p-1 rounded transition-colors ${
+                    section.subtitleEffect
+                      ? 'text-foreground/70'
+                      : 'text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.04]'
+                  }`}
+                  title={section.subtitleEffect ? 'Hide captions' : 'Show captions'}
                 >
-                  {section.subtitleEffect ? <CaptionsOff className="h-3.5 w-3.5" /> : <Captions className="h-3.5 w-3.5" />}
+                  {section.subtitleEffect ? <CaptionsOff className="h-3 w-3" /> : <Captions className="h-3 w-3" />}
                 </button>
               )}
               {isProcessing && (
                 <button
                   type="button"
                   onClick={() => onCancelTranscription(section.recording.id)}
-                  className="px-2 py-1 rounded text-3xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors"
+                  className="px-1.5 py-0.5 rounded text-[9px] font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04] transition-colors"
                 >
                   Cancel
                 </button>
@@ -209,8 +213,8 @@ function TranscriptSourceList({
 
             {/* Progress */}
             {section.transcriptionProgress && section.transcriptionProgress.progress != null && (
-              <div className="absolute inset-x-0 bottom-0 h-0.5 pointer-events-none">
-                <Progress value={section.transcriptionProgress.progress * 100} className="h-full rounded-none" />
+              <div className="absolute inset-x-3 bottom-0 h-[1px] pointer-events-none overflow-hidden rounded-full">
+                <Progress value={section.transcriptionProgress.progress * 100} className="h-full rounded-full" />
               </div>
             )}
           </div>
@@ -310,6 +314,12 @@ function UnifiedTranscriptStream({
     const clickedWord = visibleWords[index]
     if (!clickedWord) return
 
+    // Skip click handling if we just finished a drag selection
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false
+      return
+    }
+
     if (event.shiftKey && anchorIndex != null) {
       updateSelectionRange(anchorIndex, index)
       return
@@ -329,28 +339,52 @@ function UnifiedTranscriptStream({
       return
     }
 
+    // Toggle off if clicking an already selected word
+    if (selectedWordIds.has(clickedWord.id)) {
+      setSelectedWordIds(prev => {
+        const next = new Set(prev)
+        next.delete(clickedWord.id)
+        return next
+      })
+      if (selectedWordIds.size === 1) {
+        setAnchorIndex(null)
+      }
+      return
+    }
+
+    // Select single word
     if (!isDeleted) {
       onSeekWord(clickedWord)
     }
     setSelectedWordIds(new Set([clickedWord.id]))
     setAnchorIndex(index)
-  }, [anchorIndex, onSeekWord, updateSelectionRange, visibleWords])
+  }, [anchorIndex, onSeekWord, selectedWordIds, updateSelectionRange, visibleWords])
+
+  const dragStartIndexRef = useRef<number | null>(null)
+  const hasDraggedRef = useRef(false)
 
   const handleWordMouseDown = useCallback((index: number, event: React.MouseEvent) => {
     if (event.button !== 0) return
     isSelectingRef.current = true
+    hasDraggedRef.current = false
+    dragStartIndexRef.current = index
     setAnchorIndex(index)
-    updateSelectionRange(index, index)
-  }, [updateSelectionRange])
+    // Don't select yet - wait to see if it's a drag or click
+  }, [])
 
   const handleWordMouseEnter = useCallback((index: number) => {
-    if (!isSelectingRef.current || anchorIndex == null) return
-    updateSelectionRange(anchorIndex, index)
-  }, [anchorIndex, updateSelectionRange])
+    if (!isSelectingRef.current || dragStartIndexRef.current == null) return
+    // Only start selection if we've moved to a different word (drag)
+    if (index !== dragStartIndexRef.current) {
+      hasDraggedRef.current = true
+      updateSelectionRange(dragStartIndexRef.current, index)
+    }
+  }, [updateSelectionRange])
 
   useEffect(() => {
     const stopSelecting = () => {
       isSelectingRef.current = false
+      dragStartIndexRef.current = null
     }
     window.addEventListener('mouseup', stopSelecting)
     return () => window.removeEventListener('mouseup', stopSelecting)
@@ -441,7 +475,12 @@ function UnifiedTranscriptStream({
     })
 
     const x = bounds.left + (bounds.right - bounds.left) / 2 - containerRect.left
-    const y = Math.max(12, bounds.top - containerRect.top - 36)
+    const toolbarHeight = 28
+    const spaceAbove = bounds.top - containerRect.top
+    // Position above if there's enough space, otherwise position below
+    const y = spaceAbove > toolbarHeight + 8
+      ? bounds.top - containerRect.top - toolbarHeight - 4
+      : bounds.bottom - containerRect.top + 4
     setToolbarPosition({ x, y })
   }, [selectedWordIds])
 
@@ -498,46 +537,40 @@ function UnifiedTranscriptStream({
 
     if (isProcessing) {
       return (
-        <div className="py-6 px-2 space-y-4">
+        <div className="px-4 py-8 space-y-3">
           {/* Skeleton placeholder rows */}
           {[0, 1, 2].map((row) => (
-            <div key={row} className="flex gap-4 animate-pulse" style={{ animationDelay: `${row * 150}ms` }}>
-              {/* Gutter skeleton */}
-              <div className="flex-shrink-0 w-12 pt-1">
-                <div className="h-3 w-10 bg-muted rounded ml-auto" />
+            <div key={row} className="flex gap-3" style={{ opacity: 1 - row * 0.2 }}>
+              <div className="flex-shrink-0 w-10 pt-0.5">
+                <div className="h-2.5 w-8 bg-foreground/[0.04] rounded ml-auto animate-pulse" style={{ animationDelay: `${row * 100}ms` }} />
               </div>
-              {/* Words skeleton */}
-              <div className="flex-1 flex flex-wrap gap-x-1.5 gap-y-1">
-                {Array.from({ length: 6 + row * 2 }).map((_, i) => (
+              <div className="flex-1 flex flex-wrap gap-x-1 gap-y-1">
+                {Array.from({ length: 5 + row }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-5 rounded bg-muted"
-                    style={{ width: `${40 + Math.random() * 50}px` }}
+                    className="h-4 rounded bg-foreground/[0.04] animate-pulse"
+                    style={{ width: `${32 + Math.random() * 40}px`, animationDelay: `${(row * 100) + (i * 50)}ms` }}
                   />
                 ))}
               </div>
             </div>
           ))}
-          {/* Call to action */}
-          <div className="flex items-center justify-center gap-2 pt-4 text-xs text-muted-foreground animate-pulse">
-            <span>Transcribing...</span>
-          </div>
         </div>
       )
     }
 
     if (allComplete) {
       return (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
-          <CaptionsOff className="w-8 h-8 opacity-20" />
-          <span className="text-sm">No speech detected in this recording</span>
+        <div className="flex flex-col items-center justify-center py-16 gap-2">
+          <CaptionsOff className="w-5 h-5 text-muted-foreground/30" />
+          <span className="text-[11px] text-muted-foreground/60">No speech detected</span>
         </div>
       )
     }
 
     return (
-      <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
-        <span className="text-sm">Choose a model and transcribe to start editing</span>
+      <div className="flex flex-col items-center justify-center py-16 gap-1.5">
+        <span className="text-[11px] text-muted-foreground/50">Select a model and click Transcribe</span>
       </div>
     )
   }
@@ -545,24 +578,23 @@ function UnifiedTranscriptStream({
   return (
     <div
       ref={wordContainerRef}
-      className="relative max-h-[400px] overflow-y-auto px-2 py-4 text-sm leading-relaxed text-foreground/90 focus:outline-none scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent"
-      style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}
+      className="relative text-[13px] leading-relaxed text-foreground/85 focus:outline-none"
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
       {/* Floating Toolbar */}
       {toolbarPosition && selectionHasVisibleWords && (
         <div
-          className="pointer-events-none absolute z-10 flex -translate-x-1/2 items-center gap-2 rounded-md bg-background/95 px-2 py-1 text-xs shadow-lg ring-1 ring-border/20 backdrop-blur-sm"
-          style={{ left: toolbarPosition.x, top: Math.max(0, toolbarPosition.y - 8) }}
+          className="pointer-events-none absolute z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-lg bg-popover/95 px-2 py-1 text-[10px] shadow-lg shadow-black/10 ring-1 ring-black/[0.06] dark:ring-white/[0.08] backdrop-blur-xl"
+          style={{ left: toolbarPosition.x, top: toolbarPosition.y }}
         >
-          <span className="font-medium">{selectedWordIds.size}</span>
-          <span className="text-muted-foreground">selected</span>
+          <span className="font-medium tabular-nums">{selectedWordIds.size}</span>
+          <span className="text-muted-foreground/70">selected</span>
           {selectionAllDeleted ? (
             <button
               type="button"
               onClick={handleRestoreSelection}
-              className="pointer-events-auto ml-1 rounded px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+              className="pointer-events-auto ml-1 rounded-md px-2 py-0.5 font-medium text-foreground bg-foreground/[0.06] hover:bg-foreground/[0.1] active:bg-foreground/[0.14] transition-colors duration-150"
             >
               Restore
             </button>
@@ -571,34 +603,27 @@ function UnifiedTranscriptStream({
               type="button"
               onClick={handleHideSelection}
               disabled={!selectionHasKeptWords}
-              className="pointer-events-auto ml-1 rounded px-2 py-0.5 text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-40"
+              className="pointer-events-auto ml-1 rounded-md px-2 py-0.5 font-medium text-red-500/90 hover:bg-red-500/10 active:bg-red-500/15 transition-colors duration-150 disabled:opacity-40"
             >
-              Hide
+              Cut
             </button>
           )}
         </div>
       )}
 
-      {/* Start Marker */}
-      <div className="flex items-center justify-center pb-6 opacity-30">
-        <div className="h-px w-12 bg-border" />
-        <span className="px-2 text-3xs font-medium uppercase tracking-wider text-muted-foreground">Start</span>
-        <div className="h-px w-12 bg-border" />
-      </div>
-
       {/* Unified Stream with Gutter */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         {groupedWords.map((group, groupIndex) => (
-          <div key={`${group.clipId}-${groupIndex}`} className="flex gap-4">
+          <div key={`${group.clipId}-${groupIndex}`} className="flex gap-3">
             {/* Gutter */}
-            <div className="flex-shrink-0 w-12 pt-1 text-right">
-              <span className="text-3xs font-medium text-muted-foreground/50 tabular-nums select-none">
+            <div className="flex-shrink-0 w-10 pt-0.5 text-right">
+              <span className="text-[10px] text-muted-foreground/40 tabular-nums select-none">
                 {formatTime(group.startTime, true)}
               </span>
             </div>
 
             {/* Words */}
-            <div className="flex-1 flex flex-wrap gap-x-1.5 gap-y-1">
+            <div className="flex-1 flex flex-wrap gap-x-1 gap-y-0.5">
               {group.items.map(({ word, isDeleted, isCurrent, isSelected, visibleIndex }) => (
                 <span
                   key={`word-${word.id}`}
@@ -609,12 +634,12 @@ function UnifiedTranscriptStream({
                   onMouseEnter={() => handleWordMouseEnter(visibleIndex)}
                   onClick={(event) => handleWordClick(visibleIndex, isDeleted, event)}
                   className={[
-                    'cursor-pointer select-none rounded-[4px] px-1 py-0.5 transition-all duration-100 ease-out',
+                    'cursor-pointer select-none rounded px-0.5 py-px transition-colors duration-100',
                     isSelected
-                      ? 'bg-primary/20 text-primary font-medium'
-                      : 'hover:bg-primary/10 hover:text-foreground',
-                    isCurrent ? 'underline decoration-primary decoration-2 underline-offset-2' : '',
-                    isDeleted ? 'line-through decoration-muted-foreground/40 text-muted-foreground/50 hover:text-muted-foreground hover:no-underline' : ''
+                      ? 'bg-foreground/10 text-foreground'
+                      : 'hover:bg-foreground/[0.04]',
+                    isCurrent ? 'text-foreground font-medium' : '',
+                    isDeleted ? 'line-through text-muted-foreground/40 hover:text-muted-foreground/60' : ''
                   ].join(' ')}
                 >
                   {word.sourceWord.text}
@@ -623,13 +648,6 @@ function UnifiedTranscriptStream({
             </div>
           </div>
         ))}
-      </div>
-
-      {/* End Marker */}
-      <div className="flex items-center justify-center pt-8 pb-4 opacity-30">
-        <div className="h-px w-12 bg-border" />
-        <span className="px-2 text-3xs font-medium uppercase tracking-wider text-muted-foreground">End</span>
-        <div className="h-px w-12 bg-border" />
       </div>
     </div>
   )
@@ -650,14 +668,14 @@ export function UnifiedTranscriptView({
 }: UnifiedTranscriptViewProps) {
   if (sections.length === 0) {
     return (
-      <div className="py-6 text-center text-xs text-muted-foreground">
-        No audio or webcam recordings to display.
+      <div className="flex items-center justify-center py-16">
+        <span className="text-[11px] text-muted-foreground/50">No audio sources available</span>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-2">
       <TranscriptSourceList
         sections={sections}
         onRestoreAll={onRestoreAll}
@@ -665,16 +683,18 @@ export function UnifiedTranscriptView({
         onCancelTranscription={onCancelTranscription}
       />
 
-      <UnifiedTranscriptStream
-        words={words}
-        sections={sections}
-        hiddenRegionsByRecording={hiddenRegionsByRecording}
-        showDeleted={showDeleted}
-        currentTime={currentTime}
-        onDeleteWords={onDeleteWords}
-        onRestoreRanges={onRestoreRanges}
-        onSeekWord={onSeekWord}
-      />
+      <div>
+        <UnifiedTranscriptStream
+          words={words}
+          sections={sections}
+          hiddenRegionsByRecording={hiddenRegionsByRecording}
+          showDeleted={showDeleted}
+          currentTime={currentTime}
+          onDeleteWords={onDeleteWords}
+          onRestoreRanges={onRestoreRanges}
+          onSeekWord={onSeekWord}
+        />
+      </div>
     </div>
   )
 }

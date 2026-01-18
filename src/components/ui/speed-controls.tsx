@@ -13,6 +13,12 @@ const MIN_RATE = 0.25
 const MAX_RATE = 4
 const SPEED_PRESETS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0]
 
+// Logarithmic scale helpers so 1x is centered (0.25x → 1x → 4x maps to -2 → 0 → 2)
+const rateToSlider = (rate: number): number => Math.log2(rate)
+const sliderToRate = (slider: number): number => Math.pow(2, slider)
+const SLIDER_MIN = rateToSlider(MIN_RATE) // -2
+const SLIDER_MAX = rateToSlider(MAX_RATE) // 2
+
 interface SpeedControlsProps {
   /** The clip ID to control speed for */
   clipId: string
@@ -42,8 +48,9 @@ export function SpeedControls({
     setPlaybackRate(currentRate)
   }, [currentRate, clipId])
 
-  const handlePlaybackRateChange = (value: number[]) => {
-    setPlaybackRate(value[0])
+  const handleSliderChange = (value: number[]) => {
+    // Convert from log slider value to actual rate
+    setPlaybackRate(sliderToRate(value[0]))
   }
 
   const commitPlaybackRate = async (rate: number) => {
@@ -114,17 +121,17 @@ export function SpeedControls({
       {showAdvanced && (
         <div className="space-y-1.5 pt-1">
           <Slider
-            value={[playbackRate]}
-            onValueChange={handlePlaybackRateChange}
-            onValueCommit={(vals) => commitPlaybackRate(vals[0])}
-            min={MIN_RATE}
-            max={MAX_RATE}
-            step={0.25}
+            value={[rateToSlider(playbackRate)]}
+            onValueChange={handleSliderChange}
+            onValueCommit={(vals) => commitPlaybackRate(sliderToRate(vals[0]))}
+            min={SLIDER_MIN}
+            max={SLIDER_MAX}
+            step={0.125}
           />
-          <div className="flex justify-between text-2xs text-muted-foreground/50 tabular-nums px-0.5">
-            <span>0.25x</span>
-            <span>1x</span>
-            <span>4x</span>
+          <div className="grid grid-cols-3 text-2xs text-muted-foreground/50 tabular-nums">
+            <span className="text-left">0.25x</span>
+            <span className="text-center">1x</span>
+            <span className="text-right">4x</span>
           </div>
         </div>
       )}
