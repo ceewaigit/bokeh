@@ -108,7 +108,8 @@ export function ZoomTab({
     const backgroundData = backgroundEffect ? getDataOfType<BackgroundEffectData>(backgroundEffect, EffectType.Background) : null
     const backgroundPadding = backgroundData?.padding ?? 0
     const hasBackgroundPadding = backgroundPadding > 0
-    // Calculate padding ratio for visual preview (padding as fraction of smaller dimension)
+    // Simple: padding as percentage of total output dimensions (used as fallback)
+    // padding / min(width, height) gives the fraction on each side
     const paddingRatio = hasBackgroundPadding && timelineMetadata
         ? backgroundPadding / Math.min(timelineMetadata.width, timelineMetadata.height)
         : 0
@@ -119,6 +120,19 @@ export function ZoomTab({
             ? project.recordings.find(r => r.id === selectedClip.recordingId) ?? null
             : project.recordings[0]
     }, [project, selectedClip])
+
+    // Compute actual overscan values from camera context - accounts for aspect-fit
+    const cameraOverscan = useMemo(() => {
+        if (!hasBackgroundPadding || !timelineMetadata || !activeRecording) return null
+        const context = getCameraOutputContext({
+            clipEffects: effects ?? [],
+            timelineMs: currentTime,
+            compositionWidth: timelineMetadata.width,
+            compositionHeight: timelineMetadata.height,
+            recording: activeRecording
+        })
+        return context.overscan ?? null
+    }, [hasBackgroundPadding, timelineMetadata, activeRecording, effects, currentTime, backgroundPadding, paddingRatio])
 
     const sourceDims = useMemo(() => activeRecording ? getSourceDimensionsStatic(activeRecording, activeRecording.metadata ?? null) : null, [activeRecording])
 
@@ -420,6 +434,7 @@ export function ZoomTab({
                                             cropData={cropData}
                                             allowOverscanReveal={hasBackgroundPadding}
                                             paddingRatio={paddingRatio}
+                                            overscan={cameraOverscan}
                                             onCommit={(updates) => handleBlockUpdate(updates)}
                                         />
                                         {!hasManualTarget && (

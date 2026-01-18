@@ -7,9 +7,8 @@
 
 import { useCallback, useState, useRef } from 'react'
 import { useProjectStore } from '@/features/core/stores/project-store'
-import { EffectType, type Effect, type AnnotationData } from '@/types/project'
 import { AnnotationType } from '@/types/project'
-import { getDefaultAnnotationSize } from '../config'
+import { EffectCreation } from '@/features/effects/core/creation'
 import { EffectLayerType } from '@/features/effects/types'
 import { AddEffectCommand, CommandExecutor } from '@/features/core/commands'
 import {
@@ -72,50 +71,7 @@ export function useAnnotationDrop({
     }, [aspectContainerRef, snapshot])
 
     const createAnnotationAtPosition = useCallback((type: AnnotationType, position: Point) => {
-        const startTime = currentTime
-        const endTime = startTime + 3000 // 3 second default duration
-        const defaultSize = getDefaultAnnotationSize(type)
-
-        // Adjust position for top-left anchored elements (Highlight, Redaction, Blur)
-        // These need to be offset by half width/height so the center lands at cursor
-        const isTopLeftAnchor = type === AnnotationType.Highlight ||
-            type === AnnotationType.Redaction ||
-            type === AnnotationType.Blur
-
-        let finalPosition = position
-        if (isTopLeftAnchor && defaultSize.width && defaultSize.height) {
-            // Offset so center of element is at cursor position
-            finalPosition = {
-                x: position.x - defaultSize.width / 2,
-                y: position.y - defaultSize.height / 2
-            }
-        }
-        // Arrow uses position directly as start point, which is correct
-
-        const effect: Effect = {
-            id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            type: EffectType.Annotation,
-            startTime,
-            endTime,
-            enabled: true,
-            data: {
-                type,
-                position: finalPosition,
-                content: type === AnnotationType.Text ? 'New text' : undefined,
-                endPosition: type === AnnotationType.Arrow
-                    ? { x: position.x + 10, y: position.y }
-                    : undefined,
-                width: defaultSize.width,
-                height: defaultSize.height,
-                style: {
-                    color: type === AnnotationType.Highlight ? '#ffeb3b' : '#ffffff',
-                    backgroundColor: type === AnnotationType.Redaction ? '#000000' : undefined,
-                    fontSize: 18,
-                    textAlign: type === AnnotationType.Text ? 'center' : undefined,
-                    borderRadius: type === AnnotationType.Redaction ? 2 : undefined,
-                },
-            } satisfies AnnotationData,
-        }
+        const effect = EffectCreation.createAnnotationEffect(type, { startTime: currentTime, position })
 
         if (CommandExecutor.isInitialized()) {
             void CommandExecutor.getInstance().execute(AddEffectCommand, effect)

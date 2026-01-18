@@ -249,7 +249,7 @@ const ArrowAnnotation = memo<BaseAnnotationProps>(({
                     id={`arrowhead-${id}`}
                     markerWidth={arrowHeadSize}
                     markerHeight={arrowHeadSize}
-                    refX={arrowHeadSize}
+                    refX={0}
                     refY={arrowHeadSize / 2}
                     orient="auto"
                 >

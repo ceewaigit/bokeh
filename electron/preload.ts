@@ -183,6 +183,8 @@ const electronAPI = {
     ipcRenderer.invoke('set-window-vibrancy', vibrancy),
   setWindowHasShadow: (hasShadow: boolean) =>
     ipcRenderer.invoke('set-window-has-shadow', hasShadow),
+  signalRendererReady: () =>
+    ipcRenderer.invoke('signal-renderer-ready'),
   getWindowDebugState: () =>
     ipcRenderer.invoke('get-window-debug-state'),
   getWindowAlphaSamples: () =>

@@ -6,7 +6,7 @@ import type { Clip } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { TimelineConfig, getClipInnerHeight } from '@/features/ui/timeline/config'
 import { getSourceDuration, TimeConverter } from '@/features/ui/timeline/time/time-space-converter'
-import { getNearestAvailableDragX, computeContiguousPreview } from '@/features/ui/timeline/utils/drag-positioning'
+import { computeContiguousPreview } from '@/features/ui/timeline/utils/drag-positioning'
 import { useTimelineColors, withAlpha } from '@/features/ui/timeline/utils/colors'
 import { useRecordingMetadata } from '@/features/rendering/renderer/hooks/media/useRecordingMetadata'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
@@ -235,29 +235,6 @@ const TimelineClipComponent = ({
             0,
             TimeConverter.pixelsToMs(proposedTimelineX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
           )
-
-          // WEBCAM: Overlay behavior (no ripple/contiguous logic)
-          // WEBCAM: Overlay behavior (no ripple/contiguous logic)
-          // Refactored to use shared collision logic (same as Effects)
-          if (trackType === TrackType.Webcam) {
-            const snappedX = getNearestAvailableDragX({
-              proposedX: proposedTimelineX,
-              blockWidthPx: clipWidth,
-              durationMs: clip.duration,
-              blocks: otherClipsInTrack.map(c => ({
-                id: c.id,
-                startTime: c.startTime,
-                endTime: c.startTime + c.duration
-              })),
-              pixelsPerMs,
-              excludeId: clip.id
-            })
-
-            return {
-              x: snappedX - currentScrollLeft,
-              y: trackY + TimelineConfig.TRACK_PADDING
-            }
-          }
 
           const blocks = otherClipsInTrack.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
           const preview = computeContiguousPreview(blocks, proposedTime, clip.duration, clip.id)

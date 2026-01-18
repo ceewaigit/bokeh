@@ -9,6 +9,58 @@
       background: transparent !important;
     }
   </style>
+  <script>
+    // Blocking script: Apply theme and window-surface settings BEFORE React hydrates
+    // This prevents the flash of incorrect opacity on initial load
+    (function() {
+      try {
+        // Read theme preference
+        var theme = localStorage.getItem('theme') || 'dark';
+        var resolvedTheme = theme;
+        if (theme === 'system') {
+          resolvedTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+
+        // Apply theme class immediately
+        document.documentElement.classList.add(resolvedTheme);
+
+        // Read window-surface settings
+        var surfaceData = localStorage.getItem('window-surface');
+        var surface = { mode: 'frosted', tintAlpha: 0.7, blurPx: 44 };
+        if (surfaceData) {
+          try {
+            var parsed = JSON.parse(surfaceData);
+            if (parsed.state) {
+              surface = parsed.state;
+            }
+          } catch (e) {}
+        }
+
+        // Set window-surface data attribute
+        var mode = surface.mode || 'frosted';
+        document.documentElement.dataset.windowSurface = mode;
+
+        // Set CSS variables - for light mode frosted, use minimum 0.75 opacity
+        var tintAlpha = surface.tintAlpha || 0.7;
+        var blurPx = surface.blurPx || 44;
+        var isFrosted = mode === 'frosted' || mode === 'custom';
+
+        if (resolvedTheme === 'light' && isFrosted) {
+          tintAlpha = Math.max(tintAlpha, 0.75);
+        }
+
+        document.documentElement.style.setProperty('--window-surface-opacity', String(tintAlpha));
+        document.documentElement.style.setProperty('--window-surface-blur', blurPx + 'px');
+
+        // Read and apply color preset
+        var colorPreset = localStorage.getItem('color-preset') || 'sand';
+        document.documentElement.setAttribute('data-color-preset', colorPreset);
+      } catch (e) {
+        // Fallback: default to dark theme
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>

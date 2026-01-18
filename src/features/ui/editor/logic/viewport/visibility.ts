@@ -31,48 +31,76 @@ export function clampCenterToContentBounds(
     const minY = contentBounds?.minY ?? 0
     const maxY = contentBounds?.maxY ?? 1
 
+    const clampInContentSpace = (
+        center: { x: number; y: number },
+        hwX: number,
+        hwY: number,
+        overscanInContentSpace: OutputOverscan
+    ) => {
+        const leftBound = ignoreOverscan ? 0 : -overscanInContentSpace.left
+        const rightBound = ignoreOverscan ? 0 : overscanInContentSpace.right
+        const topBound = ignoreOverscan ? 0 : -overscanInContentSpace.top
+        const bottomBound = ignoreOverscan ? 0 : overscanInContentSpace.bottom
+
+        const applyAxis = (c: number, hw: number, minV: number, maxV: number, lb: number, rb: number) => {
+            const minCenter = hw + lb + minV
+            const maxCenter = maxV - hw + rb
+
+            if (minCenter > maxCenter) {
+                return (minCenter + maxCenter) / 2
+            }
+            return Math.max(minCenter, Math.min(maxCenter, c))
+        }
+
+        return {
+            x: applyAxis(center.x, hwX, minX, maxX, leftBound, rightBound),
+            y: applyAxis(center.y, hwY, minY, maxY, topBound, bottomBound),
+        }
+    }
+
     if (allowFullRange) {
-        // In output space - calculate bounds based on whether we want to reveal padding
-        // When ignoreOverscan=false, allow camera to go ALL THE WAY to edges
-        // This lets the visible window extend fully into the padding/overscan area
-        //
-        // The key insight: to reveal padding, camera center must be able to go to
-        // the very edge (0 or 1), not just halfWindow away from the edge.
+        // Input is in OUTPUT space (0..1 across the full rendered output, including padding).
+        // Convert into CONTENT space (0..1 across the video draw area) so we can apply the
+        // same clamping math consistently, then convert back.
+        const contentWidthOut = 1 - overscan.left - overscan.right
+        const contentHeightOut = 1 - overscan.top - overscan.bottom
 
-        // When ignoreOverscan=true: clamp to [halfWindow, 1-halfWindow] (no padding reveal)
-        // When ignoreOverscan=false: clamp to [0, 1] (full padding reveal possible)
-        const effectiveMinX = ignoreOverscan ? halfWindowX + minX : minX
-        const effectiveMaxX = ignoreOverscan ? maxX - halfWindowX : maxX
-        const effectiveMinY = ignoreOverscan ? halfWindowY + minY : minY
-        const effectiveMaxY = ignoreOverscan ? maxY - halfWindowY : maxY
-
-        const result = {
-            x: effectiveMinX > effectiveMaxX ? (effectiveMinX + effectiveMaxX) / 2 : Math.max(effectiveMinX, Math.min(effectiveMaxX, centerNorm.x)),
-            y: effectiveMinY > effectiveMaxY ? (effectiveMinY + effectiveMaxY) / 2 : Math.max(effectiveMinY, Math.min(effectiveMaxY, centerNorm.y)),
+        if (contentWidthOut <= 0 || contentHeightOut <= 0) {
+            return {
+                x: Math.max(0, Math.min(1, centerNorm.x)),
+                y: Math.max(0, Math.min(1, centerNorm.y)),
+            }
         }
-        return result
-    }
 
-    const leftBound = ignoreOverscan ? 0 : -overscan.left
-    const rightBound = ignoreOverscan ? 0 : overscan.right
-    const topBound = ignoreOverscan ? 0 : -overscan.top
-    const bottomBound = ignoreOverscan ? 0 : overscan.bottom
+        const denomX = 1 / contentWidthOut
+        const denomY = 1 / contentHeightOut
 
-    const applyAxis = (c: number, hw: number, minV: number, maxV: number, lb: number, rb: number, allowFull: boolean) => {
-        // Effective constraints
-        const minCenter = allowFull ? hw + minV : hw + lb + minV
-        const maxCenter = allowFull ? maxV - hw : maxV - hw + rb
-
-        if (minCenter > maxCenter) {
-            return (minCenter + maxCenter) / 2
+        const overscanContent: OutputOverscan = {
+            left: overscan.left * denomX,
+            right: overscan.right * denomX,
+            top: overscan.top * denomY,
+            bottom: overscan.bottom * denomY,
         }
-        return Math.max(minCenter, Math.min(maxCenter, c))
+
+        const centerContent = {
+            x: centerNorm.x * denomX - overscanContent.left,
+            y: centerNorm.y * denomY - overscanContent.top,
+        }
+        const clampedContent = clampInContentSpace(
+            centerContent,
+            halfWindowX * denomX,
+            halfWindowY * denomY,
+            overscanContent
+        )
+
+        return {
+            x: (overscanContent.left + clampedContent.x) / denomX,
+            y: (overscanContent.top + clampedContent.y) / denomY,
+        }
     }
 
-    return {
-        x: applyAxis(centerNorm.x, halfWindowX, minX, maxX, leftBound, rightBound, allowFullRange),
-        y: applyAxis(centerNorm.y, halfWindowY, minY, maxY, topBound, bottomBound, allowFullRange),
-    }
+    // Input is already in CONTENT space.
+    return clampInContentSpace(centerNorm, halfWindowX, halfWindowY, overscan)
 }
 
 /**

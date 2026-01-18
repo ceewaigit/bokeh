@@ -291,7 +291,7 @@ export const VideoClipRenderer: React.FC<VideoClipRendererProps> = React.memo(({
             <AudioEnhancerWrapper enabled={enhanceAudio && !isRendering && !shouldMuteAudio}>
               <div style={{ display: 'contents' }}>
                 <VideoComponent
-                  key={`${recording.id}-${clipForVideo.id}-${urlFailed ? 'fallback' : 'primary'}`}
+                  key={`${recording.id}-${clipForVideo.id}-${effectiveUrl || 'no-url'}`}
                   src={effectiveUrl || ''}
                   crossOrigin="anonymous"
                   style={{

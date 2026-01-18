@@ -21,10 +21,10 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-overlay bg-overlay-scrim/50 backdrop-blur-[2px]",
+      "fixed inset-0 z-overlay bg-black/40 backdrop-blur-[3px]",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      "data-[state=open]:duration-200 data-[state=closed]:duration-150",
+      "data-[state=open]:duration-150 data-[state=closed]:duration-100",
       className
     )}
     {...props}
@@ -32,31 +32,52 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** Hide the default close button */
+  hideCloseButton?: boolean
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DialogContentProps
+>(({ className, children, hideCloseButton, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
         "fixed left-[50%] top-[50%] z-modal translate-x-[-50%] translate-y-[-50%]",
-        "grid w-full max-w-lg gap-4 border border-glass-border bg-background/90 backdrop-blur-2xl backdrop-saturate-150 text-foreground p-6 shadow-modal rounded-dialog",
+        "grid w-full max-w-lg gap-4 p-5",
+        // Native macOS-style glass effect
+        "bg-background/80 backdrop-blur-2xl backdrop-saturate-150",
+        "border border-foreground/[0.08] shadow-2xl",
+        "rounded-xl text-foreground",
+        // Subtle inner glow for depth
+        "shadow-[0_0_0_0.5px_rgba(255,255,255,0.1)_inset,0_24px_48px_-12px_rgba(0,0,0,0.4)]",
+        // Snappy animations
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-        "data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]",
-        "data-[state=open]:duration-200 data-[state=closed]:duration-150",
+        "data-[state=closed]:zoom-out-[0.96] data-[state=open]:zoom-in-[0.96]",
+        "data-[state=open]:duration-150 data-[state=closed]:duration-100",
         "data-[state=open]:ease-out data-[state=closed]:ease-in",
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-3 top-3 w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-overlay-hover transition-colors duration-100 focus:outline-none">
-        <X className="h-3.5 w-3.5" strokeWidth={2} />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
+      {!hideCloseButton && (
+        <DialogPrimitive.Close className={cn(
+          "absolute right-2.5 top-2.5 w-5 h-5 rounded-full",
+          "flex items-center justify-center",
+          "text-foreground/30 hover:text-foreground/60",
+          "hover:bg-foreground/[0.06] active:bg-foreground/[0.1]",
+          "transition-all duration-100",
+          "focus:outline-none"
+        )}>
+          <X className="h-3 w-3" strokeWidth={2.5} />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      )}
     </DialogPrimitive.Content>
   </DialogPortal>
 ))
@@ -97,7 +118,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-[-0.02em]",
+      "text-[13px] font-semibold leading-tight tracking-[-0.01em] text-foreground",
       className
     )}
     {...props}
@@ -111,7 +132,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-[11px] text-foreground/50 leading-snug", className)}
     {...props}
   />
 ))

@@ -1,20 +1,17 @@
 /**
  * Large Video Dialog
- * 
- * Simple, friendly prompt when a large video is detected.
- * Offers a single CTA to optimize for editing, with dismiss option.
+ *
+ * Native macOS-style prompt when a large video is detected.
+ * Clean, minimal, Apple-esque design with subtle animations.
  */
 
-import React, { useEffect } from 'react'
-import { Loader2, Gauge, Check } from 'lucide-react'
+import React, { useEffect, useCallback } from 'react'
+import { Check } from 'lucide-react'
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { cn } from '@/shared/utils/utils'
 import type { Recording } from '@/types/project'
 import type { UserProxyChoice } from '../types'
 import { useProxyStore, useProxyProgress } from '../store/proxy-store'
@@ -30,6 +27,37 @@ interface LargeVideoDialogProps {
     onClose: () => void
 }
 
+/** Native macOS-style progress bar */
+function ProgressBar({ value }: { value: number }) {
+    return (
+        <div className="h-1 w-full rounded-full bg-foreground/[0.06] overflow-hidden">
+            <div
+                className="h-full rounded-full bg-foreground/40 transition-all duration-300 ease-out"
+                style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+            />
+        </div>
+    )
+}
+
+/** Resolution icon - clean, geometric, SF Symbols-inspired */
+function ResolutionIcon({ className }: { className?: string }) {
+    return (
+        <svg
+            className={className}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="M7 15V9l3 3 2-2 5 5" />
+            <circle cx="8" cy="10" r="1" fill="currentColor" stroke="none" />
+        </svg>
+    )
+}
+
 export function LargeVideoDialog({
     open,
     recording,
@@ -41,91 +69,114 @@ export function LargeVideoDialog({
     const isGenerating = status === 'generating'
     const isComplete = status === 'ready'
 
-    // Auto-close dialog after completion with brief delay to show success message
+    // Auto-close dialog after completion
     useEffect(() => {
         if (isComplete && open) {
-            const timeoutId = setTimeout(() => {
-                onClose()
-            }, 1200)
+            const timeoutId = setTimeout(onClose, 800)
             return () => clearTimeout(timeoutId)
         }
     }, [isComplete, open, onClose])
 
-    const getResolutionLabel = (width?: number) => {
-        if (!width) return 'high-resolution'
+    const getResolutionLabel = useCallback((width?: number) => {
+        if (!width) return 'High-Resolution'
         if (width >= 3840) return '4K'
         if (width >= 2560) return '1440p'
         if (width >= 1920) return '1080p'
-        return 'high-resolution'
-    }
+        return 'High-Resolution'
+    }, [])
 
-    const handleOptimize = () => {
-        // Always use background generation for better UX
+    const handleOptimize = useCallback(() => {
         onChoice('background')
-    }
+    }, [onChoice])
 
-    const handleSkip = () => {
+    const handleSkip = useCallback(() => {
         onChoice('dismiss')
-    }
+    }, [onChoice])
 
     return (
         <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-            <DialogContent className="max-w-sm">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-pill bg-primary/10 text-primary">
-                            <Gauge className="h-4 w-4" />
-                        </div>
-                        {getResolutionLabel(recording?.width)} Video
-                    </DialogTitle>
-                    <DialogDescription className="text-base">
-                        Your video is quite large! Would you like to optimize it for smoother editing?
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-[280px] p-0 gap-0 overflow-hidden" hideCloseButton>
+                {/* Header with icon */}
+                <div className="flex flex-col items-center pt-5 pb-3 px-5">
+                    <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center mb-3",
+                        "bg-gradient-to-b from-foreground/[0.08] to-foreground/[0.04]",
+                        "shadow-[inset_0_0.5px_0_0_rgba(255,255,255,0.1)]",
+                        isComplete && "from-green-500/20 to-green-500/10"
+                    )}>
+                        {isComplete ? (
+                            <Check className="w-5 h-5 text-green-500" strokeWidth={2.5} />
+                        ) : (
+                            <ResolutionIcon className={cn(
+                                "w-5 h-5 text-foreground/70",
+                                isGenerating && "animate-pulse"
+                            )} />
+                        )}
+                    </div>
 
-                <div className="space-y-4 pt-2">
-                    {isComplete ? (
-                        <div className="flex items-center gap-3 rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-3">
-                            <Check className="h-5 w-5 text-green-500" />
-                            <div className="flex-1">
-                                <p className="text-sm font-medium text-green-600 dark:text-green-400">Optimized!</p>
-                                <p className="text-xs text-muted-foreground">Ready for smooth editing</p>
-                            </div>
-                        </div>
-                    ) : isGenerating ? (
-                        <div className="flex items-center gap-3 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
-                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                            <div className="flex-1">
-                                <p className="text-sm font-medium">Optimizing...</p>
-                                <p className="text-xs text-muted-foreground">
-                                    {progress !== undefined ? `${Math.round(progress)}% complete` : 'Starting up...'}
-                                </p>
-                            </div>
-                        </div>
-                    ) : (
-                        <p className="text-sm text-muted-foreground">
-                            This creates a preview copy for editing. Your original quality is preserved for export.
+                    {/* Title */}
+                    <h2 className="text-[13px] font-semibold text-foreground tracking-[-0.01em] text-center">
+                        {isComplete ? 'Optimized' : `${getResolutionLabel(recording?.width)} Video`}
+                    </h2>
+
+                    {/* Description */}
+                    <p className="text-[11px] text-foreground/50 text-center mt-1 leading-snug max-w-[200px]">
+                        {isComplete
+                            ? 'Ready for smooth editing'
+                            : isGenerating
+                                ? 'Creating preview for editing...'
+                                : 'Create an optimized preview for smoother editing?'
+                        }
+                    </p>
+                </div>
+
+                {/* Progress section */}
+                {isGenerating && (
+                    <div className="px-5 pb-4">
+                        <ProgressBar value={progress ?? 0} />
+                        <p className="text-[10px] text-foreground/40 text-center mt-2 tabular-nums">
+                            {progress !== undefined ? `${Math.round(progress)}%` : 'Starting...'}
                         </p>
-                    )}
+                    </div>
+                )}
 
-                    <div className="flex gap-2">
-                        <Button
-                            onClick={handleOptimize}
-                            className="flex-1"
-                            disabled={isGenerating || isComplete}
-                        >
-                            <Gauge className="h-4 w-4 mr-2" />
-                            Optimize
-                        </Button>
-                        <Button
-                            variant="ghost"
+                {/* Info text when not generating */}
+                {!isGenerating && !isComplete && (
+                    <p className="text-[10px] text-foreground/35 text-center px-5 pb-4 leading-relaxed">
+                        Original quality preserved for export
+                    </p>
+                )}
+
+                {/* Buttons - macOS style */}
+                {!isComplete && (
+                    <div className="flex border-t border-foreground/[0.06]">
+                        <button
                             onClick={handleSkip}
-                            disabled={isGenerating || isComplete}
+                            disabled={isGenerating}
+                            className={cn(
+                                "flex-1 py-2.5 text-[13px] text-foreground/60",
+                                "border-r border-foreground/[0.06]",
+                                "transition-colors duration-100",
+                                "hover:bg-foreground/[0.03] active:bg-foreground/[0.06]",
+                                "disabled:opacity-40 disabled:pointer-events-none"
+                            )}
                         >
                             Skip
-                        </Button>
+                        </button>
+                        <button
+                            onClick={handleOptimize}
+                            disabled={isGenerating}
+                            className={cn(
+                                "flex-1 py-2.5 text-[13px] font-medium text-primary",
+                                "transition-colors duration-100",
+                                "hover:bg-foreground/[0.03] active:bg-foreground/[0.06]",
+                                "disabled:opacity-40 disabled:pointer-events-none"
+                            )}
+                        >
+                            Optimize
+                        </button>
                     </div>
-                </div>
+                )}
             </DialogContent>
         </Dialog>
     )

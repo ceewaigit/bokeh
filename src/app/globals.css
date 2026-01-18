@@ -165,6 +165,19 @@
   --overlay-hover-opacity: 0.05;
 }
 
+/* Light mode base opacity - immediately applies when .light class is added */
+:root.light {
+  --window-surface-opacity: 0.75;
+}
+
+/* Light mode frosted refinements - applies when data-window-surface is also set */
+:root.light[data-window-surface="frosted"],
+:root.light[data-window-surface="custom"] {
+  --window-surface-brightness: 100%;
+  --window-surface-saturate: 120%;
+  --window-surface-contrast: 100%;
+}
+
 /* --- THEME PRESETS --- */
 
 /* Theme Preset: Royal (Default, Purple) */

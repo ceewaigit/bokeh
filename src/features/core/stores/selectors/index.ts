@@ -5,7 +5,7 @@
  * Use these instead of inline useMemo derivations.
  *
  * Categories:
- * - Timeline: useTimelineEffects, useEffectsByType, useTrackExistence
+ * - Timeline: useTimelineEffects, useEffectsByType, useEffectTrackExistence, useMediaTrackExistence
  * - Clips: useVideoClips, useSelectedClip, useFrameLayout
  * - Settings: useCameraSettings, useEditingSettings, useRecordingSettings
  * - Effects: useEffectsContext (via RenderingTimelineContext)

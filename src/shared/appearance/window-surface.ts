@@ -99,9 +99,15 @@ export function resolveWindowSurfaceTokens(input: {
   }
 
   const clampedBlur = Math.max(1, blurPx)
+
+  // For light mode frosted, ensure minimum opacity for better visuals
+  const effectiveAlpha = input.resolvedTheme === 'light'
+    ? Math.max(tintAlpha, 0.75)  // Light mode minimum
+    : tintAlpha
+
   return {
     datasetMode: (input.mode === 'custom' ? 'custom' : 'frosted') as 'custom' | 'frosted',
-    cssVars: { tintAlpha: clamp(tintAlpha, 0, 1), blurPx: clampedBlur },
+    cssVars: { tintAlpha: clamp(effectiveAlpha, 0, 1), blurPx: clampedBlur },
     electron: { vibrancy: frostedVibrancy, hasShadow: false },
   }
 }

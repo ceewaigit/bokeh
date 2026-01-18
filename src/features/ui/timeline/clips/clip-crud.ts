@@ -10,7 +10,6 @@ import { TrackType } from '@/types/project'
 import { getReorderTarget } from '@/features/ui/timeline/utils/drag-positioning'
 import { ClipLookup } from '@/features/ui/timeline/clips/clip-lookup'
 import { withMutation } from '@/features/ui/timeline/clips/clip-mutation'
-import { WebcamTrackValidator } from '@/features/ui/timeline/clips/webcam-validator'
 
 /**
  * Add clip to track at specified position.
@@ -48,19 +47,8 @@ export function addClipToTrack(
 
     if (options?.insertIndex !== undefined) {
         insertIndex = options.insertIndex
-    } else if (targetTrackType === TrackType.Webcam) {
-        // Webcam track: Ensure no collision using WebcamTrackValidator
-        const validation = WebcamTrackValidator.validateMove(
-            targetTrack,
-            proposedTime,
-            clip.duration
-        )
-        clip.startTime = validation.startTime
-
-        // Find correct sorted index for this new startTime
-        const sortedIndex = targetTrack.clips.findIndex(c => c.startTime > clip.startTime)
-        insertIndex = sortedIndex === -1 ? targetTrack.clips.length : sortedIndex
     } else {
+        // Use contiguous reorder logic for all track types
         const blocks = targetTrack.clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
         const result = getReorderTarget(proposedTime, blocks)
         insertIndex = result.insertIndex
@@ -211,34 +199,6 @@ export function updateClipInTrack(
     const shouldReflow = options?.maintainContiguous !== false
 
     return withMutation(project, () => {
-        // ENFORCE: Webcam track collision detection during updates (drag/move/resize)
-        if (track.type === TrackType.Webcam) {
-            const hasStartChange = typeof updates.startTime === 'number' && updates.startTime !== clip.startTime
-            const hasDurationChange = typeof updates.duration === 'number' && updates.duration !== clip.duration
-
-            if (hasStartChange || hasDurationChange) {
-                const proposedTime = updates.startTime ?? clip.startTime
-                const proposedDuration = updates.duration ?? clip.duration
-
-                if (hasStartChange) {
-                    // Use WebcamTrackValidator for move validation
-                    const validation = WebcamTrackValidator.validateMove(
-                        track,
-                        proposedTime,
-                        proposedDuration,
-                        clip.id
-                    )
-                    updates.startTime = validation.startTime
-                } else if (hasDurationChange) {
-                    // For duration-only changes, clamp to max available space
-                    const maxDuration = WebcamTrackValidator.getMaxDurationToNextClip(track, clip)
-                    if (proposedDuration > maxDuration && maxDuration !== Infinity) {
-                        updates.duration = Math.max(1000, maxDuration)
-                    }
-                }
-            }
-        }
-
         Object.assign(clip, updates)
         return true
     }, shouldReflow ? track : undefined)

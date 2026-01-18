@@ -24,9 +24,11 @@ describe('clampCenterToContentBounds', () => {
                 true  // ignoreOverscan - should clamp strictly
             )
 
-            // Should clamp to [0.25, 0.75]
-            expect(result.x).toBe(0.25)
-            expect(result.y).toBe(0.75)
+            // Output-space overscan means content is inset by overscan.* on each side.
+            // With ignoreOverscan=true, clamp within the CONTENT area only.
+            // min = overscan.left + halfWindow; max = 1 - overscan.right - halfWindow
+            expect(result.x).toBeCloseTo(0.3, 8)
+            expect(result.y).toBeCloseTo(0.7, 8)
         })
 
         it('should not allow camera to reveal padding when ignoreOverscan=true', () => {
@@ -51,7 +53,7 @@ describe('clampCenterToContentBounds', () => {
     })
 
     describe('with overscan reveal (ignoreOverscan=false)', () => {
-        it('should allow camera center to go to edges [0, 1] in output space', () => {
+        it('should allow camera to reveal padding while staying within output bounds', () => {
             const center = { x: 0, y: 1 }
             const halfWindowX = 0.25
             const halfWindowY = 0.25
@@ -66,9 +68,10 @@ describe('clampCenterToContentBounds', () => {
                 false  // ignoreOverscan=false - should allow edge access
             )
 
-            // Should allow going to edges
-            expect(result.x).toBe(0)
-            expect(result.y).toBe(1)
+            // In output space, the camera center must stay within [halfWindow, 1-halfWindow]
+            // to keep the viewport inside the output while still allowing padding to be visible.
+            expect(result.x).toBe(0.25)
+            expect(result.y).toBe(0.75)
         })
 
         it('should allow camera to reveal full padding when ignoreOverscan=false', () => {
@@ -86,9 +89,10 @@ describe('clampCenterToContentBounds', () => {
                 false // ignoreOverscan=false
             )
 
-            // Should NOT clamp - values within [0, 1]
-            expect(result.x).toBe(0.1)
-            expect(result.y).toBe(0.9)
+            // Even when revealing padding, output-space clamping must keep the viewport within the output.
+            // min = halfWindow; max = 1 - halfWindow
+            expect(result.x).toBeCloseTo(0.25, 8)
+            expect(result.y).toBeCloseTo(0.75, 8)
         })
 
         it('should clamp to [0, 1] not beyond', () => {
@@ -106,9 +110,9 @@ describe('clampCenterToContentBounds', () => {
                 false
             )
 
-            // Should clamp to [0, 1] bounds
-            expect(result.x).toBe(0)
-            expect(result.y).toBe(1)
+            // Should clamp within output-safe bounds
+            expect(result.x).toBe(0.25)
+            expect(result.y).toBe(0.75)
         })
     })
 

@@ -185,22 +185,7 @@ export function useAssetDragDrop({
                     TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
                 )
 
-                // Webcam track: No contiguous/ripple logic
-                if (targetTrack === TrackType.Webcam) {
-                    setDragState({
-                        time: proposedTime,
-                        trackType: targetTrack,
-                        preview: {
-                            clipId: '__asset__',
-                            trackType: targetTrack,
-                            startTimes: {},
-                            insertIndex: -1
-                        }
-                    })
-                    return
-                }
-
-                // Video/Audio track: Compute contiguous preview
+                // Compute contiguous preview for all track types
                 const clips = getClipsForTrack(targetTrack)
                 const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
                 const preview = computeContiguousPreview(blocks, proposedTime, input.assetDuration)
@@ -272,25 +257,16 @@ export function useAssetDragDrop({
                 TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
             )
 
-            let insertIndex: number | undefined
-            let startTime: number | undefined
-
-            if (targetTrack === TrackType.Webcam) {
-                // Webcam: Explicit start time, no insert index
-                startTime = proposedTime
-            } else {
-                const clips = getClipsForTrack(targetTrack)
-                const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
-                const preview = computeContiguousPreview(
-                    blocks,
-                    proposedTime,
-                    assetDuration
-                )
-                insertIndex = preview?.insertIndex
-                if (!preview) {
-                    startTime = proposedTime
-                }
-            }
+            // Compute contiguous preview for all track types
+            const clips = getClipsForTrack(targetTrack)
+            const blocks = clips.map(c => ({ id: c.id, startTime: c.startTime, endTime: c.startTime + c.duration }))
+            const preview = computeContiguousPreview(
+                blocks,
+                proposedTime,
+                assetDuration
+            )
+            const insertIndex = preview?.insertIndex
+            const startTime = preview ? undefined : proposedTime
 
             if (executorRef.current) {
                 await executorRef.current.execute(AddAssetCommand, {

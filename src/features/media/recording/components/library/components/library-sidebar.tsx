@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from 'react'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Clock, HardDrive } from 'lucide-react'
 import { cn } from '@/shared/utils/utils'
 import { type DateCategory, type DateCategoryId } from '../utils/date-grouping'
@@ -148,7 +148,7 @@ export function LibrarySidebar({
   const hasStats = totalDurationMs > 0 || totalStorageBytes > 0
 
   return (
-    <motion.aside
+    <aside
       className={cn(
         "h-full flex flex-col justify-center",
         collapsed && "items-center"
@@ -156,37 +156,29 @@ export function LibrarySidebar({
     >
       <div className={cn("py-6", collapsed ? "px-2" : "px-0")}>
         {/* Brand + Greeting */}
-        <AnimatePresence mode="wait">
+        {!collapsed && (
+          <div className="mb-10">
+            {/* Brand icon */}
+            <div className="mb-4">
+              <BokehIcon className="w-8 h-8 text-foreground/70" />
+            </div>
+
+            {/* Greeting */}
+            <h1 className="text-2xl xl:text-3xl tracking-tight text-foreground leading-tight font-medium">
+              {renderGreeting()}
+            </h1>
+
+            {/* Subtitle - count */}
+            <p className="mt-2 text-sm text-muted-foreground">
+              {totalCount} {totalCount === 1 ? 'recording' : 'recordings'}
+            </p>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="space-y-2">
           {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="mb-8"
-            >
-              {/* Brand icon - subtle, refined */}
-              <div className="mb-3">
-                <BokehIcon className="w-7 h-7 text-foreground/70" />
-              </div>
-
-              {/* Greeting - clean typography */}
-              <h1 className="text-[22px] xl:text-[26px] tracking-[-0.025em] text-foreground/95 leading-tight font-medium">
-                {renderGreeting()}
-              </h1>
-
-              {/* Subtitle - count always visible */}
-              <p className="mt-1.5 text-[13px] text-muted-foreground/50 tracking-tight">
-                {totalCount} {totalCount === 1 ? 'recording' : 'recordings'}
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Navigation - with section header */}
-        <div className="space-y-4">
-          {!collapsed && (
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 px-0.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/60 px-2.5 mb-2">
               Timeline
             </p>
           )}
@@ -205,30 +197,25 @@ export function LibrarySidebar({
           </nav>
         </div>
 
-        {/* Stats section - refined Apple-style */}
+        {/* Stats section */}
         {!collapsed && hasStats && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1, duration: 0.2 }}
-            className="mt-8 pt-6 border-t border-border/20"
-          >
-            <div className="space-y-2.5">
+          <div className="mt-8 pt-6 border-t border-border/50">
+            <div className="space-y-3">
               <StatItem
                 icon={Clock}
-                label="Total duration"
+                label="Duration"
                 value={formatDuration(totalDurationMs)}
               />
               <StatItem
                 icon={HardDrive}
-                label="Storage used"
+                label="Storage"
                 value={formatStorage(totalStorageBytes)}
               />
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
-    </motion.aside>
+    </aside>
   )
 }
 
@@ -244,12 +231,12 @@ interface StatItemProps {
 
 function StatItem({ icon: Icon, label, value }: StatItemProps) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex items-center gap-2 text-muted-foreground/50 min-w-0 flex-1">
-        <Icon className="w-3 h-3 flex-shrink-0" strokeWidth={1.75} />
-        <span className="text-[11px] tracking-tight truncate">{label}</span>
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2.5 text-muted-foreground min-w-0">
+        <Icon className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+        <span className="text-sm truncate">{label}</span>
       </div>
-      <span className="text-[12px] text-foreground/70 tabular-nums font-medium tracking-tight flex-shrink-0">
+      <span className="text-sm text-foreground tabular-nums font-medium ml-3">
         {value}
       </span>
     </div>
@@ -276,12 +263,12 @@ function NavItem({ label, count, isActive, collapsed, onClick, reduceMotion }: N
       onClick={onClick}
       className={cn(
         "relative flex items-center w-full",
-        "py-1.5 px-2 rounded-md",
-        "text-left text-[13px] font-normal",
-        "transition-all duration-100 ease-out",
+        "py-2 px-2.5 rounded-lg",
+        "text-left text-sm font-normal",
+        "transition-colors duration-100 ease-out",
         isActive
-          ? "text-foreground/95"
-          : "text-muted-foreground/60 hover:text-foreground/80 hover:bg-foreground/[0.04]",
+          ? "text-foreground"
+          : "text-muted-foreground hover:text-foreground",
         collapsed && "justify-center"
       )}
     >
@@ -299,10 +286,10 @@ function NavItem({ label, count, isActive, collapsed, onClick, reduceMotion }: N
         {/* Label and count */}
         {!collapsed && (
           <>
-            <span className="truncate flex-1 tracking-tight">{label}</span>
+            <span className="truncate flex-1">{label}</span>
             <span className={cn(
-              "text-[11px] ml-3 tabular-nums transition-colors duration-100",
-              isActive ? "text-foreground/40" : "text-muted-foreground/35"
+              "text-xs ml-3 tabular-nums",
+              isActive ? "text-muted-foreground" : "text-muted-foreground/50"
             )}>
               {count}
             </span>

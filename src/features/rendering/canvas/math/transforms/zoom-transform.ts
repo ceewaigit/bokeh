@@ -420,14 +420,42 @@ export function calculateZoomTransform(
   const rawPanX = (0.5 - blendedCenter.x) * videoWidth * scale;
   const rawPanY = (0.5 - blendedCenter.y) * videoHeight * scale;
 
-  // True "zoom into cursor" formula: cursor stays fixed on screen during zoom
-  // pan = (0.5 - cursorPos) * (scale - 1) * size
-  // This couples pan directly to scale so they move as ONE motion
+  // Determine phase: intro, hold, or outro
+  const isIntroPhase = clampedElapsed < effectiveIntro;
+  const isOutroPhase = clampedElapsed > duration - effectiveOutro && effectiveOutro > 0;
+
+  // Outro scale progress: 0 at scale=targetScale, 1 at scale=1 (inverse of scaleProgress)
+  // Used to smoothly blend from full pan back to zero during outro
+  const outroScaleProgress = targetScale > 1 ? clamp01((targetScale - scale) / (targetScale - 1)) : 0;
+
+  // Pan calculation strategy:
+  // - "introPan" uses (scale-1): cursor stays fixed on screen during zoom (nice cinematic effect)
+  // - "fullPan" uses (scale): allows camera to reach full range including padding edges
+  //
+  // Phase behavior:
+  // 1. INTRO: Blend from introPan (cursor fixed) to fullPan (continuous with hold)
+  //    - At start (scale=1): pan=0
+  //    - At end (scale=targetScale): pan=fullPan (smooth transition to hold)
+  // 2. HOLD: Use fullPan (camera can reach padding edges)
+  // 3. OUTRO: Blend from fullPan back to introPan (smooth return to no-pan state)
+  //    - At start (scale=targetScale): pan=fullPan (continuous with hold)
+  //    - At end (scale=1): pan=0 (smooth return to un-zoomed state)
   const panX = (() => {
     if (zoomIntoCursorMode === 'snap') return rawPanX;
-    // Smooth zoom-into-cursor: pan coupled to scale so cursor stays fixed
     if ((zoomIntoCursorMode === 'cursor' || zoomIntoCursorMode === 'lead' || zoomIntoCursorMode === undefined) && targetScale > 1) {
-      return (0.5 - blendedCenter.x) * videoWidth * (scale - 1);
+      const introPan = (0.5 - blendedCenter.x) * videoWidth * (scale - 1);
+
+      if (isIntroPhase && effectiveIntro > 0) {
+        // During intro: blend from "cursor stays fixed" to "full pan"
+        return introPan + (rawPanX - introPan) * scaleProgress;
+      } else if (isOutroPhase) {
+        // During outro: blend from "full pan" back to "cursor stays fixed"
+        // This ensures smooth return to un-panned state at scale=1
+        return rawPanX + (introPan - rawPanX) * outroScaleProgress;
+      } else {
+        // During hold: use full pan formula to allow reaching padding edges
+        return rawPanX;
+      }
     }
     return rawPanX * panBlend;
   })();
@@ -435,7 +463,18 @@ export function calculateZoomTransform(
   const panY = (() => {
     if (zoomIntoCursorMode === 'snap') return rawPanY;
     if ((zoomIntoCursorMode === 'cursor' || zoomIntoCursorMode === 'lead' || zoomIntoCursorMode === undefined) && targetScale > 1) {
-      return (0.5 - blendedCenter.y) * videoHeight * (scale - 1);
+      const introPan = (0.5 - blendedCenter.y) * videoHeight * (scale - 1);
+
+      if (isIntroPhase && effectiveIntro > 0) {
+        // During intro: blend from "cursor stays fixed" to "full pan"
+        return introPan + (rawPanY - introPan) * scaleProgress;
+      } else if (isOutroPhase) {
+        // During outro: blend from "full pan" back to "cursor stays fixed"
+        return rawPanY + (introPan - rawPanY) * outroScaleProgress;
+      } else {
+        // During hold: use full pan formula to allow reaching padding edges
+        return rawPanY;
+      }
     }
     return rawPanY * panBlend;
   })();

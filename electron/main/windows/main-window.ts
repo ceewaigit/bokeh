@@ -40,7 +40,8 @@ export function createMainWindow(): BrowserWindow {
         },
       }),
     transparent: true,
-    vibrancy: 'under-window', // or 'sidebar', 'hud', 'popover'
+    // Don't set vibrancy here - let the renderer set it based on theme
+    // This prevents flash of wrong vibrancy on light mode initial load
     visualEffectState: 'followWindow',
     backgroundColor: '#00000000',
     hasShadow: true,

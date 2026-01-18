@@ -31,6 +31,7 @@ import { PlaybackSettingsProvider } from '@/features/rendering/renderer/context/
 import { GlowProvider } from '@/features/ui/editor/context/GlowContext';
 import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
 import { AnnotationDock } from '@/features/effects/annotation/ui/AnnotationDock';
+import { PreviewProvider } from '@/features/ui/editor/contexts/preview-context';
 
 interface PreviewAreaRemotionProps {
   // Crop editing props
@@ -399,54 +400,53 @@ export function PreviewAreaRemotion({
             >
               <AnnotationDock />
               {playerConfig && (
+                <PreviewProvider value={{ playerRef, playerContainerRef, aspectContainerRef }}>
                   <TimelineProvider
-                  compositionWidth={compositionSize.width}
-                  compositionHeight={compositionSize.height}
-                  videoWidth={timelineMetadata.width}
-                  videoHeight={timelineMetadata.height}
-                  fps={timelineMetadata.fps}
-                  clips={playerConfig.clips}
-                  recordings={playerConfig.recordings}
-                  effects={playerConfig.effects}
-                  resources={{
-                    videoFilePaths: {},
-                    videoUrls: {}
-                  }}
-                >
-                  <PlaybackSettingsProvider
-                    playback={{
-                      isPlaying,
-                      isScrubbing,
-                      isHighQualityPlaybackEnabled,
-                      previewMuted: muted,
-                      previewVolume: volume / 100
-                    }}
-                    renderSettings={{
-                      isGlowMode: false,
-                      preferOffthreadVideo: false,
-                      enhanceAudio: false,
-                      isEditingCrop: Boolean(isEditingCrop),
-                      glowCrossfade: false
-                    }}
+                    compositionWidth={compositionSize.width}
+                    compositionHeight={compositionSize.height}
+                    videoWidth={timelineMetadata.width}
+                    videoHeight={timelineMetadata.height}
+                    fps={timelineMetadata.fps}
+                    clips={playerConfig.clips}
+                    recordings={playerConfig.recordings}
+                    effects={playerConfig.effects}
                     resources={{
                       videoFilePaths: {},
                       videoUrls: {}
                     }}
                   >
-                    <PreviewInteractions
-                      timelineMetadata={timelineMetadata}
-                      playerKey={playerKey}
-                      zoomSettings={zoomSettings}
-                      previewFrameBounds={previewFrameBounds}
-                      aspectContainerRef={aspectContainerRef}
-                      playerContainerRef={playerContainerRef}
-                      playerRef={playerRef}
+                    <PlaybackSettingsProvider
+                      playback={{
+                        isPlaying,
+                        isScrubbing,
+                        isHighQualityPlaybackEnabled,
+                        previewMuted: muted,
+                        previewVolume: volume / 100
+                      }}
+                      renderSettings={{
+                        isGlowMode: false,
+                        preferOffthreadVideo: false,
+                        enhanceAudio: false,
+                        isEditingCrop: Boolean(isEditingCrop),
+                        glowCrossfade: false
+                      }}
+                      resources={{
+                        videoFilePaths: {},
+                        videoUrls: {}
+                      }}
                     >
-                      {/* Memoize PlayerContainer to prevent re-renders when selection/crop state changes but playback doesn't */}
-                      {playerContainer}
-                    </PreviewInteractions>
-                  </PlaybackSettingsProvider>
-                </TimelineProvider>
+                      <PreviewInteractions
+                        timelineMetadata={timelineMetadata}
+                        playerKey={playerKey}
+                        zoomSettings={zoomSettings}
+                        previewFrameBounds={previewFrameBounds}
+                      >
+                        {/* Memoize PlayerContainer to prevent re-renders when selection/crop state changes but playback doesn't */}
+                        {playerContainer}
+                      </PreviewInteractions>
+                    </PlaybackSettingsProvider>
+                  </TimelineProvider>
+                </PreviewProvider>
               )}
             </div>
           </div>

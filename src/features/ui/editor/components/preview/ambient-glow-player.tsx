@@ -5,11 +5,12 @@ import { Player, PlayerRef } from '@remotion/player';
 import { TimelineComposition } from '@/features/rendering/renderer/compositions/TimelineComposition';
 import { useTheme } from '@/shared/contexts/theme-context';
 import { useProjectStore } from '@/features/core/stores/project-store';
-import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
 import { buildTimelineCompositionInput } from '@/features/rendering/renderer/utils/composition-input';
 import type { useTimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import type { usePlayerConfiguration } from '@/features/rendering/renderer/hooks/use-player-configuration';
 import { useThrottledSeek } from '@/features/ui/timeline/hooks/use-throttled-seek';
+import { msToFrame } from '@/features/rendering/renderer/compositions/utils/time/frame-time';
+import { clampFrameToRange } from './use-player-sync';
 
 type TimelineMetadata = ReturnType<typeof useTimelineMetadata>;
 type PlayerConfig = ReturnType<typeof usePlayerConfiguration>;
@@ -85,19 +86,13 @@ export function AmbientGlowPlayer({
 
     const clampFrame = useCallback((frame: number) => {
         if (!timelineMetadata) return 0;
-        const maxFrame = timelineMetadata.durationInFrames - 1;
-        return Math.max(0, Math.min(frame, maxFrame));
+        return clampFrameToRange(frame, timelineMetadata.durationInFrames);
     }, [timelineMetadata]);
 
     const timeToFrame = useCallback((timeMs: number) => {
         if (!timelineMetadata) return 0;
         return msToFrame(timeMs, timelineMetadata.fps);
     }, [timelineMetadata]);
-
-    const safePlay = useCallback((player: PlayerRef | null) => {
-        if (!player) return;
-        return player.play();
-    }, []);
 
     const glowSize = useMemo(() => {
         if (!timelineMetadata) return { width: 96, height: 96 };
@@ -155,7 +150,7 @@ export function AmbientGlowPlayer({
         if (isPlaying) {
             if (!lastGlowIsPlayingRef.current) {
                 maybeSeek(getTargetFrame());
-                safePlay(glowPlayer);
+                glowPlayer.play();
             }
             lastGlowIsPlayingRef.current = true;
             return;
@@ -166,7 +161,7 @@ export function AmbientGlowPlayer({
             maybeSeek(getTargetFrame());
         }
         lastGlowIsPlayingRef.current = false;
-    }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, safePlay, playerKey]);
+    }, [isPlaying, timelineMetadata, clampFrame, timeToFrame, mainPlayerRef, playerKey]);
 
     // CONSOLIDATED: Single sync effect for initial frame and playerKey changes
     // Previously had redundant RAF + setTimeout patterns
@@ -263,7 +258,7 @@ export function AmbientGlowPlayer({
             // Force sync when loop happens
             glowPlayer.seekTo(0);
             if (isPlaying) {
-                safePlay(glowPlayer);
+                glowPlayer.play();
             }
         };
 
@@ -271,7 +266,7 @@ export function AmbientGlowPlayer({
         return () => {
             glowPlayer.removeEventListener('ended', handleEnded);
         };
-    }, [isPlaying, safePlay, playerKey]);
+    }, [isPlaying, playerKey]);
 
     // Prepare input props
     const glowPlayerInputProps = React.useMemo(() => {

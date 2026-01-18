@@ -5,7 +5,7 @@ import { cn } from '@/shared/utils/utils'
 import { Button } from '@/components/ui/button'
 import { useProjectStore } from '@/features/core/stores/project-store'
 import { useEffectsOfType } from '@/features/core/stores/selectors/timeline-selectors'
-import { getDefaultAnnotationSize } from '../config'
+import { EffectCreation } from '@/features/effects/core/creation'
 import { EffectType, AnnotationType } from '@/types/project'
 import type { Effect, AnnotationData } from '@/types/project'
 import { Type, ArrowRight, Highlighter, EyeOff, Trash2 } from 'lucide-react'
@@ -110,32 +110,7 @@ export function AnnotationsTab({ selectedAnnotation, onSelectAnnotation }: Annot
   // This avoids 60fps re-renders during playback (currentTime updates every frame)
   const handleAddAnnotation = useCallback((type: AnnotationType) => {
     const startTime = useProjectStore.getState().currentTime
-    const endTime = startTime + 3000 // 3 second default duration
-    const defaultSize = getDefaultAnnotationSize(type)
-
-    const effect: Effect = {
-      id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      type: EffectType.Annotation,
-      startTime,
-      endTime,
-      enabled: true,
-      data: {
-        type,
-        position: { x: 50, y: 50 }, // Center of canvas (0-100%)
-        content: type === AnnotationType.Text ? 'New text' : undefined,
-        endPosition: type === AnnotationType.Arrow ? { x: 60, y: 50 } : undefined, // Arrow endpoint
-        width: defaultSize.width,
-        height: defaultSize.height,
-        style: {
-          // Fix: Default Highlight to yellow so it doesn't have a white border clash
-          color: type === AnnotationType.Highlight ? '#ffeb3b' : '#ffffff',
-          backgroundColor: type === AnnotationType.Redaction ? '#000000' : undefined,
-          fontSize: 18,
-          textAlign: type === AnnotationType.Text ? 'center' : undefined,
-          borderRadius: type === AnnotationType.Redaction ? 2 : undefined,
-        },
-      } satisfies AnnotationData,
-    }
+    const effect = EffectCreation.createAnnotationEffect(type, { startTime })
 
     if (CommandExecutor.isInitialized()) {
       void CommandExecutor.getInstance().execute(AddEffectCommand, effect)

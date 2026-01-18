@@ -35,25 +35,11 @@ export function regenerateProjectEffects(
     EffectStore.ensureArray(project)
     const allEffects = EffectStore.getAll(project)
 
-    // Check if there's a valid webcam clip with a valid recording
-    const webcamTrack = project.timeline.tracks.find(t => t.type === 'webcam')
-
-    // Clean up orphaned webcam clips (clips without valid recordings)
-    if (webcamTrack) {
-        webcamTrack.clips = webcamTrack.clips.filter(clip =>
-            project.recordings.some(r => r.id === clip.recordingId)
-        )
-    }
-
-    // Filter to keep only certain effects
-    project.timeline.effects = allEffects.filter(e => {
-        if (e.type === EffectType.Background || e.type === EffectType.Cursor) return true
-        if (e.type === EffectType.Screen && e.id.startsWith('screen-auto-')) return false
-        if (e.type === EffectType.Screen) return true
-        if (e.type === EffectType.Zoom || e.type === EffectType.Keystroke) return false
-        if (e.type === EffectType.Crop) return false
-        return true
-    })
+    // Filter to keep only persistent effects (orphaned webcam clips cleaned up by OrphanEffectCleanup below)
+    const REMOVE_TYPES = new Set([EffectType.Zoom, EffectType.Keystroke, EffectType.Crop])
+    project.timeline.effects = allEffects.filter(e =>
+        !REMOVE_TYPES.has(e.type) && !(e.type === EffectType.Screen && e.id.startsWith('screen-auto-'))
+    )
 
     // Reset device mockup framing and wallpaper back to defaults
     const backgroundEffect = project.timeline.effects!.find(e => e.type === EffectType.Background)

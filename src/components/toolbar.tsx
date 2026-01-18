@@ -26,6 +26,7 @@ import { AppearanceToggle } from '@/components/topbar/appearance-toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkspaceStore } from '@/features/core/stores/workspace-store'
 import { useProjectStore } from '@/features/core/stores/project-store'
+import { useShallow } from 'zustand/react/shallow'
 import { toast } from 'sonner'
 import { getActiveClipDataAtFrame } from '@/features/rendering/renderer/utils/get-active-clip-data-at-frame'
 import { EffectStore } from '@/features/effects/core/effects-store'
@@ -268,7 +269,15 @@ export function Toolbar({ mode, libraryProps, editorProps }: ToolbarProps) {
   const [propertiesOpen, setPropertiesOpen] = useState(true)
   const [isSnapshotting, setIsSnapshotting] = useState(false)
 
-  const { isUtilitiesOpen, toggleUtilities, setSettingsOpen, isPropertiesOpen } = useWorkspaceStore()
+  // PERF: Selective subscription - only re-render when these specific values change
+  const { isUtilitiesOpen, toggleUtilities, setSettingsOpen, isPropertiesOpen } = useWorkspaceStore(
+    useShallow((s) => ({
+      isUtilitiesOpen: s.isUtilitiesOpen,
+      toggleUtilities: s.toggleUtilities,
+      setSettingsOpen: s.setSettingsOpen,
+      isPropertiesOpen: s.isPropertiesOpen,
+    }))
+  )
 
   const project = editorProps?.project ?? null
 

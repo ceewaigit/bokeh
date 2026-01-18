@@ -14,7 +14,7 @@ import { KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
 import { TrackType } from '@/types/project'
-import { useTrackExistence } from '@/features/core/stores/selectors/timeline-selectors'
+import { useMediaTrackExistence } from '@/features/core/stores/selectors/timeline-selectors'
 
 import { BackgroundTab } from '@/features/effects/background'
 import { CursorTab } from '@/features/effects/cursor/ui/CursorTab'
@@ -151,7 +151,7 @@ export function EffectsSidebar({
   const tooltipRef = useRef<HTMLDivElement | null>(null)
 
   // Check if webcam/annotation tracks have content
-  const { hasWebcamContent } = useTrackExistence()
+  const { hasWebcamContent } = useMediaTrackExistence()
 
   // Extract current effects from the array using effect-filters helpers
   const backgroundEffect = effects ? getBackgroundEffect(effects) : undefined

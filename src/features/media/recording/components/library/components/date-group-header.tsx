@@ -1,7 +1,6 @@
 "use client"
 
 import { forwardRef } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
 import { cn } from '@/shared/utils/utils'
 
 interface DateGroupHeaderProps {
@@ -15,29 +14,24 @@ interface DateGroupHeaderProps {
 
 export const DateGroupHeader = forwardRef<HTMLDivElement, DateGroupHeaderProps>(
   function DateGroupHeader({ label, count, className }, ref) {
-    const reduceMotion = useReducedMotion()
-
     return (
-      <motion.div
+      <div
         ref={ref}
-        initial={reduceMotion ? false : { opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
         className={cn(
           "w-full col-span-full",
-          "pb-4 first:pt-0",
+          "pb-3 first:pt-0",
           className
         )}
       >
         <div className="flex items-baseline gap-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/70">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
             {label}
           </h2>
-          <span className="text-[10px] text-muted-foreground/40 tabular-nums">
+          <span className="text-[10px] text-muted-foreground/30 tabular-nums font-medium">
             {count}
           </span>
         </div>
-      </motion.div>
+      </div>
     )
   }
 )

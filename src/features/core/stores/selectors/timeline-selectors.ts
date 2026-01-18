@@ -47,23 +47,31 @@ export function useEffectsOfType(type: EffectType): Effect[] {
   }, [effects, type])
 }
 
+// PERF: Set for O(1) lookup of types that need enabled check
+const NEEDS_ENABLED_CHECK = new Set([EffectType.Zoom, EffectType.Screen, EffectType.Crop, EffectType.Background])
+
 /**
  * Get effects grouped by type.
  * Returns a Record for flexible access.
+ * PERF: Single-pass grouping O(n) instead of O(n*m) filtering per type.
  */
 export function useEffectsByType(): Record<EffectType, Effect[]> {
   const effects = useTimelineEffects()
 
   return useMemo(() => {
-    const grouped: Record<string, Effect[]> = {}
-    for (const type of Object.values(EffectType)) {
-      // Some effects need enabled check, some don't
-      const needsEnabledCheck = [EffectType.Zoom, EffectType.Screen, EffectType.Crop, EffectType.Background].includes(type)
-      grouped[type] = effects.filter(e =>
-        e.type === type && (needsEnabledCheck ? e.enabled : true)
-      )
+    // Initialize all types with empty arrays
+    const grouped = Object.fromEntries(
+      Object.values(EffectType).map(t => [t, [] as Effect[]])
+    ) as Record<EffectType, Effect[]>
+
+    // Single pass through effects
+    for (const e of effects) {
+      const needsCheck = NEEDS_ENABLED_CHECK.has(e.type)
+      if (!needsCheck || e.enabled) {
+        grouped[e.type].push(e)
+      }
     }
-    return grouped as Record<EffectType, Effect[]>
+    return grouped
   }, [effects])
 }
 
@@ -87,6 +95,17 @@ export function useEffectTrackExistence(): Record<EffectType, boolean> {
 }
 
 /**
+ * PERF: Dedicated selector for crop track existence.
+ * Avoids expensive useEffectsByType() call when only checking crop.
+ */
+export function useHasCropTrack(): boolean {
+  const effects = useTimelineEffects()
+  return useMemo(() =>
+    effects.some(e => e.type === EffectType.Crop && e.enabled),
+  [effects])
+}
+
+/**
  * Track existence flags for non-effect tracks (webcam, audio, etc.).
  * Effect track existence is handled by useEffectTrackExistence.
  */
@@ -100,7 +119,8 @@ export interface MediaTrackExistence {
 export function useMediaTrackExistence(): MediaTrackExistence {
   // PERF: Use granular selector instead of full project subscription
   const tracks = useProjectStore(selectTracks)
-  const effectsByType = useEffectsByType()
+  // PERF: Use dedicated selector instead of full useEffectsByType()
+  const hasCropTrack = useHasCropTrack()
 
   const hasWebcamTrack = useMemo(() => {
     return tracks.some(t => t.type === TrackType.Webcam)
@@ -117,36 +137,10 @@ export function useMediaTrackExistence(): MediaTrackExistence {
 
   return useMemo(() => ({
     hasWebcamTrack,
-    hasCropTrack: effectsByType[EffectType.Crop]?.length > 0,
+    hasCropTrack,
     hasAudioContent,
     hasWebcamContent
-  }), [hasWebcamTrack, effectsByType, hasAudioContent, hasWebcamContent])
-}
-
-/**
- * Combined track existence - for backwards compatibility.
- * Prefer using useEffectTrackExistence + useMediaTrackExistence directly.
- */
-export interface TrackExistence extends MediaTrackExistence {
-  hasZoomTrack: boolean
-  hasScreenTrack: boolean
-  hasKeystrokeTrack: boolean
-  hasPluginTrack: boolean
-  hasAnnotationTrack: boolean
-}
-
-export function useTrackExistence(): TrackExistence {
-  const effectTrackExistence = useEffectTrackExistence()
-  const mediaTrackExistence = useMediaTrackExistence()
-
-  return useMemo(() => ({
-    hasZoomTrack: effectTrackExistence[EffectType.Zoom] ?? false,
-    hasScreenTrack: effectTrackExistence[EffectType.Screen] ?? false,
-    hasKeystrokeTrack: effectTrackExistence[EffectType.Keystroke] ?? false,
-    hasPluginTrack: effectTrackExistence[EffectType.Plugin] ?? false,
-    hasAnnotationTrack: effectTrackExistence[EffectType.Annotation] ?? false,
-    ...mediaTrackExistence
-  }), [effectTrackExistence, mediaTrackExistence])
+  }), [hasWebcamTrack, hasCropTrack, hasAudioContent, hasWebcamContent])
 }
 
 /**

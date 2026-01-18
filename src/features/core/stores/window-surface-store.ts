@@ -28,12 +28,35 @@ const DEFAULT_STATE = {
   blurPx: WINDOW_SURFACE_PRESETS.frosted.blurPx,
 }
 
+// Read initial state from localStorage synchronously to prevent flash
+function getInitialState(): { mode: WindowSurfaceMode; tintAlpha: number; blurPx: number } {
+  if (typeof window === 'undefined') return DEFAULT_STATE
+  try {
+    const stored = localStorage.getItem(WINDOW_SURFACE_PERSIST_KEY)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (parsed?.state) {
+        return {
+          mode: parsed.state.mode ?? DEFAULT_STATE.mode,
+          tintAlpha: parsed.state.tintAlpha ?? DEFAULT_STATE.tintAlpha,
+          blurPx: parsed.state.blurPx ?? DEFAULT_STATE.blurPx,
+        }
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return DEFAULT_STATE
+}
+
+const INITIAL_STATE = getInitialState()
+
 export const useWindowSurfaceStore = create<WindowSurfaceState>()(
   persist(
     (set, get) => ({
-      mode: DEFAULT_STATE.mode,
-      tintAlpha: DEFAULT_STATE.tintAlpha,
-      blurPx: DEFAULT_STATE.blurPx,
+      mode: INITIAL_STATE.mode,
+      tintAlpha: INITIAL_STATE.tintAlpha,
+      blurPx: INITIAL_STATE.blurPx,
       setMode: (mode) => {
         if (mode === 'custom') {
           set({ mode })

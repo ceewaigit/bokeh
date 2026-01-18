@@ -4,26 +4,33 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/shared/utils/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 ease-out active:scale-[0.97] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-[13px] font-medium transition-colors duration-100 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40",
   {
     variants: {
       variant: {
+        // Primary - solid accent color, subtle hover
         default:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/95 hover:shadow-md hover:shadow-primary/20 hover:-translate-y-0.5 hover:scale-[1.01]",
+          "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
+        // Destructive - red tones
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:-translate-y-0.5 hover:scale-[1.01]",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80",
+        // Outline - bordered, transparent fill
         outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground hover:border-accent hover:-translate-y-0.5",
+          "border border-foreground/[0.12] bg-transparent hover:bg-foreground/[0.04] active:bg-foreground/[0.08]",
+        // Secondary - muted fill
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 hover:-translate-y-0.5",
-        ghost: "hover:bg-accent/50 hover:text-accent-foreground hover:scale-[1.02]",
+          "bg-foreground/[0.06] text-foreground hover:bg-foreground/[0.1] active:bg-foreground/[0.14]",
+        // Ghost - invisible until hover
+        ghost:
+          "hover:bg-foreground/[0.06] active:bg-foreground/[0.1]",
+        // Link - text only
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
-        icon: "h-9 w-9",
+        default: "h-8 px-3.5 py-1.5",
+        sm: "h-7 px-2.5 text-[12px]",
+        lg: "h-9 px-5",
+        icon: "h-8 w-8",
       },
     },
     defaultVariants: {

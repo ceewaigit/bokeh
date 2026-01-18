@@ -5,14 +5,15 @@
  * Purely focused on object creation, not state management.
  */
 
-import type { Effect, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData, KeystrokeEffectData } from '@/types/project'
-import { EffectType } from '@/types/project'
+import type { Effect, BackgroundEffectData, CursorEffectData, CropEffectData, PluginEffectData, KeystrokeEffectData, AnnotationData } from '@/types/project'
+import { EffectType, AnnotationType } from '@/types/project'
 import { PluginRegistry } from '@/features/effects/config/plugin-registry'
 import { getPluginDefaults, getDefaultZIndexForCategory } from '@/features/effects/config/plugin-sdk'
 import { getDefaultWallpaper } from '@/features/effects/background/utils'
 import { DEFAULT_CURSOR_DATA } from '@/features/effects/cursor/config'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { DEFAULT_KEYSTROKE_DATA, KEYSTROKE_STYLE_EFFECT_ID } from '@/features/effects/keystroke/config'
+import { DEFAULT_ANNOTATION_SIZES, DEFAULT_ANNOTATION_STYLES } from '@/features/effects/annotation/config'
 // NOTE: DEFAULT_WEBCAM_DATA removed - webcam styling now lives on clip.layout
 
 export const EffectCreation = {
@@ -115,6 +116,52 @@ export const EffectCreation = {
         zIndex: options.zIndex ?? defaultZIndex,
       } as PluginEffectData,
       enabled: true,
+    }
+  },
+
+  createAnnotationEffect(
+    type: AnnotationType,
+    options: {
+      startTime: number
+      position?: { x: number; y: number }
+      endPosition?: { x: number; y: number }
+    }
+  ): Effect {
+    const defaultSize = DEFAULT_ANNOTATION_SIZES[type]
+    const defaultStyle = DEFAULT_ANNOTATION_STYLES[type] ?? {}
+    const position = options.position ?? { x: 50, y: 50 }
+
+    // Adjust position for top-left anchored elements (Highlight, Redaction, Blur)
+    // so the center lands at the specified position
+    const isTopLeftAnchor = type === AnnotationType.Highlight ||
+      type === AnnotationType.Redaction ||
+      type === AnnotationType.Blur
+
+    let finalPosition = position
+    if (isTopLeftAnchor && defaultSize.width && defaultSize.height) {
+      finalPosition = {
+        x: position.x - defaultSize.width / 2,
+        y: position.y - defaultSize.height / 2,
+      }
+    }
+
+    return {
+      id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: EffectType.Annotation,
+      startTime: options.startTime,
+      endTime: options.startTime + 3000,
+      enabled: true,
+      data: {
+        type,
+        position: finalPosition,
+        content: type === AnnotationType.Text ? 'New text' : undefined,
+        endPosition: type === AnnotationType.Arrow
+          ? (options.endPosition ?? { x: position.x + 10, y: position.y })
+          : undefined,
+        width: defaultSize.width,
+        height: defaultSize.height,
+        style: defaultStyle,
+      } as AnnotationData,
     }
   },
 }

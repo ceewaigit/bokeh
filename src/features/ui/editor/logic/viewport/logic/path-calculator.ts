@@ -13,6 +13,14 @@ import { clamp01 } from '@/features/rendering/canvas/math'
 import { DEFAULT_BACKGROUND_DATA } from '@/features/effects/background/config'
 import { REFERENCE_WIDTH, REFERENCE_HEIGHT } from '@/shared/constants/layout'
 
+/**
+ * Determines if the camera should be allowed to reveal padding (overscan) area.
+ * This is true when the user has configured background padding.
+ */
+function shouldAllowOverscanReveal(padding: number): boolean {
+    return padding > 0
+}
+
 // Re-using types from hook or defining shared types locally if needed
 type CameraVideoArea = {
     drawWidth: number
@@ -152,7 +160,7 @@ export function getCameraOutputContext(args: {
         overscan,
         mockupScreenPosition,
         forceFollowCursor: Boolean(mockupEnabled && mockupPosition),
-        allowOverscanReveal: padding > 0,
+        allowOverscanReveal: shouldAllowOverscanReveal(padding),
     }
 }
 
@@ -288,14 +296,10 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
         ) as BackgroundEffect | undefined
         const backgroundData = backgroundEffect?.data ?? null
 
-        // SCALING LOGIC (REFERENCE RESOLUTION)
-        // Must match useLayoutCalculation.ts exactly to prevent drift
-        const scaleFactor = Math.min(
-            videoWidth / REFERENCE_WIDTH,
-            videoHeight / REFERENCE_HEIGHT
-        )
+        // Use raw padding directly - no reference resolution scaling
+        // Padding should be a simple percentage of output dimensions
         const rawPadding = backgroundData?.padding ?? DEFAULT_BACKGROUND_DATA.padding ?? 0
-        const paddingScaled = rawPadding * scaleFactor
+        const paddingScaled = rawPadding
 
         // Use stable videoWidth/videoHeight for camera calculation
         const activeSourceWidth = recording?.width || sourceVideoWidth || videoWidth
@@ -369,7 +373,7 @@ export function calculateFullCameraPath(args: CalculateCameraPathArgs): (CameraP
             cameraSmoothness: cameraSettings?.cameraSmoothness,
             cameraDynamics: cameraSettings?.cameraDynamics,
             // Allow camera to reveal background padding when zoomed
-            allowOverscanReveal: paddingScaled > 0,
+            allowOverscanReveal: shouldAllowOverscanReveal(rawPadding),
         })
 
         Object.assign(physics, computed.physics)

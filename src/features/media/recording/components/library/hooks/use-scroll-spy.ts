@@ -33,6 +33,8 @@ export function useScrollSpy({
 
   // Track which sections are currently visible
   const visibleSectionsRef = useRef<Set<string>>(new Set())
+  // Track last active section to avoid unnecessary state updates
+  const lastActiveSectionRef = useRef<string | null>(sectionIds[0] ?? null)
 
   // Create stable refs for each section
   const sectionRefs = useMemo(() => {
@@ -48,6 +50,8 @@ export function useScrollSpy({
   const updateActiveSection = useCallback((container: HTMLElement) => {
     const visibleInOrder = sectionIds.filter(id => visibleSectionsRef.current.has(id))
 
+    let newActive: string | null = null
+
     if (visibleInOrder.length > 0) {
       // Check if we're at the bottom of the scroll container
       const scrollBottom = container.scrollTop + container.clientHeight
@@ -56,14 +60,20 @@ export function useScrollSpy({
 
       if (isAtBottom) {
         // At bottom: show the last visible section
-        setActiveSection(visibleInOrder[visibleInOrder.length - 1])
+        newActive = visibleInOrder[visibleInOrder.length - 1]
       } else {
         // Normal: show the first visible section (topmost)
-        setActiveSection(visibleInOrder[0])
+        newActive = visibleInOrder[0]
       }
     } else if (visibleSectionsRef.current.size === 0) {
       // No sections visible - default to first section
-      setActiveSection(sectionIds[0] ?? null)
+      newActive = sectionIds[0] ?? null
+    }
+
+    // Only update state if value actually changed
+    if (newActive !== null && newActive !== lastActiveSectionRef.current) {
+      lastActiveSectionRef.current = newActive
+      setActiveSection(newActive)
     }
   }, [sectionIds])
 
@@ -104,9 +114,14 @@ export function useScrollSpy({
       }
     )
 
-    // Scroll listener to detect "at bottom" state changes
+    // Scroll listener to detect "at bottom" state changes - throttled with rAF
+    let rafId: number | null = null
     const handleScroll = () => {
-      updateActiveSection(container)
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        updateActiveSection(container)
+      })
     }
 
     // Observe all sections
@@ -123,6 +138,7 @@ export function useScrollSpy({
     return () => {
       observer.disconnect()
       container.removeEventListener('scroll', handleScroll)
+      if (rafId) cancelAnimationFrame(rafId)
       visibleSections.clear()
     }
   }, [sectionIds, containerRef, offset, sectionRefs, updateActiveSection])

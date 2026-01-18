@@ -253,6 +253,7 @@ export interface ElectronAPI {
   setWindowContentSize?: (dimensions: { width: number; height: number }) => Promise<{ success: boolean }>
   setWindowVibrancy?: (vibrancy: string | null) => Promise<{ success: boolean }>
   setWindowHasShadow?: (hasShadow: boolean) => Promise<{ success: boolean }>
+  signalRendererReady?: () => Promise<{ success: boolean }>
   getWindowDebugState?: () => Promise<{
     success: boolean
     platform?: string

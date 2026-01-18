@@ -1,6 +1,26 @@
 import { ipcMain, BrowserWindow, IpcMainInvokeEvent } from 'electron'
 
+// Track which windows have signaled they're ready
+const rendererReadyWindows = new Set<number>()
+
+export function isRendererReady(windowId: number): boolean {
+  return rendererReadyWindows.has(windowId)
+}
+
 export function registerWindowSurfaceHandlers(): void {
+  // Handler for renderer to signal it's ready (vibrancy and CSS vars are set)
+  ipcMain.handle('signal-renderer-ready', async (event: IpcMainInvokeEvent) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window) {
+      rendererReadyWindows.add(window.id)
+      // Show the window now that renderer is ready
+      if (!window.isVisible()) {
+        window.show()
+        window.focus()
+      }
+    }
+    return { success: true }
+  })
   ipcMain.handle('get-window-debug-state', async (event: IpcMainInvokeEvent) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window) return { success: false }

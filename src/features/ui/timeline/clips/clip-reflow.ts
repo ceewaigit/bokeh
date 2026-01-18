@@ -55,12 +55,6 @@ export function reflowClips(
         }
     }
 
-    // Webcam tracks should not enforce magnetic timeline behavior (start at 0, contiguous)
-    // This allows the webcam clip to be synced to the visual effect position.
-    if (track.type === TrackType.Webcam) {
-        return
-    }
-
     // First clip always starts at 0
     if (startFromIndex === 0 && track.clips.length > 0) {
         if (track.clips[0].startTime !== 0) {

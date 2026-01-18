@@ -12,7 +12,7 @@
  * This is the single source of truth - there is no fallback to recording properties.
  */
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { getRemotionEnvironment } from 'remotion';
 import { ProjectStorage } from '@/features/core/storage/project-storage';
 import { useProxyStore } from '@/features/proxy';
@@ -58,6 +58,19 @@ export function useVideoUrl({
   // Get proxy URLs from dedicated proxy store (SINGLE SOURCE OF TRUTH)
   // NOTE: Do NOT fall back to recording properties - that caused race conditions
   const ephemeralProxyUrls = useProxyStore((s) => recording ? s.urls[recording.id] : undefined);
+
+  // Track whether we had a proxy URL in the previous render
+  // Used to detect when proxy first becomes available (generation completed)
+  const hadProxyRef = useRef<boolean>(false);
+  const previewProxyUrl = ephemeralProxyUrls?.previewProxyUrl;
+
+  // Detect proxy becoming available (undefined/null → defined)
+  const proxyJustBecameAvailable = !hadProxyRef.current && !!previewProxyUrl;
+
+  // Update tracking for next render
+  useEffect(() => {
+    hadProxyRef.current = !!previewProxyUrl;
+  }, [previewProxyUrl]);
 
   const computedUrl = useMemo(() => {
     if (!recording) return undefined;
@@ -202,6 +215,10 @@ export function useVideoUrl({
   } else if (!isLocked && computedUrl && computedUrl !== lockedUrlRef.current) {
     // Allow resolution changes (e.g. proxy availability or quality toggle) when NOT PLAYING/SCRUBBING.
     // This prevents mid-playback/scrub reloads (blink) but allows quality updates when idle.
+    lockedUrlRef.current = computedUrl;
+  } else if (proxyJustBecameAvailable && computedUrl && computedUrl !== lockedUrlRef.current) {
+    // EXCEPTION: Allow proxy URL to update even during playback when proxy first becomes available.
+    // This fixes the issue where video gets stuck when proxy finishes generating mid-playback.
     lockedUrlRef.current = computedUrl;
   } else if (!lockedUrlRef.current && computedUrl) {
     // First time getting a valid URL for this recording - lock it

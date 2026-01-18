@@ -256,7 +256,7 @@ export const AnnotationLayer: React.FC = memo(() => {
             const rotation = data.rotation ?? 0
 
             const anim = getHighlightOpacity(currentTimeMs, effect.startTime, effect.endTime, 1000 / fps)
-            const dim = clamp01((data.style as any)?.opacity ?? DEFAULT_DIM_OPACITY)
+            const dim = clamp01(((data.style as any)?.opacity ?? 55) / 100)
             const dimOpacity = dim * anim
 
             if (dimOpacity <= 0) return null

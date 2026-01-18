@@ -15,8 +15,10 @@ type ZoomTargetPreviewProps = {
     cropData?: CropEffectData | null
     /** When true, allow target to be placed at edges to reveal background padding */
     allowOverscanReveal?: boolean
-    /** Padding ratio (0-1) representing how much of the output is padding on each side */
+    /** Padding ratio (0-1) representing how much of the output is padding on each side (fallback) */
     paddingRatio?: number
+    /** Actual overscan values from camera context - accounts for aspect-fit */
+    overscan?: { left: number; right: number; top: number; bottom: number } | null
     onCommit: (updates: Pick<ZoomEffectData, 'targetX' | 'targetY' | 'screenWidth' | 'screenHeight' | 'followStrategy'>) => void
     className?: string
 }
@@ -32,6 +34,7 @@ export function ZoomTargetPreview({
     cropData,
     allowOverscanReveal = false,
     paddingRatio = 0,
+    overscan,
     onCommit,
     className,
 }: ZoomTargetPreviewProps) {
@@ -62,8 +65,8 @@ export function ZoomTargetPreview({
     const halfWindowNormX = Math.min(0.5, Math.max(0, halfWindowX / cropWidth))
     const halfWindowNormY = Math.min(0.5, Math.max(0, halfWindowY / cropHeight))
 
-    // When allowOverscanReveal is true, allow target to go to edges (0 to 1)
-    // This enables revealing background padding when zoomed and panned to edge
+    // When allowOverscanReveal is true, allow target anywhere in [0, 1] output-space
+    // 0% = left edge of background, 100% = right edge of background
     const clampTarget = useCallback((target: { x: number; y: number }) => ({
         x: allowOverscanReveal ? clamp(target.x, 0, 1) : clamp(target.x, halfWindowNormX, 1 - halfWindowNormX),
         y: allowOverscanReveal ? clamp(target.y, 0, 1) : clamp(target.y, halfWindowNormY, 1 - halfWindowNormY),
@@ -199,8 +202,15 @@ export function ZoomTargetPreview({
     }, [isDragging, onCommit, baseWidth, baseHeight, crop.x, crop.y, cropWidth, cropHeight])
 
     // Calculate video area inset when there's padding
-    // paddingRatio is the fraction of output that is padding on each side
-    const videoInsetPct = paddingRatio * 100
+    // Use actual overscan values if available, otherwise fall back to paddingRatio
+    // Overscan values are in content-space (ratio of video dimensions), convert to output-space percentages
+    const denomX = overscan ? 1 + overscan.left + overscan.right : 1
+    const denomY = overscan ? 1 + overscan.top + overscan.bottom : 1
+    const videoInsetLeftPct = overscan ? (overscan.left / denomX) * 100 : paddingRatio * 100
+    const videoInsetRightPct = overscan ? (overscan.right / denomX) * 100 : paddingRatio * 100
+    const videoInsetTopPct = overscan ? (overscan.top / denomY) * 100 : paddingRatio * 100
+    const videoInsetBottomPct = overscan ? (overscan.bottom / denomY) * 100 : paddingRatio * 100
+    const hasOverscan = overscan && (overscan.left > 0 || overscan.right > 0 || overscan.top > 0 || overscan.bottom > 0)
 
     return (
         <div className={cn('space-y-2', className)}>
@@ -216,7 +226,14 @@ export function ZoomTargetPreview({
                     'relative w-full rounded-xl border border-border/40 overflow-hidden shadow-[0_12px_30px_rgba(0,0,0,0.15)]',
                     scale <= 1.01 && 'cursor-not-allowed opacity-60'
                 )}
-                style={{ aspectRatio: `${baseWidth * cropWidth} / ${baseHeight * cropHeight}`, touchAction: 'none' }}
+                style={{
+                    // When there's overscan, use output aspect ratio (the actual rendered output shape)
+                    // Otherwise use source aspect ratio (for crop preview accuracy)
+                    aspectRatio: hasOverscan
+                        ? `${outputWidth} / ${outputHeight}`
+                        : `${baseWidth * cropWidth} / ${baseHeight * cropHeight}`,
+                    touchAction: 'none'
+                }}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
@@ -238,13 +255,13 @@ export function ZoomTargetPreview({
                 <div
                     className="absolute rounded-lg pointer-events-none"
                     style={{
-                        left: `${videoInsetPct}%`,
-                        top: `${videoInsetPct}%`,
-                        right: `${videoInsetPct}%`,
-                        bottom: `${videoInsetPct}%`,
+                        left: `${videoInsetLeftPct}%`,
+                        top: `${videoInsetTopPct}%`,
+                        right: `${videoInsetRightPct}%`,
+                        bottom: `${videoInsetBottomPct}%`,
                         backgroundColor: 'rgba(0,0,0,0.5)',
-                        border: paddingRatio > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none',
-                        borderRadius: paddingRatio > 0 ? '8px' : '0',
+                        border: (hasOverscan || paddingRatio > 0) ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                        borderRadius: (hasOverscan || paddingRatio > 0) ? '8px' : '0',
                     }}
                 />
 
@@ -262,7 +279,7 @@ export function ZoomTargetPreview({
 
                 {/* Target point */}
                 <div
-                    className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_0_2px_rgba(0,0,0,0.5),0_0_0_4px_rgba(255,255,255,0.2)] pointer-events-none"
+                    className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-[0_0,0_2px_rgba(0,0,0,0.5),0_0_0_4px_rgba(255,255,255,0.2)] pointer-events-none"
                     style={{ left: `${target.x * 100}%`, top: `${target.y * 100}%` }}
                 />
             </div>

@@ -298,6 +298,11 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   // Memoized to ensure referential stability
   const velocity = useMemo(() => snapshotCamera.velocity ?? { x: 0, y: 0 }, [snapshotCamera.velocity]);
 
+  // Background padding must cover the maximum possible pan reveal at the highest zoom.
+  // Otherwise, when panning to an edge while zoomed in, the camera will reveal "missing" background.
+  const maxZoomScale = useMemo(() => getMaxZoomScale(effects), [effects]);
+  const paddingRevealPx = Math.max(0, (layout.paddingScaled ?? 0) * Math.max(1, maxZoomScale));
+
   // Prepare context value
   const videoPositionContextValue = useMemo(() => ({
     ...layout,
@@ -395,10 +400,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                     data-extended-background="true"
                     style={{
                       position: 'absolute',
-                      left: -layout.paddingScaled,
-                      top: -layout.paddingScaled,
-                      width: layout.drawWidth + layout.paddingScaled * 2,
-                      height: layout.drawHeight + layout.paddingScaled * 2,
+                      left: -paddingRevealPx,
+                      top: -paddingRevealPx,
+                      width: layout.drawWidth + paddingRevealPx * 2,
+                      height: layout.drawHeight + paddingRevealPx * 2,
                       zIndex: 0,
                       overflow: 'hidden',
                       borderRadius: layout.cornerRadius,
@@ -480,13 +485,11 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                 data-extended-background="true"
                 style={{
                   position: 'absolute',
-                  // Extend background by paddingScaled on each side to cover panning range
-                  // At zoom scale S, camera can reveal up to paddingScaled*(S-1) extra on each side
-                  // Using paddingScaled * maxZoom ensures coverage for all zoom levels
-                  left: -layout.paddingScaled,
-                  top: -layout.paddingScaled,
-                  width: layout.drawWidth + layout.paddingScaled * 2,
-                  height: layout.drawHeight + layout.paddingScaled * 2,
+                  // Extend by `paddingScaled * maxZoomScale` so the camera can reveal padding at any zoom.
+                  left: -paddingRevealPx,
+                  top: -paddingRevealPx,
+                  width: layout.drawWidth + paddingRevealPx * 2,
+                  height: layout.drawHeight + paddingRevealPx * 2,
                   zIndex: 0,
                   overflow: 'hidden',
                   // Inherit corner radius to match video framing

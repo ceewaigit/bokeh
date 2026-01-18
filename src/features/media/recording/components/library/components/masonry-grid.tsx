@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { type LibraryRecordingView } from '@/features/media/recording/store/library-store'
 import { cn } from '@/shared/utils/utils'
@@ -15,9 +14,6 @@ interface MasonryGridProps {
   className?: string
 }
 
-// Snappy spring config for entrance animations
-const entranceSpring = { type: 'spring', stiffness: 500, damping: 28 } as const
-
 export function MasonryGrid({
   recordings,
   onSelect,
@@ -27,7 +23,6 @@ export function MasonryGrid({
   className,
 }: MasonryGridProps) {
   const reduceMotion = useReducedMotion()
-  const [hoveredCardId, setHoveredCardId] = useState<string | null>(null)
 
   if (recordings.length === 0) {
     return null
@@ -36,30 +31,23 @@ export function MasonryGrid({
   return (
     <div
       className={cn(
-        // CSS Columns for true masonry layout - cards stack vertically in columns
-        "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5",
-        // Column gap
-        "gap-4",
-        // Prevent card breaks and add spacing between items
-        "[&>*]:break-inside-avoid [&>*]:mb-4",
+        // CSS Grid - more performant than columns, no layout thrashing
+        "grid gap-3",
+        "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-6",
         className
       )}
-      onMouseLeave={() => setHoveredCardId(null)}
+      style={{ transform: 'translateZ(0)' }}
     >
       {recordings.map((recording, index) => (
         <motion.div
           key={recording.path}
-          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          initial={reduceMotion ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={
-            reduceMotion
-              ? { duration: 0 }
-              : {
-                  ...entranceSpring,
-                  // Faster stagger, capped at 200ms total
-                  delay: Math.min(index * 0.02, 0.2),
-                }
-          }
+          transition={{
+            duration: 0.2,
+            delay: Math.min(index * 0.015, 0.15),
+            ease: [0.25, 0.1, 0.25, 1],
+          }}
         >
           <RecordingCard
             recording={recording}
@@ -67,8 +55,6 @@ export function MasonryGrid({
             onRequestRename={onRequestRename}
             onRequestDuplicate={onRequestDuplicate}
             onRequestDelete={onRequestDelete}
-            isHighlighted={hoveredCardId === recording.path}
-            onHover={() => setHoveredCardId(recording.path)}
           />
         </motion.div>
       ))}

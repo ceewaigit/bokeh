@@ -8,6 +8,12 @@ import { assertDefined } from '@/shared/errors';
 import type { TimelineMetadata } from '@/features/ui/timeline/hooks/use-timeline-metadata';
 import { TimelineDataService, type GlobalSkipRange } from '@/features/ui/timeline/timeline-data-service';
 
+// Standalone utility function (can be used outside the hook)
+export function clampFrameToRange(frame: number, durationInFrames: number): number {
+    const maxFrame = durationInFrames - 1;
+    return Math.max(0, Math.min(frame, maxFrame));
+}
+
 interface UsePlayerSyncProps {
     playerRef: React.RefObject<PlayerRef | null>;
     timelineMetadata: TimelineMetadata;
@@ -37,8 +43,7 @@ export function usePlayerSync({
     const throttledSeek = useThrottledSeek(playerRef);
 
     const clampFrame = useCallback((frame: number) => {
-        const maxFrame = timelineMetadata.durationInFrames - 1;
-        return Math.max(0, Math.min(frame, maxFrame));
+        return clampFrameToRange(frame, timelineMetadata.durationInFrames);
     }, [timelineMetadata.durationInFrames]);
 
     const timeToFrame = useCallback((timeMs: number) => {

@@ -1,8 +1,8 @@
 /**
  * Webcam Black Box Integration Tests
- * 
- * Verifies the integrity of the webcam architecture following the migration:
- * 1. Webcam clips are treated as OVERLAYS (no ripple).
+ *
+ * Verifies the integrity of the webcam architecture:
+ * 1. Webcam clips use contiguous layout like video/audio (unified behavior).
  * 2. Layout data is stored on clip.layout (WebcamLayoutData) not valid Effects.
  * 3. Cleanup works correctly (deleting clip removes webcam-specific transcript data).
  */
@@ -12,6 +12,7 @@ import type { Project, Clip, WebcamLayoutData, Recording } from '@/types/project
 import { TrackType } from '@/types/project'
 import { ProjectCleanupService } from '@/features/ui/timeline/project-cleanup'
 import { addClipToTrack } from '@/features/ui/timeline/clips/clip-crud'
+import { reflowClips } from '@/features/ui/timeline/clips/clip-reflow'
 
 // --- Test Generators ---
 
@@ -61,31 +62,24 @@ function createWebcamClip(id: string, startTime: number, duration: number, recor
 
 describe('Webcam Black Box Architecture', () => {
 
-    describe('1. Overlay Behavior (No Ripple)', () => {
-        it('allows webcam clips to overlap freely without shifting others', () => {
+    describe('1. Contiguous Layout (Unified Behavior)', () => {
+        it('webcam clips use contiguous layout like video/audio clips', () => {
             const project = createTestProject()
-            // Add first webcam clip
-            const clip1 = createWebcamClip('wc-1', 0, 5000, 'rec-1')
-            addClipToTrack(project, clip1)
-
-            // Add second webcam clip OVERLAPPING the first (starts at 1000)
-            // If it rippled (Keep Left), it would shift to 5000.
-            // If it's an overlay, it stays at 1000.
-            const clip2 = createWebcamClip('wc-2', 1000, 2000, 'rec-1')
-
-            // We manually push for overlay behavior simulation as addClipToTrack typically enforces non-overlap for VIDEO tracks.
-            // However, let's test if the track structure accepts it.
-            // NOTE: The `addClipToTrack` helper might auto-ripple. 
-            // In the new architecture, the *Command* layer prevents ripple for webcam.
-            // But let's verify that having them overlap is VALID state.
-
             const webcamTrack = project.timeline.tracks.find(t => t.type === TrackType.Webcam)!
-            webcamTrack.clips = [clip1, clip2]
+
+            // Add first webcam clip at 0
+            const clip1 = createWebcamClip('wc-1', 0, 5000, 'rec-1')
+            webcamTrack.clips.push(clip1)
+
+            // Add second webcam clip - should be placed after the first
+            const clip2 = createWebcamClip('wc-2', 0, 2000, 'rec-1') // startTime will be adjusted by reflow
+            webcamTrack.clips.push(clip2)
+
+            // Apply reflow - webcam now uses contiguous layout
+            reflowClips(webcamTrack)
 
             expect(webcamTrack.clips[0].startTime).toBe(0)
-            expect(webcamTrack.clips[1].startTime).toBe(1000) // Overlapping!
-
-            // Check that this state is considered valid/accessible
+            expect(webcamTrack.clips[1].startTime).toBe(5000) // Starts after first clip ends
             expect(webcamTrack.clips).toHaveLength(2)
         })
     })

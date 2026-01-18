@@ -175,7 +175,7 @@ export function AnnotationDock() {
     const arrowHeadSize = Math.round((style.arrowHeadSize as number | undefined) ?? 10)
 
     const highlightDim = Math.round((style.opacity as number | undefined) ?? 55)
-    const cornerRadius = Math.round((style.borderRadius as number | undefined) ?? 20)
+    const cornerRadius = Math.round((style.borderRadius as number | undefined) ?? 0)
 
     const handleFontSizeChange = (next: number) => {
         const clamped = Math.max(8, Math.min(200, next))

@@ -511,15 +511,15 @@ export function calculateFrameSnapshot(options: FrameSnapshotOptions): FrameSnap
     const backgroundEffect = getActiveBackgroundEffect(resolvedEffects, currentTimeMs) as BackgroundEffect | undefined
     const backgroundData = backgroundEffect?.data || null
 
-    // Calculate scale factor
+    // Calculate scale factor for corner radius only (padding uses raw value)
     const scaleFactor = Math.min(
         compositionWidth / REFERENCE_WIDTH,
         compositionHeight / REFERENCE_HEIGHT
     )
 
-    // Extract background properties
+    // Extract background properties - padding uses raw value (no scaling)
     const padding = backgroundData?.padding ?? DEFAULT_BACKGROUND_DATA.padding
-    const paddingScaled = padding * scaleFactor
+    const paddingScaled = padding  // No scaling - padding is a simple percentage of output
     const cornerRadius = (backgroundData?.cornerRadius ?? DEFAULT_BACKGROUND_DATA.cornerRadius ?? 0) * scaleFactor
     const shadowIntensity = backgroundData?.shadowIntensity ?? DEFAULT_BACKGROUND_DATA.shadowIntensity ?? 0
     const mockupData = backgroundData?.mockup

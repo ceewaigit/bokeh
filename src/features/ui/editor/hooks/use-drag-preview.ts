@@ -11,7 +11,7 @@ import { useState, useCallback, useRef } from 'react'
 import { TrackType, type Clip } from '@/types/project'
 import { computeContiguousPreview } from '@/features/ui/timeline/utils/drag-positioning'
 import { useCommandExecutor } from '@/features/core/commands/hooks/use-command-executor'
-import { ReorderClipCommand, UpdateClipCommand } from '@/features/core/commands'
+import { ReorderClipCommand } from '@/features/core/commands'
 
 export interface DragPreview {
     clipId: string
@@ -66,17 +66,6 @@ export function useDragPreview({ getClipsForTrack }: UseDragPreviewOptions): Use
             const pending = pendingPreviewRef.current
             if (!pending) return
 
-            if (pending.trackType === TrackType.Webcam) {
-                // Webcam: No contiguous preview (no ripple)
-                setDragPreview({
-                    clipId: pending.clipId,
-                    trackType: pending.trackType,
-                    startTimes: {}, // No clips move
-                    insertIndex: -1 // Not used
-                })
-                return
-            }
-
             const clips = getClipsForTrack(pending.trackType)
             const preview = buildContiguousPreview(clips, pending.clipId, pending.proposedTime)
             if (preview) {
@@ -112,20 +101,6 @@ export function useDragPreview({ getClipsForTrack }: UseDragPreviewOptions): Use
         trackType: TrackType.Video | TrackType.Audio | TrackType.Webcam,
         proposedTime: number
     ) => {
-        // Special Case: Webcam tracks should support free positioning (non-contiguous)
-        if (trackType === TrackType.Webcam) {
-            if (executorRef.current) {
-                await executorRef.current.execute(
-                    UpdateClipCommand,
-                    clipId,
-                    { startTime: proposedTime },
-                    { maintainContiguous: false }
-                )
-            }
-            clearPreview()
-            return
-        }
-
         const clips = getClipsForTrack(trackType)
         const preview = buildContiguousPreview(clips, clipId, proposedTime)
 

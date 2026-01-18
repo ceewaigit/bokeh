@@ -33,6 +33,18 @@ interface UsePreviewHoverOptions {
     snapshot: FrameSnapshot;
 }
 
+// Helper to check if overlay position/size changed beyond threshold
+function overlayChanged<T extends { x?: number; y?: number; width?: number; height?: number }>(
+    prev: T | null, next: T | null
+): boolean {
+    if (!prev && !next) return false;
+    if (!prev || !next) return true;
+    return Math.abs((prev.x ?? 0) - (next.x ?? 0)) >= 0.5 ||
+        Math.abs((prev.y ?? 0) - (next.y ?? 0)) >= 0.5 ||
+        Math.abs((prev.width ?? 0) - (next.width ?? 0)) >= 0.5 ||
+        Math.abs((prev.height ?? 0) - (next.height ?? 0)) >= 0.5;
+}
+
 function getWebcamBorderRadius(data: WebcamLayoutData): string {
     switch (data.shape) {
         case 'circle':
@@ -93,103 +105,44 @@ export function usePreviewHover({
         nextSubtitle: SubtitleOverlayData | null = null,
         nextKeystroke: KeystrokeOverlayData | null = null
     ) => {
-        setHoveredLayer((prev) => prev === nextLayer ? prev : nextLayer);
+        setHoveredLayer(prev => prev === nextLayer ? prev : nextLayer);
 
-        setSubtitleOverlay((prev) => {
-            if (!prev && !nextSubtitle) return prev;
-            if (prev?.id === nextSubtitle?.id &&
-                prev?.x === nextSubtitle?.x &&
-                prev?.y === nextSubtitle?.y &&
-                prev?.width === nextSubtitle?.width &&
-                prev?.height === nextSubtitle?.height) {
-                return prev;
-            }
-            return nextSubtitle;
-        });
+        // Overlays with id: compare id + position
+        setSubtitleOverlay(prev =>
+            prev?.id === nextSubtitle?.id && !overlayChanged(prev, nextSubtitle) ? prev : nextSubtitle
+        );
+        setKeystrokeOverlay(prev =>
+            prev?.id === nextKeystroke?.id && !overlayChanged(prev, nextKeystroke) ? prev : nextKeystroke
+        );
+        setAnnotationOverlay(prev =>
+            prev?.id === nextAnnotation?.id && !overlayChanged(prev, nextAnnotation) ? prev : nextAnnotation
+        );
 
-        setKeystrokeOverlay((prev) => {
-            if (!prev && !nextKeystroke) return prev;
-            if (prev?.id === nextKeystroke?.id &&
-                prev?.x === nextKeystroke?.x &&
-                prev?.y === nextKeystroke?.y &&
-                prev?.width === nextKeystroke?.width &&
-                prev?.height === nextKeystroke?.height) {
-                return prev;
-            }
-            return nextKeystroke;
-        });
-
-        setAnnotationOverlay((prev) => {
-            if (!prev && !nextAnnotation) return prev;
-            if (prev?.id === nextAnnotation?.id &&
-                prev?.x === nextAnnotation?.x &&
-                prev?.y === nextAnnotation?.y &&
-                prev?.width === nextAnnotation?.width &&
-                prev?.height === nextAnnotation?.height) {
-                return prev;
-            }
-            return nextAnnotation;
-        });
-
-        setCursorOverlay((prev) => {
+        // Cursor uses left/top instead of x/y
+        setCursorOverlay(prev => {
             if (!prev && !nextCursor) return prev;
-            if (
-                prev && nextCursor &&
+            if (prev && nextCursor &&
                 Math.abs(prev.left - nextCursor.left) < 0.5 &&
                 Math.abs(prev.top - nextCursor.top) < 0.5 &&
                 Math.abs(prev.width - nextCursor.width) < 0.5 &&
                 Math.abs(prev.height - nextCursor.height) < 0.5
-            ) {
-                return prev;
-            }
+            ) return prev;
             return nextCursor;
         });
 
-        setWebcamOverlay((prev) => {
-            if (!prev && !nextWebcam) return prev;
-            if (
-                prev && nextWebcam &&
-                Math.abs(prev.x - nextWebcam.x) < 0.5 &&
-                Math.abs(prev.y - nextWebcam.y) < 0.5 &&
-                Math.abs(prev.width - nextWebcam.width) < 0.5 &&
-                Math.abs(prev.height - nextWebcam.height) < 0.5 &&
-                prev.borderRadius === nextWebcam.borderRadius
-            ) {
-                return prev;
-            }
-            return nextWebcam;
-        });
-
-        setVideoOverlay((prev) => {
-            if (!prev && !nextVideo) return prev;
-            if (
-                prev && nextVideo &&
-                Math.abs(prev.x - nextVideo.x) < 0.5 &&
-                Math.abs(prev.y - nextVideo.y) < 0.5 &&
-                Math.abs(prev.width - nextVideo.width) < 0.5 &&
-                Math.abs(prev.height - nextVideo.height) < 0.5 &&
-                prev.borderRadius === nextVideo.borderRadius &&
-                prev.clipPath === nextVideo.clipPath
-            ) {
-                return prev;
-            }
-            return nextVideo;
-        });
-
-        setBackgroundOverlay((prev) => {
-            if (!prev && !nextBackground) return prev;
-            if (
-                prev && nextBackground &&
-                Math.abs(prev.x - nextBackground.x) < 0.5 &&
-                Math.abs(prev.y - nextBackground.y) < 0.5 &&
-                Math.abs(prev.width - nextBackground.width) < 0.5 &&
-                Math.abs(prev.height - nextBackground.height) < 0.5 &&
-                prev.borderRadius === nextBackground.borderRadius
-            ) {
-                return prev;
-            }
-            return nextBackground;
-        });
+        // Overlays with extra styling props
+        setWebcamOverlay(prev =>
+            overlayChanged(prev, nextWebcam) || prev?.borderRadius !== nextWebcam?.borderRadius
+                ? nextWebcam : prev
+        );
+        setVideoOverlay(prev =>
+            overlayChanged(prev, nextVideo) || prev?.borderRadius !== nextVideo?.borderRadius ||
+            prev?.clipPath !== nextVideo?.clipPath ? nextVideo : prev
+        );
+        setBackgroundOverlay(prev =>
+            overlayChanged(prev, nextBackground) || prev?.borderRadius !== nextBackground?.borderRadius
+                ? nextBackground : prev
+        );
     }, []);
 
     // ------------------------------------------------------------------
@@ -240,6 +193,9 @@ export function usePreviewHover({
             width: videoRect.width,
             height: videoRect.height
         });
+        if (!domVideoRect && process.env.NODE_ENV === 'development') {
+            console.warn('[usePreviewHover] Video element not found, using snapshot fallback');
+        }
         const videoRectForHover = domVideoRect ?? transformedVideoRect;
 
         // 1) Webcam (Logic-based hit testing to support IFrame player)

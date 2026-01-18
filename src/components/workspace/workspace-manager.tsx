@@ -437,11 +437,14 @@ export function WorkspaceManager() {
     setHasUnsavedChanges(false)
   }, [])
 
+  // PERF: Access effects via getState() inside callback to avoid recreating on every effect change.
+  // This prevents cascade re-renders to EffectsSidebarProvider and all effect UI components.
   const handleEffectChange = useCallback((type: EffectType, data: Record<string, unknown>) => {
     const executor = executorRef.current
 
     if (!executor) return
     const state = useProjectStore.getState()
+    const effects = state.currentProject?.timeline?.effects ?? []
     const nextPlayheadState = state.currentProject
       ? PlayheadService.updatePlayheadState(
         state.currentProject,
@@ -454,7 +457,7 @@ export function WorkspaceManager() {
     }
 
     void applyEffectChange(type, data, {
-      effects: contextEffects,
+      effects,
       selectedEffectLayer,
       currentProject,
       selectedClip,
@@ -464,17 +467,19 @@ export function WorkspaceManager() {
         executor.executeByName(commandName as any, ...args)
       }
     })
-  }, [currentProject, selectedEffectLayer, selectedClip, contextEffects, executorRef])
+  }, [currentProject, selectedEffectLayer, selectedClip, executorRef])
 
   // Bulk toggle all keystroke effects
+  // PERF: Access effects via getState() to avoid callback recreation on effect changes
   const handleBulkToggleKeystrokes = useCallback((enabled: boolean) => {
     if (!executorRef.current) return
 
-    const keystrokeEffects = contextEffects.filter(e => e.type === EffectType.Keystroke && e.id !== KEYSTROKE_STYLE_EFFECT_ID)
+    const effects = useProjectStore.getState().currentProject?.timeline?.effects ?? []
+    const keystrokeEffects = effects.filter(e => e.type === EffectType.Keystroke && e.id !== KEYSTROKE_STYLE_EFFECT_ID)
     keystrokeEffects.forEach(effect => {
       executorRef.current?.executeByName('UpdateEffect', effect.id, { enabled })
     })
-  }, [contextEffects, executorRef])
+  }, [executorRef])
 
   // Track crop editing state for preview interactions
   const isEditingCrop = useProjectStore((s) => s.isEditingCrop)
@@ -648,10 +653,6 @@ export function WorkspaceManager() {
 
                   {/* Preview Area */}
                   <div className="flex-1 overflow-hidden relative min-w-0">
-                    {/* DEBUGPROP: Check WorkspaceManager state */}
-                    {(() => {
-                      return null;
-                    })()}
                     {timelineMetadata ? (
                       <PreviewAreaRemotion
                         isEditingCrop={isEditingCrop}

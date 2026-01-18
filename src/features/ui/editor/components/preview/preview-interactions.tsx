@@ -22,9 +22,10 @@ import { useAnnotationDrop } from '@/features/effects/annotation/hooks/use-annot
 import { useAnnotationDropTarget } from '@/features/effects/annotation/ui/AnnotationDragPreview';
 import { useSelectedClipId } from '@/features/core/stores/project-store';
 import { getVideoRectFromSnapshot, containerPointToVideoPoint } from '@/features/ui/editor/logic/preview-point-transforms';
-import { getDefaultAnnotationSize } from '@/features/effects/annotation/config';
+import { EffectCreation } from '@/features/effects/core/creation';
 import { usePlaybackSettings } from '@/features/rendering/renderer/context/playback/PlaybackSettingsContext';
 import { EffectStore } from '@/features/effects/core/effects-store';
+import { usePreviewRefsSafe } from '@/features/ui/editor/contexts/preview-context';
 
 // ------------------------------------------------------------------
 // Main Component: PreviewInteractions
@@ -35,9 +36,12 @@ interface PreviewInteractionsProps {
     playerKey?: string;
     zoomSettings?: ZoomSettings;
     previewFrameBounds: { width: number; height: number; };
-    aspectContainerRef: React.RefObject<HTMLDivElement | null>;
-    playerContainerRef: React.RefObject<HTMLDivElement | null>;
-    playerRef: React.RefObject<PlayerRef | null>;
+    /** Optional: can be provided via PreviewContext instead */
+    aspectContainerRef?: React.RefObject<HTMLDivElement | null>;
+    /** Optional: can be provided via PreviewContext instead */
+    playerContainerRef?: React.RefObject<HTMLDivElement | null>;
+    /** Optional: can be provided via PreviewContext instead */
+    playerRef?: React.RefObject<PlayerRef | null>;
     children: React.ReactNode;
 }
 
@@ -46,11 +50,16 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
     playerKey,
     zoomSettings,
     previewFrameBounds,
-    aspectContainerRef,
-    playerContainerRef,
-    playerRef,
+    aspectContainerRef: propAspectContainerRef,
+    playerContainerRef: propPlayerContainerRef,
+    playerRef: propPlayerRef,
     children,
 }) => {
+    // Get refs from context (if available) with props as fallback
+    const contextRefs = usePreviewRefsSafe();
+    const aspectContainerRef = propAspectContainerRef ?? contextRefs?.aspectContainerRef ?? { current: null };
+    const playerContainerRef = propPlayerContainerRef ?? contextRefs?.playerContainerRef ?? { current: null };
+    const playerRef = propPlayerRef ?? contextRefs?.playerRef ?? { current: null };
     // Get playback/render state from context (provided by PlaybackSettingsProvider)
     const { playback, renderSettings } = usePlaybackSettings();
     const isPlaying = playback.isPlaying;
@@ -393,46 +402,10 @@ export const PreviewInteractions: React.FC<PreviewInteractionsProps> = ({
         const percentX = videoRectData.width > 0 ? (videoPoint.x / videoRectData.width) * 100 : 50
         const percentY = videoRectData.height > 0 ? (videoPoint.y / videoRectData.height) * 100 : 50
 
-        const startTime = currentTimeMs
-        const endTime = startTime + 3000 // 3 second default duration
-        const defaultSize = getDefaultAnnotationSize(type)
-
-        // Adjust position for top-left anchored elements (Highlight, Redaction, Blur)
-        const isTopLeftAnchor = type === AnnotationType.Highlight ||
-            type === AnnotationType.Redaction ||
-            type === AnnotationType.Blur
-
-        let finalX = percentX
-        let finalY = percentY
-        if (isTopLeftAnchor && defaultSize.width && defaultSize.height) {
-            finalX = percentX - defaultSize.width / 2
-            finalY = percentY - defaultSize.height / 2
-        }
-
-        const effect: Effect = {
-            id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            type: EffectType.Annotation,
-            startTime,
-            endTime,
-            enabled: true,
-            data: {
-                type,
-                position: { x: finalX, y: finalY },
-                content: type === AnnotationType.Text ? 'New text' : undefined,
-                endPosition: type === AnnotationType.Arrow
-                    ? { x: percentX + 10, y: percentY }
-                    : undefined,
-                width: defaultSize.width,
-                height: defaultSize.height,
-                style: {
-                    color: type === AnnotationType.Highlight ? '#ffeb3b' : '#ffffff',
-                    backgroundColor: type === AnnotationType.Redaction ? '#000000' : undefined,
-                    fontSize: 18,
-                    textAlign: type === AnnotationType.Text ? 'center' : undefined,
-                    borderRadius: type === AnnotationType.Redaction ? 2 : undefined,
-                },
-            } satisfies AnnotationData,
-        }
+        const effect = EffectCreation.createAnnotationEffect(type, {
+            startTime: currentTimeMs,
+            position: { x: percentX, y: percentY },
+        })
 
         addEffect(effect)
         selectEffectLayer(EffectLayerType.Annotation, effect.id)

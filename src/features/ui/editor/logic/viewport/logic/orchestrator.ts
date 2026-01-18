@@ -467,6 +467,43 @@ export function computeCameraState({
         )
       }
 
+      // Edge extension: when cursor is near content edge, push camera target toward padding
+      // This allows track cursor to reveal background just like manual point mode does
+      const contentLeftOut = safeOverscan.left / denomX
+      const contentRightOut = 1 - safeOverscan.right / denomX
+      const contentTopOut = safeOverscan.top / denomY
+      const contentBottomOut = 1 - safeOverscan.bottom / denomY
+
+      // How close to edge triggers extension (in output-space normalized units)
+      const edgeThreshold = Math.max(1e-6, halfWindowOutX)
+      const edgeThresholdY = Math.max(1e-6, halfWindowOutY)
+
+      // Calculate how much to extend based on cursor proximity to edge
+      const cursorNearLeftEdge = Math.max(0, edgeThreshold - (cursorOut.x - contentLeftOut)) / edgeThreshold
+      const cursorNearRightEdge = Math.max(0, edgeThreshold - (contentRightOut - cursorOut.x)) / edgeThreshold
+      const cursorNearTopEdge = Math.max(0, edgeThresholdY - (cursorOut.y - contentTopOut)) / edgeThresholdY
+      const cursorNearBottomEdge = Math.max(0, edgeThresholdY - (contentBottomOut - cursorOut.y)) / edgeThresholdY
+
+      // When cursor approaches content edges, blend the camera toward the OUTPUT edge
+      // so the padding area becomes visible (matches manual target behavior).
+      const minCenterOutX = halfWindowOutX
+      const maxCenterOutX = 1 - halfWindowOutX
+      const minCenterOutY = halfWindowOutY
+      const maxCenterOutY = 1 - halfWindowOutY
+
+      const applyEdgeReveal = (target: number, nearMin: number, nearMax: number, minCenter: number, maxCenter: number) => {
+        const weight = Math.max(0, nearMin) + Math.max(0, nearMax)
+        if (weight <= 0) return target
+        const desired = (nearMin * minCenter + nearMax * maxCenter) / weight
+        const t = smootherStep(Math.min(1, weight))
+        return target + (desired - target) * t
+      }
+
+      targetOut = {
+        x: applyEdgeReveal(targetOut.x, cursorNearLeftEdge, cursorNearRightEdge, minCenterOutX, maxCenterOutX),
+        y: applyEdgeReveal(targetOut.y, cursorNearTopEdge, cursorNearBottomEdge, minCenterOutY, maxCenterOutY),
+      }
+
       return { x: targetOut.x * denomX - safeOverscan.left, y: targetOut.y * denomY - safeOverscan.top }
     }
 
@@ -491,7 +528,19 @@ export function computeCameraState({
   } else if (activeZoomBlock && !shouldFollowMouse && activeZoomBlock.targetX != null && activeZoomBlock.targetY != null) {
     const sw = activeZoomBlock.screenWidth || sourceWidth
     const sh = activeZoomBlock.screenHeight || sourceHeight
-    targetCenter = { x: activeZoomBlock.targetX / sw, y: activeZoomBlock.targetY / sh }
+    const rawTarget = { x: activeZoomBlock.targetX / sw, y: activeZoomBlock.targetY / sh }
+
+    // When allowOverscanReveal is true, the UI stores targets in output-space (0=left edge of background,
+    // 1=right edge of background). Convert to content-space for internal calculations.
+    // This allows dragging to 100% in the UI to actually reach the edge of the background.
+    if (allowOverscanReveal && hasOverscan) {
+      targetCenter = {
+        x: rawTarget.x * denomX - safeOverscan.left,
+        y: rawTarget.y * denomY - safeOverscan.top,
+      }
+    } else {
+      targetCenter = rawTarget
+    }
     // No clamping here - done once at end with full context
   } else {
     const algo = mouseFollowAlgorithm ?? 'deadzone'
@@ -795,9 +844,10 @@ export function computeCameraState({
     minY: activeCropData.y, maxY: activeCropData.y + activeCropData.height
   } : undefined
 
-  // Determine clamping behavior based on context:
+  // Determine clamping behavior based on user intent:
   // - When zoomed (scale > 1) AND no background padding: clamp strictly to video (no black bars)
   // - When zoomed AND has background padding: allow camera into padding area (reveal background)
+  // Use only allowOverscanReveal (user intent from padding config), not hasOverscan (computed geometry)
   const ignoreOverscan = currentScale > 1.01 && !allowOverscanReveal
 
   // Apply clamping (single call based on coordinate space)
@@ -822,7 +872,7 @@ export function computeCameraState({
     finalCenter = clampCenterToContentBounds(finalCenter, clampHalfX, clampHalfY, safeOverscan, false, ignoreOverscan, contentBounds)
   }
 
-  // 2. Resolve Visibility (Screen Studio fix / "Push" logic)
+  // 2. Resolve Visibility
   // This OVERRIDES clamping because seeing the cursor is more important than black bars.
   const shouldSkipVisibilityDuringIntro = useFixedIntroWindow // only "Live" should chase/push during intro
   if (shouldFollowMouse && !shouldSkipVisibilityDuringIntro) {
